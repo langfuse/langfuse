@@ -2,11 +2,6 @@ import type { FilterState } from "@langfuse/shared";
 import { sdkVersionNeedsRefresh } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
-const OWNER_BY_ORIGIN = {
-  user: "user",
-  saved_view: "saved_view",
-  system: "fallback",
-} as const;
 
 export const APP_ROOT_OBSERVATION_FILTER = {
   column: "isRootObservation",
@@ -17,13 +12,6 @@ export const APP_ROOT_OBSERVATION_FILTER = {
 
 export const APP_ROOT_FILTER_STATE: FilterState = [APP_ROOT_OBSERVATION_FILTER];
 
-export type AppRootDefaultOwner =
-  | "pending"
-  | "neutral"
-  | "url"
-  | "saved_view"
-  | "user"
-  | "fallback";
 export type AppRootFilterChangeOrigin = "user" | "saved_view" | "system";
 
 const hasQueryValue = (value: string | string[] | undefined) =>
@@ -43,6 +31,18 @@ export const urlOwnsEventsTableState = (
 export const storedViewOwnsEventsTableState = (value: string | null) =>
   Boolean(value) && value !== "null";
 
+export const shouldQuerySdkVersion = (params: {
+  enabled: boolean;
+  routerReady: boolean;
+  sdkCheckedAt: string | null;
+  dismissed: boolean;
+  now: number;
+}) =>
+  params.enabled &&
+  params.routerReady &&
+  !params.dismissed &&
+  sdkVersionNeedsRefresh(params.sdkCheckedAt, params.now);
+
 export const getAppRootDefaultPolicy = (params: {
   enabled: boolean;
   routerReady: boolean;
@@ -52,51 +52,26 @@ export const getAppRootDefaultPolicy = (params: {
   preference: string | null;
   defaultViewSettled: boolean;
   savedViewOwnsState: boolean;
-  owner: AppRootDefaultOwner;
-  urlOwnsState: boolean;
+  dismissed: boolean;
   now: number;
 }) => {
   const sdkCheckCached = Number.isFinite(Date.parse(params.sdkCheckedAt ?? ""));
-  const sdkNeedsRefresh = sdkVersionNeedsRefresh(
-    params.sdkCheckedAt,
-    params.now,
-  );
   const capabilitySupported =
     params.appRootSupported && (sdkCheckCached || params.sdkCheckSettled);
-  let owner = params.owner;
-
-  if (params.routerReady && owner === "pending") {
-    owner = params.urlOwnsState ? "url" : "neutral";
-  }
-  if (
-    params.routerReady &&
-    owner === "neutral" &&
-    !capabilitySupported &&
-    params.urlOwnsState
-  ) {
-    owner = "url";
-  }
-
-  const active = params.enabled && params.routerReady;
   const shouldApplyFilter =
-    active &&
+    params.enabled &&
+    params.routerReady &&
     capabilitySupported &&
     params.preference !== "suppressed" &&
     params.defaultViewSettled &&
     !params.savedViewOwnsState &&
-    owner === "neutral";
+    !params.dismissed;
 
   return {
-    owner,
     shouldApplyFilter,
-    isAutoManaged: shouldApplyFilter,
     shouldPersistAuto: shouldApplyFilter && params.preference === null,
     shouldPersistSdkVersion:
-      active &&
-      sdkNeedsRefresh &&
-      owner !== "fallback" &&
-      params.sdkCheckSettled,
-    shouldQuerySdkVersion: active && sdkNeedsRefresh && owner !== "fallback",
+      shouldQuerySdkVersion(params) && params.sdkCheckSettled,
   };
 };
 
@@ -123,21 +98,18 @@ export const getAppRootSavedViewComparisonFilters = (
   isAutoManaged: boolean,
 ) => (isAutoManaged ? removeAppRootDefaultFilter(filters) : filters);
 
-export const getAppRootFilterChangeDecision = (params: {
+export const getAppRootSuppressionToPersist = (params: {
   origin: AppRootFilterChangeOrigin;
   wasAutoManaged: boolean;
   previousFilters: FilterState;
   nextFilters: FilterState;
-}) => ({
-  owner: OWNER_BY_ORIGIN[params.origin],
-  preferenceToPersist:
-    params.origin === "user" &&
-    params.wasAutoManaged &&
-    hasEnabledAppRootFilter(params.previousFilters) &&
-    !hasEnabledAppRootFilter(params.nextFilters)
-      ? ("suppressed" as const)
-      : null,
-});
+}) =>
+  params.origin === "user" &&
+  params.wasAutoManaged &&
+  hasEnabledAppRootFilter(params.previousFilters) &&
+  !hasEnabledAppRootFilter(params.nextFilters)
+    ? ("suppressed" as const)
+    : null;
 
 export const shouldRunAppRootFallbackQuery = (params: {
   enabled: boolean;

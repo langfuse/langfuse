@@ -3,10 +3,8 @@ import { useCallback, useSyncExternalStore } from "react";
 type BrowserStorage = "localStorage" | "sessionStorage";
 const localListeners = new Set<() => void>();
 
-export const appRootPreferenceStorageKey = (
-  userId: string,
-  projectId: string,
-) => `events-filter-app-root-default:${userId}:${projectId}`;
+export const appRootPreferenceStorageKey = (projectId: string) =>
+  `events-filter-app-root-default:${projectId}`;
 export const appRootSavedViewSessionStorageKey = (projectId: string) =>
   `observations-events-${projectId}-viewId`;
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useSession } from "next-auth/react";
 import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
 
 import { api } from "@/src/utils/api";
@@ -8,11 +7,11 @@ import {
   APP_ROOT_FILTER_STATE,
   getAppRootDefaultPolicy,
   getAppRootFallbackDecision,
-  getAppRootFilterChangeDecision,
+  getAppRootSuppressionToPersist,
+  shouldQuerySdkVersion,
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
   viewOwnsEventsTableState,
-  type AppRootDefaultOwner,
   type AppRootFilterChangeOrigin,
 } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import {
@@ -33,55 +32,72 @@ export function useAppRootDefault(params: {
 }) {
   const { enabled, projectId } = params;
   const router = useRouter();
-  const userId = useSession().data!.user!.id;
   const utils = api.useUtils();
-  const [ownerState, setOwnerState] = useState<{
+
+  // The default's only session state: has it been dismissed for this project?
+  // URL-carried table state (filter/search/sort/viewId) dismisses on the
+  // FIRST router-ready render only — params the table itself writes later
+  // (e.g. ?search) must not retroactively dismiss. Explicit filter changes
+  // dismiss via `dismissDefault` below.
+  const [dismissal, setDismissal] = useState<{
     projectId: string;
-    owner: AppRootDefaultOwner;
-  }>(() => ({ projectId, owner: "pending" }));
-  const owner =
-    ownerState.projectId === projectId ? ownerState.owner : "pending";
+    arrivalChecked: boolean;
+    dismissed: boolean;
+  }>(() => ({ projectId, arrivalChecked: false, dismissed: false }));
+  const baseDismissal =
+    dismissal.projectId === projectId
+      ? dismissal
+      : { projectId, arrivalChecked: false, dismissed: false };
+  const nextDismissal =
+    router.isReady && !baseDismissal.arrivalChecked
+      ? {
+          projectId,
+          arrivalChecked: true,
+          dismissed:
+            baseDismissal.dismissed || urlOwnsEventsTableState(router.query),
+        }
+      : baseDismissal;
+  if (nextDismissal !== dismissal) {
+    setDismissal(nextDismissal);
+  }
+  const dismissed = nextDismissal.dismissed;
+
+  const dismissDefault = useCallback(() => {
+    setDismissal((current) =>
+      current.projectId === projectId && current.dismissed
+        ? current
+        : { projectId, arrivalChecked: true, dismissed: true },
+    );
+  }, [projectId]);
 
   const {
     language: sdkLanguageKey,
     version: sdkVersionKey,
     checkedAt: sdkCheckedAtKey,
   } = sdkVersionStorageKeys(projectId);
-  const preferenceKey = appRootPreferenceStorageKey(userId, projectId);
+  const preferenceKey = appRootPreferenceStorageKey(projectId);
   const savedViewKey = appRootSavedViewSessionStorageKey(projectId);
   const sdkLanguage = useBrowserStorageValue("localStorage", sdkLanguageKey);
   const sdkVersion = useBrowserStorageValue("localStorage", sdkVersionKey);
   const sdkCheckedAt = useBrowserStorageValue("localStorage", sdkCheckedAtKey);
-  const cachedAppRootSupported = getSdkVersionCapability(
-    sdkCheckedAt ? { language: sdkLanguage, version: sdkVersion } : undefined,
-    "appRootObservations",
-  );
   const preference = useBrowserStorageValue("localStorage", preferenceKey);
   const restoredSavedViewId = useBrowserStorageValue(
     "sessionStorage",
     savedViewKey,
   );
-  const currentUrlOwnsState = urlOwnsEventsTableState(router.query);
   const currentViewOwnsState = viewOwnsEventsTableState(router.query);
   const now = Date.now();
-  const queryPolicy = getAppRootDefaultPolicy({
-    enabled,
-    routerReady: router.isReady,
-    appRootSupported: cachedAppRootSupported,
-    sdkCheckedAt,
-    sdkCheckSettled: false,
-    preference,
-    defaultViewSettled: false,
-    savedViewOwnsState: false,
-    owner,
-    urlOwnsState: currentUrlOwnsState,
-    now,
-  });
 
   const sdkQuery = api.events.getSdkVersionInfo.useQuery(
     { projectId },
     {
-      enabled: queryPolicy.shouldQuerySdkVersion,
+      enabled: shouldQuerySdkVersion({
+        enabled,
+        routerReady: router.isReady,
+        sdkCheckedAt,
+        dismissed,
+        now,
+      }),
       refetchOnWindowFocus: false,
       retry: false,
     },
@@ -98,8 +114,7 @@ export function useAppRootDefault(params: {
   const savedViewOwnsState =
     currentViewOwnsState ||
     storedViewOwnsEventsTableState(restoredSavedViewId) ||
-    Boolean(defaultViewQuery.data?.viewId) ||
-    owner === "saved_view";
+    Boolean(defaultViewQuery.data?.viewId);
   const sdkCheckSettled = sdkQuery.isSuccess && !sdkQuery.isFetching;
   const checkedSdkVersion = toSdkVersionInfo(
     sdkCheckSettled ? sdkQuery.data : undefined,
@@ -120,13 +135,9 @@ export function useAppRootDefault(params: {
     preference,
     defaultViewSettled: !defaultViewQuery.isLoading,
     savedViewOwnsState,
-    owner,
-    urlOwnsState: currentUrlOwnsState,
+    dismissed,
     now,
   });
-  if (ownerState.projectId !== projectId || policy.owner !== owner) {
-    setOwnerState({ projectId, owner: policy.owner });
-  }
 
   useEffect(() => {
     if (policy.shouldPersistSdkVersion) {
@@ -165,25 +176,21 @@ export function useAppRootDefault(params: {
     }) => {
       if (!enabled) return;
 
-      const filterDecision = getAppRootFilterChangeDecision({
+      const preferenceToPersist = getAppRootSuppressionToPersist({
         ...change,
         wasAutoManaged: policy.shouldApplyFilter || autoProvenanceKnown,
       });
-      setOwnerState({ projectId, owner: filterDecision.owner });
-      if (filterDecision.preferenceToPersist) {
-        writeStorage(
-          "localStorage",
-          preferenceKey,
-          filterDecision.preferenceToPersist,
-        );
+      dismissDefault();
+      if (preferenceToPersist) {
+        writeStorage("localStorage", preferenceKey, preferenceToPersist);
       }
     },
     [
       autoProvenanceKnown,
+      dismissDefault,
       enabled,
       policy.shouldApplyFilter,
       preferenceKey,
-      projectId,
     ],
   );
 
@@ -204,7 +211,7 @@ export function useAppRootDefault(params: {
     defaultExplicitFilterState: policy.shouldApplyFilter
       ? APP_ROOT_FILTER_STATE
       : [],
-    isAutoManaged: policy.isAutoManaged,
+    isAutoManaged: policy.shouldApplyFilter,
     onExplicitFilterStateChange,
     removeSdkVersionCache,
   };

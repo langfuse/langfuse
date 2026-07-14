@@ -4,10 +4,12 @@ import {
   APP_ROOT_OBSERVATION_FILTER,
   getAppRootDefaultPolicy,
   getAppRootFallbackDecision,
-  getAppRootFilterChangeDecision,
   getAppRootSavedViewComparisonFilters,
+  getAppRootSuppressionToPersist,
   removeAppRootDefaultFilter,
+  shouldQuerySdkVersion,
   storedViewOwnsEventsTableState,
+  urlOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
 import { appRootPreferenceStorageKey } from "./appRootDefaultStorage";
 import {
@@ -35,8 +37,7 @@ const basePolicy = {
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
-  owner: "neutral" as const,
-  urlOwnsState: false,
+  dismissed: false,
   now,
 };
 
@@ -60,9 +61,9 @@ describe("app-root default policy", () => {
   });
 
   it.each([
-    [{}, true, false],
-    [{ enabled: false }, false, false],
-    [{ sdkCheckedAt: null }, false, true],
+    [{}, true],
+    [{ enabled: false }, false],
+    [{ sdkCheckedAt: null }, false],
     [
       {
         appRootSupported: getSdkVersionCapability(
@@ -71,32 +72,55 @@ describe("app-root default policy", () => {
         ),
       },
       false,
-      false,
     ],
-    [{ preference: "suppressed" }, false, false],
-    [{ owner: "url" as const }, false, false],
-    [{ savedViewOwnsState: true }, false, false],
-  ])("resolves table eligibility %#", (override, apply, querySdk) => {
-    const policy = getAppRootDefaultPolicy({ ...basePolicy, ...override });
-    expect(policy.shouldApplyFilter).toBe(apply);
-    expect(policy.shouldQuerySdkVersion).toBe(querySdk);
+    [{ preference: "suppressed" }, false],
+    [{ dismissed: true }, false],
+    [{ savedViewOwnsState: true }, false],
+  ])("resolves table eligibility %#", (override, apply) => {
+    expect(
+      getAppRootDefaultPolicy({ ...basePolicy, ...override }).shouldApplyFilter,
+    ).toBe(apply);
   });
 
-  it("tracks URL ownership while SDK capability is unknown", () => {
+  it("queries the SDK version only when a refresh could matter", () => {
+    const base = {
+      enabled: true,
+      routerReady: true,
+      sdkCheckedAt: null,
+      dismissed: false,
+      now,
+    };
+    expect(shouldQuerySdkVersion(base)).toBe(true);
     expect(
-      getAppRootDefaultPolicy({
-        ...basePolicy,
-        sdkCheckedAt: null,
-        owner: "pending",
-      }).owner,
-    ).toBe("neutral");
+      shouldQuerySdkVersion({
+        ...base,
+        sdkCheckedAt: "2026-07-14T12:00:00.000Z",
+      }),
+    ).toBe(false);
     expect(
-      getAppRootDefaultPolicy({
-        ...basePolicy,
-        sdkCheckedAt: null,
-        urlOwnsState: true,
-      }).owner,
-    ).toBe("url");
+      shouldQuerySdkVersion({
+        ...base,
+        sdkCheckedAt: "2026-05-01T12:00:00.000Z",
+      }),
+    ).toBe(true);
+    expect(shouldQuerySdkVersion({ ...base, dismissed: true })).toBe(false);
+  });
+
+  it("persists the SDK check only after it settles", () => {
+    const stale = { ...basePolicy, sdkCheckedAt: null };
+    expect(getAppRootDefaultPolicy(stale).shouldPersistSdkVersion).toBe(false);
+    expect(
+      getAppRootDefaultPolicy({ ...stale, sdkCheckSettled: true })
+        .shouldPersistSdkVersion,
+    ).toBe(true);
+  });
+
+  it("URL table-state params own the table on arrival", () => {
+    expect(urlOwnsEventsTableState({})).toBe(false);
+    expect(urlOwnsEventsTableState({ peek: "obs-1" })).toBe(false);
+    expect(urlOwnsEventsTableState({ search: "x" })).toBe(true);
+    expect(urlOwnsEventsTableState({ filter: "level;is;ERROR" })).toBe(true);
+    expect(urlOwnsEventsTableState({ viewId: "view-1" })).toBe(true);
   });
 
   it("handles persisted storage values", () => {
@@ -107,30 +131,36 @@ describe("app-root default policy", () => {
       version: "events-sdk-version:project-a",
       checkedAt: "events-sdk-checkedAt:project-a",
     });
-    expect(appRootPreferenceStorageKey("user-a", "project-a")).toBe(
-      "events-filter-app-root-default:user-a:project-a",
+    expect(appRootPreferenceStorageKey("project-a")).toBe(
+      "events-filter-app-root-default:project-a",
     );
   });
 
   it("suppresses only a user removal of the automatic root filter", () => {
-    const userRemoval = getAppRootFilterChangeDecision({
-      origin: "user",
-      wasAutoManaged: true,
-      previousFilters: [APP_ROOT_OBSERVATION_FILTER],
-      nextFilters: [],
-    });
-    expect(userRemoval).toEqual({
-      owner: "user",
-      preferenceToPersist: "suppressed",
-    });
     expect(
-      getAppRootFilterChangeDecision({
+      getAppRootSuppressionToPersist({
+        origin: "user",
+        wasAutoManaged: true,
+        previousFilters: [APP_ROOT_OBSERVATION_FILTER],
+        nextFilters: [],
+      }),
+    ).toBe("suppressed");
+    expect(
+      getAppRootSuppressionToPersist({
         origin: "saved_view",
         wasAutoManaged: true,
         previousFilters: [APP_ROOT_OBSERVATION_FILTER],
         nextFilters: [],
       }),
-    ).toEqual({ owner: "saved_view", preferenceToPersist: null });
+    ).toBe(null);
+    expect(
+      getAppRootSuppressionToPersist({
+        origin: "user",
+        wasAutoManaged: false,
+        previousFilters: [APP_ROOT_OBSERVATION_FILTER],
+        nextFilters: [],
+      }),
+    ).toBe(null);
   });
 
   it("does not treat the automatic root filter as applied saved-view state", () => {
