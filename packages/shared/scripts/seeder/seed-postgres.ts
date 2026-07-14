@@ -56,7 +56,10 @@ const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
 // in-app-agent demo prompt is optional seed content.
 let inAppAgentSystemPrompt = "";
 try {
-  inAppAgentSystemPrompt = readFileSync(IN_APP_AGENT_SYSTEM_PROMPT_PATH, "utf-8");
+  inAppAgentSystemPrompt = readFileSync(
+    IN_APP_AGENT_SYSTEM_PROMPT_PATH,
+    "utf-8",
+  );
 } catch {
   inAppAgentSystemPrompt = "";
 }
