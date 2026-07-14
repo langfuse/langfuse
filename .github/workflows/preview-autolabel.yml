@@ -1,0 +1,65 @@
+name: AWS preview auto-label
+
+# Auto-apply the `preview` label to same-repo PRs opened by an allowlisted
+# author, so the Argo CD ApplicationSet (in the infrastructure repo) picks them
+# up and builds a preview. Anyone with write access can also apply the label
+# by hand; the build workflow re-checks the PR author before building with a
+# cloud credential, so a manual label from a non-allowlisted author is inert.
+#
+# Uses the plain `pull_request` trigger (NOT pull_request_target): it holds no
+# cloud credentials, never checks out or executes PR code, and only calls
+# issues.addLabels. The label is not a security boundary — the build workflow
+# independently re-checks the PR author before using any credential — so
+# pull_request_target's tamper-resistance isn't needed here, and avoiding it
+# keeps this off the dangerous-triggers list. Same-repo PRs get a write token to
+# add the label; fork PRs are short-circuited below (and get a read-only token).
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  autolabel:
+    name: Auto-label allowlisted PRs
+    runs-on: ubuntu-latest
+    if: vars.AWS_PREVIEW_ALLOWED_USERS != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label allowlisted, same-repo PRs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ALLOWED_USERS: ${{ vars.AWS_PREVIEW_ALLOWED_USERS }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+
+            // Same-repo only: fork PRs cannot mint an OIDC token, so the build
+            // workflow could never push their image — an auto-labeled fork PR
+            // would only create a broken environment.
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork PR; auto-label is limited to same-repo branches.");
+              return;
+            }
+
+            // Exact-match allowlist (never substring — a login that is a
+            // substring of an allowlisted one must not pass).
+            const allowed = (process.env.ALLOWED_USERS || "")
+              .split(/[\s,]+/)
+              .filter(Boolean)
+              .map((u) => u.toLowerCase());
+            const author = pr.user.login.toLowerCase();
+            if (!allowed.includes(author)) {
+              core.info(`Author ${author} is not on the preview allowlist; skipping.`);
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pr.number,
+              labels: ["preview"],
+            });
+            core.info(`Applied 'preview' label to PR #${pr.number} (author ${author}).`);
