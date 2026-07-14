@@ -1,6 +1,6 @@
 import { BotMessageSquare } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
+import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import {
   Tooltip,
   TooltipContent,
@@ -20,7 +20,7 @@ export function InAppAgentHeaderButton() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
+        <RainbowButton
           aria-label={label}
           aria-pressed={open}
           data-ignore-outside-interaction
@@ -33,11 +33,10 @@ export function InAppAgentHeaderButton() {
             openAssistant("page_header");
           }}
           size="sm"
-          variant="ghost"
         >
           <BotMessageSquare className="h-4 w-4" />
           <span className="hidden sm:inline">Assistant</span>
-        </Button>
+        </RainbowButton>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>

@@ -121,8 +121,8 @@ const PageHeader = ({
                 hoisted from a list table via PageHeaderControlsPortal.
                 Empty on pages that don't use it. */}
             <div className="flex flex-wrap items-center gap-2">
-              <PageHeaderControlsSlotTarget />
               <InAppAgentHeaderButton />
+              <PageHeaderControlsSlotTarget />
             </div>
           </div>
         </div>
