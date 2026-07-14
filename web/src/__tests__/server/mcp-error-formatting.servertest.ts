@@ -27,6 +27,7 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   BaseError,
+  InternalServerError,
 } from "@langfuse/shared";
 
 describe("MCP Error Formatting", () => {
@@ -203,10 +204,10 @@ describe("MCP Error Formatting", () => {
         );
       });
 
-      it("should format BaseError as InvalidRequest", () => {
+      it("should format 4xx BaseError as InvalidRequest", () => {
         const error = new BaseError(
           "Generic base error",
-          500,
+          409,
           "Generic base error",
           true,
         );
@@ -215,6 +216,14 @@ describe("MCP Error Formatting", () => {
         expect(mcpError.code).toBe(ErrorCode.InvalidRequest);
         // BaseError is a base class - message handling may vary
         expect(mcpError).toBeInstanceOf(McpError);
+      });
+
+      it("should format 5xx BaseError as InternalError with original message", () => {
+        const error = new InternalServerError("Requested score is corrupted");
+        const mcpError = formatErrorForUser(error);
+
+        expect(mcpError.code).toBe(ErrorCode.InternalError);
+        expect(mcpError.message).toContain("Requested score is corrupted");
       });
     });
 

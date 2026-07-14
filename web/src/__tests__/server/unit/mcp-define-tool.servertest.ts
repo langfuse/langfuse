@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { InternalServerError } from "@langfuse/shared";
 import { recordIncrement } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../features/mcp/core/define-tool";
 import type { ServerContext } from "../../../features/mcp/types";
@@ -84,6 +85,30 @@ describe("defineTool", () => {
     await expect(
       handler({ name: "Langfuse" }, externalContext),
     ).rejects.toThrow("An unexpected error occurred");
+
+    expect(recordIncrement).toHaveBeenCalledOnce();
+    expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {
+      tool: "plainTool",
+      outcome: "server_error",
+      client: "external",
+    });
+  });
+
+  it("records 5xx BaseError handler failures as server errors", async () => {
+    const schema = z.object({ name: z.string() });
+    const [, handler] = defineTool({
+      name: "plainTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async () => {
+        throw new InternalServerError("Database row corrupted");
+      },
+    });
+
+    await expect(
+      handler({ name: "Langfuse" }, externalContext),
+    ).rejects.toThrow("Database row corrupted");
 
     expect(recordIncrement).toHaveBeenCalledOnce();
     expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {

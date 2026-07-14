@@ -77,8 +77,15 @@ export function formatErrorForUser(error: unknown): McpError {
   }
 
   if (error instanceof BaseError) {
-    logger.warn("MCP BaseError", error);
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    if (error.isUserError()) {
+      logger.warn("MCP BaseError", error);
+      return new McpError(ErrorCode.InvalidRequest, error.message);
+    }
+    logger.error("MCP Server BaseError", {
+      message: error.message,
+      name: error.name,
+    });
+    return new McpError(ErrorCode.InternalError, error.message);
   }
 
   // Generic errors (sanitized logging)
