@@ -47,7 +47,8 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
-  LLM execution helpers, and server test utilities.
+  AI SDK-native LLM execution helpers (`generateLLMText` and
+  `streamLLMText`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.

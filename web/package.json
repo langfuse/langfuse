@@ -52,7 +52,6 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@ferrucc-io/emoji-picker": "^0.0.47",
     "@hookform/resolvers": "^5.2.2",
-    "@langchain/core": "^1.1.48",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@mastra/client-js": "1.21.1",
