@@ -1,21 +1,18 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-const STORAGE_CHANGE_EVENT = "langfuse-app-root-default-storage-change";
+type BrowserStorage = "localStorage" | "sessionStorage";
+const localListeners = new Set<() => void>();
 
 export const appRootCapabilityStorageKey = (projectId: string) =>
   `events-app-root-capability:v1:${projectId}`;
-
 export const appRootPreferenceStorageKey = (
   userId: string,
   projectId: string,
 ) => `events-app-root-default:v1:${userId}:${projectId}`;
-
 export const appRootSavedViewSessionStorageKey = (projectId: string) =>
   `observations-events-${projectId}-viewId`;
 
-type BrowserStorage = "localStorage" | "sessionStorage";
-
-const readStorage = (storage: BrowserStorage, key: string): string | null => {
+const readStorage = (storage: BrowserStorage, key: string) => {
   if (typeof window === "undefined") return null;
   try {
     return window[storage].getItem(key);
@@ -31,11 +28,10 @@ export const writeStorage = (
 ) => {
   if (typeof window === "undefined") return;
   try {
-    if (value === null) window[storage].removeItem(key);
-    else window[storage].setItem(key, value);
-    window.dispatchEvent(
-      new CustomEvent(STORAGE_CHANGE_EVENT, { detail: { storage, key } }),
-    );
+    value === null
+      ? window[storage].removeItem(key)
+      : window[storage].setItem(key, value);
+    localListeners.forEach((listener) => listener());
   } catch {
     // Storage can be unavailable in hardened/private browser contexts.
   }
@@ -46,24 +42,17 @@ export const useBrowserStorageValue = (
   key: string,
 ) => {
   const subscribe = useCallback(
-    (onStoreChange: () => void) => {
+    (listener: () => void) => {
       const onStorage = (event: StorageEvent) => {
         if (event.storageArea === window[storage] && event.key === key) {
-          onStoreChange();
+          listener();
         }
       };
-      const onLocalChange = (event: Event) => {
-        const detail = (event as CustomEvent).detail as
-          | { storage?: BrowserStorage; key?: string }
-          | undefined;
-        if (detail?.storage === storage && detail.key === key) onStoreChange();
-      };
-
+      localListeners.add(listener);
       window.addEventListener("storage", onStorage);
-      window.addEventListener(STORAGE_CHANGE_EVENT, onLocalChange);
       return () => {
+        localListeners.delete(listener);
         window.removeEventListener("storage", onStorage);
-        window.removeEventListener(STORAGE_CHANGE_EVENT, onLocalChange);
       };
     },
     [key, storage],
@@ -72,7 +61,5 @@ export const useBrowserStorageValue = (
     () => readStorage(storage, key),
     [key, storage],
   );
-  const getServerSnapshot = useCallback(() => null, []);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot, () => null);
 };

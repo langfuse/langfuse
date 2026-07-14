@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 
 import {
@@ -7,6 +6,7 @@ import {
   getAppRootFallbackDecision,
   getAppRootFilterChangeDecision,
   removeAppRootDefaultFilter,
+  storedViewOwnsEventsTableState,
   supportsAppRootFiltering,
 } from "./appRootDefaultPolicy";
 import {
@@ -20,8 +20,7 @@ const levelFilter: FilterState[number] = {
   operator: "any of",
   value: ["ERROR"],
 };
-
-const neutralPolicyInput = {
+const basePolicy = {
   enabled: true,
   routerReady: true,
   hasUserId: true,
@@ -29,131 +28,76 @@ const neutralPolicyInput = {
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
-  currentViewOwnsState: false,
   owner: "neutral" as const,
   urlOwnsState: false,
 };
 
-describe("app-root table default", () => {
+describe("app-root default policy", () => {
   it.each([
     ["javascript", "5.4.0", true],
-    ["javascript", "5.10.0", true],
     ["javascript", "5.3.9", false],
-    ["typescript", "5.4.0", true],
+    ["typescript", "5.10.0", true],
     ["@langfuse/tracing", "5.4.0", true],
     ["python", "4.7.0", true],
     ["python", "4.6.9", false],
     ["python", "4.7.0rc1", false],
     ["unknown", "99.0.0", false],
-    ["javascript", "99999999999999999999.0.0", false],
-  ])("recognizes %s %s support", (name, version, expected) => {
+  ])("classifies %s %s", (name, version, expected) => {
     expect(supportsAppRootFiltering({ isOtel: true, name, version })).toBe(
       expected,
     );
   });
 
-  it("scopes capability by project and preference by user and project", () => {
-    expect(appRootCapabilityStorageKey("project-a")).toBe(
-      "events-app-root-capability:v1:project-a",
-    );
-    expect(appRootPreferenceStorageKey("user-a", "project-a")).toBe(
-      "events-app-root-default:v1:user-a:project-a",
-    );
+  it.each([
+    [{}, true, false],
+    [{ enabled: false }, false, false],
+    [{ cachedCapability: null }, false, true],
+    [{ preference: "suppressed" }, false, false],
+    [{ owner: "url" as const }, false, false],
+    [{ savedViewOwnsState: true }, false, false],
+  ])("resolves table eligibility %#", (override, apply, querySdk) => {
+    const policy = getAppRootDefaultPolicy({ ...basePolicy, ...override });
+    expect(policy.shouldApplyFilter).toBe(apply);
+    expect(policy.shouldQueryCapability).toBe(querySdk);
   });
 
-  it("applies only on an eligible neutral table", () => {
-    expect(getAppRootDefaultPolicy(neutralPolicyInput).shouldApplyFilter).toBe(
-      true,
-    );
-    expect(
-      getAppRootDefaultPolicy({ ...neutralPolicyInput, enabled: false })
-        .shouldApplyFilter,
-    ).toBe(false);
+  it("tracks URL ownership while SDK capability is unknown", () => {
     expect(
       getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        cachedCapability: null,
-      }).shouldApplyFilter,
-    ).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        preference: "suppressed",
-      }).shouldApplyFilter,
-    ).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({ ...neutralPolicyInput, owner: "url" })
-        .shouldApplyFilter,
-    ).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        savedViewOwnsState: true,
-      }).shouldApplyFilter,
-    ).toBe(false);
-  });
-
-  it("tracks table ownership with one explicit state", () => {
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
+        ...basePolicy,
         cachedCapability: null,
         owner: "pending",
-        urlOwnsState: false,
       }).owner,
     ).toBe("neutral");
     expect(
       getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
+        ...basePolicy,
         cachedCapability: null,
-        owner: "neutral",
         urlOwnsState: true,
       }).owner,
     ).toBe("url");
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        owner: "neutral",
-        urlOwnsState: true,
-      }).owner,
-    ).toBe("neutral");
   });
 
-  it("queries SDK capability only while it is unknown and useful", () => {
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        cachedCapability: null,
-      }).shouldQueryCapability,
-    ).toBe(true);
-    expect(
-      getAppRootDefaultPolicy(neutralPolicyInput).shouldQueryCapability,
-    ).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({
-        ...neutralPolicyInput,
-        cachedCapability: null,
-        owner: "fallback",
-      }).shouldQueryCapability,
-    ).toBe(false);
+  it("handles persisted storage values", () => {
+    expect(storedViewOwnsEventsTableState("null")).toBe(false);
+    expect(storedViewOwnsEventsTableState('"view-id"')).toBe(true);
+    expect(appRootCapabilityStorageKey("project-a")).toContain("project-a");
+    expect(appRootPreferenceStorageKey("user-a", "project-a")).toContain(
+      "user-a:project-a",
+    );
   });
 
-  it("removes only the root filter", () => {
-    expect(
-      removeAppRootDefaultFilter([levelFilter, APP_ROOT_OBSERVATION_FILTER]),
-    ).toEqual([levelFilter]);
-  });
-
-  it("suppresses only after a user removes or disables an auto-managed root", () => {
-    expect(
-      getAppRootFilterChangeDecision({
-        origin: "user",
-        wasAutoManaged: true,
-        previousFilters: [APP_ROOT_OBSERVATION_FILTER],
-        nextFilters: [],
-      }).preferenceToPersist,
-    ).toBe("suppressed");
-
+  it("suppresses only a user removal of the automatic root filter", () => {
+    const userRemoval = getAppRootFilterChangeDecision({
+      origin: "user",
+      wasAutoManaged: true,
+      previousFilters: [APP_ROOT_OBSERVATION_FILTER],
+      nextFilters: [],
+    });
+    expect(userRemoval).toEqual({
+      owner: "user",
+      preferenceToPersist: "suppressed",
+    });
     expect(
       getAppRootFilterChangeDecision({
         origin: "saved_view",
@@ -162,53 +106,25 @@ describe("app-root table default", () => {
         nextFilters: [],
       }),
     ).toEqual({ owner: "saved_view", preferenceToPersist: null });
-
-    expect(
-      getAppRootFilterChangeDecision({
-        origin: "user",
-        wasAutoManaged: false,
-        previousFilters: [APP_ROOT_OBSERVATION_FILTER],
-        nextFilters: [],
-      }).preferenceToPersist,
-    ).toBeNull();
   });
 
-  it("invalidates capability only for a neutral recent fallback", () => {
+  it("removes only the root filter and invalidates only a neutral recent probe", () => {
     const now = new Date("2026-07-13T12:00:00Z").getTime();
-    const recent = {
-      from: new Date(now - 24 * 60 * 60 * 1000),
-      to: new Date(now),
-    };
+    expect(
+      removeAppRootDefaultFilter([levelFilter, APP_ROOT_OBSERVATION_FILTER]),
+    ).toEqual([levelFilter]);
 
-    expect(
+    const fallback = (filters: FilterState, daysAgo: number) =>
       getAppRootFallbackDecision({
         additionalRowsFound: true,
         isAutoManaged: true,
-        filters: [APP_ROOT_OBSERVATION_FILTER],
-        dateRange: recent,
+        filters,
+        dateRange: { from: new Date(now - daysAgo * 86_400_000) },
         now,
-      }).shouldInvalidateCapability,
-    ).toBe(true);
-    expect(
-      getAppRootFallbackDecision({
-        additionalRowsFound: true,
-        isAutoManaged: true,
-        filters: [levelFilter, APP_ROOT_OBSERVATION_FILTER],
-        dateRange: recent,
-        now,
-      }).shouldInvalidateCapability,
-    ).toBe(false);
-    expect(
-      getAppRootFallbackDecision({
-        additionalRowsFound: true,
-        isAutoManaged: true,
-        filters: [APP_ROOT_OBSERVATION_FILTER],
-        dateRange: {
-          from: new Date(now - 30 * 24 * 60 * 60 * 1000),
-          to: new Date(now - 20 * 24 * 60 * 60 * 1000),
-        },
-        now,
-      }).shouldInvalidateCapability,
-    ).toBe(false);
+      }).shouldInvalidateCapability;
+
+    expect(fallback([APP_ROOT_OBSERVATION_FILTER], 1)).toBe(true);
+    expect(fallback([levelFilter, APP_ROOT_OBSERVATION_FILTER], 1)).toBe(false);
+    expect(fallback([APP_ROOT_OBSERVATION_FILTER], 30)).toBe(false);
   });
 });

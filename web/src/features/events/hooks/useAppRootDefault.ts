@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
 
 import { api } from "@/src/utils/api";
 import {
-  APP_ROOT_OBSERVATION_FILTER,
+  APP_ROOT_FILTER_STATE,
   getAppRootDefaultPolicy,
   getAppRootFallbackDecision,
   getAppRootFilterChangeDecision,
+  storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
   viewOwnsEventsTableState,
   type AppRootDefaultOwner,
@@ -62,7 +63,6 @@ export function useAppRootDefault(params: {
     preference,
     defaultViewSettled: false,
     savedViewOwnsState: false,
-    currentViewOwnsState,
     owner,
     urlOwnsState: currentUrlOwnsState,
   });
@@ -77,8 +77,6 @@ export function useAppRootDefault(params: {
     },
   );
 
-  // Shares the same React Query cache as useTableViewManager. It lets the
-  // default policy wait for default-view ownership without delaying SDK proof.
   const defaultViewQuery = api.TableViewPresets.getDefault.useQuery(
     { projectId, viewName: TableViewPresetTableName.ObservationsEvents },
     {
@@ -88,7 +86,8 @@ export function useAppRootDefault(params: {
   );
 
   const savedViewOwnsState =
-    (Boolean(restoredSavedViewId) && restoredSavedViewId !== "null") ||
+    currentViewOwnsState ||
+    storedViewOwnsEventsTableState(restoredSavedViewId) ||
     Boolean(defaultViewQuery.data?.viewId) ||
     owner === "saved_view";
   const policy = getAppRootDefaultPolicy({
@@ -100,7 +99,6 @@ export function useAppRootDefault(params: {
     preference,
     defaultViewSettled: !defaultViewQuery.isLoading,
     savedViewOwnsState,
-    currentViewOwnsState,
     owner,
     urlOwnsState: currentUrlOwnsState,
   });
@@ -112,16 +110,17 @@ export function useAppRootDefault(params: {
     if (policy.shouldCacheCapability) {
       writeStorage("localStorage", capabilityKey, "supported");
     }
-  }, [capabilityKey, policy.shouldCacheCapability]);
-
-  useEffect(() => {
     if (policy.shouldPersistAuto) {
       writeStorage("localStorage", preferenceKey, "auto");
     }
-  }, [policy.shouldPersistAuto, preferenceKey]);
+  }, [
+    capabilityKey,
+    policy.shouldCacheCapability,
+    policy.shouldPersistAuto,
+    preferenceKey,
+  ]);
 
-  const autoProvenanceKnown =
-    preference === "auto" && !savedViewOwnsState && !currentViewOwnsState;
+  const autoProvenanceKnown = preference === "auto" && !savedViewOwnsState;
   const onExplicitFilterStateChange = useCallback(
     (change: {
       previousFilters: FilterState;
@@ -152,17 +151,15 @@ export function useAppRootDefault(params: {
     ],
   );
 
-  const defaultExplicitFilterState = useMemo<FilterState>(
-    () => (policy.shouldApplyFilter ? [APP_ROOT_OBSERVATION_FILTER] : []),
-    [policy.shouldApplyFilter],
-  );
   const removeCapabilityCache = useCallback(() => {
     writeStorage("localStorage", capabilityKey, null);
     utils.events.getSdkVersionInfo.reset({ projectId }).catch(() => undefined);
   }, [capabilityKey, projectId, utils.events.getSdkVersionInfo]);
 
   return {
-    defaultExplicitFilterState,
+    defaultExplicitFilterState: policy.shouldApplyFilter
+      ? APP_ROOT_FILTER_STATE
+      : [],
     isAutoManaged: policy.isAutoManaged,
     onExplicitFilterStateChange,
     removeCapabilityCache,

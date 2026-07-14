@@ -1,28 +1,15 @@
 import { normalizeIngestionSdkName, type FilterState } from "@langfuse/shared";
 
-/**
- * App-root default policy overview:
- *
- * - supported SDK + neutral table -> cache capability and apply root filter
- * - URL/saved-view/user ownership -> do not apply the default
- * - user removes an auto root -> persist suppression
- * - auto root is empty and unfiltered rows exist -> remove root
- * - neutral, recent empty fallback -> also clear cached capability
- *
- * This module is pure. Hooks only gather inputs and execute these decisions.
- */
-
-const APP_ROOT_SDK_MINIMUMS = {
+const SDK_MINIMUMS = {
   javascript: [5, 4, 0],
   python: [4, 7, 0],
 } as const;
-
-const TABLE_STATE_QUERY_PARAMS = [
-  "filter",
-  "search",
-  "searchType",
-  "orderBy",
-] as const;
+const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
+const OWNER_BY_ORIGIN = {
+  user: "user",
+  saved_view: "saved_view",
+  system: "fallback",
+} as const;
 
 export const APP_ROOT_OBSERVATION_FILTER = {
   column: "isRootObservation",
@@ -31,6 +18,8 @@ export const APP_ROOT_OBSERVATION_FILTER = {
   value: true,
 } as const satisfies FilterState[number];
 
+export const APP_ROOT_FILTER_STATE: FilterState = [APP_ROOT_OBSERVATION_FILTER];
+
 export type AppRootDefaultOwner =
   | "pending"
   | "neutral"
@@ -38,7 +27,6 @@ export type AppRootDefaultOwner =
   | "saved_view"
   | "user"
   | "fallback";
-
 export type AppRootFilterChangeOrigin = "user" | "saved_view" | "system";
 
 type SdkMetadata = {
@@ -47,44 +35,39 @@ type SdkMetadata = {
   version?: string;
 };
 
-type AppRootPreference = string | null;
-
 const hasQueryValue = (value: string | string[] | undefined) =>
-  Array.isArray(value) ? value.length > 0 : value !== undefined && value !== "";
-
-const isAppRootObservationFilter = (filter: FilterState[number]): boolean =>
-  filter.column === APP_ROOT_OBSERVATION_FILTER.column;
-
-export const urlOwnsEventsTableState = (
-  query: Record<string, string | string[] | undefined>,
-): boolean =>
-  TABLE_STATE_QUERY_PARAMS.some((key) => hasQueryValue(query[key])) ||
-  hasQueryValue(query.viewId);
+  Array.isArray(value) ? value.length > 0 : Boolean(value);
 
 export const viewOwnsEventsTableState = (
   query: Record<string, string | string[] | undefined>,
-): boolean => hasQueryValue(query.viewId);
+) => hasQueryValue(query.viewId);
 
-export const supportsAppRootFiltering = (sdk: SdkMetadata): boolean => {
+export const urlOwnsEventsTableState = (
+  query: Record<string, string | string[] | undefined>,
+) =>
+  viewOwnsEventsTableState(query) ||
+  URL_STATE_PARAMS.some((key) => hasQueryValue(query[key]));
+
+// useSessionStorage JSON-serializes null to the literal string "null".
+export const storedViewOwnsEventsTableState = (value: string | null) =>
+  Boolean(value) && value !== "null";
+
+export const supportsAppRootFiltering = (sdk: SdkMetadata) => {
   const name = normalizeIngestionSdkName(sdk.name);
-  const minimum = name ? APP_ROOT_SDK_MINIMUMS[name] : undefined;
+  const minimum = name ? SDK_MINIMUMS[name] : undefined;
   const match = sdk.version
     ?.trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/);
-
   if (!sdk.isOtel || !minimum || !match) return false;
 
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  const patch = Number(match[3]);
-  if (![major, minor, patch].every(Number.isSafeInteger)) return false;
-
-  const [minMajor, minMinor, minPatch] = minimum;
-  return (
-    major > minMajor ||
-    (major === minMajor && minor > minMinor) ||
-    (major === minMajor && minor === minMinor && patch >= minPatch)
-  );
+  const version = match.slice(1, 4).map(Number);
+  if (!version.every(Number.isSafeInteger)) return false;
+  for (let index = 0; index < version.length; index++) {
+    if (version[index] !== minimum[index]) {
+      return version[index]! > minimum[index]!;
+    }
+  }
+  return true;
 };
 
 export const getAppRootDefaultPolicy = (params: {
@@ -93,10 +76,9 @@ export const getAppRootDefaultPolicy = (params: {
   hasUserId: boolean;
   sdkMetadata?: SdkMetadata;
   cachedCapability: string | null;
-  preference: AppRootPreference;
+  preference: string | null;
   defaultViewSettled: boolean;
   savedViewOwnsState: boolean;
-  currentViewOwnsState: boolean;
   owner: AppRootDefaultOwner;
   urlOwnsState: boolean;
 }) => {
@@ -119,10 +101,9 @@ export const getAppRootDefaultPolicy = (params: {
     owner = "url";
   }
 
+  const active = params.enabled && params.routerReady && params.hasUserId;
   const shouldApplyFilter =
-    params.enabled &&
-    params.routerReady &&
-    params.hasUserId &&
+    active &&
     capabilitySupported &&
     params.preference !== "suppressed" &&
     params.defaultViewSettled &&
@@ -131,40 +112,34 @@ export const getAppRootDefaultPolicy = (params: {
 
   return {
     owner,
-    capabilityDetected,
-    capabilitySupported,
+    shouldApplyFilter,
+    isAutoManaged: shouldApplyFilter,
+    shouldPersistAuto: shouldApplyFilter && params.preference === null,
+    shouldCacheCapability: capabilityDetected && owner !== "fallback",
     shouldQueryCapability:
-      params.enabled &&
-      params.routerReady &&
-      params.hasUserId &&
+      active &&
       params.preference !== "suppressed" &&
       params.cachedCapability !== "supported" &&
       owner !== "fallback",
-    shouldCacheCapability: capabilityDetected && owner !== "fallback",
-    shouldApplyFilter,
-    shouldPersistAuto: shouldApplyFilter && params.preference === null,
-    isAutoManaged: shouldApplyFilter && !params.currentViewOwnsState,
   };
 };
 
-export const hasEnabledAppRootFilter = (filters: FilterState): boolean =>
+export const hasEnabledAppRootFilter = (filters: FilterState) =>
   filters.some(
     (filter) =>
-      isAppRootObservationFilter(filter) &&
+      filter.column === APP_ROOT_OBSERVATION_FILTER.column &&
       filter.type === "boolean" &&
       filter.operator === "=" &&
       filter.value === true,
   );
 
-export const removeAppRootDefaultFilter = (filters: FilterState): FilterState =>
+export const removeAppRootDefaultFilter = (filters: FilterState) =>
   filters.filter(
     (filter) =>
-      !(
-        isAppRootObservationFilter(filter) &&
-        filter.type === "boolean" &&
-        filter.operator === "=" &&
-        filter.value === true
-      ),
+      filter.column !== APP_ROOT_OBSERVATION_FILTER.column ||
+      filter.type !== "boolean" ||
+      filter.operator !== "=" ||
+      filter.value !== true,
   );
 
 export const getAppRootFilterChangeDecision = (params: {
@@ -172,22 +147,14 @@ export const getAppRootFilterChangeDecision = (params: {
   wasAutoManaged: boolean;
   previousFilters: FilterState;
   nextFilters: FilterState;
-}): {
-  owner: Exclude<AppRootDefaultOwner, "pending" | "neutral" | "url">;
-  preferenceToPersist: "suppressed" | null;
-} => ({
-  owner:
-    params.origin === "user"
-      ? "user"
-      : params.origin === "saved_view"
-        ? "saved_view"
-        : "fallback",
+}) => ({
+  owner: OWNER_BY_ORIGIN[params.origin],
   preferenceToPersist:
     params.origin === "user" &&
     params.wasAutoManaged &&
     hasEnabledAppRootFilter(params.previousFilters) &&
     !hasEnabledAppRootFilter(params.nextFilters)
-      ? "suppressed"
+      ? ("suppressed" as const)
       : null,
 });
 
@@ -198,7 +165,7 @@ export const shouldRunAppRootFallbackQuery = (params: {
   rootQuerySucceeded: boolean;
   rootQueryIsPlaceholder: boolean;
   rootRowCount: number;
-}): boolean =>
+}) =>
   params.enabled &&
   hasEnabledAppRootFilter(params.filters) &&
   params.page === 1 &&
@@ -218,13 +185,11 @@ export const getAppRootFallbackDecision = (params: {
     params.additionalRowsFound &&
     params.isAutoManaged &&
     hasEnabledAppRootFilter(params.filters);
-  const hasOnlySystemRoot =
-    params.filters.length === 1 && hasEnabledAppRootFilter(params.filters);
   const recentRange =
-    params.dateRange !== undefined &&
-    params.dateRange.from.getTime() >= params.now - 7 * 24 * 60 * 60 * 1000 &&
+    params.dateRange &&
+    params.dateRange.from.getTime() >= params.now - 7 * 86_400_000 &&
     (!params.dateRange.to ||
-      params.dateRange.to.getTime() >= params.now - 5 * 60 * 1000);
+      params.dateRange.to.getTime() >= params.now - 300_000);
 
   return {
     shouldRemoveFilter,
@@ -233,8 +198,8 @@ export const getAppRootFallbackDecision = (params: {
       : params.filters,
     shouldInvalidateCapability:
       shouldRemoveFilter &&
-      hasOnlySystemRoot &&
+      params.filters.length === 1 &&
       !params.searchQuery &&
-      recentRange,
+      Boolean(recentRange),
   };
 };

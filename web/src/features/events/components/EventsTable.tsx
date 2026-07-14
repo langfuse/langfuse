@@ -446,14 +446,8 @@ export default function ObservationsEventsTable({
     lazy: true,
   });
 
-  const ownsFullPageFilterState =
-    !hideControls &&
-    !externalFilterState &&
-    !peekContext &&
-    !userId &&
-    !sessionId;
   const appRootDefault = useAppRootDefault({
-    enabled: enableAppRootDefault && ownsFullPageFilterState,
+    enabled: enableAppRootDefault,
     projectId,
   });
 
