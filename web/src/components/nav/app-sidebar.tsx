@@ -23,7 +23,7 @@ import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
-import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
+import { V4MigrationCard } from "@/src/features/v4-migration/V4MigrationCard";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -58,8 +58,10 @@ export function AppSidebar({
       <SidebarContent>
         <NavMain items={navItems} />
         <div className="flex-1" />
+        {/* Temporarily replaces <SidebarNotifications /> while the
+            v4-migration card is trialled in this slot. */}
         <div className="flex flex-col gap-2 p-2">
-          <SidebarNotifications />
+          <V4MigrationCard />
         </div>
         <NavMain items={secondaryNavItems} />
       </SidebarContent>

@@ -270,7 +270,12 @@ export const events = {
   in_app_agent: ["new_chat_started", "new_chat_turn"],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
-  sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  sidebar: [
+    "book_a_call_clicked",
+    "v4_beta_toggled",
+    "v4_migration_card_clicked",
+  ],
+  v4_migration: ["in_app_agent_opened", "coding_agent_prompt_copied"],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
