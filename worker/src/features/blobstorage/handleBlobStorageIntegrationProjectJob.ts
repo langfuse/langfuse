@@ -1130,6 +1130,29 @@ const writeBlobExportDeprecationNotice = async (params: {
   }
 };
 
+// Counterpart to the writer: once a project migrates off a legacy source (the
+// action the notice asks for), a notice left from an earlier run would linger
+// with now-false claims. Best-effort delete on the non-legacy path clears it.
+// Idempotent — deleting a non-existent key is a no-op — and never fails the run.
+const removeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.deleteFiles([key]);
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to remove stale deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
+};
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -1232,6 +1255,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  // Legacy-source deprecation is a Cloud policy (see blob-export-gate.ts:
+  // isLegacyBlobExportAllowed / isLegacyBlobExporter both exempt self-hosted),
+  // so the deprecation notice below is Cloud-only too.
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
   try {
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
@@ -1239,10 +1267,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // (LFE-10296).
     if (
       isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
-      !isEnrichedBlobExportAvailable(
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-        v4AllowPreviewOptIn(env),
-      )
+      !isEnrichedBlobExportAvailable(isCloud, v4AllowPreviewOptIn(env))
     ) {
       throw new Error(
         "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
@@ -1401,14 +1426,23 @@ export const handleBlobStorageIntegrationProjectJob = async (
     });
 
     // Warn legacy-source projects about the impending v3 deprecation by writing
-    // a notice file into their destination. New / enriched-only (EVENTS)
-    // projects are skipped. Best-effort: never fails the run.
-    if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
-      await writeBlobExportDeprecationNotice({
-        storageService,
-        prefix: blobStorageIntegration.prefix || undefined,
-        projectId,
-      });
+    // a notice file into their destination; remove a stale notice once a project
+    // has migrated off a legacy source. Cloud-only (see isCloud above); both
+    // sides are best-effort and never fail the run.
+    if (isCloud) {
+      if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+        await writeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      } else {
+        await removeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      }
     }
 
     // Determine if we've caught up with present-day data
