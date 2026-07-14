@@ -5,9 +5,9 @@ const MAX_OBJECT_KEYS = 25;
 
 const IDENTIFIER_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-// Trace payloads are often stored as (multi-)encoded JSON strings — unwrap
+// Observation payloads are often stored as (multi-)encoded JSON strings — unwrap
 // until we hit a non-string, mirroring extractValueFromObject's behavior.
-function tryParseJson(value: string): unknown {
+export function tryParseJson(value: string): unknown {
   let current: unknown = value;
   for (let i = 0; i < 3 && typeof current === "string"; i++) {
     try {

@@ -10,10 +10,9 @@ import {
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import {
+  type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
-  type variableMapping,
 } from "@langfuse/shared";
-import { type z } from "zod";
 
 export type TestRunPayload = {
   projectId: string;
@@ -23,9 +22,10 @@ export type TestRunPayload = {
   model?: string | null;
   modelParams?: Record<string, unknown> | null;
   outputDefinition?: PersistedEvalOutputDefinition | null;
-  mapping: z.infer<typeof variableMapping>[];
+  mapping: ObservationVariableMapping[];
+  observationId: string;
   traceId: string;
-  traceTimestamp?: Date;
+  observationStartTime?: Date;
 };
 
 /**
@@ -38,7 +38,7 @@ export function useTestRunMutation() {
 
 export type TestRunMutation = ReturnType<typeof useTestRunMutation>;
 
-/** Compact trigger for the companion header. */
+/** Full-width CTA pinned to the companion footer, right above the result. */
 export function TestRunButton({
   testRun,
   getPayload,
@@ -60,9 +60,9 @@ export function TestRunButton({
   return (
     <Button
       type="button"
-      variant="secondary"
+      variant="outline"
       size="sm"
-      className="h-6 px-2 text-xs"
+      className="w-full"
       loading={testRun.isPending}
       disabled={disabled}
       title={disabledHint ?? "Run the evaluator on the selected sample"}
@@ -71,8 +71,8 @@ export function TestRunButton({
         if (payload) testRun.mutate(payload);
       }}
     >
-      <Play className="mr-1 h-3 w-3" />
-      Test
+      <Play className="mr-1.5 h-3.5 w-3.5" />
+      Run test on this sample
     </Button>
   );
 }

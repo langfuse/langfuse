@@ -29,6 +29,8 @@ type CodeEvalTemplateFormBodyProps = {
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
   headerAction?: ReactNode;
+  /** Hide the language label when the surrounding UI already names it. */
+  hideLanguageLabel?: boolean;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -86,6 +88,7 @@ export function CodeEvalTemplateFormBody({
   editable,
   validationResult,
   headerAction,
+  hideLanguageLabel = false,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -182,7 +185,11 @@ export function CodeEvalTemplateFormBody({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground text-sm">{languageLabel}</span>
+          {!hideLanguageLabel ? (
+            <span className="text-muted-foreground text-sm">
+              {languageLabel}
+            </span>
+          ) : null}
           {headerAction}
         </div>
         {shouldShowFormatButton ? (

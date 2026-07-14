@@ -1,7 +1,7 @@
 import {
   ChatMessageRole,
   ChatMessageType,
-  parseUnknownToString,
+  parseUnknownToPromptString,
 } from "@langfuse/shared";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import { compileTemplateString } from "../utils";
@@ -14,11 +14,13 @@ export interface CompileEvalPromptParams {
 export function compileEvalPrompt(params: CompileEvalPromptParams): string {
   // Stringify extracted values here (LLM-judge's consumption boundary) so
   // the upstream extractor can preserve original shapes for code-eval and
-  // template substitution still gets a flat string per variable.
+  // template substitution still gets a flat string per variable. Encoded
+  // JSON strings (e.g. a full-value mapping of a stringified input) are
+  // decoded so the judge sees clean JSON.
   const variableMap = Object.fromEntries(
     params.variables.map(({ var: key, value }) => [
       key,
-      parseUnknownToString(value),
+      parseUnknownToPromptString(value),
     ]),
   );
 

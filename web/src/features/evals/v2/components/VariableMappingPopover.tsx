@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, Crosshair } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
   Command,
   CommandGroup,
@@ -25,11 +24,10 @@ import {
 } from "@/src/components/ui/select";
 import { getVariableColor } from "@/src/features/evals/components/evaluation-prompt-preview";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/lib/jsonPathSuggestions";
-import { type ScopeTargetObject } from "@/src/features/evals/v2/lib/useSourceObject";
 import { cn } from "@/src/utils/tailwind";
 import { extractValueFromObjectAsString } from "@langfuse/shared";
 
-const MAPPABLE_COLUMNS = [
+export const MAPPABLE_COLUMNS = [
   { id: "input", label: "Input" },
   { id: "output", label: "Output" },
   { id: "metadata", label: "Metadata" },
@@ -103,7 +101,7 @@ function JsonPathCombobox({
               </CommandItem>
             )}
             {filteredSuggestions.length > 0 && (
-              <CommandGroup heading="From sample trace">
+              <CommandGroup heading="From sample observation">
                 {filteredSuggestions.slice(0, 50).map((path) => (
                   <CommandItem
                     key={path}
@@ -126,160 +124,27 @@ function JsonPathCombobox({
 }
 
 /**
- * One-line mapping row for the "Map variables to data" step: "Map {{var}} to
- * [field] [JSONPath]" with the extracted sample value previewed below.
- */
-function VariableMappingRow({
-  variable,
-  fieldState,
-  sourceObject,
-  onChange,
-}: {
-  variable: string;
-  fieldState: VariableFieldState;
-  sourceObject: Record<string, unknown> | null;
-  onChange: (next: VariableFieldState) => void;
-}) {
-  const suggestions = useMemo(() => {
-    if (!sourceObject) return [];
-    return buildJsonPathSuggestions(sourceObject[fieldState.selectedColumnId]);
-  }, [sourceObject, fieldState.selectedColumnId]);
-
-  const extractedPreview = useMemo(() => {
-    if (!sourceObject) return null;
-    const { value, error } = extractValueFromObjectAsString(
-      sourceObject,
-      fieldState.selectedColumnId,
-      fieldState.jsonSelector ?? undefined,
-    );
-    if (error) return { error: error.message };
-    return { value };
-  }, [sourceObject, fieldState]);
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground shrink-0 text-sm">Map</span>
-        <span
-          className={cn(
-            "shrink-0 font-mono text-sm font-medium",
-            getVariableColor(0),
-          )}
-        >
-          {variable}
-        </span>
-        <span className="text-muted-foreground shrink-0 text-sm">to</span>
-        <Select
-          value={fieldState.selectedColumnId}
-          onValueChange={(value) =>
-            onChange({ ...fieldState, selectedColumnId: value })
-          }
-        >
-          <SelectTrigger className="h-8 w-36 shrink-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MAPPABLE_COLUMNS.map((col) => (
-              <SelectItem key={col.id} value={col.id}>
-                {col.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <div className="min-w-0 flex-1">
-          <JsonPathCombobox
-            value={fieldState.jsonSelector}
-            suggestions={suggestions}
-            onSelect={(jsonSelector) =>
-              onChange({ ...fieldState, jsonSelector })
-            }
-          />
-        </div>
-      </div>
-
-      {sourceObject ? (
-        extractedPreview?.error ? (
-          <p className="border-destructive/40 text-destructive rounded-md border p-2 text-xs">
-            {extractedPreview.error}
-          </p>
-        ) : extractedPreview?.value ? (
-          <div className="max-h-56 overflow-y-auto">
-            <PrettyJsonView
-              json={extractedPreview.value}
-              currentView="json"
-              collapseStringsAfterLength={250}
-            />
-          </div>
-        ) : (
-          <p className="text-muted-foreground rounded-md border p-2 text-xs">
-            empty
-          </p>
-        )
-      ) : (
-        <p className="text-muted-foreground text-xs">
-          No sample data — select a trace in the sample widget.
-        </p>
-      )}
-    </div>
-  );
-}
-
-/**
- * The "Map variables to data" step body: one mapping row per prompt variable,
- * each previewing the value it extracts from the selected sample.
- */
-export function VariableMappingList({
-  variables,
-  getFieldState,
-  sourceObject,
-  onChange,
-}: {
-  variables: string[];
-  getFieldState: (variable: string) => VariableFieldState;
-  sourceObject: Record<string, unknown> | null;
-  onChange: (variable: string, next: VariableFieldState) => void;
-}) {
-  if (variables.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        {"No {{variables}} in the prompt yet — add one in the previous step."}
-      </p>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-4">
-      {variables.map((variable) => (
-        <VariableMappingRow
-          key={variable}
-          variable={variable}
-          fieldState={getFieldState(variable)}
-          sourceObject={sourceObject}
-          onChange={(next) => onChange(variable, next)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
  * Per-variable mapping controls shown when a {{variable}} pill is clicked in
- * the prompt editor. The data source (trace vs observation) is picked once at
- * evaluator level, so only the field + JSONPath remain per variable.
+ * the prompt editor. The mapping always resolves against the sample
+ * observation, so only the field + JSONPath remain per variable.
  */
 export function VariableMappingContent({
   variable,
+  colorIndex = 0,
   fieldState,
   sourceObject,
-  targetObject,
   onChange,
+  onPickFromSample,
 }: {
   variable: string;
+  /** Position of the variable in the prompt — drives the shared color. */
+  colorIndex?: number;
   fieldState: VariableFieldState;
-  /** The shared evaluator-level source object resolved from the sample trace. */
+  /** The shared source object resolved from the sample observation. */
   sourceObject: Record<string, unknown> | null;
-  /** The run-scope target the mapping resolves against. */
-  targetObject: ScopeTargetObject;
   onChange: (next: VariableFieldState) => void;
+  /** Switches the sample companion into pick mode for this variable. */
+  onPickFromSample?: () => void;
 }) {
   const suggestions = useMemo(() => {
     if (!sourceObject) return [];
@@ -296,23 +161,35 @@ export function VariableMappingContent({
     if (error) return { error: error.message };
     return { value };
   }, [sourceObject, fieldState]);
-
-  const targetLabel =
-    targetObject === "trace"
-      ? "trace"
-      : targetObject === "event"
-        ? "observation"
-        : "experiment";
 
   return (
     <div className="flex flex-col gap-3">
       <div className="text-sm font-medium">
         Map{" "}
-        <span className={cn("font-mono", getVariableColor(0))}>
+        <span className={cn("font-mono", getVariableColor(colorIndex))}>
           {`{{${variable}}}`}
         </span>{" "}
-        to {targetLabel} data
+        to observation data
       </div>
+
+      {onPickFromSample && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-8 justify-start"
+          disabled={!sourceObject}
+          title={
+            sourceObject
+              ? undefined
+              : "Select a sample observation on the right first."
+          }
+          onClick={onPickFromSample}
+        >
+          <Crosshair className="mr-1.5 h-3.5 w-3.5" />
+          Pick from sample data
+        </Button>
+      )}
 
       <div className="flex flex-col gap-1">
         <Label className="text-muted-foreground text-xs">Field</Label>
@@ -348,15 +225,9 @@ export function VariableMappingContent({
 
       <div className="flex flex-col gap-1">
         <Label className="text-muted-foreground text-xs">
-          {targetObject === "event"
-            ? "First observation of the sample trace (approximation)"
-            : "Value from sample"}
+          Value from sample
         </Label>
-        {targetObject === "experiment" ? (
-          <p className="text-muted-foreground text-xs">
-            Experiment previews aren&apos;t wired in this prototype.
-          </p>
-        ) : sourceObject ? (
+        {sourceObject ? (
           extractedPreview?.error ? (
             <p className="text-destructive text-xs">{extractedPreview.error}</p>
           ) : (
@@ -368,7 +239,7 @@ export function VariableMappingContent({
           )
         ) : (
           <p className="text-muted-foreground text-xs">
-            No sample data — select a trace on the right.
+            No sample data — select an observation on the right.
           </p>
         )}
       </div>

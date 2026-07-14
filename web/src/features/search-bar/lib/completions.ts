@@ -70,7 +70,15 @@ export type CompletionOption =
        *  the token under the caret. */
       replaceSpan?: { from: number; to: number };
     }
-  | { id: string; kind: "recent"; label: string; query: string };
+  | { id: string; kind: "recent"; label: string; query: string }
+  | {
+      id: string;
+      kind: "saved";
+      label: string;
+      detail?: string;
+      /** Host-side id; picking calls the composer's onPickSavedQuery(id). */
+      savedId: string;
+    };
 
 export type CompletionSection = { title: string; options: CompletionOption[] };
 
@@ -292,6 +300,18 @@ function recentOptions(
       label: q,
       query: q,
     }));
+}
+
+function savedOptions(
+  saved: InputCompletionContext["saved"],
+): CompletionOption[] {
+  return (saved?.items ?? []).map((item) => ({
+    id: `saved:${item.id}`,
+    kind: "saved" as const,
+    label: item.label,
+    detail: item.detail,
+    savedId: item.id,
+  }));
 }
 
 function section(
@@ -827,6 +847,16 @@ export type InputCompletionContext = {
   recents: string[];
   /** Full committed/draft query text (recents identical to it are hidden). */
   currentQueryText: string;
+  /**
+   * Host-provided saved queries (e.g. the evaluator form's shared filters),
+   * shown as their own empty-stage section. Picking one does not edit the
+   * draft — it calls back to the host, which applies the saved state and lets
+   * the bar re-derive (single source of truth, no second sync path).
+   */
+  saved?: {
+    title: string;
+    items: { id: string; label: string; detail?: string }[];
+  };
 };
 
 // The contiguous free-text run containing `caret` — the same block the composer
@@ -966,14 +996,16 @@ export function planInputCompletions(
     const to = colon === -1 ? (term?.to ?? caret) : bodyStart + colon;
 
     if (token.length === 0) {
-      // Empty-term state: ready-to-run query suggestions first, then fields,
-      // recents last — operators and patterns are noise here.
+      // Empty-term state: host-provided saved queries first (the
+      // highest-intent shortcut), then ready-to-run query suggestions and
+      // fields, recents last — operators and patterns are noise here.
       return {
         stage: "empty",
         from: bodyStart,
         to,
         loading: false,
         sections: [
+          ...section(ctx.saved?.title ?? "", savedOptions(ctx.saved)),
           ...section(SECTION_SUGGESTIONS, querySuggestionOptions(ctx.observed)),
           ...section(SECTION_FIELDS, fieldOptions()),
           ...section(
@@ -1238,7 +1270,7 @@ export function planInputCompletions(
  * field suggestions for the next filter.
  */
 export function applyPick(
-  option: Exclude<CompletionOption, { kind: "recent" }>,
+  option: Exclude<CompletionOption, { kind: "recent" } | { kind: "saved" }>,
   current: string,
   plan: CompletionPlan,
 ): { next: string; caret: number; keepOpen: boolean } {

@@ -123,6 +123,13 @@ WORKER: scheduling reads the scope; execution reads config → evaluator row
 
 #### Migration Edge Cases
 
+With the rollout strategy below, all cases in this section are confined to
+**cloud rolling-deploy windows (minutes per deploy)** and to self-hosters who
+skip the recommended maintenance window. None require permanent handling: the
+sentinel is the only must-have (money, not consistency), everything else is
+accepted and self-heals via repair-on-read + the post-deploy sweep.
+
+
 **New template with old app created _after_ migration ran - no job config**
 Consequence:
 
@@ -203,6 +210,34 @@ Resolution (pick one):
   deleted only in the NEXT major; the new app reads the catalog from code and
   never touches them. Created row is then just the "new template + job config
   with old app" case above.
+
+## Rollout Strategy
+
+Different rules for the two deployment worlds — this is what makes Option B
+cheap to ship:
+
+**Cloud (we control the deploy cadence)** — multi-phased rollout inside one
+release train, no waiting for majors:
+
+1. Deploy 1: expand migrations + backfills (additive; running code unchanged).
+2. Deploy 2: flipped reads/writes (optionally env-flag-gated → instant
+   rollback without a deploy). Run the reconcile sweep after the fleet settles.
+3. Deploy 3 (days later): contract — drop legacy columns, delete managed rows.
+   Safe because the whole fleet is ≥ deploy 2.
+
+**Self-hosted (maintenance window assumed)** — everything ships in ONE
+release: migrations + backfills apply at startup, then only new code runs, so
+the write/read edge cases don't exist. For self-hosters who rolling-upgrade
+anyway, the window inconsistencies are **documented and accepted**: they are
+non-breaking (shadowed edits, scope-less rows) and self-heal via
+repair-on-read + the sweep. The single non-acceptable failure — the
+match-all cost storm — is structurally prevented by the sentinel regardless
+of upgrade style. Only the destructive cleanup (column drops, managed-row
+deletion) trails one release as cheap insurance for restore-old-container
+rollbacks; keeping dead columns around for a release costs nothing.
+
+Net effect: no multi-major sequencing; cloud ships in one staged train,
+self-host in one release plus a trailing cleanup release.
 
 ## Comparison
 

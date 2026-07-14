@@ -80,6 +80,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  evalTemplatesCreated      EvalTemplate[]              @relation("EvalTemplateCreatedByUser")
 
   @@map("users")
 }
@@ -1030,6 +1031,12 @@ model EvalTemplate {
   type    EvalTemplateType @default(LLM_AS_JUDGE)
 
   partner String? // e.g. "ragas", describes the partner that created the template
+
+  // User who created this template version. Null for managed catalog
+  // templates, API-created templates, and rows predating the audit-log
+  // backfill.
+  createdByUserId String? @map("created_by_user_id")
+  createdByUser   User?   @relation("EvalTemplateCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   model              String?
   provider           String?

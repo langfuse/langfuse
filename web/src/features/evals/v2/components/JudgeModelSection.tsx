@@ -96,7 +96,7 @@ export function JudgeModelSection({
       : "Select a model...";
 
   return (
-    <div className="flex max-w-xl flex-col gap-2">
+    <div className="flex max-w-sm flex-col gap-2">
       <div className="flex items-center gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>

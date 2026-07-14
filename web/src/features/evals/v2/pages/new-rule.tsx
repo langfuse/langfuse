@@ -38,7 +38,7 @@ export default function NewEvaluationRulePage() {
         ],
         help: {
           description:
-            "Prototype: pick an evaluator or write one from scratch (LLM-as-a-judge or code), map variables against a real trace, pick where it runs via a shared run scope, test it, and save it as a draft or active — all in one place.",
+            "Prototype: pick an evaluator or write one from scratch (LLM-as-a-judge or code), map variables against a real observation, pick where it runs via a shared run scope, test it, and save it as a draft or active — all in one place.",
         },
       }}
     >
@@ -75,10 +75,6 @@ export default function NewEvaluationRulePage() {
           projectId={projectId}
           sourceTemplate={template}
           initialEvaluatorType={scratchType ?? "llm"}
-          onChangeEvaluator={() => {
-            setTemplate(null);
-            setScratchType(null);
-          }}
         />
       )}
     </Page>

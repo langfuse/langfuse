@@ -1,8 +1,13 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { SearchX } from "lucide-react";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { type EventsTableRow } from "@/src/features/events/components/EventsTable";
+import { scopeTimeRangeFilter } from "@/src/features/evals/v2/lib/useScopeMatchCount";
+import { cn } from "@/src/utils/tailwind";
 import {
-  getDateFromOption,
+  type AbsoluteTimeRange,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { type FilterState } from "@langfuse/shared";
@@ -11,62 +16,100 @@ const EventsTable = lazy(
   () => import("@/src/features/events/components/EventsTable"),
 );
 
-// The preview pins a minimal column set; the full events table shows the rest.
-const PREVIEW_COLUMNS: Record<string, boolean> = {
+// The preview starts with a minimal column set (no input/output/metadata —
+// too wide for a compact preview); users add columns via the picker.
+const PREVIEW_DEFAULT_COLUMNS: Record<string, boolean> = {
   startTime: true,
   type: true,
   name: true,
   traceName: true,
-  input: true,
-  output: true,
-  metadata: true,
 };
 
 /**
  * Read-only preview of observations matching the scope filter, embedded the
  * same way as the old evaluator configuration screen: the real events table
- * (hidden controls, last-24h sample, capped rows) in a bordered container.
+ * (hidden controls, capped rows) in a bordered container. The rows sample the
+ * view's global time range.
  */
 export function ScopePreviewTable({
   projectId,
   filterState,
-  onSelectTrace,
+  timeRange,
+  onSelectObservation,
+  onRowsChange,
+  columnsPickerContainer,
 }: {
   projectId: string;
   filterState: FilterState;
-  /** Row click: use the clicked row's trace as the sample trace. */
-  onSelectTrace?: (traceId: string, timestamp: Date | null) => void;
+  /** Absolute range from the global time filter; null = unbounded. */
+  timeRange: AbsoluteTimeRange | null;
+  /** Row click: use the clicked observation as the sample. */
+  onSelectObservation?: (row: EventsTableRow) => void;
+  /** Reports the loaded preview rows, e.g. to derive sample candidates. */
+  onRowsChange?: (rows: EventsTableRow[]) => void;
+  /** Where to render the columns picker (e.g. next to the section label). */
+  columnsPickerContainer?: HTMLElement | null;
 }) {
-  const dateRange = useMemo(() => {
-    return {
-      from: getDateFromOption({
-        filterSource: "TABLE",
-        option: "last1Day",
-      }),
-    } as TableDateRange;
-  }, []);
+  // EventsTable ignores externalDateRange for the rows query when an external
+  // filter state is set, so the time bound goes into the filter itself;
+  // externalDateRange still scopes the facet options.
+  const effectiveFilterState = useMemo(
+    () => filterState.concat(scopeTimeRangeFilter(timeRange)),
+    [filterState, timeRange],
+  );
+  const dateRange: TableDateRange | undefined = timeRange ?? undefined;
+
+  const [columnVisibility, setColumnVisibility] = useLocalStorage<
+    Record<string, boolean>
+  >(`evalScopePreviewColumns-${projectId}`, PREVIEW_DEFAULT_COLUMNS);
+
+  // Zero matches: swap the visible table for a call to action. The table
+  // stays mounted (hidden) so its query refetches on filter/range changes
+  // and reports rows back the moment something matches again.
+  const [isEmpty, setIsEmpty] = useState(false);
+  const handleRowsChange = useCallback(
+    (rows: EventsTableRow[]) => {
+      setIsEmpty(rows.length === 0);
+      onRowsChange?.(rows);
+    },
+    [onRowsChange],
+  );
 
   return (
-    <div className="flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
-      <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-        <EventsTable
-          projectId={projectId}
-          hideControls
-          externalFilterState={filterState}
-          externalDateRange={dateRange}
-          limitRows={10}
-          externalColumnVisibility={PREVIEW_COLUMNS}
-          onExternalRowClick={
-            onSelectTrace
-              ? (row) => {
-                  if (row.traceId) {
-                    onSelectTrace(row.traceId, row.timestamp ?? null);
-                  }
-                }
-              : undefined
-          }
-        />
-      </Suspense>
-    </div>
+    <>
+      {isEmpty && (
+        <div className="text-muted-foreground flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed px-4 py-8 text-center text-sm">
+          <SearchX className="h-4 w-4" />
+          <p className="text-foreground font-medium">
+            No observations match the current filters and time range
+          </p>
+          <p>
+            Try adjusting the filters or extending the time range in the page
+            header.
+          </p>
+        </div>
+      )}
+      <div
+        className={cn(
+          "flex max-h-[30dvh] w-full flex-col overflow-hidden border",
+          isEmpty && "hidden",
+        )}
+      >
+        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+          <EventsTable
+            projectId={projectId}
+            hideControls
+            externalFilterState={effectiveFilterState}
+            externalDateRange={dateRange}
+            limitRows={10}
+            externalColumnVisibility={columnVisibility}
+            onExternalColumnVisibilityChange={setColumnVisibility}
+            columnsPickerContainer={columnsPickerContainer}
+            onExternalRowClick={onSelectObservation}
+            onExternalRowsChange={handleRowsChange}
+          />
+        </Suspense>
+      </div>
+    </>
   );
 }

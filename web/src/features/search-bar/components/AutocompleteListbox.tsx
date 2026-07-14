@@ -4,7 +4,7 @@
 // AutocompletePopover (positioning); Storybook renders it directly.
 
 import * as React from "react";
-import { Check, Clock, Parentheses, Search } from "lucide-react";
+import { Check, Clock, FolderCheck, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import type {
@@ -16,6 +16,7 @@ import { optionDomId } from "@/src/features/search-bar/components/presentation";
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
   const cls = "h-3.5 w-3.5 flex-none opacity-55";
   if (kind === "recent") return <Clock className={cls} aria-hidden />;
+  if (kind === "saved") return <FolderCheck className={cls} aria-hidden />;
   if (kind === "operator" || kind === "pattern")
     return <Parentheses className={cls} aria-hidden />;
   return <Search className={cls} aria-hidden />;

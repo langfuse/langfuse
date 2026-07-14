@@ -1,20 +1,19 @@
-import { type z } from "zod";
 import {
   ChatMessageRole,
   ChatMessageType,
-  availableTraceEvalVariables,
   compilePersistedEvalOutputDefinition,
-  extractValueFromObject,
-  parseUnknownToString,
+  eventTargetEvalVariableColumns,
+  parseUnknownToPromptString,
   PersistedEvalOutputDefinitionSchema,
   validateEvalOutputResult,
-  type variableMapping,
+  type ObservationForEval,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
+  extractObservationVariables,
   fetchLLMCompletion,
-  getObservationForTraceIdByName,
-  getTraceById,
+  getObservationByIdFromEventsTable,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -25,8 +24,6 @@ export const DEFAULT_OUTPUT_DEFINITION = {
     "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive",
   reasoning: "One sentence reasoning for the score",
 };
-
-type VariableMapping = z.infer<typeof variableMapping>;
 
 export type LlmJudgeTestRunResult =
   | {
@@ -57,89 +54,43 @@ function compileTemplateString(
   );
 }
 
-async function extractTraceVariables(params: {
+/**
+ * Resolves the sample observation and extracts every mapped variable from it,
+ * using the same shared extraction the worker's observation evals run.
+ */
+async function extractSampleVariables(params: {
   projectId: string;
+  observationId: string;
   traceId: string;
-  traceTimestamp?: Date;
-  variables: string[];
-  mapping: VariableMapping[];
+  observationStartTime?: Date;
+  mapping: ObservationVariableMapping[];
 }): Promise<{ var: string; value: string }[]> {
-  const { projectId, traceId, traceTimestamp, variables, mapping } = params;
-
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  const trace = await getTraceById({
-    traceId,
-    projectId,
-    timestamp: traceTimestamp,
+  const observation = await getObservationByIdFromEventsTable({
+    id: params.observationId,
+    projectId: params.projectId,
+    traceId: params.traceId,
+    startTime: params.observationStartTime,
+    fetchWithInputOutput: true,
   });
 
-  if (!trace) {
-    throw new Error(`Trace ${traceId} not found`);
+  if (!observation) {
+    throw new Error(`Observation ${params.observationId} not found`);
   }
 
-  const observationCache = new Map<string, Record<string, unknown> | null>();
-  const results: { var: string; value: string }[] = [];
+  // The extraction columns address input/output/metadata by identical
+  // internal names, so the domain observation slots in directly.
+  const extracted = extractObservationVariables(
+    {
+      observation: observation as unknown as ObservationForEval,
+      variableMapping: params.mapping,
+    },
+    eventTargetEvalVariableColumns,
+  );
 
-  for (const variable of variables) {
-    const varMapping = mapping.find((m) => m.templateVariable === variable);
-    if (!varMapping) {
-      results.push({ var: variable, value: "" });
-      continue;
-    }
-
-    let sourceRow: Record<string, unknown> | null = null;
-    if (varMapping.langfuseObject === "trace") {
-      sourceRow = trace as unknown as Record<string, unknown>;
-    } else if (varMapping.objectName) {
-      const cacheKey = varMapping.objectName;
-      if (!observationCache.has(cacheKey)) {
-        const observations = await getObservationForTraceIdByName({
-          traceId,
-          projectId,
-          name: varMapping.objectName,
-          timestamp: traceTimestamp,
-          fetchWithInputOutput: true,
-        });
-        observationCache.set(
-          cacheKey,
-          (observations.shift() as unknown as Record<string, unknown>) ?? null,
-        );
-      }
-      sourceRow = observationCache.get(cacheKey) ?? null;
-    }
-
-    if (!sourceRow) {
-      results.push({ var: variable, value: "" });
-      continue;
-    }
-
-    const catalog = availableTraceEvalVariables.find(
-      (o) => o.id === varMapping.langfuseObject,
-    );
-    const column = catalog?.availableColumns.find(
-      (col) => col.id === varMapping.selectedColumnId,
-    );
-    if (!column) {
-      results.push({ var: variable, value: "" });
-      continue;
-    }
-
-    const snakeToCamel = (s: string) =>
-      s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
-    const rawColumnValue =
-      sourceRow[varMapping.selectedColumnId] ??
-      sourceRow[snakeToCamel(varMapping.selectedColumnId)];
-
-    const { value } = extractValueFromObject(
-      { [varMapping.selectedColumnId]: rawColumnValue },
-      varMapping.selectedColumnId,
-      varMapping.jsonSelector ?? undefined,
-    );
-
-    results.push({ var: variable, value: parseUnknownToString(value) });
-  }
-
-  return results;
+  return extracted.map((v) => ({
+    var: v.var,
+    value: parseUnknownToPromptString(v.value),
+  }));
 }
 
 export async function runLlmJudgeTest(params: {
@@ -149,9 +100,10 @@ export async function runLlmJudgeTest(params: {
   model?: string | null;
   modelParams?: unknown;
   outputDefinition?: unknown;
-  mapping: VariableMapping[];
+  mapping: ObservationVariableMapping[];
+  observationId: string;
   traceId: string;
-  traceTimestamp?: Date;
+  observationStartTime?: Date;
 }): Promise<LlmJudgeTestRunResult> {
   const variables = Array.from(
     new Set(
@@ -161,13 +113,19 @@ export async function runLlmJudgeTest(params: {
 
   let extractedVariables: { var: string; value: string }[];
   try {
-    extractedVariables = await extractTraceVariables({
+    const mapped = await extractSampleVariables({
       projectId: params.projectId,
+      observationId: params.observationId,
       traceId: params.traceId,
-      traceTimestamp: params.traceTimestamp,
-      variables,
+      observationStartTime: params.observationStartTime,
       mapping: params.mapping,
     });
+    // Unmapped prompt variables interpolate to "" (matching the mapped-but-
+    // empty behavior) instead of leaking raw {{placeholders}} to the judge.
+    extractedVariables = variables.map(
+      (variable) =>
+        mapped.find((v) => v.var === variable) ?? { var: variable, value: "" },
+    );
   } catch (error) {
     return {
       success: false,

@@ -411,14 +411,19 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = columnDef.isFlexWidth
-                      ? "auto"
-                      : isValidCssVariableName({
-                            name: header.id,
-                            includesHyphens: false,
-                          })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+                    const pxWidth = isValidCssVariableName({
+                      name: header.id,
+                      includesHyphens: false,
+                    })
+                      ? `calc(var(--header-${header.id}-size) * 1px)`
+                      : 150;
+                    // Flex columns absorb leftover table width but must not
+                    // collapse below their declared size when the other
+                    // columns already overflow the container.
+                    const width = columnDef.isFlexWidth ? "auto" : pxWidth;
+                    const minWidth = columnDef.isFlexWidth
+                      ? pxWidth
+                      : undefined;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -431,6 +436,7 @@ export function DataTable<TData extends object, TValue>({
                         style={{
                           ...getCommonPinningStyles(header.column),
                           width,
+                          minWidth,
                         }}
                         onClick={(event) => {
                           event.preventDefault();

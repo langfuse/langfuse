@@ -1,11 +1,21 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { createPortal } from "react-dom";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
@@ -199,10 +209,27 @@ export type EventsTableProps = {
    */
   externalColumnVisibility?: Record<string, boolean>;
   /**
+   * When set together with `externalColumnVisibility`, renders a columns
+   * picker so users can adjust the pinned set. Rendered into
+   * `columnsPickerContainer` when provided (portal), otherwise in a slim row
+   * above the embedded table.
+   */
+  onExternalColumnVisibilityChange?: Dispatch<
+    SetStateAction<Record<string, boolean>>
+  >;
+  /** External element to render the embedded columns picker into. */
+  columnsPickerContainer?: HTMLElement | null;
+  /**
    * When set (embedded previews), row clicks call this instead of opening
    * the peek view.
    */
   onExternalRowClick?: (row: EventsTableRow) => void;
+  /**
+   * When set (embedded previews), reports the currently displayed rows after
+   * each load, so the embedder can derive state (e.g. sample candidates)
+   * from the same data the preview shows.
+   */
+  onExternalRowsChange?: (rows: EventsTableRow[]) => void;
   sessionId?: string;
   /**
    * When true, render the time-range picker and auto-refresh button in the
@@ -247,7 +274,10 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   externalColumnVisibility,
+  onExternalColumnVisibilityChange,
+  columnsPickerContainer,
   onExternalRowClick,
+  onExternalRowsChange,
   sessionId,
   showControlsInPageHeader = false,
 }: EventsTableProps) {
@@ -1450,6 +1480,26 @@ export default function ObservationsEventsTable({
       })()
     : columnVisibility;
 
+  // Embedded previews show few narrow columns in a full-width container; the
+  // fixed table layout would stretch all of them proportionally (the date
+  // column balloons). Let the last visible column absorb the leftover space
+  // instead, so the others keep their declared widths and hug the left edge.
+  const displayColumns = (() => {
+    if (!externalColumnVisibility) return columns;
+    const lastVisibleIndex = columns.reduce((acc, def, index) => {
+      const id =
+        def.id ??
+        ("accessorKey" in def && typeof def.accessorKey === "string"
+          ? def.accessorKey
+          : undefined);
+      return id && effectiveColumnVisibility[id] ? index : acc;
+    }, -1);
+    if (lastVisibleIndex < 0) return columns;
+    return columns.map((def, index) =>
+      index === lastVisibleIndex ? { ...def, isFlexWidth: true } : def,
+    );
+  })();
+
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
     `eventsColumnOrder-${projectId}`,
     columns,
@@ -1575,6 +1625,15 @@ export default function ObservationsEventsTable({
 
     return result;
   }, [observations]);
+
+  // Report loaded rows to embedders; skipped while loading so an embedder
+  // can distinguish "no matches" from "not loaded yet".
+  const observationsStatus = observations.status;
+  useEffect(() => {
+    if (onExternalRowsChange && observationsStatus === "success") {
+      onExternalRowsChange(rows);
+    }
+  }, [onExternalRowsChange, observationsStatus, rows]);
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -1756,6 +1815,31 @@ export default function ObservationsEventsTable({
           </div>
         )}
 
+        {/* Embedded previews hide the full toolbar but can still offer the
+            standard columns picker when the embedder controls visibility —
+            portaled into the embedder's own layout when a container is given. */}
+        {hideControls &&
+          externalColumnVisibility &&
+          onExternalColumnVisibilityChange &&
+          (columnsPickerContainer ? (
+            createPortal(
+              <DataTableColumnVisibilityFilter
+                columns={columns}
+                columnVisibility={effectiveColumnVisibility}
+                setColumnVisibility={onExternalColumnVisibilityChange}
+              />,
+              columnsPickerContainer,
+            )
+          ) : (
+            <div className="flex justify-end p-1">
+              <DataTableColumnVisibilityFilter
+                columns={columns}
+                columnVisibility={effectiveColumnVisibility}
+                setColumnVisibility={onExternalColumnVisibilityChange}
+              />
+            </div>
+          ))}
+
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
@@ -1774,7 +1858,7 @@ export default function ObservationsEventsTable({
             <DataTable
               key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
               tableName="observations"
-              columns={columns}
+              columns={displayColumns}
               peekView={peekConfig}
               data={
                 observations.status === "loading" || isViewLoading

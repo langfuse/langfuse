@@ -1,4 +1,4 @@
-import { memo, type JSX, useState } from "react";
+import { memo, type JSX, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
@@ -347,17 +347,38 @@ export const ValueCell = memo(
     toggleCellExpansion,
     preserveStringWhitespace = false,
     metadataActions,
+    maxDisplayChars = MAX_CELL_DISPLAY_CHARS,
+    maxDisplayLines,
   }: {
     row: Row<JsonTableRow>;
     expandedCells: Set<string>;
     toggleCellExpansion: (cellId: string) => void;
     preserveStringWhitespace?: boolean;
     metadataActions?: MetadataFilterActions;
+    /** Truncation threshold for long values; Infinity disables truncation. */
+    maxDisplayChars?: number;
+    /** Clamps collapsed values to N rendered lines (covers wrapped lines,
+        which a character threshold can't). */
+    maxDisplayLines?: number;
   }) => {
     const { value, type } = row.original;
     const cellId = `${row.id}-value`;
     const isCellExpanded = expandedCells.has(cellId);
     const [showCopySuccess, setShowCopySuccess] = useState(false);
+
+    // Line clamping is visual (CSS), so whether it actually cut something off
+    // is measured from the DOM. The last measurement is kept while expanded
+    // so the "...collapse" control stays visible.
+    const clampActive = maxDisplayLines !== undefined && !isCellExpanded;
+    const contentRef = useRef<HTMLSpanElement | null>(null);
+    const [isClampOverflowing, setIsClampOverflowing] = useState(false);
+    useLayoutEffect(() => {
+      if (!clampActive) return;
+      const element = contentRef.current;
+      if (element) {
+        setIsClampOverflowing(element.scrollHeight > element.clientHeight + 1);
+      }
+    }, [clampActive, value, maxDisplayLines]);
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -387,10 +408,10 @@ export const ValueCell = memo(
             };
           }
 
-          const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
+          const needsTruncation = stringValue.length > maxDisplayChars;
           const displayValue =
             needsTruncation && !isCellExpanded
-              ? getTruncatedValue(stringValue, MAX_CELL_DISPLAY_CHARS)
+              ? getTruncatedValue(stringValue, maxDisplayChars)
               : stringValue;
 
           return {
@@ -462,10 +483,10 @@ export const ValueCell = memo(
         }
         default: {
           const stringValue = String(value);
-          const needsTruncation = stringValue.length > MAX_CELL_DISPLAY_CHARS;
+          const needsTruncation = stringValue.length > maxDisplayChars;
           const displayValue =
             needsTruncation && !isCellExpanded
-              ? getTruncatedValue(stringValue, MAX_CELL_DISPLAY_CHARS)
+              ? getTruncatedValue(stringValue, maxDisplayChars)
               : stringValue;
 
           return {
@@ -481,11 +502,28 @@ export const ValueCell = memo(
     };
 
     const { content, needsTruncation } = getDisplayValue();
+    const showExpandToggle =
+      (needsTruncation || isClampOverflowing) && !row.original.hasChildren;
 
     return (
       <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
-        <span className="cursor-text">{content}</span>
-        {needsTruncation && !row.original.hasChildren && (
+        <span
+          ref={contentRef}
+          className="cursor-text"
+          style={
+            clampActive
+              ? {
+                  display: "-webkit-box",
+                  WebkitBoxOrient: "vertical",
+                  WebkitLineClamp: maxDisplayLines,
+                  overflow: "hidden",
+                }
+              : undefined
+          }
+        >
+          {content}
+        </span>
+        {showExpandToggle && (
           <div
             className="inline cursor-pointer opacity-50"
             onClick={(e) => {
@@ -495,7 +533,9 @@ export const ValueCell = memo(
           >
             {isCellExpanded
               ? "\n...collapse"
-              : `\n...expand (${getValueStringLength(value) - MAX_CELL_DISPLAY_CHARS} more characters)`}
+              : needsTruncation
+                ? `\n...expand (${getValueStringLength(value) - maxDisplayChars} more characters)`
+                : "\n...expand"}
           </div>
         )}
 

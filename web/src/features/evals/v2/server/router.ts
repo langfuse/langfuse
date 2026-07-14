@@ -19,6 +19,7 @@ import {
   variableMapping,
 } from "@langfuse/shared";
 import {
+  getObservationByIdFromEventsTable,
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
@@ -32,9 +33,11 @@ import {
   runLlmJudgeTest,
 } from "@/src/features/evals/v2/server/testRunLlmJudge";
 
+// "trace" remains readable for scopes saved by the earlier prototype; new
+// scopes are observation ("event") or experiment based.
 const ScopeTargetObjectSchema = z
   .enum(["trace", "event", "experiment"])
-  .default("trace");
+  .default("event");
 
 const RunScopeInputSchema = z.discriminatedUnion("mode", [
   z.object({
@@ -84,9 +87,10 @@ const TestRunSchema = z.object({
   modelParams: z.record(z.string(), z.unknown()).nullish(),
   outputDefinition: PersistedEvalOutputDefinitionSchema.nullish(),
   sourceTemplateId: z.string().nullish(),
-  mapping: z.array(variableMapping),
+  mapping: z.array(observationVariableMapping),
+  observationId: z.string(),
   traceId: z.string(),
-  traceTimestamp: z.coerce.date().optional(),
+  observationStartTime: z.coerce.date().optional(),
 });
 
 export const evalsV2Router = createTRPCRouter({
@@ -123,6 +127,9 @@ export const evalsV2Router = createTRPCRouter({
         where: { projectId: input.projectId },
         orderBy: [{ name: "asc" }, { version: "desc" }],
         distinct: ["name"],
+        include: {
+          createdByUser: { select: { name: true, email: true } },
+        },
       });
     }),
 
@@ -329,6 +336,7 @@ export const evalsV2Router = createTRPCRouter({
         }
         evalTemplateId = await createProjectTemplate(ctx.prisma, {
           projectId: input.projectId,
+          createdByUserId: ctx.session.user.id,
           name: input.scoreName,
           type: "CODE",
           prompt: null,
@@ -376,6 +384,7 @@ export const evalsV2Router = createTRPCRouter({
           );
           evalTemplateId = await createProjectTemplate(ctx.prisma, {
             projectId: input.projectId,
+            createdByUserId: ctx.session.user.id,
             name: sourceTemplate
               ? `${sourceTemplate.name} (${input.scoreName})`
               : input.scoreName,
@@ -437,6 +446,37 @@ export const evalsV2Router = createTRPCRouter({
       return { id: job.id, runScopeId };
     }),
 
+  // Sample observation for the setup form, read from the events table — the
+  // same store the scope preview lists, so every previewed row resolves.
+  sampleObservation: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        observationId: z.string(),
+        traceId: z.string(),
+        startTime: z.coerce.date().nullish(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: input.observationId,
+        projectId: input.projectId,
+        traceId: input.traceId,
+        startTime: input.startTime ?? undefined,
+        fetchWithInputOutput: true,
+      });
+      if (!observation) {
+        throw new LangfuseNotFoundError("Observation not found");
+      }
+      return observation;
+    }),
+
   testRunLlmJudge: protectedProjectProcedure
     .input(TestRunSchema)
     .mutation(async ({ input, ctx }) => {
@@ -467,8 +507,9 @@ export const evalsV2Router = createTRPCRouter({
           sourceTemplate?.outputDefinition ??
           undefined,
         mapping: input.mapping,
+        observationId: input.observationId,
         traceId: input.traceId,
-        traceTimestamp: input.traceTimestamp,
+        observationStartTime: input.observationStartTime,
       });
     }),
 });
@@ -477,6 +518,7 @@ async function createProjectTemplate(
   prisma: PrismaClient,
   data: {
     projectId: string;
+    createdByUserId: string;
     name: string;
     type: "LLM_AS_JUDGE" | "CODE";
     prompt: string | null;
@@ -498,6 +540,7 @@ async function createProjectTemplate(
   const template = await prisma.evalTemplate.create({
     data: {
       projectId: data.projectId,
+      createdByUserId: data.createdByUserId,
       name: data.name,
       version: (latestVersion?.version ?? 0) + 1,
       type: data.type,

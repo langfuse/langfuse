@@ -8,7 +8,6 @@ import {
   ViewPlugin,
   type ViewUpdate,
   type ReactCodeMirrorRef,
-  WidgetType,
 } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
@@ -37,65 +36,40 @@ export type VariableMappingStatus = {
   message?: string;
 };
 
-/** Right-side "×" that deletes the {{variable}} token from the prompt. */
-class VariableDeleteWidget extends WidgetType {
-  constructor(
-    private readonly from: number,
-    private readonly to: number,
-  ) {
-    super();
-  }
-
-  eq(other: VariableDeleteWidget) {
-    return other.from === this.from && other.to === this.to;
-  }
-
-  toDOM(view: EditorView) {
-    const button = document.createElement("span");
-    button.className = "cm-eval-variable-delete";
-    button.textContent = "×";
-    button.title = "Remove variable";
-    // Keep the caret where it is; deletion is the only effect.
-    button.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      view.dispatch({ changes: { from: this.from, to: this.to } });
-      view.focus();
-    });
-    return button;
-  }
+// Keep long JSONPath bindings from blowing up the pill; CSS cannot ellipsize
+// just the middle of the ::after content, so the label is shortened here.
+function truncateLabel(label: string, max = 24): string {
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
 }
 
-// Pill styling for {{variable}} tokens — a left status icon (with the error
-// on hover), the clickable variable body, and a right "×" delete control.
+// Pill styling for {{variable}} tokens — one clickable surface reading
+// "{{variable}} → binding ▾": the binding and arrows render via ::after from
+// the data-mapping attribute, keeping the pill a single element with a single
+// hover state.
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
+  getMappingLabel: (variable: string) => string | undefined,
 ) {
   const decorator = new MatchDecorator({
     regexp: /{{\s*([\w.]+)\s*}}/g,
     decorate: (add, from, to, match) => {
       const status = getStatus(match[1]);
+      const invalid = status?.status === "invalid";
+      const label = invalid
+        ? "select data"
+        : truncateLabel(getMappingLabel(match[1]) ?? "map data");
       add(
         from,
         to,
         Decoration.mark({
           class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}`,
-          attributes:
-            status?.status === "invalid" && status.message
-              ? { title: status.message }
-              : undefined,
-        }),
-      );
-      add(
-        to,
-        to,
-        Decoration.widget({
-          widget: new VariableDeleteWidget(from, to),
-          side: 1,
+          attributes: {
+            "data-mapping": label,
+            title: invalid
+              ? (status.message ??
+                "Not connected to the sample data — click to select data")
+              : `Mapped to ${label} — click to change`,
+          },
         }),
       );
     },
@@ -114,73 +88,96 @@ function createVariableHighlighter(
   );
 }
 
+// Broken-mapping pill state: amber with dashed borders — a hollow "fill me
+// in" slot — with the binding suffix turned into a "select data" CTA.
+const INVALID_BORDER = `1px dashed color-mix(in srgb, hsl(var(--dark-yellow)) 70%, transparent)`;
+const INVALID_BACKGROUND = `color-mix(in srgb, hsl(var(--dark-yellow)) 7%, transparent)`;
+const INVALID_BACKGROUND_HOVER = `color-mix(in srgb, hsl(var(--dark-yellow)) 16%, transparent)`;
+
+// Lucide ChevronDown (the app-wide dropdown arrow) as a CSS background image.
+// The stroke color is baked in per light/dark theme because data-URI SVGs
+// cannot read CSS variables; the hsl() values mirror globals.css.
+const chevronDownImage = (strokeColor: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>`,
+  )}")`;
+// --muted-foreground light/dark
+const CHEVRON_LIGHT = chevronDownImage("hsl(215.4, 16.3%, 46.9%)");
+const CHEVRON_DARK = chevronDownImage("hsl(215, 20.2%, 65.1%)");
+// --dark-yellow light/dark
+const CHEVRON_INVALID_LIGHT = chevronDownImage("hsl(43, 96%, 40%)");
+const CHEVRON_INVALID_DARK = chevronDownImage("hsl(53, 98.3%, 76.9%)");
+
 const variableTheme = EditorView.baseTheme({
-  // Button-like pill split in two merged halves: the variable body (with a
-  // status icon on its left edge) and a "×" delete control on the right.
+  // Button-like pill, one clickable surface: "{{variable}} → binding ▾".
+  // inline-block so the pill can carry real button padding — a plain inline
+  // span would clip its background into the neighboring lines.
   ".cm-eval-variable": {
-    borderRadius: "6px 0 0 6px",
-    padding: "1px 4px 1px 6px",
+    display: "inline-block",
+    borderRadius: "6px",
+    padding: "3px 10px",
+    margin: "2px 0",
+    // Explicit button typography (matches the default shadcn button size)
+    // instead of inheriting the editor's smaller prose size.
+    fontSize: "0.875rem",
+    lineHeight: "1.25rem",
     cursor: "pointer",
     fontWeight: "600",
     whiteSpace: "nowrap",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
+    color: "hsl(var(--primary-accent))",
+    backgroundColor:
+      "color-mix(in srgb, hsl(var(--primary-accent)) 12%, transparent)",
+    border:
+      "1px solid color-mix(in srgb, hsl(var(--primary-accent)) 45%, transparent)",
   },
-  ".cm-eval-variable-delete": {
-    cursor: "pointer",
-    padding: "1px 5px 1px 2px",
-    borderRadius: "0 6px 6px 0",
-    fontSize: "inherit",
-    lineHeight: "inherit",
-    userSelect: "none",
-    webkitUserSelect: "none",
+  ".cm-eval-variable:hover": {
+    backgroundColor:
+      "color-mix(in srgb, hsl(var(--primary-accent)) 22%, transparent)",
   },
-  ".cm-eval-variable-delete:hover": {
-    color: "#ef4444",
+  // The binding suffix "→ Input ⌄": the → points from the variable to the
+  // data it pulls in, the trailing chevron (the app-wide lucide ChevronDown,
+  // as a background image) signals that clicking opens a picker. A ::after
+  // with attr() because CodeMirror marks cannot carry extra DOM — and it
+  // keeps the whole pill one clickable surface.
+  ".cm-eval-variable::after": {
+    content: '" → " attr(data-mapping)',
+    display: "inline-block",
+    fontWeight: "400",
+    color: "hsl(var(--muted-foreground))",
+    paddingRight: "18px",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right center",
+    backgroundSize: "14px 14px",
   },
-  "&light .cm-eval-variable": {
-    backgroundColor: "rgba(59, 130, 246, 0.14)",
-    color: "#1d4ed8",
-    border: "1px solid rgba(59, 130, 246, 0.45)",
-    borderRight: "none",
-    boxShadow: "0 1px 1px rgba(0, 0, 0, 0.05)",
+  "&light .cm-eval-variable::after": {
+    backgroundImage: CHEVRON_LIGHT,
   },
-  "&light .cm-eval-variable:hover": {
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
+  "&dark .cm-eval-variable::after": {
+    backgroundImage: CHEVRON_DARK,
   },
-  "&light .cm-eval-variable-delete": {
-    backgroundColor: "rgba(59, 130, 246, 0.14)",
-    color: "rgba(29, 78, 216, 0.6)",
-    border: "1px solid rgba(59, 130, 246, 0.45)",
-    borderLeft: "none",
-    boxShadow: "0 1px 1px rgba(0, 0, 0, 0.05)",
+  // Broken mapping (errors or resolves empty against the sample): the whole
+  // pill turns into a dashed amber slot and the binding suffix becomes a
+  // bold "select data" CTA. The error text itself is in the mark's title
+  // attribute, shown on hover. Declared after the base rules so the
+  // equal-specificity invalid rules win.
+  ".cm-eval-variable-invalid": {
+    color: "hsl(var(--dark-yellow))",
+    backgroundColor: INVALID_BACKGROUND,
+    border: INVALID_BORDER,
   },
-  "&dark .cm-eval-variable": {
-    backgroundColor: "rgba(96, 165, 250, 0.2)",
-    color: "#93c5fd",
-    border: "1px solid rgba(96, 165, 250, 0.5)",
-    borderRight: "none",
+  ".cm-eval-variable-invalid:hover": {
+    backgroundColor: INVALID_BACKGROUND_HOVER,
   },
-  "&dark .cm-eval-variable:hover": {
-    backgroundColor: "rgba(96, 165, 250, 0.32)",
+  ".cm-eval-variable-invalid::after": {
+    color: "hsl(var(--dark-yellow))",
+    fontWeight: "600",
   },
-  "&dark .cm-eval-variable-delete": {
-    backgroundColor: "rgba(96, 165, 250, 0.2)",
-    color: "rgba(147, 197, 253, 0.6)",
-    border: "1px solid rgba(96, 165, 250, 0.5)",
-    borderLeft: "none",
+  "&light .cm-eval-variable-invalid::after": {
+    backgroundImage: CHEVRON_INVALID_LIGHT,
   },
-  // Left status icon: connected (✓) or broken (!) — the error text itself is
-  // in the mark's title attribute, shown on hover.
-  ".cm-eval-variable-valid::before, .cm-eval-variable-invalid::before": {
-    marginRight: "4px",
-    fontWeight: "700",
-  },
-  ".cm-eval-variable-valid::before": {
-    content: '"✓"',
-    color: "#16a34a",
-  },
-  ".cm-eval-variable-invalid::before": {
-    content: '"!"',
-    color: "#ef4444",
+  "&dark .cm-eval-variable-invalid::after": {
+    backgroundImage: CHEVRON_INVALID_DARK,
   },
 });
 
@@ -217,6 +214,7 @@ export function PromptVariableEditor({
   value,
   onChange,
   variableStatus,
+  variableMappings,
   renderVariableContent,
   previewEnabled = false,
   onPreviewEnabledChange,
@@ -225,10 +223,15 @@ export function PromptVariableEditor({
 }: {
   value: string;
   onChange: (value: string) => void;
-  /** Per-variable mapping health against the sample data — drives the pill dot. */
+  /** Per-variable mapping health against the sample data — drives the pill's
+      broken-mapping state. */
   variableStatus?: Record<string, VariableMappingStatus>;
-  /** Popover body for the clicked variable (mapping controls). */
-  renderVariableContent: (variable: string) => ReactNode;
+  /** Per-variable display label of the current data binding (e.g. "Input"),
+      shown inside the pill next to the variable name. */
+  variableMappings?: Record<string, string>;
+  /** Popover body for the clicked variable (mapping controls). `close`
+      dismisses the popover, e.g. when handing off to the sample panel. */
+  renderVariableContent: (variable: string, close: () => void) => ReactNode;
   /** When true, render previewSlot instead of the editor (toolbar stays). */
   previewEnabled?: boolean;
   onPreviewEnabledChange?: (enabled: boolean) => void;
@@ -260,10 +263,19 @@ export function PromptVariableEditor({
     () => undefined,
   );
   handleClickRef.current = (event, view) => {
-    // The delete control removes the variable — no mapping popover for it.
-    if ((event.target as HTMLElement).closest(".cm-eval-variable-delete")) {
-      return;
-    }
+    const openForRange = (variable: string, from: number, to: number) => {
+      const start = view.coordsAtPos(from);
+      if (!start) return;
+      const end = view.coordsAtPos(to);
+      anchorRectRef.current = toDomRect({
+        top: start.top,
+        bottom: start.bottom,
+        left: start.left,
+        right: end?.right ?? start.right,
+      });
+      setActive({ variable, rect: anchorRectRef.current });
+    };
+
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return;
     const line = view.state.doc.lineAt(pos);
@@ -273,35 +285,31 @@ export function PromptVariableEditor({
       const from = line.from + match.index;
       const to = from + match[0].length;
       if (pos < from || pos > to) continue;
-      const start = view.coordsAtPos(from);
-      const end = view.coordsAtPos(to);
-      if (!start) return;
-      anchorRectRef.current = toDomRect({
-        top: start.top,
-        bottom: start.bottom,
-        left: start.left,
-        right: end?.right ?? start.right,
-      });
-      setActive({ variable: match[1], rect: anchorRectRef.current });
+      openForRange(match[1], from, to);
       return;
     }
   };
 
-  // Serialized so the memo only invalidates when the status content changes;
-  // an extensions identity change makes react-codemirror reconfigure the
-  // editor, which re-runs the decorator with the fresh statuses.
+  // Serialized so the memo only invalidates when the content changes; an
+  // extensions identity change makes react-codemirror reconfigure the editor,
+  // which re-runs the decorator with the fresh statuses/colors.
   const statusKey = JSON.stringify(variableStatus ?? {});
+  const mappingsKey = JSON.stringify(variableMappings ?? {});
   const extensions = useMemo(() => {
     const status: Record<string, VariableMappingStatus> = JSON.parse(statusKey);
+    const mappingLabels: Record<string, string> = JSON.parse(mappingsKey);
     return [
-      createVariableHighlighter((variable) => status[variable]),
+      createVariableHighlighter(
+        (variable) => status[variable],
+        (variable) => mappingLabels[variable],
+      ),
       variableTheme,
       promptFontTheme,
       EditorView.domEventHandlers({
         click: (event, view) => handleClickRef.current(event, view),
       }),
     ];
-  }, [statusKey]);
+  }, [statusKey, mappingsKey]);
 
   // Inserts a {{variable}} template at the cursor (replacing any selection)
   // and selects the placeholder name so the user can type over it.
@@ -327,7 +335,10 @@ export function PromptVariableEditor({
           onChange={onChange}
           editable
           mode="prompt"
-          minHeight={280}
+          // Low enough that typical prompts hug their content — a tall fixed
+          // min-height leaves a dead strip under the last line that reads as
+          // broken bottom padding.
+          minHeight={140}
           maxHeight="50dvh"
           lineNumbers={false}
           editorRef={editorRef}
@@ -368,7 +379,7 @@ export function PromptVariableEditor({
             ) : (
               <Eye className="mr-1.5 h-3.5 w-3.5" />
             )}
-            Preview with sample trace
+            Preview with sample observation
           </Button>
         )}
       </div>
@@ -381,7 +392,9 @@ export function PromptVariableEditor({
       >
         <PopoverAnchor virtualRef={virtualAnchorRef} />
         <PopoverContent className="w-96" align="start">
-          {active ? renderVariableContent(active.variable) : null}
+          {active
+            ? renderVariableContent(active.variable, () => setActive(null))
+            : null}
         </PopoverContent>
       </Popover>
     </div>

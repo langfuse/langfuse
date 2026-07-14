@@ -36,6 +36,8 @@ export function EventsSearchBarRow({
   onRequestColumns,
   aiDataContext,
   className,
+  savedQueries,
+  onPickSavedQuery,
 }: {
   projectId: string;
   store: SearchBarStore;
@@ -63,6 +65,13 @@ export function EventsSearchBarRow({
   /** Overrides the wrapper padding when the row is embedded outside a table
    *  toolbar (e.g. inside a form), where the toolbar-aligned inset is off. */
   className?: string;
+  /** Host-provided saved queries shown as an empty-bar autocomplete section;
+   *  picking one calls onPickSavedQuery(id). See SearchComposer. */
+  savedQueries?: {
+    title: string;
+    items: { id: string; label: string; detail?: string }[];
+  };
+  onPickSavedQuery?: (id: string) => void;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -97,6 +106,8 @@ export function EventsSearchBarRow({
             erroredColumns={erroredColumns}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            savedQueries={savedQueries}
+            onPickSavedQuery={onPickSavedQuery}
           />
         </SearchBarStoreProvider>
       )}

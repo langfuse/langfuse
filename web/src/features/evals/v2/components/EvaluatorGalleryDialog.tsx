@@ -3,12 +3,19 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -19,8 +26,10 @@ import {
   Plus,
   Search,
   Sparkles,
+  X,
   type LucideIcon,
 } from "lucide-react";
+import { formatDistanceToNowStrict } from "date-fns";
 import {
   CATALOG_CATEGORIES,
   getCatalogMeta,
@@ -29,10 +38,18 @@ import {
 import { cn } from "@/src/utils/tailwind";
 
 type EvalTemplate = RouterOutputs["evalsV2"]["catalog"][number];
+// Project templates carry creator attribution on top of the catalog shape.
+type GalleryTemplate = EvalTemplate & {
+  createdByUser?: { name: string | null; email: string | null } | null;
+};
 
 const MAX_TILES_PER_SECTION = 6;
-const SCRATCH_SECTION_KEY = "scratch";
 const CLONE_SECTION_KEY = "clone";
+
+// Partner slugs ("ragas") render as author names ("by Ragas").
+function formatPartner(partner: string) {
+  return partner.charAt(0).toUpperCase() + partner.slice(1);
+}
 
 interface EvaluatorGalleryDialogProps {
   projectId: string;
@@ -45,9 +62,14 @@ interface EvaluatorGalleryDialogProps {
 function EvaluatorCard({
   template,
   onSelect,
+  icon: Icon,
+  iconClassName,
 }: {
-  template: EvalTemplate;
+  template: GalleryTemplate;
   onSelect: (template: EvalTemplate) => void;
+  // Icon tile is uniform per section so groups read as one unit.
+  icon: LucideIcon;
+  iconClassName: string;
 }) {
   const meta = getCatalogMeta(template.name);
   // Project-created templates have no catalog copy; fall back to their prompt,
@@ -65,6 +87,23 @@ function EvaluatorCard({
   const description =
     meta.description ??
     (template.prompt?.trim() ? template.prompt : codeFallback);
+  // Attribution line: partners read as authors (no date — the templates are
+  // maintained, not edited); project templates credit their creator and show
+  // when they last changed. With an author shown, the "Updated" prefix is
+  // dropped so the line fits the card at the two-column width.
+  const author = template.partner
+    ? formatPartner(template.partner)
+    : (template.createdByUser?.name ?? template.createdByUser?.email ?? null);
+  const updated = template.projectId
+    ? formatDistanceToNowStrict(new Date(template.updatedAt), {
+        addSuffix: true,
+      })
+    : null;
+  const attribution = author
+    ? [`by ${author}`, updated].filter(Boolean).join(" · ")
+    : updated
+      ? `Updated ${updated}`
+      : null;
 
   return (
     <div
@@ -77,33 +116,42 @@ function EvaluatorCard({
           onSelect(template);
         }
       }}
-      className="hover:border-primary/30 hover:bg-accent/40 flex min-h-[5.5rem] cursor-pointer items-center gap-3 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm"
+      className="hover:border-primary/30 hover:bg-accent/40 flex h-22 cursor-pointer items-center gap-3 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm"
     >
       <div
         className={cn(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-          getCategoryIconClasses(meta.category),
+          iconClassName,
         )}
       >
-        <meta.icon className="h-[18px] w-[18px]" />
+        <Icon className="h-[18px] w-[18px]" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium" title={template.name}>
             {template.name}
           </span>
-          {/* The LLM-as-a-judge type is the catalog default, so only
-              deviations (code templates, partner attribution) earn a label. */}
-          {template.type === "CODE" || template.partner ? (
-            <span className="text-muted-foreground ml-auto shrink-0 text-[10px] font-medium tracking-wide uppercase">
-              {[template.type === "CODE" ? "Code" : null, template.partner]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          ) : null}
+          <Badge
+            variant="outline-solid"
+            size="sm"
+            className="text-muted-foreground ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
+          >
+            {template.type === "CODE" ? "Code" : "LLM-as-a-Judge"}
+          </Badge>
         </div>
+        {attribution ? (
+          <p
+            className="text-muted-foreground/80 truncate text-[11px]"
+            title={attribution}
+          >
+            {attribution}
+          </p>
+        ) : null}
         {description ? (
-          <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
+          <p
+            className="text-muted-foreground line-clamp-1 text-xs leading-relaxed"
+            title={description}
+          >
             {description}
           </p>
         ) : null}
@@ -113,20 +161,15 @@ function EvaluatorCard({
 }
 
 function SectionHeader({
-  icon: Icon,
   label,
   description,
 }: {
-  icon: LucideIcon;
   label: string;
   description: string;
 }) {
   return (
     <div>
-      <h3 className="flex items-center gap-1.5 text-sm font-semibold">
-        <Icon className="h-4 w-4 shrink-0" />
-        {label}
-      </h3>
+      <h3 className="text-sm font-semibold">{label}</h3>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
@@ -153,7 +196,7 @@ export function EvaluatorGalleryDialog({
   onCreateFromScratch,
 }: EvaluatorGalleryDialogProps) {
   const [search, setSearch] = useState("");
-  const [activeSection, setActiveSection] = useState(SCRATCH_SECTION_KEY);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
@@ -218,18 +261,6 @@ export function EvaluatorGalleryDialog({
     count?: number;
   };
 
-  const primaryNav: NavItem[] = [
-    { key: SCRATCH_SECTION_KEY, label: "Create from scratch" },
-    ...((projectTemplates.data?.length ?? 0) > 0
-      ? [
-          {
-            key: CLONE_SECTION_KEY,
-            label: "Clone from existing",
-            count: projectTemplates.data?.length,
-          },
-        ]
-      : []),
-  ];
   const categoryNav: NavItem[] = CATALOG_CATEGORIES.filter(
     (c) => (categoryCounts.get(c.key) ?? 0) > 0,
   ).map((c) => ({
@@ -238,9 +269,20 @@ export function EvaluatorGalleryDialog({
     icon: c.icon,
     count: categoryCounts.get(c.key),
   }));
+  const existingNav: NavItem[] =
+    (projectTemplates.data?.length ?? 0) > 0
+      ? [
+          {
+            key: CLONE_SECTION_KEY,
+            label: "Start from existing",
+            icon: Copy,
+            count: projectTemplates.data?.length,
+          },
+        ]
+      : [];
   // Scroll-spy iterates in content order, so this must match the section
   // order in the scroll container.
-  const navItems: NavItem[] = [...primaryNav, ...categoryNav];
+  const navItems: NavItem[] = [...existingNav, ...categoryNav];
 
   const visibleCategorySections = CATALOG_CATEGORIES.filter(
     (category) => (templatesByCategory.get(category.key)?.length ?? 0) > 0,
@@ -260,25 +302,36 @@ export function EvaluatorGalleryDialog({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const renderNavItem = (item: NavItem) => (
-    <Button
-      key={item.key}
-      type="button"
-      variant={activeSection === item.key ? "secondary" : "ghost"}
-      className="h-9 justify-start px-3"
-      onClick={() => scrollToSection(item.key)}
-    >
-      {item.icon ? <item.icon className="mr-2 h-4 w-4 shrink-0" /> : null}
-      <span className="truncate" title={item.label}>
-        {item.label}
-      </span>
-      {item.count !== undefined ? (
-        <span className="text-muted-foreground ml-auto text-xs tabular-nums">
-          {item.count}
+  const renderNavItem = (item: NavItem) => {
+    // The clone entry never gets the active background — it sits at the top
+    // and would read as permanently highlighted.
+    const isActive =
+      item.key !== CLONE_SECTION_KEY &&
+      (activeSection ?? navItems[0]?.key) === item.key;
+    return (
+      <Button
+        key={item.key}
+        type="button"
+        variant={isActive ? "secondary" : "ghost"}
+        className={cn(
+          "h-8 justify-start px-3 font-normal",
+          // Nav items only signal state via the active background, not hover.
+          isActive ? "hover:bg-secondary" : "hover:bg-transparent",
+        )}
+        onClick={() => scrollToSection(item.key)}
+      >
+        {item.icon ? <item.icon className="mr-2 h-4 w-4 shrink-0" /> : null}
+        <span className="truncate" title={item.label}>
+          {item.label}
         </span>
-      ) : null}
-    </Button>
-  );
+        {item.count !== undefined ? (
+          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+            {item.count}
+          </span>
+        ) : null}
+      </Button>
+    );
+  };
 
   // Scroll-spy: the last section whose top passed the container top is active.
   const handleScroll = () => {
@@ -288,7 +341,7 @@ export function EvaluatorGalleryDialog({
     const atBottom =
       container.scrollTop + container.clientHeight >=
       container.scrollHeight - 4;
-    let current = navItems[0]?.key ?? SCRATCH_SECTION_KEY;
+    let current = navItems[0]?.key ?? null;
     for (const item of navItems) {
       const el = sectionRefs.current.get(item.key);
       if (!el) continue;
@@ -314,6 +367,8 @@ export function EvaluatorGalleryDialog({
   const renderShowAllToggle = (key: string, total: number) => {
     if (total <= MAX_TILES_PER_SECTION) return null;
     const isExpanded = expandedSections.has(key);
+    // The clone section lists the project's own evaluators, not templates.
+    const noun = key === CLONE_SECTION_KEY ? "evaluators" : "templates";
     return (
       <Button
         type="button"
@@ -330,14 +385,19 @@ export function EvaluatorGalleryDialog({
         ) : (
           <>
             <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
-            Show all {total} templates
+            Show all {total} {noun}
           </>
         )}
       </Button>
     );
   };
 
-  const renderTemplateGrid = (key: string, templates: EvalTemplate[]) => {
+  const renderTemplateGrid = (
+    key: string,
+    templates: GalleryTemplate[],
+    icon: LucideIcon,
+    iconClassName: string,
+  ) => {
     const shown = expandedSections.has(key)
       ? templates
       : templates.slice(0, MAX_TILES_PER_SECTION);
@@ -349,6 +409,8 @@ export function EvaluatorGalleryDialog({
               key={template.id}
               template={template}
               onSelect={onSelectTemplate}
+              icon={icon}
+              iconClassName={iconClassName}
             />
           ))}
         </div>
@@ -360,16 +422,81 @@ export function EvaluatorGalleryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[80dvh] flex-col gap-0 p-0 sm:max-w-[66vw]">
-        <DialogHeader>
-          <DialogTitle>Configure evaluator</DialogTitle>
+        {/* Bespoke header: DialogHeader centers its built-in close button
+            against the full title+description block, but the title and close
+            button must share one centered row. sticky+z-30+bg-background must
+            match DialogHeader: they paint the header over DialogContent's
+            always-rendered z-20 fallback close button (its .dialog-header
+            :has() rule cannot match). */}
+        <div
+          className={cn(
+            "dialog-header",
+            "bg-background sticky top-0 z-30 flex shrink-0 flex-col gap-1.5 rounded-t-lg border-b p-4",
+          )}
+        >
+          <div className="flex items-center gap-4">
+            <DialogTitle className="min-w-0 flex-1">
+              Configure evaluator
+            </DialogTitle>
+            <DialogClose className="ring-offset-background focus:ring-ring shrink-0 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogClose>
+          </div>
           <DialogDescription>
             Pick a maintained evaluator or start from scratch.
           </DialogDescription>
-        </DialogHeader>
+        </div>
         <DialogBody className="flex-row gap-4 overflow-hidden p-0">
-          <div className="flex w-56 shrink-0 flex-col gap-1.5 overflow-y-auto border-r p-4">
-            {primaryNav.map(renderNavItem)}
-            <div className="bg-border my-1 h-px shrink-0" />
+          <div className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mb-2 w-full"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Create from scratch
+                  <ChevronDown className="ml-1.5 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuItem
+                  className="items-start gap-3"
+                  onClick={() => onCreateFromScratch("llm")}
+                >
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="font-medium">LLM-as-a-Judge</span>
+                    <span className="text-muted-foreground text-xs">
+                      Write a prompt from scratch to evaluate your data.
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="items-start gap-3"
+                  onClick={() => onCreateFromScratch("code")}
+                >
+                  <Code2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="font-medium">Code</span>
+                    <span className="text-muted-foreground text-xs">
+                      Score data with Python or TypeScript.
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {existingNav.map(renderNavItem)}
+            {existingNav.length > 0 && categoryNav.length > 0 ? (
+              <div className="bg-border my-1.5 h-px shrink-0" />
+            ) : null}
+            {categoryNav.length > 0 ? (
+              <div className="flex h-8 shrink-0 items-center px-3 text-sm font-semibold">
+                Templates
+              </div>
+            ) : null}
             {categoryNav.map(renderNavItem)}
           </div>
 
@@ -391,73 +518,6 @@ export function EvaluatorGalleryDialog({
               onScroll={handleScroll}
               className="flex flex-1 flex-col gap-4 overflow-y-auto pt-4"
             >
-              <section
-                ref={setSectionRef(SCRATCH_SECTION_KEY)}
-                className="flex scroll-mt-1 flex-col gap-2.5"
-              >
-                <SectionHeader
-                  icon={Plus}
-                  label="Create from scratch"
-                  description="Write your own evaluator as an LLM-as-a-judge prompt or code."
-                />
-                <div className="grid grid-cols-2 gap-3 2xl:grid-cols-3">
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onCreateFromScratch("llm")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onCreateFromScratch("llm");
-                      }
-                    }}
-                    className="hover:border-primary/30 hover:bg-accent/40 flex min-h-[5.5rem] cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3.5 text-left transition-all hover:shadow-sm"
-                  >
-                    <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                      <Sparkles className="h-[18px] w-[18px]" />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span
-                        className="truncate text-sm font-medium"
-                        title="LLM-as-a-Judge"
-                      >
-                        LLM-as-a-Judge
-                      </span>
-                      <p className="text-muted-foreground text-xs leading-relaxed">
-                        Write a prompt from scratch to evaluate your data.
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onCreateFromScratch("code")}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onCreateFromScratch("code");
-                      }
-                    }}
-                    className="hover:border-primary/30 hover:bg-accent/40 flex min-h-[5.5rem] cursor-pointer items-center gap-3 rounded-lg border border-dashed p-3.5 text-left transition-all hover:shadow-sm"
-                  >
-                    <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                      <Code2 className="h-[18px] w-[18px]" />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span
-                        className="truncate text-sm font-medium"
-                        title="Code"
-                      >
-                        Code
-                      </span>
-                      <p className="text-muted-foreground text-xs leading-relaxed">
-                        Score data with Python or TypeScript.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               {catalog.isLoading ? (
                 <GallerySkeleton />
               ) : catalog.isError ? (
@@ -472,15 +532,26 @@ export function EvaluatorGalleryDialog({
                       className="flex scroll-mt-1 flex-col gap-2.5 pt-2"
                     >
                       <SectionHeader
-                        icon={Copy}
-                        label="Clone from existing"
+                        label="Start from existing"
                         description="Start from an evaluator this project already created."
                       />
                       {renderTemplateGrid(
                         CLONE_SECTION_KEY,
                         filteredProjectTemplates,
+                        Copy,
+                        "bg-muted text-muted-foreground",
                       )}
                     </section>
+                  ) : null}
+
+                  {/* Labeled divider separating the project's own evaluators
+                      from the maintained catalog below. */}
+                  {filteredProjectTemplates.length > 0 &&
+                  visibleCategorySections.length > 0 ? (
+                    <div className="flex items-center gap-3 pt-2">
+                      <h3 className="text-base font-semibold">Templates</h3>
+                      <div className="bg-border h-px flex-1" />
+                    </div>
                   ) : null}
 
                   {visibleCategorySections.map((category) => (
@@ -490,13 +561,14 @@ export function EvaluatorGalleryDialog({
                       className="flex scroll-mt-1 flex-col gap-2.5 pt-2"
                     >
                       <SectionHeader
-                        icon={category.icon}
                         label={category.label}
                         description={category.description}
                       />
                       {renderTemplateGrid(
                         category.key,
                         templatesByCategory.get(category.key) ?? [],
+                        category.icon,
+                        getCategoryIconClasses(category.key),
                       )}
                     </section>
                   ))}

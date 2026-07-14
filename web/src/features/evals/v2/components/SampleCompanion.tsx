@@ -37,10 +37,12 @@ export function SampleCompanion({
   isWide,
   sheetOpen,
   onSheetOpenChange,
+  railOpen,
+  onRailOpenChange,
   children,
 }: {
   title: string;
-  /** Rendered in the header next to the title (e.g. trace controls). */
+  /** Rendered in the header next to the title (e.g. observation controls). */
   headerControls?: ReactNode;
   /** Rendered on the header's right side (e.g. the test button). */
   headerActions?: ReactNode;
@@ -49,10 +51,12 @@ export function SampleCompanion({
   isWide: boolean | null;
   sheetOpen: boolean;
   onSheetOpenChange: (open: boolean) => void;
+  /** Wide-screen rail visibility, controlled by the parent so flows (e.g.
+      pick-from-sample) can reopen a collapsed rail. */
+  railOpen: boolean;
+  onRailOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
-  const [railOpen, setRailOpen] = useState(true);
-
   // Rail width: a third of the layout by default, adjustable by dragging the
   // resize bar on the rail's edge (px once dragged).
   const asideRef = useRef<HTMLElement | null>(null);
@@ -95,7 +99,7 @@ export function SampleCompanion({
             size="icon"
             title={`Show ${title.toLowerCase()} panel`}
             aria-label={`Show ${title.toLowerCase()} panel`}
-            onClick={() => setRailOpen(true)}
+            onClick={() => onRailOpenChange(true)}
           >
             <PanelRightOpen className="h-4 w-4" />
           </Button>
@@ -132,7 +136,7 @@ export function SampleCompanion({
               size="icon-xs"
               title="Collapse panel"
               aria-label="Collapse panel"
-              onClick={() => setRailOpen(false)}
+              onClick={() => onRailOpenChange(false)}
             >
               <PanelRightClose className="h-4 w-4" />
             </Button>

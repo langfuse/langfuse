@@ -64,6 +64,9 @@ describe("evaluation helpers", () => {
     });
 
     it("should handle JSON values in variables", () => {
+      // JSON-encoded strings (e.g. a full-value mapping of a stringified
+      // column) are decoded and re-stringified, so the judge sees clean
+      // JSON — at the cost of normalized (minified) formatting.
       const params = {
         templatePrompt: "Data: {{data}}",
         variables: [
@@ -72,7 +75,19 @@ describe("evaluation helpers", () => {
       };
 
       const result = compileEvalPrompt(params);
-      expect(result).toBe('Data: {"key": "value", "count": 42}');
+      expect(result).toBe('Data: {"key":"value","count":42}');
+    });
+
+    it("decodes multi-encoded JSON strings instead of injecting escaped text", () => {
+      const params = {
+        templatePrompt: "Data: {{data}}",
+        variables: [
+          { var: "data", value: '"{\\"nested\\":true}"' },
+        ] as ExtractedVariable[],
+      };
+
+      const result = compileEvalPrompt(params);
+      expect(result).toBe('Data: {"nested":true}');
     });
 
     it("stringifies non-string variable values via parseUnknownToString", () => {
