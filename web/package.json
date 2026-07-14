@@ -200,6 +200,7 @@
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^10.0.0",
     "eslint": "^9.39.2",
+    "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
     "eslint-plugin-storybook": "10.3.6",
     "eslint-plugin-tailwindcss": "4.0.2",
     "jsdom": "^26.1.0",

@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
@@ -85,10 +86,12 @@ export default [
   },
 
   {
+    ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
     rules: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       // Design-system component APIs must use explicit variants instead of styling escape hatches.
       "@repo/no-style-props": "error",
 
@@ -107,9 +110,11 @@ export default [
 
   // We're using the in-app-agent directory as a testing ground for some new eslint-rules.
   {
+    ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/in-app-agent",
     files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
       "@typescript-eslint/no-confusing-void-expression": "warn",
       "@typescript-eslint/no-non-null-assertion": "warn",
