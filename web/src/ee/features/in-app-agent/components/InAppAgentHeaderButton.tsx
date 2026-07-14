@@ -32,6 +32,7 @@ export function InAppAgentHeaderButton() {
 
             openAssistant("page_header");
           }}
+          className="rounded-md"
           size="sm"
         >
           <BotMessageSquare className="h-4 w-4" />
