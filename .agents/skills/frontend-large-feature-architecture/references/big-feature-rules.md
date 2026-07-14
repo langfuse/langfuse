@@ -66,9 +66,10 @@ step-by-step controller path, read `controller-migration.md`.
 
 ## Effects And Actions
 
-Effects are for subscriptions, observers, imperative third-party APIs,
-one-time initialization, and cleanup. Keep them in containers or feature hooks,
-not view components. If an effect writes state repeatedly, make the store action
+Effects are for named external-system integrations: subscriptions, observers,
+browser event listeners, timers, and imperative third-party APIs, plus their
+cleanup. Keep them in containers or feature hooks, not view
+components. If an effect writes state repeatedly, make the store action
 idempotent.
 
 Complex actions should be callable without rendering a component. Put workflows

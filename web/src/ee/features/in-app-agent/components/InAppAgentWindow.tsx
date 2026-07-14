@@ -1,6 +1,12 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   BotMessageSquare,
   History,
@@ -358,16 +364,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
 
+  // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
-    const wasInputDisabled = previousIsInputDisabledRef.current;
     previousIsInputDisabledRef.current = isInputDisabled;
-
-    if (!wasInputDisabled || isInputDisabled) {
-      return;
-    }
-
-    inputRef.current?.focus();
   }, [isInputDisabled]);
+
+  const setInputRef = useCallback(
+    (input: HTMLTextAreaElement | null) => {
+      inputRef.current = input;
+
+      const shouldRefocusInput =
+        previousIsInputDisabledRef.current && !isInputDisabled;
+
+      if (input && shouldRefocusInput) {
+        input.focus();
+      }
+    },
+    [isInputDisabled],
+  );
 
   useEffect(() => {
     const input = inputRef.current;
@@ -760,7 +774,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : (
               <textarea
                 autoFocus={!isExpanded}
-                ref={inputRef}
+                ref={setInputRef}
                 value={input}
                 onChange={(event) => {
                   setInput(event.target.value);

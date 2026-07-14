@@ -23,6 +23,12 @@ export type InAppAgentTurnProgressIndicatorState =
   | "active"
   | "awaiting_approval";
 
+const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
+  z.object({ isLoading: z.boolean().optional() }),
+);
+
+export type InAppAiAgentMessage = z.infer<typeof InAppAiAgentMessageSchema>;
+
 export type InAppAgentToolCallContent = {
   type: "tool";
   name: string;
@@ -212,7 +218,7 @@ export function getDrawerMessages({
   messages: unknown;
   pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
 }): InAppAgentWindowMessage[] {
-  const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
+  const parsedMessages = z.array(InAppAiAgentMessageSchema).parse(messages);
   const toolResults = getToolResultsByToolCallId(parsedMessages);
   const resolvedToolCallIds = new Set(toolResults.keys());
   const pendingApprovalsByToolCallId = new Map(
@@ -223,6 +229,7 @@ export function getDrawerMessages({
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
   let pendingToolGroupId: string | null = null;
+  let pendingToolGroupIsLoading = false;
   let pendingSources: InAppAgentMessageSource[] = [];
   const flushPendingTools = () => {
     if (pendingTools.length === 0) {
@@ -232,10 +239,15 @@ export function getDrawerMessages({
     mappedMessages.push({
       id: pendingToolGroupId ?? "tools-pending",
       role: "assistant",
-      content: { type: "toolGroup", tools: pendingTools },
+      content: {
+        type: "toolGroup",
+        tools: pendingTools,
+        isLoading: pendingToolGroupIsLoading,
+      },
     });
     pendingTools = [];
     pendingToolGroupId = null;
+    pendingToolGroupIsLoading = false;
   };
 
   parsedMessages.forEach((message, index) => {
@@ -287,10 +299,7 @@ export function getDrawerMessages({
     if (message.role === "reasoning") {
       flushPendingTools();
 
-      const isStreaming =
-        isRunning &&
-        !error &&
-        !hasLaterConversationMessageAfter(parsedMessages, index);
+      const isStreaming = isRunning && !error && message.isLoading === true;
 
       // Adaptive thinking can emit a reasoning start/end pair without any
       // content; a completed empty block has nothing to disclose, so only a
@@ -367,6 +376,11 @@ export function getDrawerMessages({
           ) ?? [])
         : [];
     const docsSources = extractLangfuseDocsSources(toolContent);
+    const isToolGroupLoading =
+      isRunning &&
+      !error &&
+      message.role === "assistant" &&
+      message.isLoading === true;
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
@@ -375,6 +389,7 @@ export function getDrawerMessages({
 
       pendingToolGroupId ??= `tools-${message.id}`;
       pendingTools.push(...toolContent);
+      pendingToolGroupIsLoading ||= isToolGroupLoading;
       return;
     }
 
@@ -420,7 +435,11 @@ export function getDrawerMessages({
       mappedMessages.push({
         id: `${message.id}-tools`,
         role,
-        content: { type: "toolGroup", tools: toolContent },
+        content: {
+          type: "toolGroup",
+          tools: toolContent,
+          isLoading: isToolGroupLoading,
+        },
       });
     }
   });
@@ -476,14 +495,7 @@ export function getDrawerMessages({
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {
     if (latestAssistantMessage?.content.type === "toolGroup") {
-      return mappedMessages.map((message, index) =>
-        index === latestAssistantMessageIndex
-          ? {
-              ...message,
-              content: { ...latestAssistantMessage.content, isLoading: true },
-            }
-          : message,
-      );
+      return mappedMessages;
     }
 
     const hasAssistantAnswer = mappedMessages.some(
@@ -504,31 +516,6 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
-}
-
-// A reasoning block stays live while the model is still acting on it — the
-// tool calls and tool results it triggered keep it open. It only collapses
-// once the model has visibly moved on: a newer reasoning block, an assistant
-// message with text, or a new user turn.
-function hasLaterConversationMessageAfter(
-  messages: readonly AgUiMessage[],
-  currentIndex: number,
-) {
-  return messages.some((message, messageIndex) => {
-    if (messageIndex <= currentIndex) {
-      return false;
-    }
-
-    if (message.role === "reasoning" || message.role === "user") {
-      return true;
-    }
-
-    return (
-      message.role === "assistant" &&
-      typeof message.content === "string" &&
-      message.content.trim().length > 0
-    );
-  });
 }
 
 function stringifyToolArgs(args: unknown) {

@@ -5,13 +5,14 @@ import {
   getDrawerMessages,
   getInAppAgentError,
   isInAppAgentRateLimited,
+  type InAppAiAgentMessage,
 } from "./utils";
 
 describe("getInAppAgentTurnProgressIndicatorState", () => {
   const userMessage = {
     id: "user-1",
     role: "user" as const,
-    content: "Inspect the latest traces",
+    content: { type: "text" as const, text: "Inspect the latest traces" },
   };
   const completedReasoning = {
     id: "reasoning-1",
@@ -431,8 +432,9 @@ describe("getDrawerMessages", () => {
           id: "reasoning-1",
           role: "reasoning",
           content: "Checking recent traces before querying metrics.",
+          isLoading: true,
         },
-      ] satisfies AgUiMessage[],
+      ] satisfies InAppAiAgentMessage[],
     });
 
     expect(mappedMessages).toMatchObject([
@@ -497,7 +499,7 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages).toHaveLength(2);
   });
 
-  it("keeps reasoning open while later tool calls run before the assistant response", () => {
+  it("completes reasoning while a later tool call runs before the assistant response", () => {
     const mappedMessages = getDrawerMessages({
       error: null,
       isRunning: true,
@@ -511,11 +513,13 @@ describe("getDrawerMessages", () => {
           id: "reasoning-1",
           role: "reasoning",
           content: "Looking for error-level traces first.",
+          isLoading: false,
         },
         {
           id: "assistant-1",
           role: "assistant",
           content: "",
+          isLoading: true,
           toolCalls: [
             {
               id: "tool-call-1",
@@ -527,7 +531,7 @@ describe("getDrawerMessages", () => {
             },
           ],
         },
-      ] satisfies AgUiMessage[],
+      ] satisfies InAppAiAgentMessage[],
     });
 
     expect(mappedMessages).toMatchObject([
@@ -540,7 +544,7 @@ describe("getDrawerMessages", () => {
         content: {
           type: "reasoning",
           text: "Looking for error-level traces first.",
-          isStreaming: true,
+          isStreaming: false,
         },
       },
       {
@@ -553,7 +557,7 @@ describe("getDrawerMessages", () => {
     ]);
   });
 
-  it("keeps only the latest reasoning block streaming in a multi-step tool loop", () => {
+  it("keeps only the active tool loading in a multi-step tool loop", () => {
     const mappedMessages = getDrawerMessages({
       error: null,
       isRunning: true,
@@ -567,11 +571,13 @@ describe("getDrawerMessages", () => {
           id: "reasoning-1",
           role: "reasoning",
           content: "Looking for error-level traces first.",
+          isLoading: false,
         },
         {
           id: "assistant-1",
           role: "assistant",
           content: "",
+          isLoading: false,
           toolCalls: [
             {
               id: "tool-call-1",
@@ -593,11 +599,13 @@ describe("getDrawerMessages", () => {
           id: "reasoning-2",
           role: "reasoning",
           content: "The metrics query failed, retrying with a smaller window.",
+          isLoading: false,
         },
         {
           id: "assistant-2",
           role: "assistant",
           content: "",
+          isLoading: true,
           toolCalls: [
             {
               id: "tool-call-2",
@@ -609,7 +617,7 @@ describe("getDrawerMessages", () => {
             },
           ],
         },
-      ] satisfies AgUiMessage[],
+      ] satisfies InAppAiAgentMessage[],
     });
 
     expect(mappedMessages).toMatchObject([
@@ -626,18 +634,91 @@ describe("getDrawerMessages", () => {
       },
       {
         id: "tools-assistant-1",
-        content: { type: "toolGroup" },
+        content: { type: "toolGroup", isLoading: false },
       },
       {
         id: "reasoning-2",
         content: {
           type: "reasoning",
-          isStreaming: true,
+          isStreaming: false,
         },
       },
       {
         id: "tools-assistant-2",
-        content: { type: "toolGroup" },
+        content: { type: "toolGroup", isLoading: true },
+      },
+    ]);
+  });
+
+  it("keeps a tool group loading while any grouped tool call is active", () => {
+    const messages = [
+      {
+        id: "user-1",
+        role: "user",
+        content: "Compare trace and observation metrics",
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          {
+            id: "tool-call-1",
+            type: "function",
+            function: {
+              name: "langfuse_queryMetrics",
+              arguments: JSON.stringify({ view: "traces" }),
+            },
+          },
+          {
+            id: "tool-call-2",
+            type: "function",
+            function: {
+              name: "langfuse_queryMetrics",
+              arguments: JSON.stringify({ view: "observations" }),
+            },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool",
+        toolCallId: "tool-call-1",
+        content: JSON.stringify({ count: 10 }),
+      },
+    ] satisfies AgUiMessage[];
+
+    const activeMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: messages.map((message) =>
+        message.id === "assistant-1"
+          ? { ...message, isLoading: true }
+          : message,
+      ),
+    });
+    const completedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: messages.map((message) =>
+        message.id === "assistant-1"
+          ? { ...message, isLoading: false }
+          : message,
+      ),
+    });
+
+    expect(activeMessages).toMatchObject([
+      { id: "user-1" },
+      {
+        id: "tools-assistant-1",
+        content: { type: "toolGroup", isLoading: true },
+      },
+    ]);
+    expect(completedMessages).toMatchObject([
+      { id: "user-1" },
+      {
+        id: "tools-assistant-1",
+        content: { type: "toolGroup", isLoading: false },
       },
     ]);
   });
@@ -658,6 +739,7 @@ describe("getDrawerMessages", () => {
           id: "reasoning-empty",
           role: "reasoning",
           content: "",
+          isLoading: false,
         },
         {
           id: "assistant-1",
@@ -673,8 +755,9 @@ describe("getDrawerMessages", () => {
           id: "reasoning-live",
           role: "reasoning",
           content: "",
+          isLoading: true,
         },
-      ] satisfies AgUiMessage[],
+      ] satisfies InAppAiAgentMessage[],
     });
 
     expect(mappedMessages).toMatchObject([
@@ -829,6 +912,7 @@ describe("getDrawerMessages", () => {
           id: "assistant-1",
           role: "assistant",
           content: "",
+          isLoading: false,
           toolCalls: [
             {
               id: "tool-call-1",
@@ -850,7 +934,7 @@ describe("getDrawerMessages", () => {
           content: toolError,
           error: toolError,
         },
-      ] satisfies AgUiMessage[],
+      ] satisfies InAppAiAgentMessage[],
       pendingToolApprovals: [
         {
           id: "tool-call-1",
@@ -879,7 +963,7 @@ describe("getDrawerMessages", () => {
         role: "assistant",
         content: {
           type: "toolGroup",
-          isLoading: true,
+          isLoading: false,
           tools: [
             {
               type: "tool",

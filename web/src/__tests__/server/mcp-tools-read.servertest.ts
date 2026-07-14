@@ -677,11 +677,22 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped advanced filters in the tool schema", () => {
-      const filterSchema = listObservationsTool.inputSchema.properties
-        .filter as
+      const filterSchema = (
+        listObservationsTool.inputSchema.properties as Record<string, unknown>
+      ).filter as
         | {
             type?: string;
             items?: {
+              type?: string;
+              required?: string[];
+              properties?: Record<
+                string,
+                {
+                  const?: unknown;
+                  enum?: unknown[];
+                  type?: string;
+                }
+              >;
               anyOf?: Array<{
                 type?: string;
                 properties?: Record<
@@ -1319,7 +1330,10 @@ describe("MCP Read Tools", () => {
     });
 
     it("should expose object-shaped metrics query input in the tool schema", () => {
-      const properties = queryMetricsTool.inputSchema.properties;
+      const properties = queryMetricsTool.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
 
       expect(properties.view).toBeDefined();
       expect(properties.dimensions).toBeDefined();
@@ -1361,7 +1375,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1409,7 +1423,7 @@ describe("MCP Read Tools", () => {
             ],
             orderBy: [{ field: "count", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1478,7 +1492,7 @@ describe("MCP Read Tools", () => {
             ],
             orderBy: [{ field: "value", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1501,7 +1515,7 @@ describe("MCP Read Tools", () => {
             metrics: [{ measure: "count", aggregation: "count" }],
             orderBy: [{ field: "observations.name", direction: "asc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       ).rejects.toThrow(/Use returned metric aliases.*getMetricsSchema/i);
@@ -1537,7 +1551,7 @@ describe("MCP Read Tools", () => {
               },
             ],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1576,7 +1590,7 @@ describe("MCP Read Tools", () => {
             ],
             config: { row_limit: 5 },
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       );
@@ -1595,7 +1609,7 @@ describe("MCP Read Tools", () => {
             metrics: [{ measure: "count", aggregation: "count" }],
             orderBy: [{ field: "count_count", direction: "desc" }],
             ...metricsWindow,
-          },
+          } as unknown as Parameters<typeof handleQueryMetrics>[0],
           context,
         ),
       ).rejects.toThrow(
@@ -1666,7 +1680,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getObservationTool.name, context),
@@ -1788,7 +1804,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(
@@ -2050,7 +2068,7 @@ describe("MCP Read Tools", () => {
           dataType: "NUMERIC",
           url: buildTraceUrl({
             projectId,
-            traceId: matchingScore.trace_id,
+            traceId: matchingScore.trace_id!,
           }),
         }),
       ]);
@@ -2106,7 +2124,7 @@ describe("MCP Read Tools", () => {
         name: score.name,
         dataType: "NUMERIC",
         value: 0.8,
-        url: buildTraceUrl({ projectId, traceId: score.trace_id }),
+        url: buildTraceUrl({ projectId, traceId: score.trace_id! }),
       });
     });
 
@@ -2363,7 +2381,10 @@ describe("MCP Read Tools", () => {
     ])("should create %s score configs", async (_type, input) => {
       const { context, projectId, apiKeyId } = await createMcpTestSetup();
 
-      const result = (await handleCreateScoreConfig(input, context)) as any;
+      const result = (await handleCreateScoreConfig(
+        input as unknown as Parameters<typeof handleCreateScoreConfig>[0],
+        context,
+      )) as any;
 
       expect(result).toMatchObject({
         projectId,
@@ -2389,7 +2410,7 @@ describe("MCP Read Tools", () => {
         {
           name: `mcp-bool-${nanoid(8)}`,
           dataType: "BOOLEAN",
-        },
+        } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
         context,
       );
 
@@ -2414,7 +2435,7 @@ describe("MCP Read Tools", () => {
               { label: "Duplicate", value: 1 },
               { label: "Duplicate", value: 2 },
             ],
-          },
+          } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
           context,
         ),
       ).rejects.toThrow(/Category labels must be unique/i);
@@ -2443,7 +2464,7 @@ describe("MCP Read Tools", () => {
           {
             name: "css-injection}*{background:red}/*",
             dataType: "TEXT",
-          },
+          } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
           context,
         ),
       ).rejects.toThrow(/invalid characters/i);
@@ -2489,7 +2510,7 @@ describe("MCP Read Tools", () => {
           name: "mcp-updated",
           description: "Updated through MCP",
           numericMinValue: -1,
-        },
+        } as unknown as Parameters<typeof handleUpdateScoreConfig>[0],
         context,
       );
 
@@ -2624,7 +2645,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptTool.name, context),
@@ -2918,7 +2941,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(listPromptsTool.name, context),
@@ -3298,7 +3323,9 @@ describe("MCP Read Tools", () => {
     });
 
     it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({ isInAppAgentKey: true });
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
 
       await expect(
         toolRegistry.getEnabledTool(getPromptUnresolvedTool.name, context),

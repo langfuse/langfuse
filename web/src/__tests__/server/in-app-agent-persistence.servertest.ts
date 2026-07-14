@@ -7,6 +7,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import type { Session } from "next-auth";
+import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
@@ -103,7 +104,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {},
+        featureFlags: {} as Flags,
         admin: false,
       },
       environment: {} as any,

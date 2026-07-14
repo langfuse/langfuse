@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor React Effects"
+  short_description: "Replace avoidable React effects safely"
+  default_prompt: "Use $refactor-react-effects to remove avoidable useEffect calls from this frontend module while preserving behavior."

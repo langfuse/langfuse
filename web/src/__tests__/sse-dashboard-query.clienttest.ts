@@ -318,7 +318,10 @@ describe("useSSEDashboardQuery", () => {
       expect(releaseSecondResponse).not.toBeNull();
     });
 
-    releaseSecondResponse?.();
+    // TS control-flow analysis cannot see the assignment inside the mock's
+    // closure and narrows the variable to `null`; widen it back to its
+    // declared type.
+    (releaseSecondResponse as (() => void) | null)?.();
 
     await waitFor(() => {
       expect(result.current.isError).toBe(true);

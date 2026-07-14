@@ -3,7 +3,7 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TableViewPresetTableName } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { randomUUID } from "node:crypto";
@@ -24,21 +24,29 @@ const prepare = async () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
       ],
       featureFlags: {
+        searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: false,
     },
@@ -69,7 +77,9 @@ describe("table view presets tRPC", () => {
         columnOrder: [],
         columnVisibility: {},
         searchQuery: null,
-        orderBy: null,
+        // Preserve the runtime value; Prisma's types only accept
+        // Prisma.JsonNull/DbNull for nullable Json inputs.
+        orderBy: null as unknown as Prisma.NullableJsonNullValueInput,
       },
     });
     await prisma.defaultView.create({

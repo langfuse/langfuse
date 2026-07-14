@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.212.0",
+  "version": "3.213.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -9,7 +9,7 @@
   "scripts": {
     "build": "INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
     "build:check": "NEXT_DIST_DIR=.next-check INLINE_RUNTIME_CHUNK=false dotenv -e ../.env -- next build",
-    "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.build.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
+    "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
     "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0 --concurrency 2",
@@ -95,7 +95,7 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@sentry/nextjs": "^10.58.0",
+    "@sentry/nextjs": "^10.64.0",
     "@t3-oss/env-nextjs": "^0.11.1",
     "@tanstack/react-query": "^5.85.1",
     "@tanstack/react-table": "^8.20.5",
@@ -200,6 +200,7 @@
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^10.0.0",
     "eslint": "^9.39.2",
+    "eslint-plugin-react-you-might-not-need-an-effect": "^1.0.1",
     "eslint-plugin-storybook": "10.3.6",
     "eslint-plugin-tailwindcss": "4.0.2",
     "jsdom": "^26.1.0",
