@@ -47,7 +47,7 @@ export type ModelConfigResult =
  * Parameters for calling the LLM.
  */
 export interface LLMCallParams {
-  messages: ReturnType<typeof buildEvalMessages>;
+  messages: Awaited<ReturnType<typeof buildEvalMessages>>;
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
   traceSinkParams: {

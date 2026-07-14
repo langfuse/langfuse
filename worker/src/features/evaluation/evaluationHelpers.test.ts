@@ -468,10 +468,10 @@ describe("evaluation helpers", () => {
   });
 
   describe("buildEvalMessages", () => {
-    it("should build user message array", () => {
+    it("should build user message array", async () => {
       const prompt = "Evaluate this response";
 
-      const result = buildEvalMessages(prompt);
+      const result = await buildEvalMessages(prompt, "project-id");
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -481,10 +481,10 @@ describe("evaluation helpers", () => {
       });
     });
 
-    it("should handle multiline prompts", () => {
+    it("should handle multiline prompts", async () => {
       const prompt = "First line\nSecond line\nThird line";
 
-      const result = buildEvalMessages(prompt);
+      const result = await buildEvalMessages(prompt, "project-id");
 
       expect(result[0].content).toBe("First line\nSecond line\nThird line");
     });
