@@ -28,6 +28,10 @@ import {
   splitOnUnescapedPipe,
   unescapePipeInValue,
 } from "../lib/filter-query-encoding";
+import {
+  getColumnId as getColumnIdImpl,
+  getColumnName as getColumnNameImpl,
+} from "../lib/columnLookup";
 import { normalizeLegacySessionPositionInTraceKey } from "@/src/components/session/session-position-in-trace";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
@@ -210,13 +214,20 @@ const tableCols = {
   ],
 };
 
-function getColumnId(table: TableName, name: string): string | undefined {
-  // TODO: make this more robust, will change with new filters
-  // to give more leeway to LLMs, we check against name or id
-  return tableCols[table]?.find((col) => col.name === name || col.id === name)
-    ?.id;
+/**
+ * Resolves a column entry on `table` by either its stable id or its
+ * human-readable display name. See `lib/columnLookup.ts` for the full
+ * tolerance contract.
+ */
+export function getColumnId(table: TableName, name: string): string | undefined {
+  return getColumnIdImpl(tableCols, table, name);
 }
 
-function getColumnName(table: TableName, id: string): string | undefined {
-  return tableCols[table]?.find((col) => col.id === id)?.name;
+/**
+ * Inverse of {@link getColumnId}: resolves a column's display name on
+ * `table` from its stable id. See `lib/columnLookup.ts` for the full
+ * tolerance contract.
+ */
+export function getColumnName(table: TableName, id: string): string | undefined {
+  return getColumnNameImpl(tableCols, table, id);
 }
