@@ -674,6 +674,12 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
                     endTimeUnixNano,
                     attributes: [
                       {
+                        // Generation type so the extracted usage details are
+                        // kept on the ingestion event (spans drop them).
+                        key: "langfuse.observation.type",
+                        value: { stringValue: "generation" },
+                      },
+                      {
                         key: "gen_ai.usage.input_tokens",
                         value: { intValue: 42 },
                       },
@@ -745,7 +751,32 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     expect(stagedSpan).toBeDefined();
     expect(stagedSpan.startTimeUnixNano).toBe(startTimeUnixNano);
     expect(stagedSpan.endTimeUnixNano).toBe(endTimeUnixNano);
-    expect(stagedSpan.attributes[0].value.intValue).toBe("42");
+    expect(
+      stagedSpan.attributes.find(
+        (attr: any) => attr.key === "gen_ai.usage.input_tokens",
+      )?.value.intValue,
+    ).toBe("42");
     expect(JSON.stringify(stagedSpan)).not.toContain('"low"');
+
+    // Validate that the string-encoded int64 fields also survive the rest of
+    // the pipeline (S3 -> worker -> OtelIngestionProcessor -> ClickHouse).
+    // The processor truncates ns -> ms with BigInt division, so assert the
+    // same truncation rather than expecting sub-ms precision back.
+    await waitForExpect(async () => {
+      const observation = await getObservationById({
+        projectId,
+        id: spanId.toString("hex"),
+      });
+      expect(observation).toBeDefined();
+      expect(observation!.startTime.toISOString()).toBe(
+        new Date(Number(BigInt(startTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      expect(observation!.endTime?.toISOString()).toBe(
+        new Date(Number(BigInt(endTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      // gen_ai.usage.input_tokens travelled as intValue "42"; this pins the
+      // string -> number conversion in convertOtelIntValue end to end.
+      expect(observation!.usageDetails.input).toBe(42);
+    }, 25_000);
   }, 30_000);
 });
