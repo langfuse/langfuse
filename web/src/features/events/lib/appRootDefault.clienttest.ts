@@ -8,9 +8,7 @@ import {
   removeAppRootDefaultFilter,
   storedViewOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
-import {
-  appRootPreferenceStorageKey,
-} from "./appRootDefaultStorage";
+import { appRootPreferenceStorageKey } from "./appRootDefaultStorage";
 import {
   getSdkVersionCapability,
   sdkVersionStorageKeys,

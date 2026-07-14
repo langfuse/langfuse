@@ -52,18 +52,9 @@ export function useAppRootDefault(params: {
     projectId,
   );
   const savedViewKey = appRootSavedViewSessionStorageKey(projectId);
-  const sdkLanguage = useBrowserStorageValue(
-    "localStorage",
-    sdkLanguageKey,
-  );
-  const sdkVersion = useBrowserStorageValue(
-    "localStorage",
-    sdkVersionKey,
-  );
-  const sdkCheckedAt = useBrowserStorageValue(
-    "localStorage",
-    sdkCheckedAtKey,
-  );
+  const sdkLanguage = useBrowserStorageValue("localStorage", sdkLanguageKey);
+  const sdkVersion = useBrowserStorageValue("localStorage", sdkVersionKey);
+  const sdkCheckedAt = useBrowserStorageValue("localStorage", sdkCheckedAtKey);
   const cachedAppRootSupported = getSdkVersionCapability(
     sdkCheckedAt ? { language: sdkLanguage, version: sdkVersion } : undefined,
     "appRootObservations",
@@ -155,11 +146,7 @@ export function useAppRootDefault(params: {
         sdkVersionKey,
         checkedSdkVersion?.version ?? null,
       );
-      writeStorage(
-        "localStorage",
-        sdkCheckedAtKey,
-        new Date().toISOString(),
-      );
+      writeStorage("localStorage", sdkCheckedAtKey, new Date().toISOString());
     }
     if (policy.shouldPersistAuto) {
       writeStorage("localStorage", preferenceKey, "auto");

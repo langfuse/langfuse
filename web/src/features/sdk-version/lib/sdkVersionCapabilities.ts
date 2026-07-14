@@ -43,7 +43,9 @@ export const sdkVersionNeedsRefresh = (
   now: number,
 ) => {
   const timestamp = Date.parse(checkedAt ?? "");
-  return !Number.isFinite(timestamp) || now - timestamp >= SDK_VERSION_RECHECK_MS;
+  return (
+    !Number.isFinite(timestamp) || now - timestamp >= SDK_VERSION_RECHECK_MS
+  );
 };
 
 const parseStableVersion = (version?: string | null) => {

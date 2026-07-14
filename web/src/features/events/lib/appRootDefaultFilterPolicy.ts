@@ -58,7 +58,10 @@ export const getAppRootDefaultPolicy = (params: {
   now: number;
 }) => {
   const sdkCheckCached = Number.isFinite(Date.parse(params.sdkCheckedAt ?? ""));
-  const sdkNeedsRefresh = sdkVersionNeedsRefresh(params.sdkCheckedAt, params.now);
+  const sdkNeedsRefresh = sdkVersionNeedsRefresh(
+    params.sdkCheckedAt,
+    params.now,
+  );
   const capabilitySupported =
     params.appRootSupported && (sdkCheckCached || params.sdkCheckSettled);
   let owner = params.owner;
@@ -94,10 +97,7 @@ export const getAppRootDefaultPolicy = (params: {
       sdkNeedsRefresh &&
       owner !== "fallback" &&
       params.sdkCheckSettled,
-    shouldQuerySdkVersion:
-      active &&
-      sdkNeedsRefresh &&
-      owner !== "fallback",
+    shouldQuerySdkVersion: active && sdkNeedsRefresh && owner !== "fallback",
   };
 };
 
