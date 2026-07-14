@@ -342,10 +342,10 @@ describe("OTel metadata processing", () => {
   describe("experiment item version", () => {
     it.each([
       ["2026-04-24 15:22:36.622", "2026-04-24 15:22:36.622"],
-      ["2026-04-24T15:22:36.622Z", "2026-04-24T15:22:36.622Z"],
+      ["2026-04-24T15:22:36.622Z", "2026-04-24 15:22:36.622"],
       ["None", undefined],
       ["v1", undefined],
-    ])("passes through '%s' as %s", async (input, expected) => {
+    ])("normalizes '%s' to %s", async (input, expected) => {
       const otelSpan = buildOtelSpan({
         scopeVersion: "4.5.0",
         resourceAttrKey: "service.name",

@@ -28,6 +28,7 @@ import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -2975,7 +2976,7 @@ export class OtelIngestionProcessor {
     if (value == null || value === "") return undefined;
     const stringValue = String(value);
     if (isValidDateString(stringValue)) {
-      return stringValue;
+      return convertDateToClickhouseDateTime(new Date(stringValue));
     }
     logger.warn(
       "OTEL invalid experiment item version, dropping. Expected timestamp.",
