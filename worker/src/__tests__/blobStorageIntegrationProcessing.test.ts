@@ -64,6 +64,7 @@ import {
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
@@ -2036,7 +2037,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
       // A notice written while on a legacy source must be cleaned up once the
       // project migrates to the enriched-only source, so it can't linger with
-      // now-false claims.
+      // now-false claims. Cleanup only runs for integrations old enough to have
+      // used a legacy source (pre-exporter-cutoff createdAt).
       maybeIt(
         "removes a stale notice after migrating to the EVENTS source",
         async () => {
@@ -2074,6 +2076,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               fileType: BlobStorageIntegrationFileType.JSONL,
               compressed: false,
               lastSyncAt: oneHourAgo,
+              // Pre-exporter-cutoff: old enough to have used a legacy source, so
+              // cleanup runs. Derived from the live cutoff so an env override
+              // can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - 24 * 60 * 60 * 1000,
+              ),
             },
           });
 
@@ -2092,6 +2100,72 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
           const after = await s3StorageService.listFiles(s3Prefix);
           expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+
+      // Post-cutoff integrations can never have used a legacy source, so they
+      // never wrote a notice — the cleanup delete must be skipped for them to
+      // avoid a needless per-run s3:DeleteObject on every enriched-only export.
+      maybeIt(
+        "skips notice cleanup for a post-cutoff enriched-only integration",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          // A stray notice a post-cutoff project could never legitimately have —
+          // the gate must leave it untouched (no delete attempted).
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stray notice that must not be touched",
+          });
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+              // Post-exporter-cutoff: never could have used a legacy source, so
+              // cleanup is skipped and the stray file is left in place. Derived
+              // from the live cutoff so an env override can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Post-cutoff Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file === noticeKey)).toBe(true);
         },
       );
     });

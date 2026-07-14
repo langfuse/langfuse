@@ -59,6 +59,7 @@ import {
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
   isLegacyBlobExportSource,
+  isLegacyBlobExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -1436,7 +1437,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
           prefix: blobStorageIntegration.prefix || undefined,
           projectId,
         });
-      } else {
+      } else if (
+        // Only integrations old enough to have used a legacy source could have
+        // written a notice. New (post-cutoff) integrations can't select a legacy
+        // source, so skip the delete for them — otherwise every enriched-only
+        // export would add a needless per-run s3:DeleteObject dependency on the
+        // destination, which is write-only for many customers.
+        isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
+      ) {
         await removeBlobExportDeprecationNotice({
           storageService,
           prefix: blobStorageIntegration.prefix || undefined,
