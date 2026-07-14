@@ -242,7 +242,7 @@ describe("Blob Storage Integrations API", () => {
         },
       });
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/integrations/blob-storage",
         undefined,
@@ -352,7 +352,7 @@ describe("Blob Storage Integrations API", () => {
         region: "us-east-1",
       };
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         invalidBody,
@@ -369,7 +369,7 @@ describe("Blob Storage Integrations API", () => {
         type: "INVALID_TYPE",
       };
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         invalidBody,
@@ -386,7 +386,7 @@ describe("Blob Storage Integrations API", () => {
         prefix: "invalid-prefix", // Should end with /
       };
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         invalidBody,
@@ -403,7 +403,7 @@ describe("Blob Storage Integrations API", () => {
         projectId: nonExistentProjectId,
       };
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         requestBody,
@@ -419,7 +419,7 @@ describe("Blob Storage Integrations API", () => {
         projectId: otherProjectId,
       };
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         requestBody,
@@ -1481,7 +1481,7 @@ describe("Blob Storage Integrations API", () => {
 
   describe("Method validation", () => {
     it("should return 405 for unsupported methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PATCH",
         "/api/public/integrations/blob-storage",
         undefined,
@@ -1569,7 +1569,7 @@ describe("Blob Storage Integrations API", () => {
           where: { id: testProject1Id },
           data: { createdAt: POST_CUTOFF },
         });
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "PUT",
           "/api/public/integrations/blob-storage",
           {
@@ -1595,7 +1595,7 @@ describe("Blob Storage Integrations API", () => {
           where: { id: testProject1Id },
           data: { createdAt: POST_CUTOFF },
         });
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "PUT",
           "/api/public/integrations/blob-storage",
           {
@@ -1649,7 +1649,7 @@ describe("Blob Storage Integrations API", () => {
           where: { id: testProject1Id },
           data: { createdAt: POST_CUTOFF },
         });
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ exportSource: string }>(
           "PUT",
           "/api/public/integrations/blob-storage",
           { ...basePayload, projectId: testProject1Id },
@@ -1691,7 +1691,7 @@ describe("Blob Storage Integrations API", () => {
             exportSource: "EVENTS",
           },
         });
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ exportSource: string }>(
           "PUT",
           "/api/public/integrations/blob-storage",
           { ...basePayload, projectId: testProject1Id },
@@ -1763,7 +1763,7 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("no existing row + legacy source → 400 mentioning the integration cutoff", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         {
@@ -1785,7 +1785,7 @@ describe("Blob Storage Integrations API", () => {
 
     it("pre-cutoff existing row + legacy source → 200 (grandfathered)", async () => {
       await seedIntegration(INTEGRATION_PRE_CUTOFF);
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ exportSource: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         {
@@ -1803,7 +1803,7 @@ describe("Blob Storage Integrations API", () => {
       // Boundary: only rows created strictly before the cutoff are
       // grandfathered.
       await seedIntegration(LEGACY_BLOB_EXPORTER_CUTOFF);
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         {
@@ -1821,7 +1821,7 @@ describe("Blob Storage Integrations API", () => {
 
     it("post-cutoff existing row + legacy source → 400", async () => {
       await seedIntegration(INTEGRATION_POST_CUTOFF);
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         {
@@ -1838,7 +1838,7 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("no existing row + OBSERVATIONS_V2 → 200", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ exportSource: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         {
@@ -1855,7 +1855,7 @@ describe("Blob Storage Integrations API", () => {
     it("no existing row + omitted exportSource → 200 and persists EVENTS", async () => {
       // New Cloud rows must never get the legacy column default, even on a
       // pre-cutoff project.
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ exportSource: string }>(
         "PUT",
         "/api/public/integrations/blob-storage",
         { ...basePayload, projectId: testProject1Id },

@@ -12,6 +12,21 @@ export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
   .max(2048)
   .default(2048);
 
+// Socket-level watchdog for all Redis connections: ioredis destroys and
+// reconnects a socket that received no data for this long, so a hung
+// connection cannot pin BullMQ concurrency slots forever. Must be 0 (disabled)
+// or >= 10s: BullMQ blocking commands (BZPOPMIN) legitimately idle ~5s between
+// packets, and lower values make healthy idle workers cycle through
+// reconnects (#12944).
+export const redisSocketTimeoutMsSchema = z.coerce
+  .number()
+  .int()
+  .refine((ms) => ms === 0 || ms >= 10_000, {
+    message:
+      "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
+  })
+  .default(30_000);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -55,6 +70,7 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  REDIS_SOCKET_TIMEOUT_MS: redisSocketTimeoutMsSchema,
   LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
     .enum(["true", "false"])
     .default("false"),
@@ -298,6 +314,15 @@ const EnvSchema = z.object({
     .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
+  // default (CRC32). Some S3-compatible stores reject CRC32 with 400
+  // MissingContentMD5 and need "MD5" (sent as the legacy Content-MD5 header),
+  // e.g. MinIO before RELEASE.2025-02-03 (langfuse/langfuse-k8s#356). MD5 is
+  // unavailable on FIPS runtimes; stores that support it also accept e.g.
+  // SHA256 as a FIPS-approved alternative.
+  LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: z
+    .enum(["MD5", "CRC32", "CRC32C", "CRC64NVME", "SHA1", "SHA256"])
+    .optional(),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
