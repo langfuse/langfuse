@@ -21,6 +21,7 @@ import {
   UsageDetails,
   normalizeToolsForObservation,
   normalizeToolMetadataForObservation,
+  convertDateToClickhouseDateTime,
 } from "../";
 
 import { LangfuseOtelSpanAttributes } from "./attributes";
@@ -2939,9 +2940,9 @@ export class OtelIngestionProcessor {
         ? String(experimentDatasetId)
         : undefined,
       experimentItemId: experimentItemId ? String(experimentItemId) : undefined,
-      experimentItemVersion: experimentItemVersion
-        ? String(experimentItemVersion)
-        : undefined,
+      experimentItemVersion: this.parseExperimentItemVersion(
+        experimentItemVersion,
+      ),
       experimentItemRootSpanId: experimentItemRootSpanId
         ? String(experimentItemRootSpanId)
         : undefined,
@@ -2965,6 +2966,22 @@ export class OtelIngestionProcessor {
           ? experimentItemMetadataFlattened.values
           : undefined,
     };
+  }
+
+  /**
+   * The item version is a pointer to a dataset item version (`valid_from` timestamp),
+   * not a free-form label; "v1" or "latest" cannot resolve to one, so we drop them.
+   */
+  private parseExperimentItemVersion(value: unknown): string | undefined {
+    if (value == null || value === "") return undefined;
+    const stringValue = String(value);
+    if (isValidDateString(stringValue)) {
+      return convertDateToClickhouseDateTime(new Date(stringValue));
+    }
+    logger.warn(
+      "OTEL invalid experiment item version, dropping. Expected format: YYYY-MM-DD HH:MM:SS.SSSSSS",
+    );
+    return undefined;
   }
 
   private parseLangfusePromptFromAISDK(
