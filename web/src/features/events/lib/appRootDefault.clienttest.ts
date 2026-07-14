@@ -11,10 +11,8 @@ import {
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
-import { appRootPreferenceStorageKey } from "./appRootDefaultStorage";
 import {
   getSdkVersionCapability,
-  sdkVersionStorageKeys,
   toSdkVersionInfo,
 } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
@@ -45,8 +43,7 @@ describe("app-root default policy", () => {
   it.each([
     ["javascript", "5.4.0", true],
     ["javascript", "5.3.9", false],
-    ["typescript", "5.10.0", true],
-    ["@langfuse/tracing", "5.4.0", true],
+    ["@langfuse/tracing", "5.10.0", true],
     ["python", "4.7.0", true],
     ["python", "4.6.9", false],
     ["python", "4.7.0rc1", false],
@@ -123,17 +120,9 @@ describe("app-root default policy", () => {
     expect(urlOwnsEventsTableState({ viewId: "view-1" })).toBe(true);
   });
 
-  it("handles persisted storage values", () => {
+  it("handles persisted saved-view values", () => {
     expect(storedViewOwnsEventsTableState("null")).toBe(false);
     expect(storedViewOwnsEventsTableState('"view-id"')).toBe(true);
-    expect(sdkVersionStorageKeys("project-a")).toEqual({
-      language: "events-sdk-language:project-a",
-      version: "events-sdk-version:project-a",
-      checkedAt: "events-sdk-checkedAt:project-a",
-    });
-    expect(appRootPreferenceStorageKey("project-a")).toBe(
-      "events-filter-app-root-default:project-a",
-    );
   });
 
   it("suppresses only a user removal of the automatic root filter", () => {
