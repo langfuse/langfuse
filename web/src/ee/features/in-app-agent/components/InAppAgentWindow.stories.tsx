@@ -528,6 +528,7 @@ const meta = preview.meta({
 
 export const ToolApprovalRequired = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
@@ -556,6 +557,87 @@ export const ToolApprovalRequired = meta.story({
                 id: "approval-1",
                 status: "pending",
               },
+            },
+          ],
+        },
+      },
+    ],
+  },
+});
+
+export const WaitingAfterThinking = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "What changed in my recent production traces?",
+        },
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "I am comparing the recent traces with the previous period.",
+          isStreaming: false,
+        },
+      },
+    ],
+  },
+});
+
+export const ActiveAssistantText = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Are there unusual latency or cost patterns recently?",
+        },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I will look at recent latency and cost trends across your project traffic.",
+        },
+      },
+    ],
+  },
+});
+
+export const WaitingAfterToolCallExpanded = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isExpanded: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Find the source of the latency spike.",
+        },
+      },
+      {
+        id: "tool-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              args: JSON.stringify({ view: "observations" }),
+              result: JSON.stringify({ data: [{ p95_latency: 4820 }] }),
             },
           ],
         },

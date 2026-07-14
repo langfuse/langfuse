@@ -129,6 +129,10 @@
   margin-block: -0.25em;
 }
 
+.progressLabel {
+  animation: progress-label 160ms ease-out;
+}
+
 @keyframes thinking-shimmer {
   from {
     background-position: 200% 0;
@@ -138,9 +142,24 @@
   }
 }
 
+@keyframes progress-label {
+  from {
+    opacity: 0;
+    transform: translateY(0.15rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .thinkingShimmer {
+  .thinkingShimmer,
+  .progressLabel {
     animation: none;
+  }
+
+  .thinkingShimmer {
     background-image: none;
     color: inherit;
   }

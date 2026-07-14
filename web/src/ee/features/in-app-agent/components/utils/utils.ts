@@ -18,6 +18,11 @@ export type InAppAgentError =
   | { type: "generic"; message: string }
   | { type: "rate_limit"; retryAt: number };
 
+export type InAppAgentTurnProgressIndicatorState =
+  | "hidden"
+  | "active"
+  | "awaiting_approval";
+
 export type InAppAgentToolCallContent = {
   type: "tool";
   name: string;
@@ -122,6 +127,36 @@ export function isInAppAgentRateLimited(
   now = Date.now(),
 ) {
   return error?.type === "rate_limit" && error.retryAt > now;
+}
+
+export function getInAppAgentTurnProgressIndicatorState({
+  error,
+  hasPendingToolApprovals,
+  isAssistantTurnInProgress,
+  messages,
+}: {
+  error: InAppAgentError | null;
+  hasPendingToolApprovals: boolean;
+  isAssistantTurnInProgress: boolean;
+  messages: readonly InAppAgentWindowMessage[];
+}): InAppAgentTurnProgressIndicatorState {
+  if (error || !isAssistantTurnInProgress) {
+    return "hidden";
+  }
+
+  if (hasPendingToolApprovals) {
+    return "awaiting_approval";
+  }
+
+  const latestUserMessageIndex = messages.findLastIndex(
+    (message) => message.role === "user",
+  );
+
+  if (latestUserMessageIndex === -1) {
+    return "hidden";
+  }
+
+  return "active";
 }
 
 function parseEmbeddedRateLimitError(message: string) {

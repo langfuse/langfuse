@@ -35,9 +35,11 @@ import {
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
 import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
+  getInAppAgentTurnProgressIndicatorState,
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import styles from "./InAppAgentMessage.module.css";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -56,6 +58,13 @@ const CONVERSATION_STARTERS = [
     "Are there unusual latency or cost patterns recently?",
   ],
 ] as const;
+const TURN_PROGRESS_MESSAGES = [
+  "Following the traces…",
+  "Exploring your data…",
+  "Connecting the dots…",
+  "Untangling the details…",
+  "Shaping the response…",
+] as const;
 
 function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   if (!viewport) {
@@ -66,6 +75,64 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
     top: viewport.scrollHeight,
     behavior: "auto",
   });
+}
+
+function InAppAgentTurnProgressIndicator({
+  isCompact,
+  state,
+}: {
+  isCompact: boolean;
+  state: "active" | "awaiting_approval";
+}) {
+  const [messageIndex, setMessageIndex] = useState(0);
+  const isAwaitingApproval = state === "awaiting_approval";
+
+  useEffect(() => {
+    if (isAwaitingApproval) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setMessageIndex(
+        (currentIndex) => (currentIndex + 1) % TURN_PROGRESS_MESSAGES.length,
+      );
+    }, 2_500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isAwaitingApproval]);
+
+  const label = isAwaitingApproval
+    ? "Awaiting your approval"
+    : TURN_PROGRESS_MESSAGES[messageIndex];
+
+  return (
+    <div
+      role="status"
+      aria-label={
+        isAwaitingApproval
+          ? "Assistant is awaiting your approval"
+          : "Assistant is still working"
+      }
+      className={cn(
+        "text-muted-foreground flex items-center gap-2",
+        isCompact ? "px-1 text-[0.775rem]" : "px-1 text-sm",
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(!isAwaitingApproval && "motion-safe:animate-pulse")}
+      >
+        <BotMessageSquare className={isCompact ? "size-3.5" : "size-4"} />
+      </span>
+      <span aria-hidden="true" key={label} className={styles.progressLabel}>
+        <span className={cn(!isAwaitingApproval && styles.thinkingShimmer)}>
+          {label}
+        </span>
+      </span>
+    </div>
+  );
 }
 
 export type InAppAgentWindowMessage = {
@@ -222,6 +289,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       ? message.content.tools.filter((tool) => tool.approval)
       : [],
   );
+  const turnProgressIndicatorState = getInAppAgentTurnProgressIndicatorState({
+    error,
+    hasPendingToolApprovals: pendingToolCalls.length > 0,
+    isAssistantTurnInProgress,
+    messages,
+  });
   const visibleMessages = messages
     .map((message) => {
       if (message.content.type !== "toolGroup") {
@@ -276,7 +349,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     }
 
     scrollViewportToBottom(viewportRef.current);
-  }, [messages]);
+  }, [messages, turnProgressIndicatorState]);
 
   useEffect(() => {
     isAutoScrollAttachedRef.current = true;
@@ -672,34 +745,48 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               submitInput(input);
             }}
           >
-            <textarea
-              autoFocus={!isExpanded}
-              ref={inputRef}
-              value={input}
-              onChange={(event) => {
-                setInput(event.target.value);
-              }}
-              onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-              disabled={isInputDisabled}
-              aria-label="Ask the assistant a question"
-              placeholder="Ask the assistant a question..."
-              rows={1}
-              className={cn(
-                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
-                isExpanded
-                  ? "max-h-40 min-h-14 border-none ring-0"
-                  : "border-input max-h-40 min-h-8 px-3 py-1",
-              )}
-            />
+            {turnProgressIndicatorState !== "hidden" ? (
+              <div
+                className={cn(
+                  "bg-background w-full flex-1 rounded-md",
+                  isExpanded ? "min-h-14 px-3 py-2" : "min-h-8 px-3 py-1",
+                )}
+              >
+                <InAppAgentTurnProgressIndicator
+                  isCompact={!isExpanded}
+                  state={turnProgressIndicatorState}
+                />
+              </div>
+            ) : (
+              <textarea
+                autoFocus={!isExpanded}
+                ref={inputRef}
+                value={input}
+                onChange={(event) => {
+                  setInput(event.target.value);
+                }}
+                onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+                  if (
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }
+                }}
+                disabled={isInputDisabled}
+                aria-label="Ask the assistant a question"
+                placeholder="Ask the assistant a question..."
+                rows={1}
+                className={cn(
+                  "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                  isExpanded
+                    ? "max-h-40 min-h-14 border-none ring-0"
+                    : "border-input max-h-40 min-h-8 px-3 py-1",
+                )}
+              />
+            )}
             {!isExpanded && (
               <Button
                 type="submit"
