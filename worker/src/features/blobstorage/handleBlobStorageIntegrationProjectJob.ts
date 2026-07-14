@@ -58,6 +58,7 @@ import {
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  isLegacyBlobExportSource,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -74,6 +75,10 @@ import {
   formatBlobExportTimestamp,
   type BlobExportManifestFile,
 } from "./manifest";
+import {
+  buildBlobExportDeprecationNotice,
+  buildBlobExportDeprecationNoticeKey,
+} from "./deprecationNotice";
 
 export const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -1095,6 +1100,36 @@ const writeBlobExportManifest = async (params: {
   );
 };
 
+// LFE-10896: drop a plain-text deprecation notice into the export destination
+// for legacy-source projects. Best-effort — a failure to write the notice must
+// not fail the export run, so it is called after the manifest commit point and
+// swallows its own error.
+const writeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.uploadFile({
+      fileName: key,
+      fileType: "text/plain; charset=utf-8",
+      data: buildBlobExportDeprecationNotice(),
+    });
+    logger.info(
+      `[BLOB INTEGRATION] Wrote legacy-source deprecation notice for project ${params.projectId}: key=${key}`,
+    );
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to write legacy-source deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
+};
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -1364,6 +1399,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
       maxTimestamp,
       files: runFiles,
     });
+
+    // Warn legacy-source projects about the impending v3 deprecation by writing
+    // a notice file into their destination. New / enriched-only (EVENTS)
+    // projects are skipped. Best-effort: never fails the run.
+    if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+      await writeBlobExportDeprecationNotice({
+        storageService,
+        prefix: blobStorageIntegration.prefix || undefined,
+        projectId,
+      });
+    }
 
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();

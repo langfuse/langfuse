@@ -1907,6 +1907,123 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     );
   });
 
+  // LFE-10896: legacy-source projects get a plain-text deprecation notice in
+  // their destination; enriched-only (EVENTS) projects do not.
+  describe("legacy-source deprecation notice (LFE-10896)", () => {
+    const NOTICE_SUFFIX = "/DEPRECATION_NOTICE.txt";
+
+    // Non-enriched TRACES_OBSERVATIONS source runs on every CI leg.
+    maybeIt(
+      "writes DEPRECATION_NOTICE.txt for a legacy export source",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const dataTime = now.getTime() - 40 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        await createTracesCh([
+          createTrace({
+            id: randomUUID(),
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Notice Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const noticeFile = files.find((f) => f.file.endsWith(NOTICE_SUFFIX));
+        expect(noticeFile).toBeDefined();
+        expect(noticeFile!.file).toBe(
+          `${s3Prefix}${projectId}${NOTICE_SUFFIX}`,
+        );
+
+        const notice = await s3StorageService.download(noticeFile!.file);
+        expect(notice).toContain("Traces and observations (legacy)");
+        expect(notice).toContain("Enriched observations (recommended)");
+        expect(notice).toContain(
+          "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage",
+        );
+      },
+    );
+
+    // EVENTS is enriched-only, so this needs the V4-preview opt-in.
+    maybeDescribe("enriched-only source", () => {
+      maybeIt(
+        "does not write a deprecation notice for the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "No Notice Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const files = await s3StorageService.listFiles(s3Prefix);
+          expect(files.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+    });
+  });
+
   // LFE-10402: raw-passthrough streams ClickHouse JSONEachRow bytes straight to
   // gzip → upload, skipping the per-row JS parse/enrich/serialize pipeline. The
   // output must be parsed-equal to the standard path minus the dropped price
