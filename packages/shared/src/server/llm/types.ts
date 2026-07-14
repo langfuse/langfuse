@@ -197,27 +197,56 @@ export const PlaceholderMessageSchema = z.object({
 });
 export type PlaceholderMessage = z.infer<typeof PlaceholderMessageSchema>;
 
-export const ChatMessageDefaultRoleSchema = z.enum(ChatMessageRole);
-export const ChatMessageSchema = z.union([
-  SystemMessageSchema,
-  DeveloperMessageSchema,
-  UserMessageSchema,
-  AssistantTextMessageSchema,
-  AssistantToolCallMessageSchema,
-  ToolResultMessageSchema,
-  ModelMessageSchema,
-  z
-    .object({
-      role: z.union([ChatMessageDefaultRoleSchema, z.string()]), // Users may ingest any string as role via API/SDK
-      content: z.union([z.string(), z.array(z.any()), z.any()]), // Support arbitrary content types for message placeholders
-    })
-    .transform((msg) => {
-      return {
-        ...msg,
-        type: ChatMessageType.PublicAPICreated as const,
-      };
-    }),
+export const ChatMessageDefaultRoleSchema = z.nativeEnum(ChatMessageRole);
+
+const ChatMessageTextContentSchema = z.object({
+  text: z.string(),
+});
+
+const ChatMessageCachePointContentSchema = z.object({
+  cachePoint: z.object({
+    type: z.string(),
+  }),
+});
+
+export const ChatMessageContentSchema = z.union([
+  z.string(),
+  z.array(
+    z.union([
+      ChatMessageTextContentSchema,
+      ChatMessageCachePointContentSchema,
+    ]),
+  ),
 ]);
+
+const BaseChatMessageSchema = z.object({
+  type: z.nativeEnum(ChatMessageType),
+  content: ChatMessageContentSchema,
+});
+
+export const AssistantToolCallMessageSchema = BaseChatMessageSchema.extend({
+  role: z.literal(ChatMessageRole.Assistant),
+  toolCalls: z.array(LLMToolCallSchema),
+});
+
+export const ToolResultMessageSchema = BaseChatMessageSchema.extend({
+  role: z.literal(ChatMessageRole.Tool),
+  toolCallId: z.string(),
+});
+
+export const DefaultChatMessageSchema = BaseChatMessageSchema.extend({
+  role: z.union([ChatMessageDefaultRoleSchema, z.string()]),
+});
+
+export const ChatMessageSchema = z.discriminatedUnion("role", [
+  AssistantToolCallMessageSchema.extend({ role: z.literal(ChatMessageRole.Assistant) }),
+  ToolResultMessageSchema.extend({ role: z.literal(ChatMessageRole.Tool) }),
+  DefaultChatMessageSchema.extend({ role: z.literal(ChatMessageRole.System) }),
+  DefaultChatMessageSchema.extend({ role: z.literal(ChatMessageRole.User) }),
+  DefaultChatMessageSchema.extend({ role: z.string() }),
+]);
+
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatMessageWithId =

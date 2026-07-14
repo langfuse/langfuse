@@ -368,12 +368,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
       return;
     }
 
-    const completion = await fetchLangfuseAICompletion({
-      messages: [
-        {
-          role: ChatMessageRole.System,
-          type: ChatMessageType.System,
-          content: `
+const systemPromptText = `
 Generate a concise title for this Langfuse assistant conversation.
 The title should be 3-6 words, one sentence, and not exceed 100 characters.
 The title should focus on the user's task, problem, or topic, and preserve important product names, entities, or task intent.
@@ -417,25 +412,38 @@ Bad titles:
 - "I have the low-scoring traces now Let me also dig into what makes them fail"
 - "Here are the patterns I found across your failed and low-scoring traces"
 
-Transcript JSON:
-${JSON.stringify(transcript, null, 2)}
-  `.trim(),
-        },
-      ],
-      model,
-      maxTokens: 1000,
-      traceSinkParams: params.aiTelemetryEnabled
-        ? getLangfuseAITraceSinkParams({
-            environment: LangfuseInternalTraceEnvironment.InAppAgent,
-            feature: "in-app-agent-conversation-title",
-            projectId: params.projectId,
-            traceName: "in-app-agent-conversation-title",
-            userId: params.userId,
-            metadata: {
-              conversation_id: params.conversationId,
+Transcript JSON:`.trim();
+
+    const completion = await fetchLangfuseAICompletion({
+        messages: [
+            {
+                role: ChatMessageRole.System,
+                type: ChatMessageType.System,
+                content: [
+                    { text: systemPromptText },
+                    {
+                        cachePoint: {
+                            type: "default",
+                        },
+                    },
+                    { text: `\n${JSON.stringify(transcript, null, 2)}` },
+                ],
             },
-          })
-        : undefined,
+        ],
+        model,
+        maxTokens: 1000,
+        traceSinkParams: params.aiTelemetryEnabled
+            ? getLangfuseAITraceSinkParams({
+                environment: LangfuseInternalTraceEnvironment.InAppAgent,
+                feature: "in-app-agent-conversation-title",
+                projectId: params.projectId,
+                traceName: "in-app-agent-conversation-title",
+                userId: params.userId,
+                metadata: {
+                    conversation_id: params.conversationId,
+                },
+            })
+            : undefined,
     });
 
     const completionText =
