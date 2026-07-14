@@ -133,7 +133,10 @@ export async function handleCommentMentionNotification(
         comment.content.length > 500
           ? comment.content.substring(0, 497) + "..."
           : comment.content;
-      // Convert @[DisplayName](user:userId) to @DisplayName
+      // Convert @[DisplayName](user:userId) to @DisplayName. Mirrors the
+      // MENTION_REGEX in web/src/features/comments/lib/mentionParser.ts so
+      // display names containing square brackets (e.g. "John Doe[ Platform
+      // Team ]") survive both the parser and the preview stripper.
       return truncated.replace(/@\[([^\]]+)\]\(user:[^)]+\)/g, "@$1");
     })();
 
