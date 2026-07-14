@@ -138,6 +138,7 @@ describe("app-root default lifecycle", () => {
     mocks.mountCount = 0;
     mocks.resetSdkQuery.mockClear();
     window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   it("clears both persistent and query SDK capability caches", () => {
@@ -178,6 +179,19 @@ describe("app-root default lifecycle", () => {
 
     mocks.projectId = "project-b";
     view.rerender(<ProjectPolicyHarness projectId="project-b" />);
+    expect(screen.getByTestId("default-filters")).toHaveTextContent(
+      JSON.stringify([APP_ROOT_OBSERVATION_FILTER]),
+    );
+  });
+
+  it('treats the persisted "null" saved-view sentinel as no saved view', () => {
+    window.sessionStorage.setItem(
+      "observations-events-project-a-viewId",
+      "null",
+    );
+
+    render(<ProjectPolicyHarness projectId="project-a" />);
+
     expect(screen.getByTestId("default-filters")).toHaveTextContent(
       JSON.stringify([APP_ROOT_OBSERVATION_FILTER]),
     );

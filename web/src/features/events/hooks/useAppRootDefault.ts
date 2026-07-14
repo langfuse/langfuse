@@ -88,7 +88,7 @@ export function useAppRootDefault(params: {
   );
 
   const savedViewOwnsState =
-    Boolean(restoredSavedViewId) ||
+    (Boolean(restoredSavedViewId) && restoredSavedViewId !== "null") ||
     Boolean(defaultViewQuery.data?.viewId) ||
     owner === "saved_view";
   const policy = getAppRootDefaultPolicy({
