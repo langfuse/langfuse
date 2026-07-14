@@ -1,5 +1,3 @@
-import { ContextOverflowError } from "@langchain/core/errors";
-
 import { LLMCompletionError } from "./errors";
 
 const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
@@ -121,10 +119,9 @@ function extractCleanErrorMessage(rawMessage: string): string {
 }
 
 /**
- * Maps any error thrown during an LLM completion (LangChain or AI SDK engine)
- * to an `LLMCompletionError` with a clean user-visible message and the shared
- * retryability classification. Both execution engines MUST use this mapper so
- * eval retry budgets behave identically regardless of engine.
+ * Maps any error thrown during an AI SDK LLM completion to an
+ * `LLMCompletionError` with a clean user-visible message and the shared
+ * retryability classification used by eval retry budgets.
  */
 export function mapToLLMCompletionError(e: unknown): LLMCompletionError {
   if (e instanceof LLMCompletionError) return e;
@@ -150,9 +147,7 @@ export function mapToLLMCompletionError(e: unknown): LLMCompletionError {
   // - Non-retryable patterns: not retryable
   let isRetryable = false;
 
-  if (ContextOverflowError.isInstance(e)) {
-    isRetryable = false;
-  } else if (
+  if (
     e instanceof Error &&
     (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
   ) {

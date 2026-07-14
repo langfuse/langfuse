@@ -44,10 +44,6 @@ vi.mock("../../evalService", () => ({
   runLLMAsJudgeEvaluation: vi.fn(),
 }));
 
-vi.mock("../../../internal-tracing/createInternalEventsWriter", () => ({
-  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
-}));
-
 // Mock logger
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual<
@@ -65,6 +61,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     resolveConfiguredCodeEvalDispatcher: vi.fn(
       () => new actual.LocalCodeEvalDispatcher(),
     ),
+    writeInternalTraceViaOtelIngestion: mocks.writeInternalTrace,
   };
 });
 

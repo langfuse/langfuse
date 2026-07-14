@@ -107,8 +107,8 @@ migration, not proof that the whole surface is healthy.
 - Page components no longer rebuild columns, filters, row wrappers, and action
   callbacks for unrelated row-level changes.
 - Expensive rows/cells are view-only behind narrow containers.
-- Effects are integration boundaries or one-time initialization, not ordinary
-  data derivation.
+- Effects are external-system integration boundaries, not initialization or
+  ordinary data derivation.
 - Complex workflows can be called without rendering the page.
 - The feature README tells the next developer what has improved, what remains
   spread, and what the next improvement should target.
