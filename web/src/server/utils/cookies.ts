@@ -20,14 +20,22 @@ export const getCookieOptions = () => ({
   secure: shouldSecureCookies(),
 });
 
-export const getCookieName = (name: string) =>
-  [
-    shouldSecureCookies() ? "__Secure-" : "",
-    name,
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+// Suffix that namespaces the cookie NAME so instances sharing a parent cookie
+// domain never read each other's session cookie (a foreign one, encrypted with a
+// different NEXTAUTH_SECRET, fails to decrypt -> JWT_SESSION_ERROR -> login loop).
+// An explicit NEXTAUTH_COOKIE_NAME_SUFFIX (self-hosted, e.g. per-PR preview
+// environments) takes precedence; otherwise fall back to the cloud region.
+const getCookieNameSuffix = () =>
+  env.NEXTAUTH_COOKIE_NAME_SUFFIX
+    ? `.${env.NEXTAUTH_COOKIE_NAME_SUFFIX}`
+    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-      : "",
-  ].join("");
+      : "";
+
+export const getCookieName = (name: string) =>
+  [shouldSecureCookies() ? "__Secure-" : "", name, getCookieNameSuffix()].join(
+    "",
+  );
 
 /** ProjectCookie carries the server-stamped origin and project id of a user's most recent project. */
 export type ProjectCookie = {
