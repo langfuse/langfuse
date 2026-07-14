@@ -158,8 +158,7 @@ jobs:
             **API keys:** `${{ steps.meta.outputs.public_key }}` / `${{ steps.meta.outputs.secret_key }}`
             **Commit:** ${{ steps.meta.outputs.commit_sha }}
 
-            Synthetic preview data only — never enter a real credential. Remove
-            the `preview` label or close the PR to destroy the environment.
+            Synthetic preview data only. Never add production data to public accounts.
 
       - name: Report failure
         if: failure()
