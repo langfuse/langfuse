@@ -5,7 +5,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  isLLMCompletionError,
+  getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
 
@@ -64,12 +64,13 @@ export async function getEvaluatorDefinitionPreflightError(params: {
       structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
     });
   } catch (err) {
+    const llmError = getLLMErrorInfo(err);
     // A provider 404 also covers typos, missing model access, and bad base
     // URLs — not just retired models, so don't claim "retired" as fact.
-    if (isLLMCompletionError(err) && err.responseStatusCode === 404) {
+    if (llmError?.statusCode === 404) {
       return `Model configuration not valid for evaluator "${params.template.name}". The provider could not find model '${modelConfig.config.model}' — it may be retired, misspelled, or not available to your API key. Update the evaluator's model or the project's default evaluation model.`;
     }
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = llmError?.message ?? "An internal error occurred";
     return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
   }
 

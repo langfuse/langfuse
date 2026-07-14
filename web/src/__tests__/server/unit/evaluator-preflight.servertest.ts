@@ -6,6 +6,7 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   logger: {
     debug: vi.fn(),
   },
+  getLLMErrorInfo: vi.fn(),
   testModelCall: vi.fn(),
 }));
 
@@ -15,7 +16,7 @@ import {
 } from "@langfuse/shared";
 import {
   DefaultEvalModelService,
-  LLMCompletionError,
+  getLLMErrorInfo,
   testModelCall,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
@@ -37,6 +38,7 @@ describe("evaluator preflight", () => {
   const mockFetchValidModelConfig = vi.mocked(
     DefaultEvalModelService.fetchValidModelConfig,
   );
+  const mockGetLLMErrorInfo = vi.mocked(getLLMErrorInfo);
   const mockTestModelCall = vi.mocked(testModelCall);
   const originalSkipFlag =
     process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION;
@@ -119,12 +121,18 @@ describe("evaluator preflight", () => {
 
     it("returns a clean model-not-found message when the provider responds with 404", async () => {
       mockTestModelCall.mockRejectedValue(
-        new LLMCompletionError({
-          message:
-            '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
-          responseStatusCode: 404,
-        }),
+        new Error(
+          '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
+        ),
       );
+      mockGetLLMErrorInfo.mockReturnValue({
+        kind: "provider",
+        message:
+          '404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-3-sonnet-20240229"}}',
+        statusCode: 404,
+        isRetryable: false,
+        error: new Error("provider error"),
+      });
 
       const result = await getEvaluatorDefinitionPreflightError({
         projectId: "project_test",
@@ -141,11 +149,15 @@ describe("evaluator preflight", () => {
 
     it("keeps the provider error message for non-404 failures", async () => {
       mockTestModelCall.mockRejectedValue(
-        new LLMCompletionError({
-          message: "401 Incorrect API key provided",
-          responseStatusCode: 401,
-        }),
+        new Error("401 Incorrect API key provided"),
       );
+      mockGetLLMErrorInfo.mockReturnValue({
+        kind: "provider",
+        message: "401 Incorrect API key provided",
+        statusCode: 401,
+        isRetryable: false,
+        error: new Error("provider error"),
+      });
 
       const result = await getEvaluatorDefinitionPreflightError({
         projectId: "project_test",

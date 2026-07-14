@@ -30,7 +30,7 @@ import {
   DEFAULT_TRACE_ENVIRONMENT,
   setNoEvalConfigsCache,
   DatasetRunItemUpsertEventType,
-  isLLMCompletionError,
+  classifyEvaluatorLlmError,
   blockEvaluatorConfigs,
   EvaluatorBlockSource,
   type CodeEvalScoreWithName,
@@ -53,7 +53,6 @@ import {
   TraceDomain,
   Observation,
   EvalTargetObject,
-  EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
@@ -917,16 +916,17 @@ export async function runLLMAsJudgeEvaluation({
               },
             });
           } catch (e) {
-            if (isLLMCompletionError(e)) {
-              llmSpan.setAttribute(
-                "http.response.status_code",
-                e.responseStatusCode,
-              );
+            const llmError = classifyEvaluatorLlmError(e);
+            if (llmError) {
+              if (llmError.statusCode !== undefined) {
+                llmSpan.setAttribute(
+                  "http.response.status_code",
+                  llmError.statusCode,
+                );
+              }
 
-              if (e.shouldBlockConfig()) {
-                const blockReason =
-                  e.getEvaluatorBlockReason() ??
-                  EvaluatorBlockReason.EVAL_MODEL_CONFIG_INVALID;
+              if (llmError.blockReason) {
+                const blockReason = llmError.blockReason;
 
                 await blockEvaluatorConfigs({
                   projectId,

@@ -3,7 +3,7 @@ import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
-  isLLMCompletionError,
+  getLLMErrorInfo,
   mapLegacyLLMCompletionParams,
   streamLLMText,
 } from "@langfuse/shared/src/server";
@@ -114,7 +114,8 @@ async function runWithGoogleAIStudioModelFallback<T>(
 }
 
 function isRetryableProviderError(error: unknown): boolean {
-  if (isLLMCompletionError(error)) return error.isRetryable;
+  const llmError = getLLMErrorInfo(error);
+  if (llmError) return llmError.isRetryable;
 
   if (!error || typeof error !== "object") return false;
 
