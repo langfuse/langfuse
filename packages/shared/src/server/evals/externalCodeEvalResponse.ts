@@ -1,6 +1,10 @@
 import type { Span } from "@opentelemetry/api";
 import { assertDispatchResultWithinByteLimit } from "./codeEvalDispatcherTypes";
 
+/**
+ * Streams the response so its size limit can be enforced before the entire
+ * body is buffered in memory, protecting the worker from oversized responses.
+ */
 export async function readExternalCodeEvalResponse(
   response: Response,
   span: Span,
