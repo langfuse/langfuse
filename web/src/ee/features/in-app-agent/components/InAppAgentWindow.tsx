@@ -10,6 +10,7 @@ import {
 import {
   BotMessageSquare,
   History,
+  Info,
   Maximize2,
   Minimize2,
   Minus,
@@ -39,12 +40,14 @@ import {
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
 import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
+import { assertUnreachable } from "@/src/utils/types";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -73,6 +76,64 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
     top: viewport.scrollHeight,
     behavior: "auto",
   });
+}
+
+function formatScreenContextNotice(
+  description: InAppAgentScreenContextDescription,
+) {
+  if (description.type === "page") {
+    return "The assistant is aware of your current page.";
+  }
+
+  if (description.type === "observation") {
+    return "The assistant is aware that you're viewing this observation.";
+  }
+
+  if (description.type === "trace") {
+    return "The assistant is aware that you're viewing this trace.";
+  }
+
+  if (description.type === "prompt") {
+    return "The assistant is aware that you're viewing this prompt.";
+  }
+
+  if (description.type === "session") {
+    return "The assistant is aware that you're viewing this session.";
+  }
+
+  if (description.type === "dataset") {
+    return "The assistant is aware that you're viewing this dataset.";
+  }
+
+  if (description.type === "datasetItem") {
+    return "The assistant is aware that you're viewing this dataset item.";
+  }
+
+  if (description.type === "experimentRun") {
+    return "The assistant is aware that you're viewing this experiment run.";
+  }
+
+  if (
+    description.type === "trace-list" ||
+    description.type === "observations-list" ||
+    description.type === "sessions-list" ||
+    description.type === "prompts-list" ||
+    description.type === "datasets-list"
+  ) {
+    const listLabel = {
+      "trace-list": "trace",
+      "observations-list": "observation",
+      "sessions-list": "session",
+      "prompts-list": "prompt",
+      "datasets-list": "dataset",
+    }[description.type];
+
+    return description.hasAppliedFilters
+      ? `The assistant is aware of this ${listLabel} view and its filters.`
+      : `The assistant is aware of this ${listLabel} view.`;
+  }
+
+  return assertUnreachable(description);
 }
 
 export type InAppAgentWindowMessage = {
@@ -123,6 +184,7 @@ export type InAppAgentWindowProps = {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
+  screenContextDescription: InAppAgentScreenContextDescription;
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -156,7 +218,7 @@ function InAppAgentRateLimitError({
     <div
       role="alert"
       className={cn(
-        "border-border bg-muted/60 text-foreground rounded-lg border px-2 py-1",
+        "border-border bg-muted/60 text-foreground w-full rounded-lg border px-2 py-1",
         isExpanded ? "text-sm" : "text-xs",
       )}
     >
@@ -211,8 +273,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    screenContextDescription,
     selectedConversationId,
   } = props;
+  const screenContextNotice = formatScreenContextNotice(
+    screenContextDescription,
+  );
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -659,11 +725,42 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             </div>
           </div>
         ) : null}
-        {error?.type === "rate_limit" && (
+        <div
+          aria-hidden={isAssistantTurnInProgress}
+          className={cn(
+            "flex shrink-0 flex-col overflow-hidden transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none",
+            isAssistantTurnInProgress
+              ? "max-h-0 opacity-0"
+              : "max-h-40 opacity-100",
+          )}
+        >
           <div className="p-2">
-            <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
+            <div
+              className={cn(
+                "flex w-full flex-col gap-1.5",
+                isExpanded && "mx-auto max-w-3xl",
+              )}
+            >
+              <p
+                className={cn(
+                  "border-border bg-muted/60 text-foreground flex w-full items-center gap-1 rounded-lg border px-2 py-1",
+                  isExpanded ? "text-sm" : "text-xs",
+                )}
+              >
+                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <span className="min-w-0 truncate" title={screenContextNotice}>
+                  {screenContextNotice}
+                </span>
+              </p>
+              {error?.type === "rate_limit" && (
+                <InAppAgentRateLimitError
+                  error={error}
+                  isExpanded={isExpanded}
+                />
+              )}
+            </div>
           </div>
-        )}
+        </div>
         {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
           <div
             className={cn(
