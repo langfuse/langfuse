@@ -111,12 +111,14 @@ export const ObservationEvaluationRuleMappingSource = z.enum([
   "input",
   "output",
   "metadata",
+  "tool_calls",
 ]);
 
 export const ExperimentEvaluationRuleMappingSource = z.enum([
   "input",
   "output",
   "metadata",
+  "tool_calls",
   "expected_output",
   "experiment_item_metadata",
 ]);
@@ -126,6 +128,7 @@ function createMappingSchema<
     | "input"
     | "output"
     | "metadata"
+    | "tool_calls"
     | "expected_output"
     | "experiment_item_metadata"
   >,

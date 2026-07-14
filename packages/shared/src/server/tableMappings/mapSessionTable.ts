@@ -150,4 +150,10 @@ export const sessionCols: UiColumnMappings = [
     clickhouseTableName: "scores",
     clickhouseSelect: "score_categories",
   },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "score_booleans",
+  },
 ];

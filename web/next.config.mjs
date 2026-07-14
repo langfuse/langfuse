@@ -69,10 +69,6 @@ const nextConfig = {
     // Next.js type checks to keep test builds fast. Production/Docker builds
     // do not set this flag and still fail on TypeScript errors.
     ignoreBuildErrors: process.env.NEXT_IGNORE_BUILD_ERRORS === "true",
-    // The CLI checker (experimental.useTypeScriptCli) checks the complete
-    // tsconfig project with no build-path filtering, so scope it to the same
-    // test-free surface the repo `typecheck` script uses.
-    tsconfigPath: "tsconfig.build.json",
   },
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],

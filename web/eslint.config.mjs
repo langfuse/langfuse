@@ -172,9 +172,11 @@ export default [
     },
   },
 
-  // Restrict react-icons imports
+  // Restricted import paths. Flat config replaces (not merges) a rule that is
+  // configured twice, so all no-restricted-imports patterns live in this one
+  // block.
   {
-    name: "langfuse/web/react-icons-restriction",
+    name: "langfuse/web/restricted-imports",
     rules: {
       "no-restricted-imports": [
         "error",
@@ -189,6 +191,21 @@ export default [
               regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
               message:
                 "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+            },
+            {
+              // Relative paths escaping web/ bypass @langfuse/shared's exports
+              // map (which points at dist/) and pull shared *source* into the
+              // Next.js typecheck program, where web's next-auth augmentation
+              // breaks it — this failed production deploys (PR #15031).
+              // Note: only static imports are checked. Dynamic import() is not
+              // covered by this rule, which also leaves room for the one
+              // legitimate use: tests that need a Vite-transformed source copy
+              // of a shared module to observe env mutations (vitest loads the
+              // CJS dist through Node's require cache as a second instance —
+              // see blob-storage-integration-trpc.servertest.ts).
+              regex: "^(\\.\\./)+(packages|ee|worker)/",
+              message:
+                "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
             },
           ],
         },

@@ -4,6 +4,20 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
+catalog:
+  "@aws-sdk/client-cloudwatch": 3.1056.0
+  "@aws-sdk/client-lambda": 3.1056.0
+  "@aws-sdk/client-s3": 3.1056.0
+  "@aws-sdk/client-sesv2": 3.1056.0
+  "@aws-sdk/credential-providers": 3.1056.0
+  "@aws-sdk/lib-storage": 3.1056.0
+  "@aws-sdk/s3-request-presigner": 3.1056.0
+  # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
+  # provides the JS compiler API for typescript-eslint/next/tsx consumers but
+  # ships no `tsc` bin, so package scripts fall through to the workspace-root
+  # ts7 alias and build/typecheck with the native TypeScript 7 compiler.
+  # web overrides this with real typescript@^7 for next build's CLI checker.
+  typescript: npm:@typescript/typescript6@^6.0.2
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.

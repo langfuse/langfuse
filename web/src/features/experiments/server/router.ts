@@ -5,6 +5,7 @@ import {
   createDatasetItemFilterState,
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getDatasetItems,
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
@@ -455,21 +456,29 @@ export const experimentsRouter = createTRPCRouter({
             }))
           : [];
 
-      const [numericScoreNames, categoricalScoreNames, experimentDatasetIds] =
-        await Promise.all([
-          getNumericScoresGroupedByName(
-            input.projectId,
-            traceTimestampFilters ?? [],
-          ),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            traceTimestampFilters ?? [],
-          ),
-          getEventsGroupedByExperimentDatasetId(
-            input.projectId,
-            input.startTimeFilter ?? [],
-          ),
-        ]);
+      const [
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+        experimentDatasetIds,
+      ] = await Promise.all([
+        getNumericScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getBooleanScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getEventsGroupedByExperimentDatasetId(
+          input.projectId,
+          input.startTimeFilter ?? [],
+        ),
+      ]);
 
       const experimentDatasetIdSet = new Set<string>();
       for (const { experimentDatasetId } of experimentDatasetIds) {
@@ -481,14 +490,17 @@ export const experimentsRouter = createTRPCRouter({
       // Return score options for both observation-level and trace-level filters
       // The same score names are available at both levels
       const numericScoreOptions = numericScoreNames.map((score) => score.name);
+      const booleanScoreOptions = booleanScoreNames.map((score) => score.name);
 
       return {
         // Observation-level score options (eos.*)
         obs_scores_avg: numericScoreOptions,
         obs_score_categories: categoricalScoreNames,
+        obs_score_booleans: booleanScoreOptions,
         // Trace-level score options (ets.*)
         trace_scores_avg: numericScoreOptions,
         trace_score_categories: categoricalScoreNames,
+        trace_score_booleans: booleanScoreOptions,
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),

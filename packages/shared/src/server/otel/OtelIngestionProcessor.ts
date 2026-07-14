@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import {
   ForbiddenError,
   ObservationLevel,
+  ObservationType,
   ObservationTypeDomain,
 } from "../../";
 import {
@@ -50,6 +51,12 @@ export interface OtelIngestionProcessorConfig {
    * schema strips.
    */
   isLangfuseInternal?: boolean;
+  /**
+   * S3 key of the raw OTLP payload this batch was replayed from. Only set on
+   * the queue-consumer side; included in conversion failure logs so a single
+   * log line points at the replayable payload.
+   */
+  fileKey?: string;
 }
 
 interface CreateTraceEventParams {
@@ -165,6 +172,7 @@ export class OtelIngestionProcessor {
   private readonly sdkVersion: string;
   private readonly ingestionVersion?: string;
   private readonly isLangfuseInternal?: boolean;
+  private readonly fileKey?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
@@ -179,6 +187,7 @@ export class OtelIngestionProcessor {
     // only used as a write-path hint, not as SDK attribution.
     this.ingestionVersion = config.ingestionVersion;
     this.isLangfuseInternal = config.isLangfuseInternal;
+    this.fileKey = config.fileKey;
   }
 
   /**
@@ -400,6 +409,17 @@ export class OtelIngestionProcessor {
                     ? normalizedTools.toolCallNames
                     : undefined;
 
+                const observationType =
+                  observationTypeMapper.mapToObservationType(
+                    spanAttributes,
+                    resourceAttributes,
+                    scopeSpan?.scope,
+                    span.name,
+                  );
+                // Prompts can only be linked to GENERATION observations
+                const canLinkPrompt =
+                  observationType === ObservationType.GENERATION;
+
                 events.push({
                   projectId: this.projectId,
                   traceId,
@@ -407,12 +427,7 @@ export class OtelIngestionProcessor {
                   parentSpanId,
 
                   name,
-                  type: observationTypeMapper.mapToObservationType(
-                    spanAttributes,
-                    resourceAttributes,
-                    scopeSpan?.scope,
-                    span.name,
-                  ),
+                  type: observationType,
                   environment: this.extractEnvironment(
                     spanAttributes,
                     resourceAttributes,
@@ -442,21 +457,23 @@ export class OtelIngestionProcessor {
                     span.status?.message ??
                     null,
 
-                  promptName:
-                    spanAttributes?.[
-                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
-                    ] ??
-                    spanAttributes["langfuse.prompt.name"] ??
-                    this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
-                    null,
-                  promptVersion:
-                    spanAttributes?.[
-                      LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
-                    ] ??
-                    spanAttributes["langfuse.prompt.version"] ??
-                    this.parseLangfusePromptFromAISDK(spanAttributes)
-                      ?.version ??
-                    null,
+                  promptName: canLinkPrompt
+                    ? (spanAttributes?.[
+                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME
+                      ] ??
+                      spanAttributes["langfuse.prompt.name"] ??
+                      this.parseLangfusePromptFromAISDK(spanAttributes)?.name ??
+                      null)
+                    : null,
+                  promptVersion: canLinkPrompt
+                    ? (spanAttributes?.[
+                        LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+                      ] ??
+                      spanAttributes["langfuse.prompt.version"] ??
+                      this.parseLangfusePromptFromAISDK(spanAttributes)
+                        ?.version ??
+                      null)
+                    : null,
 
                   modelParameters: this.extractModelParameters(
                     spanAttributes,
@@ -531,7 +548,10 @@ export class OtelIngestionProcessor {
             return events;
           });
       } catch (error) {
-        logger.error("Error processing OTEL spans to events:", error);
+        logger.error("Error processing OTEL spans to events:", {
+          error,
+          ...this.getConversionFailureLogContext(resourceSpans),
+        });
         traceException(error, span);
         throw error;
       }
@@ -608,7 +628,10 @@ export class OtelIngestionProcessor {
           }
 
           // Log error but don't throw to avoid breaking the ingestion pipeline
-          logger.error("Error processing OTEL spans:", error);
+          logger.error("Error processing OTEL spans:", {
+            error,
+            ...this.getConversionFailureLogContext(resourceSpans),
+          });
           traceException(error, span);
 
           return [];
@@ -1026,6 +1049,15 @@ export class OtelIngestionProcessor {
     // model-call spans — skip model/usage/cost for them.
     const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
 
+    const mappedObservationType = observationTypeMapper.mapToObservationType(
+      attributes,
+      resourceAttributes,
+      scopeSpan?.scope,
+      span.name,
+    );
+    // Prompts can only be linked to GENERATION observations
+    const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
+
     const observation = {
       id: this.parseId(span.spanId?.data ?? span.spanId),
       traceId,
@@ -1060,16 +1092,20 @@ export class OtelIngestionProcessor {
         instrumentationScopeName,
       ) as any,
       model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
-      promptName:
-        attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
-        attributes["langfuse.prompt.name"] ??
-        this.parseLangfusePromptFromAISDK(attributes)?.name ??
-        null,
-      promptVersion:
-        attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION] ??
-        attributes["langfuse.prompt.version"] ??
-        this.parseLangfusePromptFromAISDK(attributes)?.version ??
-        null,
+      promptName: canLinkPrompt
+        ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
+          attributes["langfuse.prompt.name"] ??
+          this.parseLangfusePromptFromAISDK(attributes)?.name ??
+          null)
+        : null,
+      promptVersion: canLinkPrompt
+        ? (attributes?.[
+            LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION
+          ] ??
+          attributes["langfuse.prompt.version"] ??
+          this.parseLangfusePromptFromAISDK(attributes)?.version ??
+          null)
+        : null,
       usageDetails: isAiSdkAgentSpan
         ? {}
         : this.extractUsageDetails(
@@ -1084,12 +1120,6 @@ export class OtelIngestionProcessor {
       output,
     };
 
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
-      attributes,
-      resourceAttributes,
-      scopeSpan?.scope,
-      span.name,
-    );
     const observationType =
       mappedObservationType && typeof mappedObservationType === "string"
         ? mappedObservationType.toLowerCase()
@@ -1673,6 +1703,30 @@ export class OtelIngestionProcessor {
           output: this.parseJsonPayload(flueOutput) ?? flueOutput ?? null,
           filteredAttributes,
         };
+      }
+    }
+
+    // OpenTelemetry GenAI semconv v1.37+ records prompts and completions on a
+    // gen_ai.client.inference.operation.details span event instead of span
+    // attributes (https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-events/)
+    const operationDetailsEvents = events.filter(
+      (event: Record<string, unknown>) =>
+        event.name === "gen_ai.client.inference.operation.details",
+    );
+    for (const event of operationDetailsEvents) {
+      const eventAttributes: Record<string, unknown> =
+        event.attributes?.reduce(
+          (acc: Record<string, unknown>, attr: any) => {
+            acc[attr.key] = this.convertValueToPlainJavascript(attr.value);
+            return acc;
+          },
+          {} as Record<string, unknown>,
+        ) ?? {};
+
+      const genAiInputOutput =
+        this.extractOpenTelemetryGenAiInputAndOutput(eventAttributes);
+      if (genAiInputOutput) {
+        return { ...genAiInputOutput, filteredAttributes };
       }
     }
 
@@ -3129,6 +3183,52 @@ export class OtelIngestionProcessor {
       failure_type: failureType,
       timestamp_field: field,
     });
+  }
+
+  /**
+   * Attribution context for conversion failure logs so a Datadog log line
+   * answers which SDK/version/instrumentation produced a malformed batch and
+   * how many spans were lost. Must never throw.
+   */
+  private getConversionFailureLogContext(
+    resourceSpans: ResourceSpan[],
+  ): Record<string, unknown> {
+    return {
+      projectId: this.projectId,
+      sdkName: this.sdkName,
+      sdkVersion: this.sdkVersion,
+      fileKey: this.fileKey,
+      spanCount: this.getTotalSpanCount(resourceSpans),
+      instrumentationScopes: this.getInstrumentationScopes(resourceSpans),
+    };
+  }
+
+  private getInstrumentationScopes(
+    resourceSpans: ResourceSpan[],
+    limit = 10,
+  ): string[] {
+    try {
+      if (!Array.isArray(resourceSpans)) {
+        return [];
+      }
+
+      const scopes = new Set<string>();
+      for (const resourceSpan of resourceSpans) {
+        for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+          const name = scopeSpan?.scope?.name;
+          if (name) {
+            scopes.add(name);
+            if (scopes.size >= limit) {
+              return [...scopes];
+            }
+          }
+        }
+      }
+      return [...scopes];
+    } catch (error) {
+      logger.warn("Failed to collect instrumentation scopes:", error);
+      return [];
+    }
   }
 
   /**

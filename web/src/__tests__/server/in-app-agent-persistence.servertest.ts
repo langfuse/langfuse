@@ -7,6 +7,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import type { Session } from "next-auth";
+import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
@@ -103,7 +104,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {},
+        featureFlags: {} as Flags,
         admin: false,
       },
       environment: {} as any,
@@ -769,6 +770,20 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(9);
+
+    const persistedEventTypes = (
+      await prisma.inAppAgentEvent.findMany({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+        select: { type: true },
+      })
+    ).map((event) => event.type);
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_START,
+    );
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_CONTENT,
+    );
+    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {

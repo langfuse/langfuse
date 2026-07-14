@@ -9,7 +9,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -147,10 +147,19 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  /** Analytics table identity (LFE-10781) for the popover filter builder's
+   * `filters:applied`/`filters:cleared` events. Tables with a `viewConfig`
+   * already supply it via `viewConfig.tableName`; tables WITHOUT one (users,
+   * dataset runs/items) must pass this so the event isn't labeled "unknown". */
+  tableName?: string;
   filterWithAI?: boolean;
   className?: string;
   rowClassName?: string;
   viewModeToggle?: React.ReactNode;
+  /** Rendered at the start of the toolbar's control row (left-aligned), before
+   *  the filter toggle — e.g. the v4 events category-preset chips, so they
+   *  share the row with the right-aligned Columns/Export controls. */
+  leadingControls?: React.ReactNode;
 }
 
 // Helper function to get the description for DocPopup
@@ -215,8 +224,10 @@ export function DataTableToolbar<TData, TValue>({
   rowClassName,
   orderByState,
   viewConfig,
+  tableName,
   filterWithAI = false,
   viewModeToggle,
+  leadingControls,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -266,6 +277,7 @@ export function DataTableToolbar<TData, TValue>({
           rowClassName,
         )}
       >
+        {leadingControls}
         {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
             toolbar toggle only remains for the mobile stacked layout. */}
         {hasNewSidebar && (
@@ -463,6 +475,18 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
             filterWithAI={filterWithAI}
+            // Analytics (LFE-10781): the table's own identity, so popover
+            // filters:applied/cleared events aren't mislabeled "unknown". Prefer
+            // an explicit `tableName` (tables without a viewConfig — users,
+            // dataset runs/items), else the view's table. The v4 events table
+            // filters via the grammar bar (it omits filterColumnDefinition here,
+            // so this popover is a v3/legacy surface); derive isV4 from the
+            // ObservationsEvents view for consistency + future-proofing.
+            tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
+            isV4={
+              viewConfig?.tableName ===
+              TableViewPresetTableName.ObservationsEvents
+            }
           />
         )}
 

@@ -34,6 +34,6 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^24.3.0",
     "eslint": "^9.39.2",
-    "typescript": "npm:@typescript/typescript6@^6.0.2"
+    "typescript": "catalog:"
   }
 }

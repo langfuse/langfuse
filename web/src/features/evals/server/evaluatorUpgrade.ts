@@ -2,11 +2,12 @@ import {
   EvalTargetObject,
   EvalTemplateType,
   InternalServerError,
+  CODE_EVAL_TEMPLATE_VARIABLES,
   LangfuseConflictError,
   observationVariableMappingList,
   variableMappingList,
 } from "@langfuse/shared";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 
 // accepts both stored templates and createTemplate inputs (CODE inputs carry no vars)
 export const getEvalTemplateVariables = (template: {
@@ -18,10 +19,22 @@ export const getEvalTemplateVariables = (template: {
     : (template.vars ?? []);
 
 export function prepareVariableMappingForEvaluatorUpgrade(params: {
+  templateType: EvalTemplateType;
   targetObject: string;
   variableMapping: unknown;
   nextVariables: string[];
 }) {
+  // Code-eval mappings are synthesized, never user-authored: adopt the
+  // current canonical mapping instead of validating the stored snapshot,
+  // which would conflict whenever the canonical variable set grows
+  // (e.g. toolCalls) even though there is nothing the user could supply.
+  if (params.templateType === EvalTemplateType.CODE) {
+    return {
+      variableMapping: getCodeEvalVariableMapping(),
+      missingVariables: [],
+    };
+  }
+
   const mappingSchema =
     params.targetObject === EvalTargetObject.EVENT ||
     params.targetObject === EvalTargetObject.EXPERIMENT
@@ -50,6 +63,7 @@ export function prepareVariableMappingForEvaluatorUpgrade(params: {
 }
 
 export const prepareConfigsForTemplateUpgrade = (params: {
+  templateType: EvalTemplateType;
   configs: {
     id: string;
     scoreName: string;
@@ -60,6 +74,7 @@ export const prepareConfigsForTemplateUpgrade = (params: {
 }) =>
   params.configs.map((config) => {
     const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+      templateType: params.templateType,
       targetObject: config.targetObject,
       variableMapping: config.variableMapping,
       nextVariables: params.nextVariables,

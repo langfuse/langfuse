@@ -113,6 +113,11 @@ const streamingSeedMessages: InAppAgentWindowMessage[] = [
 const streamingInvestigations = [
   {
     prompt: "Check whether the spike is isolated to retrieval.",
+    reasoning: [
+      "The user suspects retrieval, so I should isolate retrieval-heavy traces before looking anywhere else.",
+      "Sorting by latency and filtering on the trace name keeps the query small and read-only.",
+      "If the slowest traces are all retrieval traces, the next step is comparing them against quality scores.",
+    ].join("\n"),
     intro:
       "I am checking retrieval-heavy traces first because their p95 latency moved before generation latency changed.",
     toolName: "langfuse_getTraces",
@@ -132,6 +137,10 @@ const streamingInvestigations = [
   },
   {
     prompt: "Compare the same window against quality scores.",
+    reasoning: [
+      "Latency alone does not tell us whether users were affected, so I am joining the slow segment with scores.",
+      "Averaging per score name is enough resolution to spot a quality regression without a heavy query.",
+    ].join("\n"),
     intro:
       "Next I am joining the slow traces with score distributions so we can see whether the latency spike also changed output quality.",
     toolName: "langfuse_queryMetrics",
@@ -151,6 +160,11 @@ const streamingInvestigations = [
   },
   {
     prompt: "Inspect model usage for the outlier traces.",
+    reasoning: [
+      "A fallback model or a larger context window can explain slow traces even when retrieval is healthy.",
+      "Fetching model name, token counts, and latency for just the two outlier traces keeps this cheap.",
+      "High token counts with a stable model would point back at the reranker passing too many documents.",
+    ].join("\n"),
     intro:
       "I am checking model and token usage because a fallback model or larger context window can make otherwise healthy traces slow.",
     toolName: "langfuse_getObservations",
@@ -189,6 +203,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   );
   type StreamingPhase =
     | "start"
+    | "reasoning"
     | "intro"
     | "tool-loading"
     | "tool-done"
@@ -198,6 +213,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: number;
     phase: StreamingPhase;
     phaseTicks: number;
+    reasoningMessageId: string;
     introMessageId: string;
     toolMessageId: string;
     conclusionMessageId: string;
@@ -205,6 +221,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: 0,
     phase: "start",
     phaseTicks: 0,
+    reasoningMessageId: "",
     introMessageId: "",
     toolMessageId: "",
     conclusionMessageId: "",
@@ -218,10 +235,11 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
 
       if (stream.phase === "start") {
         const cycleId = `stream-${stream.cycle}`;
+        stream.reasoningMessageId = `${cycleId}-reasoning`;
         stream.introMessageId = `${cycleId}-intro`;
         stream.toolMessageId = `${cycleId}-tool`;
         stream.conclusionMessageId = `${cycleId}-conclusion`;
-        stream.phase = "intro";
+        stream.phase = "reasoning";
         stream.phaseTicks = 0;
 
         setMessages((currentMessages) => [
@@ -232,11 +250,62 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
             content: { type: "text", text: investigation.prompt },
           },
           {
-            id: stream.introMessageId,
+            id: stream.reasoningMessageId,
             role: "assistant",
-            content: { type: "text", text: "" },
+            content: { type: "reasoning", text: "", isStreaming: true },
           },
         ]);
+
+        return;
+      }
+
+      if (stream.phase === "reasoning") {
+        setMessages((currentMessages) => {
+          const nextMessages = currentMessages.map((message) => {
+            if (
+              message.id !== stream.reasoningMessageId ||
+              message.content.type !== "reasoning"
+            ) {
+              return message;
+            }
+
+            const text = appendToken(
+              message.content.text,
+              investigation.reasoning,
+            );
+
+            // The block collapses once the assistant's text answer arrives,
+            // mirroring getDrawerMessages semantics.
+            const isDone = text === investigation.reasoning;
+
+            if (isDone) {
+              stream.phase = "intro";
+              stream.phaseTicks = 0;
+            }
+
+            return {
+              ...message,
+              content: {
+                type: "reasoning" as const,
+                text,
+                isStreaming: !isDone,
+              },
+            };
+          });
+
+          if (stream.phase !== "intro") {
+            return nextMessages;
+          }
+
+          return [
+            ...nextMessages,
+            {
+              id: stream.introMessageId,
+              role: "assistant",
+              content: { type: "text", text: "" },
+            },
+          ];
+        });
 
         return;
       }
@@ -411,6 +480,14 @@ const conversations = [
 
 const longUnbrokenWord = `trace-${"0123456789abcdef".repeat(18)}`;
 const longUnbrokenTableValue = `observation-${"abcdefghijklmnopqrstuvwxyz".repeat(10)}`;
+const longReasoningText = [
+  "Reading the current drawer context and selected project state.",
+  "Checking active filters before choosing the smallest safe query.",
+  "Comparing recent traces, observations, and score names for a matching latency signal.",
+  "Waiting for the first tool call result before drafting a final answer.",
+  "Keeping this text intentionally long so the reasoning block spans several lines while the drawer follows the conversation bottom.",
+  "The final streamed line should remain visible inside the reasoning block.",
+].join("\n");
 
 const meta = preview.meta({
   component: InAppAgentWindow,
@@ -431,6 +508,7 @@ const meta = preview.meta({
     conversations,
     hasMoreConversations: false,
     isLoadingMoreConversations: false,
+    isAssistantTurnInProgress: false,
     selectedConversationId: undefined,
     onDeleteConversation: fn(),
     onLoadMoreConversations: fn(),
@@ -502,6 +580,15 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Which traces had the highest latency today?",
+        },
+      },
+      {
+        id: "assistant-reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: longReasoningText,
+          isStreaming: false,
         },
       },
       {
@@ -764,6 +851,89 @@ export const LoadingAfterToolCall = meta.story({
   },
 });
 
+export const FeedbackControlsWaitForTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Wait For Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: true,
+    isAssistantTurnInProgress: true,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText(
+      "I found a cluster of ingestion errors around malformed JSON payloads",
+    );
+
+    await waitFor(() => {
+      expect(
+        canvas.queryByRole("button", { name: "Good response" }),
+      ).not.toBeInTheDocument();
+      expect(
+        canvas.queryByRole("button", { name: "Bad response" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+});
+
+export const FeedbackControlsShowAfterTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Show After Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The errors were caused by malformed JSON payloads.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeInTheDocument();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeInTheDocument();
+  },
+});
+
 export const Connecting = meta.story({
   args: {
     isInputDisabled: true,
@@ -790,7 +960,10 @@ export const Connecting = meta.story({
 
 export const Error = meta.story({
   args: {
-    error: "Assistant is not enabled for this user",
+    error: {
+      type: "generic",
+      message: "Assistant is not enabled for this user",
+    },
     messages: [
       {
         id: "user-1",
@@ -801,6 +974,49 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+export const RateLimited = meta.story({
+  name: "(Test) Rate Limited",
+  args: {
+    error: null,
+    messages: [],
+  },
+  render: function Render(args) {
+    const [retryAt] = useState(() => Date.now() + 12_000);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        error={{ type: "rate_limit", retryAt }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+    const initialAlertText = alert.textContent;
+
+    await expect(alert).toHaveTextContent(
+      "You've reached the assistant request limit",
+    );
+    await expect(alert).toHaveTextContent("Try again in about");
+    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
+      timeout: 2_000,
+    });
+    await expect(
+      canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Get started with Langfuse" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeEnabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeEnabled();
   },
 });
 

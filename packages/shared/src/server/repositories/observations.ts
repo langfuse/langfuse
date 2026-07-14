@@ -9,6 +9,7 @@ import {
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import {
   InternalServerError,
   LangfuseNotFoundError,
@@ -759,7 +760,8 @@ const getObservationsTableInternal = async <T>(
       groupArrayIf(
         concat(name, ':', string_value),
         data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         trace_id,
@@ -1619,7 +1621,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
     },
     clickhouseConfigs: {
-      request_timeout: 120000, // 2 minutes timeout
+      request_timeout: 300000, // 5 minutes timeout
     },
   });
 
