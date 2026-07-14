@@ -29,7 +29,7 @@ The maintainers are available on [Discord](https://langfuse.com/discord) in case
 
 _Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Changes that were not discussed in an issue may be rejected.
 
-Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
+Once we've discussed your changes and your code is ready, make sure that tests are passing before opening your pull request.
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
