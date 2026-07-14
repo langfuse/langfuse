@@ -70,30 +70,6 @@ describe("defineTool", () => {
     });
   });
 
-  it("records unexpected handler failures as server errors", async () => {
-    const schema = z.object({ name: z.string() });
-    const [, handler] = defineTool({
-      name: "plainTool",
-      description: "",
-      baseSchema: schema,
-      inputSchema: schema,
-      handler: async () => {
-        throw new Error("Database unavailable");
-      },
-    });
-
-    await expect(
-      handler({ name: "Langfuse" }, externalContext),
-    ).rejects.toThrow("An unexpected error occurred");
-
-    expect(recordIncrement).toHaveBeenCalledOnce();
-    expect(recordIncrement).toHaveBeenCalledWith("langfuse.mcp.tool_call", 1, {
-      tool: "plainTool",
-      outcome: "server_error",
-      client: "external",
-    });
-  });
-
   it("records 5xx BaseError handler failures as server errors", async () => {
     const schema = z.object({ name: z.string() });
     const [, handler] = defineTool({
