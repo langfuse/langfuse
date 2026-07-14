@@ -27,7 +27,11 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  isLangGraphControlFlowInterruptSpan,
+} from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -444,12 +448,14 @@ export class OtelIngestionProcessor {
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
                     ] ??
-                    (span.status?.code === 2
-                      ? ObservationLevel.ERROR
-                      : scopeSpan?.scope?.name === "livekit-agents" &&
-                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-                        ? ObservationLevel.DEBUG
-                        : ObservationLevel.DEFAULT),
+                    (isLangGraphControlFlowInterruptSpan(span)
+                      ? ObservationLevel.DEFAULT
+                      : span.status?.code === 2
+                        ? ObservationLevel.ERROR
+                        : scopeSpan?.scope?.name === "livekit-agents" &&
+                            LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                          ? ObservationLevel.DEBUG
+                          : ObservationLevel.DEFAULT),
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -1073,12 +1079,14 @@ export class OtelIngestionProcessor {
       metadata: normalizedToolMetadata.metadata,
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
-        (span.status?.code === 2
-          ? ObservationLevel.ERROR
-          : scopeSpan?.scope?.name === "livekit-agents" &&
-              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-            ? ObservationLevel.DEBUG
-            : ObservationLevel.DEFAULT),
+        (isLangGraphControlFlowInterruptSpan(span)
+          ? ObservationLevel.DEFAULT
+          : span.status?.code === 2
+            ? ObservationLevel.ERROR
+            : scopeSpan?.scope?.name === "livekit-agents" &&
+                LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+              ? ObservationLevel.DEBUG
+              : ObservationLevel.DEFAULT),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
