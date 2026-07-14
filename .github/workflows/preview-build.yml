@@ -60,10 +60,9 @@ jobs:
         run: |
           set -euo pipefail
           commit_sha="$(git rev-parse HEAD)"
-          short_sha="${commit_sha:0:12}"
           # The ApplicationSet deploys pr-<n>-{{.head_sha}} — Argo's FULL 40-char
           # SHA — so the pushed tag MUST use the full SHA or the deployed image
-          # never resolves (permanent ImagePullBackOff). short_sha is display-only.
+          # never resolves (permanent ImagePullBackOff).
           image_tag="pr-${PR_NUMBER}-${commit_sha}"
           {
             echo "commit_sha=${commit_sha}"
@@ -117,7 +116,7 @@ jobs:
           # makes workflow re-runs on an unchanged commit idempotent).
           image_present() {
             local image="$1" repo tag
-            repo="${image%:*}"; repo="${repo##*/}"
+            repo="${image%:*}"; repo="${repo#*/}"   # strip only the registry host; keep any namespace
             tag="${image##*:}"
             aws ecr describe-images --repository-name "${repo}" \
               --image-ids imageTag="${tag}" >/dev/null 2>&1
