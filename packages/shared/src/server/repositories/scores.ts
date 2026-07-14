@@ -2060,7 +2060,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     clickhouseConfigs: {
-      request_timeout: 120000, // 2 minutes timeout
+      request_timeout: 300000, // 5 minutes timeout
     },
   });
 

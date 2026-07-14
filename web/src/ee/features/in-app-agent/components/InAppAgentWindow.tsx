@@ -1,6 +1,12 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   BotMessageSquare,
   History,
@@ -38,6 +44,7 @@ import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import styles from "./InAppAgentWindow.module.css";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -285,16 +292,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
 
+  // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
-    const wasInputDisabled = previousIsInputDisabledRef.current;
     previousIsInputDisabledRef.current = isInputDisabled;
-
-    if (!wasInputDisabled || isInputDisabled) {
-      return;
-    }
-
-    inputRef.current?.focus();
   }, [isInputDisabled]);
+
+  const setInputRef = useCallback(
+    (input: HTMLTextAreaElement | null) => {
+      inputRef.current = input;
+
+      const shouldRefocusInput =
+        previousIsInputDisabledRef.current && !isInputDisabled;
+
+      if (input && shouldRefocusInput) {
+        input.focus();
+      }
+    },
+    [isInputDisabled],
+  );
 
   useEffect(() => {
     const input = inputRef.current;
@@ -649,6 +664,32 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
           </div>
         )}
+        {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
+          <div
+            className={cn(
+              "pointer-events-none relative h-px w-full shrink-0 select-none",
+              isExpanded && "mx-auto max-w-3xl",
+            )}
+          >
+            <div className="absolute top-0 h-4 w-full -translate-y-full overflow-hidden">
+              <div className="absolute top-0 h-12 w-full bg-radial from-(--color-3) to-transparent to-60% bg-center opacity-25" />
+            </div>
+            <div className="absolute bottom-0 left-0 h-px w-full overflow-hidden">
+              <div
+                aria-hidden="true"
+                className={cn("h-[4rem]", styles.loadingGradient)}
+              />
+              {isExpanded && (
+                <>
+                  {/* Gradient overlays for expanded state so that the edges fade out */}
+                  {/* Make sure this matches the color of the background */}
+                  <div className="from-header absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-header absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
         <div
           className={cn(
             "p-1.5",
@@ -674,7 +715,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           >
             <textarea
               autoFocus={!isExpanded}
-              ref={inputRef}
+              ref={setInputRef}
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
@@ -706,6 +747,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="h-8 w-8 rounded-md border"
                 aria-label="Send message"
+                variant="outline"
                 disabled={isInputDisabled || !input.trim()}
               >
                 <SendHorizontal className="h-4 w-4" />
