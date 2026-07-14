@@ -100,6 +100,7 @@
     "@ai-sdk/google": "^4.0.6",
     "@ai-sdk/google-vertex": "^5.0.8",
     "@ai-sdk/openai": "^4.0.0",
+    "@ai-sdk/openai-compatible": "^3.0.3",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
     "@aws-sdk/client-s3": "catalog:",

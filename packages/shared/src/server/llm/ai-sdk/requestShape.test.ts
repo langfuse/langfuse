@@ -8,7 +8,11 @@ import {
   LLMAdapter,
   type ModelParams,
 } from "../types";
-import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "../llmText";
 
 // Request-shape coverage exercises the real provider packages while replacing
 // the separately tested secure transport with a capture fetch.
@@ -160,6 +164,7 @@ async function runCompletion(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
+  output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
 }) {
   const { calls, fetch } = createCaptureFetch(params.response);
@@ -178,6 +183,7 @@ async function runCompletion(params: {
       },
     }),
     timeout: 10_000,
+    output: params.output,
   });
 
   expect(calls).toHaveLength(1);
@@ -234,6 +240,88 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
+  it("OpenAI-compatible chat completions: preserves custom provider options on the wire", async () => {
+    const { result, request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-reasoning-model",
+        max_tokens: 64,
+        providerOptions: {
+          reasoning_effort: "high",
+          service_tier: "flex",
+          parallel_tool_calls: false,
+          logit_bias: { "42": 1 },
+          thinkingBudget: 1024,
+          thinkingLevel: "high",
+        },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(result.text).toBe("ok");
+    expect(request.url).toBe(
+      "https://openai-compatible.example.com/v1/chat/completions",
+    );
+    expect(request.headers.get("authorization")).toBe("Bearer custom-key");
+    expect(request.body.model).toBe("custom-reasoning-model");
+    expect(request.body.max_tokens).toBe(64);
+    expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.service_tier).toBe("flex");
+    expect(request.body.parallel_tool_calls).toBe(false);
+    expect(request.body.logit_bias).toEqual({ "42": 1 });
+    expect(request.body.serviceTier).toBeUndefined();
+    expect(request.body.parallelToolCalls).toBeUndefined();
+    expect(request.body.logitBias).toBeUndefined();
+    expect(request.body.thinkingBudget).toBe(1024);
+    expect(request.body.thinkingLevel).toBe("high");
+  });
+
+  it("OpenAI-compatible chat completions: preserves JSON schema response_format", async () => {
+    const { result, request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-schema-model",
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      output: createLLMOutput({
+        type: "object",
+        properties: { answer: { type: "string" } },
+        required: ["answer"],
+        additionalProperties: false,
+      }),
+      response: {
+        ...OPENAI_CHAT_RESPONSE,
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: '{"answer":"ok"}' },
+            finish_reason: "stop",
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.response_format).toMatchObject({
+      type: "json_schema",
+      json_schema: {
+        strict: true,
+        name: "response",
+        schema: {
+          type: "object",
+          properties: { answer: { type: "string" } },
+          required: ["answer"],
+          additionalProperties: false,
+        },
+      },
+    });
+  });
+
   it("Azure: stored deployment URL with pinned api-version and api-key header", async () => {
     const { request } = await runCompletion({
       modelParams: {
@@ -256,6 +344,26 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("x-custom")).toBe("1");
     expect(request.body.logit_bias).toEqual({ "42": 1 });
     expect(request.body.max_tokens).toBe(64);
+  });
+
+  it("Azure: deployment-specific stored URL is normalized before request construction", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "azure",
+        adapter: LLMAdapter.Azure,
+        model: "gpt4o-deployment",
+        max_tokens: 64,
+      },
+      apiKey: "azure-key",
+      baseURL:
+        "https://my-instance.openai.azure.com/openai/deployments/gpt4o-deployment",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.url).toBe(
+      "https://my-instance.openai.azure.com/openai/deployments/gpt4o-deployment/chat/completions?api-version=2025-02-01-preview",
+    );
+    expect(request.headers.get("api-key")).toBe("azure-key");
   });
 
   it("OpenAI chat completions: gpt-5.4 mini keeps non-reasoning request params", async () => {
