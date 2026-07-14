@@ -1982,116 +1982,119 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       },
     );
 
-    // isCloud is set for this suite, so the enriched path is available without
-    // the V4-preview opt-in — this runs on every CI leg.
-    maybeIt(
-      "does not write a deprecation notice for the EVENTS source",
-      async () => {
-        const { projectId } = await createOrgProjectAndApiKey();
-        s3Prefix = `${projectId}/`;
-        const now = new Date();
-        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-        const dataTime = now.getTime() - 40 * 60 * 1000;
+    // The EVENTS export reads the enriched events table, which only the
+    // V4-preview CI leg provisions — gate these like every other enriched test.
+    // isCloud is set by the suite's beforeAll, so the notice logic still runs.
+    maybeDescribe("after migrating to the enriched-only source", () => {
+      maybeIt(
+        "does not write a deprecation notice for the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
 
-        await prisma.blobStorageIntegration.create({
-          data: {
-            projectId,
-            type: BlobStorageIntegrationType.S3,
-            bucketName,
-            prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
-            region: region ? region : "auto",
-            endpoint: minioEndpoint,
-            forcePathStyle:
-              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-            enabled: true,
-            exportFrequency: "hourly",
-            exportSource: "EVENTS",
-            fileType: BlobStorageIntegrationFileType.JSONL,
-            compressed: false,
-            lastSyncAt: oneHourAgo,
-          },
-        });
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+            },
+          });
 
-        await createEventsCh([
-          createEvent({
-            id: randomUUID(),
-            project_id: projectId,
-            start_time: dataTime,
-            name: "No Notice Event",
-          }),
-        ]);
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "No Notice Event",
+            }),
+          ]);
 
-        await handleBlobStorageIntegrationProjectJob({
-          data: { payload: { projectId } },
-        } as Job);
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
 
-        const files = await s3StorageService.listFiles(s3Prefix);
-        expect(files.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
-      },
-    );
+          const files = await s3StorageService.listFiles(s3Prefix);
+          expect(files.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
 
-    // A notice written while on a legacy source must be cleaned up once the
-    // project migrates to the enriched-only source, so it can't linger with
-    // now-false claims.
-    maybeIt(
-      "removes a stale notice after migrating to the EVENTS source",
-      async () => {
-        const { projectId } = await createOrgProjectAndApiKey();
-        s3Prefix = `${projectId}/`;
-        const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
-        const now = new Date();
-        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-        const dataTime = now.getTime() - 40 * 60 * 1000;
+      // A notice written while on a legacy source must be cleaned up once the
+      // project migrates to the enriched-only source, so it can't linger with
+      // now-false claims.
+      maybeIt(
+        "removes a stale notice after migrating to the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
 
-        // Simulate a notice left behind by an earlier legacy-source run.
-        await s3StorageService.uploadFile({
-          fileName: noticeKey,
-          fileType: "text/plain; charset=utf-8",
-          data: "stale notice from a previous legacy run",
-        });
-        const before = await s3StorageService.listFiles(s3Prefix);
-        expect(before.some((f) => f.file === noticeKey)).toBe(true);
+          // Simulate a notice left behind by an earlier legacy-source run.
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stale notice from a previous legacy run",
+          });
+          const before = await s3StorageService.listFiles(s3Prefix);
+          expect(before.some((f) => f.file === noticeKey)).toBe(true);
 
-        await prisma.blobStorageIntegration.create({
-          data: {
-            projectId,
-            type: BlobStorageIntegrationType.S3,
-            bucketName,
-            prefix: s3Prefix,
-            accessKeyId: minioAccessKeyId,
-            secretAccessKey: encrypt(minioAccessKeySecret),
-            region: region ? region : "auto",
-            endpoint: minioEndpoint,
-            forcePathStyle:
-              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-            enabled: true,
-            exportFrequency: "hourly",
-            exportSource: "EVENTS",
-            fileType: BlobStorageIntegrationFileType.JSONL,
-            compressed: false,
-            lastSyncAt: oneHourAgo,
-          },
-        });
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+            },
+          });
 
-        await createEventsCh([
-          createEvent({
-            id: randomUUID(),
-            project_id: projectId,
-            start_time: dataTime,
-            name: "Migrated Event",
-          }),
-        ]);
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Migrated Event",
+            }),
+          ]);
 
-        await handleBlobStorageIntegrationProjectJob({
-          data: { payload: { projectId } },
-        } as Job);
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
 
-        const after = await s3StorageService.listFiles(s3Prefix);
-        expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
-      },
-    );
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+    });
   });
 
   // LFE-10402: raw-passthrough streams ClickHouse JSONEachRow bytes straight to
