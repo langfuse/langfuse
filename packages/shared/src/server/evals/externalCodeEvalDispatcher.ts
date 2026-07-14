@@ -96,6 +96,7 @@ export class ExternalCodeEvalDispatcher implements CodeEvalDispatcher {
           "content-type": "application/json",
         },
         body: serializedPayload,
+        redirect: "manual",
         signal: timeoutSignal,
       });
     } catch (error) {
