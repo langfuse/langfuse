@@ -95,5 +95,20 @@ describe("MCP Authentication", () => {
       expect(response.status).toBe(200);
     });
 
+    it("should close authenticated GET requests with 405", async () => {
+      const { auth } = await createMcpTestSetup();
+
+      const response = await fetch(`http://localhost:3000${MCP_ENDPOINT}`, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+          Authorization: auth,
+        },
+      });
+
+      expect(response.status).toBe(405);
+      expect(response.headers.get("Allow")).toBe("POST, OPTIONS");
+      expect(await response.text()).toBe("");
+    });
   });
 });
