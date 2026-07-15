@@ -1,11 +1,6 @@
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
-
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { MediaContentType } from "@/src/features/media/validation";
-import { api } from "@/src/utils/api";
-import { type DatasetItemMediaField } from "@langfuse/shared";
+import { generateUUID, type DatasetItemMediaField } from "@langfuse/shared";
 
 const SUPPORTED_CONTENT_TYPES = new Set<string>(
   Object.values(MediaContentType),
@@ -86,9 +81,8 @@ export function useDatasetItemMediaUpload({
         return null;
       }
 
-      // uuid's v4() falls back to crypto.getRandomValues, so it works on
-      // non-secure (HTTP) origins where crypto.randomUUID is unavailable.
-      const pendingId = uuidv4();
+      // generateUUID() handles fallback for non-secure (HTTP) origins where crypto.randomUUID is unavailable.
+      const pendingId = generateUUID();
       setPendingUploads((prev) => [
         ...prev,
         { id: pendingId, fileName: file.name },
