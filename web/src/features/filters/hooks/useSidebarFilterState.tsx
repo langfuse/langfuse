@@ -366,6 +366,13 @@ type UpdateFilter = (
 type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+  /** Explicit defaults are visible/editable but are not persisted until the user edits. */
+  defaultExplicitFilterState?: FilterState;
+  onExplicitFilterStateChange?: (params: {
+    previousFilters: FilterState;
+    nextFilters: FilterState;
+    origin: "user" | "saved_view" | "system";
+  }) => void;
   /**
    * Precise per-facet loading set (lazy filter-options): exactly the columns
    * whose options have been requested but not yet arrived. When provided it
@@ -513,7 +520,12 @@ export function useSidebarFilterState(
   >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const { loading, loadingColumns, implicitDefaultConfig } = hookOptions;
+  const {
+    loading,
+    loadingColumns,
+    implicitDefaultConfig,
+    onExplicitFilterStateChange,
+  } = hookOptions;
   const isV4Surface = hookOptions.isV4 ?? false;
   const capture = usePostHogClientCapture();
   const stateLocationType = hookOptions.stateLocation;
@@ -636,12 +648,26 @@ export function useSidebarFilterState(
     [urlFilterState],
   );
 
-  const explicitFilterState: FilterState =
+  const persistedExplicitFilterState: FilterState =
     stateLocationType === "peekContext"
       ? hookOptions.context.tableState.filters
       : stateLocationType === "memory"
         ? memoryFilterState
         : urlFilterState;
+
+  const explicitFilterState = useMemo(() => {
+    const defaultFilters = hookOptions.defaultExplicitFilterState ?? [];
+    if (defaultFilters.length === 0) return persistedExplicitFilterState;
+
+    const explicitlyOwnedColumns = new Set(
+      persistedExplicitFilterState.map((filter) => filter.column),
+    );
+    return persistedExplicitFilterState.concat(
+      defaultFilters.filter(
+        (filter) => !explicitlyOwnedColumns.has(filter.column),
+      ),
+    );
+  }, [hookOptions.defaultExplicitFilterState, persistedExplicitFilterState]);
 
   // LFE-10164: When arriving via a URL/deep link that already carries applied
   // filters, expand the sidebar sections that have an active filter. Sidebar
@@ -746,10 +772,22 @@ export function useSidebarFilterState(
   // `replaceIn` so they don't mint a history entry Back would bounce off
   // (LFE-10715). Ignored for non-URL state locations.
   const setFilterState = useCallback(
-    (newFilters: FilterState, options?: { updateType?: UrlUpdateType }) => {
+    (
+      newFilters: FilterState,
+      options?: {
+        updateType?: UrlUpdateType;
+        origin?: "user" | "saved_view" | "system";
+      },
+    ) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         config: managedEnvironmentPolicyConfig,
+      });
+
+      onExplicitFilterStateChange?.({
+        previousFilters: explicitFilterState,
+        nextFilters: explicitFilters,
+        origin: options?.origin ?? "user",
       });
 
       if (stateLocationType === "peekContext" && setPeekTableState) {
@@ -794,6 +832,8 @@ export function useSidebarFilterState(
       setUrlFiltersQuery,
       setStoredFiltersQuery,
       managedEnvironmentPolicyConfig,
+      explicitFilterState,
+      onExplicitFilterStateChange,
     ],
   );
 

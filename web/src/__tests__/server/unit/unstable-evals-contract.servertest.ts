@@ -845,7 +845,9 @@ describe("unstable public eval adapters", () => {
           jsonSelector: null,
         },
       ],
-      sampling: 1,
+      // Stored configs carry a Prisma Decimal; the adapter only reads it as a
+      // number, so a plain 1 is a faithful stand-in.
+      sampling: 1 as unknown as StoredPublicEvaluationRuleConfig["sampling"],
       status: JobConfigState.ACTIVE,
       blockedAt: null,
       blockReason: null,

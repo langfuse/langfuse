@@ -201,7 +201,9 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       // Filter to only our test experiments
       const testExperiments = result.filter((e) =>
-        [experimentId1, experimentId2, experimentId3].includes(e.id),
+        ([experimentId1, experimentId2, experimentId3] as string[]).includes(
+          e.id,
+        ),
       );
 
       expect(testExperiments.length).toBe(3);
@@ -1318,7 +1320,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_id: traceId,
         observation_id: null,
         name: "quality",
-        value: null,
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
         string_value: "good",
         source: "API",
         data_type: "CATEGORICAL",
@@ -1385,7 +1389,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_id: traceId,
         observation_id: rootSpanId,
         name: "sentiment",
-        value: null,
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
         string_value: "positive",
         source: "API",
         data_type: "CATEGORICAL",
@@ -1547,7 +1553,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_id: traceId1,
         observation_id: null,
         name: "rating",
-        value: null,
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
         string_value: "excellent",
         source: "API",
         data_type: "CATEGORICAL",
@@ -1558,7 +1566,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         trace_id: traceId2,
         observation_id: null,
         name: "rating",
-        value: null,
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
         string_value: "poor",
         source: "API",
         data_type: "CATEGORICAL",
@@ -1617,7 +1627,9 @@ describe("Clickhouse Experiment Repository Test", () => {
         project_id: projectId,
         dataset_run_id: experimentId,
         name: "run_grade",
-        value: null,
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
         string_value: "pass",
         source: "API",
         data_type: "CATEGORICAL",
