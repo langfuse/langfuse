@@ -23,7 +23,7 @@ describe("nextAuthLogger", () => {
       string,
       Record<string, any>,
     ];
-    expect(message).toBe("next-auth SIGNIN_EMAIL_ERROR");
+    expect(message).toBe("[NEXT_AUTH] SIGNIN_EMAIL_ERROR");
     expect(meta.nextAuthErrorCode).toBe("SIGNIN_EMAIL_ERROR");
     expect(meta.error.message).toBe("Invalid email address format.");
     expect(meta.error.name).toBe("Error");
@@ -72,7 +72,7 @@ describe("nextAuthLogger", () => {
       string,
       Record<string, any>,
     ];
-    expect(message).toBe("next-auth NEXTAUTH_URL");
+    expect(message).toBe("[NEXT_AUTH] NEXTAUTH_URL");
     expect(meta.nextAuthWarningCode).toBe("NEXTAUTH_URL");
   });
 

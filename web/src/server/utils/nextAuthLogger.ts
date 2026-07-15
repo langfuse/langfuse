@@ -60,16 +60,16 @@ export const serializeNextAuthMetadata = (
  */
 export const nextAuthLogger: Partial<LoggerInstance> = {
   error: (code, metadata) => {
-    logger.error(`next-auth ${code}`, {
+    logger.error(`[NEXT_AUTH] ${code}`, {
       ...serializeNextAuthMetadata(metadata),
       nextAuthErrorCode: code,
     });
   },
   warn: (code) => {
-    logger.warn(`next-auth ${code}`, { nextAuthWarningCode: code });
+    logger.warn(`[NEXT_AUTH] ${code}`, { nextAuthWarningCode: code });
   },
   debug: (code, metadata) => {
-    logger.debug(`next-auth ${code}`, {
+    logger.debug(`[NEXT_AUTH] ${code}`, {
       ...serializeNextAuthMetadata(metadata),
       nextAuthDebugCode: code,
     });
