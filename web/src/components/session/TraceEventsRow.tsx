@@ -11,11 +11,15 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+
+// Display copy for the per-card observation cap; the authoritative limit is
+// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
+const SESSION_CARD_OBSERVATIONS_NOTICE_COUNT = 50;
 
 const hasContent = (value: unknown): boolean =>
   value !== null &&
@@ -153,7 +157,20 @@ export const TraceEventsRow = React.memo(
     // trace-level I/O that no observation shows (a v3-migrated trace can set
     // trace I/O apart from any observation; dropping it would lose content and
     // blind the annotation queue, which hides the trace panel).
-    const observations = observationsQuery.data;
+    const observations = observationsQuery.data?.observations;
+    const hasMoreObservations = Boolean(
+      observationsQuery.data?.hasMoreObservations,
+    );
+
+    // Opens the trace peek AT the observation (the session page's peek config
+    // mirrors row.observationId into the ?observation= param; the annotation
+    // queue's openPeek opens the trace page in a new tab instead).
+    const openObservationInTraceView = React.useCallback(
+      (observationId: string) => {
+        openPeek(trace.id, { ...trace, observationId });
+      },
+      [openPeek, trace],
+    );
     const visibleObservations = React.useMemo(() => {
       if (!observations) return undefined;
       const syntheticTraceRowId = `t-${trace.id}`;
@@ -163,15 +180,20 @@ export const TraceEventsRow = React.memo(
       const realObservations = observations.filter(
         (observation) => observation.id !== syntheticTraceRowId,
       );
+      // I/O can be server-truncated to a preview head (LFE-10958), so equal
+      // heads alone don't prove equal payloads — the true lengths must match
+      // too (equal head + equal full length ≈ identical content).
       const syntheticRowIsRedundant =
         !syntheticRow ||
         !observationHasIO(syntheticRow) ||
         realObservations.some(
           (observation) =>
             (hasContent(syntheticRow.input) &&
-              isEqual(observation.input, syntheticRow.input)) ||
+              isEqual(observation.input, syntheticRow.input) &&
+              observation.inputLength === syntheticRow.inputLength) ||
             (hasContent(syntheticRow.output) &&
-              isEqual(observation.output, syntheticRow.output)),
+              isEqual(observation.output, syntheticRow.output) &&
+              observation.outputLength === syntheticRow.outputLength),
         );
       if (!syntheticRowIsRedundant) return observations;
       return realObservations.length > 0 ? realObservations : observations;
@@ -215,24 +237,35 @@ export const TraceEventsRow = React.memo(
                       <span>•</span>
                       <span>{observation.startTime.toLocaleString()}</span>
                     </div>
-                    <IOPreview
-                      input={observation.input ?? undefined}
-                      output={observation.output ?? undefined}
-                      metadata={observation.metadata ?? undefined}
-                      observationName={observation.name ?? undefined}
-                      hideIfNull
+                    <SessionObservationIO
+                      observation={observation}
                       projectId={projectId}
+                      sessionId={sessionId}
                       traceId={trace.id}
-                      observationId={observation.id}
                       environment={
                         observation.environment ??
                         trace.environment ??
                         undefined
                       }
                       showCorrections={showCorrections}
+                      onOpenInTraceView={openObservationInTraceView}
                     />
                   </div>
                 ))}
+                {hasMoreObservations && (
+                  <p className="text-muted-foreground text-xs">
+                    Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
+                    observations are shown here.{" "}
+                    <button
+                      type="button"
+                      onClick={() => openPeek(trace.id, trace)}
+                      className="text-primary underline underline-offset-2 hover:no-underline"
+                    >
+                      Open the trace
+                    </button>{" "}
+                    to see all of them.
+                  </p>
+                )}
               </div>
             ) : observations &&
               observations.length === 0 &&

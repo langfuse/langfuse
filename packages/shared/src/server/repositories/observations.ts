@@ -526,6 +526,13 @@ export type ObservationTableQuery = {
   offset?: number;
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
+  /**
+   * Per-field I/O size cap (events table only): fields whose full length is
+   * within `inlineChars` come back whole, larger fields come back as a
+   * `previewChars` head plus true lengths and truncation flags. Takes
+   * precedence over `renderingProps.truncated` for the I/O select.
+   */
+  ioSizeCap?: { inlineChars: number; previewChars: number };
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
