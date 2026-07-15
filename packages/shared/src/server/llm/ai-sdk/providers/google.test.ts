@@ -11,7 +11,7 @@ describe("toGoogleAIStudioBaseURL", () => {
     expect(toGoogleAIStudioBaseURL(null)).toBeUndefined();
   });
 
-  it("appends /v1beta to the origin-style URL LangChain expects", () => {
+  it("appends /v1beta to an origin-style stored URL", () => {
     expect(toGoogleAIStudioBaseURL("https://proxy.example.com/google")).toBe(
       "https://proxy.example.com/google/v1beta",
     );
@@ -39,7 +39,7 @@ describe("translateGoogleProviderOptions", () => {
     ).toEqual({ ok: true, value: undefined });
   });
 
-  it("silently strips unknown keys like LangChain's non-strict schema", () => {
+  it("silently strips unknown keys from the non-strict persisted shape", () => {
     expect(
       translateGoogleProviderOptions({
         providerOptions: { customField: 1, thinkingBudget: 1024 },
@@ -88,7 +88,7 @@ describe("translateGoogleProviderOptions", () => {
     });
   });
 
-  it("prefers maxReasoningTokens over thinkingBudget like LangChain", () => {
+  it("prefers maxReasoningTokens over thinkingBudget", () => {
     expect(
       translateGoogleProviderOptions({
         providerOptions: { thinkingBudget: 1024 },
@@ -153,7 +153,7 @@ describe("translateGoogleProviderOptions", () => {
     });
   });
 
-  it("declines representation conversions LangChain does via model tables", () => {
+  it("rejects representation conversions that require model tables", () => {
     // level-only on a budget-family model
     expect(
       translateGoogleProviderOptions({
@@ -170,7 +170,7 @@ describe("translateGoogleProviderOptions", () => {
     ).toBe(false);
   });
 
-  it("declines wrong types so LangChain surfaces the parse error", () => {
+  it("rejects provider options with wrong types", () => {
     expect(
       translateGoogleProviderOptions({
         providerOptions: { thinkingBudget: "lots" },

@@ -13,6 +13,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import { MockLanguageModelV4 } from "ai/test";
 import { createOpenAI } from "@ai-sdk/openai";
 
+import { encrypt } from "../../../encryption";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -21,8 +22,7 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
-import { executeAiSdkCompletion } from "./executeAiSdkCompletion";
-import type { AiSdkEngineDecision } from "./resolveLlmExecutionDecision";
+import { generateLLMText, mapLegacyLLMCompletionParams } from "../llmText";
 
 const publishToOtelIngestionQueue = vi.fn().mockResolvedValue(undefined);
 
@@ -55,13 +55,6 @@ const modelParams: ModelParams = {
   adapter: LLMAdapter.OpenAI,
   model: "gpt-4o",
   max_tokens: 128,
-};
-
-const decision: AiSdkEngineDecision = {
-  engine: "ai-sdk",
-  adapter: LLMAdapter.OpenAI,
-  providerOptionsName: "openai",
-  openAIApiMode: "chat-completions",
 };
 
 // System-first message lists are the norm for compiled experiment prompts and
@@ -118,18 +111,17 @@ beforeEach(() => {
 
 describe("AI SDK telemetry integration", () => {
   it("captures generateText spans under the Langfuse trace and converts them via the OTel ingestion pipeline", async () => {
-    const result = await executeAiSdkCompletion({
-      messages,
-      modelParams,
-      streaming: false,
-      apiKey: "sk-test",
-      timeoutMs: 10_000,
-      createFetch: () => globalThis.fetch,
-      decision,
-      traceSinkParams,
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: { secretKey: encrypt("sk-test") },
+      }),
+      timeout: 10_000,
+      trace: traceSinkParams,
     });
 
-    expect(result).toBe("Hello there");
+    expect(result.text).toBe("Hello there");
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
 
     const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
@@ -218,15 +210,14 @@ describe("AI SDK telemetry integration", () => {
   it("tags experiment run items so the ingestion pipeline can schedule experiment evals", async () => {
     const experimentTraceId = "1af7651916cd43dd8448eb211c80319d";
 
-    const result = await executeAiSdkCompletion({
-      messages,
-      modelParams,
-      streaming: false,
-      apiKey: "sk-test",
-      timeoutMs: 10_000,
-      createFetch: () => globalThis.fetch,
-      decision,
-      traceSinkParams: {
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: { secretKey: encrypt("sk-test") },
+      }),
+      timeout: 10_000,
+      trace: {
         targetProjectId: "project-1",
         traceId: experimentTraceId,
         traceName: "dataset-run-item-abc12",
@@ -246,7 +237,7 @@ describe("AI SDK telemetry integration", () => {
       },
     });
 
-    expect(result).toBe("Hello there");
+    expect(result.text).toBe("Hello there");
     expect(publishToOtelIngestionQueue).toHaveBeenCalledTimes(1);
     const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
 
