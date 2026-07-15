@@ -23,7 +23,11 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { type timeFilter, type FilterState } from "@langfuse/shared";
+import {
+  type timeFilter,
+  type FilterState,
+  type QueryProgress,
+} from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 
 type TimeFilter = z.infer<typeof timeFilter>;
@@ -66,6 +70,8 @@ interface GetObservationsListParams {
   orderBy: any;
   page: number;
   limit: number;
+  onProgress?: (progress: QueryProgress) => void;
+  abortSignal?: AbortSignal;
 }
 
 interface GetObservationsCountParams {
@@ -205,6 +211,19 @@ const toScoreTimestampFilters = (
  * Get paginated list of events
  */
 export async function getEventList(params: GetObservationsListParams) {
+  const progressState: { latest: QueryProgress | null } = { latest: null };
+  const reportRowsProgress = params.onProgress
+    ? (progress: QueryProgress) => {
+        progressState.latest = {
+          ...progress,
+          // Reserve the final 15% for model and score enrichment after the
+          // events-table scan has completed.
+          fraction: progress.fraction * 0.85,
+          phase: "reading",
+        };
+        params.onProgress?.(progressState.latest);
+      }
+    : undefined;
   const queryOpts = {
     projectId: params.projectId,
     filter: params.filter,
@@ -215,16 +234,36 @@ export async function getEventList(params: GetObservationsListParams) {
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
+    onProgress: reportRowsProgress,
+    abortSignal: params.abortSignal,
   };
 
   const fetchedObservations =
     await getObservationsWithModelDataFromEventsTable(queryOpts);
+  params.abortSignal?.throwIfAborted();
+
+  if (params.onProgress) {
+    progressState.latest = {
+      ...(progressState.latest ?? {
+        readRows: 0,
+        totalRowsToRead: 0,
+        readBytes: 0,
+        elapsedNs: 0,
+      }),
+      fraction: 0.9,
+      phase: "enriching",
+    };
+    params.onProgress?.(progressState.latest);
+  }
   const hasMore = fetchedObservations.length > params.limit;
   const observations = hasMore
     ? fetchedObservations.slice(0, params.limit)
     : fetchedObservations;
 
   if (observations.length === 0) {
+    if (progressState.latest) {
+      params.onProgress?.({ ...progressState.latest, fraction: 1 });
+    }
     return { observations, hasMore };
   }
 
@@ -262,6 +301,7 @@ export async function getEventList(params: GetObservationsListParams) {
       minTimestamp: minStartTime,
       excludeMetadata: true,
       includeHasMetadata: true,
+      abortSignal: params.abortSignal,
     }),
     traceIds.length > 0
       ? getScoresForTraces({
@@ -270,9 +310,11 @@ export async function getEventList(params: GetObservationsListParams) {
           timestamp: minTraceTimestamp,
           excludeMetadata: true,
           includeHasMetadata: true,
+          abortSignal: params.abortSignal,
         })
       : Promise.resolve([]),
   ]);
+  params.abortSignal?.throwIfAborted();
 
   const validatedScores = filterAndValidateDbScoreList({
     scores,
@@ -323,6 +365,10 @@ export async function getEventList(params: GetObservationsListParams) {
       ? aggregateScores(scoresByTraceId.get(observation.traceId) ?? [])
       : {},
   }));
+
+  if (progressState.latest) {
+    params.onProgress?.({ ...progressState.latest, fraction: 1 });
+  }
 
   return { observations: observationsWithScores, hasMore };
 }

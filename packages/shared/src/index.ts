@@ -91,6 +91,7 @@ export * from "./errors/index";
 
 export * from "./utils/environment";
 export * from "./interfaces/search";
+export * from "./interfaces/queryProgress";
 export { normalizeIngestionSdkName } from "./server/ingestion/ingestionAttribution";
 
 // domain

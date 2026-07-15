@@ -1,5 +1,11 @@
 import { TRPCClientError } from "@trpc/client";
-import { isNetworkConnectivityError } from "@/src/utils/api";
+import { isNetworkConnectivityError, streamQueryOption } from "@/src/utils/api";
+
+describe("streamQueryOption", () => {
+  it("cancels obsolete streamed queries", () => {
+    expect(streamQueryOption.trpc.abortOnUnmount).toBe(true);
+  });
+});
 
 describe("isNetworkConnectivityError", () => {
   it("detects the reported failed fetch error without a response", () => {

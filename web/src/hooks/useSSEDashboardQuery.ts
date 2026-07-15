@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type RouterInputs } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";
+import { type QueryProgress } from "@langfuse/shared";
 
 type DashboardExecuteQueryInput = RouterInputs["dashboard"]["executeQuery"];
 
-export type QueryProgress = {
-  read_rows: number;
-  total_rows_to_read: number;
-  elapsed_ns: number;
-  read_bytes: number;
-  percent: number;
-};
+export type { QueryProgress } from "@langfuse/shared";
 
 type SSEQueryStatus = "idle" | "loading" | "success" | "error";
 
@@ -152,11 +147,11 @@ export function useSSEDashboardQuery(
               maxPercentRef.current = percent;
 
               setProgress({
-                read_rows: readRows,
-                total_rows_to_read: totalRows,
-                elapsed_ns: Number(p.elapsed_ns),
-                read_bytes: Number(p.read_bytes),
-                percent,
+                readRows,
+                totalRowsToRead: totalRows,
+                elapsedNs: Number(p.elapsed_ns),
+                readBytes: Number(p.read_bytes),
+                fraction: percent,
               });
             } catch {
               // Ignore malformed progress events

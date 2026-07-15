@@ -1,5 +1,5 @@
 "use client";
-import { type OrderByState } from "@langfuse/shared";
+import { type OrderByState, type QueryProgress } from "@langfuse/shared";
 import React, {
   useState,
   useMemo,
@@ -56,6 +56,7 @@ import {
   useTableRowIsSelected,
   useTableSelectAll,
 } from "@/src/components/table/table-selection-store";
+import { QueryProgressBar } from "@/src/components/query-progress/QueryProgressBar";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -101,6 +102,7 @@ export interface AsyncTableData<T> {
   isError: boolean;
   data?: T;
   error?: string;
+  progress?: QueryProgress | null;
 }
 
 function insertArrayAfterKey(array: string[], toInsert: Map<string, string[]>) {
@@ -706,6 +708,16 @@ function TableBodyComponent<TData>({
 
   return (
     <TableBody>
+      {data.progress ? (
+        <TableRow>
+          <TableCell
+            colSpan={visibleColumns.length}
+            className="bg-background border-b px-3 py-2"
+          >
+            <QueryProgressBar progress={data.progress} layout="compact" />
+          </TableCell>
+        </TableRow>
+      ) : null}
       {data.isLoading || !data.data ? (
         Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
           <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
@@ -893,6 +905,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
     !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
   if (prevDataArr !== nextDataArr) return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
+  if (prev.data.progress !== next.data.progress) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;

@@ -10,6 +10,8 @@ import {
   normalizeOrderByForTable,
   paginationZod,
   timeFilter,
+  type PrismaClient,
+  type QueryProgress,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
@@ -40,6 +42,7 @@ import {
   type AgentGraphDataResponse,
 } from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
+import { progressiveQuery } from "@/src/server/api/progressiveQuery";
 
 const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
@@ -90,42 +93,72 @@ export const BatchIOInput = zodSchema.object({
 
 export type BatchIOInput = z.infer<typeof BatchIOInput>;
 
+async function executeEventList({
+  input,
+  projectId,
+  prisma,
+  onProgress,
+  abortSignal,
+}: {
+  input: GetAllEventsInput;
+  projectId: string;
+  prisma: PrismaClient;
+  onProgress?: (progress: QueryProgress) => void;
+  abortSignal?: AbortSignal;
+}) {
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: input.filter ?? [],
+    prisma,
+    projectId,
+    objectType: "OBSERVATION",
+  });
+
+  if (hasNoMatches) {
+    return { observations: [], hasMore: false };
+  }
+
+  return instrumentAsync({ name: "get-event-list-trpc" }, async (span) => {
+    const normalizedOrderBy = normalizeOrderByForTable({
+      orderBy: input.orderBy,
+      expectedTimeColumn: "startTime",
+    });
+    addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+
+    return getEventList({
+      projectId,
+      filter: filterState,
+      searchQuery: input.searchQuery ?? undefined,
+      searchType: input.searchType,
+      orderBy: normalizedOrderBy,
+      page: input.page,
+      limit: input.limit,
+      onProgress,
+      abortSignal,
+    });
+  });
+}
+
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
-    .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
-        prisma: ctx.prisma,
+    .query(({ input, ctx }) =>
+      executeEventList({
+        input,
         projectId: ctx.session.projectId,
-        objectType: "OBSERVATION",
-      });
-
-      if (hasNoMatches) {
-        return { observations: [], hasMore: false };
-      }
-
-      return instrumentAsync(
-        {
-          name: "get-event-list-trpc",
-        },
-        async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
-          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
-
-          return getEventList({
-            projectId: ctx.session.projectId,
-            filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
-            orderBy: normalizedOrderBy,
-            page: input.page,
-            limit: input.limit,
-          });
-        },
+        prisma: ctx.prisma,
+      }),
+    ),
+  allWithProgress: protectedProjectProcedure
+    .input(GetAllEventsInput)
+    .query(async function* ({ input, ctx, signal }) {
+      yield* progressiveQuery((onProgress) =>
+        executeEventList({
+          input,
+          projectId: ctx.session.projectId,
+          prisma: ctx.prisma,
+          onProgress,
+          abortSignal: signal,
+        }),
       );
     }),
   countAll: protectedProjectProcedure

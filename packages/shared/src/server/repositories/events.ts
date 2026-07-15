@@ -50,6 +50,7 @@ import {
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
+import type { QueryProgress } from "../../interfaces/queryProgress";
 import {
   eventsScoresAggregation,
   eventsSessionsAggregation,
@@ -80,6 +81,7 @@ import {
   queryClickhouseStream,
   queryClickhouseStreamRawText,
   queryClickhouseExecRaw,
+  collectClickhouseWithProgress,
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
 } from "./clickhouse";
 import {
@@ -491,7 +493,10 @@ export const getObservationsCountsFromEventsTable = async (
 };
 
 export const getObservationsWithModelDataFromEventsTable = async (
-  opts: ObservationTableQuery,
+  opts: ObservationTableQuery & {
+    onProgress?: (progress: QueryProgress) => void;
+    abortSignal?: AbortSignal;
+  },
 ): Promise<FullEventsObservations> => {
   const observationRecords =
     await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
@@ -501,6 +506,8 @@ export const getObservationsWithModelDataFromEventsTable = async (
       },
     );
 
+  opts.abortSignal?.throwIfAborted();
+
   const withModelData: Array<EventsObservation & ObservationPriceFields> =
     await enrichObservationsWithModelData(
       observationRecords,
@@ -508,6 +515,8 @@ export const getObservationsWithModelDataFromEventsTable = async (
       false,
       null, // V1 path: always enrich all fields
     );
+
+  opts.abortSignal?.throwIfAborted();
 
   return enrichObservationsWithTraceFields(withModelData);
 };
@@ -578,6 +587,8 @@ async function getObservationsFromEventsTableInternal<T>(
     selectToolData?: boolean;
     cursor?: PublicApiObservationsQuery["cursor"];
     preferredClickhouseService?: PreferredClickhouseService;
+    onProgress?: (progress: QueryProgress) => void;
+    abortSignal?: AbortSignal;
   },
 ): Promise<Array<T>> {
   const {
@@ -765,14 +776,19 @@ async function getObservationsFromEventsTableInternal<T>(
       tags: { projectId },
     },
     fn: async (input) => {
-      return queryClickhouse<T>({
+      const queryOptions = {
         query,
         params: input.params,
         tags: input.tags,
         clickhouseConfigs,
         preferredClickhouseService:
           preferredClickhouseService ?? "EventsReadOnly",
-      });
+        abortSignal: opts.abortSignal,
+      };
+
+      return opts.onProgress
+        ? collectClickhouseWithProgress<T>(queryOptions, opts.onProgress)
+        : queryClickhouse<T>(queryOptions);
     },
   });
 }

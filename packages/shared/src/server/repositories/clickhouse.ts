@@ -23,8 +23,12 @@ import {
   ClickHouseSettings,
   type RowOrProgress,
   type DataFormat,
+  isProgressRow,
+  isRow,
+  isException,
 } from "@clickhouse/client";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import { type QueryProgress } from "../../interfaces/queryProgress";
 import {
   buildClickHouseLogComment,
   normalizeClickHouseQueryTags,
@@ -555,6 +559,7 @@ export type ClickhouseQueryOpts = {
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
+  abortSignal?: AbortSignal;
 };
 
 function recordSummaryOnSpan(
@@ -594,6 +599,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   clickhouseSettings?: ClickHouseSettings;
   format: F;
   span: Span;
+  abortSignal?: AbortSignal;
 }) {
   const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const res = await clickhouseClient(
@@ -607,6 +613,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
       ...opts.clickhouseSettings,
       log_comment: JSON.stringify(normalizedTags),
     },
+    abort_signal: opts.abortSignal,
   });
 
   if (env.NODE_ENV === "development") {
@@ -671,6 +678,8 @@ export async function queryClickhouse<T>(
         {
           numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
           retry: (error: Error, attemptNumber: number) => {
+            if (opts.abortSignal?.aborted) return false;
+
             const shouldRetry = isRetryableError(error);
             if (shouldRetry) {
               logger.warn(
@@ -758,6 +767,103 @@ export async function* queryClickhouseWithProgress<T>(
   } finally {
     span.end();
   }
+}
+
+export async function collectClickhouseWithProgress<T>(
+  opts: ClickhouseQueryOpts,
+  onProgress: (progress: QueryProgress) => void,
+) {
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  let maxFraction = 0;
+  let maxReadRows = 0;
+  let maxTotalRowsToRead = 0;
+  let maxReadBytes = 0;
+  let maxElapsedNs = 0;
+
+  return backOff(
+    async () => {
+      // Discard partial rows when a transient network failure retries the query.
+      const rows: T[] = [];
+
+      for await (const event of queryClickhouseWithProgress<T>(opts)) {
+        if (isProgressRow(event)) {
+          const parsedReadRows = Number(event.progress.read_rows);
+          const parsedTotalRowsToRead = Number(
+            event.progress.total_rows_to_read ?? 0,
+          );
+          const parsedReadBytes = Number(event.progress.read_bytes);
+          const parsedElapsedNs = Number(event.progress.elapsed_ns);
+          const readRows = Number.isFinite(parsedReadRows) ? parsedReadRows : 0;
+          const totalRowsToRead = Number.isFinite(parsedTotalRowsToRead)
+            ? parsedTotalRowsToRead
+            : 0;
+          const readBytes = Number.isFinite(parsedReadBytes)
+            ? parsedReadBytes
+            : 0;
+          const elapsedNs = Number.isFinite(parsedElapsedNs)
+            ? parsedElapsedNs
+            : 0;
+          const fraction = Math.max(
+            0,
+            Math.min(totalRowsToRead > 0 ? readRows / totalRowsToRead : 0, 1),
+          );
+
+          // Retries restart ClickHouse counters. Keep every displayed value
+          // monotonic so a retried attempt cannot move the UI backwards.
+          maxReadRows = Math.max(maxReadRows, readRows);
+          maxTotalRowsToRead = Math.max(maxTotalRowsToRead, totalRowsToRead);
+          maxReadBytes = Math.max(maxReadBytes, readBytes);
+          maxElapsedNs = Math.max(maxElapsedNs, elapsedNs);
+          maxFraction = Math.max(maxFraction, fraction);
+          onProgress({
+            readRows: maxReadRows,
+            totalRowsToRead: maxTotalRowsToRead,
+            readBytes: maxReadBytes,
+            elapsedNs: maxElapsedNs,
+            fraction: maxFraction,
+          });
+          continue;
+        }
+
+        if (isRow<T>(event)) {
+          rows.push(event.row);
+          continue;
+        }
+
+        if (isException(event)) {
+          throw ClickHouseResourceError.wrapIfResourceError(
+            new Error(event.exception),
+            normalizedTags,
+          );
+        }
+      }
+
+      return rows;
+    },
+    {
+      numOfAttempts: env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS,
+      retry: (error: Error, attemptNumber: number) => {
+        if (opts.abortSignal?.aborted) return false;
+
+        const shouldRetry = isRetryableError(error);
+        if (shouldRetry) {
+          logger.warn(
+            `Progressive ClickHouse query failed with retryable error (attempt ${attemptNumber}/${env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS}): ${error.message}`,
+            { error: error.message, attemptNumber, tags: normalizedTags },
+          );
+        }
+        return shouldRetry;
+      },
+      startingDelay: 100,
+      timeMultiple: 1,
+      maxDelay: 100,
+    },
+  ).catch((error) => {
+    throw ClickHouseResourceError.wrapIfResourceError(
+      error as Error,
+      normalizedTags,
+    );
+  });
 }
 
 export async function commandClickhouse(opts: {

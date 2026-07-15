@@ -1,5 +1,7 @@
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
-import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
+import {
+  RESOURCE_LIMIT_ERROR_MESSAGE,
+  type QueryProgress,
+} from "@langfuse/shared";
 
 type ChartQueryState = {
   isPending: boolean;
