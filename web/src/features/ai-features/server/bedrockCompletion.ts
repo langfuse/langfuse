@@ -2,9 +2,9 @@ import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ChatMessage,
-  type CompletionWithReasoning,
-  fetchLLMCompletion,
+  generateLLMText,
   LLMAdapter,
+  mapLegacyLLMCompletionParams,
   type TraceSinkParams,
 } from "@langfuse/shared/src/server";
 import { randomBytes } from "crypto";
@@ -44,35 +44,38 @@ export function getLangfuseAITraceSinkParams(params: {
   };
 }
 
-export async function fetchLangfuseAICompletion(params: {
+export async function generateLangfuseAIText(params: {
   messages: ChatMessage[];
   model?: string;
   maxTokens?: number;
   traceSinkParams?: TraceSinkParams;
-}): Promise<string | CompletionWithReasoning> {
+}): Promise<string> {
   const model = params.model ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
 
   if (!model) {
     throw new Error("Langfuse AI completion model is not configured.");
   }
 
-  return fetchLLMCompletion({
-    messages: params.messages,
-    modelParams: {
-      provider: "bedrock",
-      adapter: LLMAdapter.Bedrock,
-      model,
-      // Intentionally omit temperature/top_p: newer Bedrock models reject these
-      // inference params, while AI-feature generation works at model defaults.
-      ...(params.maxTokens !== undefined
-        ? { max_tokens: params.maxTokens }
-        : {}),
-    },
-    llmConnection: {
-      secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-    },
-    streaming: false,
-    traceSinkParams: params.traceSinkParams,
-    shouldUseLangfuseAPIKey: true,
+  const result = await generateLLMText({
+    ...mapLegacyLLMCompletionParams({
+      messages: params.messages,
+      modelParams: {
+        provider: "bedrock",
+        adapter: LLMAdapter.Bedrock,
+        model,
+        // Intentionally omit temperature/top_p: newer Bedrock models reject these
+        // inference params, while AI-feature generation works at model defaults.
+        ...(params.maxTokens !== undefined
+          ? { max_tokens: params.maxTokens }
+          : {}),
+      },
+      connection: {
+        secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
+      },
+      credentialSource: "langfuse",
+    }),
+    trace: params.traceSinkParams,
   });
+
+  return result.text;
 }
