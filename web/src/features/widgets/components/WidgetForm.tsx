@@ -54,6 +54,7 @@ import {
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
@@ -62,7 +63,6 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
-  type SingleValueOption,
   type TimeFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
@@ -746,11 +746,6 @@ export function WidgetForm({
     { enabled: viewVersion === "v2" },
   );
 
-  // metadataFilterKey is the metadata key whose values the builder is suggesting.
-  const [metadataFilterKey, setMetadataFilterKey] = useState<
-    string | undefined
-  >(undefined);
-
   const eventsMetadataKeys = api.events.metadataKeys.useQuery(
     {
       projectId,
@@ -766,19 +761,14 @@ export function WidgetForm({
     },
   );
 
-  const eventsMetadataValues = api.events.metadataValues.useQuery(
+  // metadataValueOptions maps every in-use metadata key to its value suggestions;
+  // onMetadataKeyChange records a row's key the moment it is picked.
+  const { metadataValueOptions, onMetadataKeyChange } = useMetadataValueOptions(
     {
       projectId,
-      key: metadataFilterKey ?? "",
+      filterState: userFilterState,
       startTimeFilter: getDateRangeFilter("startTime", dateRange),
-    },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      enabled: viewVersion === "v2" && Boolean(metadataFilterKey),
+      enabled: viewVersion === "v2",
     },
   );
 
@@ -856,14 +846,6 @@ export function WidgetForm({
         : [];
   const metadataKeyOptions =
     eventsMetadataKeys.data?.map((row) => row.value) ?? [];
-  const metadataValueOptions: Record<string, SingleValueOption[]> =
-    metadataFilterKey && eventsMetadataValues.data
-      ? {
-          [metadataFilterKey]: normalizeSingleValueOptions(
-            eventsMetadataValues.data,
-          ),
-        }
-      : {};
 
   const filterColumns = getWidgetFilterColumns({
     selectedView,
@@ -2012,7 +1994,7 @@ export function WidgetForm({
                     onChange={setUserFilterState}
                     columnsWithCustomSelect={columnsWithCustomSelect}
                     stringObjectValueOptions={metadataValueOptions}
-                    onStringObjectKeyChange={setMetadataFilterKey}
+                    onStringObjectKeyChange={onMetadataKeyChange}
                   />
                 </div>
               </div>

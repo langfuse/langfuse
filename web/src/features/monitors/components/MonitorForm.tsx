@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -53,6 +53,7 @@ import {
   getWidgetFilterColumns,
 } from "@/src/features/widgets/components/widgetFilterColumns";
 import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -375,11 +376,6 @@ export const MonitorForm = ({
     },
   );
 
-  /** metadataFilterKey is the metadata key whose values the builder is actively suggesting. */
-  const [metadataFilterKey, setMetadataFilterKey] = useState<
-    string | undefined
-  >(undefined);
-
   /** metadataKeys loads the most common metadata key names for the Metadata filter column. */
   const metadataKeys = api.events.metadataKeys.useQuery(
     {
@@ -394,33 +390,14 @@ export const MonitorForm = ({
     },
   );
 
-  /** metadataValues lazily loads the observed values for the actively-edited metadata key. */
-  const metadataValues = api.events.metadataValues.useQuery(
+  // metadataValueOptions maps every in-use metadata key to its value suggestions;
+  // onMetadataKeyChange records a row's key the moment it is picked.
+  const { metadataValueOptions, onMetadataKeyChange } = useMetadataValueOptions(
     {
       projectId,
-      key: metadataFilterKey ?? "",
+      filterState: (watched.filters ?? []) as FilterState,
       startTimeFilter: filterOptionsStartTimeFilter,
     },
-    {
-      enabled: Boolean(metadataFilterKey),
-      trpc: { context: { skipBatch: true } },
-      staleTime: 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  /** metadataValueOptions maps the actively-edited metadata key to its observed value suggestions. */
-  const metadataValueOptions = useMemo<Record<string, SingleValueOption[]>>(
-    () =>
-      metadataFilterKey && metadataValues.data
-        ? {
-            [metadataFilterKey]: normalizeSingleValueOptions(
-              metadataValues.data,
-            ),
-          }
-        : {},
-    [metadataFilterKey, metadataValues.data],
   );
 
   /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
@@ -702,7 +679,7 @@ export const MonitorForm = ({
                           onChange={(next: FilterState) => field.onChange(next)}
                           columnsWithCustomSelect={customSelectColumnIds}
                           stringObjectValueOptions={metadataValueOptions}
-                          onStringObjectKeyChange={setMetadataFilterKey}
+                          onStringObjectKeyChange={onMetadataKeyChange}
                         />
                       </FormControl>
                       <FormMessage />
