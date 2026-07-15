@@ -2,42 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { parseJsonPrioritised } from "./json";
 
+// Focused on the precision path (UNSAFE_NUMBER_PATTERN hit -> source-access
+// reviver). Complementary coverage elsewhere: basic parseJsonPrioritised
+// semantics incl. invalid JSON and a bare unsafe integer live in
+// web/src/__tests__/server/zod.servertest.ts; unsafe integers in nested
+// objects/arrays via deepParseJson live in the "Number precision (issue
+// #6628)" block of web/src/__tests__/json-utils.clienttest.ts.
+//
 // All JSON documents are built as literal strings so big integers stay exact
 // digit text: a JS numeric literal in this file would itself be rounded to a
 // double before the parser under test ever sees it.
-describe("parseJsonPrioritised number precision (issue #6628)", () => {
-  it("keeps safe numbers as real numbers", () => {
-    expect(parseJsonPrioritised('{"a": 42, "b": 1.5, "c": -7}')).toEqual({
-      a: 42,
-      b: 1.5,
-      c: -7,
-    });
-  });
-
-  it("preserves integers beyond Number.MAX_SAFE_INTEGER as strings", () => {
-    const result = parseJsonPrioritised(
-      '{"as_number": 107505301260286111, "safe": 42}',
-    ) as any;
-    expect(result.as_number).toBe("107505301260286111");
-    expect(result.safe).toBe(42);
-  });
-
-  it("preserves multiple unsafe numbers in one document", () => {
-    // Guards the reviver's source access staying available across values.
-    const result = parseJsonPrioritised(
-      '{"a": 9223372036854775807, "b": [100000000000000001, 7], "c": {"d": 100000000000000003}}',
-    ) as any;
-    expect(result.a).toBe("9223372036854775807");
-    expect(result.b).toEqual(["100000000000000001", 7]);
-    expect(result.c.d).toBe("100000000000000003");
-  });
-
-  it("preserves a bare unsafe number document as its source string", () => {
-    expect(parseJsonPrioritised("9007199254740993")).toBe("9007199254740993");
-  });
-
+describe("parseJsonPrioritised precision path", () => {
   it("keeps a 13+ digit but double-safe integer as a number", () => {
-    // Trips the UNSAFE_NUMBER_PATTERN heuristic, but round-trips losslessly.
+    // Trips the UNSAFE_NUMBER_PATTERN heuristic (13 digits), but round-trips
+    // losslessly — must stay numeric, not become a string.
     expect(parseJsonPrioritised('{"ts": 1721001600000}')).toEqual({
       ts: 1721001600000,
     });
@@ -73,10 +51,5 @@ describe("parseJsonPrioritised number precision (issue #6628)", () => {
     expect(parseJsonPrioritised('{"a": 1, "a": 9223372036854775807}')).toEqual({
       a: "9223372036854775807",
     });
-  });
-
-  it("returns the original string for invalid JSON", () => {
-    expect(parseJsonPrioritised("not json {")).toBe("not json {");
-    expect(parseJsonPrioritised("")).toBe("");
   });
 });

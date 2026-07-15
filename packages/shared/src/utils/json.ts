@@ -1,5 +1,5 @@
 import { JsonNested } from "./zod";
-import { parse, isSafeNumber, isNumber } from "lossless-json";
+import { isSafeNumber } from "lossless-json";
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -434,20 +434,6 @@ const preserveUnsafeNumbers: ReviverWithSource = (_key, value, context) =>
     : value;
 
 /**
- * Whether JSON.parse exposes the raw source text to the reviver. True on
- * Node >= 21 and evergreen browsers; older browsers fall back to the
- * lossless-json parser below.
- */
-const supportsJsonParseWithSource = ((): boolean => {
-  let source: string | undefined;
-  JSON.parse("9007199254740993", ((_key, value, context) => {
-    source = context?.source;
-    return value;
-  }) as ReviverWithSource);
-  return source === "9007199254740993";
-})();
-
-/**
  * Parses a JSON string like JSON.parse, but preserves integers beyond
  * Number.MAX_SAFE_INTEGER (2^53-1) by emitting them as strings instead of
  * rounding them to a JS double (issue #6628). Throws on invalid JSON, exactly
@@ -464,21 +450,10 @@ const parsePreservingPrecision = (json: string): unknown => {
   // a string. Native parsing here replaced lossless-json's pure-JS parser,
   // which dominated heap allocation on large payloads (any 13+ digit run or
   // digit-followed-by-e — e.g. ms timestamps or base64 — lands on this path).
-  if (supportsJsonParseWithSource) {
-    return JSON.parse(json, preserveUnsafeNumbers);
-  }
-
-  // Legacy fallback for runtimes without reviver source access (pre-2024
-  // browsers); Node >= 21 never reaches this. NOTE: unlike JSON.parse,
-  // lossless-json throws on duplicate keys, so such documents stay raw
-  // strings on this path only.
-  return parse(json, null, (value) =>
-    isNumber(value)
-      ? isSafeNumber(value)
-        ? Number(value.valueOf())
-        : value.toString()
-      : value,
-  );
+  // On runtimes without source access (Safari < 18.4, Firefox < 135) the
+  // reviver receives no context and unsafe numbers round like plain
+  // JSON.parse; the server (Node >= 21) always preserves them.
+  return JSON.parse(json, preserveUnsafeNumbers);
 };
 
 export const parseJsonPrioritised = (
