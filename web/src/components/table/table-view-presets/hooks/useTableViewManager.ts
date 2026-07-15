@@ -20,6 +20,26 @@ import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
+/** How a saved view / preset apply was initiated — the `trigger` analytics
+ * dimension on `saved_views:applied` (LFE-10781). `system_preset_cleared` is a
+ * v4 category-chip toggle-off (applies the cleared/default state). */
+export type SavedViewApplyTrigger =
+  | "select"
+  | "permalink"
+  | "default"
+  | "system_preset"
+  | "system_preset_cleared";
+
+export type SavedViewApplyMeta = {
+  trigger: SavedViewApplyTrigger;
+  viewId?: string | null;
+};
+
+export type ApplyViewStateFn = (
+  viewData: TableViewPresetState,
+  meta?: SavedViewApplyMeta,
+) => void;
+
 interface TableStateUpdaters {
   setColumnOrder: (columnOrder: string[]) => void;
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
@@ -254,9 +274,13 @@ export function useTableViewManager({
     setSelectedViewId,
   ]);
 
+  // v4 fast-mode surface iff this manager drives the events table. Drives the
+  // `isV4` dimension on `saved_views:applied` (LFE-10781).
+  const isV4 = tableName === TableViewPresetTableName.ObservationsEvents;
+
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: TableViewPresetState, meta?: SavedViewApplyMeta) => {
       // lock table
       setIsLoading(true);
 
@@ -335,13 +359,24 @@ export function useTableViewManager({
       // has run (the migration is one-shot and this is a separate persistence path).
       // Run the table's opt-in columnOrder migration on the payload first so the
       // same "only reposition a stale default" rule applies here too.
-      if (viewData.columnOrder) {
+      //
+      // EMPTY payloads carry no column opinion and must not touch the user's
+      // layout: system presets (and the chips' cleared state) ship
+      // `columnOrder: []` / `columnVisibility: {}`, and writing those through
+      // would reconcile the table back to default columns and PERSIST that to
+      // localStorage — silently wiping per-user reordering/visibility on every
+      // preset apply. User-saved views always persist a full non-empty
+      // snapshot, so gating on non-empty only skips the no-opinion payloads.
+      if (viewData.columnOrder && viewData.columnOrder.length > 0) {
         const migratedColumnOrder = validationContext.migrateColumnOrder
           ? validationContext.migrateColumnOrder(viewData.columnOrder)
           : viewData.columnOrder;
         setColumnOrder(migratedColumnOrder);
       }
-      if (viewData.columnVisibility)
+      if (
+        viewData.columnVisibility &&
+        Object.keys(viewData.columnVisibility).length > 0
+      )
         setColumnVisibility(viewData.columnVisibility);
 
       // Unlock as soon as the view is applied. Earlier versions kept the table
@@ -353,8 +388,25 @@ export function useTableViewManager({
       // synchronous and the URL becomes the source of truth for the applied
       // filters on the same render. Unlock deterministically here instead.
       setIsLoading(false);
+
+      // Analytics (LFE-10781): a saved view / preset was applied. METADATA ONLY
+      // — we send the view id + filter COUNT, never the filter values. Fires for
+      // every apply path, including the programmatic default/session restore the
+      // drawer's own captures miss. `trigger` classifies the entry point.
+      if (meta) {
+        capture("saved_views:applied", {
+          tableName,
+          viewId: meta.viewId ?? null,
+          trigger: meta.trigger,
+          filterCount: validFilters.length,
+          isV4,
+        });
+      }
     },
     [
+      capture,
+      tableName,
+      isV4,
       setColumnOrder,
       setColumnVisibility,
       validationContext,
@@ -382,6 +434,12 @@ export function useTableViewManager({
         // mutation on a link open) — so there is nothing to fetch.
         !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
+      // A 404 is an expected outcome, not an incident: system presets are
+      // code-defined and a catalog iteration can retire an id that still
+      // lives in bookmarks/session storage. Silence the GLOBAL query-cache
+      // error toast for it — the error effect below owns the messaging
+      // (friendly retirement notice vs. real error).
+      meta: { silentHttpCodes: [404] },
     },
   );
 
@@ -407,6 +465,14 @@ export function useTableViewManager({
       return;
     }
 
+    // Wait for the default-view query to resolve before applying, so the
+    // trigger is classified correctly. `getDefault` and `getById` race with no
+    // ordering; if `getById` wins (cold cache, a bookmark of the default view,
+    // session-restore), `defaultViewId` is still undefined here and a
+    // default-view restore would be mislabeled `permalink` — permanently, since
+    // the `isInitializedRef` guard makes this a one-shot (LFE-10781 review).
+    if (isDefaultLoading) return;
+
     // Track permalink visit
     capture("saved_views:permalink_visit", {
       tableName,
@@ -414,7 +480,14 @@ export function useTableViewManager({
       name: selectedViewData.name,
     });
 
-    applyViewState(selectedViewData);
+    // This single programmatic-restore effect covers URL permalinks, session
+    // restore, and the resolved default view. Classify as "default" when the
+    // applied view is the resolved default, else treat as a "permalink"
+    // (deep-link / session-restore) entry (LFE-10781).
+    applyViewState(selectedViewData, {
+      trigger: requestedViewId === defaultViewId ? "default" : "permalink",
+      viewId: requestedViewId,
+    });
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
@@ -432,6 +505,8 @@ export function useTableViewManager({
     applyViewState,
     storedViewId,
     setStoredViewId,
+    defaultViewId,
+    isDefaultLoading,
   ]);
 
   useEffect(() => {
@@ -446,13 +521,45 @@ export function useTableViewManager({
     setIsInitialized(true);
     setIsLoading(false);
     handleSetViewId(null, { updateType: "replaceIn" });
-    showErrorToast("Error applying view", selectedViewError.message, "WARNING");
+    // A 404 on a system-preset id means the catalog retired it (system
+    // presets are code-defined); stale references live on in bookmarks and
+    // session storage. Stale DEFAULTS never reach here (getDefault
+    // self-heals them server-side), so this is an explicit-ish reference —
+    // tell the user once why they landed on the default table (a dead
+    // bookmark is fixable), in a friendlier voice than the real error kept
+    // for dangling user views and for transient failures (which must stay
+    // loud — a network blip is not a retirement).
+    if (
+      isSystemPresetId(requestedViewId) &&
+      selectedViewError.data?.httpStatus === 404
+    ) {
+      // How many users still follow "the older way" (a retired preset
+      // reference) and get redirected — sizes the cost of each catalog
+      // iteration.
+      capture("saved_views:retired_view_redirect", {
+        tableName,
+        viewId: requestedViewId,
+      });
+      showErrorToast(
+        "View no longer available",
+        "This suggested view was retired — showing the default view instead.",
+        "WARNING",
+      );
+    } else {
+      showErrorToast(
+        "Error applying view",
+        selectedViewError.message,
+        "WARNING",
+      );
+    }
   }, [
     disabled,
     isSelectedViewError,
     selectedViewError,
     selectedViewId,
     handleSetViewId,
+    capture,
+    tableName,
   ]);
 
   if (disabled) {

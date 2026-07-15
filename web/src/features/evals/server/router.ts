@@ -83,7 +83,7 @@ import {
   deleteEvalTemplateFamily,
   findEvalTemplateFamilyUsage,
 } from "@/src/features/evals/server/evalTemplateDeletion";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,
@@ -1046,6 +1046,7 @@ export const evalRouter = createTRPCRouter({
         }
 
         const preparedMapping = prepareVariableMappingForEvaluatorUpgrade({
+          templateType: resolvedEvalTemplate.type,
           targetObject: input.target,
           variableMapping: variableMappingForTarget,
           nextVariables: getEvalTemplateVariables(resolvedEvalTemplate),
@@ -1326,6 +1327,7 @@ export const evalRouter = createTRPCRouter({
               })
             : [];
         const upgradedConfigs = prepareConfigsForTemplateUpgrade({
+          templateType: input.type,
           configs: configsToUpgrade,
           nextVariables,
         });

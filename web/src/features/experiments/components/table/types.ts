@@ -6,9 +6,8 @@ import { type ReactNode } from "react";
 export const EXPERIMENT_COLOR_STYLES = [
   {
     textClass: "text-dark-gray",
-    markerClass: "bg-slate-500 dark:bg-slate-400",
-    badgeClass:
-      "border-slate-400/80 bg-slate-100/70 text-slate-700 dark:border-slate-500/70 dark:bg-slate-900/60 dark:text-slate-300",
+    markerClass: "bg-muted-foreground",
+    badgeClass: "border-border-contrast/80 bg-muted/70 text-foreground/80",
   }, // Baseline - index 0
   {
     textClass: "text-blue-700 dark:text-blue-300",

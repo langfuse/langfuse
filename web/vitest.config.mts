@@ -68,7 +68,7 @@ export default defineConfig({
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
-    silent: process.env.CI ? "passed-only" : false,
+    silent: "passed-only",
     globals: true,
     retry: process.env.CI ? 3 : 0,
     // Servertests are DB-roundtrip bound, so hundreds cross the default 300ms

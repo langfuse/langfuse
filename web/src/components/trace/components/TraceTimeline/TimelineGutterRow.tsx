@@ -62,7 +62,7 @@ export function TimelineGutterRow({
           continues ? (
             <div
               key={level}
-              className="bg-border absolute inset-y-0 w-px"
+              className="bg-border-contrast absolute inset-y-0 w-px"
               style={{ left: `${level * INDENT + RAIL}px` }}
             />
           ) : null,
@@ -73,14 +73,14 @@ export function TimelineGutterRow({
           {/* This node's vertical off the parent rail: top→center (last) or full. */}
           <div
             className={cn(
-              "bg-border absolute top-0 w-px",
+              "bg-border-contrast absolute top-0 w-px",
               isLastSibling ? "h-1/2" : "bottom-0",
             )}
             style={{ left: `${parentRailX}px` }}
           />
           {/* Elbow: parent rail → icon, at the row's vertical center. */}
           <div
-            className="bg-border absolute top-1/2 h-px"
+            className="bg-border-contrast absolute top-1/2 h-px"
             style={{
               left: `${parentRailX}px`,
               width: `${INDENT + ICON_GAP}px`,
@@ -92,7 +92,7 @@ export function TimelineGutterRow({
       {/* Downward stub to this node's children, on its own rail (left of the icon). */}
       {showsChildSpine && (
         <div
-          className="bg-border absolute top-1/2 bottom-0 w-px"
+          className="bg-border-contrast absolute top-1/2 bottom-0 w-px"
           style={{ left: `${ownRailX}px` }}
         />
       )}
@@ -109,7 +109,10 @@ export function TimelineGutterRow({
           <ItemBadge type={node.type} isSmall />
         </div>
         <span
-          className="text-primary min-w-0 flex-1 truncate text-xs font-medium"
+          className={cn(
+            "min-w-0 flex-1 truncate text-xs font-medium",
+            isSelected ? "text-foreground" : "dark:text-muted-foreground",
+          )}
           title={node.name}
         >
           {node.name || `Unnamed ${node.type.toLowerCase()}`}

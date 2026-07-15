@@ -1,11 +1,13 @@
 import type { AssistantContent, ModelMessage } from "ai";
 
-import { LLMCompletionError } from "../errors";
+import { LLMValidationError } from "../errors";
 import {
   ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  LLMAdapter,
   LLMToolCall,
+  PROVIDERS_WITH_REQUIRED_USER_MESSAGE,
 } from "../types";
 
 // Helper function to safely stringify content
@@ -21,18 +23,32 @@ const toSafeContent = (content: unknown): string =>
   typeof content === "string" ? content : safeStringify(content);
 
 /**
- * Maps Langfuse `ChatMessage[]` to AI SDK `ModelMessage[]`, mirroring the
- * LangChain mapping in `fetchLLMCompletion`:
+ * Maps persisted/playground Langfuse `ChatMessage[]` to AI SDK
+ * `ModelMessage[]`:
  * - the first system/developer message becomes `system`, later ones `user`
  * - non-string content is safely JSON-stringified
  * - messages with empty content are dropped unless they carry tool calls
  * - tool results resolve their `toolName` from the preceding assistant
  *   tool-call messages; orphan tool results fail fast as a non-retryable
  *   error instead of a provider-side 400
+ * - for providers that require at least one user message, a lone message
+ *   becomes a user message regardless of its role (provider compatibility)
  */
 export function mapChatMessagesToModelMessages(
   messages: ChatMessage[],
+  options?: { adapter?: LLMAdapter },
 ): ModelMessage[] {
+  if (
+    messages.length === 1 &&
+    options?.adapter !== undefined &&
+    PROVIDERS_WITH_REQUIRED_USER_MESSAGE.includes(options.adapter)
+  ) {
+    const safeContent = toSafeContent(messages[0].content);
+    return safeContent.length > 0
+      ? [{ role: "user", content: safeContent }]
+      : [];
+  }
+
   const toolCallIdToName = new Map<string, string>();
   for (const message of messages) {
     if (message.type === ChatMessageType.AssistantToolCall) {
@@ -69,10 +85,9 @@ export function mapChatMessagesToModelMessages(
       const toolName = toolCallIdToName.get(message.toolCallId);
 
       if (toolName === undefined) {
-        throw new LLMCompletionError({
+        throw new LLMValidationError({
+          code: "invalid-request",
           message: `Tool result references unknown tool call id: ${message.toolCallId}`,
-          responseStatusCode: 400,
-          isRetryable: false,
         });
       }
 

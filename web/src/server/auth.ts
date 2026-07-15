@@ -1,7 +1,6 @@
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
-  type User,
   type NextAuthOptions,
   type Session,
 } from "next-auth";
@@ -123,7 +122,7 @@ const staticProviders: Provider[] = [
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
 
-      const userObj: User = {
+      const userObj = {
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,

@@ -11,7 +11,7 @@ import {
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   getCurrentSpan,
-  isLLMCompletionError,
+  classifyEvaluatorLlmError,
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
@@ -175,14 +175,15 @@ export const evalJobExecutorQueueProcessorBuilder = (
       await evaluate({ event: job.data.payload });
       return true;
     } catch (e) {
+      const llmError = classifyEvaluatorLlmError(e);
       // ┌─────────────────────────┐
       // │   Job Fails with Error  │
       // └───────────┬─────────────┘
       //             │
       //             ▼
       // ┌────────────────────────────────────────┐
-      // │ Is it LLMCompletionError with          │
-      // │ isRetryable=true (429/5xx)?            │
+      // │ Is it a retryable native AI SDK        │
+      // │ provider error?                        │
       // └─────┬──────────────────────────────┬───┘
       //       │ Yes                          │ No
       //       ▼                              ▼
@@ -204,7 +205,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
         job.data.payload.jobExecutionId,
       );
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (llmError?.isRetryable) {
         const queue = queueName.startsWith(
           QueueName.EvaluationExecutionSecondaryQueue,
         )
@@ -237,7 +238,7 @@ export const evalJobExecutorQueueProcessorBuilder = (
         }
       }
 
-      // At this point there will be only 4xx LLMCompletionErrors that are not retryable and application errors
+      // At this point only terminal LLM failures and application errors remain.
       await prisma.jobExecution.update({
         where: {
           id: job.data.payload.jobExecutionId,
@@ -248,14 +249,14 @@ export const evalJobExecutorQueueProcessorBuilder = (
           endTime: new Date(),
           // Show user-facing error messages (LLM and config errors)
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
-              ? e.message
+            llmError || isUnrecoverableError(e)
+              ? (llmError?.message ?? (e as Error).message)
               : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      if (llmError || isUnrecoverableError(e)) return;
 
       traceException(e);
       logger.error(
@@ -301,11 +302,12 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
       });
       return true;
     } catch (e) {
+      const llmError = classifyEvaluatorLlmError(e);
       const executionTraceId = createW3CTraceId(
         job.data.payload.jobExecutionId,
       );
 
-      if (isLLMCompletionError(e) && e.isRetryable) {
+      if (llmError?.isRetryable) {
         const queue = LLMAsJudgeExecutionQueue.getInstance({
           shardName: queueName,
         });
@@ -342,14 +344,14 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           status: JobExecutionStatus.ERROR,
           endTime: new Date(),
           error:
-            isLLMCompletionError(e) || isUnrecoverableError(e)
-              ? e.message
+            llmError || isUnrecoverableError(e)
+              ? (llmError?.message ?? (e as Error).message)
               : "An internal error occurred",
           executionTraceId,
         },
       });
 
-      if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+      if (llmError || isUnrecoverableError(e)) return;
 
       traceException(e);
       logger.error(

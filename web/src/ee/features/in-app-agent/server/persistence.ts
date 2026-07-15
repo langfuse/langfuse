@@ -16,7 +16,7 @@ import type {
 
 import { env } from "@/src/env.mjs";
 import {
-  fetchLangfuseAICompletion,
+  generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "@/src/features/ai-features/server/bedrockCompletion";
 import { truncate } from "@/src/utils/string";
@@ -368,7 +368,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
       return;
     }
 
-    const completion = await fetchLangfuseAICompletion({
+    const completion = await generateLangfuseAIText({
       messages: [
         {
           role: ChatMessageRole.System,
@@ -438,14 +438,11 @@ ${JSON.stringify(transcript, null, 2)}
         : undefined,
     });
 
-    const completionText =
-      typeof completion === "string" ? completion : completion.text;
-
-    if (!completionText) {
+    if (!completion) {
       return;
     }
 
-    const title = completionText.trim();
+    const title = completion.trim();
 
     if (!title) {
       return;
@@ -655,6 +652,8 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_STARTED ||
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
+    // Reasoning is a live responsiveness signal. Keep plaintext reasoning out
+    // of persisted conversation history and replay.
     event.type === EventType.REASONING_START ||
     event.type === EventType.REASONING_MESSAGE_START ||
     event.type === EventType.REASONING_MESSAGE_CHUNK ||
@@ -910,6 +909,7 @@ export function createConversationMessageAccumulator(
       event.type === EventType.STEP_STARTED ||
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
+      // Reasoning is live-only; do not reconstruct it from persisted history.
       event.type === EventType.REASONING_START ||
       event.type === EventType.REASONING_MESSAGE_START ||
       event.type === EventType.REASONING_MESSAGE_CHUNK ||

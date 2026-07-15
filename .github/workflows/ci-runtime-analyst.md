@@ -78,17 +78,21 @@ timeout-minutes: 60
 # this frontmatter, since the compiler no longer enforces it.
 strict: false
 
-# The compiler hardcodes AWF's `--allow-host-ports 80,443,8080` (80/443
-# web, 8080 MCP gateway); there is no declarative knob for extra ports.
-# This x-internal args passthrough appends a second --allow-host-ports,
-# and AWF's CLI parser takes the last occurrence — so this REPLACES the
-# list and must re-include 80,443,8080. Extra ports are the dev stack:
-# floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000, minio 9090.
-# Schema-validated at compile; a gh-aw upgrade that drops it fails loudly.
+# Open the dev-stack ports to the sandbox via this x-internal args
+# passthrough — gh-aw has no declarative knob for extra host ports (it
+# only auto-generates this flag from Actions `services:`, which our
+# compose services can't be expressed as). --allow-host-service-ports is
+# the right flag for databases: unlike --allow-host-ports it permits
+# "dangerous" ports (5432 etc.) BY DESIGN because it routes them to the
+# host gateway ONLY — so the agent must connect via host.docker.internal,
+# never localhost (provisioning rewrites the .env endpoints accordingly).
+# Ports: floci 4566, postgres 5432, redis 6379, clickhouse 8123+9000,
+# minio 9090. Schema-validated at compile; a gh-aw upgrade that drops the
+# passthrough fails loudly.
 sandbox:
   agent:
     id: awf
-    args: ["--allow-host-ports", "80,443,8080,4566,5432,6379,8123,9000,9090"]
+    args: ["--allow-host-service-ports", "4566,5432,6379,8123,9000,9090"]
 
 network:
   allowed:
@@ -190,6 +194,12 @@ steps:
       CLICKHOUSE_SHIM
       sudo chmod +x /usr/local/bin/clickhouse
       pnpm --filter=shared ch:dev-tables
+      # The sandbox reaches these services only via the host gateway
+      # (host.docker.internal) — see the sandbox.agent.args comment. The
+      # host-side steps above needed localhost, so rewrite the service
+      # endpoints (port-scoped: app URLs like :3000 must stay localhost)
+      # as the LAST provisioning action.
+      sed -E -i 's#(localhost|127\.0\.0\.1):(4566|5432|6379|8123|9000|9090)#host.docker.internal:\2#g; s#^REDIS_HOST=.*#REDIS_HOST="host.docker.internal"#' .env web/.env worker/.env
       mkdir -p /tmp/gh-aw && touch /tmp/gh-aw/db-stack-ready
   - name: Docker logout (drop registry credentials before the agent starts)
     # docker login stores the token in ~/.docker/config.json, which the AWF
@@ -524,15 +534,16 @@ Three boundaries:
   DB-less verification (the DB-less commands below still work — deps and
   builds may then be missing too, so run `pnpm install` +
   `pnpm --filter=shared run db:generate` yourself first).
-- Connectivity: the services run on the host; your sandbox reaches them
-  because their ports are explicitly firewall-allowed. Use the `localhost`
-  endpoints from `.env` as-is. If a connection to a provisioned service is
-  refused, retry once against `host.docker.internal:<same port>` (copy
-  `.env` and swap only the DB/Redis/ClickHouse/S3 hostnames). If that also
-  fails, this run's infrastructure is broken: report it in the job summary
-  and fall back to DB-less verification. NEVER interpret
-  connection-refused errors against provisioned services as a test
-  regression or flaky test — they are an infra signal, not a code signal.
+- Connectivity: the services run on the host, and your sandbox reaches
+  them ONLY via `host.docker.internal` — the `.env` files are already
+  rewritten to those endpoints, so use them as-is and never "fix" them
+  back to `localhost` (in-sandbox localhost has no services; only an app
+  you start yourself listens there, e.g. localhost:3000). If a connection
+  to a provisioned `host.docker.internal` endpoint fails, this run's
+  infrastructure is broken: report it in the job summary and fall back to
+  DB-less verification. NEVER interpret connection-refused errors against
+  provisioned services as a test regression or flaky test — they are an
+  infra signal, not a code signal.
 - You cannot control docker itself (the socket is hidden): no restarting
   or inspecting containers, nothing beyond the dev-stack services. The
   e2e-tests job (Playwright browsers against the built app) stays out of
@@ -648,8 +659,10 @@ full report to the GitHub job summary AND use it verbatim as the body of
 whatever you emit (PR, issue, or the noop message — the noop body is what
 makes a no-action run's summary readable, so never reduce it to a one-liner).
 If you decided not to recompute (e.g. a manual re-trigger shortly after the
-previous analysis), fill the chart and tables from the latest
-`history/*.json` and state that the data is reused.
+previous analysis), you may fill individual days from the latest
+`history/*.json` and state that those days are reused — but reuse never
+shrinks the chart window (see below): days the history does not cover are
+computed fresh from the API in this run.
 
 The report always contains, in order:
 
@@ -669,11 +682,17 @@ A PR body additionally contains:
   quoted summary line) and, separately, what could not run in the sandbox
   and is covered by this PR's own CI run.
 
-Chart templates (GitHub renders `mermaid` fenced blocks natively). Copy them
-verbatim and only fill in the data: the x-axis days (every day that has
-merge-group runs), the value lists (daily merge-group medians in seconds,
-same day order), and each y-axis maximum (largest value in that chart
-rounded up to the next 100). Everything else is load-bearing — do NOT
+Chart templates (GitHub renders `mermaid` fenced blocks natively). The
+chart window is ALWAYS the trailing 7 calendar days ending today (UTC) —
+an invariant, independent of the trigger, of ISO-week boundaries, and of
+what any earlier run already computed. Include every day in that window
+with at least one successful merge-group run (omit zero-run days, e.g.
+weekends); take a day's medians from history when available and compute
+the missing days from the API in this run. A chart that covers fewer days
+than the window has data for is wrong. Copy the templates verbatim and
+only fill in the data: the x-axis days, the value lists (daily merge-group
+medians in seconds, same day order), and each y-axis maximum (largest
+value in that chart rounded up to the next 100). Everything else is load-bearing — do NOT
 change it: the `init` line pins the series colors so that the emoji legend
 line above each chart identifies the lines (xychart has no built-in legend,
 and colors are otherwise theme-dependent). Palette order = series order =

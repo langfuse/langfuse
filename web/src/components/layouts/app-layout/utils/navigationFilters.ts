@@ -7,10 +7,13 @@ import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import type { User } from "next-auth";
+import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /**
  * Individual filter functions - each handles one concern
@@ -167,6 +170,7 @@ export const filters = {
       organization: organization ?? undefined,
       projectId: ctx.routerProjectId,
       isLangfuseCloud: ctx.isLangfuseCloud,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
     })
       ? route
       : null;

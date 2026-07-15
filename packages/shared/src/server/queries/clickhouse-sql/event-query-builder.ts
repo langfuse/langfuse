@@ -105,6 +105,10 @@ const buildOrderByClause = (
 const EVENTS_FIELDS = {
   // Aggregates
   count: "count(*) as count",
+  // uniq() is the approximate distinct aggregate (HLL-based, bounded memory);
+  // uniqExact would build an unbounded hash set when the filtered set spans
+  // millions of traces.
+  uniqueTraceCount: 'uniq(e.trace_id) as "unique_trace_count"',
 
   // Identity & basic fields
   id: "e.span_id as id",
@@ -203,6 +207,7 @@ const EVENTS_FIELDS = {
 const FIELD_SETS = {
   // Aggregates
   count: ["count"],
+  countWithUniqueTraces: ["count", "uniqueTraceCount"],
 
   // List query field sets (for getObservationsWithModelDataFromEventsTable)
   base: [

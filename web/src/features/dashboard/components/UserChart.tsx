@@ -159,7 +159,10 @@ export const UserChart = ({
     0,
   );
 
-  const BAR_ROW_HEIGHT = 36;
+  // Slightly tighter rows than TracesBarListChart: this card also stacks tabs
+  // and an expand button, and grow stretches the spacing back out whenever the
+  // tile offers more height. (LFE-10813)
+  const BAR_ROW_HEIGHT = 32;
   const CHART_AXIS_PADDING = 32;
 
   const data = [
@@ -200,13 +203,17 @@ export const UserChart = ({
             content: (
               <>
                 {item.data.length > 0 ? (
-                  <div className="flex flex-col">
+                  <div className="flex grow flex-col">
                     <TotalMetric
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
+                    {/* The computed height is the flex basis (floor); grow
+                        lets the chart absorb extra tile height on dashboards —
+                        bar thickness stays capped, only the spacing
+                        stretches. (LFE-10813) */}
                     <div
-                      className="mt-4 w-full"
+                      className="mt-4 w-full shrink-0 grow"
                       style={{
                         minHeight: 200,
                         height: Math.max(
@@ -240,6 +247,7 @@ export const UserChart = ({
                     isLoading={isLoading || user.isPending}
                     description="Consumption per user is tracked by passing their ids on traces."
                     href="https://langfuse.com/docs/observability/features/users"
+                    className="h-auto grow"
                   />
                 )}
               </>
