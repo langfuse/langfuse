@@ -5,6 +5,16 @@ name: AWS preview build
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
 # the preview URL on the PR.
 #
+# The two images are independent artifacts pushed to two independent ECR repos
+# under the same tag, with no ordering dependency between them. They therefore
+# build in PARALLEL: a `meta` job resolves the tags and posts the "building"
+# comment once, a matrix `build` job builds web and worker concurrently on
+# separate runners (so each gets a full runner's CPU/memory rather than sharing
+# one — their heavy stages, turbo prune/pnpm install/turbo build, are
+# scope-specific and share no layer cache anyway, so serializing them bought
+# nothing), and a `notify` job posts the single success/failure comment once
+# both builds finish. Wall-clock is now ~max(web, worker) instead of the sum.
+#
 # Builds every SAME-REPO PR on open/update (write access is the gate — opening a
 # same-repo PR requires push access). It deliberately does NOT trigger on the
 # `preview` label: the auto-labeler applies that label with the default
@@ -28,8 +38,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build and push preview images
+  # Resolve the image tags + preview metadata once, and post the single "building"
+  # comment. Downstream jobs consume these outputs so the tag is computed in one
+  # place. Lightweight: no build context, only the base-branch composite action.
+  meta:
+    name: Resolve tags and mark building
     # Any SAME-REPO PR (= write access) builds on open/update. No label gate here:
     # the auto-labeler's GITHUB_TOKEN-applied label can't trigger this workflow,
     # and the label is the Argo deploy filter, not the build trigger. Fork PRs are
@@ -38,19 +51,27 @@ jobs:
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
       pull-requests: write
+    outputs:
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
+      web_image: ${{ steps.meta.outputs.web_image }}
+      worker_image: ${{ steps.meta.outputs.worker_image }}
+      preview_host: ${{ steps.meta.outputs.preview_host }}
+      namespace: ${{ steps.meta.outputs.namespace }}
+      login_email: ${{ steps.meta.outputs.login_email }}
+      login_password: ${{ steps.meta.outputs.login_password }}
+      public_key: ${{ steps.meta.outputs.public_key }}
+      secret_key: ${{ steps.meta.outputs.secret_key }}
     steps:
       # Resolve the local composite action (./.github/actions/preview-comment)
       # from the BASE branch, which always has it. A local `uses: ./...`
       # resolves against the workspace, and a PR branched before the preview
-      # system landed on main has NO such action on its head — so checking out
-      # the PR head at the workspace root makes the action lookup fail with
-      # "Can't find action.yml". Sparse-checkout keeps this to just the actions
-      # dir, at the workspace root, and never enters the Docker build context.
+      # system landed on main has NO such action on its head. This job never
+      # touches the build context, so the base checkout at the workspace root is
+      # all it needs.
       - name: Checkout base local actions
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -58,22 +79,11 @@ jobs:
           ref: ${{ github.event.pull_request.base.sha }}
           sparse-checkout: .github/actions
 
-      # The PR head is the Docker build context — the exact commit the image tag
-      # pins to. Kept in a subdir so it does not shadow the base's
-      # .github/actions checked out above.
-      - name: Checkout PR head (build context)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: pr-head
-
       - name: Resolve image tags and preview metadata
         id: meta
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          # The PR head SHA straight from the event — the workspace root is the
-          # base checkout now, so `git rev-parse HEAD` would give the wrong SHA.
+          # The PR head SHA straight from the event.
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
           WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
@@ -87,7 +97,6 @@ jobs:
           image_tag="pr-${PR_NUMBER}-${commit_sha}"
           {
             echo "commit_sha=${commit_sha}"
-            echo "image_tag=${image_tag}"
             echo "web_image=${WEB_REPO}:${image_tag}"
             echo "worker_image=${WORKER_REPO}:${image_tag}"
             echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
@@ -117,8 +126,44 @@ jobs:
             ### 🟡 AWS preview building
 
             Building images for `${{ steps.meta.outputs.commit_sha }}` (~5 min).
-            Argo CD deploys the preview once the push completes; it may briefly
-            show `ImagePullBackOff` until this image propagates.
+            Argo CD deploys the preview once both images finish pushing; it may
+            briefly show `ImagePullBackOff` until they propagate.
+
+  # web and worker build concurrently, each on its own runner. fail-fast: false
+  # so one failing build does not cancel the other — the notify job below reports
+  # the aggregate result.
+  build:
+    name: Build and push ${{ matrix.target }}
+    needs: meta
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            image: ${{ needs.meta.outputs.web_image }}
+            dockerfile: web/Dockerfile
+            # web disables sign-up on previews; worker has no such arg.
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true
+          - target: worker
+            image: ${{ needs.meta.outputs.worker_image }}
+            dockerfile: worker/Dockerfile
+            extra_build_args: ""
+    steps:
+      # The PR head is the Docker build context — the exact commit the image tag
+      # pins to. This job posts no comments, so it needs no base checkout and can
+      # take the build context at the workspace root.
+      - name: Checkout PR head (build context)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
@@ -129,11 +174,13 @@ jobs:
       - name: Login to AWS ECR
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
 
-      - name: Build and push preview images
+      - name: Build and push ${{ matrix.target }} image
         env:
-          COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
-          WEB_IMAGE: ${{ steps.meta.outputs.web_image }}
-          WORKER_IMAGE: ${{ steps.meta.outputs.worker_image }}
+          COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
+          IMAGE: ${{ matrix.image }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          # Static, workflow-defined literal (per-target flags) — no user input.
+          EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
         run: |
           set -euo pipefail
 
@@ -148,41 +195,57 @@ jobs:
           # inconclusive, so fail loudly here rather than falling through to a
           # push that would hard-fail on the immutable tag with a confusing
           # ImageAlreadyExistsException.
-          ensure_image() {
-            local image="$1"; shift   # remaining args: docker build flags
-            local repo tag describe_out
-            repo="${image%:*}"; repo="${repo#*/}"   # strip only the registry host; keep any namespace
-            tag="${image##*:}"
+          repo="${IMAGE%:*}"; repo="${repo#*/}"   # strip only the registry host; keep any namespace
+          tag="${IMAGE##*:}"
 
-            if describe_out="$(aws ecr describe-images --repository-name "${repo}" \
-                  --image-ids imageTag="${tag}" 2>&1)"; then
-              echo "${image} already present — skipping."
-              return 0
-            fi
-            if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
-              echo "::error::Cannot confirm ${image} in ECR — describe-images failed" \
-                   "for a reason other than ImageNotFound; refusing to build+push" \
-                   "against the tag-immutable repo. ${describe_out}"
-              return 1
-            fi
+          if describe_out="$(aws ecr describe-images --repository-name "${repo}" \
+                --image-ids imageTag="${tag}" 2>&1)"; then
+            echo "${IMAGE} already present — skipping."
+            exit 0
+          fi
+          if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
+            echo "::error::Cannot confirm ${IMAGE} in ECR — describe-images failed" \
+                 "for a reason other than ImageNotFound; refusing to build+push" \
+                 "against the tag-immutable repo. ${describe_out}"
+            exit 1
+          fi
 
-            echo "${image} not found — building and pushing."
-            # Build context is the PR-head checkout (pr-head/); the base checkout
-            # at the workspace root only carries .github/actions.
-            docker build "$@" -t "${image}" pr-head
-            docker push "${image}"
-          }
-
-          ensure_image "${WEB_IMAGE}" \
+          echo "${IMAGE} not found — building and pushing."
+          # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
+          # into separate flags, so it is intentionally left unquoted.
+          # shellcheck disable=SC2086
+          docker build \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
-            -f pr-head/web/Dockerfile
+            ${EXTRA_BUILD_ARGS} \
+            -f "${DOCKERFILE}" \
+            -t "${IMAGE}" \
+            .
+          docker push "${IMAGE}"
 
-          ensure_image "${WORKER_IMAGE}" \
-            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            -f pr-head/worker/Dockerfile
+  # Single authoritative status comment once both builds settle. Runs even when a
+  # build fails (if: always()) so the PR always gets a definitive success or
+  # failure comment, updating the same marker-tagged comment the meta job posted.
+  notify:
+    name: Report preview result
+    needs: [meta, build]
+    if: >-
+      always() &&
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout base local actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/actions
 
       - name: Mark preview image pushed
+        if: needs.build.result == 'success'
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
@@ -192,23 +255,23 @@ jobs:
             Argo CD is rolling it out — the environment is usually ready within a
             few minutes of this comment.
 
-            **URL:** https://${{ steps.meta.outputs.preview_host }}
-            **Login:** `${{ steps.meta.outputs.login_email }}` / `${{ steps.meta.outputs.login_password }}`
-            **API keys:** `${{ steps.meta.outputs.public_key }}` / `${{ steps.meta.outputs.secret_key }}`
-            **Commit:** ${{ steps.meta.outputs.commit_sha }}
+            **URL:** https://${{ needs.meta.outputs.preview_host }}
+            **Login:** `${{ needs.meta.outputs.login_email }}` / `${{ needs.meta.outputs.login_password }}`
+            **API keys:** `${{ needs.meta.outputs.public_key }}` / `${{ needs.meta.outputs.secret_key }}`
+            **Commit:** ${{ needs.meta.outputs.commit_sha }}
 
             **Logs** (needs preview-cluster `kubectl` access):
             ```sh
-            kubectl -n ${{ steps.meta.outputs.namespace }} logs -f deploy/${{ steps.meta.outputs.namespace }}-web      # web
-            kubectl -n ${{ steps.meta.outputs.namespace }} logs -f deploy/${{ steps.meta.outputs.namespace }}-worker   # worker
+            kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
+            kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
             ```
             Add `--previous` for a crashed container, `--tail=200` to limit, or
-            `kubectl -n ${{ steps.meta.outputs.namespace }} get pods` to inspect status.
+            `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
 
             Synthetic preview data only. Never add production data to public accounts.
 
       - name: Report failure
-        if: failure()
+        if: needs.build.result != 'success'
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
