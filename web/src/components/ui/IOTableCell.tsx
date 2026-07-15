@@ -94,8 +94,20 @@ const IOTableCellContent = ({
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
 
+  // Single-line cells share the same cap: without it a grid row carrying
+  // megabytes of base64 or an opaque token stream (e.g. Gemini
+  // thought_signature) would land the full payload in both the DOM text node
+  // and the native title tooltip, stalling the traces/observations lists
+  // (issue #9933). Full content is still reachable via the expand-on-hover
+  // card and the row peek panel.
   const singleLineText = stringifiedJson
-    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+    ? decodeUnicodeEscapesOnly(
+        shouldTruncate
+          ? stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
+              `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`
+          : stringifiedJson,
+        true,
+      )
     : stringifiedJson;
 
   return singleLine ? (

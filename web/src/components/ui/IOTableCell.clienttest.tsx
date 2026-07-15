@@ -192,4 +192,30 @@ describe("IOTableCell media chip rendering", () => {
 
     expect(container.textContent).toContain("truncated");
   });
+
+  // Regression: single-line cells previously rendered the full stringified
+  // JSON into the DOM and the native `title` tooltip with no length cap, so a
+  // grid of rows carrying a Gemini `thought_signature` or a base64 image URL
+  // in Input/Output stalled the page (issue #9933). The multi-line path was
+  // already capped at IO_TABLE_CHAR_LIMIT — the single-line path must match.
+  it("single-line: long content is truncated in the DOM", () => {
+    const { container } = renderCell({
+      data: "x".repeat(50_000),
+      singleLine: true,
+    });
+
+    expect(container.textContent).toContain("truncated");
+    expect(container.textContent?.length ?? 0).toBeLessThan(15_000);
+  });
+
+  it("single-line: long content is truncated in the title tooltip", () => {
+    const { container } = renderCell({
+      data: "x".repeat(50_000),
+      singleLine: true,
+    });
+
+    const title = container.querySelector("[title]")?.getAttribute("title");
+    expect(title).toContain("truncated");
+    expect((title ?? "").length).toBeLessThan(15_000);
+  });
 });
