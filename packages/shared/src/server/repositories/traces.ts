@@ -448,6 +448,37 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   });
 };
 
+export const getLastTraceTimestampsByProjects = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}) => {
+  if (projectIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      project_id,
+      max(timestamp) as last_trace_at
+    FROM traces
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND timestamp >= now() - INTERVAL 30 DAY
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{
+    project_id: string;
+    last_trace_at: string;
+  }>({
+    query,
+    params: { projectIds },
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    lastTraceAt: parseClickhouseUTCDateTimeFormat(row.last_trace_at),
+  }));
+};
+
 export const getTraceCountOfProjectsSinceCreationDate = async ({
   projectIds,
   start,

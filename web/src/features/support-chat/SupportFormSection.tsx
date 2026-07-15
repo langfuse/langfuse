@@ -63,6 +63,7 @@ import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -203,12 +204,14 @@ export function SupportFormSection({
   // confirmation step.
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
+  const { initialTopic } = useSupportDrawer();
+
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
       messageType: "Question" as MessageType,
       severity: SEVERITY_3,
-      topic: "",
+      topic: initialTopic ?? "",
       message: "",
       integrationType: "",
     },

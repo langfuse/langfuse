@@ -15,7 +15,7 @@ export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
 };
 
 export const bothThemeStyles: CreateThemeOptions["styles"] = [
-  { tag: t.invalid, color: "hsl(var(--dark-red))" },
+  { tag: t.invalid, color: "var(--dark-red)" },
   {
     tag: [
       t.name,

@@ -1,13 +1,19 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useState,
   type PropsWithChildren,
 } from "react";
 
+export type V4MigrationTargetProject = { id: string; name: string };
+
 type V4MigrationPanelContextType = {
   open: boolean;
   setOpen: (v: boolean) => void;
+  /** Project the panel content is about; set by whichever surface opened it. */
+  targetProject: V4MigrationTargetProject | null;
+  openForProject: (project: V4MigrationTargetProject) => void;
 };
 
 const V4MigrationPanelContext =
@@ -23,8 +29,18 @@ export function V4MigrationPanelProvider({
   defaultOpen = false,
 }: V4MigrationPanelProviderProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [targetProject, setTargetProject] =
+    useState<V4MigrationTargetProject | null>(null);
+
+  const openForProject = useCallback((project: V4MigrationTargetProject) => {
+    setTargetProject(project);
+    setOpen(true);
+  }, []);
+
   return (
-    <V4MigrationPanelContext.Provider value={{ open, setOpen }}>
+    <V4MigrationPanelContext.Provider
+      value={{ open, setOpen, targetProject, openForProject }}
+    >
       {children}
     </V4MigrationPanelContext.Provider>
   );

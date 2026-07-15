@@ -26,6 +26,7 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
+import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -221,10 +222,16 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   // The v4-migration "Action required" card renders in app-sidebar.tsx's
-  // notification-card slot, not as a nav item. The Preview (fast) toggle is
-  // temporarily hidden while the card is trialled as the entry point; restore
-  // by re-adding menuNode: <V4SidebarToggle />.
-
+  // The Preview (fast) toggle is temporarily hidden while the v4-migration
+  // entry point is trialled; restore by re-adding menuNode: <V4SidebarToggle />.
+  {
+    title: "Update",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4BetaToggleVisible",
+    show: ({ projectId }) => projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
+  },
   {
     title: "Settings",
     pathname: "/project/[projectId]/settings",

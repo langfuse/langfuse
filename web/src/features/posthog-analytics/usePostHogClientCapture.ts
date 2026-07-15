@@ -275,7 +275,14 @@ export const events = {
     "v4_beta_toggled",
     "v4_migration_card_clicked",
   ],
-  v4_migration: ["in_app_agent_opened", "coding_agent_prompt_copied"],
+  v4_migration: [
+    "in_app_agent_opened",
+    "coding_agent_prompt_copied",
+    "delay_badge_clicked",
+    "project_chip_clicked",
+    "contact_book_call_clicked",
+    "contact_support_clicked",
+  ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.

@@ -1,20 +1,22 @@
-import { ChevronRight } from "lucide-react";
-import { useSidebar } from "@/src/components/ui/sidebar";
+import { ZapIcon } from "lucide-react";
+import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProject } from "@/src/features/projects/hooks";
 
-export function V4MigrationCard() {
+export function V4MigrationNavItem() {
   const { canToggleV4 } = useV4Beta();
-  const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
+  const { openForProject } = useV4MigrationPanel();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
+  const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
 
-  if (!canToggleV4) {
+  if (!canToggleV4 || !project) {
     return null;
   }
 
@@ -27,18 +29,19 @@ export function V4MigrationCard() {
       // push to next tick to avoid flickering when hiding sidebar on mobile
       setAiAgentOpen(false);
       setSupportDrawerOpen(false);
-      setMigrationPanelOpen(true);
+      openForProject({ id: project.id, name: project.name });
     }, 1);
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className="bg-light-yellow text-dark-yellow inline-flex w-fit flex-none shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-opacity group-data-[collapsible=icon]:hidden hover:opacity-80"
-    >
-      Action required
-      <ChevronRight className="h-3 w-3 shrink-0" />
-    </button>
+    <SidebarMenuButton onClick={handleClick} tooltip="Update">
+      <ZapIcon className="h-4 w-4 shrink-0" />
+      <span className="truncate" title="Update">
+        Update
+      </span>
+      <span className="bg-light-yellow text-dark-yellow inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium">
+        required
+      </span>
+    </SidebarMenuButton>
   );
 }

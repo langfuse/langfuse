@@ -12,7 +12,10 @@ import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { redis } from "@langfuse/shared/src/server";
+import {
+  getLastTraceTimestampsByProjects,
+  redis,
+} from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
@@ -36,6 +39,17 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
       return organization;
+    }),
+  lastTraceByProject: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const projects = await ctx.prisma.project.findMany({
+        where: { orgId: input.orgId, deletedAt: null },
+        select: { id: true },
+      });
+      return getLastTraceTimestampsByProjects({
+        projectIds: projects.map((p) => p.id),
+      });
     }),
   create: authenticatedProcedure
     .input(organizationNameSchema)

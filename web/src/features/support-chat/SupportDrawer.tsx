@@ -22,9 +22,9 @@ export const SupportDrawer = ({
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, setOpen } = useSupportDrawer();
+  const { open, setOpen, initialMode } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
-    "intro",
+    initialMode,
   );
   const close = () => setOpen(false);
 

@@ -14,6 +14,7 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { V4MigrationModal } from "@/src/features/v4-migration/V4MigrationModal";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
@@ -76,6 +77,7 @@ export default function EvaluatorsPage() {
 
   return (
     <>
+      <V4MigrationModal />
       <Page
         headerProps={{
           title: "Evaluators",

@@ -1,13 +1,22 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useState,
   type PropsWithChildren,
 } from "react";
+import { type Topic } from "@/src/features/support-chat/formConstants";
+
+export type SupportDrawerMode = "intro" | "form";
 
 type SupportDrawerContextType = {
   open: boolean;
   setOpen: (v: boolean) => void;
+  /** Section the drawer shows when it opens; setOpen(true) resets to intro. */
+  initialMode: SupportDrawerMode;
+  /** Topic preselected in the support form; setOpen(true) resets it. */
+  initialTopic: Topic | null;
+  openWithMode: (mode: SupportDrawerMode, options?: { topic?: Topic }) => void;
 };
 
 const SupportDrawerContext = createContext<SupportDrawerContextType | null>(
@@ -23,9 +32,31 @@ export function SupportDrawerProvider({
   children,
   defaultOpen = false,
 }: SupportDrawerProviderProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpenState] = useState(defaultOpen);
+  const [initialMode, setInitialMode] = useState<SupportDrawerMode>("intro");
+  const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
+
+  const setOpen = useCallback((v: boolean) => {
+    if (v) {
+      setInitialMode("intro");
+      setInitialTopic(null);
+    }
+    setOpenState(v);
+  }, []);
+
+  const openWithMode = useCallback(
+    (mode: SupportDrawerMode, options?: { topic?: Topic }) => {
+      setInitialMode(mode);
+      setInitialTopic(options?.topic ?? null);
+      setOpenState(true);
+    },
+    [],
+  );
+
   return (
-    <SupportDrawerContext.Provider value={{ open, setOpen }}>
+    <SupportDrawerContext.Provider
+      value={{ open, setOpen, initialMode, initialTopic, openWithMode }}
+    >
       {children}
     </SupportDrawerContext.Provider>
   );
