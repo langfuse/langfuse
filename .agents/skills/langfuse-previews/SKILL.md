@@ -39,9 +39,9 @@ Pushing updates it; closing the PR tears it down.
   bot comment then posts the preview URL and login. No manual step, no label to
   add.
 - **Log in** — use the credentials in the **bot's PR comment** (the source of
-  truth). The current shared seed identity is `preview@langfuse.local` /
-  `langfuse-preview`, with API keys `pk-lf-preview` / `sk-lf-preview` — shared
-  and synthetic, so never treat a preview as private.
+  truth). The demo project's shared seed identity is `demo@langfuse.com` /
+  `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and
+  synthetic, so never treat a preview as private.
 - **Update** — push to the PR; it rebuilds and rolls to the new image (~5 min,
   **same URL, data preserved**). A brief `ImagePullBackOff` during the rebuild
   is normal and self-heals.
