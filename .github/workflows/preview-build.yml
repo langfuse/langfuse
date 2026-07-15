@@ -44,22 +44,43 @@ jobs:
       id-token: write
       pull-requests: write
     steps:
-      - name: Checkout PR head (build context only)
+      # Resolve the local composite action (./.github/actions/preview-comment)
+      # from the BASE branch, which always has it. A local `uses: ./...`
+      # resolves against the workspace, and a PR branched before the preview
+      # system landed on main has NO such action on its head — so checking out
+      # the PR head at the workspace root makes the action lookup fail with
+      # "Can't find action.yml". Sparse-checkout keeps this to just the actions
+      # dir, at the workspace root, and never enters the Docker build context.
+      - name: Checkout base local actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/actions
+
+      # The PR head is the Docker build context — the exact commit the image tag
+      # pins to. Kept in a subdir so it does not shadow the base's
+      # .github/actions checked out above.
+      - name: Checkout PR head (build context)
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
 
       - name: Resolve image tags and preview metadata
         id: meta
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The PR head SHA straight from the event — the workspace root is the
+          # base checkout now, so `git rev-parse HEAD` would give the wrong SHA.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
           WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
           DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
         run: |
           set -euo pipefail
-          commit_sha="$(git rev-parse HEAD)"
+          commit_sha="${HEAD_SHA}"
           # The ApplicationSet deploys pr-<n>-{{.head_sha}} — Argo's FULL 40-char
           # SHA — so the pushed tag MUST use the full SHA or the deployed image
           # never resolves (permanent ImagePullBackOff).
@@ -144,18 +165,20 @@ jobs:
             fi
 
             echo "${image} not found — building and pushing."
-            docker build "$@" -t "${image}" .
+            # Build context is the PR-head checkout (pr-head/); the base checkout
+            # at the workspace root only carries .github/actions.
+            docker build "$@" -t "${image}" pr-head
             docker push "${image}"
           }
 
           ensure_image "${WEB_IMAGE}" \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
             --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true \
-            -f ./web/Dockerfile
+            -f pr-head/web/Dockerfile
 
           ensure_image "${WORKER_IMAGE}" \
             --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
-            -f ./worker/Dockerfile
+            -f pr-head/worker/Dockerfile
 
       - name: Mark preview image pushed
         uses: ./.github/actions/preview-comment
