@@ -70,8 +70,8 @@ export const nextAuthLogger: Partial<LoggerInstance> = {
   },
   debug: (code, metadata) => {
     logger.debug(`next-auth ${code}`, {
-      nextAuthDebugCode: code,
       ...serializeNextAuthMetadata(metadata),
+      nextAuthDebugCode: code,
     });
   },
 };
