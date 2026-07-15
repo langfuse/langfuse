@@ -11,10 +11,14 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"]["observations"][number];
 
+/** Display cap of a preview section — matches the server's preview head. */
+const PREVIEW_DISPLAY_CHARS = 4_000;
+
 /**
- * One I/O field of an over-limit observation: a bounded, non-interactive
- * preview head. Never grows with payload size — the trace view and the
- * download are the full-reading surfaces (LFE-10958).
+ * One field of an over-limit observation: a bounded, non-interactive preview
+ * head. Never grows with payload size — the display is capped even when the
+ * shipped value is larger (an under-cap sibling field, or capped metadata);
+ * the trace view and the download are the full-reading surfaces (LFE-10958).
  */
 const TruncatedIOSection = ({
   label,
@@ -29,20 +33,25 @@ const TruncatedIOSection = ({
 }) => {
   if (value === null || value === undefined || value === "") return null;
   const text = typeof value === "string" ? value : JSON.stringify(value);
+  const shown =
+    text.length > PREVIEW_DISPLAY_CHARS
+      ? text.slice(0, PREVIEW_DISPLAY_CHARS)
+      : text;
 
   return (
     <div className="flex flex-col gap-1">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium">{label}</span>
-        {truncated && (
+        {(truncated || shown.length < text.length) && (
           <span>
-            {compactNumberFormatter(fullLength, 1)} characters — showing the
-            first {compactNumberFormatter(text.length, 1)}
+            {compactNumberFormatter(Math.max(fullLength, text.length), 1)}{" "}
+            characters — showing the first{" "}
+            {compactNumberFormatter(shown.length, 1)}
           </span>
         )}
       </div>
       <pre className="bg-muted/50 max-h-40 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
-        {text}
+        {shown}
       </pre>
     </div>
   );
@@ -173,6 +182,18 @@ export const SessionObservationIO = ({
         fullLength={observation.outputLength}
         truncated={observation.outputTruncated}
       />
+      {/* Metadata stays visible when I/O is truncated — it shipped with the
+          observation and was always shown alongside I/O before the cap. */}
+      {observation.metadata !== null &&
+        typeof observation.metadata === "object" &&
+        Object.keys(observation.metadata).length > 0 && (
+          <TruncatedIOSection
+            label="Metadata"
+            value={observation.metadata}
+            fullLength={observation.metadataLength}
+            truncated={observation.metadataTruncated}
+          />
+        )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
           <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />

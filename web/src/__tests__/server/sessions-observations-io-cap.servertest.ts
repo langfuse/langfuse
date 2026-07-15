@@ -239,6 +239,56 @@ maybe("sessions observations bounded I/O (events)", () => {
     expect(last.inputLength).toBe(nearCap.length);
   });
 
+  it("does not let the synthetic trace row consume a card slot or trip hasMore", async () => {
+    // 50 real observations + the synthetic trace-level row (id `t-<traceId>`,
+    // the shape handleEventPropagationJob writes): all 50 real observations
+    // must come back alongside the synthetic row, and hasMoreObservations
+    // must stay false — the synthetic row is trace metadata, not observation
+    // number 51.
+    const { sessionId, traceId, baseTime } = await seedObservations(
+      Array.from({ length: PER_TRACE_LIMIT }, () => ({})),
+    );
+    await createEventsCh([
+      createEvent({
+        span_id: `t-${traceId}`,
+        id: `t-${traceId}`,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: "",
+        type: "SPAN",
+        session_id: sessionId,
+        user_id: "user-a",
+        start_time: (baseTime - 50) * 1000,
+        input: "trace level input",
+        output: "trace level output",
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+      expect(result.observations.length).toBe(PER_TRACE_LIMIT + 1);
+    });
+
+    const { observations, hasMoreObservations } =
+      await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+
+    expect(observations.some((o) => o.id === `t-${traceId}`)).toBe(true);
+    expect(observations.filter((o) => o.id !== `t-${traceId}`).length).toBe(
+      PER_TRACE_LIMIT,
+    );
+    expect(hasMoreObservations).toBe(false);
+  });
+
   it("collapses un-merged span versions to one observation (newest wins)", async () => {
     const sessionId = randomUUID();
     const traceId = randomUUID();

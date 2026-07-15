@@ -144,6 +144,19 @@ describe("SessionObservationIO", () => {
     );
   });
 
+  it("keeps metadata visible alongside truncated I/O", () => {
+    renderComponent({
+      ...baseObservation,
+      inputTruncated: true,
+      metadata: { key: "value" },
+      metadataLength: 15,
+      metadataTruncated: false,
+    } as SessionTraceObservation);
+
+    expect(screen.getByText("Metadata")).toBeInTheDocument();
+    expect(screen.getByText(/"key":"value"/)).toBeInTheDocument();
+  });
+
   it("keeps IOPreview but points to the trace view when only metadata was truncated", () => {
     const { onOpenInTraceView } = renderComponent({
       ...baseObservation,

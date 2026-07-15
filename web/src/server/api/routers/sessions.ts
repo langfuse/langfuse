@@ -835,8 +835,10 @@ export const sessionRouter = createTRPCRouter({
       ];
 
       let orderBy: OrderByState = { column: "startTime", order: "ASC" };
-      // One extra row detects "more observations than the card shows".
-      let limit: number = SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1;
+      // One extra row detects "more observations than the card shows", and
+      // one more because the synthetic trace-level row (id `t-<traceId>`)
+      // may sit in the fetched window without consuming a card slot.
+      let limit: number = SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 2;
       let offset: number | undefined;
 
       if (positionFilter) {
@@ -876,12 +878,28 @@ export const sessionRouter = createTRPCRouter({
         dedupeBySpanId: true,
       });
 
+      // The synthetic trace-level row is metadata about the trace, not one of
+      // its observations: it must neither consume one of the card's slots
+      // (displacing a real observation) nor count toward hasMore. The client
+      // decides whether to show or drop it (redundancy dedupe).
+      const syntheticTraceRowId = `t-${input.traceId}`;
+      const realFetchedCount = fetched.filter(
+        (observation) => observation.id !== syntheticTraceRowId,
+      ).length;
       const hasMoreObservations =
         !positionFilter &&
-        fetched.length > SESSION_OBSERVATIONS_PER_TRACE_LIMIT;
-      const page = hasMoreObservations
-        ? fetched.slice(0, SESSION_OBSERVATIONS_PER_TRACE_LIMIT)
-        : fetched;
+        realFetchedCount > SESSION_OBSERVATIONS_PER_TRACE_LIMIT;
+      let realTaken = 0;
+      const page: typeof fetched = [];
+      for (const observation of fetched) {
+        if (observation.id === syntheticTraceRowId) {
+          page.push(observation);
+          continue;
+        }
+        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT) continue;
+        page.push(observation);
+        realTaken++;
+      }
 
       // Preview head of a value regardless of parse state: I/O is a raw
       // string on this path, but if conversion ever starts returning parsed
