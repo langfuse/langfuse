@@ -52,11 +52,25 @@ import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import {
+  buildDashboardUrl,
+  buildDashboardWidgetUrl,
   buildEvaluatorUrl,
   buildObservationUrl,
   buildPromptUrl,
   buildTraceUrl,
 } from "@/src/utils/product-url";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import {
+  getDashboardTool,
+  getDashboardWidgetTool,
+  handleCreateDashboard,
+  handleGetDashboard,
+  handleGetDashboardWidget,
+  handleListDashboards,
+  handleListDashboardWidgets,
+  listDashboardsTool,
+  listDashboardWidgetsTool,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
 
 // Import MCP tool handlers directly
 import {
@@ -3502,6 +3516,97 @@ describe("MCP Read Tools", () => {
       expect(result.prompt[0].content).toContain(
         "@@@langfusePrompt:name=system-base|label=production@@@",
       );
+    });
+  });
+
+  describe("dashboard read tools", () => {
+    const dashboardReadTools = [
+      listDashboardsTool,
+      getDashboardTool,
+      listDashboardWidgetsTool,
+      getDashboardWidgetTool,
+    ];
+
+    it("should have readOnlyHint annotations", () => {
+      for (const tool of dashboardReadTools) {
+        verifyToolAnnotations(tool, { readOnlyHint: true });
+      }
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      for (const tool of dashboardReadTools) {
+        await expect(
+          toolRegistry.getEnabledTool(tool.name, context),
+        ).resolves.toMatchObject({
+          definition: expect.objectContaining({ name: tool.name }),
+        });
+      }
+    });
+
+    it("should list and get dashboards with product URLs", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      const listed = (await handleListDashboards(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string; url: string }> };
+      expect(listed.data.map((item) => item.id)).toContain(dashboard.id);
+
+      const fetched = (await handleGetDashboard(
+        { dashboardId: dashboard.id },
+        setup.context,
+      )) as { id: string; url: string };
+      expect(fetched).toMatchObject({
+        id: dashboard.id,
+        url: buildDashboardUrl({
+          projectId: setup.projectId,
+          dashboardId: dashboard.id,
+        }),
+      });
+    });
+
+    it("should list and get dashboard widgets with product URLs", async () => {
+      const setup = await createMcpTestSetup();
+      const widget = (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+          minVersion: 2,
+        },
+        setup.context,
+      )) as { id: string };
+
+      const listed = (await handleListDashboardWidgets(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string; url: string }> };
+      expect(listed.data.map((item) => item.id)).toContain(widget.id);
+
+      const fetched = (await handleGetDashboardWidget(
+        { widgetId: widget.id },
+        setup.context,
+      )) as { id: string; url: string };
+      expect(fetched).toMatchObject({
+        id: widget.id,
+        url: buildDashboardWidgetUrl({
+          projectId: setup.projectId,
+          widgetId: widget.id,
+        }),
+      });
     });
   });
 });
