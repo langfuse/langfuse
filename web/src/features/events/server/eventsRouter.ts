@@ -248,7 +248,7 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       return instrumentAsync(
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
@@ -258,7 +258,9 @@ export const eventsRouter = createTRPCRouter({
           return getScoresAndCorrectionsForTraces({
             projectId: input.projectId,
             traceIds: [input.traceId],
-            timestamp: input.timestamp,
+            // we need traceTS here because we filter for that in DB
+            // fallback to input incase trace unavailable - shouldn't happen
+            timestamp: ctx.trace?.timestamp ?? input.timestamp,
           });
         },
       );
@@ -276,7 +278,7 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       return instrumentAsync(
         { name: "get-events-by-trace-id-trpc" },
         async (span) => {
@@ -287,7 +289,9 @@ export const eventsRouter = createTRPCRouter({
             await getObservationsForTraceFromEventsTable({
               projectId: input.projectId,
               traceId: input.traceId,
-              timestamp: input.timestamp,
+              // we need traceTS here because we filter for that in DB
+              // fallback to input incase trace unavailable - shouldn't happen
+              timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
 
           return {
