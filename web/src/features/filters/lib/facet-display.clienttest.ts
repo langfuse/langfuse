@@ -130,6 +130,47 @@ describe("getFacetSummary", () => {
     ).toBe('a · not "x"');
   });
 
+  it("counts carried exclusions outside the option list via excludedValues (LFE-10717)", () => {
+    // Deep-linked `none of [c, legacy]` where only `c` is still observed:
+    // the visible complement alone would undercount to "not c".
+    expect(
+      getFacetSummary(
+        categorical({
+          isActive: true,
+          operator: "none of",
+          options: ["a", "b", "c"],
+          value: ["a", "b"],
+          excludedValues: ["c", "legacy"],
+        }),
+      ),
+    ).toBe("not 2 values");
+    // Every exclusion out-of-list: previously the generic "filtered".
+    expect(
+      getFacetSummary(
+        categorical({
+          isActive: true,
+          operator: "none of",
+          options: ["a", "b"],
+          value: ["a", "b"],
+          excludedValues: ["legacy"],
+        }),
+      ),
+    ).toBe("not legacy");
+  });
+
+  it("reads an explicit keep-everything filter as an active 'All' (managed env override)", () => {
+    expect(
+      getFacetSummary(
+        categorical({
+          isActive: true,
+          operator: "any of",
+          options: ["default", "dev"],
+          value: ["default", "dev"],
+        }),
+      ),
+    ).toBe("All");
+  });
+
   it("says 'filtered' for a live none-of whose exclusions fell out of the option list", () => {
     expect(
       getFacetSummary(

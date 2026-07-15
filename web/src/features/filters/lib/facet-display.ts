@@ -53,11 +53,15 @@ export function getFacetSummary(filter: UIFilter): string | null {
 
     if (filter.operator === "none of") {
       // Checkboxes show the KEPT complement (LFE-10717); the applied filter
-      // is the unchecked rest. Exclusions that fell out of the current
-      // option list are invisible here, so the count can come up 0 — the
-      // filter is still live; the generic fallback below covers it.
+      // is the unchecked rest. Prefer the hook's raw exclusion list — it
+      // includes carried exclusions outside the current option list that the
+      // visible-options complement misses (a deep-linked `none of [a, b, c]`
+      // with only `b` still observed must not read as just "not b"). The
+      // complement fallback covers manually constructed filters.
       const kept = new Set(filter.value);
-      const excluded = filter.options.filter((option) => !kept.has(option));
+      const excluded =
+        filter.excludedValues ??
+        filter.options.filter((option) => !kept.has(option));
       if (excluded.length === 1) {
         parts.push(`not ${displayValue(excluded[0], filter.displayByValue)}`);
       } else if (excluded.length > 1) {
@@ -73,10 +77,17 @@ export function getFacetSummary(filter: UIFilter): string | null {
       parts.push(displayValue(filter.value[0], filter.displayByValue));
     } else if (
       filter.value.length > 1 &&
+      filter.value.length === filter.options.length &&
+      filter.operator === "any of"
+    ) {
+      // An explicit keep-everything filter (the managed-env column persists
+      // an all-selected override): an ACTIVE "All" chip reads truer than
+      // "N selected".
+      parts.push("All");
+    } else if (
+      filter.value.length > 1 &&
       (filter.value.length < filter.options.length ||
-        filter.operator === "all of" ||
-        // explicit all-selected filters persist for the managed env column
-        filter.operator === "any of")
+        filter.operator === "all of")
     ) {
       parts.push(`${filter.value.length} selected`);
     }

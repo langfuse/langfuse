@@ -5,6 +5,7 @@ import {
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { renderLevelIcon } from "@/src/components/level-colors";
 
 // Helper function to get column name from eventsTableCols by ID
 export const getEventsColumnName = (id: string): string => {
@@ -128,9 +129,12 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("traceTags"),
     },
     {
+      // Display relabel to "Status" (see traces-config); column id stays
+      // `level` until the cross-surface rename lands.
       type: "categorical" as const,
       column: "level",
-      label: getEventsColumnName("level"),
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "categorical" as const,

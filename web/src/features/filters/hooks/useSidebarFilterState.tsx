@@ -167,6 +167,14 @@ export interface CategoricalUIFilter extends BaseUIFilter {
    */
   operator?: "any of" | "all of" | "none of";
   /**
+   * Raw stored exclusions of an active "none of" filter, INCLUDING carried
+   * exclusions outside the current (time-scoped, top-N-capped) option list
+   * that the checked=kept checkbox display cannot show (LFE-10717).
+   * Display-only — lets the facet header summary report the whole filter
+   * instead of just its visible part.
+   */
+  excludedValues?: string[];
+  /**
    * Callback to change the operator. Only provided for arrayOptions columns.
    * When called, updates the filter to use the specified operator.
    */
@@ -2172,6 +2180,11 @@ export function useSidebarFilterState(
           // display logic (pinning excluded rows) works on stringOptions too;
           // the SOME/ALL/NONE toggle itself is gated on onOperatorChange below.
           operator: currentOperator,
+          excludedValues:
+            checkboxFilter?.operator === "none of" &&
+            Array.isArray(checkboxFilter.value)
+              ? (checkboxFilter.value as string[])
+              : undefined,
           onOperatorChange: isArrayOptions
             ? (op: "any of" | "all of" | "none of") =>
                 updateOperator(facet.column, op)

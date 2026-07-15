@@ -278,7 +278,12 @@ export function DataTableControls({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => queryFilter.clearAll()}
+                    onClick={() => {
+                      // Un-freeze so the list actually returns to config
+                      // order (nothing is promoted once nothing is active).
+                      setFrozenOrder(null);
+                      queryFilter.clearAll();
+                    }}
                     className="h-7 px-2 text-xs"
                   >
                     Clear all
