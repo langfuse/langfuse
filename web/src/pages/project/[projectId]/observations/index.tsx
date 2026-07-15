@@ -70,6 +70,7 @@ export default function Generations() {
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader
+          enableAppRootDefault
         />
       ) : (
         <ObservationsTable projectId={projectId} showControlsInPageHeader />

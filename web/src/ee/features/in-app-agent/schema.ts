@@ -47,6 +47,13 @@ export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
 >;
 
+export const InAppAgentRateLimitErrorResponseSchema = z.object({
+  code: z.literal("rate_limited"),
+  details: z.object({
+    retryAfterSeconds: z.number().int().positive(),
+  }),
+});
+
 // Changes to this schema need to be backwards-compatible as messages with this are already persisted.
 export const InAppAgentRedirectActionToolResultSchema = z.object({
   type: z.literal("redirectAction"),

@@ -30,6 +30,8 @@ describe("annotationQueueItems trpc", () => {
             plan: "cloud:hobby",
             cloudConfig: undefined,
             metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: setup.project.id,
@@ -37,6 +39,8 @@ describe("annotationQueueItems trpc", () => {
                 name: setup.project.name,
                 deletedAt: null,
                 retentionDays: null,
+                hasTraces: false,
+                createdAt: new Date().toISOString(),
                 metadata: {},
               },
             ],
@@ -45,6 +49,10 @@ describe("annotationQueueItems trpc", () => {
         featureFlags: {
           templateFlag: true,
           excludeClickhouseRead: false,
+          experimentsV4Enabled: false,
+          observationEvals: false,
+          searchBar: false,
+          v4BetaToggleVisible: false,
         },
       },
       environment: {} as Session["environment"],

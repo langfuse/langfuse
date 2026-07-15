@@ -51,6 +51,9 @@ export interface ServerContext {
   /** Public key used for authentication */
   publicKey: string;
 
+  /** User agent from the MCP client's HTTP request */
+  userAgent?: string;
+
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
 }

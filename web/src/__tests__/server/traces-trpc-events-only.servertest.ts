@@ -71,6 +71,9 @@ maybe("traces trpc (events_only write mode)", () => {
           role: "OWNER",
           plan: "cloud:hobby",
           cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: projectId,
@@ -78,6 +81,9 @@ maybe("traces trpc (events_only write mode)", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: true,
+              metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -85,13 +91,17 @@ maybe("traces trpc (events_only write mode)", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
     environment: {} as any,
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Sanity check that the forced write mode reached the parsed shared env that
@@ -130,13 +140,19 @@ maybe("traces trpc (events_only write mode)", () => {
                 retentionDays: null,
                 deletedAt: null,
                 name: "events-only-onboarding",
+                hasTraces: false,
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
       },
     };
-    const freshCtx = createInnerTRPCContext({ session: freshSession });
+    const freshCtx = createInnerTRPCContext({
+      session: freshSession,
+      headers: {},
+    });
     const freshCaller = appRouter.createCaller({ ...freshCtx, prisma });
 
     try {

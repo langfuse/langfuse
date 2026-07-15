@@ -351,7 +351,11 @@ describe("Clickhouse Events Repository Test", () => {
         name: "io-metadata-test",
         input: "Test input content",
         output: "Test output content",
-        metadata: { key: "value" },
+        // events_full has no `metadata` map column; ClickHouse skips unknown
+        // JSONEachRow fields on insert, so this extra key is inert.
+        ...({ metadata: { key: "value" } } as Partial<
+          Parameters<typeof createEvent>[0]
+        >),
       });
 
       await createEventsCh([event]);
@@ -818,7 +822,7 @@ describe("Clickhouse Events Repository Test", () => {
         const options = await getEventFilterOptions({
           projectId: uniqueProjectId,
         });
-        expect(options.level.map((level) => level.value)).toContain(
+        expect(options.level!.map((level) => level.value)).toContain(
           recentLevel,
         );
       });
@@ -826,7 +830,7 @@ describe("Clickhouse Events Repository Test", () => {
       const defaultOptions = await getEventFilterOptions({
         projectId: uniqueProjectId,
       });
-      const defaultLevels = defaultOptions.level.map((level) => level.value);
+      const defaultLevels = defaultOptions.level!.map((level) => level.value);
 
       expect(defaultLevels).toContain(recentLevel);
       expect(defaultLevels).not.toContain(oldLevel);
@@ -842,7 +846,7 @@ describe("Clickhouse Events Repository Test", () => {
           },
         ],
       });
-      const upperOnlyLevels = upperOnlyOptions.level.map(
+      const upperOnlyLevels = upperOnlyOptions.level!.map(
         (level) => level.value,
       );
 
@@ -861,7 +865,7 @@ describe("Clickhouse Events Repository Test", () => {
             },
           ],
         });
-        const explicitLevels = explicitOptions.level.map(
+        const explicitLevels = explicitOptions.level!.map(
           (level) => level.value,
         );
 
@@ -1570,7 +1574,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const traceIds = filteredObservations.map((o) => o.traceId).sort();
@@ -1684,7 +1690,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const names = filteredObservations.map((o) => o.name).sort();
@@ -1872,7 +1880,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(1);
         expect(filteredObservations[0].name).toBe("new-user-1");
@@ -3307,10 +3317,14 @@ describe("Clickhouse Events Repository Test", () => {
     });
 
     it("should handle empty observation array", async () => {
+      // minStartTime/maxStartTime are intentionally omitted: the function
+      // early-returns on an empty observations array before touching them.
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [],
-      });
+      } as unknown as Parameters<
+        typeof getObservationsBatchIOFromEventsTable
+      >[0]);
 
       expect(result).toBeDefined();
       expect(result).toEqual([]);
@@ -3858,8 +3872,8 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
-      const traceScoreCategoryLabels = options.trace_score_categories.map(
+      const scoreCategoryLabels = options.score_categories!.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories!.map(
         (c) => c.label,
       );
 

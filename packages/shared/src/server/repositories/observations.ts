@@ -1621,7 +1621,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
     },
     clickhouseConfigs: {
-      request_timeout: 120000, // 2 minutes timeout
+      request_timeout: 300000, // 5 minutes timeout
     },
   });
 
