@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
-import { v4 as uuidv4 } from "uuid";
+import { generateUUID } from "@langfuse/shared";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Control, useForm, useWatch } from "react-hook-form";
 import {
@@ -158,9 +158,8 @@ export const NewDatasetItemForm = (props: {
   const getDatasetItemId = useCallback((datasetId: string) => {
     const existing = itemIdByDataset.current.get(datasetId);
     if (existing) return existing;
-    // uuid's v4() falls back to crypto.getRandomValues, so it works on
-    // non-secure (HTTP) origins where crypto.randomUUID is unavailable.
-    const id = uuidv4();
+    // generateUUID() handles fallback for non-secure (HTTP) origins where crypto.randomUUID is unavailable.
+    const id = generateUUID();
     itemIdByDataset.current.set(datasetId, id);
     return id;
   }, []);
