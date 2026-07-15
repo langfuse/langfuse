@@ -1,29 +1,76 @@
-import { useMemo } from "react";
-import useLocalStorage from "@/src/components/useLocalStorage";
+import { useMemo, useSyncExternalStore } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const COLLAPSE_CHAR_THRESHOLD = 250;
 const DEFAULT_PREVIEW_LINES = 4;
-const DEFAULT_PREVIEW_CHAR_LIMIT = 250;
+// Matches JSONView's collapseStringsAfterLength default; generous enough that
+// the first N lines usually survive intact instead of being cut mid-line.
+const DEFAULT_PREVIEW_CHAR_LIMIT = 500;
 
 const STORAGE_KEY = "collapseSystemPrompt";
 const LEGACY_STORAGE_KEY = "traceSystemPrompt:collapsed";
 
-function getInitialCollapsePreference(): boolean {
-  if (typeof window === "undefined") return true;
-  // Migration: the legacy key stored `false` when a user explicitly expanded
-  // a system prompt; keep respecting that choice under the new key.
-  return localStorage.getItem(LEGACY_STORAGE_KEY) !== "false";
+function readCollapsePreference(): boolean {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) return stored !== "false";
+    // Migration: the legacy key stored `false` when a user explicitly
+    // expanded a system prompt; keep respecting that choice.
+    return localStorage.getItem(LEGACY_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function subscribeToCollapsePreference(onChange: () => void): () => void {
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) onChange();
+  };
+  const handleCustomEvent = (e: Event) => {
+    if ((e as CustomEvent<{ key: string }>).detail?.key === STORAGE_KEY)
+      onChange();
+  };
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener("localStorageChange", handleCustomEvent);
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener("localStorageChange", handleCustomEvent);
+  };
+}
+
+function writeCollapsePreference(value: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // ignore localStorage errors
+  }
+  // Same event contract as useLocalStorage, so all subscribers (every mounted
+  // system prompt plus ViewPreferencesContext) update in the same tab.
+  window.dispatchEvent(
+    new CustomEvent("localStorageChange", {
+      detail: { key: STORAGE_KEY, newValue: JSON.stringify(value) },
+    }),
+  );
 }
 
 /**
  * Persisted default for whether long system prompts render collapsed.
  * Shared by the inline expand/collapse toggle and the trace view preferences
- * (ViewPreferencesContext); all instances stay in sync via useLocalStorage's
- * localStorageChange events.
+ * (ViewPreferencesContext). Backed by useSyncExternalStore rather than
+ * per-instance state: many instances of this hook mount at once (one per
+ * message), and a state-updater-based sync would setState across components
+ * mid-render.
  */
-export function useCollapseSystemPromptPreference() {
-  return useLocalStorage<boolean>(STORAGE_KEY, getInitialCollapsePreference());
+export function useCollapseSystemPromptPreference(): [
+  boolean,
+  (value: boolean) => void,
+] {
+  const value = useSyncExternalStore(
+    subscribeToCollapsePreference,
+    readCollapsePreference,
+    () => true,
+  );
+  return [value, writeCollapsePreference];
 }
 
 interface UseCollapsibleSystemPromptOptions {
