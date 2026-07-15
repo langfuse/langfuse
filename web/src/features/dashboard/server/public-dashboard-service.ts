@@ -274,6 +274,32 @@ export async function deletePublicDashboard(params: {
   });
 }
 
+// Shared write path for single-placement mutations. Unlike the full-definition
+// PATCH, callers validate only the placements they actually add or change.
+async function writeDashboardDefinition(params: {
+  projectId: string;
+  current: DashboardDomain;
+  widgets: InternalPlacement[];
+  auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  const dashboard = await DashboardService.updateDashboardDefinition(
+    params.current.id,
+    params.projectId,
+    { widgets: params.widgets },
+  );
+  await auditLog({
+    action: "update",
+    resourceType: "dashboard",
+    resourceId: dashboard.id,
+    projectId: params.projectId,
+    orgId: params.auditScope.orgId,
+    apiKeyId: params.auditScope.apiKeyId,
+    before: toApiDashboard(params.current),
+    after: toApiDashboard(dashboard),
+  });
+  return dashboard;
+}
+
 export async function addPublicDashboardPlacement(params: {
   projectId: string;
   dashboardId: string;
@@ -304,16 +330,18 @@ export async function addPublicDashboardPlacement(params: {
     current.definition.widgets.some((existing) => existing.id === placement.id)
   )
     throw new LangfuseConflictError(`Placement ${placement.id} already exists`);
-  await updatePublicDashboard({
-    ...params,
-    input: {
-      definition: {
-        widgets: [
-          ...current.definition.widgets.map(toPublicPlacement),
-          placement,
-        ],
-      },
-    },
+  const internalPlacement = toInternalPlacement(placement);
+  // Existing placements were validated when they were added; only the new
+  // placement's reference needs checking.
+  await assertPlacementReferences({
+    projectId: params.projectId,
+    placements: [internalPlacement],
+  });
+  await writeDashboardDefinition({
+    projectId: params.projectId,
+    current,
+    widgets: [...current.definition.widgets, internalPlacement],
+    auditScope: params.auditScope,
   });
   return placement;
 }
@@ -336,6 +364,8 @@ export async function updatePublicDashboardPlacement(params: {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
+  // Pure move/resize: the placement's content is immutable, so no reference
+  // re-validation is needed.
   const updated: InternalPlacement = {
     ...existing,
     x: params.placement.x ?? existing.x,
@@ -343,17 +373,13 @@ export async function updatePublicDashboardPlacement(params: {
     x_size: params.placement.width ?? existing.x_size,
     y_size: params.placement.height ?? existing.y_size,
   };
-  await updatePublicDashboard({
-    ...params,
-    input: {
-      definition: {
-        widgets: current.definition.widgets.map((placement) =>
-          placement.id === params.placementId
-            ? toPublicPlacement(updated)
-            : toPublicPlacement(placement),
-        ),
-      },
-    },
+  await writeDashboardDefinition({
+    projectId: params.projectId,
+    current,
+    widgets: current.definition.widgets.map((placement) =>
+      placement.id === params.placementId ? updated : placement,
+    ),
+    auditScope: params.auditScope,
   });
   return toPublicPlacement(updated);
 }
@@ -376,15 +402,13 @@ export async function deletePublicDashboardPlacement(params: {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
-  await updatePublicDashboard({
-    ...params,
-    input: {
-      definition: {
-        widgets: current.definition.widgets
-          .filter((placement) => placement.id !== params.placementId)
-          .map(toPublicPlacement),
-      },
-    },
+  await writeDashboardDefinition({
+    projectId: params.projectId,
+    current,
+    widgets: current.definition.widgets.filter(
+      (placement) => placement.id !== params.placementId,
+    ),
+    auditScope: params.auditScope,
   });
   return { message: "Placement successfully deleted" as const };
 }

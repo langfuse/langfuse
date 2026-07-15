@@ -202,6 +202,37 @@ describe("unstable dashboard API", () => {
     expect(response.status).toBe(404);
   });
 
+  it("rejects definitions with duplicate placement ids", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const createdWidget = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      widget,
+      auth,
+    );
+    const placement = {
+      type: "widget",
+      id: "placement-1",
+      widgetId: createdWidget.body.id,
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 3,
+    };
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/unstable/dashboards",
+      {
+        name: "Duplicate placement ids",
+        description: "",
+        definition: { widgets: [placement, { ...placement, y: 3 }] },
+      },
+      auth,
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("allows placing Langfuse-managed widgets on a project dashboard", async () => {
     const { auth } = await createOrgProjectAndApiKey();
     const langfuseWidget = await prisma.dashboardWidget.create({

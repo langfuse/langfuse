@@ -35,9 +35,16 @@ export const DashboardPlacementSchema = z.discriminatedUnion("type", [
   PublicWidgetPlacementSchema,
   PublicPresetPlacementSchema,
 ]);
-export const PublicDashboardDefinitionSchema = z.object({
-  widgets: z.array(DashboardPlacementSchema),
-});
+export const PublicDashboardDefinitionSchema = z
+  .object({
+    widgets: z.array(DashboardPlacementSchema),
+  })
+  .refine(
+    (definition) =>
+      new Set(definition.widgets.map((placement) => placement.id)).size ===
+      definition.widgets.length,
+    "Placement ids must be unique",
+  );
 
 export const DashboardSchema = z
   .object({

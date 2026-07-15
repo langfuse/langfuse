@@ -1,6 +1,12 @@
 import { z } from "zod";
+import { DashboardWidgetChartType } from "@langfuse/shared";
+import { metricAggregations } from "@langfuse/shared/query";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import {
+  DashboardWidgetChartConfigBaseSchema,
+  DashboardWidgetFilterBaseSchema,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
 import {
   buildDashboardUrl,
   buildDashboardWidgetUrl,
@@ -65,11 +71,11 @@ const dashboardWidgetPatchBaseSchema = z.object({
     .optional(),
   dimensions: z.array(z.object({ field: z.string() })).optional(),
   metrics: z
-    .array(z.object({ measure: z.string(), agg: z.string() }))
+    .array(z.object({ measure: z.string(), agg: metricAggregations }))
     .optional(),
-  filters: z.array(z.object({}).loose()).optional(),
-  chartType: z.string().optional(),
-  chartConfig: z.object({ type: z.string().optional() }).loose().optional(),
+  filters: z.array(DashboardWidgetFilterBaseSchema).optional(),
+  chartType: z.enum(DashboardWidgetChartType).optional(),
+  chartConfig: DashboardWidgetChartConfigBaseSchema.optional(),
 });
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),

@@ -10,7 +10,7 @@ import {
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { buildDashboardWidgetUrl } from "@/src/utils/product-url";
 
-const DashboardWidgetFilterBaseSchema = z
+export const DashboardWidgetFilterBaseSchema = z
   .object({
     column: z.string(),
     operator: z.string(),
@@ -20,7 +20,7 @@ const DashboardWidgetFilterBaseSchema = z
   })
   .loose();
 
-const DashboardWidgetChartConfigBaseSchema = z.object({
+export const DashboardWidgetChartConfigBaseSchema = z.object({
   type: z.enum(DashboardWidgetChartType).optional(),
   row_limit: z.number().int().positive().max(1000).optional(),
   show_value_labels: z.boolean().optional(),
