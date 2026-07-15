@@ -288,6 +288,26 @@ export const env = createEnv({
     OTEL_SERVICE_NAME: z.string().default("web"),
     OTEL_TRACE_SAMPLING_RATIO: z.coerce.number().gt(0).lte(1).default(1),
 
+    // Memory watchdog (capture-only diagnostics, see src/server/memoryWatchdog.ts)
+    LANGFUSE_WEB_MEMORY_WATCHDOG: z.enum(["true", "false"]).default("false"),
+    LANGFUSE_MEMORY_WATCHDOG_SAMPLE_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(100),
+    LANGFUSE_MEMORY_WATCHDOG_GROWTH_TRIGGER_MB: z.coerce
+      .number()
+      .positive()
+      .default(1024),
+    LANGFUSE_MEMORY_WATCHDOG_RSS_TRIGGER_MB: z.coerce
+      .number()
+      .positive()
+      .optional(),
+    LANGFUSE_MEMORY_WATCHDOG_COOLDOWN_S: z.coerce
+      .number()
+      .positive()
+      .default(60),
+
     // OTel Masking
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS: z
       .string()
@@ -746,6 +766,17 @@ export const env = createEnv({
     OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
     OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME,
     OTEL_TRACE_SAMPLING_RATIO: process.env.OTEL_TRACE_SAMPLING_RATIO,
+
+    // Memory watchdog
+    LANGFUSE_WEB_MEMORY_WATCHDOG: process.env.LANGFUSE_WEB_MEMORY_WATCHDOG,
+    LANGFUSE_MEMORY_WATCHDOG_SAMPLE_MS:
+      process.env.LANGFUSE_MEMORY_WATCHDOG_SAMPLE_MS,
+    LANGFUSE_MEMORY_WATCHDOG_GROWTH_TRIGGER_MB:
+      process.env.LANGFUSE_MEMORY_WATCHDOG_GROWTH_TRIGGER_MB,
+    LANGFUSE_MEMORY_WATCHDOG_RSS_TRIGGER_MB:
+      process.env.LANGFUSE_MEMORY_WATCHDOG_RSS_TRIGGER_MB,
+    LANGFUSE_MEMORY_WATCHDOG_COOLDOWN_S:
+      process.env.LANGFUSE_MEMORY_WATCHDOG_COOLDOWN_S,
 
     LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS:
       process.env.LANGFUSE_INGESTION_MASKING_PROPAGATED_HEADERS,

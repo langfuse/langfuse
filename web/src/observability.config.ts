@@ -28,6 +28,7 @@ import {
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
+import { startMemoryWatchdog } from "@/src/server/memoryWatchdog";
 
 /**
  * Tracer that never records spans but keeps the caller's parent span context
@@ -182,3 +183,6 @@ trace.setGlobalTracerProvider(
     new Set(["next.js"]),
   ),
 );
+
+// Capture-only memory diagnostics; no-op unless LANGFUSE_WEB_MEMORY_WATCHDOG=true.
+startMemoryWatchdog();
