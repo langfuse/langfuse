@@ -2,7 +2,7 @@
 name: langfuse-previews
 description: >
   Disposable per-PR preview environments for langfuse/langfuse. A same-repo PR
-  auto-builds a full Langfuse stack reachable at pr-<N>.preview.langfuse.com.
+  auto-builds a full Langfuse stack reachable at pr-N.preview.langfuse.com.
   Use when spinning up or using a PR preview, logging into one, working out why
   a preview did not come up (built but the URL 404s, ImagePullBackOff, pods
   stuck Pending), reading web / worker / ClickHouse logs or otherwise debugging
