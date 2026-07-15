@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
+import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -28,6 +30,7 @@ type ControlledInAppAgentWindowProps = ControlledInAppAgentWindowBaseProps &
 export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
+  const router = useRouter();
   const {
     conversations,
     error,
@@ -52,6 +55,10 @@ export function ControlledInAppAgentWindow(
     isSubmitting ||
     isSelectedConversationHydrating ||
     pendingToolApprovals.length > 0;
+  const screenContextDescription = useMemo(
+    () => getInAppAgentScreenContextDescription(router.asPath),
+    [router.asPath],
+  );
 
   const drawerMessages = useMemo(
     () =>
@@ -77,6 +84,7 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
+      screenContextDescription={screenContextDescription}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
       isLoadingMoreConversations={isLoadingMoreConversations}

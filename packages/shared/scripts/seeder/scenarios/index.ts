@@ -4,6 +4,7 @@ import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { scoredTracesScenario } from "./scored-traces";
 import { sessionShapesScenario } from "./session-shapes";
+import { supportAgentScenario } from "./support-agent";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -18,6 +19,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "scored-traces": scoredTracesScenario,
   "session-shapes": sessionShapesScenario,
   "annotation-queue": annotationQueueScenario,
+  "support-agent": supportAgentScenario,
 };
 
 export * from "./types";
