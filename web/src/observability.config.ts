@@ -118,12 +118,12 @@ const sdk = new NodeSDK({
     new IORedisInstrumentation({ requestHook: ioredisRequestHook }),
     new HttpInstrumentation({
       requireParentforOutgoingSpans: true,
-      ignoreIncomingRequestHook: (req) => {
-        // Ignore health checks
-        return ["/api/public/health", "/api/public/ready", "/api/health"].some(
-          (path) => req.url?.includes(path),
-        );
-      },
+      // ignoreIncomingRequestHook: (req) => {
+      //   // Ignore health checks
+      //   return ["/api/public/health", "/api/public/ready", "/api/health"].some(
+      //     (path) => req.url?.includes(path),
+      //   );
+      // },
       ignoreOutgoingRequestHook: (req) => {
         return req.host === "127.0.0.1";
       },
