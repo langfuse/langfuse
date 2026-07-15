@@ -9,7 +9,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { compactNumberFormatter } from "@/src/utils/numbers";
 
 export type SessionTraceObservation =
-  RouterOutputs["sessions"]["observationsForTraceFromEvents"]["observations"][number];
+  RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
 
 /** Display cap of a preview section — matches the server's preview head. */
 const PREVIEW_DISPLAY_CHARS = 4_000;
