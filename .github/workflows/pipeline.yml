@@ -96,9 +96,7 @@ jobs:
           filters: |
             llm_connections:
               - 'packages/shared/package.json'
-              - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
-              - 'packages/shared/src/server/llm/secureLlmFetch.ts'
-              - 'packages/shared/src/server/llm/utils.ts'
+              - 'packages/shared/src/server/llm/**'
               - 'worker/src/__tests__/llmConnections.test.ts'
 
   lint:
