@@ -204,12 +204,10 @@ function MarkdownRenderer({
   markdown,
   theme,
   className,
-  customCodeHeaderClassName,
 }: {
   markdown: string;
   theme?: string;
   className?: string;
-  customCodeHeaderClassName?: string;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -353,7 +351,6 @@ function MarkdownRenderer({
                   language={language}
                   value={codeContent}
                   theme={theme}
-                  className={customCodeHeaderClassName}
                 />
               ) : (
                 // inline code
@@ -449,7 +446,6 @@ export function MarkdownView({
   markdown,
   title,
   titleIcon,
-  customCodeHeaderClassName,
   audio,
   media,
   className,
@@ -459,7 +455,6 @@ export function MarkdownView({
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
-  customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
@@ -468,7 +463,8 @@ export function MarkdownView({
   afterHeader?: React.ReactNode;
 }) {
   const capture = usePostHogClientCapture();
-  const { resolvedTheme: theme } = useTheme();
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const theme = forcedTheme ?? resolvedTheme;
   const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
@@ -547,7 +543,6 @@ export function MarkdownView({
                     : markdown
                 }
                 theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
               />
               {shouldBeCollapsible && (
                 <Button
@@ -572,7 +567,6 @@ export function MarkdownView({
                   key={index}
                   markdown={content.text}
                   theme={theme}
-                  customCodeHeaderClassName={customCodeHeaderClassName}
                 />
               );
             }
@@ -618,7 +612,6 @@ export function MarkdownView({
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
-              customCodeHeaderClassName={customCodeHeaderClassName}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}

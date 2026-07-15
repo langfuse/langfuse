@@ -124,6 +124,7 @@ function ThemeTokensDoc() {
         <Swatch token="input" />
         <Swatch token="ring" />
         <Swatch token="surface-code" />
+        <Swatch token="surface-code-header" />
       </Section>
 
       <Section

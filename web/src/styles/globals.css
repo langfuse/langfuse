@@ -34,6 +34,7 @@
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
   --color-surface-code: hsl(var(--surface-code));
+  --color-surface-code-header: hsl(var(--surface-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
@@ -191,8 +192,9 @@
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
-       well"), matching the docs site's --surface-code convention. */
-    --surface-code: 0 0% 98%;
+         well"), matching the docs site's --surface-code convention. */
+    --surface-code: 0 0% 92%;
+    --surface-code-header: 0 0% 86%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
@@ -332,6 +334,7 @@
     --muted-foreground: 0 0% 54%;
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
+    --surface-code-header: 0 0% 8.2%;
 
     --popover: 0 0% 10.2%;
     --popover-foreground: 0 0% 88%;

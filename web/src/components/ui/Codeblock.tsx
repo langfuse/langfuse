@@ -1,6 +1,5 @@
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
@@ -10,7 +9,6 @@ interface Props {
   language: string;
   value: string;
   theme?: string;
-  className?: string;
 }
 
 interface languageMap {
@@ -44,10 +42,10 @@ export const programmingLanguages: languageMap = {
   // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
-const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
+const CodeBlock: FC<Props> = memo(({ language, value, theme }) => {
   const [isCopied, setIsCopied] = useState(false);
-  const { resolvedTheme } = useTheme();
-  const appliedTheme = theme ?? resolvedTheme;
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const appliedTheme = theme ?? forcedTheme ?? resolvedTheme;
   const handleCopy = () => {
     setIsCopied(true);
     copyTextToClipboard(value ?? "");
@@ -55,13 +53,8 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   };
 
   return (
-    <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
-      <div
-        className={cn(
-          "bg-secondary flex w-full items-center justify-between px-2",
-          className,
-        )}
-      >
+    <div className="codeblock bg-surface-code relative w-full overflow-hidden rounded border font-sans">
+      <div className="bg-surface-code-header flex w-full items-center justify-between px-2">
         <span className="text-xs lowercase">{language}</span>
         <div className="flex items-center py-1">
           <Button

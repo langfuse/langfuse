@@ -83,7 +83,6 @@ export function MarkdownJsonView({
   title,
   titleIcon,
   className,
-  customCodeHeaderClassName,
   audio,
   media,
   controlButtons,
@@ -93,7 +92,6 @@ export function MarkdownJsonView({
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
-  customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;
@@ -119,7 +117,6 @@ export function MarkdownJsonView({
           }
           title={title}
           titleIcon={titleIcon}
-          customCodeHeaderClassName={customCodeHeaderClassName}
           audio={audio}
           media={media}
           controlButtons={controlButtons}
