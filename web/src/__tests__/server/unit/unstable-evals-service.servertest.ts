@@ -972,8 +972,8 @@ describe("unstable public eval services", () => {
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
-  it("rejects creating more than 50 active evaluation rules", async () => {
-    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
+  it("rejects creating more than 500 active evaluation rules", async () => {
+    mockCountActiveEvaluationRules.mockResolvedValueOnce(500);
 
     await expect(
       createPublicEvaluationRule({
@@ -994,7 +994,7 @@ describe("unstable public eval services", () => {
         },
       }),
     ).rejects.toThrow(
-      "This project already has the maximum number of active evaluation rules (50).",
+      "This project already has the maximum number of active evaluation rules (500).",
     );
 
     expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
@@ -1382,7 +1382,7 @@ describe("unstable public eval services", () => {
         status: JobConfigState.INACTIVE,
       }),
     );
-    mockCountActiveEvaluationRules.mockResolvedValueOnce(50);
+    mockCountActiveEvaluationRules.mockResolvedValueOnce(500);
 
     await expect(
       updatePublicEvaluationRule({
@@ -1394,7 +1394,7 @@ describe("unstable public eval services", () => {
         },
       }),
     ).rejects.toThrow(
-      "This project already has the maximum number of active evaluation rules (50).",
+      "This project already has the maximum number of active evaluation rules (500).",
     );
 
     expect(mockLoadEvaluatorForEvaluationRule).not.toHaveBeenCalled();
