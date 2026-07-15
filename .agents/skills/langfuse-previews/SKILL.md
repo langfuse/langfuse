@@ -52,7 +52,10 @@ Pushing updates it; closing the PR tears it down.
 
 - **Off-hours sleep.** Previews run **Mon–Fri 08:00–24:00 Europe/Berlin**; nights
   and weekends they scale to zero and *stay there* (schedule-driven — a request
-  does **not** wake them). To use one off-hours, wake it (see Debug → wake).
+  does **not** wake them). To use one off-hours, wake it (needs cluster access):
+  `kubectl annotate ns langfuse-pr-<N> downscaler/force-uptime=true --overwrite`
+  — replicas return in ~60s, ready in ~3–5 min; undo later with the trailing-`-`
+  form (`downscaler/force-uptime-`) so it sleeps again on schedule.
 - **Capacity.** A limited number of previews run at once; if the cluster is full,
   a new one's pods sit `Pending` until an old preview is closed.
 - **Disposable data.** Closing a PR destroys its database; reopening gives a
