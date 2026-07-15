@@ -87,6 +87,11 @@ import {
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import {
+  useAppRootDefault,
+  useApplyAppRootFallback,
+} from "@/src/features/events/hooks/useAppRootDefault";
+import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
@@ -112,7 +117,10 @@ import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBa
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
@@ -209,6 +217,8 @@ export type EventsTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /** Explicit signal from the Fast Preview/v4 page routes. */
+  enableAppRootDefault?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -246,6 +256,7 @@ export default function ObservationsEventsTable({
   limitRows,
   sessionId,
   showControlsInPageHeader = false,
+  enableAppRootDefault = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -436,11 +447,20 @@ export default function ObservationsEventsTable({
     lazy: true,
   });
 
+  const appRootDefault = useAppRootDefault({
+    enabled: enableAppRootDefault,
+    projectId,
+  });
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isFilterOptionsPending,
       loadingColumns,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
+      isV4: true,
+      defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
+      onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -469,6 +489,8 @@ export default function ObservationsEventsTable({
     loadingColumns,
     peekContext,
     projectId,
+    appRootDefault.defaultExplicitFilterState,
+    appRootDefault.onExplicitFilterStateChange,
   ]);
 
   const queryFilter = useSidebarFilterState(
@@ -510,7 +532,15 @@ export default function ObservationsEventsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, { origin: "user" }),
+    [],
+  );
+  const setSavedViewFiltersWrapper = useCallback(
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, {
+        origin: "saved_view",
+      }),
     [],
   );
 
@@ -538,6 +568,7 @@ export default function ObservationsEventsTable({
     applyFilters: searchBarApplyFilters,
   } = useEventsSearchBar({
     projectId,
+    tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
     filterState: queryFilter.explicitFilterState,
     searchQuery,
@@ -609,8 +640,13 @@ export default function ObservationsEventsTable({
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  // Use external filter state if provided, otherwise use combined filter
+  // state. Even with an external filter, still apply the date-range bound so
+  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
+  // hours" window) have it honored for the row query, not just score columns.
+  const filterState = externalFilterState
+    ? externalFilterState.concat(dateRangeFilter)
+    : combinedFilterState;
 
   // Use the custom hook for observations data fetching
   const {
@@ -624,6 +660,7 @@ export default function ObservationsEventsTable({
     dataUpdatedAt,
     ioLoading,
     isSilencedError,
+    usedAppRootFallback,
   } = useEventsTableData({
     projectId,
     filterState,
@@ -636,6 +673,17 @@ export default function ObservationsEventsTable({
     selectedRows,
     selectAll,
     setSelectedRows,
+    appRootFallbackEnabled: appRootDefault.isAutoManaged,
+  });
+
+  useApplyAppRootFallback({
+    additionalRowsFound: usedAppRootFallback,
+    isAutoManaged: appRootDefault.isAutoManaged,
+    filters: queryFilter.explicitFilterState,
+    searchQuery,
+    dateRange,
+    setFilterState: queryFilter.setFilterState,
+    removeSdkVersionCache: appRootDefault.removeSdkVersionCache,
   });
 
   // Disabled for now because perhaps confusing
@@ -687,6 +735,19 @@ export default function ObservationsEventsTable({
           : null,
     });
   }, [searchBarMode, observedOptions, observations.rows, observations.status]);
+
+  // Observed score names by column type for the AI endpoint's score-name
+  // guardrail: the server validates/corrects the score keys the model returns
+  // against these. Structured (not re-parsed from the flattened dataContext
+  // above), and each set stays undefined until its filter-options column has
+  // loaded, so an in-flight fetch never makes a real score name look unknown.
+  const aiScoreNames = useMemo(
+    () =>
+      searchBarMode
+        ? observedScoreNamesFromOptions(observedOptions)
+        : undefined,
+    [searchBarMode, observedOptions],
+  );
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -1525,7 +1586,7 @@ export default function ObservationsEventsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: setSavedViewFiltersWrapper,
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -1539,7 +1600,10 @@ export default function ObservationsEventsTable({
       ),
       migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: getAppRootSavedViewComparisonFilters(
+      queryFilter.explicitFilterState,
+      appRootDefault.isAutoManaged,
+    ),
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
     allowBackendSystemPresets: true,
@@ -1684,6 +1748,7 @@ export default function ObservationsEventsTable({
             {searchBarMode && (
               <EventsSearchBarRow
                 projectId={projectId}
+                tableName={eventsFilterConfig.tableName}
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
@@ -1691,6 +1756,7 @@ export default function ObservationsEventsTable({
                 onApplyFilters={searchBarApplyFilters}
                 onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}
+                aiScoreNames={aiScoreNames}
               />
             )}
             {/* Toolbar spanning full width */}

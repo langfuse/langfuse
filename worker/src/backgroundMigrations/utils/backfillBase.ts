@@ -300,7 +300,16 @@ export async function fireQuery({
       surface: "worker",
       route: "background-migration.fireQuery",
     },
-    clickhouseSettings: { ...retrySetting },
+    clickhouseSettings: {
+      // The fire-and-poll pattern intentionally outlives the HTTP request, but
+      // the shared client derives a server-side max_execution_time (~35s) from
+      // its default request timeout, which kills long chunk queries after the
+      // abort (#14999). Override per-query so interactive queries stay capped;
+      // retry settings keep precedence.
+      max_execution_time: 0,
+      timeout_before_checking_execution_speed: 0,
+      ...retrySetting,
+    },
     abortSignal: abortController.signal,
   }).catch((err) => {
     if (err?.name === "AbortError" || err?.message?.includes("aborted")) {

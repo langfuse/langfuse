@@ -17,7 +17,9 @@ const fakeDockerState: FakeContainerState = {
 class MissingContainer {
   constructor(private readonly identifier: string) {}
 
-  id = this.identifier;
+  get id() {
+    return this.identifier;
+  }
 
   modem = {
     demuxStream: () => undefined,

@@ -23,13 +23,23 @@ import {
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  MAX_SCORE_NAME_LENGTH,
+  MAX_SCORE_NAMES_PER_TYPE,
+} from "../lib/observed-options";
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
 import {
-  fetchLangfuseAICompletion,
+  generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+
+// Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
+// which sends a set as undefined instead of ever exceeding them.
+const scoreNameList = z
+  .array(z.string().max(MAX_SCORE_NAME_LENGTH))
+  .max(MAX_SCORE_NAMES_PER_TYPE);
 
 const GenerateFilterInput = z.object({
   projectId: z.string(),
@@ -39,6 +49,17 @@ const GenerateFilterInput = z.object({
   /** Project data context (observed values, metadata keys, result count) built
    *  on the client from already-loaded filterOptions + visible rows. */
   dataContext: z.string().max(16000).optional(),
+  /** Observed score names by column type (from filterOptions), used to
+   *  validate/correct the score names the model returns. A set left undefined
+   *  means that column hasn't loaded client-side — it is not enforced. */
+  scoreNames: z
+    .object({
+      numeric: scoreNameList.optional(),
+      categorical: scoreNameList.optional(),
+      traceNumeric: scoreNameList.optional(),
+      traceCategorical: scoreNameList.optional(),
+    })
+    .optional(),
 });
 
 export const searchBarRouter = createTRPCRouter({
@@ -83,7 +104,11 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        const model =
+          env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ??
+          env.LANGFUSE_AWS_BEDROCK_MODEL;
+
+        if (!model) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
             message:
@@ -110,7 +135,7 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const llmCompletion = await fetchLangfuseAICompletion({
+        const llmCompletion = await generateLangfuseAIText({
           messages: [
             {
               role: ChatMessageRole.System,
@@ -123,6 +148,7 @@ export const searchBarRouter = createTRPCRouter({
               type: ChatMessageType.PublicAPICreated,
             },
           ],
+          model,
           maxTokens: 2048,
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
@@ -154,14 +180,14 @@ export const searchBarRouter = createTRPCRouter({
             : undefined,
         });
 
-        if (typeof llmCompletion !== "string") {
-          throw new Error("Expected LLM completion to be a string");
-        }
-
         // Parse the model output and keep only the filters that round-trip to
         // bar grammar — a hallucinated/non-v4 column is dropped, never applied.
-        const { filters, queryText, droppedCount } =
-          parseGeneratedFilters(llmCompletion);
+        // Score names are validated against the observed sets (exact keeps, a
+        // unique `_`/`-`/space/case-normalized match corrects, anything else is
+        // dropped and reported) so a misspelled score name can never apply as a
+        // dead filter that silently matches nothing.
+        const { filters, queryText, droppedCount, unknownScoreNames } =
+          parseGeneratedFilters(llmCompletion, input.scoreNames);
 
         if (droppedCount > 0) {
           logger.warn(
@@ -169,11 +195,12 @@ export const searchBarRouter = createTRPCRouter({
             {
               projectId: input.projectId,
               droppedCount,
+              unknownScoreNames,
             },
           );
         }
 
-        return { filters, queryText };
+        return { filters, queryText, unknownScoreNames };
       } catch (error) {
         // Already-shaped rejections (auth / precondition / not-found) are
         // expected control flow, not backend faults — rethrow them without

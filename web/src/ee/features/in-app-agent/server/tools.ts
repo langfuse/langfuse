@@ -254,6 +254,14 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "auto",
     availability: { scope: "prompts:read" },
   },
+  listMonitors: {
+    approval: "auto",
+    availability: { scope: "monitors:read" },
+  },
+  getMonitor: {
+    approval: "auto",
+    availability: { scope: "monitors:read" },
+  },
   listPrompts: {
     approval: "auto",
     availability: { scope: "prompts:read" },

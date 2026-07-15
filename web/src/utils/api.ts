@@ -13,6 +13,7 @@ import {
   loggerLink,
   splitLink,
   TRPCClientError,
+  type TRPCClientErrorLike,
   type Operation,
   type TRPCLink,
 } from "@trpc/client";
@@ -288,6 +289,9 @@ const shouldSilenceError = (
 
   return false;
 };
+
+/** APIError is returned by api.*.*.useQuery */
+export type APIError = TRPCClientErrorLike<AppRouter>;
 
 /** A set of type-safe react-query hooks for your tRPC API. */
 export const api = createTRPCNext<AppRouter>({

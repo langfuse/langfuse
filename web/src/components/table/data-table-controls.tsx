@@ -742,29 +742,41 @@ export function CategoricalFacet({
       })
     : visibleOptionValues;
 
-  // Order a genuine selection to the top of the list so an applied filter is
-  // immediately visible — without scrolling or expanding "Show more" — even
-  // when the selected value sits far down a long list (LFE-10494).
+  // Order the applied filter to the top of the list so it is immediately
+  // visible — without scrolling or expanding "Show more" — even when its
+  // value sits far down a long list (LFE-10494). The rows carrying the
+  // applied filter are the CHECKED values for a positive selection, but the
+  // UNCHECKED (excluded) values for a `none of` filter: under the
+  // checked=kept display model the checked set is the complement of the
+  // exclusions (LFE-10717), and pinning that complement would sink the
+  // just-unchecked row below the cap.
   //
   // Two guards keep this honest:
   //   1. Only reorder long lists (more options than the cap) that carry a real,
   //      strict-subset selection. `value` mirrors the hook's
   //      `computeSelectedValues`, which reports EVERY option as "selected" when
-  //      no filter is applied (and the inverted set for `none of`). Requiring a
-  //      strict subset skips that all-selected default — otherwise the whole
-  //      list would be treated as pinned — and leaves short lists untouched.
+  //      no filter is applied (and the kept complement for `none of`).
+  //      Requiring a strict subset skips that all-selected default — otherwise
+  //      the whole list would be treated as pinned — and leaves short lists
+  //      untouched.
   //   2. The visible-count cap is applied to the COMBINED ordered list, so even
-  //      a large selection (many values, or a `none of` include-set) can never
-  //      render the entire list; "Show more" still gates the overflow.
+  //      a large pinned set (many selected values, or many exclusions) can
+  //      never render the entire list; "Show more" still gates the overflow.
   const selectedSet = new Set(value);
-  const pinSelected =
+  const pinnedSet =
+    operator === "none of"
+      ? new Set(
+          visibleOptionValues.filter((option) => !selectedSet.has(option)),
+        )
+      : selectedSet;
+  const pinApplied =
     hasMoreOptions &&
     value.length > 0 &&
     value.length < visibleOptionValues.length;
-  const orderedOptions = pinSelected
+  const orderedOptions = pinApplied
     ? [
-        ...filteredOptions.filter((option) => selectedSet.has(option)),
-        ...filteredOptions.filter((option) => !selectedSet.has(option)),
+        ...filteredOptions.filter((option) => pinnedSet.has(option)),
+        ...filteredOptions.filter((option) => !pinnedSet.has(option)),
       ]
     : filteredOptions;
 
@@ -773,13 +785,13 @@ export function CategoricalFacet({
     ? orderedOptions
     : orderedOptions.slice(0, MAX_VISIBLE_OPTIONS);
 
-  // Split the visible slice so a separator can mark where the pinned selection
-  // ends. When not pinning, everything renders in natural order (no divider).
-  const visibleSelectedOptions = pinSelected
-    ? visibleOptions.filter((option) => selectedSet.has(option))
+  // Split the visible slice so a separator can mark where the pinned rows
+  // end. When not pinning, everything renders in natural order (no divider).
+  const visiblePinnedOptions = pinApplied
+    ? visibleOptions.filter((option) => pinnedSet.has(option))
     : [];
-  const visibleRemainingOptions = pinSelected
-    ? visibleOptions.filter((option) => !selectedSet.has(option))
+  const visibleRemainingOptions = pinApplied
+    ? visibleOptions.filter((option) => !pinnedSet.has(option))
     : visibleOptions;
 
   const renderOption = (option: string) => {
@@ -831,13 +843,21 @@ export function CategoricalFacet({
                 It allows switching between the supported array matching modes:
                 - SOME: Match items with ANY selected value (OR logic)
                 - ALL: Match items with ALL selected values (AND logic)
-                - NONE: Exclude items with ANY selected value
+                - NONE: Exclude items carrying any UNCHECKED value (the filter
+                  stores the exclusions; checkboxes show the kept complement,
+                  LFE-10717)
 
-                The toggle is shown whenever useSidebarFilterState exposes operator controls
-                for an arrayOptions column, including before any values are selected so users
-                can persist an operator preference first. Other filter types (stringOptions,
-                boolean, numeric) don't get this toggle because these array-specific modes
-                are not semantically meaningful there.
+                Toggling between modes carries the stored value list over, so
+                SOME "match a or b" becomes NONE "exclude a and b" — the
+                checked set visually flips to its complement.
+
+                NONE mode usually engages by itself: unchecking a value from
+                the all-checked default persists `none of [value]`. The toggle
+                remains for converting an existing selection or persisting an
+                operator preference before any values are selected. Other
+                filter types (stringOptions, boolean, numeric) don't get this
+                toggle because these array-specific modes are not semantically
+                meaningful there.
 
                 Currently enabled for:
                 - Traces: tags
@@ -967,11 +987,12 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {/* Selected options, pinned to the top (long lists only) */}
-                    {visibleSelectedOptions.map(renderOption)}
+                    {/* Applied-filter rows (selected, or excluded under
+                        `none of`), pinned to the top (long lists only) */}
+                    {visiblePinnedOptions.map(renderOption)}
 
-                    {/* Separator between the pinned selection and the rest */}
-                    {visibleSelectedOptions.length > 0 &&
+                    {/* Separator between the pinned rows and the rest */}
+                    {visiblePinnedOptions.length > 0 &&
                       visibleRemainingOptions.length > 0 && (
                         <div
                           className="border-border/60 mx-3 my-1 border-t"
@@ -979,7 +1000,7 @@ export function CategoricalFacet({
                         />
                       )}
 
-                    {/* Remaining (unselected) options, capped */}
+                    {/* Remaining options, capped */}
                     {visibleRemainingOptions.map(renderOption)}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">

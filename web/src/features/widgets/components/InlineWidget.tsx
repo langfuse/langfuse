@@ -75,6 +75,12 @@ export interface WidgetContentProps {
    * Optional presentation-only labels for entity_dimension values.
    */
   entityDimensionLabelMap?: Record<string, string>;
+  /**
+   * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
+   * stays in the hover tooltip. Off by default. Opt in on entity-dimension
+   * charts (experiments) whose long names clutter the axis.
+   */
+  hideXAxisLabels?: boolean;
 }
 
 export interface WidgetHeaderProps {
@@ -180,6 +186,7 @@ export function WidgetContent({
   onSortChange,
   className,
   entityDimensionLabelMap,
+  hideXAxisLabels,
 }: WidgetContentProps) {
   const { isBetaEnabled } = useV4Beta();
   const [retryCount, setRetryCount] = useState(0);
@@ -441,6 +448,7 @@ export function WidgetContent({
         isLoading={queryResult.isPending || isExternalLoading}
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
+        hideXAxisLabels={hideXAxisLabels}
       />
       <ChartLoadingState
         isLoading={chartLoadingState.isLoading}

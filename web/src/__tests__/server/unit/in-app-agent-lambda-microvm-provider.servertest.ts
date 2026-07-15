@@ -81,7 +81,7 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
 
-    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async (url) => {
       const urlString = String(url);
       if (urlString.endsWith("/health")) {
         return new Response(null, { status: 200 });
