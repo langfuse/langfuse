@@ -259,7 +259,7 @@ export const eventsRouter = createTRPCRouter({
             projectId: input.projectId,
             traceIds: [input.traceId],
             // we need traceTS here because we filter for that in DB
-            // fallback to input incase trace unavailable - shouldn't happen
+            // fallback to input in case trace unavailable - shouldn't happen
             timestamp: ctx.trace?.timestamp ?? input.timestamp,
           });
         },
@@ -290,7 +290,7 @@ export const eventsRouter = createTRPCRouter({
               projectId: input.projectId,
               traceId: input.traceId,
               // we need traceTS here because we filter for that in DB
-              // fallback to input incase trace unavailable - shouldn't happen
+              // fallback to input in case trace unavailable - shouldn't happen
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
 
