@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { encrypt } from "../../../encryption";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -7,8 +8,17 @@ import {
   LLMAdapter,
   type ModelParams,
 } from "../types";
-import { executeAiSdkCompletion } from "./executeAiSdkCompletion";
-import { resolveLlmExecutionDecision } from "./resolveLlmExecutionDecision";
+import {
+  createLLMOutput,
+  generateLLMText,
+  mapLegacyLLMCompletionParams,
+} from "../llmText";
+
+// Request-shape coverage exercises the real provider packages while replacing
+// the separately tested secure transport with a capture fetch.
+vi.mock("../secureLlmFetch", () => ({
+  createSecureLlmFetch: () => globalThis.fetch,
+}));
 
 // The Vertex provider exchanges service-account credentials for an OAuth
 // token via google-auth-library before issuing the model request; both the
@@ -22,8 +32,6 @@ vi.mock("google-auth-library", () => ({
     getProjectId = async () => "adc-project";
   },
 }));
-
-const ALL_ADAPTERS = Object.values(LLMAdapter);
 
 const messages: ChatMessage[] = [
   {
@@ -156,30 +164,26 @@ async function runCompletion(params: {
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   llmConnectionConfig?: Record<string, string | boolean>;
+  output?: ReturnType<typeof createLLMOutput>;
   response: unknown;
 }) {
-  const decision = resolveLlmExecutionDecision({
-    modelParams: params.modelParams,
-    llmConnectionConfig: params.llmConnectionConfig,
-    baseURL: params.baseURL,
-    enabledAdapters: ALL_ADAPTERS,
-  });
-  if (decision.engine !== "ai-sdk") {
-    throw new Error("Expected the AI SDK engine to be selected");
-  }
-
   const { calls, fetch } = createCaptureFetch(params.response);
-  const result = await executeAiSdkCompletion({
-    messages,
-    modelParams: params.modelParams,
-    streaming: false,
-    apiKey: params.apiKey,
-    baseURL: params.baseURL,
-    extraHeaders: params.extraHeaders,
-    llmConnectionConfig: params.llmConnectionConfig,
-    timeoutMs: 10_000,
-    createFetch: () => fetch,
-    decision,
+  vi.stubGlobal("fetch", fetch);
+  const result = await generateLLMText({
+    ...mapLegacyLLMCompletionParams({
+      messages,
+      modelParams: params.modelParams,
+      connection: {
+        secretKey: encrypt(params.apiKey),
+        baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders
+          ? encrypt(JSON.stringify(params.extraHeaders))
+          : undefined,
+        config: params.llmConnectionConfig,
+      },
+    }),
+    timeout: 10_000,
+    output: params.output,
   });
 
   expect(calls).toHaveLength(1);
@@ -206,7 +210,7 @@ describe("AI SDK request shapes", () => {
       response: OPENAI_CHAT_RESPONSE,
     });
 
-    expect(result).toBe("ok");
+    expect(result.text).toBe("ok");
     expect(request.url).toBe("https://api.openai.com/v1/chat/completions");
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
@@ -236,13 +240,96 @@ describe("AI SDK request shapes", () => {
     expect(request.body.model).toBe("gpt-4o");
   });
 
-  it("Azure: LangChain deployment URL with pinned api-version and api-key header", async () => {
+  it("OpenAI-compatible chat completions: preserves custom provider options on the wire", async () => {
+    const { result, request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-reasoning-model",
+        max_tokens: 64,
+        providerOptions: {
+          reasoning_effort: "high",
+          service_tier: "flex",
+          parallel_tool_calls: false,
+          logit_bias: { "42": 1 },
+          thinkingBudget: 1024,
+          thinkingLevel: "high",
+        },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(result.text).toBe("ok");
+    expect(request.url).toBe(
+      "https://openai-compatible.example.com/v1/chat/completions",
+    );
+    expect(request.headers.get("authorization")).toBe("Bearer custom-key");
+    expect(request.body.model).toBe("custom-reasoning-model");
+    expect(request.body.max_tokens).toBe(64);
+    expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.service_tier).toBe("flex");
+    expect(request.body.parallel_tool_calls).toBe(false);
+    expect(request.body.logit_bias).toEqual({ "42": 1 });
+    expect(request.body.serviceTier).toBeUndefined();
+    expect(request.body.parallelToolCalls).toBeUndefined();
+    expect(request.body.logitBias).toBeUndefined();
+    expect(request.body.thinkingBudget).toBe(1024);
+    expect(request.body.thinkingLevel).toBe("high");
+  });
+
+  it("OpenAI-compatible chat completions: preserves JSON schema response_format", async () => {
+    const { result, request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "custom-schema-model",
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      output: createLLMOutput({
+        type: "object",
+        properties: { answer: { type: "string" } },
+        required: ["answer"],
+        additionalProperties: false,
+      }),
+      response: {
+        ...OPENAI_CHAT_RESPONSE,
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: '{"answer":"ok"}' },
+            finish_reason: "stop",
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.response_format).toMatchObject({
+      type: "json_schema",
+      json_schema: {
+        strict: true,
+        name: "response",
+        schema: {
+          type: "object",
+          properties: { answer: { type: "string" } },
+          required: ["answer"],
+          additionalProperties: false,
+        },
+      },
+    });
+  });
+
+  it("Azure: stored deployment URL with pinned api-version and api-key header", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "azure",
         adapter: LLMAdapter.Azure,
         model: "gpt4o-deployment",
         max_tokens: 64,
+        providerOptions: { logit_bias: { "42": 1 } },
       },
       apiKey: "azure-key",
       baseURL: "https://my-instance.openai.azure.com/openai/deployments",
@@ -255,6 +342,48 @@ describe("AI SDK request shapes", () => {
     );
     expect(request.headers.get("api-key")).toBe("azure-key");
     expect(request.headers.get("x-custom")).toBe("1");
+    expect(request.body.logit_bias).toEqual({ "42": 1 });
+    expect(request.body.max_tokens).toBe(64);
+  });
+
+  it("Azure: deployment-specific stored URL is normalized before request construction", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "azure",
+        adapter: LLMAdapter.Azure,
+        model: "gpt4o-deployment",
+        max_tokens: 64,
+      },
+      apiKey: "azure-key",
+      baseURL:
+        "https://my-instance.openai.azure.com/openai/deployments/gpt4o-deployment",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.url).toBe(
+      "https://my-instance.openai.azure.com/openai/deployments/gpt4o-deployment/chat/completions?api-version=2025-02-01-preview",
+    );
+    expect(request.headers.get("api-key")).toBe("azure-key");
+  });
+
+  it("OpenAI chat completions: gpt-5.4 mini keeps non-reasoning request params", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-5.4-mini",
+        max_tokens: 64,
+        temperature: 0.2,
+        top_p: 0.9,
+      },
+      apiKey: "openai-key",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.max_tokens).toBe(64);
+    expect(request.body.max_completion_tokens).toBeUndefined();
+    expect(request.body.temperature).toBe(0.2);
+    expect(request.body.top_p).toBe(0.9);
   });
 
   it("Anthropic: /v1/messages on a custom origin with snake_case thinking body", async () => {
@@ -275,10 +404,8 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("x-api-key")).toBe("anthropic-key");
     expect(request.headers.get("anthropic-version")).toBeTruthy();
     expect(request.body.model).toBe("claude-sonnet-5");
-    // Known engine difference: with thinking enabled the AI SDK sends
-    // maxOutputTokens + budgetTokens as max_tokens (the budget counts toward
-    // the limit), where LangChain sent max_tokens verbatim and Anthropic
-    // rejected configs with max_tokens <= budget_tokens.
+    // With thinking enabled, the budget counts toward Anthropic's max_tokens,
+    // so the provider adds maxOutputTokens and budgetTokens.
     expect(request.body.max_tokens).toBe(256 + 1024);
     expect(request.body.thinking).toEqual({
       type: "enabled",
@@ -329,8 +456,7 @@ describe("AI SDK request shapes", () => {
       response: GOOGLE_RESPONSE,
     });
 
-    // Known engine difference: the AI SDK targets the v1beta1 Vertex API
-    // (LangChain used v1); both serve generateContent with the same contract.
+    // The Google Vertex provider targets the v1beta1 generateContent API.
     expect(request.url).toBe(
       "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent",
     );
@@ -380,33 +506,27 @@ describe("AI SDK request shapes", () => {
     };
     const llmConnectionConfig = { region: "us-east-1" };
 
-    const decision = resolveLlmExecutionDecision({
-      modelParams,
-      llmConnectionConfig,
-      enabledAdapters: ALL_ADAPTERS,
-    });
-    if (decision.engine !== "ai-sdk") {
-      throw new Error("Expected the AI SDK engine to be selected");
-    }
-
     const { calls, fetch } = createCaptureFetch(BEDROCK_RESPONSE);
     vi.stubGlobal("fetch", fetch);
 
-    const result = await executeAiSdkCompletion({
-      messages,
-      modelParams,
-      streaming: false,
-      apiKey: JSON.stringify({
-        accessKeyId: "AKIA123",
-        secretAccessKey: "secret",
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        messages,
+        modelParams,
+        connection: {
+          secretKey: encrypt(
+            JSON.stringify({
+              accessKeyId: "AKIA123",
+              secretAccessKey: "secret",
+            }),
+          ),
+          config: llmConnectionConfig,
+        },
       }),
-      llmConnectionConfig,
-      timeoutMs: 10_000,
-      createFetch: () => fetch,
-      decision,
+      timeout: 10_000,
     });
 
-    expect(result).toBe("ok");
+    expect(result.text).toBe("ok");
     expect(calls).toHaveLength(1);
     return calls[0];
   }

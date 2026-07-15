@@ -9,7 +9,6 @@ import GCPServiceAccountKeySchema, {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
-import type { ModelParams } from "../../types";
 
 const VERTEX_AI_AUTH_SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
@@ -51,24 +50,21 @@ export function assertValidVertexLocation(location: string | undefined): void {
 
 /**
  * Builds a Vertex AI model: Gemini via `@ai-sdk/google-vertex`, Claude via its
- * `/anthropic` entry point (Anthropic Messages over Vertex `rawPredict`),
- * mirroring the LangChain split between `ChatGoogle` and
- * `ChatAnthropic`+`AnthropicVertex`.
+ * `/anthropic` entry point (Anthropic Messages over Vertex `rawPredict`).
  *
- * Credentials mirror the LangChain path: the decrypted secret is either a GCP
- * service account key (project taken from the key; user-supplied project IDs
- * are never honored) or the ADC sentinel, allowed only in self-hosted
- * deployments, in which case the project is resolved from the default
- * credential chain.
+ * The decrypted secret is either a GCP service account key (project taken from
+ * the key; user-supplied project IDs are never honored) or the ADC sentinel,
+ * allowed only in self-hosted deployments, in which case the project is
+ * resolved from the default credential chain.
  */
 export async function buildVertexModel(params: {
-  modelParams: ModelParams;
+  modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   extraHeaders?: Record<string, string>;
   fetch: typeof fetch;
 }): Promise<LanguageModel> {
-  const { modelParams, apiKey, config, extraHeaders } = params;
+  const { modelId, apiKey, config, extraHeaders } = params;
 
   const { location } = config
     ? VertexAIConfigSchema.parse(config)
@@ -97,11 +93,11 @@ export async function buildVertexModel(params: {
     serviceAccountKey?.project_id ??
     (await new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES }).getProjectId());
 
-  // LangChain defaults the location to "global" for both model families.
+  // Existing connections default the location to "global" for both families.
   const resolvedLocation = location ?? "global";
 
-  if (isClaudeModel(modelParams.model)) {
-    assertValidAnthropicVertexModelName(modelParams.model);
+  if (isClaudeModel(modelId)) {
+    assertValidAnthropicVertexModelName(modelId);
 
     const provider = createVertexAnthropic({
       project,
@@ -111,11 +107,11 @@ export async function buildVertexModel(params: {
       fetch: params.fetch,
     });
 
-    return provider(modelParams.model);
+    return provider(modelId);
   }
 
-  // Note: extra headers are intentionally not sent for Gemini — the LangChain
-  // engine's Vertex client only injects the OAuth headers.
+  // Extra headers are intentionally not sent for Gemini; only the OAuth
+  // headers belong on this request path.
   const provider = createVertex({
     project,
     location: resolvedLocation,
@@ -123,5 +119,5 @@ export async function buildVertexModel(params: {
     fetch: params.fetch,
   });
 
-  return provider(modelParams.model);
+  return provider(modelId);
 }

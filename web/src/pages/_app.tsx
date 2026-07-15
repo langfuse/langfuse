@@ -1,3 +1,8 @@
+// Must stay the first import: installs a `crypto.randomUUID` fallback for
+// non-secure (plain-HTTP) origins before any other module can call it
+// (LFE-10858).
+import "@/src/polyfills/crypto-random-uuid";
+
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";

@@ -1,3 +1,7 @@
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 // Mock queue operations to avoid Redis dependency in tests
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
@@ -40,6 +44,7 @@ import {
   createTraceScore,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
+import { MonitorService } from "@langfuse/shared/monitors/server";
 import {
   createMcpTestSetup,
   createPromptInDb,
@@ -53,6 +58,7 @@ import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import {
   buildEvaluatorUrl,
+  buildMonitorUrl,
   buildObservationUrl,
   buildPromptUrl,
   buildTraceUrl,
@@ -154,6 +160,14 @@ import {
 import { handleUpsertEvaluator } from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
 import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
 import {
+  getMonitorTool,
+  handleGetMonitor,
+} from "@/src/features/mcp/features/monitors/tools/getMonitor";
+import {
+  listMonitorsTool,
+  handleListMonitors,
+} from "@/src/features/mcp/features/monitors/tools/listMonitors";
+import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
@@ -182,6 +196,39 @@ const createLlmEvaluatorForMcpReadTest = async (
     },
     setup.context,
   )) as { id: string; name: string };
+};
+
+const createMonitorForMcpReadTest = async (
+  setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+  params: { name: string; tags?: string[] },
+) => {
+  const user = await prisma.user.create({
+    data: {
+      id: randomUUID(),
+      email: `mcp-monitor-${nanoid()}@example.com`,
+      name: "MCP Monitor Test User",
+    },
+  });
+
+  return MonitorService.create(
+    { userId: user.id },
+    {
+      projectId: setup.projectId,
+      view: "observations",
+      filters: [],
+      metric: { measure: "count", aggregation: "count" },
+      window: "5m",
+      thresholdOperator: "GT",
+      alertThreshold: 100,
+      warningThreshold: null,
+      noData: { mode: "SHOW_NO_DATA" },
+      renotify: { mode: "OFF" },
+      status: "ACTIVE",
+      name: params.name,
+      tags: params.tags ?? [],
+      triggerIds: ["mcp-test-trigger"],
+    },
+  );
 };
 
 const createEvaluationRuleForMcpReadTest = async (
@@ -302,6 +349,131 @@ const containsPropertyName = (value: unknown, expected: string): boolean => {
 };
 
 describe("MCP Read Tools", () => {
+  describe("listMonitors tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listMonitorsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(listMonitorsTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should not expose projectId in its input schema", () => {
+      const properties = listMonitorsTool.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
+
+      expect(properties.projectId).toBeUndefined();
+    });
+
+    it("should list, filter, order, and paginate monitors in the current project", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const tag = `mcp-monitor-${nanoid()}`;
+      const first = await createMonitorForMcpReadTest(setup, {
+        name: `A monitor ${nanoid()}`,
+        tags: [tag],
+      });
+      await createMonitorForMcpReadTest(setup, {
+        name: `B monitor ${nanoid()}`,
+        tags: [tag],
+      });
+      await createMonitorForMcpReadTest(otherSetup, {
+        name: `Other project monitor ${nanoid()}`,
+        tags: [tag],
+      });
+
+      const result = (await handleListMonitors(
+        {
+          orderBy: { column: "name", order: "ASC" },
+          filter: [
+            {
+              type: "arrayOptions",
+              column: "tags",
+              operator: "any of",
+              value: [tag],
+            },
+          ],
+          page: 1,
+          limit: 1,
+        },
+        setup.context,
+      )) as {
+        data: Array<{ id: string; url: string }>;
+        meta: { totalItems: number; totalPages: number };
+      };
+
+      expect(result).toEqual({
+        data: [
+          expect.objectContaining({
+            id: first.id,
+            url: buildMonitorUrl({
+              projectId: setup.projectId,
+              monitorId: first.id,
+            }),
+          }),
+        ],
+        meta: expect.objectContaining({ totalItems: 2, totalPages: 2 }),
+      });
+    });
+  });
+
+  describe("getMonitor tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getMonitorTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({
+        inAppAgent: { permissions: "read" },
+      });
+
+      await expect(
+        toolRegistry.getEnabledTool(getMonitorTool.name, context),
+      ).resolves.toBeDefined();
+    });
+
+    it("should fetch a monitor by id", async () => {
+      const setup = await createMcpTestSetup();
+      const monitor = await createMonitorForMcpReadTest(setup, {
+        name: `Get monitor ${nanoid()}`,
+      });
+
+      await expect(
+        handleGetMonitor({ monitorId: monitor.id }, setup.context),
+      ).resolves.toMatchObject({
+        id: monitor.id,
+        name: monitor.name,
+        url: buildMonitorUrl({
+          projectId: setup.projectId,
+          monitorId: monitor.id,
+        }),
+      });
+    });
+
+    it("should reject missing and cross-project monitors", async () => {
+      const setup = await createMcpTestSetup();
+      const otherSetup = await createMcpTestSetup();
+      const monitor = await createMonitorForMcpReadTest(setup, {
+        name: `Isolated monitor ${nanoid()}`,
+      });
+
+      await expect(
+        handleGetMonitor({ monitorId: randomUUID() }, setup.context),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleGetMonitor({ monitorId: monitor.id }, otherSetup.context),
+      ).rejects.toThrow(/not found/i);
+    });
+  });
+
   describe("dataset tool schemas", () => {
     it("uses dataset IDs for existing dataset read addressing", () => {
       for (const schema of [

@@ -85,6 +85,7 @@ import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import {
   getTraceById,
+  getTraceByIdFromEventsTable,
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
@@ -508,7 +509,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
 
-  const clickhouseTrace = traceId
+  let clickhouseTrace = traceId
     ? // eslint-disable-next-line @typescript-eslint/no-deprecated
       await getTraceById({
         traceId,
@@ -521,6 +522,29 @@ const enforceTraceAccess = t.middleware(async (opts) => {
         },
       })
     : null;
+
+  // In dual write mode the lookup above reads the legacy traces table, but
+  // internally produced traces (e.g. code-eval execution traces) were written
+  // to the events tables only — fall back so trace-level auth does not 404 on
+  // a trace the events-backed views can render (LFE-10884). Gated on "dual"
+  // because in "legacy" mode the events tables may not exist and in
+  // "events_only" mode getTraceById already read them.
+  if (
+    traceId &&
+    !clickhouseTrace &&
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual"
+  ) {
+    clickhouseTrace = await getTraceByIdFromEventsTable({
+      traceId,
+      projectId,
+      timestamp: timestamp ?? undefined,
+      fromTimestamp: fromTimestamp ?? undefined,
+      renderingProps: {
+        truncated: verbosity === "truncated",
+        shouldJsonParse: false,
+      },
+    });
+  }
 
   if (traceId && !clickhouseTrace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);

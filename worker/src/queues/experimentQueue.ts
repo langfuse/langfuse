@@ -4,7 +4,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
-  isLLMCompletionError,
+  classifyEvaluatorLlmError,
   logger,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -21,7 +21,9 @@ export const experimentCreateQueueProcessor = async (
     });
     return true;
   } catch (e) {
-    if (isLLMCompletionError(e) && e.isRetryable) {
+    const llmError = classifyEvaluatorLlmError(e);
+
+    if (llmError?.isRetryable) {
       const retryResult = await retryLLMRateLimitError(job, {
         table: "dataset_runs",
         idField: "runId",
@@ -34,7 +36,7 @@ export const experimentCreateQueueProcessor = async (
       if (retryResult.outcome === "queue_unavailable") throw e;
     }
 
-    if (isLLMCompletionError(e) || isUnrecoverableError(e)) return;
+    if (llmError || isUnrecoverableError(e)) return;
 
     logger.error(
       `Failed to process experiment create job for project: ${job.data.payload.projectId}`,
