@@ -179,6 +179,7 @@ type IOSizeCapRowFields = {
   input_length: string;
   output_length: string;
   metadata_truncated: 0 | 1;
+  metadata_length: string;
 };
 
 /**
@@ -192,6 +193,8 @@ export type ObservationIOSizeFields = {
   inputTruncated: boolean;
   outputTruncated: boolean;
   metadataTruncated: boolean;
+  /** Shipped (capped) metadata weight in chars — for response budgeting. */
+  metadataLength: number;
 };
 
 /**
@@ -578,6 +581,7 @@ export async function getObservationsWithModelDataFromEventsTable(
       inputTruncated: inputLength > inlineChars,
       outputTruncated: outputLength > inlineChars,
       metadataTruncated: Boolean(Number(record.metadata_truncated ?? 0)),
+      metadataLength: Number(record.metadata_length ?? 0),
     };
   });
 }
@@ -829,8 +833,23 @@ async function getObservationsFromEventsTableInternal<T>(
     .when(isTraceDeleteCursorSelect, (b) =>
       applyOrderByForObservationsQuery(b).limitBy("e.trace_id", "e.project_id"),
     )
-    .when(!isTraceDeleteCursorSelect && orderByEntries.length > 0, (b) =>
-      b.orderByColumns(orderByEntries),
+    .when(
+      !isTraceDeleteCursorSelect &&
+        (orderByEntries.length > 0 || Boolean(opts.dedupeBySpanId)),
+      (b) =>
+        b.orderByColumns(
+          opts.dedupeBySpanId
+            ? // event_ts DESC within the caller's order so LIMIT 1 BY keeps
+              // the newest version of each span.
+              [
+                ...orderByEntries,
+                { column: "e.event_ts", direction: "DESC" as const },
+              ]
+            : orderByEntries,
+        ),
+    )
+    .when(!isTraceDeleteCursorSelect && Boolean(opts.dedupeBySpanId), (b) =>
+      b.limitBy("e.span_id", "e.project_id"),
     )
     .limit(limit, isTraceDeleteCursorSelect ? undefined : offset);
 

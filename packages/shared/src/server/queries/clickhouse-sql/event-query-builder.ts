@@ -1160,9 +1160,9 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       }
     }
 
-    // Size-capped metadata: same per-value policy as I/O, plus a flag so
-    // callers can surface that values were capped. Mirrors the arrayReverse
-    // (last-wins) semantics of the default metadata expression.
+    // Size-capped metadata: same per-value policy as I/O, plus a truncation
+    // flag and the shipped size so callers can budget and surface capping.
+    // Mirrors the arrayReverse shape of the default metadata expression.
     if (
       this.ioFields?.mode === "sizeCapped" &&
       this.selectFields.has("metadata")
@@ -1170,7 +1170,16 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
       const { inlineChars, previewChars } = this.ioFields;
       fieldExpressions.push(
         `mapFromArrays(arrayReverse(e.metadata_names), arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, v, leftUTF8(v, ${previewChars})), arrayReverse(e.metadata_values))) as metadata`,
-        `arrayExists(v -> lengthUTF8(v) > ${inlineChars}, e.metadata_values) as metadata_truncated`,
+        // The flag checks only each key's WINNING value. A duplicate key ships
+        // both entries in the Map's JSON, and the client's JSON.parse keeps the
+        // last textual duplicate — with the arrayReverse above that resolves to
+        // the FIRST occurrence in the original arrays. A capped value that is
+        // shadowed by a small winner must not raise the flag (verified against
+        // ClickHouse + JSON.parse semantics).
+        `arrayExists((v, i) -> lengthUTF8(v) > ${inlineChars} AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated`,
+        // Shipped metadata weight: every (capped) value counts, duplicates
+        // included, because duplicates are physically in the response.
+        `arraySum(arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, lengthUTF8(v), ${previewChars}), e.metadata_values)) as metadata_length`,
       );
     }
 

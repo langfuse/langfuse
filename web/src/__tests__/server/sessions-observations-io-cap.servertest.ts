@@ -239,6 +239,125 @@ maybe("sessions observations bounded I/O (events)", () => {
     expect(last.inputLength).toBe(nearCap.length);
   });
 
+  it("collapses un-merged span versions to one observation (newest wins)", async () => {
+    const sessionId = randomUUID();
+    const traceId = randomUUID();
+    const spanId = `${traceId}-o0`;
+    const baseTime = Date.now();
+
+    // Create + update pair for ONE span: two ReplacingMergeTree row versions
+    // sharing span_id, distinguished by event_ts. Until the background merge
+    // runs, both rows are physically present — the card's row counting must
+    // see one observation, with the newest version's payload.
+    const shared = {
+      span_id: spanId,
+      id: spanId,
+      trace_id: traceId,
+      project_id: projectId,
+      parent_span_id: "",
+      type: "GENERATION",
+      session_id: sessionId,
+      user_id: "user-a",
+      start_time: baseTime * 1000,
+    } as const;
+    await createEventsCh([
+      createEvent({
+        ...shared,
+        input: "prompt",
+        output: "",
+        event_ts: baseTime * 1000,
+      }),
+      createEvent({
+        ...shared,
+        input: "prompt",
+        output: "completed answer",
+        event_ts: (baseTime + 5000) * 1000,
+      }),
+    ]);
+
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+      expect(result.observations.length).toBeGreaterThanOrEqual(1);
+    });
+
+    const { observations, hasMoreObservations } =
+      await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+
+    expect(observations.length).toBe(1);
+    expect(hasMoreObservations).toBe(false);
+    expect(observations[0].output).toBe("completed answer");
+  });
+
+  it("does not flag metadata truncation when a capped value is shadowed by a small winner", async () => {
+    // Duplicate metadata key where the client-visible winner (first original
+    // occurrence) is small and an oversized duplicate is shadowed: the flag
+    // must stay false — the reader can see everything the card shows.
+    const bigValue = "m".repeat(INLINE_LIMIT + 50);
+    const { sessionId, traceId } = await seedObservations([
+      {
+        metadataNames: ["k", "k"],
+        metadataValues: ["small-winner", bigValue],
+      },
+    ]);
+
+    const { observations } =
+      await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+
+    const observation = observations[0];
+    expect((observation.metadata as Record<string, unknown>).k).toBe(
+      "small-winner",
+    );
+    expect(observation.metadataTruncated).toBe(false);
+  });
+
+  it("counts metadata toward the cumulative budget and drops it past the ceiling", async () => {
+    // Tiny I/O but ~290K of metadata per observation: 8 observations exceed
+    // the 2M budget on metadata weight alone; past the ceiling metadata is
+    // dropped and flagged instead of shipped.
+    const bigMeta = "m".repeat(290_000);
+    const { sessionId, traceId } = await seedObservations(
+      Array.from({ length: 8 }, () => ({
+        input: "in",
+        output: "out",
+        metadataNames: ["payload"],
+        metadataValues: [bigMeta],
+      })),
+    );
+
+    const { observations } =
+      await caller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+
+    const first = observations[0];
+    expect(first.metadataTruncated).toBe(false);
+    expect(
+      String((first.metadata as Record<string, unknown>).payload).length,
+    ).toBe(290_000);
+
+    const last = observations[observations.length - 1];
+    expect(last.metadataTruncated).toBe(true);
+    expect(last.metadata).toEqual({});
+  });
+
   it("serves full I/O for one observation via observationFullIOFromEvents, scoped to the session", async () => {
     const bigInput = "c".repeat(INLINE_LIMIT + 100);
     const { sessionId, traceId, baseTime } = await seedObservations([

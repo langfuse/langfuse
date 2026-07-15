@@ -870,6 +870,10 @@ export const sessionRouter = createTRPCRouter({
           inlineChars: SESSION_OBSERVATION_INLINE_IO_CHAR_LIMIT,
           previewChars: SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
         },
+        // Un-merged ReplacingMergeTree row versions of one span must not
+        // count as separate observations: the 50-row page, the hasMore
+        // detection, and the budget below all count rows.
+        dedupeBySpanId: true,
       });
 
       const hasMoreObservations =
@@ -882,21 +886,27 @@ export const sessionRouter = createTRPCRouter({
       // Preview head of a value regardless of parse state: I/O is a raw
       // string on this path, but if conversion ever starts returning parsed
       // objects the budget must keep holding — hence the stringify branch.
+      // The cut is surrogate-safe: plain .slice can split an astral-plane
+      // character (emoji/CJK) and leave a corrupted lone surrogate — the SQL
+      // side avoids this via leftUTF8, so the JS fallback must too.
       const toPreviewHead = (value: unknown): unknown => {
         const text =
           typeof value === "string" ? value : (JSON.stringify(value) ?? "");
-        return text.length > SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
-          ? text.slice(0, SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT)
-          : value;
+        if (text.length <= SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT)
+          return value;
+        const head = text.slice(0, SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT);
+        const lastCode = head.charCodeAt(head.length - 1);
+        return lastCode >= 0xd800 && lastCode <= 0xdbff
+          ? head.slice(0, -1)
+          : head;
       };
 
-      // Cumulative budget: rows are order-stable (startTime ASC), so the trim
-      // is deterministic. The check runs before adding the row's own size, so
-      // the first observation always keeps whatever the per-field cap allowed.
-      // Sizes come from the server-computed lengths + flags, NOT from the
-      // returned values, so the accounting is independent of value shape:
-      // an under-cap field returned whole counts its full length, an over-cap
-      // field counts only its preview head.
+      // Cumulative budget: rows are order-stable (startTime ASC + span-dedup),
+      // so the trim is deterministic. The check runs before adding the row's
+      // own size, so the first observation always keeps whatever the per-field
+      // cap allowed. Sizes come from the server-computed lengths + flags —
+      // including the shipped metadata weight — NOT from the returned values,
+      // so the accounting is independent of value shape.
       let cumulativeIOChars = 0;
       const observations = page.map((observation) => {
         const returnedIOChars =
@@ -905,7 +915,8 @@ export const sessionRouter = createTRPCRouter({
             : observation.inputLength) +
           (observation.outputTruncated
             ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
-            : observation.outputLength);
+            : observation.outputLength) +
+          observation.metadataLength;
         const withinBudget =
           cumulativeIOChars <= SESSION_TRACE_TOTAL_IO_CHAR_BUDGET;
         cumulativeIOChars += returnedIOChars;
@@ -917,6 +928,11 @@ export const sessionRouter = createTRPCRouter({
           ...observation,
           input,
           output,
+          // Past the budget, metadata is dropped rather than shipped — the
+          // flag routes readers to the trace view for the full values.
+          metadata: {},
+          metadataTruncated:
+            observation.metadataTruncated || observation.metadataLength > 0,
           inputTruncated:
             observation.inputTruncated || input !== observation.input,
           outputTruncated:

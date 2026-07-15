@@ -40,8 +40,13 @@ describe("EventsQueryBuilder.selectIOWithSizeCap", () => {
     expect(query).toContain(
       "arrayMap(v -> if(lengthUTF8(v) <= 300000, v, leftUTF8(v, 4000)), arrayReverse(e.metadata_values))",
     );
+    // The flag only fires for a key's winning value (a shadowed duplicate
+    // must not raise it), and the shipped weight counts every capped value.
     expect(query).toContain(
-      "arrayExists(v -> lengthUTF8(v) > 300000, e.metadata_values) as metadata_truncated",
+      "arrayExists((v, i) -> lengthUTF8(v) > 300000 AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated",
+    );
+    expect(query).toContain(
+      "arraySum(arrayMap(v -> if(lengthUTF8(v) <= 300000, lengthUTF8(v), 4000), e.metadata_values)) as metadata_length",
     );
     // The default full-value metadata expression must not also be present.
     expect(query).not.toContain(
