@@ -32,6 +32,7 @@ import {
   getSessionMetricsFromEvents,
   getSessionTracesFromEvents,
   getObservationsWithModelDataFromEventsTable,
+  getObservationFullIOForSessionFromEventsTable,
   getTracesGroupedByTags,
   getTracesIdentifierForSession,
   getScoresForTraces,
@@ -69,6 +70,26 @@ const SessionTraceObservationsInput = z.object({
   traceId: z.string(),
   filter: z.array(singleFilter).nullable(),
 });
+
+/**
+ * Bounded I/O contract for session-detail trace cards (LFE-10958). Cards are
+ * previews: every observation field whose full length fits the inline limit
+ * renders exactly as before; anything larger ships only a preview head plus
+ * its true length, and the trace peek / download are the full-reading
+ * surfaces. The inline limit matches the pretty view's client-side parse cap
+ * (deepParseJson maxSize) so under-cap cards are behavior-identical.
+ */
+const SESSION_OBSERVATION_INLINE_IO_CHAR_LIMIT = 300_000;
+const SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT = 4_000;
+/** Cards show at most this many observations; the peek shows the rest. */
+const SESSION_OBSERVATIONS_PER_TRACE_LIMIT = 50;
+/**
+ * Cumulative per-card I/O budget: once the summed returned I/O passes this,
+ * later observations collapse to preview heads even when each field is under
+ * the inline limit — many just-under-cap observations must not add up to an
+ * unbounded response.
+ */
+const SESSION_TRACE_TOTAL_IO_CHAR_BUDGET = 2_000_000;
 
 const handleGetSessionById = async (input: {
   sessionId: string;
@@ -814,7 +835,10 @@ export const sessionRouter = createTRPCRouter({
       ];
 
       let orderBy: OrderByState = { column: "startTime", order: "ASC" };
-      let limit: number | undefined;
+      // One extra row detects "more observations than the card shows", and
+      // one more because the synthetic trace-level row (id `t-<traceId>`)
+      // may sit in the fetched window without consuming a card slot.
+      let limit: number = SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 2;
       let offset: number | undefined;
 
       if (positionFilter) {
@@ -832,7 +856,10 @@ export const sessionRouter = createTRPCRouter({
         limit = 1;
       }
 
-      const observations = await getObservationsWithModelDataFromEventsTable({
+      // No renderingProps: ioSizeCap owns the I/O select, and this path's
+      // conversion always returns I/O as raw strings (the V1 enricher
+      // hardcodes parseIoAsJson=false) — the client parses.
+      const fetched = await getObservationsWithModelDataFromEventsTable({
         projectId: input.projectId,
         filter: filterState,
         searchQuery: undefined,
@@ -841,10 +868,132 @@ export const sessionRouter = createTRPCRouter({
         limit,
         offset,
         selectIOAndMetadata: true,
-        renderingProps: { truncated: false, shouldJsonParse: true },
+        ioSizeCap: {
+          inlineChars: SESSION_OBSERVATION_INLINE_IO_CHAR_LIMIT,
+          previewChars: SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
+        },
+        // Un-merged ReplacingMergeTree row versions of one span must not
+        // count as separate observations: the 50-row page, the hasMore
+        // detection, and the budget below all count rows.
+        dedupeBySpanId: true,
       });
 
-      return observations;
+      // The synthetic trace-level row is metadata about the trace, not one of
+      // its observations: it must neither consume one of the card's slots
+      // (displacing a real observation) nor count toward hasMore. The client
+      // decides whether to show or drop it (redundancy dedupe).
+      const syntheticTraceRowId = `t-${input.traceId}`;
+      const realFetchedCount = fetched.filter(
+        (observation) => observation.id !== syntheticTraceRowId,
+      ).length;
+      const hasMoreObservations =
+        !positionFilter &&
+        realFetchedCount > SESSION_OBSERVATIONS_PER_TRACE_LIMIT;
+      let realTaken = 0;
+      const page: typeof fetched = [];
+      for (const observation of fetched) {
+        if (observation.id === syntheticTraceRowId) {
+          page.push(observation);
+          continue;
+        }
+        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT) continue;
+        page.push(observation);
+        realTaken++;
+      }
+
+      // Preview head of a value regardless of parse state: I/O is a raw
+      // string on this path, but if conversion ever starts returning parsed
+      // objects the budget must keep holding — hence the stringify branch.
+      // The cut is surrogate-safe: plain .slice can split an astral-plane
+      // character (emoji/CJK) and leave a corrupted lone surrogate — the SQL
+      // side avoids this via leftUTF8, so the JS fallback must too.
+      const toPreviewHead = (value: unknown): unknown => {
+        const text =
+          typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+        if (text.length <= SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT)
+          return value;
+        const head = text.slice(0, SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT);
+        const lastCode = head.charCodeAt(head.length - 1);
+        return lastCode >= 0xd800 && lastCode <= 0xdbff
+          ? head.slice(0, -1)
+          : head;
+      };
+
+      // Cumulative budget: rows are order-stable (startTime ASC + span-dedup),
+      // so the trim is deterministic. The check runs before adding the row's
+      // own size, so the first observation always keeps whatever the per-field
+      // cap allowed. Sizes come from the server-computed lengths + flags —
+      // including the shipped metadata weight — NOT from the returned values,
+      // so the accounting is independent of value shape.
+      let cumulativeIOChars = 0;
+      const observations = page.map((observation) => {
+        const returnedIOChars =
+          (observation.inputTruncated
+            ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
+            : observation.inputLength) +
+          (observation.outputTruncated
+            ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
+            : observation.outputLength) +
+          observation.metadataLength;
+        const withinBudget =
+          cumulativeIOChars <= SESSION_TRACE_TOTAL_IO_CHAR_BUDGET;
+        cumulativeIOChars += returnedIOChars;
+        if (withinBudget) return observation;
+
+        const input = toPreviewHead(observation.input);
+        const output = toPreviewHead(observation.output);
+        return {
+          ...observation,
+          input,
+          output,
+          // Past the budget, metadata is dropped rather than shipped — the
+          // flag routes readers to the trace view for the full values.
+          metadata: {},
+          metadataTruncated:
+            observation.metadataTruncated || observation.metadataLength > 0,
+          inputTruncated:
+            observation.inputTruncated || input !== observation.input,
+          outputTruncated:
+            observation.outputTruncated || output !== observation.output,
+        };
+      });
+
+      return { observations, hasMoreObservations };
+    }),
+  /**
+   * Full raw I/O for one observation, for the session card's download
+   * fallback (LFE-10958). Session-authorized (public sessions included); the
+   * repository query scopes by sessionId so a session grant cannot read
+   * observations outside that session. Returns raw strings — the client
+   * saves them to a file and never renders them.
+   */
+  observationFullIOFromEvents: protectedGetSessionProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+        traceId: z.string(),
+        observationId: z.string(),
+        startTime: z.date(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const observation = await getObservationFullIOForSessionFromEventsTable({
+        projectId: input.projectId,
+        sessionId: input.sessionId,
+        traceId: input.traceId,
+        observationId: input.observationId,
+        startTime: input.startTime,
+      });
+
+      if (!observation) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Observation not found in session",
+        });
+      }
+
+      return observation;
     }),
   bookmark: protectedProjectProcedure
     .input(

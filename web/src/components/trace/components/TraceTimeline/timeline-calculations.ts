@@ -91,10 +91,15 @@ export function calculateTraceDuration(
   return Math.max(spanFromEnds, maxRootLatencySpan);
 }
 
-// Predefined step sizes for time axis (in seconds)
+// Predefined step sizes for time axis (in seconds). Above 500s the steps land
+// on time-nice boundaries (10m, 15m, 20m, 30m, 45m, 1h, 1.5h, 2h, 3h, 4h, 6h,
+// 12h, 24h) so hour-scale traces get clean tick labels — without the upper
+// entries, multi-hour traces clamped to 500s and rendered ~2× the intended
+// tick density with overlapping labels (LFE-10959).
 export const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
-  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
+  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 900, 1200,
+  1800, 2700, 3600, 5400, 7200, 10800, 14400, 21600, 43200, 86400,
 ];
 
 /**
@@ -143,10 +148,18 @@ export function calculateStepSize(
   scaleWidth: number = SCALE_WIDTH,
 ): number {
   const calculatedStepSize = traceDuration / (scaleWidth / STEP_SIZE);
-  return (
-    PREDEFINED_STEP_SIZES.find((step) => step >= calculatedStepSize) ||
-    PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
+  const predefined = PREDEFINED_STEP_SIZES.find(
+    (step) => step >= calculatedStepSize,
   );
+  if (predefined !== undefined) return predefined;
+  if (!Number.isFinite(calculatedStepSize)) {
+    return PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1];
+  }
+  // Beyond the largest predefined step (multi-day traces): whole days keep the
+  // marker count bounded (never clamp to a smaller step — that multiplies the
+  // tick count and the labels overlap, LFE-10959).
+  const DAY = 86_400;
+  return Math.ceil(calculatedStepSize / DAY) * DAY;
 }
 
 /**

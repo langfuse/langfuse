@@ -14,11 +14,11 @@ import {
   TracingSearchType,
 } from "@langfuse/shared";
 import {
+  buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
   getDistinctScoreNames,
   queryClickhouseStream,
   logger,
-  eventsScoresAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -65,39 +65,15 @@ export const getEventsStream = async (props: {
     },
   };
 
-  const {
-    query,
-    params: queryParams,
-    eventOnlyFilters,
-  } = buildEventsStreamQuery({
+  const { queryBuilder, eventOnlyFilters } = buildEventsBlobExportStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) =>
-      builder
-        .selectFieldSet("export")
-        .selectIO(false) // Full I/O, no truncation
-        .selectMetadataExpanded() // Full metadata values from events_full
-        .selectRaw(
-          "s.scores_avg as scores_avg",
-          "s.score_categories as score_categories",
-          "s.score_categories_tuples as score_categories_tuples",
-        )
-        .withCTE(
-          "scores_agg",
-          eventsScoresAggregation({
-            projectId,
-            includeTupleEncoding: true,
-          }),
-        )
-        .leftJoin(
-          "scores_agg s",
-          "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
-        ),
   });
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
 
   // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
@@ -321,16 +297,19 @@ export const getEventsStreamForDataset = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const { query, params: queryParams } = buildEventsStreamQuery({
+  const { queryBuilder } = buildEventsStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) =>
-      builder.selectFieldSet("core").selectIO(false).selectFieldSet("metadata"),
   });
+  const { query, params: queryParams } = queryBuilder
+    .selectFieldSet("core")
+    .selectIO(false)
+    .selectFieldSet("metadata")
+    .buildWithParams();
 
   type DatasetEventRow = {
     id: string;
@@ -391,15 +370,17 @@ export const getEventsStreamForAnnotationQueue = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const { query, params: queryParams } = buildEventsStreamQuery({
+  const { queryBuilder } = buildEventsStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) => builder.selectFieldSet("core"),
   });
+  const { query, params: queryParams } = queryBuilder
+    .selectFieldSet("core")
+    .buildWithParams();
 
   type AnnotationQueueEventRow = {
     id: string;

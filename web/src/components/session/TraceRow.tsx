@@ -81,8 +81,10 @@ const TraceRow = React.memo(
                 }}
               >
                 <ItemBadge type="TRACE" isSmall />
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium">
+                {/* min-w-0 + wrap-break-word: an unbroken long trace name
+                    must wrap inside the panel, not escape the card */}
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-xs font-medium wrap-break-word">
                     {trace.name} ({trace.id})&nbsp;↗
                   </span>
                   <span className="text-muted-foreground text-xs">
