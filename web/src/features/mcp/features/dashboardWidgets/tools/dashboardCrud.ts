@@ -363,9 +363,10 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     description:
       "Add a widget or preset placement to a dashboard's 12-column grid. " +
       "Prefer omitting id and position: the server generates an id and " +
-      "appends the tile below existing ones at the default 6x6 size, so no " +
-      "layout reasoning is needed. Explicit positions are not checked for " +
-      "overlap. Returns the created placement.",
+      "appends the tile below existing ones at the default 6x6 size. Explicit " +
+      "positions are not checked for overlap. After adding, call getDashboard " +
+      "to verify the full grid arrangement; use updateDashboardPlacement to " +
+      "move or resize the new tile when needed. Returns the created placement.",
     baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
