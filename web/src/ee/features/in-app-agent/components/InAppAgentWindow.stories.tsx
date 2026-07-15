@@ -6,6 +6,7 @@ import {
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import { getInAppAgentQuickActionContext } from "@/src/ee/features/in-app-agent/quickActions";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
@@ -521,6 +522,8 @@ const meta = preview.meta({
     onExpandedChange: fn(),
     onSubmit: fn(),
     onSubmitFeedback: fn(),
+    quickActionContext: getInAppAgentQuickActionContext("/"),
+    quickActionResetKey: "/",
     screenContextDescription: { type: "page" as const },
     showCloseButton: true,
   },
@@ -569,6 +572,7 @@ export const ToolApprovalRequired = meta.story({
 export const Empty = meta.story({
   args: {
     messages: [],
+    quickActionContext: "tracing",
   },
 });
 

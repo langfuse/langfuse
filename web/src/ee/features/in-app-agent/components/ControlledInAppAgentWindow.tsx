@@ -7,6 +7,7 @@ import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
+import { getInAppAgentQuickActionContext } from "@/src/ee/features/in-app-agent/quickActions";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -59,6 +60,7 @@ export function ControlledInAppAgentWindow(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
   );
+  const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
 
   const drawerMessages = useMemo(
     () =>
@@ -84,6 +86,8 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
+      quickActionContext={quickActionContext}
+      quickActionResetKey={router.asPath}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}

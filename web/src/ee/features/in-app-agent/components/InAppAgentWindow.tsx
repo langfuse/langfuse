@@ -9,14 +9,20 @@ import {
 } from "react";
 import {
   BotMessageSquare,
+  Compass,
+  FileJson,
   History,
   Info,
+  LayoutDashboard,
+  Lightbulb,
+  ListTree,
   Maximize2,
   Minimize2,
   Minus,
   Plus,
   SendHorizontal,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -48,25 +54,20 @@ import {
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
+import {
+  IN_APP_AGENT_QUICK_ACTION_AREAS,
+  getInAppAgentQuickActionArea,
+  getInAppAgentQuickActions,
+  type InAppAgentQuickAction,
+  type InAppAgentQuickActionArea,
+  type InAppAgentQuickActionContext,
+  type InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
-const CONVERSATION_STARTERS = [
-  [
-    "Get started with Langfuse",
-    "Where should I start with setting up Langfuse?",
-  ],
-  ["Optimize my setup", "What should I improve in my Langfuse setup?"],
-  [
-    "Find problematic traces",
-    "Show me patterns in failed or low-scoring traces.",
-  ],
-  [
-    "Investigate unusual patterns",
-    "Are there unusual latency or cost patterns recently?",
-  ],
-] as const;
-
 function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   if (!viewport) {
     return;
@@ -76,6 +77,104 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
     top: viewport.scrollHeight,
     behavior: "auto",
   });
+}
+
+const QUICK_ACTION_AREA_ICONS: Record<InAppAgentQuickActionArea, LucideIcon> = {
+  langfuse: Compass,
+  observability: ListTree,
+  dashboards: LayoutDashboard,
+  prompts: FileJson,
+  evaluation: Lightbulb,
+};
+
+function InAppAgentQuickActionPicker({
+  initialContext,
+  isDisabled,
+  onSelectAction,
+}: {
+  initialContext: InAppAgentQuickActionContext;
+  isDisabled: boolean;
+  onSelectAction: (
+    action: InAppAgentQuickAction,
+    context: InAppAgentQuickActionContext,
+    position: number,
+  ) => void;
+}) {
+  const initialArea = getInAppAgentQuickActionArea(initialContext);
+  const [selectedArea, setSelectedArea] = useState(initialArea);
+  const selectedAreaDefinition =
+    IN_APP_AGENT_QUICK_ACTION_AREAS.find(
+      (area) => area.area === selectedArea,
+    ) ?? IN_APP_AGENT_QUICK_ACTION_AREAS[0];
+  const selectedContext =
+    selectedArea === initialArea
+      ? initialContext
+      : selectedAreaDefinition.defaultContext;
+  const selectedActions = getInAppAgentQuickActions(selectedContext);
+
+  return (
+    <>
+      <p className="text-foreground mt-4 text-base font-medium">
+        Welcome to the Langfuse Assistant
+      </p>
+      <p className="text-muted-foreground mt-2 max-w-xs text-center text-sm leading-relaxed">
+        Pick something I can do for you, or just ask below.
+      </p>
+      <p className="text-muted-foreground mt-7 text-xs font-medium tracking-[0.14em] uppercase">
+        Suggestions for
+      </p>
+      <ToggleGroup
+        type="single"
+        value={selectedArea}
+        variant="outline"
+        size="sm"
+        aria-label="Quick action area"
+        className="mt-2 flex max-w-sm flex-wrap gap-2"
+        onValueChange={(value) => {
+          const selectedArea = IN_APP_AGENT_QUICK_ACTION_AREAS.find(
+            (area) => area.area === value,
+          );
+
+          if (selectedArea) {
+            setSelectedArea(selectedArea.area);
+          }
+        }}
+      >
+        {IN_APP_AGENT_QUICK_ACTION_AREAS.map((area) => {
+          const Icon = QUICK_ACTION_AREA_ICONS[area.area];
+
+          return (
+            <ToggleGroupItem
+              key={area.area}
+              value={area.area}
+              disabled={isDisabled}
+              aria-label={area.label}
+              className="text-muted-foreground hover:text-foreground data-[state=on]:border-primary-accent data-[state=on]:bg-primary-accent/10 data-[state=on]:text-foreground h-8 gap-1.5 rounded-full px-3 shadow-xs data-[state=on]:shadow-none"
+            >
+              <Icon aria-hidden="true" className="size-3.5" />
+              {area.label}
+            </ToggleGroupItem>
+          );
+        })}
+      </ToggleGroup>
+      <div className="mt-7 flex max-w-sm flex-col items-center gap-2">
+        {selectedActions.map((action, position) => (
+          <Button
+            key={action.id}
+            type="button"
+            variant="outline"
+            className="bg-card dark:bg-header hover:bg-muted/60 h-auto min-h-9 rounded-full px-5 py-2 text-sm shadow-xs"
+            disabled={isDisabled}
+            onClick={() => {
+              onSelectAction(action, selectedContext, position);
+            }}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
+    </>
+  );
 }
 
 function formatScreenContextNotice(
@@ -177,7 +276,10 @@ export type InAppAgentWindowProps = {
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onSubmit: (input: string) => boolean | Promise<boolean>;
+  onSubmit: (
+    input: string,
+    options?: InAppAgentSubmitOptions,
+  ) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -185,6 +287,8 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   screenContextDescription: InAppAgentScreenContextDescription;
+  quickActionContext: InAppAgentQuickActionContext;
+  quickActionResetKey: string;
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -273,12 +377,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    quickActionContext,
+    quickActionResetKey,
     screenContextDescription,
     selectedConversationId,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
   );
+  const capture = usePostHogClientCapture();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -319,14 +426,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
-  const submitInput = (content: string) => {
+  const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
     if (!trimmedContent || isInputDisabled) {
       return;
     }
 
-    Promise.resolve(onSubmit(trimmedContent))
+    Promise.resolve(onSubmit(trimmedContent, options))
       .then((submitted) => {
         if (submitted) {
           isAutoScrollAttachedRef.current = true;
@@ -604,35 +711,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-8 w-8" />
                 </div>
-                <p className="text-muted-foreground mt-4 text-sm">
-                  Welcome to the Langfuse Assistant
-                </p>
-                <p className="text-muted-foreground/60 mt-2 max-w-xs text-center text-sm leading-relaxed">
-                  I can help you with any questions you have about Langfuse or
-                  assist you in exploring your data.
-                  <br />
-                  What do you want to do?
-                </p>
-                <div className="mt-6 flex max-w-sm flex-wrap items-center justify-center gap-2">
-                  {CONVERSATION_STARTERS.map(([label, message]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className={cn(
-                        "bg-card dark:bg-header text-foreground border-border hover:bg-muted/60 border text-[0.775rem] leading-none shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                        isExpanded
-                          ? "rounded-2xl px-3 py-2"
-                          : "rounded-xl px-2 py-1.5",
-                      )}
-                      disabled={isInputDisabled}
-                      onClick={() => {
-                        submitInput(message);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <InAppAgentQuickActionPicker
+                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                  initialContext={quickActionContext}
+                  isDisabled={isInputDisabled}
+                  onSelectAction={(action, context, position) => {
+                    capture("in_app_agent:quick_action_started", {
+                      actionId: action.id,
+                      quickActionContext: context,
+                      position,
+                    });
+                    submitInput(action.prompt, {
+                      quickAction: {
+                        actionId: action.id,
+                        context,
+                      },
+                    });
+                  }}
+                />
               </div>
             ) : null}
 
@@ -835,7 +931,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               }}
               disabled={isInputDisabled}
               aria-label="Ask the assistant a question"
-              placeholder="Ask the assistant a question..."
+              placeholder="Let me know what I can do for you..."
               rows={1}
               className={cn(
                 "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
