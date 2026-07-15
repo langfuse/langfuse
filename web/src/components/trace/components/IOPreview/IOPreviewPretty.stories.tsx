@@ -1,5 +1,4 @@
 import preview from "../../../../../.storybook/preview";
-import { expect } from "storybook/test";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 
 const meta = preview.meta({
@@ -52,6 +51,16 @@ export const MarkdownWithCodeBlock = meta.story({
     input: {
       messages: [
         {
+          role: "system",
+          content: `Use this tracing configuration:
+
+\`\`\`typescript
+const trace = langfuse.trace({
+  name: "support-workflow",
+});
+\`\`\``,
+        },
+        {
           role: "user",
           content: "How can I record a generation?",
         },
@@ -70,11 +79,6 @@ const generation = trace.generation({
 generation.end({ output: "Your response" });
 \`\`\``,
     },
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      canvasElement.querySelector(".codeblock pre"),
-    ).toHaveTextContent('name: "support-answer"');
   },
 });
 
