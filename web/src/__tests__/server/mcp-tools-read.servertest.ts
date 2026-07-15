@@ -3779,5 +3779,45 @@ describe("MCP Read Tools", () => {
         }),
       });
     });
+
+    it("should use context.projectId for dashboard read isolation", async () => {
+      const owner = await createMcpTestSetup();
+      const other = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `private-mcp-dashboard-${nanoid()}`, description: "" },
+        owner.context,
+      )) as { id: string };
+      const widget = (await handleCreateDashboardWidget(
+        {
+          name: `private-mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+        },
+        owner.context,
+      )) as { id: string };
+
+      const [dashboards, widgets] = await Promise.all([
+        handleListDashboards({ page: 1, limit: 50 }, other.context) as Promise<{
+          data: Array<{ id: string }>;
+        }>,
+        handleListDashboardWidgets(
+          { page: 1, limit: 50 },
+          other.context,
+        ) as Promise<{ data: Array<{ id: string }> }>,
+      ]);
+      expect(dashboards.data.map(({ id }) => id)).not.toContain(dashboard.id);
+      expect(widgets.data.map(({ id }) => id)).not.toContain(widget.id);
+      await expect(
+        handleGetDashboard({ dashboardId: dashboard.id }, other.context),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleGetDashboardWidget({ widgetId: widget.id }, other.context),
+      ).rejects.toThrow(/not found/i);
+    });
   });
 });
