@@ -747,7 +747,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
     callbacks: {
       // Harden the callback-URL redirect against malformed input. NextAuth's
       // default `redirect` callback calls `new URL(url)` on the caller-supplied
-      // `callbackUrl`; for a non-relative, unparseable value (e.g. the
+      // `callbackUrl`; for a non-relative, unparsable value (e.g. the
       // `.....///…/windows/win.ini` path-traversal payloads endpoint scanners
       // send) that throws an uncaught `TypeError: ERR_INVALID_URL`, which
       // escapes NextAuth's own error handling and surfaces as an HTTP 500 on
