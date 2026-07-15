@@ -52,6 +52,12 @@ jobs:
             const label = "preview";
             const staleDays = Number(context.payload.inputs?.stale_days ?? "2");
             const dryRun = String(context.payload.inputs?.dry_run ?? "false") === "true";
+            // Guard against stale_days <= 0: cutoff would be >= now and match
+            // every labeled PR, reaping all previews in one run.
+            if (!Number.isFinite(staleDays) || staleDays < 1) {
+              core.setFailed(`stale_days must be a positive integer, got: ${context.payload.inputs?.stale_days}`);
+              return;
+            }
             const cutoff = Date.now() - staleDays * 86400000;
             const { owner, repo } = context.repo;
 
@@ -71,21 +77,29 @@ jobs:
               if (dryRun) continue;
 
               // Remove the label first — this is what triggers teardown. Tolerate
-              // a race where the label is already gone.
+              // a race where the label is already gone (removed by another path).
+              let labelRemoved = true;
               await github.rest.issues.removeLabel({
                 owner,
                 repo,
                 issue_number: pr.number,
                 name: label,
-              }).catch(e => { if (e.status !== 404) throw e; });
-
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: pr.number,
-                body: `🧹 Preview environment torn down after **${staleDays} days** of inactivity `
-                  + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
+              }).catch(e => {
+                if (e.status === 404) { labelRemoved = false; }
+                else throw e;
               });
+
+              // Only comment when we actually removed the label; a 404 means
+              // another path already tore it down, so our message would mislead.
+              if (labelRemoved) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: `🧹 Preview environment torn down after **${staleDays} days** of inactivity `
+                    + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
+                });
+              }
             }
 
             core.notice(
