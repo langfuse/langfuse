@@ -139,11 +139,11 @@ describe("ChartLoadingState", () => {
       <ChartLoadingState
         isLoading={true}
         progress={{
-          read_rows: 1_779_300_000,
-          total_rows_to_read: 2_924_500_000,
-          elapsed_ns: 0,
-          read_bytes: 0,
-          percent: 0.6084,
+          readRows: 1_779_300_000,
+          totalRowsToRead: 2_924_500_000,
+          elapsedNs: 0,
+          readBytes: 0,
+          fraction: 0.6084,
         }}
       />,
     );

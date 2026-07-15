@@ -9,6 +9,7 @@ import { captureException } from "@sentry/nextjs";
 import {
   createTRPCProxyClient,
   httpBatchLink,
+  httpBatchStreamLink,
   httpLink,
   loggerLink,
   splitLink,
@@ -107,6 +108,13 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  */
 export const sendAsPostOption = {
   trpc: { context: { sendAsPost: true } },
+} as const;
+
+export const streamQueryOption = {
+  trpc: {
+    context: { streamQuery: true },
+    abortOnUnmount: true,
+  },
 } as const;
 
 const shouldSendQueryAsPost = (op: Operation): boolean =>
@@ -312,35 +320,42 @@ export const api = createTRPCNext<AppRouter>({
           enabled: () => process.env.NODE_ENV === "development",
         }),
         splitLink({
-          condition(op) {
-            // check for context property `skipBatch`
-            const skipBatch = op.context.skipBatch === true;
-
-            // Manually skip batching, perf experiment
-            const alwaysSkipBatch = true;
-
-            return skipBatch || alwaysSkipBatch;
-          },
-          // when condition is true, use normal request. Route the oversized
-          // `*.batchIO` queries through POST so their per-row payload does not
-          // inflate the GET URL and trip HTTP 431. See `shouldSendQueryAsPost`.
-          true: splitLink({
-            condition: shouldSendQueryAsPost,
-            true: httpLink({
-              url: `${getBaseUrl()}/api/trpc`,
-              transformer: superjson,
-              methodOverride: "POST",
-            }),
-            false: httpLink({
-              url: `${getBaseUrl()}/api/trpc`,
-              transformer: superjson,
-            }),
-          }),
-          // when condition is false, use batching
-          false: httpBatchLink({
+          condition: (op) => op.context.streamQuery === true,
+          true: httpBatchStreamLink({
             url: `${getBaseUrl()}/api/trpc`,
             transformer: superjson,
-            maxURLLength: 2083, // avoid too large batches
+          }),
+          false: splitLink({
+            condition(op) {
+              // check for context property `skipBatch`
+              const skipBatch = op.context.skipBatch === true;
+
+              // Manually skip batching, perf experiment
+              const alwaysSkipBatch = true;
+
+              return skipBatch || alwaysSkipBatch;
+            },
+            // when condition is true, use normal request. Route the oversized
+            // `*.batchIO` queries through POST so their per-row payload does not
+            // inflate the GET URL and trip HTTP 431. See `shouldSendQueryAsPost`.
+            true: splitLink({
+              condition: shouldSendQueryAsPost,
+              true: httpLink({
+                url: `${getBaseUrl()}/api/trpc`,
+                transformer: superjson,
+                methodOverride: "POST",
+              }),
+              false: httpLink({
+                url: `${getBaseUrl()}/api/trpc`,
+                transformer: superjson,
+              }),
+            }),
+            // when condition is false, use batching
+            false: httpBatchLink({
+              url: `${getBaseUrl()}/api/trpc`,
+              transformer: superjson,
+              maxURLLength: 2083, // avoid too large batches
+            }),
           }),
         }),
       ],

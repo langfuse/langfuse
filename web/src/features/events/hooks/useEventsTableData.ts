@@ -1,5 +1,11 @@
-import { api, sendAsPostOption } from "@/src/utils/api";
-import { useMemo } from "react";
+import {
+  api,
+  sendAsPostOption,
+  streamQueryOption,
+  type RouterInputs,
+  type RouterOutputs,
+} from "@/src/utils/api";
+import { useMemo, useRef } from "react";
 import {
   type FilterState,
   AnnotationQueueObjectType,
@@ -14,11 +20,83 @@ import {
   removeAppRootDefaultFilter,
   shouldRunAppRootFallbackQuery,
 } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import { getProgressiveQueryState } from "@/src/features/query-progress/getProgressiveQueryState";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
   traceScores?: ScoreAggregate;
 };
+
+type EventListInput = RouterInputs["events"]["allWithProgress"];
+type EventListResult = RouterOutputs["events"]["all"];
+
+function useProgressiveEventsQuery({
+  input,
+  enabled = true,
+  refetchOnWindowFocus,
+  staleTime,
+  retry,
+  silentHttpCodes,
+}: {
+  input: EventListInput;
+  enabled?: boolean;
+  refetchOnWindowFocus: boolean;
+  staleTime?: number;
+  retry?: boolean;
+  silentHttpCodes: number[];
+}) {
+  const stream = api.events.allWithProgress.useQuery(input, {
+    ...streamQueryOption,
+    enabled,
+    refetchOnWindowFocus,
+    staleTime,
+    retry,
+    placeholderData: (previous) => previous,
+    meta: { silentHttpCodes },
+  });
+  const inputKey = JSON.stringify(input);
+  const lastResultRef = useRef<{
+    inputKey: string;
+    data: EventListResult;
+    dataUpdatedAt: number;
+  } | null>(null);
+  const previousResult =
+    lastResultRef.current?.inputKey === inputKey
+      ? lastResultRef.current.data
+      : undefined;
+  const streamedState = getProgressiveQueryState(
+    stream.isPlaceholderData && previousResult === undefined
+      ? undefined
+      : stream.data,
+    previousResult,
+  );
+  const hasCurrentResult = streamedState.hasResult && !stream.isPlaceholderData;
+  const hasRetainedResult = previousResult !== undefined && !hasCurrentResult;
+
+  if (hasCurrentResult && streamedState.data !== undefined) {
+    lastResultRef.current = {
+      inputKey,
+      data: streamedState.data,
+      dataUpdatedAt: stream.dataUpdatedAt,
+    };
+  }
+
+  return {
+    query: {
+      ...stream,
+      data: streamedState.data,
+      isLoading: !hasCurrentResult && !hasRetainedResult && !stream.isError,
+      isSuccess: (hasCurrentResult || hasRetainedResult) && !stream.isError,
+      isPlaceholderData: stream.isPlaceholderData && !hasRetainedResult,
+      dataUpdatedAt: hasCurrentResult
+        ? stream.dataUpdatedAt
+        : hasRetainedResult
+          ? (lastResultRef.current?.dataUpdatedAt ?? 0)
+          : 0,
+    },
+    progress: stream.fetchStatus === "fetching" ? streamedState.progress : null,
+  };
+}
 
 type UseEventsTableDataParams = {
   projectId: string;
@@ -80,13 +158,12 @@ export function useEventsTableData({
 
   const silentHttpCodes = [422];
 
-  const observations = api.events.all.useQuery(getAllPayload, {
-    refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
-    meta: {
-      silentHttpCodes, // Turns off red bubble
-    },
-  });
+  const { query: observations, progress: observationsProgress } =
+    useProgressiveEventsQuery({
+      input: getAllPayload,
+      refetchOnWindowFocus: true,
+      silentHttpCodes,
+    });
 
   const fallbackPayload = useMemo(
     () => ({
@@ -103,13 +180,15 @@ export function useEventsTableData({
     rootQueryIsPlaceholder: observations.isPlaceholderData,
     rootRowCount: observations.data?.observations.length ?? 0,
   });
-  const appRootFallbackQuery = api.events.all.useQuery(fallbackPayload, {
-    enabled: shouldRunAppRootFallback,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
-    retry: false,
-    meta: { silentHttpCodes },
-  });
+  const { query: appRootFallbackQuery, progress: fallbackProgress } =
+    useProgressiveEventsQuery({
+      input: fallbackPayload,
+      enabled: shouldRunAppRootFallback,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+      retry: false,
+      silentHttpCodes,
+    });
   const activeObservations =
     shouldRunAppRootFallback && !appRootFallbackQuery.isError
       ? appRootFallbackQuery
@@ -117,7 +196,7 @@ export function useEventsTableData({
   const usedAppRootFallback =
     shouldRunAppRootFallback &&
     appRootFallbackQuery.isSuccess &&
-    appRootFallbackQuery.data.observations.length > 0;
+    (appRootFallbackQuery.data?.observations.length ?? 0) > 0;
 
   const batchIOPayload = useMemo(() => {
     if (activeObservations.isPlaceholderData) {
@@ -286,5 +365,9 @@ export function useEventsTableData({
     errorHttpStatus,
     isSilencedError,
     usedAppRootFallback,
+    queryProgress:
+      shouldRunAppRootFallback && !appRootFallbackQuery.isError
+        ? fallbackProgress
+        : observationsProgress,
   };
 }

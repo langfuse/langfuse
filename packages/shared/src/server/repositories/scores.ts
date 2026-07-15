@@ -186,6 +186,7 @@ export type GetScoresForTracesProps<
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
   preferredClickhouseService?: PreferredClickhouseService;
+  abortSignal?: AbortSignal;
 };
 
 type GetScoresForSessionsProps<
@@ -549,6 +550,7 @@ const getScoresForTracesInternal = async <
     tags: { projectId },
     clickhouseConfigs,
     preferredClickhouseService,
+    abortSignal: props.abortSignal,
   });
 
   const includeMetadataPayload = !excludeMetadata;
@@ -618,6 +620,7 @@ export type GetScoresForObservationsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  abortSignal?: AbortSignal;
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
@@ -634,6 +637,7 @@ export const getScoresForObservations = async <
     limit,
     offset,
     clickhouseConfigs,
+    abortSignal,
     excludeMetadata = false,
     includeHasMetadata = false,
   } = props;
@@ -682,6 +686,7 @@ export const getScoresForObservations = async <
     },
     tags: { projectId },
     clickhouseConfigs,
+    abortSignal,
   });
 
   const includeMetadataPayload = !excludeMetadata;

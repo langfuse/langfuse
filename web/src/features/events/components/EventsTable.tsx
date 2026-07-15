@@ -399,6 +399,7 @@ export default function ObservationsEventsTable({
     setFilterOptionsRefreshTick((t) => t + 1);
     Promise.all([
       utils.events.all.invalidate(),
+      utils.events.allWithProgress.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
     ]);
@@ -661,6 +662,7 @@ export default function ObservationsEventsTable({
     ioLoading,
     isSilencedError,
     usedAppRootFallback,
+    queryProgress,
   } = useEventsTableData({
     projectId,
     filterState,
@@ -786,6 +788,7 @@ export default function ObservationsEventsTable({
     },
     onSettled: () => {
       utils.events.all.invalidate();
+      utils.events.allWithProgress.invalidate();
       utils.events.countAll.invalidate();
       utils.traces.all.invalidate();
     },
@@ -1922,7 +1925,11 @@ export default function ObservationsEventsTable({
               peekView={peekConfig}
               data={
                 observations.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
+                  ? {
+                      isLoading: true,
+                      isError: false,
+                      progress: queryProgress,
+                    }
                   : observations.status === "error"
                     ? isSilencedError
                       ? {
@@ -1939,6 +1946,7 @@ export default function ObservationsEventsTable({
                         isLoading: false,
                         isError: false,
                         data: rows,
+                        progress: queryProgress,
                       }
               }
               noResultsMessage={

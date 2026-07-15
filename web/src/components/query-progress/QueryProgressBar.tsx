@@ -1,4 +1,4 @@
-import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
+import { type QueryProgress } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
 function formatRows(n: number): string {
@@ -21,7 +21,7 @@ export function QueryProgressBar({
 }: QueryProgressBarProps) {
   const hasProgress = progress != null;
   const percent = hasProgress
-    ? Math.max(0, Math.min(progress.percent * 100, 100))
+    ? Math.max(0, Math.min(progress.fraction * 100, 100))
     : 0;
   const compactLayout = layout !== "default";
   const showProgressLabel = layout !== "tight";
@@ -54,9 +54,11 @@ export function QueryProgressBar({
           )}
         >
           {hasProgress
-            ? `Reading ${formatRows(progress.read_rows)} / ~${formatRows(
-                progress.total_rows_to_read,
-              )} rows`
+            ? progress.phase === "enriching"
+              ? "Preparing results..."
+              : `Reading ${formatRows(progress.readRows)} / ~${formatRows(
+                  progress.totalRowsToRead,
+                )} rows`
             : "Reading query progress..."}
         </p>
       ) : null}

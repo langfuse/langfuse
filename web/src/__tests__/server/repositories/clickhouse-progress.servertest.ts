@@ -1,10 +1,12 @@
 import {
   queryClickhouse,
   queryClickhouseWithProgress,
+  collectClickhouseWithProgress,
   isProgressRow,
   isRow,
   isException,
 } from "@langfuse/shared/src/server";
+import { type QueryProgress } from "@langfuse/shared";
 
 async function getClickhouseMajorVersion(): Promise<number> {
   const rows = await queryClickhouse<{ v: string }>({
@@ -14,6 +16,26 @@ async function getClickhouseMajorVersion(): Promise<number> {
 }
 
 describe("queryClickhouseWithProgress", () => {
+  it("materializes rows for progressive table queries", async () => {
+    const progress: QueryProgress[] = [];
+    const rows = await collectClickhouseWithProgress<{ number: string }>(
+      { query: "SELECT number FROM system.numbers LIMIT 1000" },
+      (update) => progress.push(update),
+    );
+
+    expect(rows).toHaveLength(1000);
+    for (const update of progress) {
+      expect(Number.isFinite(update.readRows)).toBe(true);
+      expect(Number.isFinite(update.totalRowsToRead)).toBe(true);
+      expect(Number.isFinite(update.readBytes)).toBe(true);
+      expect(Number.isFinite(update.elapsedNs)).toBe(true);
+      expect(Number.isFinite(update.fraction)).toBe(true);
+      expect(update.fraction).toBeGreaterThanOrEqual(0);
+      expect(update.readRows).toBeGreaterThanOrEqual(0);
+      expect(update.totalRowsToRead).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it("should yield data rows wrapped in { row: T }", async () => {
     const generator = queryClickhouseWithProgress<{ number: string }>({
       query: "SELECT number FROM system.numbers LIMIT 5",
