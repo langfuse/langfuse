@@ -11,6 +11,7 @@ import {
   DeleteDashboardPlacementResponse,
   DeleteUnstableDashboardResponse,
   GetUnstableDashboardsResponse,
+  PostDashboardPlacementResponse,
   PostUnstableDashboardResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
@@ -62,7 +63,7 @@ describe("unstable dashboard API", () => {
     expect(createdDashboard.body.filters).toEqual(dashboardFilters);
 
     await makeZodVerifiedAPICall(
-      DashboardPlacementResponse,
+      PostDashboardPlacementResponse,
       "POST",
       `/api/public/unstable/dashboards/${createdDashboard.body.id}/widgets`,
       {
@@ -229,7 +230,7 @@ describe("unstable dashboard API", () => {
         auth,
       );
       const placed = await makeZodVerifiedAPICall(
-        DashboardPlacementResponse,
+        PostDashboardPlacementResponse,
         "POST",
         `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
         {
@@ -251,6 +252,60 @@ describe("unstable dashboard API", () => {
         where: { id: langfuseWidget.id },
       });
     }
+  });
+
+  it("appends placements with server defaults when id and position are omitted", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const createdWidget = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      widget,
+      auth,
+    );
+    const dashboard = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Auto-append dashboard", description: "" },
+      auth,
+    );
+    await makeZodVerifiedAPICall(
+      PostDashboardPlacementResponse,
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      {
+        type: "widget",
+        id: "placement-1",
+        widgetId: createdWidget.body.id,
+        x: 0,
+        y: 0,
+        x_size: 4,
+        y_size: 3,
+      },
+      auth,
+    );
+
+    const appended = await makeZodVerifiedAPICall(
+      PostDashboardPlacementResponse,
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      { type: "widget", widgetId: createdWidget.body.id },
+      auth,
+    );
+    expect(appended.body.placementId).toEqual(expect.any(String));
+    const placement = appended.body.definition.widgets.find(
+      (candidate) => candidate.id === appended.body.placementId,
+    );
+    // Appended below the existing 3-row tile with the UI's 6x6 default size.
+    expect(placement).toMatchObject({
+      type: "widget",
+      widgetId: createdWidget.body.id,
+      x: 0,
+      y: 3,
+      x_size: 6,
+      y_size: 6,
+    });
   });
 
   it("rejects duplicate placement ids with a conflict", async () => {
@@ -279,7 +334,7 @@ describe("unstable dashboard API", () => {
       y_size: 3,
     };
     await makeZodVerifiedAPICall(
-      DashboardPlacementResponse,
+      PostDashboardPlacementResponse,
       "POST",
       `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
       placement,

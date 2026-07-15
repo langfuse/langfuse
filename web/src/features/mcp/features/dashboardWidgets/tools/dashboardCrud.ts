@@ -47,6 +47,15 @@ const placementBaseSchema = z.object({
   x_size: z.number().int().positive(),
   y_size: z.number().int().positive(),
 });
+// On add, id and position are optional: the service generates an id and
+// appends below existing tiles with the UI's default 6x6 size.
+const placementCreateBaseSchema = placementBaseSchema.partial({
+  id: true,
+  x: true,
+  y: true,
+  x_size: true,
+  y_size: true,
+});
 const dashboardWidgetPatchBaseSchema = z.object({
   widgetId: z.string(),
   name: z.string().min(1).optional(),
@@ -79,7 +88,7 @@ const dashboardCreateBaseSchema = z.object({
 // NOTE: object-level refinements do not survive `.shape` spreads, so every
 // schema built via `.extend(x.shape)` below must re-apply them explicitly.
 const requirePlacementIds = (
-  placement: z.infer<typeof placementBaseSchema>,
+  placement: z.infer<typeof placementCreateBaseSchema>,
   ctx: z.RefinementCtx,
 ) => {
   if (placement.type === "widget" && !placement.widgetId)
@@ -107,7 +116,33 @@ const requirePatchField =
         message: "At least one field is required",
       });
   };
+// Extract the placement fields from an MCP input (which also carries
+// dashboardId/placementId). Two variants because coordinate optionality
+// differs: updates require the complete placement, creates may omit
+// id/position and let the service fill defaults.
 const toPlacement = (placement: z.infer<typeof placementBaseSchema>) =>
+  placement.type === "widget"
+    ? {
+        type: "widget" as const,
+        id: placement.id,
+        widgetId: placement.widgetId!,
+        x: placement.x,
+        y: placement.y,
+        x_size: placement.x_size,
+        y_size: placement.y_size,
+      }
+    : {
+        type: "preset" as const,
+        id: placement.id,
+        presetId: placement.presetId!,
+        x: placement.x,
+        y: placement.y,
+        x_size: placement.x_size,
+        y_size: placement.y_size,
+      };
+const toPlacementCreate = (
+  placement: z.infer<typeof placementCreateBaseSchema>,
+) =>
   placement.type === "widget"
     ? {
         type: "widget" as const,
@@ -254,7 +289,10 @@ export const [listDashboardsTool, handleListDashboards] = defineTool({
 });
 export const [getDashboardTool, handleGetDashboard] = defineTool({
   name: "getDashboard",
-  description: "Get an editable dashboard by ID.",
+  description:
+    "Get an editable dashboard by ID, including its current layout: " +
+    "definition.widgets lists every placement with 12-column-grid " +
+    "coordinates (x/y top-left cell, x_size/y_size in cells).",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   readOnlyHint: true,
@@ -339,11 +377,16 @@ const placementQuery = DashboardIdQuery.extend({ placementId: z.string() });
 export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
   defineTool({
     name: "addDashboardPlacement",
-    description: "Add a widget or preset placement to a dashboard grid.",
-    baseSchema: DashboardIdQuery.extend(placementBaseSchema.shape),
-    inputSchema: DashboardIdQuery.extend(placementBaseSchema.shape).superRefine(
-      requirePlacementIds,
-    ),
+    description:
+      "Add a widget or preset placement to a dashboard's 12-column grid. " +
+      "Prefer omitting id and position: the server generates an id and " +
+      "appends the tile below existing ones at the default 6x6 size, so no " +
+      "layout reasoning is needed. Explicit positions are not checked for " +
+      "overlap. The response includes the resulting placementId.",
+    baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
+    inputSchema: DashboardIdQuery.extend(
+      placementCreateBaseSchema.shape,
+    ).superRefine(requirePlacementIds),
     destructiveHint: true,
     handler: (input, context) =>
       runMcpTool({
@@ -353,7 +396,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
           addPublicDashboardPlacement({
             projectId: context.projectId,
             dashboardId: input.dashboardId,
-            placement: toPlacement(input),
+            placement: toPlacementCreate(input),
             auditScope: auditScope(context),
           }),
       }),
@@ -362,7 +405,10 @@ export const [updateDashboardPlacementTool, handleUpdateDashboardPlacement] =
   defineTool({
     name: "updateDashboardPlacement",
     description:
-      "Update an existing dashboard placement's grid position or size.",
+      "Move or resize an existing dashboard placement. Requires the " +
+      "complete placement (12-column grid, x/y top-left cell, sizes in " +
+      "cells); the placement id cannot change. Use getDashboard to read " +
+      "the current layout first. Overlaps are not checked.",
     baseSchema: placementQuery.extend(placementBaseSchema.shape),
     inputSchema: placementQuery
       .extend(placementBaseSchema.shape)

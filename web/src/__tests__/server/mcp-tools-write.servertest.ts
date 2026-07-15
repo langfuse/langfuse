@@ -512,6 +512,36 @@ describe("MCP Write Tools", () => {
       expect(result).toMatchObject({ id: created.id, name: newName });
     });
 
+    it("appends placements with server defaults when id and position are omitted", async () => {
+      const setup = await createMcpTestSetup();
+      const created = await createWidgetForTest(setup);
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      const result = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
+        setup.context,
+      )) as {
+        placementId: string;
+        definition: { widgets: Array<Record<string, unknown>> };
+      };
+
+      expect(result.placementId).toEqual(expect.any(String));
+      expect(result.definition.widgets).toEqual([
+        {
+          type: "widget",
+          id: result.placementId,
+          widgetId: created.id,
+          x: 0,
+          y: 0,
+          x_size: 6,
+          y_size: 6,
+        },
+      ]);
+    });
+
     it("rejects widget placements without a widgetId", async () => {
       const setup = await createMcpTestSetup();
       const dashboard = (await handleCreateDashboard(

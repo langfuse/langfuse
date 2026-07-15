@@ -9,13 +9,20 @@ import { DashboardSchema } from "@/src/features/public-api/types/unstable-dashbo
 import type {
   DashboardPlacementSchema,
   PatchUnstableDashboardBody,
+  PostDashboardPlacementBody,
   PostUnstableDashboardBody,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import type { z } from "zod";
+import { randomUUID } from "crypto";
 
 type DashboardInput = z.infer<typeof PostUnstableDashboardBody>;
 type DashboardPatch = z.infer<typeof PatchUnstableDashboardBody>;
 type Placement = z.infer<typeof DashboardPlacementSchema>;
+type PlacementCreate = z.infer<typeof PostDashboardPlacementBody>;
+
+// Matches the UI's add-widget default: a half-width (12-column grid) 6x6
+// tile appended below all existing tiles.
+const PLACEMENT_DEFAULT_SIZE = 6;
 
 const toApiDashboard = (dashboard: DashboardDomain) =>
   DashboardSchema.parse({
@@ -200,29 +207,42 @@ export async function deletePublicDashboard(params: {
 export async function addPublicDashboardPlacement(params: {
   projectId: string;
   dashboardId: string;
-  placement: Placement;
+  placement: PlacementCreate;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const current = await getProjectDashboardOrThrow(
     params.projectId,
     params.dashboardId,
   );
+  const maxY =
+    current.definition.widgets.length > 0
+      ? Math.max(
+          ...current.definition.widgets.map(
+            (placement) => placement.y + placement.y_size,
+          ),
+        )
+      : 0;
+  const placement: Placement = {
+    ...params.placement,
+    id: params.placement.id ?? randomUUID(),
+    x: params.placement.x ?? 0,
+    y: params.placement.y ?? maxY,
+    x_size: params.placement.x_size ?? PLACEMENT_DEFAULT_SIZE,
+    y_size: params.placement.y_size ?? PLACEMENT_DEFAULT_SIZE,
+  };
   if (
-    current.definition.widgets.some(
-      (placement) => placement.id === params.placement.id,
-    )
+    current.definition.widgets.some((existing) => existing.id === placement.id)
   )
-    throw new LangfuseConflictError(
-      `Placement ${params.placement.id} already exists`,
-    );
-  return updatePublicDashboard({
+    throw new LangfuseConflictError(`Placement ${placement.id} already exists`);
+  const dashboard = await updatePublicDashboard({
     ...params,
     input: {
       definition: {
-        widgets: [...current.definition.widgets, params.placement],
+        widgets: [...current.definition.widgets, placement],
       },
     },
   });
+  return { ...dashboard, placementId: placement.id };
 }
 
 export async function updatePublicDashboardPlacement(params: {

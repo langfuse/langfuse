@@ -90,16 +90,23 @@ service:
         - errors.InternalServerError
     addPlacement:
       docs: |
-        Add a widget placement to a dashboard grid.
+        Add a placement to a dashboard grid (see `DashboardPlacement` for
+        grid semantics).
 
-        The referenced widget must exist in the same project. The API returns
-        `409` if a placement with the same `id` already exists on the dashboard.
+        `id` and the position fields are optional: when omitted, the
+        placement gets a server-generated id and is appended below all
+        existing tiles as a 6x6 tile. The response includes the resulting
+        `placementId`.
+
+        The referenced widget must exist in the same project or be a
+        Langfuse-managed widget. The API returns `409` if a placement with
+        the same `id` already exists on the dashboard.
       method: POST
       path: /dashboards/{dashboardId}/widgets
       path-parameters:
         dashboardId: string
-      request: DashboardPlacement
-      response: Dashboard
+      request: CreateDashboardPlacementRequest
+      response: DashboardWithPlacement
       errors:
         - errors.BadRequestError
         - errors.UnauthorizedError
@@ -111,10 +118,11 @@ service:
         - errors.InternalServerError
     updatePlacement:
       docs: |
-        Update a widget placement on a dashboard grid.
+        Update a placement's grid position or size.
 
-        The placement `id` in the body must match `placementId`; the API
-        returns `409` otherwise.
+        The body is the complete placement (see `DashboardPlacement` for
+        grid semantics). The placement `id` in the body must match
+        `placementId`; the API returns `409` otherwise.
       method: PATCH
       path: /dashboards/{dashboardId}/widgets/{placementId}
       path-parameters:
@@ -150,6 +158,12 @@ service:
 
 types:
   DashboardPlacement:
+    docs: |
+      A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
+      top-left cell (0-based; `y` grows downward), `x_size`/`y_size` its
+      width and height in cells. The UI default tile is 6x6 (half width).
+      Overlapping tiles are not rejected; prefer appending below existing
+      tiles (or omit the position on create to let the server do it).
     discriminant: type
     union:
       widget:
@@ -172,6 +186,55 @@ types:
       y: integer
       x_size: integer
       y_size: integer
+  CreateDashboardPlacementRequest:
+    discriminant: type
+    union:
+      widget:
+        type: CreateWidgetPlacement
+      preset:
+        type: CreatePresetPlacement
+  CreateWidgetPlacement:
+    properties:
+      id:
+        type: optional<string>
+        docs: Server-generated when omitted.
+      widgetId: string
+      x:
+        type: optional<integer>
+        docs: Grid column (12-column grid). Defaults to `0`.
+      y:
+        type: optional<integer>
+        docs: Grid row. Defaults to the first row below all existing tiles.
+      x_size:
+        type: optional<integer>
+        docs: Width in grid columns. Defaults to `6`.
+      y_size:
+        type: optional<integer>
+        docs: Height in grid rows. Defaults to `6`.
+  CreatePresetPlacement:
+    properties:
+      id:
+        type: optional<string>
+        docs: Server-generated when omitted.
+      presetId: string
+      x:
+        type: optional<integer>
+        docs: Grid column (12-column grid). Defaults to `0`.
+      y:
+        type: optional<integer>
+        docs: Grid row. Defaults to the first row below all existing tiles.
+      x_size:
+        type: optional<integer>
+        docs: Width in grid columns. Defaults to `6`.
+      y_size:
+        type: optional<integer>
+        docs: Height in grid rows. Defaults to `6`.
+  DashboardWithPlacement:
+    extends: Dashboard
+    properties:
+      placementId:
+        type: string
+        docs: Id of the placement created by this request.
   DashboardDefinition:
     properties:
       widgets: list<DashboardPlacement>

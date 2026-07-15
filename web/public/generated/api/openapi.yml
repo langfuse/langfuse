@@ -7165,10 +7165,17 @@ paths:
   /api/public/unstable/dashboards/{dashboardId}/widgets:
     post:
       description: |-
-        Add a widget placement to a dashboard grid.
+        Add a placement to a dashboard grid (see `DashboardPlacement` for
+        grid semantics).
 
-        The referenced widget must exist in the same project. The API returns
-        `409` if a placement with the same `id` already exists on the dashboard.
+        `id` and the position fields are optional: when omitted, the
+        placement gets a server-generated id and is appended below all
+        existing tiles as a 6x6 tile. The response includes the resulting
+        `placementId`.
+
+        The referenced widget must exist in the same project or be a
+        Langfuse-managed widget. The API returns `409` if a placement with
+        the same `id` already exists on the dashboard.
       operationId: unstable_dashboards_addPlacement
       tags:
         - UnstableDashboards
@@ -7184,7 +7191,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboard'
+                $ref: '#/components/schemas/unstableDashboardWithPlacement'
         '400':
           description: ''
           content:
@@ -7234,14 +7241,15 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/unstableDashboardPlacement'
+              $ref: '#/components/schemas/unstableCreateDashboardPlacementRequest'
   /api/public/unstable/dashboards/{dashboardId}/widgets/{placementId}:
     patch:
       description: |-
-        Update a widget placement on a dashboard grid.
+        Update a placement's grid position or size.
 
-        The placement `id` in the body must match `placementId`; the API
-        returns `409` otherwise.
+        The body is the complete placement (see `DashboardPlacement` for
+        grid semantics). The placement `id` in the body must match
+        `placementId`; the API returns `409` otherwise.
       operationId: unstable_dashboards_updatePlacement
       tags:
         - UnstableDashboards
@@ -15082,6 +15090,12 @@ components:
             - $ref: '#/components/schemas/unstablePresetPlacement'
           required:
             - type
+      description: |-
+        A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
+        top-left cell (0-based; `y` grows downward), `x_size`/`y_size` its
+        width and height in cells. The UI default tile is 6x6 (half width).
+        Overlapping tiles are not rejected; prefer appending below existing
+        tiles (or omit the position on create to let the server do it).
     unstableWidgetPlacement:
       title: unstableWidgetPlacement
       type: object
@@ -15128,6 +15142,98 @@ components:
         - 'y'
         - x_size
         - y_size
+    unstableCreateDashboardPlacementRequest:
+      title: unstableCreateDashboardPlacementRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - widget
+            - $ref: '#/components/schemas/unstableCreateWidgetPlacement'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - preset
+            - $ref: '#/components/schemas/unstableCreatePresetPlacement'
+          required:
+            - type
+    unstableCreateWidgetPlacement:
+      title: unstableCreateWidgetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        widgetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        x_size:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        y_size:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - widgetId
+    unstableCreatePresetPlacement:
+      title: unstableCreatePresetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        presetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        x_size:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        y_size:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - presetId
+    unstableDashboardWithPlacement:
+      title: unstableDashboardWithPlacement
+      type: object
+      properties:
+        placementId:
+          type: string
+          description: Id of the placement created by this request.
+      required:
+        - placementId
+      allOf:
+        - $ref: '#/components/schemas/unstableDashboard'
     unstableDashboardDefinition:
       title: unstableDashboardDefinition
       type: object
