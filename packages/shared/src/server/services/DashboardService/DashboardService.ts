@@ -82,6 +82,7 @@ export class DashboardService {
     initialDefinition: z.infer<typeof DashboardDefinitionSchema> = {
       widgets: [],
     },
+    filters?: z.infer<typeof singleFilter>[],
   ): Promise<DashboardDomain> {
     const newDashboard = await prisma.dashboard.create({
       data: {
@@ -91,6 +92,7 @@ export class DashboardService {
         createdBy: userId,
         updatedBy: userId,
         definition: initialDefinition,
+        ...(filters !== undefined && { filters }),
       },
     });
 

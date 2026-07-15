@@ -46,11 +46,13 @@ async function assertPlacementReferences(params: {
   await Promise.all(
     params.placements.map(async (placement) => {
       if (placement.type !== "widget") return;
+      // getWidget resolves project-owned and Langfuse-managed (projectId
+      // null) widgets; both are placeable, matching the UI.
       const widget = await DashboardService.getWidget(
         placement.widgetId,
         params.projectId,
       );
-      if (!widget || widget.projectId !== params.projectId) {
+      if (!widget) {
         throw new LangfuseNotFoundError(
           `Dashboard widget ${placement.widgetId} not found`,
         );
@@ -105,15 +107,9 @@ export async function createPublicDashboard(params: {
     params.input.description,
     undefined,
     params.input.definition,
+    params.input.filters,
   );
-  const updated = params.input.filters
-    ? await DashboardService.updateDashboardFilters(
-        dashboard.id,
-        params.projectId,
-        params.input.filters,
-      )
-    : dashboard;
-  const result = toApiDashboard(updated);
+  const result = toApiDashboard(dashboard);
   await auditLog({
     action: "create",
     resourceType: "dashboard",

@@ -40,13 +40,26 @@ describe("unstable dashboard API", () => {
       widget,
       auth,
     );
+    const dashboardFilters = [
+      {
+        column: "environment",
+        type: "string" as const,
+        operator: "=" as const,
+        value: "production",
+      },
+    ];
     const createdDashboard = await makeZodVerifiedAPICall(
       PostUnstableDashboardResponse,
       "POST",
       "/api/public/unstable/dashboards",
-      { name: "API dashboard", description: "Created via unstable API" },
+      {
+        name: "API dashboard",
+        description: "Created via unstable API",
+        filters: dashboardFilters,
+      },
       auth,
     );
+    expect(createdDashboard.body.filters).toEqual(dashboardFilters);
 
     await makeZodVerifiedAPICall(
       DashboardPlacementResponse,
@@ -188,6 +201,119 @@ describe("unstable dashboard API", () => {
       auth,
     );
     expect(response.status).toBe(404);
+  });
+
+  it("allows placing Langfuse-managed widgets on a project dashboard", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const langfuseWidget = await prisma.dashboardWidget.create({
+      data: {
+        id: `langfuse-widget-${nanoid()}`,
+        projectId: null,
+        name: "Langfuse managed widget",
+        description: "",
+        view: "OBSERVATIONS",
+        dimensions: [],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+        minVersion: 2,
+      },
+    });
+    try {
+      const dashboard = await makeZodVerifiedAPICall(
+        PostUnstableDashboardResponse,
+        "POST",
+        "/api/public/unstable/dashboards",
+        { name: "Dashboard with managed widget", description: "" },
+        auth,
+      );
+      const placed = await makeZodVerifiedAPICall(
+        DashboardPlacementResponse,
+        "POST",
+        `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+        {
+          type: "widget",
+          id: "placement-1",
+          widgetId: langfuseWidget.id,
+          x: 0,
+          y: 0,
+          x_size: 4,
+          y_size: 3,
+        },
+        auth,
+      );
+      expect(placed.body.definition.widgets[0]).toMatchObject({
+        widgetId: langfuseWidget.id,
+      });
+    } finally {
+      await prisma.dashboardWidget.delete({
+        where: { id: langfuseWidget.id },
+      });
+    }
+  });
+
+  it("rejects duplicate placement ids with a conflict", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const createdWidget = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      widget,
+      auth,
+    );
+    const dashboard = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Duplicate placement dashboard", description: "" },
+      auth,
+    );
+    const placement = {
+      type: "widget",
+      id: "placement-1",
+      widgetId: createdWidget.body.id,
+      x: 0,
+      y: 0,
+      x_size: 4,
+      y_size: 3,
+    };
+    await makeZodVerifiedAPICall(
+      DashboardPlacementResponse,
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      placement,
+      auth,
+    );
+    const duplicate = await makeAPICall(
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      placement,
+      auth,
+    );
+    expect(duplicate.status).toBe(409);
+    expect(UnstablePublicApiErrorResponse.parse(duplicate.body).code).toBe(
+      "conflict",
+    );
+  });
+
+  it("does not expose dashboards across projects", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const { auth: otherAuth } = await createOrgProjectAndApiKey();
+    const dashboard = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Private dashboard", description: "" },
+      auth,
+    );
+    const crossProjectRead = await makeAPICall(
+      "GET",
+      `/api/public/unstable/dashboards/${dashboard.body.id}`,
+      undefined,
+      otherAuth,
+    );
+    expect(crossProjectRead.status).toBe(404);
   });
 
   it("rejects widget updates that leave chartConfig.type out of sync with chartType", async () => {
