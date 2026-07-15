@@ -29,9 +29,11 @@ Pushing updates it; closing the PR tears it down.
   access** — opening a same-repo PR requires it. **Fork PRs never build or
   deploy** (a public-repo PR can't mint the cloud credential).
 - **Deploy — a per-author allowlist.** A preview only gets a live URL if the PR
-  **author is on the deploy allowlist** (the Argo CD ApplicationSet in
-  `langfuse/infrastructure`). Not on it? Your PR still builds, but the URL 404s.
-  Ask an admin to add you.
+  **author is on the deploy allowlist** — the `author` selector in
+  `k8s/preview/bootstrap/applicationset.yaml` (the Argo CD ApplicationSet) in
+  `langfuse/infrastructure`. Not on it? Your PR still builds, but the URL 404s —
+  add your own GitHub login to that selector and open a PR in the infra repo
+  (self-serve, no admin needed).
 
 ## Using a preview
 
@@ -113,7 +115,7 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 ### Symptom → fix
 | Symptom | Likely cause / fix |
 |---|---|
-| 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Ask an admin. |
+| 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access). |
 | URL not ready right after building | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals. |
 | Unresponsive at night / on a weekend | Asleep off-hours — wake it (above). |
 | Pods `Pending`, never schedule | Cluster at its preview capacity cap — close an old preview. |
@@ -121,13 +123,13 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 
 ## Getting access
 
-Both are granted by a Langfuse admin — nothing self-serve:
-
-- **Deploy access** — ask an admin to add your GitHub login to the preview
-  deploy allowlist (the ApplicationSet in `langfuse/infrastructure`).
-- **Cluster access** (only needed to debug with `kubectl`, not to *use* a
-  preview) — ask an admin to add you to the preview-cluster role in AWS IAM
-  Identity Center, then set up your `~/.aws/config` SSO profile following the
+- **Deploy access — self-serve.** Add your own GitHub login to the `author`
+  selector in `k8s/preview/bootstrap/applicationset.yaml` (repo
+  `langfuse/infrastructure`), open a PR, and merge to `main`. Argo re-syncs and
+  your labeled PRs deploy — no admin needed.
+- **Cluster access — needs an admin** (only to debug with `kubectl`, not to
+  *use* a preview). Ask an admin to add you to the preview-cluster role in AWS
+  IAM Identity Center, then set up your `~/.aws/config` SSO profile following the
   internal Langfuse "connect to AWS from your local machine" doc (Linear).
 
 ---
