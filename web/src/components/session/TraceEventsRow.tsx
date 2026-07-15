@@ -220,7 +220,11 @@ export const TraceEventsRow = React.memo(
                 {visibleObservations.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                      <span>{observation.name ?? "Observation"}</span>
+                      {/* min-w-0 + wrap-break-word: unbroken long names must
+                          wrap inside the card, not escape it */}
+                      <span className="min-w-0 wrap-break-word">
+                        {observation.name ?? "Observation"}
+                      </span>
                       <span className="-mr-1">•</span>
                       <span className="inline-flex items-center gap-1">
                         <ItemBadge
@@ -296,8 +300,10 @@ export const TraceEventsRow = React.memo(
                     }}
                   >
                     <ItemBadge type="TRACE" isSmall />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium">
+                    {/* min-w-0 + wrap-break-word: an unbroken long trace
+                        name must wrap inside the panel, not escape the card */}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-xs font-medium wrap-break-word">
                         {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
                       </span>
                       <span className="text-muted-foreground text-xs">
