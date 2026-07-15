@@ -263,6 +263,10 @@ jobs:
             **API keys:** `${{ needs.meta.outputs.public_key }}` / `${{ needs.meta.outputs.secret_key }}`
             **Commit:** ${{ needs.meta.outputs.commit_sha }}
 
+            **URL not loading / 404?** Full debug guide — deploy allowlist,
+            sleeping preview, pod status, ClickHouse:
+            https://github.com/langfuse/langfuse/blob/main/.agents/skills/langfuse-previews/SKILL.md#debug-a-preview
+
             **Logs** (needs preview-cluster `kubectl` access):
             ```sh
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
