@@ -16,12 +16,6 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/src/components/ui/breadcrumb";
-import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -112,7 +106,7 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <Collapsible className="border-b">
+    <Collapsible>
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-3 text-left">
         <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
         {icon}
@@ -249,14 +243,7 @@ export const V4MigrationPanel = ({
       ])}
     >
       <div className="bg-background">
-        <div className="flex min-h-11 w-full items-center justify-between gap-1 px-4 py-1">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage>Migrate to v4</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+        <div className="flex min-h-11 w-full items-center justify-end gap-1 px-4 py-1">
           {showCloseButton && (
             <Button
               variant="ghost"
@@ -272,8 +259,8 @@ export const V4MigrationPanel = ({
       <div className="flex-1 overflow-y-auto border-t">
         <div className="bg-background sticky top-0 z-[1] border-b px-4 pt-4 pb-3">
           <div className="mb-1.5 flex items-center gap-2">
-            <TriangleAlert className="text-dark-yellow h-[18px] w-[18px] shrink-0" />
-            <p className="text-base font-semibold">Update your setup</p>
+            <TriangleAlert className="text-dark-yellow h-5 w-5 shrink-0" />
+            <p className="text-lg font-semibold">Update your setup by Oct 1</p>
           </div>
           <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
             {sdkCase === 3 ? (
@@ -285,13 +272,15 @@ export const V4MigrationPanel = ({
                 .{" "}
               </>
             )}
-            Some features will be{" "}
-            <ExternalLink href={V4_DOCS_URL}>deprecated by Oct 1</ExternalLink>.
+            Some features will be deprecated by Oct 1.{" "}
+            <ExternalLink href={V4_DOCS_URL} className="whitespace-nowrap">
+              Docs&nbsp;&#8599;
+            </ExternalLink>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <RainbowButton className="w-full">
+                <RainbowButton className="min-w-0 flex-1">
                   <Copy className="mr-1.5 h-4 w-4" />
                   Update with agent
                 </RainbowButton>
@@ -336,16 +325,24 @@ export const V4MigrationPanel = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="outline" asChild>
-              <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
-                Docs
-              </a>
-            </Button>
+            {typeof projectId === "string" && (
+              <Button variant="outline" asChild>
+                <Link
+                  href={`/project/${projectId}/v4-migration`}
+                  onClick={() => setOpen(false)}
+                >
+                  Check migration status
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
 
         <div className="px-4 pb-4">
-          <div>
+          <p className="text-muted-foreground mt-4 mb-1 text-xs font-medium">
+            Affected features
+          </p>
+          <div className="divide-y">
             {sdkCase !== 3 && (
               <Section
                 icon={
@@ -354,9 +351,9 @@ export const V4MigrationPanel = ({
                 title="Tracing Instrumentation"
                 chip={
                   SDK_CASES[sdkCase - 1].upToDate ? (
-                    <Chip variant="success">up-to-date</Chip>
+                    <Chip variant="success">Up to date</Chip>
                   ) : (
-                    <Chip variant="warning">legacy</Chip>
+                    <Chip variant="warning">Legacy</Chip>
                   )
                 }
               >
@@ -373,9 +370,9 @@ export const V4MigrationPanel = ({
               title="Evals"
               chip={
                 evalDeprecated ? (
-                  <Chip variant="warning">2 · deprecated</Chip>
+                  <Chip variant="warning">2 deprecated</Chip>
                 ) : (
-                  <Chip variant="warning">almost ready</Chip>
+                  <Chip variant="warning">Almost ready</Chip>
                 )
               }
             >
@@ -414,7 +411,7 @@ export const V4MigrationPanel = ({
             <Section
               icon={<Code className="text-muted-foreground h-4 w-4 shrink-0" />}
               title="Legacy APIs"
-              chip={<Chip variant="warning">3 · deprecated</Chip>}
+              chip={<Chip variant="warning">3 deprecated</Chip>}
             >
               <p className="text-muted-foreground mb-2 text-sm">
                 Legacy APIs called in the last 7 days, deprecated by Oct 1.
@@ -447,7 +444,7 @@ export const V4MigrationPanel = ({
             <Section
               icon={<List className="text-muted-foreground h-4 w-4 shrink-0" />}
               title="Legacy Integrations"
-              chip={<Chip variant="warning">3 · deprecated</Chip>}
+              chip={<Chip variant="warning">3 deprecated</Chip>}
             >
               <p className="text-muted-foreground mb-2 text-sm">
                 These integrations are in use. Update the export source. This
