@@ -100,7 +100,7 @@ Runtime HTTP surface:
 
 ## Sandbox Persistence And Cleanup
 
-Sandbox state is stored on the conversation row as `providerSessionId` and `sandboxProvider`.
+Sandbox state is stored on the conversation row as `providerSessionId`. The configured sandbox provider is assumed to remain stable for the lifetime of the database.
 
 Session reuse only relies on an existing live or suspended runtime instance identified by `providerSessionId`.
 

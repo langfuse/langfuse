@@ -63,10 +63,8 @@ const defaultInAppAgentUserAccess = {
 async function createTestSandbox() {
   let sandboxState: {
     providerSessionId: string | null;
-    sandboxProvider: string | null;
   } = {
     providerSessionId: null,
-    sandboxProvider: null,
   };
   let sessionCounter = 0;
   const files = new Map<string, string>();
@@ -101,7 +99,6 @@ async function createTestSandbox() {
   };
 
   const provider: SandboxProvider = {
-    type: "dangerous-docker",
     async ensureSession({ sessionId }) {
       if (sessionId && activeSessionId === sessionId) {
         if (suspensionTimer) {
@@ -134,7 +131,6 @@ async function createTestSandbox() {
     conversationId: "conversation-1",
     projectId: "project-1",
     providerSessionId: sandboxState.providerSessionId,
-    sandboxProvider: sandboxState.sandboxProvider,
     provider,
     getToolCallFiles: async () => [],
     saveState: async (nextState) => {
@@ -143,8 +139,6 @@ async function createTestSandbox() {
         ...nextState,
         providerSessionId:
           nextState.providerSessionId ?? sandboxState.providerSessionId,
-        sandboxProvider:
-          nextState.sandboxProvider ?? sandboxState.sandboxProvider,
       };
     },
   });

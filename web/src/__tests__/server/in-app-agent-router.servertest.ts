@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import { describe, expect, it } from "vitest";
 
-import { InAppAgentSandboxProvider, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -12,7 +12,7 @@ describe("in-app agent router", () => {
     const conversation = await createConversation({
       projectId,
       userId,
-      sandboxProvider: InAppAgentSandboxProvider.dangerous_docker,
+      providerSessionId: "session-1",
     });
 
     await caller.inAppAgent.deleteConversation({
@@ -32,7 +32,6 @@ describe("in-app agent router", () => {
 
     expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
     expect(deletedConversation.providerSessionId).toBeNull();
-    expect(deletedConversation.sandboxProvider).toBeNull();
   });
 
   it("excludes deleted conversations from list and get", async () => {
@@ -210,12 +209,12 @@ async function createConversation({
   projectId,
   userId,
   title = "Test conversation",
-  sandboxProvider,
+  providerSessionId,
 }: {
   projectId: string;
   userId: string;
   title?: string;
-  sandboxProvider?: InAppAgentSandboxProvider;
+  providerSessionId?: string;
 }) {
   return prisma.inAppAgentConversation.create({
     data: {
@@ -223,8 +222,7 @@ async function createConversation({
       projectId,
       createdByUserId: userId,
       title,
-      providerSessionId: sandboxProvider ? "session-1" : null,
-      sandboxProvider,
+      providerSessionId,
     },
   });
 }

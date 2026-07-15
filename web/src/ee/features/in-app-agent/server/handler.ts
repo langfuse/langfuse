@@ -48,7 +48,6 @@ import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/s
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-  parseInAppAgentSandboxProviderType,
 } from "@/src/ee/features/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
@@ -69,7 +68,7 @@ import {
   UnauthorizedError,
   CloudConfigSchema,
 } from "@langfuse/shared";
-import { InAppAgentSandboxProvider, prisma } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   redis,
@@ -300,9 +299,6 @@ export default async function handler(request: Request) {
           conversationId: conversation.id,
           projectId,
           providerSessionId: conversation.providerSessionId,
-          sandboxProvider: parseInAppAgentSandboxProviderType(
-            conversation.sandboxProvider,
-          ),
           provider: sandboxProvider,
           getToolCallFiles: async () =>
             getSandboxToolCallFiles(conversationEvents),
@@ -314,15 +310,7 @@ export default async function handler(request: Request) {
                   projectId,
                 },
               },
-              data: {
-                ...state,
-                sandboxProvider:
-                  state.sandboxProvider === "dangerous-docker"
-                    ? InAppAgentSandboxProvider.dangerous_docker
-                    : state.sandboxProvider === "lambda-microvm"
-                      ? InAppAgentSandboxProvider.lambda_microvm
-                      : null,
-              },
+              data: state,
             });
           },
         })

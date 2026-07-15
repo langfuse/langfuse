@@ -4,36 +4,24 @@ export async function createInAppAgentSandbox(params: {
   conversationId: string;
   projectId: string;
   providerSessionId?: string | null;
-  sandboxProvider?: string | null;
   provider: SandboxProvider;
   getToolCallFiles: () => Promise<ReadonlyArray<SandboxFile>>;
-  saveState: (state: {
-    providerSessionId?: string | null;
-    sandboxProvider?: string | null;
-  }) => Promise<void>;
+  saveState: (state: { providerSessionId?: string | null }) => Promise<void>;
 }): Promise<{
   sandbox: InAppAgentSandbox;
   onTurnEnded: () => Promise<void>;
 }> {
-  const providerType = params.provider.type;
-  let sandboxProvider = params.sandboxProvider ?? null;
-  let sessionId =
-    params.sandboxProvider === providerType
-      ? (params.providerSessionId ?? null)
-      : null;
-  let sessionIsKnownActive =
-    sessionId !== null && params.sandboxProvider === providerType;
+  let sessionId = params.providerSessionId ?? null;
+  let sessionIsKnownActive = sessionId !== null;
 
   const persistState = async () => {
     await params.saveState({
       providerSessionId: sessionId,
-      sandboxProvider: providerType,
     });
-    sandboxProvider = providerType;
   };
 
   const updateSessionState = async (nextSessionId: string) => {
-    if (nextSessionId === sessionId && sandboxProvider === providerType) {
+    if (nextSessionId === sessionId) {
       sessionIsKnownActive = true;
       return;
     }

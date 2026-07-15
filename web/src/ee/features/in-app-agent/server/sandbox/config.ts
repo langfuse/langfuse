@@ -4,23 +4,6 @@ import { env } from "@/src/env.mjs";
 import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent/constants";
 import { assertUnreachable } from "@/src/utils/types";
 
-export function parseInAppAgentSandboxProviderType(
-  providerType: string | null,
-): InAppAgentSandboxProviderType | null {
-  if (
-    providerType === "dangerous-docker" ||
-    providerType === "dangerous_docker"
-  ) {
-    return "dangerous-docker";
-  }
-
-  if (providerType === "lambda-microvm" || providerType === "lambda_microvm") {
-    return "lambda-microvm";
-  }
-
-  return null;
-}
-
 export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType | null {
   const providerType = env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ?? null;
 

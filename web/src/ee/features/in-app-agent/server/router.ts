@@ -173,7 +173,6 @@ export const inAppAgentRouter = createTRPCRouter({
         },
         data: {
           providerSessionId: null,
-          sandboxProvider: null,
           deletedAt: new Date(),
         },
       });

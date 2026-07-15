@@ -47,8 +47,6 @@ export type SandboxSession = {
  * handles for isolated workspaces.
  */
 export type SandboxProvider = {
-  type: InAppAgentSandboxProviderType;
-
   /**
    * Reuses an existing sandbox session when possible or creates a new one,
    * then returns a session-bound sandbox handle for tool execution.

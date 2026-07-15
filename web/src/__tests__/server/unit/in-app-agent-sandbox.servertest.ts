@@ -22,7 +22,6 @@ describe("in-app agent sandbox", () => {
       },
     };
     const provider = {
-      type: "dangerous-docker" as const,
       async ensureSession() {
         return { sessionId: "session-1", sandbox: sandboxSession };
       },
@@ -41,13 +40,11 @@ describe("in-app agent sandbox", () => {
     await sandbox.sandbox.write({ path: "notes.txt", content: "hello" });
     await sandbox.onTurnEnded();
 
-    expect(savedStates[0]).toMatchObject({
+    expect(savedStates[0]).toEqual({
       providerSessionId: "session-1",
-      sandboxProvider: "dangerous-docker",
     });
-    expect(savedStates[1]).toMatchObject({
+    expect(savedStates[1]).toEqual({
       providerSessionId: "session-1",
-      sandboxProvider: "dangerous-docker",
     });
   });
 

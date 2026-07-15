@@ -267,7 +267,6 @@ export function createLambdaMicrovmSandboxProvider(params: {
   });
 
   return {
-    type: "lambda-microvm",
     async ensureSession({ conversationId, sessionId }) {
       const session = await ensureSession({
         conversationId,

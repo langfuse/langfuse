@@ -1,8 +1,5 @@
 export { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
-export {
-  getDefaultInAppAgentSandboxProviderType,
-  parseInAppAgentSandboxProviderType,
-} from "./config";
+export { getDefaultInAppAgentSandboxProviderType } from "./config";
 export { createInAppAgentSandbox } from "./service";
 export type {
   InAppAgentSandbox,
