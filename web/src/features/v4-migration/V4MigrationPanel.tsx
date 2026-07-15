@@ -3,11 +3,8 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import {
   ChevronRight,
-  Code,
   Copy,
-  Lightbulb,
-  List,
-  ListTree,
+  LibraryBig,
   Sparkles,
   SquareTerminal,
   TriangleAlert,
@@ -15,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -95,12 +93,10 @@ function Chip({
 }
 
 function Section({
-  icon,
   title,
   chip,
   children,
 }: {
-  icon: ReactNode;
   title: string;
   chip: ReactNode;
   children: ReactNode;
@@ -109,12 +105,11 @@ function Section({
     <Collapsible>
       <CollapsibleTrigger className="group flex w-full items-center gap-2.5 py-3 text-left">
         <ChevronRight className="text-muted-foreground h-4 w-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" />
-        {icon}
         <span className="flex-1 text-sm">{title}</span>
         {chip}
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="pt-0.5 pb-3.5 pl-13">{children}</div>
+        <div className="pt-0.5 pb-3.5 pl-6.5">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -257,30 +252,22 @@ export const V4MigrationPanel = ({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto border-t">
-        <div className="bg-background sticky top-0 z-[1] border-b px-4 pt-4 pb-3">
-          <div className="mb-1.5 flex items-center gap-2">
-            <TriangleAlert className="text-dark-yellow h-5 w-5 shrink-0" />
-            <p className="text-lg font-semibold">Update your setup by Oct 1</p>
-          </div>
+        <div className="bg-background sticky top-0 z-[1] px-4 pt-4">
+          <p className="mb-1.5 text-lg font-semibold">Update your setup</p>
           <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-            {sdkCase === 3 ? (
-              "Your setup is outdated and requires an update. "
-            ) : (
+            Some instrumentation is outdated, but we can help you update it.
+            {sdkCase !== 3 && (
               <>
-                Your instrumentation is outdated and requires an update. Live
-                data <span className="text-dark-yellow">15 minutes behind</span>
-                .{" "}
+                {" "}
+                Live data is currently{" "}
+                <span className="text-dark-yellow">15 minutes behind</span>.
               </>
             )}
-            Some features will be deprecated by Oct 1.{" "}
-            <ExternalLink href={V4_DOCS_URL} className="whitespace-nowrap">
-              Docs&nbsp;&#8599;
-            </ExternalLink>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <RainbowButton className="min-w-0 flex-1">
+                <RainbowButton className="w-full">
                   <Copy className="mr-1.5 h-4 w-4" />
                   Update with agent
                 </RainbowButton>
@@ -325,148 +312,167 @@ export const V4MigrationPanel = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {typeof projectId === "string" && (
-              <Button variant="outline" asChild>
-                <Link
-                  href={`/project/${projectId}/v4-migration`}
-                  onClick={() => setOpen(false)}
-                >
-                  Check migration status
-                </Link>
-              </Button>
-            )}
           </div>
+          <Separator className="mt-6" />
         </div>
 
-        <div className="px-4 pb-4">
-          <p className="text-muted-foreground mt-4 mb-1 text-xs font-medium">
-            Affected features
-          </p>
-          <div className="divide-y">
-            {sdkCase !== 3 && (
+        <div className="flex flex-col gap-6 px-4 pt-6 pb-16">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <LibraryBig className="h-4 w-4" /> Want to review first?
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" asChild className="min-w-0 flex-1">
+                <a href={V4_DOCS_URL} target="_blank" rel="noopener noreferrer">
+                  Documentation
+                </a>
+              </Button>
+              {typeof projectId === "string" && (
+                <Button variant="outline" asChild className="min-w-0 flex-1">
+                  <Link
+                    href={`/project/${projectId}/v4-migration`}
+                    onClick={() => setOpen(false)}
+                  >
+                    Check migration status
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-base font-semibold">
+              <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
+              update
+            </div>
+            <p className="text-muted-foreground text-sm">
+              Some features will stop working after{" "}
+              <span className="text-dark-yellow">Oct 1</span>.
+            </p>
+            <div className="divide-y">
+              {sdkCase !== 3 && (
+                <Section
+                  title="Tracing Instrumentation"
+                  chip={
+                    SDK_CASES[sdkCase - 1].upToDate ? (
+                      <Chip variant="success">Up to date</Chip>
+                    ) : (
+                      <Chip variant="warning">Legacy</Chip>
+                    )
+                  }
+                >
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    <SdkCaseCopy sdkCase={sdkCase} />
+                  </p>
+                </Section>
+              )}
+
               <Section
-                icon={
-                  <ListTree className="text-muted-foreground h-4 w-4 shrink-0" />
-                }
-                title="Tracing Instrumentation"
+                title="Evals"
                 chip={
-                  SDK_CASES[sdkCase - 1].upToDate ? (
-                    <Chip variant="success">Up to date</Chip>
+                  evalDeprecated ? (
+                    <Chip variant="warning">2 deprecated</Chip>
                   ) : (
-                    <Chip variant="warning">Legacy</Chip>
+                    <Chip variant="warning">Almost ready</Chip>
                   )
                 }
               >
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  <SdkCaseCopy sdkCase={sdkCase} />
-                </p>
-              </Section>
-            )}
-
-            <Section
-              icon={
-                <Lightbulb className="text-muted-foreground h-4 w-4 shrink-0" />
-              }
-              title="Evals"
-              chip={
-                evalDeprecated ? (
-                  <Chip variant="warning">2 deprecated</Chip>
+                {evalDeprecated ? (
+                  <>
+                    <p className="text-muted-foreground mb-2 text-sm">
+                      Editing is frozen; stops running{" "}
+                      <span className="text-dark-yellow">Oct 1</span>. Repoint
+                      each to an observation.
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {DEPRECATED_EVALS.map((name) =>
+                        evalsUrl ? (
+                          <Link
+                            key={name}
+                            href={evalsUrl}
+                            className="text-primary self-start text-sm font-medium underline underline-offset-2"
+                          >
+                            {name}
+                          </Link>
+                        ) : (
+                          <span key={name} className="text-sm">
+                            {name}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  </>
                 ) : (
-                  <Chip variant="warning">Almost ready</Chip>
-                )
-              }
-            >
-              {evalDeprecated ? (
-                <>
-                  <p className="text-muted-foreground mb-2 text-sm">
-                    Editing is frozen; stops running{" "}
-                    <span className="text-dark-yellow">Oct 1</span>. Repoint
-                    each to an observation.
+                  <p className="text-muted-foreground text-sm">
+                    Review minimal config changes
                   </p>
-                  <div className="flex flex-col gap-2">
-                    {DEPRECATED_EVALS.map((name) =>
-                      evalsUrl ? (
+                )}
+              </Section>
+
+              <Section
+                title="Legacy APIs"
+                chip={<Chip variant="warning">3 deprecated</Chip>}
+              >
+                <p className="text-muted-foreground mb-2 text-sm">
+                  Legacy APIs called in the last 7 days, deprecated by{" "}
+                  <span className="text-dark-yellow">Oct 1</span>. Migrate to
+                  the{" "}
+                  <ExternalLink
+                    href="https://api.reference.langfuse.com"
+                    className="underline underline-offset-2"
+                  >
+                    new APIs
+                  </ExternalLink>
+                  .
+                </p>
+                <div className="flex flex-col">
+                  {LEGACY_APIS.map((api) => (
+                    <div
+                      key={api.endpoint}
+                      className="flex items-center justify-between gap-2 py-0.5"
+                    >
+                      <ExternalLink
+                        href="https://api.reference.langfuse.com"
+                        className="text-sm underline underline-offset-2"
+                      >
+                        {api.endpoint}
+                      </ExternalLink>
+                      <span className="text-muted-foreground text-xs">
+                        {api.volume}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Section>
+
+              <Section
+                title="Legacy Integrations"
+                chip={<Chip variant="warning">3 deprecated</Chip>}
+              >
+                <p className="text-muted-foreground mb-2 text-sm">
+                  These integrations are in use. Update the export source. This
+                  may affect downstream consumers.
+                </p>
+                <div className="flex flex-col">
+                  {LEGACY_INTEGRATIONS.map((name) => (
+                    <div key={name} className="flex items-center py-0.5">
+                      {typeof projectId === "string" ? (
                         <Link
-                          key={name}
-                          href={evalsUrl}
-                          className="text-primary self-start text-sm font-medium hover:underline"
+                          href={`/project/${projectId}/settings/integrations`}
+                          className="text-primary text-sm font-medium underline underline-offset-2"
                         >
                           {name}
                         </Link>
                       ) : (
-                        <span key={name} className="text-sm">
-                          {name}
-                        </span>
-                      ),
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  Review minimal config changes
-                </p>
-              )}
-            </Section>
-
-            <Section
-              icon={<Code className="text-muted-foreground h-4 w-4 shrink-0" />}
-              title="Legacy APIs"
-              chip={<Chip variant="warning">3 deprecated</Chip>}
-            >
-              <p className="text-muted-foreground mb-2 text-sm">
-                Legacy APIs called in the last 7 days, deprecated by Oct 1.
-                Migrate to the{" "}
-                <ExternalLink href="https://api.reference.langfuse.com">
-                  new APIs
-                </ExternalLink>
-                .
-              </p>
-              <div className="flex flex-col">
-                {LEGACY_APIS.map((api) => (
-                  <div
-                    key={api.endpoint}
-                    className="flex items-center justify-between gap-2 py-1"
-                  >
-                    <ExternalLink
-                      href="https://api.reference.langfuse.com"
-                      className="text-sm"
-                    >
-                      {api.endpoint}
-                    </ExternalLink>
-                    <span className="text-muted-foreground text-xs">
-                      {api.volume}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Section>
-
-            <Section
-              icon={<List className="text-muted-foreground h-4 w-4 shrink-0" />}
-              title="Legacy Integrations"
-              chip={<Chip variant="warning">3 deprecated</Chip>}
-            >
-              <p className="text-muted-foreground mb-2 text-sm">
-                These integrations are in use. Update the export source. This
-                may affect downstream consumers.
-              </p>
-              <div className="flex flex-col">
-                {LEGACY_INTEGRATIONS.map((name) => (
-                  <div key={name} className="py-1">
-                    {typeof projectId === "string" ? (
-                      <Link
-                        href={`/project/${projectId}/settings/integrations`}
-                        className="text-primary text-sm font-medium hover:underline"
-                      >
-                        {name}
-                      </Link>
-                    ) : (
-                      <span className="text-sm">{name}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </Section>
+                        <span className="text-sm">{name}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            </div>
           </div>
         </div>
       </div>
