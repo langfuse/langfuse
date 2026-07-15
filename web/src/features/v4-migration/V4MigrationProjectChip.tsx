@@ -37,7 +37,7 @@ export function V4MigrationProjectChip({
       onClick={handleClick}
       className="bg-light-yellow text-dark-yellow relative inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-opacity hover:opacity-80"
     >
-      Legacy SDK
+      Update
     </button>
   );
 }

@@ -144,7 +144,7 @@ function ExternalLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn("text-primary font-medium hover:underline", className)}
+      className={cn("text-dark-blue hover:underline", className)}
     >
       {children}
     </a>
@@ -156,8 +156,8 @@ function SdkCaseCopy({ sdkCase }: { sdkCase: number }) {
     case 1:
       return (
         <>
-          You&apos;re on a very old SDK (<MonoValue>Python v2.x</MonoValue>).
-          Upgrade to the latest version to get real-time data.
+          This project is on <MonoValue>Python v2.x</MonoValue>, which is a few
+          major versions behind. Upgrading gets you real-time data.
         </>
       );
     case 2:
@@ -213,7 +213,13 @@ export function V4MigrationHeaderContent({
   return (
     <>
       <p className="mb-1.5 text-lg font-semibold">
-        {projectName ? `Migrate ${projectName} to v4` : "Migrate to v4"}
+        {projectName ? (
+          <>
+            Migrate <span className="underline">{projectName}</span> to v4
+          </>
+        ) : (
+          "Migrate to v4"
+        )}
       </p>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
         Some of your setup is outdated.
@@ -334,9 +340,9 @@ export function V4MigrationDetailsContent({
             {evalDeprecated ? (
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
-                  Editing is frozen; stops running{" "}
-                  <span className="text-dark-yellow">Oct 1</span>. Repoint each
-                  to an observation.
+                  These evals target trace input/output, which is frozen and
+                  stops running <span className="text-dark-yellow">Oct 1</span>.
+                  Point them at an observation instead:
                 </p>
                 <div className="flex flex-col gap-1">
                   {DEPRECATED_EVALS.map((name) =>
@@ -345,7 +351,7 @@ export function V4MigrationDetailsContent({
                         key={name}
                         href={evalsUrl}
                         onClick={onNavigate}
-                        className="text-primary self-start text-sm font-medium underline underline-offset-2"
+                        className="text-dark-blue self-start text-sm hover:underline"
                       >
                         {name}
                       </Link>
@@ -369,15 +375,13 @@ export function V4MigrationDetailsContent({
             chip={<Chip variant="warning">3 deprecated</Chip>}
           >
             <p className="text-muted-foreground mb-2 text-sm">
-              Legacy APIs called in the last 7 days, deprecated by{" "}
-              <span className="text-dark-yellow">Oct 1</span>. Migrate to the{" "}
-              <ExternalLink
-                href="https://api.reference.langfuse.com"
-                className="underline underline-offset-2"
-              >
+              You&apos;ve called these deprecated endpoints in the last 7 days.
+              They stop working <span className="text-dark-yellow">Oct 1</span>;
+              the{" "}
+              <ExternalLink href="https://api.reference.langfuse.com">
                 new APIs
-              </ExternalLink>
-              .
+              </ExternalLink>{" "}
+              cover the same data.
             </p>
             <div className="flex flex-col">
               {LEGACY_APIS.map((api) => (
@@ -387,7 +391,7 @@ export function V4MigrationDetailsContent({
                 >
                   <ExternalLink
                     href="https://api.reference.langfuse.com"
-                    className="text-sm underline underline-offset-2"
+                    className="text-sm"
                   >
                     {api.endpoint}
                   </ExternalLink>
@@ -404,8 +408,9 @@ export function V4MigrationDetailsContent({
             chip={<Chip variant="warning">3 deprecated</Chip>}
           >
             <p className="text-muted-foreground mb-2 text-sm">
-              These integrations are in use. Update the export source. This may
-              affect downstream consumers.
+              These exports still read from the old data source. Switching them
+              over can change what downstream consumers receive, so worth a
+              quick check.
             </p>
             <div className="flex flex-col">
               {LEGACY_INTEGRATIONS.map((name) => (
@@ -414,7 +419,7 @@ export function V4MigrationDetailsContent({
                     <Link
                       href={`/project/${projectId}/settings/integrations`}
                       onClick={onNavigate}
-                      className="text-primary text-sm font-medium underline underline-offset-2"
+                      className="text-dark-blue text-sm hover:underline"
                     >
                       {name}
                     </Link>

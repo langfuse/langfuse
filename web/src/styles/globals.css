@@ -265,7 +265,7 @@
     --dark-green: oklch(59.6% 0.145 163.225);
 
     --light-blue: 214 94.6% 92.7%;
-    --dark-blue: 217 91.2% 59.8%;
+    --dark-blue: 219 85% 52%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
@@ -398,7 +398,7 @@
     --dark-green: oklch(76.5% 0.177 163.223);
 
     --light-blue: 209 45% 15%;
-    --dark-blue: 209 96.7% 64.7%;
+    --dark-blue: 209 88% 60%;
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */
