@@ -107,6 +107,29 @@ describe("evaluator preflight", () => {
     expect(mockTestModelCall).not.toHaveBeenCalled();
   });
 
+  it("preserves actionable output definition validation errors", async () => {
+    const result = await getEvaluatorDefinitionPreflightError({
+      projectId: "project_test",
+      template: {
+        name: "Answer correctness",
+        outputDefinition: {
+          version: 2,
+          dataType: "CATEGORICAL",
+          reasoning: { description: "Why the score was assigned" },
+          score: {
+            description: "The matching category",
+            categories: [],
+            shouldAllowMultipleMatches: false,
+          },
+        },
+      },
+    });
+
+    expect(result).toContain("Add at least 2 categories");
+    expect(mockTestModelCall).not.toHaveBeenCalled();
+    expect(mockGetLLMErrorInfo).not.toHaveBeenCalled();
+  });
+
   describe("live provider call failures", () => {
     // The preflight skips the provider call in test-like environments;
     // stub these so the mocked testModelCall is actually reached.
@@ -170,6 +193,26 @@ describe("evaluator preflight", () => {
       expect(result).toBe(
         `Model configuration not valid for evaluator "Answer correctness". 401 Incorrect API key provided`,
       );
+    });
+
+    it("does not expose unknown model call errors", async () => {
+      mockTestModelCall.mockRejectedValue(
+        new Error("sensitive internal model call detail"),
+      );
+      mockGetLLMErrorInfo.mockReturnValue(null);
+
+      const result = await getEvaluatorDefinitionPreflightError({
+        projectId: "project_test",
+        template: {
+          name: "Answer correctness",
+          outputDefinition: numericOutputDefinition,
+        },
+      });
+
+      expect(result).toBe(
+        `Model configuration not valid for evaluator "Answer correctness". An internal error occurred`,
+      );
+      expect(result).not.toContain("sensitive internal model call detail");
     });
   });
 });

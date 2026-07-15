@@ -37,25 +37,36 @@ export async function getEvaluatorDefinitionPreflightError(params: {
     return `No valid LLM model found for evaluator "${params.template.name}". ${modelConfig.error}. Configure an LLM connection for this project under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) before creating llm_as_judge evaluators.`;
   }
 
+  let compiledOutputDefinition: ReturnType<
+    typeof compilePersistedEvalOutputDefinition
+  >;
   try {
     const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
       params.template.outputDefinition,
     );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
+    compiledOutputDefinition = compilePersistedEvalOutputDefinition(
       parsedOutputDefinition,
     );
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Invalid evaluator output definition";
+    return `Model configuration not valid for evaluator "${params.template.name}". ${message}`;
+  }
 
-    // Some test environments run a built app against seeded local data. In
-    // those cases we still want to validate model selection and schema
-    // compilation without depending on live provider credentials.
-    if (
-      process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION === "true" ||
-      process.env.NODE_ENV === "test" ||
-      process.env.DATABASE_URL?.includes("langfuse_test")
-    ) {
-      return null;
-    }
+  // Some test environments run a built app against seeded local data. In
+  // those cases we still want to validate model selection and schema
+  // compilation without depending on live provider credentials.
+  if (
+    process.env.LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION === "true" ||
+    process.env.NODE_ENV === "test" ||
+    process.env.DATABASE_URL?.includes("langfuse_test")
+  ) {
+    return null;
+  }
 
+  try {
     await testModelCall({
       provider: modelConfig.config.provider,
       model: modelConfig.config.model,
