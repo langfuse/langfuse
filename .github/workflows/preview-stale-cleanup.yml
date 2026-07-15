@@ -1,0 +1,94 @@
+name: AWS preview stale cleanup
+
+# Reap stale PR preview environments by removing the `preview` label from open
+# PRs with no activity for STALE_DAYS. Label removal is the ONLY action: the
+# Argo CD ApplicationSet in the infrastructure repo polls labeled open PRs, so
+# dropping the label makes it stop generating the Application, and its
+# resources-finalizer cascade-deletes the namespace, PVCs, and DNS. Re-adding
+# the label redeploys.
+#
+# "Activity" = GitHub's PR updated_at (commits, comments, reviews, label edits).
+# The auto-labeler applies `preview` on open, which bumps updated_at, so a
+# freshly labeled PR is never immediately reaped.
+#
+# Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
+# execution, no cloud credentials — only issues label/comment mutations — so it
+# stays off zizmor's dangerous-triggers list.
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List stale previews without removing the label"
+        type: boolean
+        default: false
+      stale_days:
+        description: "Inactivity threshold in days"
+        type: string
+        default: "2"
+
+permissions: {}
+
+concurrency:
+  group: preview-stale-cleanup
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Remove preview label from stale PRs
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same gate
+    # as preview-build / preview-autolabel): unset => system off, nothing to reap.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      issues: write # label removal + teardown comment (issues API)
+      pull-requests: read # list open PRs
+    steps:
+      - name: Reap stale previews
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const label = "preview";
+            const staleDays = Number(context.payload.inputs?.stale_days ?? "2");
+            const dryRun = String(context.payload.inputs?.dry_run ?? "false") === "true";
+            const cutoff = Date.now() - staleDays * 86400000;
+            const { owner, repo } = context.repo;
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            const labeled = prs.filter(pr => pr.labels.some(l => l.name === label));
+            const stale = labeled.filter(pr => new Date(pr.updated_at).getTime() < cutoff);
+
+            for (const pr of stale) {
+              const ageDays = ((Date.now() - new Date(pr.updated_at).getTime()) / 86400000).toFixed(1);
+              core.info(`PR #${pr.number} stale ${ageDays}d (updated ${pr.updated_at}) — ${pr.html_url}`);
+              if (dryRun) continue;
+
+              // Remove the label first — this is what triggers teardown. Tolerate
+              // a race where the label is already gone.
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: label,
+              }).catch(e => { if (e.status !== 404) throw e; });
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body: `🧹 Preview environment torn down after **${staleDays} days** of inactivity `
+                  + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
+              });
+            }
+
+            core.notice(
+              `${dryRun ? "[dry-run] " : ""}${stale.length} stale preview(s) `
+              + `(threshold ${staleDays}d) out of ${labeled.length} labeled.`
+            );
