@@ -49,6 +49,7 @@ const ChartComponent = ({
   metricFormatter: metricFormatterOverride,
   thresholds,
   missingValue,
+  hideXAxisLabels,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -80,6 +81,13 @@ const ChartComponent = ({
   thresholds?: ChartThreshold[];
   /** See {@link MissingBucketValue}; consumed by line/area time series. */
   missingValue?: MissingBucketValue;
+  /**
+   * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
+   * stays in the hover tooltip. Off by default. Consumed by the time-series
+   * charts and forwarded to `prepareTimeAxis`. Used by the experiments /
+   * dataset-compare charts.
+   */
+  hideXAxisLabels?: boolean;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -134,6 +142,7 @@ const ChartComponent = ({
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
             missingValue={missingValue}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "AREA_TIME_SERIES":
@@ -149,6 +158,7 @@ const ChartComponent = ({
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "BAR_TIME_SERIES":
@@ -163,6 +173,7 @@ const ChartComponent = ({
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
             subtleFill={chartConfig?.subtle_fill}
+            hideXAxisLabels={hideXAxisLabels}
           />
         );
       case "HORIZONTAL_BAR":
