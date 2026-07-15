@@ -199,6 +199,11 @@ export type ObservationIOSizeFields = {
  * Uses events-specific converter to include userId and sessionId
  * Supports both V1 (complete observations) and V2 (partial observations with field groups)
  *
+ * CONTRACT: a 1:1 order-preserving map over observationRecords — never
+ * filter, deduplicate, or reorder here. The ioSizeCap path in
+ * getObservationsWithModelDataFromEventsTable zips row-extra columns back on
+ * by index and asserts the row count.
+ *
  * @param observationRecords - Raw observation records from ClickHouse
  * @param projectId - Project ID for model lookup
  * @param parseIoAsJson - Whether to parse input/output as JSON
@@ -303,6 +308,12 @@ async function enrichObservationsWithModelData(
   });
 }
 
+/**
+ * CONTRACT: a 1:1 order-preserving map — never filter, deduplicate, or
+ * reorder here. The ioSizeCap path in
+ * getObservationsWithModelDataFromEventsTable zips row-extra columns back on
+ * by index and asserts the row count.
+ */
 async function enrichObservationsWithTraceFields(
   observationRecords: Array<EventsObservation & ObservationPriceFields>,
 ): Promise<FullEventsObservations> {
@@ -546,9 +557,15 @@ export async function getObservationsWithModelDataFromEventsTable(
   if (!opts.ioSizeCap) return enriched;
 
   // Zip the size fields back on BY ROW ORDER: both enrichers above are 1:1
-  // maps over the records. Never zip by id — un-merged ReplacingMergeTree
-  // versions of one span return multiple rows sharing an id, and an id-keyed
-  // lookup would attach one version's lengths to another version's payload.
+  // order-preserving maps over the records (a documented contract on each).
+  // Never zip by id — un-merged ReplacingMergeTree versions of one span
+  // return multiple rows sharing an id, and an id-keyed lookup would attach
+  // one version's lengths to another version's payload.
+  if (enriched.length !== observationRecords.length) {
+    throw new Error(
+      "getObservationsWithModelDataFromEventsTable: enrichment changed the row count; the ioSizeCap zip requires 1:1 order-preserving enrichers",
+    );
+  }
   const { inlineChars } = opts.ioSizeCap;
   return enriched.map((observation, index) => {
     const record = observationRecords[index];

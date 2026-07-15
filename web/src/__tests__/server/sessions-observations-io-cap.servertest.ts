@@ -206,10 +206,14 @@ maybe("sessions observations bounded I/O (events)", () => {
     expect(hasMoreObservations).toBe(true);
   });
 
-  it("trims to preview heads once the cumulative I/O budget is exhausted", async () => {
-    // 8 x 290K inputs: each under the inline cap, cumulatively over the 2M
-    // budget from the 8th observation on (budget checked before adding).
-    const nearCap = "b".repeat(290_000);
+  it("trims to preview heads once the cumulative I/O budget is exhausted (valid-JSON payloads)", async () => {
+    // 8 x ~290K VALID-JSON inputs: each under the inline cap, cumulatively
+    // over the 2M budget from the 8th observation on (budget checked before
+    // adding). Valid JSON is the realistic LLM shape and guards the budget
+    // against ever depending on the value's parse state.
+    const nearCap = JSON.stringify({
+      messages: [{ role: "user", content: "b".repeat(289_000) }],
+    });
     const { sessionId, traceId } = await seedObservations(
       Array.from({ length: 8 }, () => ({ input: nearCap, output: "ok" })),
     );
@@ -224,13 +228,15 @@ maybe("sessions observations bounded I/O (events)", () => {
 
     const first = observations[0];
     expect(first.inputTruncated).toBe(false);
-    expect((first.input as string).length).toBe(290_000);
+    // I/O on this path is returned as the raw string; the client parses.
+    expect(typeof first.input).toBe("string");
+    expect((first.input as string).length).toBe(nearCap.length);
 
     const last = observations[observations.length - 1];
     expect(last.inputTruncated).toBe(true);
     expect((last.input as string).length).toBe(PREVIEW_LIMIT);
     // The true length survives the trim so the UI can show the real size.
-    expect(last.inputLength).toBe(290_000);
+    expect(last.inputLength).toBe(nearCap.length);
   });
 
   it("serves full I/O for one observation via observationFullIOFromEvents, scoped to the session", async () => {

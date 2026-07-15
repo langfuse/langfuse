@@ -854,6 +854,9 @@ export const sessionRouter = createTRPCRouter({
         limit = 1;
       }
 
+      // No renderingProps: ioSizeCap owns the I/O select, and this path's
+      // conversion always returns I/O as raw strings (the V1 enricher
+      // hardcodes parseIoAsJson=false) — the client parses.
       const fetched = await getObservationsWithModelDataFromEventsTable({
         projectId: input.projectId,
         filter: filterState,
@@ -863,7 +866,6 @@ export const sessionRouter = createTRPCRouter({
         limit,
         offset,
         selectIOAndMetadata: true,
-        renderingProps: { truncated: false, shouldJsonParse: true },
         ioSizeCap: {
           inlineChars: SESSION_OBSERVATION_INLINE_IO_CHAR_LIMIT,
           previewChars: SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
@@ -877,45 +879,48 @@ export const sessionRouter = createTRPCRouter({
         ? fetched.slice(0, SESSION_OBSERVATIONS_PER_TRACE_LIMIT)
         : fetched;
 
+      // Preview head of a value regardless of parse state: I/O is a raw
+      // string on this path, but if conversion ever starts returning parsed
+      // objects the budget must keep holding — hence the stringify branch.
+      const toPreviewHead = (value: unknown): unknown => {
+        const text =
+          typeof value === "string" ? value : (JSON.stringify(value) ?? "");
+        return text.length > SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
+          ? text.slice(0, SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT)
+          : value;
+      };
+
       // Cumulative budget: rows are order-stable (startTime ASC), so the trim
       // is deterministic. The check runs before adding the row's own size, so
       // the first observation always keeps whatever the per-field cap allowed.
+      // Sizes come from the server-computed lengths + flags, NOT from the
+      // returned values, so the accounting is independent of value shape:
+      // an under-cap field returned whole counts its full length, an over-cap
+      // field counts only its preview head.
       let cumulativeIOChars = 0;
       const observations = page.map((observation) => {
         const returnedIOChars =
-          (typeof observation.input === "string"
-            ? observation.input.length
-            : 0) +
-          (typeof observation.output === "string"
-            ? observation.output.length
-            : 0);
+          (observation.inputTruncated
+            ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
+            : observation.inputLength) +
+          (observation.outputTruncated
+            ? SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT
+            : observation.outputLength);
         const withinBudget =
           cumulativeIOChars <= SESSION_TRACE_TOTAL_IO_CHAR_BUDGET;
         cumulativeIOChars += returnedIOChars;
         if (withinBudget) return observation;
 
-        const inputSliced =
-          typeof observation.input === "string" &&
-          observation.input.length > SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT;
-        const outputSliced =
-          typeof observation.output === "string" &&
-          observation.output.length > SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT;
+        const input = toPreviewHead(observation.input);
+        const output = toPreviewHead(observation.output);
         return {
           ...observation,
-          input: inputSliced
-            ? (observation.input as string).slice(
-                0,
-                SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
-              )
-            : observation.input,
-          output: outputSliced
-            ? (observation.output as string).slice(
-                0,
-                SESSION_OBSERVATION_PREVIEW_IO_CHAR_LIMIT,
-              )
-            : observation.output,
-          inputTruncated: observation.inputTruncated || inputSliced,
-          outputTruncated: observation.outputTruncated || outputSliced,
+          input,
+          output,
+          inputTruncated:
+            observation.inputTruncated || input !== observation.input,
+          outputTruncated:
+            observation.outputTruncated || output !== observation.output,
         };
       });
 
