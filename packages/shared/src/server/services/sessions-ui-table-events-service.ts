@@ -18,8 +18,8 @@ import {
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { sessionCols } from "../tableMappings/mapSessionTable";
-import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
+import { sessionEventsCols } from "../tableMappings/mapSessionTable";
+import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 
@@ -198,7 +198,11 @@ const getSessionsTableFromEventsGeneric = async <T>(
     props;
 
   const sessionFilters = new FilterList(
-    createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
+    createFilterFromFilterState(
+      filter,
+      sessionEventsCols,
+      sessionsEventsViewCols,
+    ),
   );
   const sessionsFilterRes = sessionFilters.apply();
 
@@ -220,8 +224,8 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
   const requiresScoresJoin =
     sessionFilters.some((f) => f.clickhouseTable === "scores") ||
-    findUiColumnMapping(sessionCols, orderBy?.column)?.clickhouseTableName ===
-      "scores";
+    findUiColumnMapping(sessionEventsCols, orderBy?.column)
+      ?.clickhouseTableName === "scores";
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -300,7 +304,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
   }
 
-  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionCols);
+  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionEventsCols);
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);
   }

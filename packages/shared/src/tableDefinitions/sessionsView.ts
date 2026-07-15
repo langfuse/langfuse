@@ -131,6 +131,16 @@ export const sessionsViewCols: ColumnDefinition[] = [
   },
 ];
 
+export const sessionsEventsViewCols: ColumnDefinition[] = [
+  ...sessionsViewCols,
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: 's."metadata"',
+  },
+];
+
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
   environment: Array<SingleValueOption>;

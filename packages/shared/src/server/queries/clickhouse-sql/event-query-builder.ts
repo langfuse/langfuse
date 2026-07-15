@@ -1434,6 +1434,10 @@ const EVENTS_SESSION_AGGREGATION_FIELDS = {
   trace_tags: "groupUniqArrayArrayIf(tags, notEmpty(tags)) AS trace_tags",
   environment:
     "argMaxIf(environment, event_ts, environment <> '') AS environment",
+  metadata_names:
+    "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+  metadata_values:
+    "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
   total_observations:
     "uniqIf(span_id, parent_span_id != '') AS total_observations",
   duration:

@@ -3,7 +3,26 @@ import { describe, expect, it } from "vitest";
 import {
   buildEventsFullTableSplitQuery,
   EventsQueryBuilder,
+  EventsSessionAggregationQueryBuilder,
 } from "./event-query-builder";
+
+describe("EventsSessionAggregationQueryBuilder", () => {
+  it("selects metadata arrays from the same deterministic latest observation", () => {
+    const { query } = new EventsSessionAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+    );
+    expect(query).toContain(
+      "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
+    );
+    expect(query).toContain("e.project_id = {projectId: String}");
+  });
+});
 
 describe("EventsQueryBuilder.selectIOWithSizeCap", () => {
   const build = () =>
