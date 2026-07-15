@@ -5,6 +5,7 @@ import {
   type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
+  type LegacyCompatibleModelParams,
   LLMAdapter,
   type ModelParams,
 } from "../types";
@@ -159,7 +160,7 @@ const FAKE_GCP_SERVICE_ACCOUNT_KEY = JSON.stringify({
 });
 
 async function runCompletion(params: {
-  modelParams: ModelParams;
+  modelParams: LegacyCompatibleModelParams;
   apiKey: string;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
@@ -202,9 +203,9 @@ describe("AI SDK request shapes", () => {
         provider: "openai",
         adapter: LLMAdapter.OpenAI,
         model: "gpt-4o",
-        max_tokens: 128,
+        maxOutputTokens: 128,
         temperature: 0.2,
-        providerOptions: { reasoning_effort: "high" },
+        reasoning: "high",
       },
       apiKey: "sk-test",
       response: OPENAI_CHAT_RESPONSE,
@@ -246,7 +247,7 @@ describe("AI SDK request shapes", () => {
         provider: "openai",
         adapter: LLMAdapter.OpenAI,
         model: "custom-reasoning-model",
-        max_tokens: 64,
+        maxOutputTokens: 64,
         providerOptions: {
           reasoning_effort: "high",
           service_tier: "flex",
@@ -328,7 +329,8 @@ describe("AI SDK request shapes", () => {
         provider: "azure",
         adapter: LLMAdapter.Azure,
         model: "gpt4o-deployment",
-        max_tokens: 64,
+        maxOutputTokens: 64,
+        reasoning: "high",
         providerOptions: { logit_bias: { "42": 1 } },
       },
       apiKey: "azure-key",
@@ -343,6 +345,7 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("api-key")).toBe("azure-key");
     expect(request.headers.get("x-custom")).toBe("1");
     expect(request.body.logit_bias).toEqual({ "42": 1 });
+    expect(request.body.reasoning_effort).toBe("high");
     expect(request.body.max_tokens).toBe(64);
   });
 
@@ -352,7 +355,7 @@ describe("AI SDK request shapes", () => {
         provider: "azure",
         adapter: LLMAdapter.Azure,
         model: "gpt4o-deployment",
-        max_tokens: 64,
+        maxOutputTokens: 64,
       },
       apiKey: "azure-key",
       baseURL:
@@ -372,9 +375,9 @@ describe("AI SDK request shapes", () => {
         provider: "openai",
         adapter: LLMAdapter.OpenAI,
         model: "gpt-5.4-mini",
-        max_tokens: 64,
+        maxOutputTokens: 64,
         temperature: 0.2,
-        top_p: 0.9,
+        topP: 0.9,
       },
       apiKey: "openai-key",
       response: OPENAI_CHAT_RESPONSE,
@@ -392,7 +395,7 @@ describe("AI SDK request shapes", () => {
         provider: "anthropic",
         adapter: LLMAdapter.Anthropic,
         model: "claude-sonnet-5",
-        max_tokens: 256,
+        maxOutputTokens: 256,
         providerOptions: { thinking: { type: "enabled", budget_tokens: 1024 } },
       },
       apiKey: "anthropic-key",
@@ -414,6 +417,24 @@ describe("AI SDK request shapes", () => {
     // The leading system message becomes the top-level system param.
     expect(JSON.stringify(request.body.system)).toContain("You are terse.");
     expect(request.body.messages).toHaveLength(1);
+  });
+
+  it("Anthropic: portable reasoning maps to adaptive thinking and effort", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "anthropic",
+        adapter: LLMAdapter.Anthropic,
+        model: "claude-sonnet-5",
+        maxOutputTokens: 256,
+        reasoning: "high",
+      },
+      apiKey: "anthropic-key",
+      response: ANTHROPIC_RESPONSE,
+    });
+
+    expect(request.body.thinking).toEqual({ type: "adaptive" });
+    expect(request.body.output_config).toEqual({ effort: "high" });
+    expect(request.body.max_tokens).toBe(256);
   });
 
   it("Google AI Studio: /v1beta path on a custom origin with thinkingConfig", async () => {
@@ -443,7 +464,55 @@ describe("AI SDK request shapes", () => {
     });
   });
 
-  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, maxReasoningTokens", async () => {
+  it("Google AI Studio: portable reasoning maps to a Gemini 3 thinking level", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "google-ai-studio",
+        adapter: LLMAdapter.GoogleAIStudio,
+        model: "gemini-3-pro-preview",
+        reasoning: "high",
+      },
+      apiKey: "google-key",
+      response: GOOGLE_RESPONSE,
+    });
+
+    const generationConfig = request.body.generationConfig as Record<
+      string,
+      unknown
+    >;
+    expect(generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: "high",
+    });
+  });
+
+  it("Vertex Gemini: portable reasoning maps through the regional Vertex request", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "vertex",
+        adapter: LLMAdapter.VertexAI,
+        model: "gemini-3-pro-preview",
+        reasoning: "high",
+      },
+      apiKey: FAKE_GCP_SERVICE_ACCOUNT_KEY,
+      llmConnectionConfig: { location: "us-east5" },
+      response: GOOGLE_RESPONSE,
+    });
+
+    // The Google Vertex provider targets the v1beta1 generateContent API.
+    expect(request.url).toBe(
+      "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-3-pro-preview:generateContent",
+    );
+    expect(request.headers.get("authorization")).toBe("Bearer fake-gcp-token");
+    const generationConfig = request.body.generationConfig as Record<
+      string,
+      unknown
+    >;
+    expect(generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: "high",
+    });
+  });
+
+  it("Vertex Gemini: legacy reasoning token budgets remain compatible", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "vertex",
@@ -456,11 +525,9 @@ describe("AI SDK request shapes", () => {
       response: GOOGLE_RESPONSE,
     });
 
-    // The Google Vertex provider targets the v1beta1 generateContent API.
     expect(request.url).toBe(
       "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent",
     );
-    expect(request.headers.get("authorization")).toBe("Bearer fake-gcp-token");
     const generationConfig = request.body.generationConfig as Record<
       string,
       unknown
@@ -477,7 +544,7 @@ describe("AI SDK request shapes", () => {
         provider: "vertex",
         adapter: LLMAdapter.VertexAI,
         model: "claude-sonnet-4-5@20250929",
-        max_tokens: 128,
+        maxOutputTokens: 128,
       },
       apiKey: FAKE_GCP_SERVICE_ACCOUNT_KEY,
       llmConnectionConfig: { location: "us-east5" },
@@ -496,14 +563,15 @@ describe("AI SDK request shapes", () => {
 
   // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
   // so capture at the global fetch the AI SDK falls back to.
-  async function runBedrockCompletion() {
-    const modelParams: ModelParams = {
+  async function runBedrockCompletion(
+    modelParams: ModelParams = {
       provider: "bedrock",
       adapter: LLMAdapter.Bedrock,
       model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-      max_tokens: 64,
+      maxOutputTokens: 64,
       providerOptions: { top_k: 10 },
-    };
+    },
+  ) {
     const llmConnectionConfig = { region: "us-east-1" };
 
     const { calls, fetch } = createCaptureFetch(BEDROCK_RESPONSE);
@@ -557,5 +625,18 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toContain("AKIA123");
     // No merged server session token (would surface as this SigV4 header).
     expect(request.headers.get("x-amz-security-token")).toBeNull();
+  });
+
+  it("Bedrock: portable reasoning maps to model-native reasoning config", async () => {
+    const request = await runBedrockCompletion({
+      provider: "bedrock",
+      adapter: LLMAdapter.Bedrock,
+      model: "amazon.nova-2-lite-v1:0",
+      reasoning: "high",
+    });
+
+    expect(request.body.additionalModelRequestFields).toEqual({
+      reasoningConfig: { maxReasoningEffort: "high" },
+    });
   });
 });

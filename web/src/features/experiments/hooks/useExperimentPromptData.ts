@@ -6,7 +6,9 @@ import {
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
+  type ModelConfig,
   ZodModelConfig,
+  ZodModelConfigInput,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
 
@@ -18,7 +20,7 @@ type ExperimentPromptDataProps = {
 export type ExperimentPromptModelConfig = {
   provider?: string;
   model: string;
-};
+} & ModelConfig;
 
 export function useExperimentPromptData({
   projectId,
@@ -82,10 +84,14 @@ export function useExperimentPromptData({
   };
 }
 
-const PromptConfigSchema = ZodModelConfig.extend({
+const PromptConfigSchema = ZodModelConfigInput.extend({
   provider: z.string().min(1).optional(),
   model: z.string().min(1),
-});
+}).transform(({ provider, model, ...config }) => ({
+  provider,
+  model,
+  ...ZodModelConfig.parse(config),
+}));
 
 const getPromptModelConfig = (
   config: unknown,
@@ -94,9 +100,10 @@ const getPromptModelConfig = (
 
   if (!parsedConfig.success) return null;
 
-  const { provider, model } = parsedConfig.data;
+  const { provider, model, ...modelConfig } = parsedConfig.data;
   return {
     ...(provider ? { provider } : {}),
     model,
+    ...modelConfig,
   };
 };

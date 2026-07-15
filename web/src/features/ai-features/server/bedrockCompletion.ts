@@ -63,10 +63,10 @@ export async function generateLangfuseAIText(params: {
         provider: "bedrock",
         adapter: LLMAdapter.Bedrock,
         model,
-        // Intentionally omit temperature/top_p: newer Bedrock models reject these
+        // Intentionally omit temperature/topP: newer Bedrock models reject these
         // inference params, while AI-feature generation works at model defaults.
         ...(params.maxTokens !== undefined
-          ? { max_tokens: params.maxTokens }
+          ? { maxOutputTokens: params.maxTokens }
           : {}),
       },
       connection: {

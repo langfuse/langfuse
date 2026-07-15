@@ -48,8 +48,13 @@ import {
   useWindowCoordination,
 } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
-import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import {
+  getFinalModelParams,
+  normalizeLegacyUIModelParams,
+} from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { readLlmWarnings } from "@/src/features/playground/utils/llmWarnings";
+import { toast } from "sonner";
 
 type PlaygroundContextType = {
   windowId: string;
@@ -212,7 +217,10 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     }
 
     if (cachedModelParams) {
-      setModelParams((prev) => ({ ...prev, ...cachedModelParams }));
+      setModelParams((prev) => ({
+        ...prev,
+        ...normalizeLegacyUIModelParams(cachedModelParams),
+      }));
     }
 
     if (cachedPromptVariables) {
@@ -787,6 +795,7 @@ async function getChatCompletionWithTools(
   if (!result.ok) {
     throw new Error(`Completion failed: ${responseData.message}`);
   }
+  showLlmWarnings(result);
 
   const parsed = ToolCallResponseSchema.safeParse(responseData);
   if (!parsed.success)
@@ -831,6 +840,7 @@ async function getChatCompletionWithStructuredOutput(
     const responseData = await result.json();
     throw new Error(`Completion failed: ${responseData.message}`);
   }
+  showLlmWarnings(result);
 
   const responseData = await result.text();
 
@@ -880,6 +890,7 @@ async function* getChatCompletionStream(
 
     throw new Error(`Completion failed: ${errorData.message}`);
   }
+  showLlmWarnings(result);
 
   const reader = result.body?.getReader();
   if (!reader) {
@@ -939,12 +950,22 @@ async function getChatCompletionNonStreaming(
     const errorData = await result.json();
     throw new Error(`Completion failed: ${errorData.message}`);
   }
+  showLlmWarnings(result);
 
   const responseData = await result.json();
   return {
     content: responseData.content || "",
     reasoning: responseData.reasoning,
   };
+}
+
+function showLlmWarnings(response: Response) {
+  const warnings = readLlmWarnings(response);
+  if (warnings.length === 0) return;
+
+  toast.warning("Some model settings were adjusted", {
+    description: warnings.join("\n"),
+  });
 }
 
 function getFinalMessages(

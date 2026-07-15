@@ -13,6 +13,7 @@ import {
   type GenerateTextResult,
   type Experimental_DownloadFunction,
   type JSONValue,
+  type LanguageModelCallOptions,
   type ModelMessage,
   type StreamTextOnErrorCallback,
   type StreamTextResult,
@@ -51,10 +52,11 @@ import type {
   ChatMessage,
   LLMJSONSchema,
   LLMToolDefinition,
+  LegacyCompatibleModelParams,
   ModelParams,
   TraceSinkParams,
 } from "./types";
-import { LLMAdapter } from "./types";
+import { LLMAdapter, ZodModelConfig } from "./types";
 import { decryptAndParseExtraHeaders } from "./utils";
 
 type RuntimeContext = Record<string, unknown>;
@@ -86,7 +88,23 @@ export type LLMOutput<
 export type StreamLLMTextOnAbortCallback<TOOLS extends ToolSet = ToolSet> =
   GenerateTextOnAbortCallback<TOOLS, RuntimeContext>;
 
-type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
+type PortableLLMCallSettings = Pick<
+  LanguageModelCallOptions,
+  | "maxOutputTokens"
+  | "temperature"
+  | "topP"
+  | "topK"
+  | "presencePenalty"
+  | "frequencyPenalty"
+  | "stopSequences"
+  | "seed"
+  | "reasoning"
+>;
+
+type BaseLLMTextOptions<
+  TOOLS extends ToolSet,
+  OUTPUT extends Output.Output,
+> = PortableLLMCallSettings & {
   model: LLMModelRef;
   connection: LLMConnection;
   messages: ModelMessage[];
@@ -96,9 +114,6 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
    */
   tools?: TOOLS;
   output?: OUTPUT;
-  maxOutputTokens?: number;
-  temperature?: number;
-  topP?: number;
   /** Canonical, provider-namespaced AI SDK options. */
   providerOptions?: ProviderOptions;
   maxRetries?: number;
@@ -136,13 +151,10 @@ type PreparedLLMTextCall<TOOLS extends ToolSet> = {
   languageModel: Awaited<ReturnType<typeof buildAiSdkModel>>;
   capture?: AiSdkTelemetryCapture;
   runInTraceContext: <T>(fn: () => T) => T;
-  callOptions: {
+  callOptions: PortableLLMCallSettings & {
     messages: ModelMessage[];
     allowSystemInMessages: true;
     tools?: TOOLS;
-    maxOutputTokens?: number;
-    temperature?: number;
-    topP?: number;
     providerOptions?: ProviderOptions;
     maxRetries?: number;
     timeout: TimeoutConfiguration<TOOLS>;
@@ -331,6 +343,12 @@ async function prepareLLMTextCall<
       maxOutputTokens: options.maxOutputTokens,
       temperature: options.temperature,
       topP: options.topP,
+      topK: options.topK,
+      presencePenalty: options.presencePenalty,
+      frequencyPenalty: options.frequencyPenalty,
+      stopSequences: options.stopSequences,
+      seed: options.seed,
+      reasoning: options.reasoning,
       providerOptions: options.providerOptions,
       maxRetries: options.maxRetries,
       timeout,
@@ -438,6 +456,12 @@ export type LegacyLLMTextOptions = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  topK?: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  stopSequences?: string[];
+  seed?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   providerOptions?: ProviderOptions;
   credentialSource: LLMCredentialSource;
 };
@@ -448,11 +472,17 @@ export type LegacyLLMTextOptions = {
  */
 export function mapLegacyLLMCompletionParams(params: {
   messages: ChatMessage[];
-  modelParams: ModelParams;
+  modelParams: LegacyCompatibleModelParams;
   connection: LLMConnection;
   credentialSource?: LLMCredentialSource;
 }): LegacyLLMTextOptions {
-  const { modelParams } = params;
+  const modelConfig = ZodModelConfig.parse(params.modelParams);
+  const modelParams: ModelParams = {
+    provider: params.modelParams.provider,
+    adapter: params.modelParams.adapter,
+    model: params.modelParams.model,
+    ...modelConfig,
+  };
   const providerOptions = translateLegacyProviderOptions({
     modelParams,
     connection: params.connection,
@@ -464,9 +494,15 @@ export function mapLegacyLLMCompletionParams(params: {
     messages: mapChatMessagesToModelMessages(params.messages, {
       adapter: modelParams.adapter,
     }),
-    maxOutputTokens: modelParams.max_tokens,
+    maxOutputTokens: modelParams.maxOutputTokens,
     temperature: modelParams.temperature,
-    topP: modelParams.top_p,
+    topP: modelParams.topP,
+    topK: modelParams.topK,
+    presencePenalty: modelParams.presencePenalty,
+    frequencyPenalty: modelParams.frequencyPenalty,
+    stopSequences: modelParams.stopSequences,
+    seed: modelParams.seed,
+    reasoning: modelParams.reasoning,
     providerOptions,
     credentialSource: params.credentialSource ?? "user",
   };
@@ -533,7 +569,7 @@ function translateLegacyProviderOptions(params: {
         : translateGoogleProviderOptions({
             providerOptions: modelParams.providerOptions,
             model: modelParams.model,
-            maxReasoningTokens: modelParams.maxReasoningTokens,
+            maxReasoningTokens: modelParams.legacyReasoningTokenBudget,
           });
       break;
     }

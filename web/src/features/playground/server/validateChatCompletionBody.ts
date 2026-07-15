@@ -4,19 +4,20 @@ import {
   LLMJSONSchema,
   LLMToolDefinitionSchema,
   ChatMessageSchema,
-  JSONObjectSchema,
+  ZodModelConfig,
+  ZodModelConfigInput,
 } from "@langfuse/shared";
 
-const ModelParamsSchema = z.object({
+const ModelParamsSchema = ZodModelConfigInput.extend({
   provider: z.string(),
   adapter: z.enum(LLMAdapter),
   model: z.string(),
-  temperature: z.number().optional(),
-  max_tokens: z.number().optional(),
-  top_p: z.number().optional(),
-  maxReasoningTokens: z.number().optional(),
-  providerOptions: JSONObjectSchema.optional(),
-});
+}).transform(({ provider, adapter, model, ...config }) => ({
+  provider,
+  adapter,
+  model,
+  ...ZodModelConfig.parse(config),
+}));
 
 export const ChatCompletionBodySchema = z.object({
   projectId: z.string(),
