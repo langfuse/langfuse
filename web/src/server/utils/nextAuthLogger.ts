@@ -20,7 +20,7 @@ const serializeError = (error: Error): Record<string, unknown> => ({
       ([key, value]) => [key, serializeValue(value)],
     ),
   ),
-  name: error.name,
+  name: truncate(error.name),
   message: truncate(error.message),
   stack: error.stack ? truncate(error.stack) : undefined,
 });
