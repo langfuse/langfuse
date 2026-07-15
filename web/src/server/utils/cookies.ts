@@ -20,22 +20,24 @@ export const getCookieOptions = () => ({
   secure: shouldSecureCookies(),
 });
 
-// Suffix that namespaces the cookie NAME so instances sharing a parent cookie
-// domain never read each other's session cookie (a foreign one, encrypted with a
-// different NEXTAUTH_SECRET, fails to decrypt -> JWT_SESSION_ERROR -> login loop).
-// An explicit NEXTAUTH_COOKIE_NAME_SUFFIX (self-hosted, e.g. per-PR preview
-// environments) takes precedence; otherwise fall back to the cloud region.
-const getCookieNameSuffix = () =>
-  env.NEXTAUTH_COOKIE_NAME_SUFFIX
-    ? `.${env.NEXTAUTH_COOKIE_NAME_SUFFIX}`
-    : env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
-      : "";
-
 export const getCookieName = (name: string) =>
-  [shouldSecureCookies() ? "__Secure-" : "", name, getCookieNameSuffix()].join(
-    "",
-  );
+  [
+    shouldSecureCookies() ? "__Secure-" : "",
+    name,
+    // Namespaces the cookie NAME so instances that share a parent cookie domain
+    // never read each other's session cookie (a foreign one, encrypted with a
+    // different NEXTAUTH_SECRET, fails to decrypt -> JWT_SESSION_ERROR -> login
+    // loop). The Langfuse Cloud region ALWAYS takes precedence, so any deployment
+    // that sets NEXT_PUBLIC_LANGFUSE_CLOUD_REGION (US/EU/STAGING/HIPAA/JP) keeps
+    // byte-identical cookie names — NEXTAUTH_COOKIE_NAME_SUFFIX can never change
+    // them, even if it is also set by mistake. The suffix applies only to
+    // self-hosted deployments with no region (e.g. per-PR preview environments).
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+      ? `.${env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}`
+      : env.NEXTAUTH_COOKIE_NAME_SUFFIX
+        ? `.${env.NEXTAUTH_COOKIE_NAME_SUFFIX}`
+        : "",
+  ].join("");
 
 /** ProjectCookie carries the server-stamped origin and project id of a user's most recent project. */
 export type ProjectCookie = {

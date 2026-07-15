@@ -77,9 +77,12 @@ export const env = createEnv({
     // "__Secure-next-auth.session-token.pr-1234"). Lets multiple Langfuse
     // instances that share a parent cookie domain (preview/review environments)
     // avoid reading each other's session cookie, which — encrypted with a
-    // different NEXTAUTH_SECRET — fails to decrypt and wedges login. This is the
+    // different NEXTAUTH_SECRET — fails to decrypt and wedges login. It is the
     // self-hosted-friendly equivalent of the per-region suffix Langfuse Cloud
     // derives from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, without enabling cloud mode.
+    // SAFETY: the cloud region ALWAYS takes precedence over this (see
+    // getCookieName), so it can never alter cookie names on a region deployment
+    // even if set by mistake; it only takes effect when no region is configured.
     NEXTAUTH_COOKIE_NAME_SUFFIX: z
       .string()
       .regex(
