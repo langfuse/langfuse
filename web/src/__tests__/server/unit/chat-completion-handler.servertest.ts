@@ -48,6 +48,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
+import { LLMValidationError } from "@langfuse/shared/src/server";
 
 const baseBody = {
   projectId: "project-1",
@@ -187,16 +188,17 @@ describe("chatCompletionHandler", () => {
   });
 
   it("preserves terminal LLM configuration status codes", async () => {
-    const error = new Error("Unsupported provider options: unknown_parameter");
-    error.name = "LLMCompletionError";
-    Object.assign(error, { responseStatusCode: 400, isRetryable: false });
+    const error = new LLMValidationError({
+      code: "invalid-request",
+      message: "Unsupported provider options: unknown_parameter",
+    });
     mocks.generate.mockRejectedValue(error);
 
     const response = await chatCompletionHandler(createRequest(baseBody));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "LLMCompletionError",
+      error: "LLMValidationError",
       message: "Unsupported provider options: unknown_parameter",
     });
   });

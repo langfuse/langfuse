@@ -5,7 +5,7 @@ import {
   VertexAIConfigSchema,
   type LLMConnectionConfig,
 } from "../../../interfaces/customLLMProviderConfigSchemas";
-import { LLMCompletionError } from "../errors";
+import { LLMValidationError } from "../errors";
 import { LLMAdapter } from "../types";
 import { translateAzureBaseURL } from "./providers/azure";
 import { assertValidBedrockRegion } from "./providers/bedrock";
@@ -41,10 +41,9 @@ export function resolveAiSdkModelConfig(params: {
       credentialSource === "langfuse" &&
       model.adapter !== LLMAdapter.Bedrock
     ) {
-      throw new LLMCompletionError({
+      throw new LLMValidationError({
+        code: "invalid-connection",
         message: "Langfuse credentials are only supported for Amazon Bedrock",
-        responseStatusCode: 400,
-        isRetryable: false,
       });
     }
 
@@ -102,15 +101,14 @@ export function resolveAiSdkModelConfig(params: {
       }
     }
   } catch (cause) {
-    if (cause instanceof LLMCompletionError) throw cause;
+    if (LLMValidationError.isInstance(cause)) throw cause;
 
-    throw new LLMCompletionError({
+    throw new LLMValidationError({
+      code: "invalid-connection",
       message:
         cause instanceof Error
           ? cause.message
           : `Invalid ${model.adapter} connection configuration`,
-      responseStatusCode: 400,
-      isRetryable: false,
       cause,
     });
   }
