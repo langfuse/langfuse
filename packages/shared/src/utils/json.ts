@@ -399,7 +399,7 @@ export function deepParseJsonIterative(
  *
  * Catches:
  * 1. [\d.]{13,} - 13+ characters of digits/dots (conservative threshold for ~12+ significant digits)
- * 2. \d[eE] - scientific notation (always use lossless-json for safety)
+ * 2. \d[eE] - scientific notation (always take the precision-preserving path for safety)
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
 const JSON_NUMBER_LITERAL_PATTERN =
@@ -407,6 +407,45 @@ const JSON_NUMBER_LITERAL_PATTERN =
 
 export const isJsonNumberLiteral = (value: string): boolean =>
   JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
+
+/**
+ * JSON.parse reviver with source-text access (TC39 json-parse-with-source,
+ * V8 in Node >= 21 and evergreen browsers). The `context` parameter is not
+ * yet part of the es2023 lib types, hence the local signature. `context` is
+ * optional so the function stays assignable to the classic reviver type.
+ */
+type ReviverWithSource = (
+  this: unknown,
+  key: string,
+  value: unknown,
+  context?: { source?: string },
+) => unknown;
+
+/**
+ * Keeps numbers that cannot round-trip through a JS double as their exact
+ * source token (a string) instead of the rounded double. `context.source` is
+ * only provided for primitive values, so objects/arrays pass through.
+ */
+const preserveUnsafeNumbers: ReviverWithSource = (_key, value, context) =>
+  typeof value === "number" &&
+  context?.source !== undefined &&
+  !isSafeNumber(context.source)
+    ? context.source
+    : value;
+
+/**
+ * Whether JSON.parse exposes the raw source text to the reviver. True on
+ * Node >= 21 and evergreen browsers; older browsers fall back to the
+ * lossless-json parser below.
+ */
+const supportsJsonParseWithSource = ((): boolean => {
+  let source: string | undefined;
+  JSON.parse("9007199254740993", ((_key, value, context) => {
+    source = context?.source;
+    return value;
+  }) as ReviverWithSource);
+  return source === "9007199254740993";
+})();
 
 /**
  * Parses a JSON string like JSON.parse, but preserves integers beyond
@@ -420,8 +459,19 @@ const parsePreservingPrecision = (json: string): unknown => {
     return JSON.parse(json);
   }
 
-  // Slow path: lossless-json keeps the exact token. Safe numbers become real
-  // numbers, unsafe ones are preserved as their string representation.
+  // Precision path: native JSON.parse with a source-access reviver. Safe
+  // numbers stay real numbers, unsafe ones keep their exact source token as
+  // a string. Native parsing here replaced lossless-json's pure-JS parser,
+  // which dominated heap allocation on large payloads (any 13+ digit run or
+  // digit-followed-by-e — e.g. ms timestamps or base64 — lands on this path).
+  if (supportsJsonParseWithSource) {
+    return JSON.parse(json, preserveUnsafeNumbers);
+  }
+
+  // Legacy fallback for runtimes without reviver source access (pre-2024
+  // browsers); Node >= 21 never reaches this. NOTE: unlike JSON.parse,
+  // lossless-json throws on duplicate keys, so such documents stay raw
+  // strings on this path only.
   return parse(json, null, (value) =>
     isNumber(value)
       ? isSafeNumber(value)
