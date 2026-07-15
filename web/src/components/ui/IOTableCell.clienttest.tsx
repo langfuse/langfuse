@@ -248,4 +248,16 @@ describe("IOTableCell media chip rendering", () => {
     expect(container.textContent ?? "").not.toContain("@@@");
     expect(container.textContent).toContain("truncated");
   });
+
+  // Once the full-opener guard has trimmed to before a dangling ref, the
+  // partial-opener guard must not run — otherwise a stray `@` on adjacent
+  // safe content (e.g. "email@" preceding the ref) would also be dropped.
+  it("single-line: preserves trailing '@' on safe content next to a dangling ref", () => {
+    const prefix = "x".repeat(IO_TABLE_CHAR_LIMIT - 40) + "email@";
+    const data = prefix + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").toContain("email@");
+    expect(container.textContent ?? "").not.toContain("@@@");
+  });
 });

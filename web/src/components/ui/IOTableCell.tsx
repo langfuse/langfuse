@@ -112,9 +112,15 @@ const IOTableCellContent = ({
       };
     }
     let sliced = stringified.slice(0, IO_TABLE_CHAR_LIMIT);
-    // If the naive cut lands mid `@@@langfuseMedia:…@@@` (closer past the
-    // limit), back off to before the dangling opener so a chip never leaks
-    // into the preview as literal text.
+    // If the naive cut lands mid `@@@langfuseMedia:…@@@`, back off so a
+    // chip never leaks into the preview as literal text. Two shapes,
+    // mutually exclusive:
+    //   1. Full opener present with closer past the limit → trim to before it.
+    //   2. Cut inside the 17-char opener itself (e.g. slice ends with
+    //      "@@@langfuseMed") → trim the longest opener prefix from the tail.
+    // If (1) fires we've already dropped everything from the opener onward,
+    // so skip (2) — otherwise it would chip at safe content that happens to
+    // end with `@` (e.g. an email address before a real ref).
     const OPENER = "@@@langfuseMedia:";
     const openIdx = sliced.lastIndexOf(OPENER);
     if (
@@ -122,15 +128,12 @@ const IOTableCellContent = ({
       sliced.indexOf("@@@", openIdx + OPENER.length) === -1
     ) {
       sliced = sliced.slice(0, openIdx);
-    }
-    // Same guard for a cut *inside* the 17-char opener itself (e.g. slice
-    // ends with "@@@langfuseMed"): trim the longest opener prefix that the
-    // slice ends with. Over-trims by at most 16 chars in the rare case of
-    // trailing `@` that isn't a real ref, which is acceptable for a preview.
-    for (let i = OPENER.length - 1; i > 0; i--) {
-      if (sliced.endsWith(OPENER.slice(0, i))) {
-        sliced = sliced.slice(0, sliced.length - i);
-        break;
+    } else {
+      for (let i = OPENER.length - 1; i > 0; i--) {
+        if (sliced.endsWith(OPENER.slice(0, i))) {
+          sliced = sliced.slice(0, sliced.length - i);
+          break;
+        }
       }
     }
     const withTail = `${sliced}...[truncated ${stringified.length - sliced.length} characters]`;
