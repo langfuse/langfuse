@@ -3585,7 +3585,6 @@ describe("MCP Read Tools", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         },
         setup.context,
       )) as { id: string };

@@ -447,7 +447,6 @@ describe("MCP Write Tools", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         },
         setup.context,
       )) as { id: string; name: string; url: string };
@@ -494,7 +493,6 @@ describe("MCP Write Tools", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         },
         setup.context,
       )) as { id: string };
@@ -523,23 +521,17 @@ describe("MCP Write Tools", () => {
       const result = (await handleAddDashboardPlacement(
         { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
         setup.context,
-      )) as {
-        placementId: string;
-        definition: { widgets: Array<Record<string, unknown>> };
-      };
+      )) as Record<string, unknown>;
 
-      expect(result.placementId).toEqual(expect.any(String));
-      expect(result.definition.widgets).toEqual([
-        {
-          type: "widget",
-          id: result.placementId,
-          widgetId: created.id,
-          x: 0,
-          y: 0,
-          x_size: 6,
-          y_size: 6,
-        },
-      ]);
+      expect(result).toEqual({
+        type: "widget",
+        id: expect.any(String),
+        widgetId: created.id,
+        x: 0,
+        y: 0,
+        width: 6,
+        height: 6,
+      });
     });
 
     it("rejects widget placements without a widgetId", async () => {
@@ -551,15 +543,7 @@ describe("MCP Write Tools", () => {
 
       await expect(
         handleAddDashboardPlacement(
-          {
-            dashboardId: dashboard.id,
-            type: "widget",
-            id: "placement-1",
-            x: 0,
-            y: 0,
-            x_size: 4,
-            y_size: 3,
-          },
+          { dashboardId: dashboard.id, type: "widget", id: "placement-1" },
           setup.context,
         ),
       ).rejects.toThrow(/widgetId is required/);

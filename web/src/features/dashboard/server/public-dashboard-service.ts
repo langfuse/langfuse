@@ -3,11 +3,16 @@ import {
   type ApiAccessScope,
   type DashboardDomain,
 } from "@langfuse/shared/src/server";
-import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  HOME_DASHBOARD_PRESET_IDS,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { DashboardSchema } from "@/src/features/public-api/types/unstable-dashboards";
 import type {
   DashboardPlacementSchema,
+  PatchDashboardPlacementBody,
   PatchUnstableDashboardBody,
   PostDashboardPlacementBody,
   PostUnstableDashboardBody,
@@ -17,12 +22,58 @@ import { randomUUID } from "crypto";
 
 type DashboardInput = z.infer<typeof PostUnstableDashboardBody>;
 type DashboardPatch = z.infer<typeof PatchUnstableDashboardBody>;
-type Placement = z.infer<typeof DashboardPlacementSchema>;
+type PublicPlacement = z.infer<typeof DashboardPlacementSchema>;
 type PlacementCreate = z.infer<typeof PostDashboardPlacementBody>;
+type PlacementPatch = z.infer<typeof PatchDashboardPlacementBody>;
+type InternalPlacement = DashboardDomain["definition"]["widgets"][number];
 
 // Matches the UI's add-widget default: a half-width (12-column grid) 6x6
 // tile appended below all existing tiles.
 const PLACEMENT_DEFAULT_SIZE = 6;
+
+// The public contract exposes placement sizes as width/height; storage and
+// the UI keep x_size/y_size.
+const toPublicPlacement = (placement: InternalPlacement): PublicPlacement =>
+  placement.type === "widget"
+    ? {
+        type: "widget",
+        id: placement.id,
+        widgetId: placement.widgetId,
+        x: placement.x,
+        y: placement.y,
+        width: placement.x_size,
+        height: placement.y_size,
+      }
+    : {
+        type: "preset",
+        id: placement.id,
+        presetId: placement.presetId,
+        x: placement.x,
+        y: placement.y,
+        width: placement.x_size,
+        height: placement.y_size,
+      };
+
+const toInternalPlacement = (placement: PublicPlacement): InternalPlacement =>
+  placement.type === "widget"
+    ? {
+        type: "widget",
+        id: placement.id,
+        widgetId: placement.widgetId,
+        x: placement.x,
+        y: placement.y,
+        x_size: placement.width,
+        y_size: placement.height,
+      }
+    : {
+        type: "preset",
+        id: placement.id,
+        presetId: placement.presetId,
+        x: placement.x,
+        y: placement.y,
+        x_size: placement.width,
+        y_size: placement.height,
+      };
 
 const toApiDashboard = (dashboard: DashboardDomain) =>
   DashboardSchema.parse({
@@ -31,7 +82,9 @@ const toApiDashboard = (dashboard: DashboardDomain) =>
     updatedAt: dashboard.updatedAt,
     name: dashboard.name,
     description: dashboard.description,
-    definition: dashboard.definition,
+    definition: {
+      widgets: dashboard.definition.widgets.map(toPublicPlacement),
+    },
     filters: dashboard.filters,
   });
 
@@ -48,11 +101,22 @@ async function getProjectDashboardOrThrow(
 
 async function assertPlacementReferences(params: {
   projectId: string;
-  placements: Placement[];
+  placements: InternalPlacement[];
 }) {
   await Promise.all(
     params.placements.map(async (placement) => {
-      if (placement.type !== "widget") return;
+      if (placement.type === "preset") {
+        if (
+          !(HOME_DASHBOARD_PRESET_IDS as readonly string[]).includes(
+            placement.presetId,
+          )
+        ) {
+          throw new LangfuseNotFoundError(
+            `Dashboard preset ${placement.presetId} not found`,
+          );
+        }
+        return;
+      }
       // getWidget resolves project-owned and Langfuse-managed (projectId
       // null) widgets; both are placeable, matching the UI.
       const widget = await DashboardService.getWidget(
@@ -102,10 +166,13 @@ export async function createPublicDashboard(params: {
   input: DashboardInput;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  if (params.input.definition) {
+  const definition = params.input.definition
+    ? { widgets: params.input.definition.widgets.map(toInternalPlacement) }
+    : undefined;
+  if (definition) {
     await assertPlacementReferences({
       projectId: params.projectId,
-      placements: params.input.definition.widgets,
+      placements: definition.widgets,
     });
   }
   const dashboard = await DashboardService.createDashboard(
@@ -113,7 +180,7 @@ export async function createPublicDashboard(params: {
     params.input.name,
     params.input.description,
     undefined,
-    params.input.definition,
+    definition,
     params.input.filters,
   );
   const result = toApiDashboard(dashboard);
@@ -139,10 +206,13 @@ export async function updatePublicDashboard(params: {
     params.projectId,
     params.dashboardId,
   );
-  if (params.input.definition) {
+  const definition = params.input.definition
+    ? { widgets: params.input.definition.widgets.map(toInternalPlacement) }
+    : undefined;
+  if (definition) {
     await assertPlacementReferences({
       projectId: params.projectId,
-      placements: params.input.definition.widgets,
+      placements: definition.widgets,
     });
   }
   let dashboard = current;
@@ -157,11 +227,11 @@ export async function updatePublicDashboard(params: {
       params.input.description ?? dashboard.description,
     );
   }
-  if (params.input.definition !== undefined)
+  if (definition !== undefined)
     dashboard = await DashboardService.updateDashboardDefinition(
       dashboard.id,
       params.projectId,
-      params.input.definition,
+      definition,
     );
   if (params.input.filters !== undefined)
     dashboard = await DashboardService.updateDashboardFilters(
@@ -222,60 +292,70 @@ export async function addPublicDashboardPlacement(params: {
           ),
         )
       : 0;
-  const placement: Placement = {
+  const placement: PublicPlacement = {
     ...params.placement,
     id: params.placement.id ?? randomUUID(),
     x: params.placement.x ?? 0,
     y: params.placement.y ?? maxY,
-    x_size: params.placement.x_size ?? PLACEMENT_DEFAULT_SIZE,
-    y_size: params.placement.y_size ?? PLACEMENT_DEFAULT_SIZE,
+    width: params.placement.width ?? PLACEMENT_DEFAULT_SIZE,
+    height: params.placement.height ?? PLACEMENT_DEFAULT_SIZE,
   };
   if (
     current.definition.widgets.some((existing) => existing.id === placement.id)
   )
     throw new LangfuseConflictError(`Placement ${placement.id} already exists`);
-  const dashboard = await updatePublicDashboard({
+  await updatePublicDashboard({
     ...params,
     input: {
       definition: {
-        widgets: [...current.definition.widgets, placement],
+        widgets: [
+          ...current.definition.widgets.map(toPublicPlacement),
+          placement,
+        ],
       },
     },
   });
-  return { ...dashboard, placementId: placement.id };
+  return placement;
 }
 
 export async function updatePublicDashboardPlacement(params: {
   projectId: string;
   dashboardId: string;
   placementId: string;
-  placement: Placement;
+  placement: PlacementPatch;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  if (params.placement.id !== params.placementId)
-    throw new LangfuseConflictError("Placement ID cannot be changed");
   const current = await getProjectDashboardOrThrow(
     params.projectId,
     params.dashboardId,
   );
-  if (
-    !current.definition.widgets.some(
-      (placement) => placement.id === params.placementId,
-    )
-  )
+  const existing = current.definition.widgets.find(
+    (placement) => placement.id === params.placementId,
+  );
+  if (!existing)
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
-  return updatePublicDashboard({
+  const updated: InternalPlacement = {
+    ...existing,
+    x: params.placement.x ?? existing.x,
+    y: params.placement.y ?? existing.y,
+    x_size: params.placement.width ?? existing.x_size,
+    y_size: params.placement.height ?? existing.y_size,
+  };
+  await updatePublicDashboard({
     ...params,
     input: {
       definition: {
         widgets: current.definition.widgets.map((placement) =>
-          placement.id === params.placementId ? params.placement : placement,
+          placement.id === params.placementId
+            ? toPublicPlacement(updated)
+            : toPublicPlacement(placement),
         ),
       },
     },
   });
+  return toPublicPlacement(updated);
 }
 
 export async function deletePublicDashboardPlacement(params: {
@@ -296,14 +376,15 @@ export async function deletePublicDashboardPlacement(params: {
     throw new LangfuseNotFoundError(
       `Placement ${params.placementId} not found`,
     );
-  return updatePublicDashboard({
+  await updatePublicDashboard({
     ...params,
     input: {
       definition: {
-        widgets: current.definition.widgets.filter(
-          (placement) => placement.id !== params.placementId,
-        ),
+        widgets: current.definition.widgets
+          .filter((placement) => placement.id !== params.placementId)
+          .map(toPublicPlacement),
       },
     },
   });
+  return { message: "Placement successfully deleted" as const };
 }

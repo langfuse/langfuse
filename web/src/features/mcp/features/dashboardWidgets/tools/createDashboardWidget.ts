@@ -21,7 +21,7 @@ const DashboardWidgetFilterBaseSchema = z
   .loose();
 
 const DashboardWidgetChartConfigBaseSchema = z.object({
-  type: z.enum(DashboardWidgetChartType),
+  type: z.enum(DashboardWidgetChartType).optional(),
   row_limit: z.number().int().positive().max(1000).optional(),
   show_value_labels: z.boolean().optional(),
   bins: z.number().int().min(1).max(100).optional(),
@@ -35,7 +35,10 @@ const DashboardWidgetChartConfigBaseSchema = z.object({
 
 const CreateDashboardWidgetBaseSchema = z.object({
   name: z.string().min(1).describe("Human-readable widget name."),
-  description: z.string().describe("Human-readable widget description."),
+  description: z
+    .string()
+    .optional()
+    .describe("Human-readable widget description. Defaults to empty."),
   view: PostUnstableDashboardWidgetView.describe(
     "Data view for the widget. Traces widgets are not supported by this unstable API.",
   ),
@@ -59,15 +62,9 @@ const CreateDashboardWidgetBaseSchema = z.object({
       "Widget filters in the same shape as exported dashboard widget JSON.",
     ),
   chartType: z.enum(DashboardWidgetChartType),
-  chartConfig: DashboardWidgetChartConfigBaseSchema.describe(
-    "Chart-specific config. chartConfig.type must match chartType.",
+  chartConfig: DashboardWidgetChartConfigBaseSchema.optional().describe(
+    "Chart-specific config. Optional; type defaults to chartType and must match it when given.",
   ),
-  minVersion: z
-    .number()
-    .int()
-    .min(2)
-    .optional()
-    .describe("Widget data-model version. Defaults to 2."),
 });
 
 export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
@@ -76,7 +73,7 @@ export const [createDashboardWidgetTool, handleCreateDashboardWidget] =
     description: [
       "Create a reusable dashboard widget.",
       "Widgets are useful to visualize Langfuse project data and give informative breakdowns to the user.",
-      "This creates the widget only; placing it on a dashboard requires updating that dashboard's definition in the Langfuse UI.",
+      "This creates the widget only; place it on a dashboard with the addDashboardPlacement tool.",
       "The result includes a url field; use it to link to the created widget.",
     ].join(" "),
     baseSchema: CreateDashboardWidgetBaseSchema,

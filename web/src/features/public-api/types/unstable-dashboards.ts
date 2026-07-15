@@ -1,18 +1,43 @@
 import { z } from "zod";
 import { singleFilter } from "@langfuse/shared";
-import {
-  DashboardDefinitionSchema,
-  DashboardDefinitionPresetWidgetSchema,
-  DashboardDefinitionWidgetSchema,
-  DashboardDefinitionWidgetWidgetSchema,
-} from "@langfuse/shared/src/server";
 
 const pagination = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(50),
 });
 
-export const DashboardPlacementSchema = DashboardDefinitionWidgetSchema;
+// Public placement shape. Sizes are exposed as width/height in grid cells;
+// storage and the UI keep x_size/y_size — the public-dashboard-service maps
+// between the two.
+const placementPosition = {
+  x: z.number().int().gte(0),
+  y: z.number().int().gte(0),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+};
+export const PublicWidgetPlacementSchema = z
+  .object({
+    type: z.literal("widget"),
+    id: z.string(),
+    widgetId: z.string(),
+    ...placementPosition,
+  })
+  .strict();
+export const PublicPresetPlacementSchema = z
+  .object({
+    type: z.literal("preset"),
+    id: z.string(),
+    presetId: z.string(),
+    ...placementPosition,
+  })
+  .strict();
+export const DashboardPlacementSchema = z.discriminatedUnion("type", [
+  PublicWidgetPlacementSchema,
+  PublicPresetPlacementSchema,
+]);
+export const PublicDashboardDefinitionSchema = z.object({
+  widgets: z.array(DashboardPlacementSchema),
+});
 
 export const DashboardSchema = z
   .object({
@@ -21,7 +46,7 @@ export const DashboardSchema = z
     updatedAt: z.coerce.date(),
     name: z.string(),
     description: z.string(),
-    definition: DashboardDefinitionSchema,
+    definition: PublicDashboardDefinitionSchema,
     filters: z.array(singleFilter),
   })
   .strict();
@@ -40,7 +65,7 @@ export const GetUnstableDashboardsResponse = z.object({
 export const PostUnstableDashboardBody = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
-  definition: DashboardDefinitionSchema.optional(),
+  definition: PublicDashboardDefinitionSchema.optional(),
   filters: z.array(singleFilter).optional(),
 });
 export const PostUnstableDashboardResponse = DashboardSchema;
@@ -51,7 +76,7 @@ export const PatchUnstableDashboardBody = z
   .object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    definition: DashboardDefinitionSchema.optional(),
+    definition: PublicDashboardDefinitionSchema.optional(),
     filters: z.array(singleFilter).optional(),
   })
   .refine(
@@ -73,16 +98,24 @@ const placementCreateOptionalFields = {
   id: true,
   x: true,
   y: true,
-  x_size: true,
-  y_size: true,
+  width: true,
+  height: true,
 } as const;
 export const PostDashboardPlacementBody = z.discriminatedUnion("type", [
-  DashboardDefinitionWidgetWidgetSchema.partial(placementCreateOptionalFields),
-  DashboardDefinitionPresetWidgetSchema.partial(placementCreateOptionalFields),
+  PublicWidgetPlacementSchema.partial(placementCreateOptionalFields),
+  PublicPresetPlacementSchema.partial(placementCreateOptionalFields),
 ]);
-export const PatchDashboardPlacementBody = DashboardPlacementSchema;
-export const PostDashboardPlacementResponse = DashboardSchema.extend({
-  placementId: z.string(),
+export const PostDashboardPlacementResponse = DashboardPlacementSchema;
+// Placements are moved/resized in place; the widget/preset reference and the
+// id are immutable (delete + add to swap content).
+export const PatchDashboardPlacementBody = z
+  .object(placementPosition)
+  .partial()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required",
+  );
+export const PatchDashboardPlacementResponse = DashboardPlacementSchema;
+export const DeleteDashboardPlacementResponse = z.object({
+  message: z.literal("Placement successfully deleted"),
 });
-export const DashboardPlacementResponse = DashboardSchema;
-export const DeleteDashboardPlacementResponse = DashboardSchema;

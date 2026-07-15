@@ -37,24 +37,24 @@ const auditScope = (context: { orgId: string; apiKeyId: string }) => ({
   orgId: context.orgId,
   apiKeyId: context.apiKeyId,
 });
-const placementBaseSchema = z.object({
-  type: z.enum(["widget", "preset"]),
-  id: z.string(),
-  widgetId: z.string().optional(),
-  presetId: z.string().optional(),
-  x: z.number().int().gte(0),
-  y: z.number().int().gte(0),
-  x_size: z.number().int().positive(),
-  y_size: z.number().int().positive(),
-});
 // On add, id and position are optional: the service generates an id and
 // appends below existing tiles with the UI's default 6x6 size.
-const placementCreateBaseSchema = placementBaseSchema.partial({
-  id: true,
-  x: true,
-  y: true,
-  x_size: true,
-  y_size: true,
+const placementCreateBaseSchema = z.object({
+  type: z.enum(["widget", "preset"]),
+  id: z.string().optional(),
+  widgetId: z.string().optional(),
+  presetId: z.string().optional(),
+  x: z.number().int().gte(0).optional(),
+  y: z.number().int().gte(0).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
+// Placements are moved/resized in place; content and id are immutable.
+const placementPatchBaseSchema = z.object({
+  x: z.number().int().gte(0).optional(),
+  y: z.number().int().gte(0).optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
 });
 const dashboardWidgetPatchBaseSchema = z.object({
   widgetId: z.string(),
@@ -69,8 +69,7 @@ const dashboardWidgetPatchBaseSchema = z.object({
     .optional(),
   filters: z.array(z.object({}).loose()).optional(),
   chartType: z.string().optional(),
-  chartConfig: z.object({ type: z.string() }).loose().optional(),
-  minVersion: z.number().int().min(2).optional(),
+  chartConfig: z.object({ type: z.string().optional() }).loose().optional(),
 });
 const dashboardPatchBaseSchema = z.object({
   dashboardId: z.string(),
@@ -116,30 +115,8 @@ const requirePatchField =
         message: "At least one field is required",
       });
   };
-// Extract the placement fields from an MCP input (which also carries
-// dashboardId/placementId). Two variants because coordinate optionality
-// differs: updates require the complete placement, creates may omit
-// id/position and let the service fill defaults.
-const toPlacement = (placement: z.infer<typeof placementBaseSchema>) =>
-  placement.type === "widget"
-    ? {
-        type: "widget" as const,
-        id: placement.id,
-        widgetId: placement.widgetId!,
-        x: placement.x,
-        y: placement.y,
-        x_size: placement.x_size,
-        y_size: placement.y_size,
-      }
-    : {
-        type: "preset" as const,
-        id: placement.id,
-        presetId: placement.presetId!,
-        x: placement.x,
-        y: placement.y,
-        x_size: placement.x_size,
-        y_size: placement.y_size,
-      };
+// Extract the placement fields from an MCP add-placement input (which also
+// carries dashboardId).
 const toPlacementCreate = (
   placement: z.infer<typeof placementCreateBaseSchema>,
 ) =>
@@ -150,8 +127,8 @@ const toPlacementCreate = (
         widgetId: placement.widgetId!,
         x: placement.x,
         y: placement.y,
-        x_size: placement.x_size,
-        y_size: placement.y_size,
+        width: placement.width,
+        height: placement.height,
       }
     : {
         type: "preset" as const,
@@ -159,8 +136,8 @@ const toPlacementCreate = (
         presetId: placement.presetId!,
         x: placement.x,
         y: placement.y,
-        x_size: placement.x_size,
-        y_size: placement.y_size,
+        width: placement.width,
+        height: placement.height,
       };
 
 export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
@@ -292,7 +269,7 @@ export const [getDashboardTool, handleGetDashboard] = defineTool({
   description:
     "Get an editable dashboard by ID, including its current layout: " +
     "definition.widgets lists every placement with 12-column-grid " +
-    "coordinates (x/y top-left cell, x_size/y_size in cells).",
+    "coordinates (x/y top-left cell, width/height in cells).",
   baseSchema: DashboardIdQuery,
   inputSchema: DashboardIdQuery,
   readOnlyHint: true,
@@ -382,7 +359,7 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
       "Prefer omitting id and position: the server generates an id and " +
       "appends the tile below existing ones at the default 6x6 size, so no " +
       "layout reasoning is needed. Explicit positions are not checked for " +
-      "overlap. The response includes the resulting placementId.",
+      "overlap. Returns the created placement.",
     baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
@@ -405,25 +382,26 @@ export const [updateDashboardPlacementTool, handleUpdateDashboardPlacement] =
   defineTool({
     name: "updateDashboardPlacement",
     description:
-      "Move or resize an existing dashboard placement. Requires the " +
-      "complete placement (12-column grid, x/y top-left cell, sizes in " +
-      "cells); the placement id cannot change. Use getDashboard to read " +
-      "the current layout first. Overlaps are not checked.",
-    baseSchema: placementQuery.extend(placementBaseSchema.shape),
+      "Move or resize an existing dashboard placement on the 12-column " +
+      "grid. Pass any of x, y (top-left cell), width, height (in cells); " +
+      "omitted fields keep their current value. The placement's content " +
+      "and id cannot change. Use getDashboard to read the current layout " +
+      "first. Overlaps are not checked. Returns the updated placement.",
+    baseSchema: placementQuery.extend(placementPatchBaseSchema.shape),
     inputSchema: placementQuery
-      .extend(placementBaseSchema.shape)
-      .superRefine(requirePlacementIds),
+      .extend(placementPatchBaseSchema.shape)
+      .superRefine(requirePatchField(["dashboardId", "placementId"])),
     destructiveHint: true,
-    handler: (input, context) =>
+    handler: ({ dashboardId, placementId, ...patch }, context) =>
       runMcpTool({
         spanName: "mcp.dashboards.placements.update",
         context,
         fn: () =>
           updatePublicDashboardPlacement({
             projectId: context.projectId,
-            dashboardId: input.dashboardId,
-            placementId: input.placementId,
-            placement: toPlacement(input),
+            dashboardId,
+            placementId,
+            placement: patch,
             auditScope: auditScope(context),
           }),
       }),

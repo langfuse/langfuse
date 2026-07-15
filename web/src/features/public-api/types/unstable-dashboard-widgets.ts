@@ -23,6 +23,15 @@ const DashboardWidgetDimensionSchema = DimensionSchema.extend({
   field: z.string().min(1),
 });
 
+// Input-side chart config: `type` is optional and defaults to the widget's
+// chartType; per-type option validation happens in the service after the
+// type is resolved.
+const DashboardWidgetChartConfigInput = z
+  .object({
+    type: z.enum(DashboardWidgetChartType).optional(),
+  })
+  .loose();
+
 const UnstableDashboardWidgetBody = z.object({
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
@@ -31,19 +40,12 @@ const UnstableDashboardWidgetBody = z.object({
   metrics: z.array(DashboardWidgetMetricSchema).min(1),
   filters: z.array(singleFilter),
   chartType: z.enum(DashboardWidgetChartType),
-  chartConfig: ChartConfigSchema,
-  minVersion: z.number().int().min(2).optional(),
+  chartConfig: DashboardWidgetChartConfigInput.optional(),
 });
 
 export const PostUnstableDashboardWidgetBody =
-  UnstableDashboardWidgetBody.superRefine((widget, ctx) => {
-    if (widget.chartConfig.type !== widget.chartType) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["chartConfig", "type"],
-        message: "chartConfig.type must match chartType",
-      });
-    }
+  UnstableDashboardWidgetBody.extend({
+    description: z.string().default(""),
   });
 
 export const PublicDashboardWidget = z
@@ -59,7 +61,6 @@ export const PublicDashboardWidget = z
     filters: z.array(singleFilter),
     chartType: z.enum(DashboardWidgetChartType),
     chartConfig: ChartConfigSchema,
-    minVersion: z.number().int().min(2),
   })
   .strict();
 

@@ -6535,7 +6535,9 @@ paths:
                 - traceIds
   /api/public/unstable/dashboard-widgets:
     get:
-      description: List dashboard widgets in the project.
+      description: |-
+        List dashboard widgets in the project, ordered by most recently
+        updated first. Custom ordering is not yet supported.
       operationId: unstable_dashboardWidgets_list
       tags:
         - UnstableDashboardWidgets
@@ -6604,15 +6606,22 @@ paths:
         Create a reusable dashboard widget.
 
 
-        This endpoint creates the widget. It does not place the widget on a
-        dashboard grid, this has to be done in the UI.
+        This endpoint creates the widget only; place it on a dashboard via
+
+        `POST /dashboards/{dashboardId}/placements`.
 
 
         Supported views are `observations`, `scores-numeric`, and
         `scores-categorical`.
 
-        The legacy `traces` view is not supported by this unstable API,
-        `minVersion` defaults to `2`; values below `2` are rejected.
+        The legacy `traces` view is not supported by this unstable API.
+
+
+        `chartConfig` is optional and defaults to the plain config for
+
+        `chartType`; when `chartConfig.type` is given it must match
+
+        `chartType`.
 
 
         Unstable API note:
@@ -6736,8 +6745,9 @@ paths:
         Update a dashboard widget.
 
         All fields are optional; at least one field is required.
-        If both `chartType` and `chartConfig` are provided, `chartConfig.type`
-        must match `chartType`.
+        Changing `chartType` without sending `chartConfig` resets the config
+        to the new chart type's defaults. When `chartConfig.type` is given
+        it must match the widget's (possibly updated) `chartType`.
       operationId: unstable_dashboardWidgets_update
       tags:
         - UnstableDashboardWidgets
@@ -6866,7 +6876,9 @@ paths:
       security: *ref_0
   /api/public/unstable/dashboards:
     get:
-      description: List dashboards in the project.
+      description: |-
+        List dashboards in the project, ordered by most recently updated
+        first. Custom ordering is not yet supported.
       operationId: unstable_dashboards_list
       tags:
         - UnstableDashboards
@@ -7162,7 +7174,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
-  /api/public/unstable/dashboards/{dashboardId}/widgets:
+  /api/public/unstable/dashboards/{dashboardId}/placements:
     post:
       description: |-
         Add a placement to a dashboard grid (see `DashboardPlacement` for
@@ -7170,8 +7182,7 @@ paths:
 
         `id` and the position fields are optional: when omitted, the
         placement gets a server-generated id and is appended below all
-        existing tiles as a 6x6 tile. The response includes the resulting
-        `placementId`.
+        existing tiles as a 6x6 tile. Returns the created placement.
 
         The referenced widget must exist in the same project or be a
         Langfuse-managed widget. The API returns `409` if a placement with
@@ -7191,7 +7202,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboardWithPlacement'
+                $ref: '#/components/schemas/unstableDashboardPlacement'
         '400':
           description: ''
           content:
@@ -7242,14 +7253,13 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateDashboardPlacementRequest'
-  /api/public/unstable/dashboards/{dashboardId}/widgets/{placementId}:
+  /api/public/unstable/dashboards/{dashboardId}/placements/{placementId}:
     patch:
       description: |-
-        Update a placement's grid position or size.
-
-        The body is the complete placement (see `DashboardPlacement` for
-        grid semantics). The placement `id` in the body must match
-        `placementId`; the API returns `409` otherwise.
+        Move or resize a placement. All fields are optional; at least one is
+        required. Omitted fields keep their current value. The placement's
+        content (widget/preset reference) and id cannot change — delete and
+        re-add the placement to swap content. Returns the updated placement.
       operationId: unstable_dashboards_updatePlacement
       tags:
         - UnstableDashboards
@@ -7270,7 +7280,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboard'
+                $ref: '#/components/schemas/unstableDashboardPlacement'
         '400':
           description: ''
           content:
@@ -7296,12 +7306,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '409':
-          description: ''
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/unstablePublicApiError'
         '429':
           description: ''
           content:
@@ -7320,9 +7324,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/unstableDashboardPlacement'
+              $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
     delete:
-      description: Remove a widget placement from a dashboard grid.
+      description: >-
+        Remove a placement from a dashboard grid without deleting the referenced
+        widget.
       operationId: unstable_dashboards_deletePlacement
       tags:
         - UnstableDashboards
@@ -7343,7 +7349,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/unstableDashboard'
+                $ref: '#/components/schemas/unstableDeleteDashboardPlacementResponse'
         '400':
           description: ''
           content:
@@ -14853,13 +14859,40 @@ components:
       title: unstableDashboardWidgetFilter
       type: object
       description: >-
-        A dashboard widget filter in Langfuse filter-state shape.
+        A filter in Langfuse filter-state shape. The `value` shape and the
+
+        allowed operators depend on `type`:
 
 
-        Filter shapes depend on `type`, for example string filters use a string
-        `value`,
+        | `type` | `value` | operators |
 
-        option filters use a list of strings, and object filters include `key`.
+        |---|---|---|
+
+        | `string` | string | `=`, `contains`, `does not contain`, `starts
+        with`, `ends with` |
+
+        | `number` | number | `=`, `>`, `<`, `>=`, `<=` |
+
+        | `datetime` | ISO datetime string | `>`, `<`, `>=`, `<=` |
+
+        | `boolean` | boolean | `=`, `<>` |
+
+        | `null` | `""` | `is null`, `is not null` |
+
+        | `stringOptions` | list of strings | `any of`, `none of` |
+
+        | `arrayOptions` | list of strings | `any of`, `none of`, `all of` |
+
+        | `categoryOptions` | list of strings (requires `key`) | `any of`, `none
+        of` |
+
+        | `stringObject` | string (requires `key`, e.g. a metadata key) | same
+        as `string` |
+
+        | `numberObject` | number (requires `key`, e.g. a score name) | same as
+        `number` |
+
+        | `booleanObject` | boolean (requires `key`) | `=`, `<>` |
       properties:
         column:
           type: string
@@ -14920,6 +14953,28 @@ components:
       enum:
         - ASC
         - DESC
+    unstableDashboardWidgetChartConfigInput:
+      title: unstableDashboardWidgetChartConfigInput
+      type: object
+      description: |-
+        Input-side chart config. `type` is optional and defaults to the
+        widget's `chartType`; when given it must match.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+          nullable: true
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
     unstableCreateDashboardWidgetRequest:
       title: unstableCreateDashboardWidgetRequest
       type: object
@@ -14928,6 +14983,8 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+          description: Defaults to an empty string.
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetView'
         dimensions:
@@ -14945,19 +15002,16 @@ components:
         chartType:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
-        minVersion:
-          type: integer
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
           nullable: true
+          description: Defaults to the plain config for `chartType`.
       required:
         - name
-        - description
         - view
         - dimensions
         - metrics
         - filters
         - chartType
-        - chartConfig
     unstableUpdateDashboardWidgetRequest:
       title: unstableUpdateDashboardWidgetRequest
       type: object
@@ -14990,10 +15044,7 @@ components:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
           nullable: true
         chartConfig:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
-          nullable: true
-        minVersion:
-          type: integer
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
           nullable: true
     unstableDashboardWidgetList:
       title: unstableDashboardWidgetList
@@ -15050,8 +15101,6 @@ components:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
           $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
-        minVersion:
-          type: integer
       required:
         - id
         - createdAt
@@ -15064,7 +15113,6 @@ components:
         - filters
         - chartType
         - chartConfig
-        - minVersion
     unstableDashboardPlacement:
       title: unstableDashboardPlacement
       oneOf:
@@ -15092,10 +15140,10 @@ components:
             - type
       description: |-
         A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
-        top-left cell (0-based; `y` grows downward), `x_size`/`y_size` its
-        width and height in cells. The UI default tile is 6x6 (half width).
-        Overlapping tiles are not rejected; prefer appending below existing
-        tiles (or omit the position on create to let the server do it).
+        top-left cell (0-based; `y` grows downward), `width`/`height` its size
+        in cells. The UI default tile is 6x6 (half width). Overlapping tiles
+        are not rejected; prefer appending below existing tiles (or omit the
+        position on create to let the server do it).
     unstableWidgetPlacement:
       title: unstableWidgetPlacement
       type: object
@@ -15108,17 +15156,17 @@ components:
           type: integer
         'y':
           type: integer
-        x_size:
+        width:
           type: integer
-        y_size:
+        height:
           type: integer
       required:
         - id
         - widgetId
         - x
         - 'y'
-        - x_size
-        - y_size
+        - width
+        - height
     unstablePresetPlacement:
       title: unstablePresetPlacement
       type: object
@@ -15131,17 +15179,17 @@ components:
           type: integer
         'y':
           type: integer
-        x_size:
+        width:
           type: integer
-        y_size:
+        height:
           type: integer
       required:
         - id
         - presetId
         - x
         - 'y'
-        - x_size
-        - y_size
+        - width
+        - height
     unstableCreateDashboardPlacementRequest:
       title: unstableCreateDashboardPlacementRequest
       oneOf:
@@ -15185,11 +15233,11 @@ components:
           type: integer
           nullable: true
           description: Grid row. Defaults to the first row below all existing tiles.
-        x_size:
+        width:
           type: integer
           nullable: true
           description: Width in grid columns. Defaults to `6`.
-        y_size:
+        height:
           type: integer
           nullable: true
           description: Height in grid rows. Defaults to `6`.
@@ -15213,27 +15261,44 @@ components:
           type: integer
           nullable: true
           description: Grid row. Defaults to the first row below all existing tiles.
-        x_size:
+        width:
           type: integer
           nullable: true
           description: Width in grid columns. Defaults to `6`.
-        y_size:
+        height:
           type: integer
           nullable: true
           description: Height in grid rows. Defaults to `6`.
       required:
         - presetId
-    unstableDashboardWithPlacement:
-      title: unstableDashboardWithPlacement
+    unstableUpdateDashboardPlacementRequest:
+      title: unstableUpdateDashboardPlacementRequest
       type: object
       properties:
-        placementId:
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid).
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows.
+    unstableDeleteDashboardPlacementResponse:
+      title: unstableDeleteDashboardPlacementResponse
+      type: object
+      properties:
+        message:
           type: string
-          description: Id of the placement created by this request.
       required:
-        - placementId
-      allOf:
-        - $ref: '#/components/schemas/unstableDashboard'
+        - message
     unstableDashboardDefinition:
       title: unstableDashboardDefinition
       type: object
@@ -15264,7 +15329,9 @@ components:
           $ref: '#/components/schemas/unstableDashboardDefinition'
         filters:
           type: array
-          items: {}
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          description: Dashboard-level filters applied to all widgets on the dashboard.
       required:
         - id
         - createdAt
@@ -15300,7 +15367,8 @@ components:
           nullable: true
         filters:
           type: array
-          items: {}
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
           nullable: true
       required:
         - name
@@ -15319,7 +15387,8 @@ components:
           nullable: true
         filters:
           type: array
-          items: {}
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
           nullable: true
     unstableDeleteDashboardResponse:
       title: unstableDeleteDashboardResponse

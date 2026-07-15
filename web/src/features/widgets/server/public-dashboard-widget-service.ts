@@ -20,7 +20,7 @@ import {
   PostUnstableDashboardWidgetResponse,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   getWidgetImportFilterConfig,
   partitionStoredUiTableFiltersToView,
@@ -29,6 +29,13 @@ import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
+
+// The widget shape used internally after input normalization: the public
+// body with chartConfig fully resolved plus the internal minVersion.
+type NormalizedWidgetInput = Omit<
+  z.infer<typeof PostUnstableDashboardWidgetResponse>,
+  "id" | "createdAt" | "updatedAt"
+> & { minVersion: number };
 
 const viewMapping: Record<
   PostUnstableDashboardWidgetBodyType["view"],
@@ -68,14 +75,12 @@ const throwInvalidWidget = (params: {
   });
 };
 
-function getWidgetViewVersion(
-  widget: PostUnstableDashboardWidgetBodyType,
-): ViewVersion {
-  return (widget.minVersion ?? 2) >= 2 ? "v2" : "v1";
+function getWidgetViewVersion(widget: { minVersion: number }): ViewVersion {
+  return widget.minVersion >= 2 ? "v2" : "v1";
 }
 
 function getPublicDashboardWidgetViewDeclaration(
-  widget: PostUnstableDashboardWidgetBodyType,
+  widget: NormalizedWidgetInput,
 ): ReturnType<typeof getViewDeclaration> {
   const viewVersion = getWidgetViewVersion(widget);
 
@@ -91,7 +96,8 @@ function getPublicDashboardWidgetViewDeclaration(
 
 export function normalizePublicDashboardWidgetInput(
   input: PostUnstableDashboardWidgetBodyType,
-): PostUnstableDashboardWidgetBodyType {
+  minVersion = 2,
+): NormalizedWidgetInput {
   const { mappedFilters, unsupportedFilters } =
     partitionStoredUiTableFiltersToView(input.view, input.filters);
   const { allowedColumns, columnAliases } = getWidgetImportFilterConfig(
@@ -117,28 +123,42 @@ export function normalizePublicDashboardWidgetInput(
     });
   }
 
+  // chartConfig.type defaults to chartType; when given explicitly it must
+  // match. Per-type option validation happens after the type is resolved.
+  const chartConfigType = input.chartConfig?.type ?? input.chartType;
+  if (chartConfigType !== input.chartType) {
+    throwInvalidWidget({
+      message: "chartConfig.type must match chartType",
+      field: "chartConfig.type",
+    });
+  }
+  const chartConfig = ChartConfigSchema.safeParse({
+    ...input.chartConfig,
+    type: chartConfigType,
+  });
+  if (!chartConfig.success) {
+    return throwInvalidWidget({
+      message: `Invalid chartConfig: ${chartConfig.error.issues
+        .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+        .join(", ")}`,
+      field: "chartConfig",
+    });
+  }
+
   return {
     ...input,
     filters: mappedFilters.map((filter) => ({
       ...filter,
       column: columnAliases[filter.column] ?? filter.column,
     })),
-    minVersion: input.minVersion ?? 2,
+    chartConfig: chartConfig.data,
+    minVersion,
   };
 }
 
 export function validatePublicDashboardWidgetInput(
-  widget: PostUnstableDashboardWidgetBodyType,
+  widget: NormalizedWidgetInput,
 ): void {
-  // POST enforces this via schema refinement; updates merge partial input
-  // with the stored widget, so the invariant must be re-checked here.
-  if (widget.chartConfig.type !== widget.chartType) {
-    throwInvalidWidget({
-      message: "chartConfig.type must match chartType",
-      field: "chartConfig.type",
-    });
-  }
-
   const viewVersion = getWidgetViewVersion(widget);
   const viewDeclaration = getPublicDashboardWidgetViewDeclaration(widget);
 
@@ -229,7 +249,6 @@ export function toApiDashboardWidget(widget: WidgetDomain) {
     filters: widget.filters,
     chartType: widget.chartType,
     chartConfig: widget.chartConfig,
-    minVersion: widget.minVersion,
   });
 }
 
@@ -259,9 +278,7 @@ export async function createPublicDashboardWidget(params: {
   return toApiDashboardWidget(widget);
 }
 
-function toPublicWidgetInput(
-  widget: WidgetDomain,
-): PostUnstableDashboardWidgetBodyType {
+function toPublicWidgetInput(widget: WidgetDomain) {
   const {
     id: _id,
     createdAt: _createdAt,
@@ -315,18 +332,24 @@ export async function updatePublicDashboardWidget(params: {
     params.projectId,
     params.widgetId,
   );
+  const currentPublic = toPublicWidgetInput(current);
+  const chartTypeChanged =
+    params.input.chartType !== undefined &&
+    params.input.chartType !== currentPublic.chartType;
   const input = normalizePublicDashboardWidgetInput(
-    PostUnstableDashboardWidgetResponse.pick({
-      name: true,
-      description: true,
-      view: true,
-      dimensions: true,
-      metrics: true,
-      filters: true,
-      chartType: true,
-      chartConfig: true,
-      minVersion: true,
-    }).parse({ ...toPublicWidgetInput(current), ...params.input }),
+    {
+      ...currentPublic,
+      ...params.input,
+      // A chartType change without an explicit chartConfig resets the config
+      // to the new type; carrying the stale config type over would always
+      // fail validation.
+      chartConfig:
+        params.input.chartConfig ??
+        (chartTypeChanged
+          ? { type: params.input.chartType }
+          : currentPublic.chartConfig),
+    },
+    current.minVersion,
   );
   validatePublicDashboardWidgetInput(input);
   const updated = await DashboardService.updateWidget(

@@ -4,13 +4,14 @@ import {
 } from "@/src/__tests__/test-utils";
 import {
   DeleteUnstableDashboardWidgetResponse,
+  PatchUnstableDashboardWidgetResponse,
   PostUnstableDashboardWidgetResponse,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import {
-  DashboardPlacementResponse,
   DeleteDashboardPlacementResponse,
   DeleteUnstableDashboardResponse,
   GetUnstableDashboardsResponse,
+  PatchDashboardPlacementResponse,
   PostDashboardPlacementResponse,
   PostUnstableDashboardResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
@@ -27,8 +28,6 @@ const widget = {
   metrics: [{ measure: "count", agg: "count" as const }],
   filters: [],
   chartType: "NUMBER" as const,
-  chartConfig: { type: "NUMBER" as const },
-  minVersion: 2,
 };
 
 describe("unstable dashboard API", () => {
@@ -65,15 +64,15 @@ describe("unstable dashboard API", () => {
     await makeZodVerifiedAPICall(
       PostDashboardPlacementResponse,
       "POST",
-      `/api/public/unstable/dashboards/${createdDashboard.body.id}/widgets`,
+      `/api/public/unstable/dashboards/${createdDashboard.body.id}/placements`,
       {
         type: "widget",
         id: "placement-1",
         widgetId: createdWidget.body.id,
         x: 0,
         y: 0,
-        x_size: 4,
-        y_size: 3,
+        width: 4,
+        height: 3,
       },
       auth,
     );
@@ -90,26 +89,25 @@ describe("unstable dashboard API", () => {
     );
 
     const moved = await makeZodVerifiedAPICall(
-      DashboardPlacementResponse,
+      PatchDashboardPlacementResponse,
       "PATCH",
-      `/api/public/unstable/dashboards/${createdDashboard.body.id}/widgets/placement-1`,
-      {
-        type: "widget",
-        id: "placement-1",
-        widgetId: createdWidget.body.id,
-        x: 4,
-        y: 0,
-        x_size: 4,
-        y_size: 3,
-      },
+      `/api/public/unstable/dashboards/${createdDashboard.body.id}/placements/placement-1`,
+      { x: 4 },
       auth,
     );
-    expect(moved.body.definition.widgets[0]).toMatchObject({ x: 4 });
+    // Partial move: omitted fields keep their current values.
+    expect(moved.body).toMatchObject({
+      id: "placement-1",
+      x: 4,
+      y: 0,
+      width: 4,
+      height: 3,
+    });
 
     await makeZodVerifiedAPICall(
       DeleteDashboardPlacementResponse,
       "DELETE",
-      `/api/public/unstable/dashboards/${createdDashboard.body.id}/widgets/placement-1`,
+      `/api/public/unstable/dashboards/${createdDashboard.body.id}/placements/placement-1`,
       undefined,
       auth,
     );
@@ -193,8 +191,8 @@ describe("unstable dashboard API", () => {
               widgetId: "does-not-exist",
               x: 0,
               y: 0,
-              x_size: 4,
-              y_size: 3,
+              width: 4,
+              height: 3,
             },
           ],
         },
@@ -232,19 +230,12 @@ describe("unstable dashboard API", () => {
       const placed = await makeZodVerifiedAPICall(
         PostDashboardPlacementResponse,
         "POST",
-        `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
-        {
-          type: "widget",
-          id: "placement-1",
-          widgetId: langfuseWidget.id,
-          x: 0,
-          y: 0,
-          x_size: 4,
-          y_size: 3,
-        },
+        `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
+        { type: "widget", widgetId: langfuseWidget.id },
         auth,
       );
-      expect(placed.body.definition.widgets[0]).toMatchObject({
+      expect(placed.body).toMatchObject({
+        type: "widget",
         widgetId: langfuseWidget.id,
       });
     } finally {
@@ -252,6 +243,37 @@ describe("unstable dashboard API", () => {
         where: { id: langfuseWidget.id },
       });
     }
+  });
+
+  it("validates preset placements against the preset registry", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const dashboard = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Preset dashboard", description: "" },
+      auth,
+    );
+
+    const unknownPreset = await makeAPICall(
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
+      { type: "preset", presetId: "does-not-exist" },
+      auth,
+    );
+    expect(unknownPreset.status).toBe(404);
+
+    const placed = await makeZodVerifiedAPICall(
+      PostDashboardPlacementResponse,
+      "POST",
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
+      { type: "preset", presetId: "home-score-analytics" },
+      auth,
+    );
+    expect(placed.body).toMatchObject({
+      type: "preset",
+      presetId: "home-score-analytics",
+    });
   });
 
   it("appends placements with server defaults when id and position are omitted", async () => {
@@ -273,15 +295,15 @@ describe("unstable dashboard API", () => {
     await makeZodVerifiedAPICall(
       PostDashboardPlacementResponse,
       "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
       {
         type: "widget",
         id: "placement-1",
         widgetId: createdWidget.body.id,
         x: 0,
         y: 0,
-        x_size: 4,
-        y_size: 3,
+        width: 4,
+        height: 3,
       },
       auth,
     );
@@ -289,22 +311,19 @@ describe("unstable dashboard API", () => {
     const appended = await makeZodVerifiedAPICall(
       PostDashboardPlacementResponse,
       "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
       { type: "widget", widgetId: createdWidget.body.id },
       auth,
     );
-    expect(appended.body.placementId).toEqual(expect.any(String));
-    const placement = appended.body.definition.widgets.find(
-      (candidate) => candidate.id === appended.body.placementId,
-    );
     // Appended below the existing 3-row tile with the UI's 6x6 default size.
-    expect(placement).toMatchObject({
+    expect(appended.body).toMatchObject({
       type: "widget",
+      id: expect.any(String),
       widgetId: createdWidget.body.id,
       x: 0,
       y: 3,
-      x_size: 6,
-      y_size: 6,
+      width: 6,
+      height: 6,
     });
   });
 
@@ -328,21 +347,17 @@ describe("unstable dashboard API", () => {
       type: "widget",
       id: "placement-1",
       widgetId: createdWidget.body.id,
-      x: 0,
-      y: 0,
-      x_size: 4,
-      y_size: 3,
     };
     await makeZodVerifiedAPICall(
       PostDashboardPlacementResponse,
       "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
       placement,
       auth,
     );
     const duplicate = await makeAPICall(
       "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/widgets`,
+      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
       placement,
       auth,
     );
@@ -371,7 +386,7 @@ describe("unstable dashboard API", () => {
     expect(crossProjectRead.status).toBe(404);
   });
 
-  it("rejects widget updates that leave chartConfig.type out of sync with chartType", async () => {
+  it("derives chartConfig on chartType changes and rejects contradictions", async () => {
     const { auth } = await createOrgProjectAndApiKey();
     const createdWidget = await makeZodVerifiedAPICall(
       PostUnstableDashboardWidgetResponse,
@@ -380,12 +395,24 @@ describe("unstable dashboard API", () => {
       widget,
       auth,
     );
-    const mismatched = await makeAPICall(
+
+    const contradiction = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${createdWidget.body.id}`,
+      { chartType: "PIE", chartConfig: { type: "NUMBER" } },
+      auth,
+    );
+    expect(contradiction.status).toBe(400);
+
+    // A bare chartType change resets the chartConfig to the new type.
+    const changed = await makeZodVerifiedAPICall(
+      PatchUnstableDashboardWidgetResponse,
       "PATCH",
       `/api/public/unstable/dashboard-widgets/${createdWidget.body.id}`,
       { chartType: "PIE" },
       auth,
     );
-    expect(mismatched.status).toBe(400);
+    expect(changed.body.chartType).toBe("PIE");
+    expect(changed.body.chartConfig).toEqual({ type: "PIE" });
   });
 });

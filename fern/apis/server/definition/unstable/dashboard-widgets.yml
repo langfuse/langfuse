@@ -8,7 +8,9 @@ service:
   base-path: /api/public/unstable
   endpoints:
     list:
-      docs: List dashboard widgets in the project.
+      docs: |
+        List dashboard widgets in the project, ordered by most recently
+        updated first. Custom ordering is not yet supported.
       method: GET
       path: /dashboard-widgets
       request:
@@ -32,10 +34,15 @@ service:
       docs: |
         Create a reusable dashboard widget.
 
-        This endpoint creates the widget. It does not place the widget on a dashboard grid, this has to be done in the UI.
+        This endpoint creates the widget only; place it on a dashboard via
+        `POST /dashboards/{dashboardId}/placements`.
 
         Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
-        The legacy `traces` view is not supported by this unstable API, `minVersion` defaults to `2`; values below `2` are rejected.
+        The legacy `traces` view is not supported by this unstable API.
+
+        `chartConfig` is optional and defaults to the plain config for
+        `chartType`; when `chartConfig.type` is given it must match
+        `chartType`.
 
         Unstable API note:
         - This surface may evolve while dashboard/widget APIs are being finalized.
@@ -64,9 +71,7 @@ service:
             filters: []
             chartType: HORIZONTAL_BAR
             chartConfig:
-              type: HORIZONTAL_BAR
               row_limit: 10
-            minVersion: 2
           response:
             body:
               id: cm_dashboard_widget_123
@@ -85,7 +90,6 @@ service:
               chartConfig:
                 type: HORIZONTAL_BAR
                 row_limit: 10
-              minVersion: 2
     get:
       docs: Get a dashboard widget by id.
       method: GET
@@ -106,8 +110,9 @@ service:
         Update a dashboard widget.
 
         All fields are optional; at least one field is required.
-        If both `chartType` and `chartConfig` are provided, `chartConfig.type`
-        must match `chartType`.
+        Changing `chartType` without sending `chartConfig` resets the config
+        to the new chart type's defaults. When `chartConfig.type` is given
+        it must match the widget's (possibly updated) `chartType`.
       method: PATCH
       path: /dashboard-widgets/{widgetId}
       path-parameters:
@@ -193,10 +198,22 @@ types:
 
   DashboardWidgetFilter:
     docs: |
-      A dashboard widget filter in Langfuse filter-state shape.
+      A filter in Langfuse filter-state shape. The `value` shape and the
+      allowed operators depend on `type`:
 
-      Filter shapes depend on `type`, for example string filters use a string `value`,
-      option filters use a list of strings, and object filters include `key`.
+      | `type` | `value` | operators |
+      |---|---|---|
+      | `string` | string | `=`, `contains`, `does not contain`, `starts with`, `ends with` |
+      | `number` | number | `=`, `>`, `<`, `>=`, `<=` |
+      | `datetime` | ISO datetime string | `>`, `<`, `>=`, `<=` |
+      | `boolean` | boolean | `=`, `<>` |
+      | `null` | `""` | `is null`, `is not null` |
+      | `stringOptions` | list of strings | `any of`, `none of` |
+      | `arrayOptions` | list of strings | `any of`, `none of`, `all of` |
+      | `categoryOptions` | list of strings (requires `key`) | `any of`, `none of` |
+      | `stringObject` | string (requires `key`, e.g. a metadata key) | same as `string` |
+      | `numberObject` | number (requires `key`, e.g. a score name) | same as `number` |
+      | `booleanObject` | boolean (requires `key`) | `=`, `<>` |
     properties:
       column:
         type: string
@@ -241,12 +258,29 @@ types:
       - ASC
       - DESC
 
+  DashboardWidgetChartConfigInput:
+    docs: |
+      Input-side chart config. `type` is optional and defaults to the
+      widget's `chartType`; when given it must match.
+    properties:
+      type:
+        type: optional<DashboardWidgetChartType>
+      row_limit:
+        type: optional<integer>
+      show_value_labels:
+        type: optional<boolean>
+      bins:
+        type: optional<integer>
+      defaultSort:
+        type: optional<DashboardWidgetDefaultSort>
+
   CreateDashboardWidgetRequest:
     properties:
       name:
         type: string
       description:
-        type: string
+        type: optional<string>
+        docs: Defaults to an empty string.
       view:
         type: DashboardWidgetView
       dimensions:
@@ -258,9 +292,8 @@ types:
       chartType:
         type: DashboardWidgetChartType
       chartConfig:
-        type: DashboardWidgetChartConfig
-      minVersion:
-        type: optional<integer>
+        type: optional<DashboardWidgetChartConfigInput>
+        docs: Defaults to the plain config for `chartType`.
 
   UpdateDashboardWidgetRequest:
     properties:
@@ -279,9 +312,7 @@ types:
       chartType:
         type: optional<DashboardWidgetChartType>
       chartConfig:
-        type: optional<DashboardWidgetChartConfig>
-      minVersion:
-        type: optional<integer>
+        type: optional<DashboardWidgetChartConfigInput>
 
   DashboardWidgetList:
     properties:
@@ -319,5 +350,3 @@ types:
         type: DashboardWidgetChartType
       chartConfig:
         type: DashboardWidgetChartConfig
-      minVersion:
-        type: integer

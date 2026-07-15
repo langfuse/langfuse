@@ -4,9 +4,9 @@ import {
 } from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   DashboardPlacementQuery,
-  DashboardPlacementResponse,
   DeleteDashboardPlacementResponse,
   PatchDashboardPlacementBody,
+  PatchDashboardPlacementResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import {
   deletePublicDashboardPlacement,
@@ -18,7 +18,7 @@ export default withUnstablePublicApiMiddlewares({
     name: "Update Unstable Dashboard Placement",
     querySchema: DashboardPlacementQuery,
     bodySchema: PatchDashboardPlacementBody,
-    responseSchema: DashboardPlacementResponse,
+    responseSchema: PatchDashboardPlacementResponse,
     fn: ({ query, body, auth }) =>
       updatePublicDashboardPlacement({
         projectId: auth.scope.projectId,
