@@ -238,9 +238,10 @@ export const createEvalJobs = async ({
   //
   // DUAL SAFEGUARD:
   // - This check prevents eval job CREATION for internal traces
-  // - fetchLLMCompletion.ts enforces that internal traces MUST use "langfuse-" prefix
+  // - The shared LLM runtime enforces that internal traces MUST use the
+  //   "langfuse-" prefix
   //
-  // See: packages/shared/src/server/llm/fetchLLMCompletion.ts (enforcement)
+  // See: packages/shared/src/server/llm (enforcement)
   // See: packages/shared/src/server/llm/types.ts (LangfuseInternalTraceEnvironment enum)
   if (
     sourceEventType === "trace-upsert" &&

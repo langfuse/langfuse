@@ -26,6 +26,7 @@ export const runMcpTool = async <TResult>({
         "langfuse.project.id": context.projectId,
         "langfuse.org.id": context.orgId,
         "mcp.api_key_id": context.apiKeyId,
+        ...(context.userAgent ? { user_agent: context.userAgent } : {}),
         ...Object.fromEntries(
           Object.entries(attributes ?? {}).filter(
             (entry): entry is [string, McpToolAttribute] =>
