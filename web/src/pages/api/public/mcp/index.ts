@@ -33,7 +33,7 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
@@ -101,6 +101,14 @@ export default async function handler(
       );
     }
 
+    addUserToSpan({
+      apiKeyId: authCheck.scope.apiKeyId,
+      publicKey: authCheck.scope.publicKey,
+      projectId: authCheck.scope.projectId,
+      orgId: authCheck.scope.orgId,
+      plan: authCheck.scope.plan,
+    });
+
     // Check if ingestion is suspended due to usage limits
     if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
@@ -129,6 +137,7 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
+      userAgent: req.headers["user-agent"],
       inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 
