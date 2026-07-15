@@ -18,7 +18,6 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   createOrgProjectAndApiKey,
-  LLMCompletionError,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -1953,8 +1952,8 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       };
 
       await expect(evaluate({ event: payload })).rejects.toMatchObject({
-        name: "LLMCompletionError",
-        responseStatusCode: 401,
+        name: "AI_APICallError",
+        statusCode: 401,
         isRetryable: false,
       });
 

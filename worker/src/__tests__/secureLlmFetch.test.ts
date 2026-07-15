@@ -10,7 +10,7 @@ import {
   createSecureLlmFetch,
   fetchSecureLlmUrl,
 } from "../../../packages/shared/src/server/llm/secureLlmFetch";
-import { RedirectValidationError } from "../../../packages/shared/src/server/outbound-url";
+import { LLMValidationError } from "../../../packages/shared/src/server/llm/errors";
 import {
   startLocalLlmServer,
   type LocalLlmServer,
@@ -398,7 +398,12 @@ describe("secure LLM fetch", () => {
           headers: { authorization: "Bearer leakable-token" },
           body: JSON.stringify({ messages: [] }),
         }),
-      ).rejects.toBeInstanceOf(RedirectValidationError);
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<LLMValidationError>>({
+          name: "LLMValidationError",
+          code: "invalid-connection",
+        }),
+      );
     });
 
     test("strips additional sensitive headers on cross-origin redirects", async () => {

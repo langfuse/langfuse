@@ -10,6 +10,7 @@ import {
 
 import { context } from "@opentelemetry/api";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { createOpenAI } from "@ai-sdk/openai";
 
@@ -143,6 +144,21 @@ describe("AI SDK telemetry integration", () => {
     const generationSpan = spans.find((span: any) => span.parentSpanId);
     expect(generationSpan.name).toBe("chat gpt-4o");
     expect(generationSpan.parentSpanId).toBe(rootSpans[0].spanId);
+    // OTLP SpanKind 3 = CLIENT. The detached trace owns the actual GenAI
+    // client span; worker eval.* spans remain INTERNAL orchestration spans.
+    expect(generationSpan.kind).toBe(3);
+    expect(
+      Object.fromEntries(
+        generationSpan.attributes.map((attribute: any) => [
+          attribute.key,
+          attribute.value.stringValue ?? attribute.value,
+        ]),
+      ),
+    ).toMatchObject({
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4o",
+    });
 
     // The captured spans convert through the real OTel ingestion processor —
     // the same code path the public /api/public/otel/v1/traces endpoint uses.
@@ -284,5 +300,51 @@ describe("AI SDK telemetry integration", () => {
       expect(child.experimentItemRootSpanId).toBe(root.spanId);
       expect(child.spanId).not.toBe(root.spanId);
     }
+  });
+
+  it("records a low-cardinality error type on failed generation spans", async () => {
+    const providerError = new APICallError({
+      message: "Incorrect API key provided",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 401,
+    });
+    vi.mocked(createOpenAI).mockReturnValue({
+      chat: () =>
+        new MockLanguageModelV4({
+          provider: "openai",
+          modelId: "gpt-4o",
+          doGenerate: async () => {
+            throw providerError;
+          },
+        }),
+    } as never);
+
+    await expect(
+      generateLLMText({
+        ...mapLegacyLLMCompletionParams({
+          messages,
+          modelParams,
+          connection: { secretKey: encrypt("sk-test") },
+        }),
+        timeout: 10_000,
+        trace: traceSinkParams,
+      }),
+    ).rejects.toBe(providerError);
+
+    const resourceSpans = publishToOtelIngestionQueue.mock.calls[0][0];
+    const spans = resourceSpans.flatMap((resourceSpan: any) =>
+      resourceSpan.scopeSpans.flatMap((scopeSpan: any) => scopeSpan.spans),
+    );
+    const generationSpan = spans.find((span: any) => span.parentSpanId);
+    const attributes = Object.fromEntries(
+      generationSpan.attributes.map((attribute: any) => [
+        attribute.key,
+        attribute.value.stringValue ?? attribute.value,
+      ]),
+    );
+
+    expect(generationSpan.status).toMatchObject({ code: 2 });
+    expect(attributes).toMatchObject({ "error.type": "AI_APICallError" });
   });
 });
