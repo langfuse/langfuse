@@ -29,11 +29,9 @@ Pushing updates it; closing the PR tears it down.
   access** — opening a same-repo PR requires it. **Fork PRs never build or
   deploy** (a public-repo PR can't mint the cloud credential).
 - **Deploy — a per-author allowlist.** A preview only gets a live URL if the PR
-  **author is on the deploy allowlist** — the `author` selector in
-  `k8s/preview/bootstrap/applicationset.yaml` (the Argo CD ApplicationSet) in
-  `langfuse/infrastructure`. Not on it? Your PR still builds, but the URL 404s —
-  add your own GitHub login to that selector and open a PR in the infra repo
-  (self-serve, no admin needed).
+  **author is on the deploy allowlist** (the `author` selector in the Argo CD
+  ApplicationSet, `langfuse/infrastructure`). Not on it? Your PR still builds,
+  but the URL 404s — add yourself (see [Getting access](#getting-access)).
 
 ## Using a preview
 
