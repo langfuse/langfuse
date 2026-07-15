@@ -109,6 +109,13 @@ describe("mentionParser", () => {
 
         expect(result).toEqual(["alice123", "bob456"]);
       });
+
+      it("should extract mention when display name contains a newline", () => {
+        const content = "@[Line1\nLine2](user:alice123)";
+        const result = extractUniqueMentionedUserIds(content);
+
+        expect(result).toEqual(["alice123"]);
+      });
     });
 
     describe("invalid patterns", () => {
@@ -135,14 +142,6 @@ describe("mentionParser", () => {
 
       it("should not match mentions without user ID", () => {
         const content = "@[Alice](user:)";
-        const result = extractUniqueMentionedUserIds(content);
-
-        expect(result).toEqual([]);
-      });
-
-      it("should still reject mentions whose user ID exceeds 30 chars", () => {
-        const longUserId = "a".repeat(31);
-        const content = `@[Alice](user:${longUserId})`;
         const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual([]);

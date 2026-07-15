@@ -135,10 +135,10 @@ export async function handleCommentMentionNotification(
           : comment.content;
       // Convert @[DisplayName](user:userId) to @DisplayName. Mirrors
       // MENTION_REGEX in web/src/features/comments/lib/mentionParser.ts so
-      // display names containing square brackets survive both the parser
-      // and this preview stripper.
+      // display names containing square brackets or line breaks survive
+      // both the parser and this preview stripper.
       return truncated.replace(
-        /@\[(.{1,100}?)\]\(user:[a-z0-9_-]{1,30}\)/gi,
+        /@\[([\s\S]{1,100}?)\]\(user:[a-z0-9_-]{1,30}\)/gi,
         "@$1",
       );
     })();
