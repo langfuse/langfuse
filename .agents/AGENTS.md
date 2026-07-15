@@ -21,9 +21,10 @@ evaluating, and debugging AI applications.
   real browser before signoff. Prefill the data the flow needs with the seed
   CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
   never with ad-hoc scripts or raw ClickHouse inserts.
-- Opening a PR spins up a disposable, full-stack preview at
-  `pr-<N>.preview.langfuse.com` — use the `langfuse-previews` skill to spin one
-  up, debug it, or read a preview's web/worker error logs with `kubectl`.
+- Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
+  `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
+  skill to use or debug one, e.g. read a preview's web/worker error logs with
+  `kubectl`.
 - For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
   tags; prefer Markdown images or width-only HTML so previews preserve aspect
   ratio.
