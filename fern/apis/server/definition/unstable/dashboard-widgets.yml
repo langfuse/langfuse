@@ -1,11 +1,33 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
+  pagination: ../utils/pagination.yml
 
 service:
   auth: true
   base-path: /api/public/unstable
   endpoints:
+    list:
+      docs: List dashboard widgets in the project.
+      method: GET
+      path: /dashboard-widgets
+      request:
+        name: ListDashboardWidgetsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
+      response: DashboardWidgetList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     create:
       docs: |
         Create a reusable dashboard widget.
@@ -64,6 +86,62 @@ service:
                 type: HORIZONTAL_BAR
                 row_limit: 10
               minVersion: 2
+    get:
+      docs: Get a dashboard widget by id.
+      method: GET
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      response: DashboardWidget
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    update:
+      docs: |
+        Update a dashboard widget.
+
+        All fields are optional; at least one field is required.
+        If both `chartType` and `chartConfig` are provided, `chartConfig.type`
+        must match `chartType`.
+      method: PATCH
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      request: UpdateDashboardWidgetRequest
+      response: DashboardWidget
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    delete:
+      docs: |
+        Delete a dashboard widget.
+
+        The API returns `409` while the widget is still placed on a dashboard.
+        Remove those placements first.
+      method: DELETE
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      response: DeleteDashboardWidgetResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
 
 types:
   DashboardWidgetView:
@@ -183,6 +261,39 @@ types:
         type: DashboardWidgetChartConfig
       minVersion:
         type: optional<integer>
+
+  UpdateDashboardWidgetRequest:
+    properties:
+      name:
+        type: optional<string>
+      description:
+        type: optional<string>
+      view:
+        type: optional<DashboardWidgetView>
+      dimensions:
+        type: optional<list<DashboardWidgetDimension>>
+      metrics:
+        type: optional<list<DashboardWidgetMetric>>
+      filters:
+        type: optional<list<DashboardWidgetFilter>>
+      chartType:
+        type: optional<DashboardWidgetChartType>
+      chartConfig:
+        type: optional<DashboardWidgetChartConfig>
+      minVersion:
+        type: optional<integer>
+
+  DashboardWidgetList:
+    properties:
+      data:
+        type: list<DashboardWidget>
+      meta:
+        type: pagination.MetaResponse
+
+  DeleteDashboardWidgetResponse:
+    properties:
+      message:
+        type: string
 
   DashboardWidget:
     properties:

@@ -1,39 +1,152 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
+  pagination: ../utils/pagination.yml
 
 service:
   auth: true
   base-path: /api/public/unstable
   endpoints:
     list:
+      docs: List dashboards in the project.
       method: GET
       path: /dashboards
+      request:
+        name: ListDashboardsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
       response: DashboardList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     create:
+      docs: Create a dashboard.
       method: POST
       path: /dashboards
       request: CreateDashboardRequest
       response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     get:
+      docs: Get a dashboard by id.
       method: GET
       path: /dashboards/{dashboardId}
       path-parameters:
         dashboardId: string
       response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     update:
+      docs: Update a dashboard's name, description, definition, or filters.
       method: PATCH
       path: /dashboards/{dashboardId}
       path-parameters:
         dashboardId: string
       request: UpdateDashboardRequest
       response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     delete:
+      docs: Delete a dashboard.
       method: DELETE
       path: /dashboards/{dashboardId}
       path-parameters:
         dashboardId: string
       response: DeleteDashboardResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    addPlacement:
+      docs: |
+        Add a widget placement to a dashboard grid.
+
+        The referenced widget must exist in the same project. The API returns
+        `409` if a placement with the same `id` already exists on the dashboard.
+      method: POST
+      path: /dashboards/{dashboardId}/widgets
+      path-parameters:
+        dashboardId: string
+      request: DashboardPlacement
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    updatePlacement:
+      docs: |
+        Update a widget placement on a dashboard grid.
+
+        The placement `id` in the body must match `placementId`; the API
+        returns `409` otherwise.
+      method: PATCH
+      path: /dashboards/{dashboardId}/widgets/{placementId}
+      path-parameters:
+        dashboardId: string
+        placementId: string
+      request: DashboardPlacement
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    deletePlacement:
+      docs: Remove a widget placement from a dashboard grid.
+      method: DELETE
+      path: /dashboards/{dashboardId}/widgets/{placementId}
+      path-parameters:
+        dashboardId: string
+        placementId: string
+      response: Dashboard
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
 
 types:
   DashboardPlacement:
@@ -74,13 +187,7 @@ types:
   DashboardList:
     properties:
       data: list<Dashboard>
-      meta: DashboardPagination
-  DashboardPagination:
-    properties:
-      page: integer
-      limit: integer
-      totalItems: integer
-      totalPages: integer
+      meta: pagination.MetaResponse
   CreateDashboardRequest:
     properties:
       name: string
