@@ -100,6 +100,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSelectedConversationHydrating: false,
   error: null,
   messages: [],
+  liveMessageVersion: 0,
   conversations: [],
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
@@ -149,6 +150,7 @@ type InAppAiAgentContextType = {
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
+  liveMessageVersion: number;
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
@@ -254,6 +256,10 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [messages, setMessages] = useState<AgUiMessage[]>([]);
+  // Only live AG-UI publications increment this version. The display smoother
+  // uses it to distinguish stream updates from history hydration, including
+  // updates where the agent mutates message objects in place.
+  const [liveMessageVersion, setLiveMessageVersion] = useState(0);
   const [pendingToolApprovals, setPendingToolApprovals] = useState<
     InAppAgentPendingToolApproval[]
   >([]);
@@ -269,6 +275,7 @@ function InAppAiAgentProviderInner({
   const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
+  const runInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
@@ -443,6 +450,10 @@ function InAppAiAgentProviderInner({
       currentIds.size > 0 ? new Set() : currentIds,
     );
   }, []);
+  const publishLiveMessages = useCallback((messages: AgUiMessage[]) => {
+    setMessages(messages);
+    setLiveMessageVersion((currentVersion) => currentVersion + 1);
+  }, []);
 
   const resetAgent = useCallback(() => {
     if (agentRef.current?.isRunning) {
@@ -590,7 +601,7 @@ function InAppAiAgentProviderInner({
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               messages.filter(isAgentConversationMessage),
               activeRunIdRef.current,
@@ -598,7 +609,7 @@ function InAppAiAgentProviderInner({
           );
         },
         onStateChanged: ({ messages }) => {
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               messages.filter(isAgentConversationMessage),
               activeRunIdRef.current,
@@ -607,7 +618,12 @@ function InAppAiAgentProviderInner({
         },
       });
     },
-    [clearLoadingEvents, updateLoadingEvent, updatePendingToolApprovals],
+    [
+      clearLoadingEvents,
+      publishLiveMessages,
+      updateLoadingEvent,
+      updatePendingToolApprovals,
+    ],
   );
 
   const getOrCreateAgent = useCallback(
@@ -653,34 +669,40 @@ function InAppAiAgentProviderInner({
       quickActionAttribution?: InAppAgentQuickActionAttribution,
       messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
+      if (runInFlightRef.current) {
+        return Promise.resolve(false);
+      }
+
+      runInFlightRef.current = true;
       clearLoadingEvents();
       setIsRunning(true);
-      return agent
-        .runAgent({
-          ...runParameters,
-          context: createInAppAgentScreenContext({
-            currentUrl: window.location.href,
-          }).concat(
-            createInAppAgentUserContext({
-              userName: session.data?.user?.name,
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              languages:
-                navigator.languages.length > 0
-                  ? Array.from(navigator.languages)
-                  : [navigator.language],
-            }),
-            quickActionAttribution
-              ? createInAppAgentQuickActionAttributionContext(
-                  quickActionAttribution,
-                )
-              : [],
-            messageEntryPoint
-              ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
-              : [],
-          ),
-        })
-        .then(() => true)
-        .catch((error) => {
+      return (async () => {
+        try {
+          await agent.runAgent({
+            ...runParameters,
+            context: createInAppAgentScreenContext({
+              currentUrl: window.location.href,
+            }).concat(
+              createInAppAgentUserContext({
+                userName: session.data?.user?.name,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                languages:
+                  navigator.languages.length > 0
+                    ? Array.from(navigator.languages)
+                    : [navigator.language],
+              }),
+              quickActionAttribution
+                ? createInAppAgentQuickActionAttributionContext(
+                    quickActionAttribution,
+                  )
+                : [],
+              messageEntryPoint
+                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
+                : [],
+            ),
+          });
+          return true;
+        } catch (error) {
           if (intentionalAbortRef.current) {
             return false;
           }
@@ -692,12 +714,11 @@ function InAppAiAgentProviderInner({
           setError(getInAppAgentError(error));
           console.error("In-app agent drawer error", error);
           return false;
-        })
-        .finally(() => {
+        } finally {
           const runId = activeRunIdRef.current;
           clearLoadingEvents();
           setIsRunning(false);
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               agent.messages.filter(isAgentConversationMessage),
               runId,
@@ -711,11 +732,14 @@ function InAppAiAgentProviderInner({
           releaseSubmitLock();
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
-        });
+          runInFlightRef.current = false;
+        }
+      })();
     },
     [
       projectId,
       clearLoadingEvents,
+      publishLiveMessages,
       releaseSubmitLock,
       session.data?.user?.name,
       utils.inAppAgent.getConversation,
@@ -802,7 +826,8 @@ function InAppAiAgentProviderInner({
         isInAppAgentRateLimited(error) ||
         (options?.newConversation !== true &&
           isSelectedConversationHydrating) ||
-        submitInFlightRef.current
+        submitInFlightRef.current ||
+        runInFlightRef.current
       ) {
         return false;
       }
@@ -1009,6 +1034,7 @@ function InAppAiAgentProviderInner({
         !approval ||
         !selectedConversationId ||
         isRunning ||
+        runInFlightRef.current ||
         isInAppAgentRateLimited(error)
       ) {
         return;
@@ -1127,6 +1153,7 @@ function InAppAiAgentProviderInner({
       isSelectedConversationHydrating,
       error,
       messages: messagesWithUiState,
+      liveMessageVersion,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -1155,6 +1182,7 @@ function InAppAiAgentProviderInner({
       isSelectedConversationNotFound,
       deleteConversation,
       loadMoreConversations,
+      liveMessageVersion,
       messagesWithUiState,
       open,
       openAssistant,
