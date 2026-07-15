@@ -5,11 +5,18 @@
  * Uses render prop pattern for node customization.
  */
 
-import { useRef, useLayoutEffect, useMemo, type ReactNode } from "react";
+import {
+  useRef,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flattenTree } from "./tree-flattening";
 import { cn } from "@/src/utils/tailwind";
 import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
+import { computeMaxVisualDepth, TREE_VISUAL_DEPTH } from "./visual-depth";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   roots: T[];
@@ -47,6 +54,27 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   className,
 }: VirtualizedTreeProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Cap indentation to the container width so extremely deep trees (a
+  // reported one chained ~1400 levels) never push row content off-viewport
+  // (LFE-10959). Stored as the derived cap (an integer), not the raw width,
+  // so resize only re-renders when the cap actually moves.
+  const [maxVisualDepth, setMaxVisualDepth] = useState(
+    TREE_VISUAL_DEPTH.maxDepth,
+  );
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const measure = () => {
+      setMaxVisualDepth(
+        computeMaxVisualDepth(el.clientWidth, TREE_VISUAL_DEPTH),
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const flattenedItems = useMemo(
     () => flattenTree(roots, collapsedNodes),
@@ -143,6 +171,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
                   depth: item.depth,
                   treeLines: item.treeLines,
                   isLastSibling: item.isLastSibling,
+                  maxVisualDepth,
                 },
                 isSelected,
                 isCollapsed,
