@@ -11,7 +11,9 @@
  * - Context captured in closures (no session storage)
  *
  * Transport: Streamable HTTP (NOT the deprecated HTTP+SSE transport)
- * - Single endpoint handles POST (JSON-RPC), GET (SSE streams), DELETE (sessions)
+ * - POST carries JSON-RPC; GET returns 405 because there is no shared event stream
+ * - DELETE is handled by the transport (returns 405 in stateless mode)
+ * - OPTIONS handles CORS preflight
  * - JSON-RPC messages sent via POST body
  * - No separate /message endpoint needed
  *
@@ -50,7 +52,7 @@ import "@/src/features/mcp/server/bootstrap";
 /**
  * MCP API Route Handler
  *
- * Handles MCP protocol requests using Streamable HTTP (SSE) transport.
+ * Handles MCP protocol requests using Streamable HTTP transport.
  *
  * Request flow:
  * 1. Validate Host/Origin headers and handle CORS
@@ -58,7 +60,7 @@ import "@/src/features/mcp/server/bootstrap";
  * 3. Check rate limits
  * 4. Extract ServerContext from authenticated API key
  * 5. Create fresh MCP server instance with context in closures
- * 6. Connect to SSE transport
+ * 6. Connect to Streamable HTTP transport
  * 7. Handle MCP protocol communication
  * 8. Discard server instance after request
  *
@@ -119,6 +121,14 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
+    // Each request gets an isolated transport, so a standalone GET stream
+    // cannot receive events from subsequent requests.
+    if (req.method === "GET") {
+      res.setHeader("Allow", "POST, OPTIONS");
+      res.status(405).end();
+      return;
+    }
+
     // Build ServerContext from authenticated scope. In-app-agent keys need a
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
@@ -147,7 +157,6 @@ export default async function handler(
     const server = createMcpServer(context);
 
     // Handle the MCP request using Streamable HTTP transport
-    // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
     await handleMcpRequest(server, req, res);
   } catch (error) {
     logger.error("MCP API route error", {
