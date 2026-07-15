@@ -46,6 +46,7 @@ import {
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
+import { processOtelMediaIfEnabled } from "../features/otel-media/processOtelMedia";
 
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
@@ -307,6 +308,15 @@ export const otelIngestionQueueProcessorBuilder = (
         }
         parsedSpans = maskingResult.data;
       }
+
+      await processOtelMediaIfEnabled({
+        enabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
+        resourceSpans: parsedSpans,
+        projectId,
+        fileKey,
+        mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+      });
 
       // Generate events via OtelIngestionProcessor
       const processor = new OtelIngestionProcessor({
