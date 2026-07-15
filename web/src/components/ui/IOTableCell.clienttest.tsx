@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { IO_TABLE_CHAR_LIMIT } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 vi.mock("next/router", () => ({
@@ -204,8 +205,12 @@ describe("IOTableCell media chip rendering", () => {
       singleLine: true,
     });
 
-    expect(container.textContent).toContain("truncated");
-    expect(container.textContent?.length ?? 0).toBeLessThan(15_000);
+    // Pin the exact drop count so off-by-one drift in the slice/subtract
+    // arithmetic surfaces here, not silently under a loose upper bound.
+    expect(container.textContent).toContain("truncated 40000 characters");
+    expect(container.textContent?.length ?? 0).toBeLessThanOrEqual(
+      IO_TABLE_CHAR_LIMIT + 100,
+    );
   });
 
   it("single-line: long content is truncated in the title tooltip", () => {
@@ -215,7 +220,32 @@ describe("IOTableCell media chip rendering", () => {
     });
 
     const title = container.querySelector("[title]")?.getAttribute("title");
-    expect(title).toContain("truncated");
-    expect((title ?? "").length).toBeLessThan(15_000);
+    expect(title).toContain("truncated 40000 characters");
+    expect((title ?? "").length).toBeLessThanOrEqual(IO_TABLE_CHAR_LIMIT + 100);
+  });
+
+  // Place a valid media ref so its opener sits inside the cap but its closer
+  // sits past it. The naive slice would leak "@@@langfuseMedia:…" as literal
+  // text where a chip is unreachable; the boundary snap drops the dangling
+  // opener so the preview never shows a half-reference.
+  it("single-line: truncation backs off before a dangling media reference", () => {
+    const prefixLen = IO_TABLE_CHAR_LIMIT - 30;
+    const data = "x".repeat(prefixLen) + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").not.toContain("@@@langfuseMedia:");
+    expect(container.textContent).toContain("truncated");
+  });
+
+  // Slice cuts *inside* the 17-char "@@@langfuseMedia:" opener, so the full
+  // opener isn't even present in the naive slice — the partial-opener trim
+  // must still strip the trailing "@@@langfuseMed" so no "@@@" leaks.
+  it("single-line: truncation trims a partial media-ref opener suffix", () => {
+    const prefixLen = IO_TABLE_CHAR_LIMIT - 10;
+    const data = "x".repeat(prefixLen) + MEDIA_REF + "y".repeat(200);
+    const { container } = renderCell({ data, singleLine: true });
+
+    expect(container.textContent ?? "").not.toContain("@@@");
+    expect(container.textContent).toContain("truncated");
   });
 });
