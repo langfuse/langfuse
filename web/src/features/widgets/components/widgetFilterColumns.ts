@@ -20,6 +20,15 @@ type GetWidgetFilterColumnsParams = {
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
   observationTypeOptions: SingleValueOption[];
+  userOptions: SingleValueOption[];
+  sessionOptions: SingleValueOption[];
+  versionOptions: SingleValueOption[];
+  releaseOptions: SingleValueOption[];
+  traceReleaseOptions: SingleValueOption[];
+  traceVersionOptions: SingleValueOption[];
+  scoreNameOptions: SingleValueOption[];
+  experimentIdOptions: SingleValueOption[];
+  metadataKeyOptions: string[];
 };
 
 type WidgetFilterColumnSpec = {
@@ -41,7 +50,38 @@ const getWidgetFilterColumnSpecs = ({
   experimentNameOptions,
   experimentDatasetOptions,
   observationTypeOptions,
+  userOptions,
+  sessionOptions,
+  versionOptions,
+  releaseOptions,
+  traceReleaseOptions,
+  traceVersionOptions,
+  scoreNameOptions,
+  experimentIdOptions,
+  metadataKeyOptions,
 }: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
+  // Value suggestions come from the v2 events filter-options; v1 keeps manual
+  // entry (plain string columns), per LFE-9570 decision to leave v1 plain.
+  const suggestString = (
+    name: string,
+    id: string,
+    options: SingleValueOption[],
+  ): WidgetFilterColumnSpec =>
+    viewVersion === "v2"
+      ? {
+          column: {
+            name,
+            id,
+            type: "stringOptions",
+            options,
+            internal: "internalValue",
+          },
+          customSelect: true,
+        }
+      : {
+          column: { name, id, type: "string", internal: "internalValue" },
+        };
+  const metadataSuggest = viewVersion === "v2";
   const filterColumns: WidgetFilterColumnSpec[] = [
     {
       column: {
@@ -78,49 +118,23 @@ const getWidgetFilterColumnSpecs = ({
       },
       customSelect: true,
     },
-    {
-      column: {
-        name: "User",
-        id: "user",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
-    {
-      column: {
-        name: "Session",
-        id: "session",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
+    suggestString("User", "user", userOptions),
+    suggestString("Session", "session", sessionOptions),
     {
       column: {
         name: "Metadata",
         id: "metadata",
         type: "stringObject",
         internal: "internalValue",
+        ...(metadataSuggest ? { keyOptions: metadataKeyOptions } : {}),
       },
+      customSelect: metadataSuggest,
     },
-    {
-      column: {
-        name: "Version",
-        id: "version",
-        type: "string",
-        internal: "internalValue",
-      },
-    },
+    suggestString("Version", "version", versionOptions),
   ];
 
   if (selectedView !== "observations") {
-    filterColumns.push({
-      column: {
-        name: "Release",
-        id: "release",
-        type: "string",
-        internal: "internalValue",
-      },
-    });
+    filterColumns.push(suggestString("Release", "release", releaseOptions));
   }
 
   if (selectedView === "observations") {
@@ -144,14 +158,7 @@ const getWidgetFilterColumnSpecs = ({
     selectedView === "scores-categorical"
   ) {
     filterColumns.push(
-      {
-        column: {
-          name: "Score Name",
-          id: "scoreName",
-          type: "string",
-          internal: "internalValue",
-        },
-      },
+      suggestString("Score Name", "scoreName", scoreNameOptions),
       {
         column: {
           name: "Observation Name",
@@ -174,9 +181,11 @@ const getWidgetFilterColumnSpecs = ({
               column: {
                 name: "Observation Release",
                 id: "release",
-                type: "string",
+                type: "stringOptions",
+                options: releaseOptions,
                 internal: "internalValue",
               },
+              customSelect: true,
             } satisfies WidgetFilterColumnSpec,
             {
               column: {
@@ -202,9 +211,11 @@ const getWidgetFilterColumnSpecs = ({
               column: {
                 name: "Experiment ID",
                 id: "experimentId",
-                type: "null",
+                type: "stringOptions",
+                options: experimentIdOptions,
                 internal: "internalValue",
               },
+              customSelect: true,
             } satisfies WidgetFilterColumnSpec,
           ]
         : []),
@@ -232,17 +243,21 @@ const getWidgetFilterColumnSpecs = ({
         column: {
           name: "Trace Release",
           id: "traceRelease",
-          type: "string",
+          type: "stringOptions",
+          options: traceReleaseOptions,
           internal: "internalValue",
         },
+        customSelect: true,
       },
       {
         column: {
           name: "Trace Version",
           id: "traceVersion",
-          type: "string",
+          type: "stringOptions",
+          options: traceVersionOptions,
           internal: "internalValue",
         },
+        customSelect: true,
       },
       {
         column: {

@@ -45,6 +45,7 @@ import {
   type FilterState,
   type FilterCondition,
   type ColumnDefinition,
+  type SingleValueOption,
   filterOperators,
   singleFilter,
 } from "@langfuse/shared";
@@ -381,6 +382,8 @@ export function InlineFilterBuilder({
   disabled,
   columnsWithCustomSelect,
   filterWithAI = false,
+  stringObjectValueOptions,
+  onStringObjectKeyChange,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -392,6 +395,10 @@ export function InlineFilterBuilder({
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
+  /** Per-key value suggestions for opt-in stringObject columns (metadata). */
+  stringObjectValueOptions?: Record<string, SingleValueOption[]>;
+  /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
+  onStringObjectKeyChange?: (key: string) => void;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -438,6 +445,8 @@ export function InlineFilterBuilder({
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
         filterWithAI={filterWithAI}
+        stringObjectValueOptions={stringObjectValueOptions}
+        onStringObjectKeyChange={onStringObjectKeyChange}
       />
     </div>
   );
@@ -481,6 +490,8 @@ function FilterBuilderForm({
   disabled,
   columnsWithCustomSelect = [],
   filterWithAI = false,
+  stringObjectValueOptions = {},
+  onStringObjectKeyChange,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -489,6 +500,10 @@ function FilterBuilderForm({
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
   filterWithAI?: boolean;
+  /** Per-key value suggestions for opt-in stringObject columns (metadata). */
+  stringObjectValueOptions?: Record<string, SingleValueOption[]>;
+  /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
+  onStringObjectKeyChange?: (key: string) => void;
 }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -671,6 +686,11 @@ function FilterBuilderForm({
                         (o) => NonEmptyString.safeParse(o).success,
                       )
                     : undefined;
+                // Opt-in metadata suggestions: a stringObject column listed in
+                // columnsWithCustomSelect renders searchable key/value combos.
+                const stringObjectSuggest =
+                  column?.type === "stringObject" &&
+                  columnsWithCustomSelect.includes(column.id);
                 const columnLabel = column ? column.name : "Column";
                 return (
                   <tr key={i}>
@@ -793,7 +813,30 @@ function FilterBuilderForm({
                       (column?.type === "numberObject" ||
                         column?.type === "stringObject" ||
                         column?.type === "booleanObject") ? (
-                        keyOptions?.length ? (
+                        stringObjectSuggest ? (
+                          // Case 0: opt-in stringObject - searchable key combo with free text
+                          <MultiSelect
+                            title="Key"
+                            className="min-w-[100px]"
+                            options={
+                              column?.type === "stringObject" &&
+                              column.keyOptions
+                                ? column.keyOptions.map((value) => ({ value }))
+                                : []
+                            }
+                            values={filter.key ? [filter.key] : []}
+                            onValueChange={(values) => {
+                              const nextKey = values[values.length - 1] ?? "";
+                              handleFilterChange(
+                                { ...filter, key: nextKey },
+                                i,
+                              );
+                              onStringObjectKeyChange?.(nextKey);
+                            }}
+                            disabled={disabled}
+                            isCustomSelectEnabled
+                          />
+                        ) : keyOptions?.length ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
                             disabled={!filter.column}
@@ -924,8 +967,30 @@ function FilterBuilderForm({
                       </Select>
                     </td>
                     <td className="p-1">
-                      {filter.type === "string" ||
-                      filter.type === "stringObject" ? (
+                      {stringObjectSuggest && filter.type === "stringObject" ? (
+                        <MultiSelect
+                          title="Value"
+                          className="min-w-[100px]"
+                          options={
+                            (filter.key
+                              ? stringObjectValueOptions[filter.key]
+                              : []) ?? []
+                          }
+                          values={filter.value ? [filter.value] : []}
+                          onValueChange={(values) =>
+                            handleFilterChange(
+                              {
+                                ...filter,
+                                value: values[values.length - 1] ?? "",
+                              },
+                              i,
+                            )
+                          }
+                          disabled={disabled}
+                          isCustomSelectEnabled
+                        />
+                      ) : filter.type === "string" ||
+                        filter.type === "stringObject" ? (
                         <Input
                           disabled={disabled}
                           value={filter.value ?? ""}

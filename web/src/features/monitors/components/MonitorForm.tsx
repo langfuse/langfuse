@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -80,6 +80,7 @@ import {
   ObservationTypeDomain,
   viewDeclarations,
   type FilterState,
+  type SingleValueOption,
   type TimeFilter,
 } from "@langfuse/shared";
 
@@ -170,10 +171,12 @@ const buildFilterColumnsParams = ({
   view,
   filterOptions,
   datasets,
+  metadataKeys,
 }: {
   view: "traces" | "observations" | "scores-numeric" | "scores-categorical";
   filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
   datasets: Array<{ id: string; name: string }> | undefined;
+  metadataKeys?: string[];
 }) => {
   const datasetIds = new Set(
     (filterOptions?.experimentDatasetId ?? []).map((e) => e.value),
@@ -195,7 +198,37 @@ const buildFilterColumnsParams = ({
         ?.filter((d) => datasetIds.has(d.id))
         .map((d) => ({ value: d.id, displayValue: d.name })) ?? [],
     observationTypeOptions,
+    userOptions: normalizeSingleValueOptions(filterOptions?.userId),
+    sessionOptions: normalizeSingleValueOptions(filterOptions?.sessionId),
+    versionOptions: normalizeSingleValueOptions(filterOptions?.version),
+    // Events denormalize trace release into e.release, so the Release and Trace
+    // Release columns share one source; e.version conflates observation and
+    // trace version, so Version and Trace Version share it too.
+    releaseOptions: normalizeSingleValueOptions(filterOptions?.release),
+    traceReleaseOptions: normalizeSingleValueOptions(filterOptions?.release),
+    traceVersionOptions: normalizeSingleValueOptions(filterOptions?.version),
+    scoreNameOptions: scoreNameOptionsForView(view, filterOptions),
+    experimentIdOptions: normalizeSingleValueOptions(
+      filterOptions?.experimentId,
+    ),
+    metadataKeyOptions: metadataKeys ?? [],
   };
+};
+
+/** scoreNameOptionsForView sources Score Name suggestions from the view's score facet. */
+const scoreNameOptionsForView = (
+  view: "traces" | "observations" | "scores-numeric" | "scores-categorical",
+  filterOptions: RouterOutputs["events"]["filterOptions"] | undefined,
+): SingleValueOption[] => {
+  if (view === "scores-numeric") {
+    return (filterOptions?.scores_avg ?? []).map((value) => ({ value }));
+  }
+  if (view === "scores-categorical") {
+    return (filterOptions?.score_categories ?? []).map((category) => ({
+      value: category.label,
+    }));
+  }
+  return [];
 };
 
 /** MonitorForm renders the create/edit form for a Monitor. */
@@ -342,6 +375,54 @@ export const MonitorForm = ({
     },
   );
 
+  /** metadataFilterKey is the metadata key whose values the builder is actively suggesting. */
+  const [metadataFilterKey, setMetadataFilterKey] = useState<
+    string | undefined
+  >(undefined);
+
+  /** metadataKeys loads the most common metadata key names for the Metadata filter column. */
+  const metadataKeys = api.events.metadataKeys.useQuery(
+    {
+      projectId,
+      startTimeFilter: filterOptionsStartTimeFilter,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+
+  /** metadataValues lazily loads the observed values for the actively-edited metadata key. */
+  const metadataValues = api.events.metadataValues.useQuery(
+    {
+      projectId,
+      key: metadataFilterKey ?? "",
+      startTimeFilter: filterOptionsStartTimeFilter,
+    },
+    {
+      enabled: Boolean(metadataFilterKey),
+      trpc: { context: { skipBatch: true } },
+      staleTime: 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+
+  /** metadataValueOptions maps the actively-edited metadata key to its observed value suggestions. */
+  const metadataValueOptions = useMemo<Record<string, SingleValueOption[]>>(
+    () =>
+      metadataFilterKey && metadataValues.data
+        ? {
+            [metadataFilterKey]: normalizeSingleValueOptions(
+              metadataValues.data,
+            ),
+          }
+        : {},
+    [metadataFilterKey, metadataValues.data],
+  );
+
   /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
@@ -362,8 +443,9 @@ export const MonitorForm = ({
           | "scores-categorical",
         filterOptions: eventsFilterOptions.data,
         datasets: datasets.data,
+        metadataKeys: metadataKeys.data?.map((row) => row.value),
       }),
-    [eventsFilterOptions.data, datasets.data, watched.view],
+    [eventsFilterOptions.data, datasets.data, metadataKeys.data, watched.view],
   );
 
   /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
@@ -619,6 +701,8 @@ export const MonitorForm = ({
                           filterState={(field.value ?? []) as FilterState}
                           onChange={(next: FilterState) => field.onChange(next)}
                           columnsWithCustomSelect={customSelectColumnIds}
+                          stringObjectValueOptions={metadataValueOptions}
+                          onStringObjectKeyChange={setMetadataFilterKey}
                         />
                       </FormControl>
                       <FormMessage />

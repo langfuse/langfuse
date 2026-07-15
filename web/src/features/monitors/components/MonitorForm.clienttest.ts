@@ -162,6 +162,69 @@ describe("buildFilterColumnsParams", () => {
     );
   });
 
+  it("maps user/session/version/release into searchable stringOptions columns", () => {
+    const params = buildFilterColumnsParams({
+      view: "observations",
+      filterOptions: {
+        userId: [{ value: "user-1" }],
+        sessionId: [{ value: "session-1" }],
+        version: [{ value: "1.0.0" }],
+        release: [{ value: "2024-01" }],
+      } as Parameters<typeof buildFilterColumnsParams>[0]["filterOptions"],
+      datasets: undefined,
+    });
+    const columns = getWidgetFilterColumns(params);
+    const custom = getWidgetColumnsWithCustomSelect(params);
+
+    for (const id of ["user", "session", "version", "release"]) {
+      const column = columns.find((c) => c.id === id);
+      expect(column?.type).toBe("stringOptions");
+      expect(custom).toContain(id);
+    }
+    const userColumn = columns.find((c) => c.id === "user");
+    const userValues =
+      userColumn?.type === "stringOptions"
+        ? userColumn.options.map((o) => o.value)
+        : [];
+    expect(userValues).toEqual(["user-1"]);
+  });
+
+  it("labels Experiment ID options by name via displayValue", () => {
+    const params = buildFilterColumnsParams({
+      view: "observations",
+      filterOptions: {
+        experimentId: [{ value: "exp-1", displayValue: "My Experiment" }],
+      } as Parameters<typeof buildFilterColumnsParams>[0]["filterOptions"],
+      datasets: undefined,
+    });
+    const column = getWidgetFilterColumns(params).find(
+      (c) => c.id === "experimentId",
+    );
+    expect(column?.type).toBe("stringOptions");
+    const options = column?.type === "stringOptions" ? column.options : [];
+    expect(options).toEqual([
+      { value: "exp-1", displayValue: "My Experiment" },
+    ]);
+    expect(getWidgetColumnsWithCustomSelect(params)).toContain("experimentId");
+  });
+
+  it("wires metadata key suggestions into the Metadata column", () => {
+    const params = buildFilterColumnsParams({
+      view: "observations",
+      filterOptions: undefined,
+      datasets: undefined,
+      metadataKeys: ["region", "tier"],
+    });
+    const column = getWidgetFilterColumns(params).find(
+      (c) => c.id === "metadata",
+    );
+    expect(column?.type).toBe("stringObject");
+    const keyOptions =
+      column?.type === "stringObject" ? column.keyOptions : undefined;
+    expect(keyOptions).toEqual(["region", "tier"]);
+    expect(getWidgetColumnsWithCustomSelect(params)).toContain("metadata");
+  });
+
   it("keeps Type/Level as non-searchable columns (they rely on complete option lists)", () => {
     // Confirms the fix must be complete enum lists: Type/Level are NOT custom
     // (searchable/free-text) selects, so an empty option list is a hard dead-end.

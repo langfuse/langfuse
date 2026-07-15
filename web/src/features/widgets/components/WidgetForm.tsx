@@ -62,6 +62,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
+  type SingleValueOption,
   type TimeFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
@@ -745,6 +746,42 @@ export function WidgetForm({
     { enabled: viewVersion === "v2" },
   );
 
+  // metadataFilterKey is the metadata key whose values the builder is suggesting.
+  const [metadataFilterKey, setMetadataFilterKey] = useState<
+    string | undefined
+  >(undefined);
+
+  const eventsMetadataKeys = api.events.metadataKeys.useQuery(
+    {
+      projectId,
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+      enabled: viewVersion === "v2",
+    },
+  );
+
+  const eventsMetadataValues = api.events.metadataValues.useQuery(
+    {
+      projectId,
+      key: metadataFilterKey ?? "",
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+      enabled: viewVersion === "v2" && Boolean(metadataFilterKey),
+    },
+  );
+
   // Resolve filter options based on viewVersion
   const environmentOptions =
     viewVersion === "v2"
@@ -789,6 +826,44 @@ export function WidgetForm({
         value: d.id,
         displayValue: d.name,
       })) ?? [];
+  // Suggestions below are events-only (v2). Events denormalize trace release
+  // into e.release and conflate observation/trace version into e.version, so
+  // Release/Trace Release and Version/Trace Version each share one source.
+  const userOptions = normalizeSingleValueOptions(
+    eventsFilterOptions.data?.userId,
+  );
+  const sessionOptions = normalizeSingleValueOptions(
+    eventsFilterOptions.data?.sessionId,
+  );
+  const versionOptions = normalizeSingleValueOptions(
+    eventsFilterOptions.data?.version,
+  );
+  const releaseOptions = normalizeSingleValueOptions(
+    eventsFilterOptions.data?.release,
+  );
+  const experimentIdOptions = normalizeSingleValueOptions(
+    eventsFilterOptions.data?.experimentId,
+  );
+  const scoreNameOptions =
+    selectedView === "scores-numeric"
+      ? (eventsFilterOptions.data?.scores_avg ?? []).map((value) => ({ value }))
+      : selectedView === "scores-categorical"
+        ? (eventsFilterOptions.data?.score_categories ?? []).map(
+            (category) => ({
+              value: category.label,
+            }),
+          )
+        : [];
+  const metadataKeyOptions =
+    eventsMetadataKeys.data?.map((row) => row.value) ?? [];
+  const metadataValueOptions: Record<string, SingleValueOption[]> =
+    metadataFilterKey && eventsMetadataValues.data
+      ? {
+          [metadataFilterKey]: normalizeSingleValueOptions(
+            eventsMetadataValues.data,
+          ),
+        }
+      : {};
 
   const filterColumns = getWidgetFilterColumns({
     selectedView,
@@ -804,6 +879,15 @@ export function WidgetForm({
     experimentNameOptions,
     experimentDatasetOptions: experimentDatasetIdOptions,
     observationTypeOptions,
+    userOptions,
+    sessionOptions,
+    versionOptions,
+    releaseOptions,
+    traceReleaseOptions: releaseOptions,
+    traceVersionOptions: versionOptions,
+    scoreNameOptions,
+    experimentIdOptions,
+    metadataKeyOptions,
   });
   const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
     selectedView,
@@ -819,6 +903,15 @@ export function WidgetForm({
     experimentNameOptions,
     experimentDatasetOptions: experimentDatasetIdOptions,
     observationTypeOptions,
+    userOptions,
+    sessionOptions,
+    versionOptions,
+    releaseOptions,
+    traceReleaseOptions: releaseOptions,
+    traceVersionOptions: versionOptions,
+    scoreNameOptions,
+    experimentIdOptions,
+    metadataKeyOptions,
   });
 
   // Helper to get valid filter column identifiers for a given view
@@ -839,6 +932,15 @@ export function WidgetForm({
       observationTypeOptions,
       experimentNameOptions,
       experimentDatasetOptions: experimentDatasetIdOptions,
+      userOptions,
+      sessionOptions,
+      versionOptions,
+      releaseOptions,
+      traceReleaseOptions: releaseOptions,
+      traceVersionOptions: versionOptions,
+      scoreNameOptions,
+      experimentIdOptions,
+      metadataKeyOptions,
     });
     // Include both column id and name since filters may use either
     return new Set(columns.flatMap((col) => [col.id, col.name]));
@@ -1909,6 +2011,8 @@ export function WidgetForm({
                     filterState={userFilterState}
                     onChange={setUserFilterState}
                     columnsWithCustomSelect={columnsWithCustomSelect}
+                    stringObjectValueOptions={metadataValueOptions}
+                    onStringObjectKeyChange={setMetadataFilterKey}
                   />
                 </div>
               </div>

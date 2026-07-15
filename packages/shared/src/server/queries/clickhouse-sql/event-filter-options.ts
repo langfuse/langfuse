@@ -26,6 +26,13 @@ type EventFilterOptionDefinition =
       sort: EventFilterOptionSort;
     }
   | {
+      kind: "labeledScalar";
+      expression: string;
+      labelExpression: string;
+      includeWhen: string;
+      sort: EventFilterOptionSort;
+    }
+  | {
       kind: "array";
       expression: string;
       sort: EventFilterOptionSort;
@@ -81,6 +88,12 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     includeWhen: "e.version IS NOT NULL AND length(e.version) > 0",
     sort: "countDesc",
   },
+  release: {
+    kind: "scalar",
+    expression: "e.release",
+    includeWhen: "e.release IS NOT NULL AND length(e.release) > 0",
+    sort: "countDesc",
+  },
   sessionId: {
     kind: "scalar",
     expression: "e.session_id",
@@ -120,8 +133,9 @@ const EVENTS_FILTER_OPTION_DEFINITIONS = {
     sort: "countDesc",
   },
   experimentId: {
-    kind: "scalar",
+    kind: "labeledScalar",
     expression: "e.experiment_id",
+    labelExpression: "e.experiment_name",
     includeWhen: "e.experiment_id IS NOT NULL AND length(e.experiment_id) > 0",
     sort: "countDesc",
   },
@@ -161,6 +175,7 @@ export type EventFilterOptionRow = {
   column: EventFilterOptionColumn;
   value: string;
   count: number;
+  displayValue?: string;
 };
 
 export type EventFilterOptionScope = "scoredTraces";
@@ -221,7 +236,7 @@ const optionValuesArrayExpression = (
 ): string => {
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
 
-  if (definition.kind === "scalar") {
+  if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
     return `if(${definition.includeWhen}, [${stringValueExpression(definition.expression)}], CAST([], 'Array(String)'))`;
   }
 
@@ -240,7 +255,7 @@ const optionValuesArrayExpression = (
 const optionPresenceCondition = (column: EventFilterOptionColumn): string => {
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
 
-  if (definition.kind === "scalar") {
+  if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
     return definition.includeWhen;
   }
 
@@ -271,6 +286,10 @@ const optionTopKSelectExpression = (column: EventFilterOptionColumn) => {
     return `approx_top_kIf({optionLimit: UInt64})(${stringValueExpression(definition.expression)}, ${definition.includeWhen}) AS ${optionTopAlias(column)}`;
   }
 
+  if (definition.kind === "labeledScalar") {
+    return `approx_top_kIf({optionLimit: UInt64})(tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)}), ${definition.includeWhen}) AS ${optionTopAlias(column)}`;
+  }
+
   if (definition.kind === "boolean") {
     return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${optionTopAlias(column)}`;
   }
@@ -289,8 +308,17 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
       : definition.sort === "booleanAsc"
         ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
         : "toInt64(0)";
+  // labeledScalar top-k entries nest (value, label) in element 1; scalar/array/
+  // boolean entries put the value directly in element 1 and carry no label.
+  const isLabeled = definition.kind === "labeledScalar";
+  const valueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 1)"
+    : "tupleElement(option, 1)";
+  const displayValueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 2)"
+    : "''";
 
-  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, tupleElement(option, 1), tupleElement(option, 2), ${sortKeyExpression}), ${topAlias})`;
+  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${topAlias})`;
 };
 
 const eventFilterOptionScopeCondition = (
@@ -325,7 +353,7 @@ export const buildEventsFilterOptionColumnQuery = (params: {
   );
 
   const valueExpression =
-    definition.kind === "scalar"
+    definition.kind === "scalar" || definition.kind === "labeledScalar"
       ? `toString(${definition.expression})`
       : definition.kind === "boolean"
         ? `if(${definition.expression}, 'true', 'false')`
@@ -398,7 +426,8 @@ option_rows AS (
 SELECT
   tupleElement(option, 1) AS column,
   tupleElement(option, 2) AS value,
-  tupleElement(option, 3) AS count
+  tupleElement(option, 3) AS count,
+  tupleElement(option, 5) AS displayValue
 FROM option_rows
 ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
 `.trim();
@@ -410,4 +439,73 @@ ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
       optionLimit,
     },
   };
+};
+
+/** buildEventsMetadataKeysQuery builds the top-N distinct metadata key names query for the events table. */
+export const buildEventsMetadataKeysQuery = (params: {
+  projectId: string;
+  filter: FilterState;
+  limit: number;
+}): { query: string; params: Record<string, unknown> } | null => {
+  if (params.limit <= 0) {
+    return null;
+  }
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      params.filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: "value",
+    selectExpression:
+      "arrayJoin(arrayFilter(name -> length(name) > 0, arrayDistinct(e.metadata_names))) AS value, count() AS count",
+  })
+    .where(eventsFilter.apply())
+    .whereRaw("length(e.metadata_names) > 0")
+    .orderBy("ORDER BY count() DESC, value ASC")
+    .limit(params.limit, 0);
+
+  return queryBuilder.buildWithParams();
+};
+
+/** buildEventsMetadataValuesQuery builds the top-N distinct value query for one metadata key on the events table. */
+export const buildEventsMetadataValuesQuery = (params: {
+  projectId: string;
+  filter: FilterState;
+  key: string;
+  limit: number;
+}): { query: string; params: Record<string, unknown> } | null => {
+  if (params.limit <= 0 || params.key.length === 0) {
+    return null;
+  }
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      params.filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const valueAccessor =
+    "e.metadata_values[indexOf(e.metadata_names, {metadataKey: String})]";
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId: params.projectId,
+    groupByColumn: "value",
+    selectExpression: `${valueAccessor} AS value, count() AS count`,
+  })
+    .where(eventsFilter.apply())
+    .whereRaw("has(e.metadata_names, {metadataKey: String})", {
+      metadataKey: params.key,
+    })
+    .whereRaw(`length(${valueAccessor}) > 0`)
+    .orderBy("ORDER BY count() DESC, value ASC")
+    .limit(params.limit, 0);
+
+  return queryBuilder.buildWithParams();
 };
