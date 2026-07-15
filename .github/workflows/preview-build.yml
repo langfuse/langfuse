@@ -70,6 +70,10 @@ jobs:
             echo "web_image=${WEB_REPO}:${image_tag}"
             echo "worker_image=${WORKER_REPO}:${image_tag}"
             echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
+            # k8s namespace/release for this PR (web+worker deploys are
+            # <namespace>-web / <namespace>-worker) — used for the log commands
+            # in the "ready" comment below.
+            echo "namespace=langfuse-pr-${PR_NUMBER}"
             # Shared, intentionally-public seed login + API keys (synthetic data
             # only) — must match the LANGFUSE_INIT_* values in the preview chart
             # (k8s/preview/chart/values.yaml). Each preview is its own isolated
@@ -167,6 +171,14 @@ jobs:
             **Login:** `${{ steps.meta.outputs.login_email }}` / `${{ steps.meta.outputs.login_password }}`
             **API keys:** `${{ steps.meta.outputs.public_key }}` / `${{ steps.meta.outputs.secret_key }}`
             **Commit:** ${{ steps.meta.outputs.commit_sha }}
+
+            **Logs** (needs preview-cluster `kubectl` access):
+            ```sh
+            kubectl -n ${{ steps.meta.outputs.namespace }} logs -f deploy/${{ steps.meta.outputs.namespace }}-web      # web
+            kubectl -n ${{ steps.meta.outputs.namespace }} logs -f deploy/${{ steps.meta.outputs.namespace }}-worker   # worker
+            ```
+            Add `--previous` for a crashed container, `--tail=200` to limit, or
+            `kubectl -n ${{ steps.meta.outputs.namespace }} get pods` to inspect status.
 
             Synthetic preview data only. Never add production data to public accounts.
 
