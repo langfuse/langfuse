@@ -10,10 +10,13 @@ import {
   DashboardPlacementResponse,
   DeleteDashboardPlacementResponse,
   DeleteUnstableDashboardResponse,
+  GetUnstableDashboardsResponse,
   PostUnstableDashboardResponse,
 } from "@/src/features/public-api/types/unstable-dashboards";
 import { UnstablePublicApiErrorResponse } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
+import { nanoid } from "nanoid";
 
 const widget = {
   name: "API widget",
@@ -110,5 +113,98 @@ describe("unstable dashboard API", () => {
       undefined,
       auth,
     );
+  });
+
+  it("paginates project dashboards with correct totals and excludes Langfuse-managed dashboards", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const first = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Dashboard A", description: "" },
+      auth,
+    );
+    const second = await makeZodVerifiedAPICall(
+      PostUnstableDashboardResponse,
+      "POST",
+      "/api/public/unstable/dashboards",
+      { name: "Dashboard B", description: "" },
+      auth,
+    );
+    // Langfuse-managed dashboards (projectId null) sort first by updatedAt
+    // and must be neither returned nor counted by the public API.
+    const langfuseManaged = await prisma.dashboard.create({
+      data: {
+        id: `langfuse-managed-${nanoid()}`,
+        projectId: null,
+        name: "Langfuse managed",
+        description: "",
+        definition: { widgets: [] },
+      },
+    });
+    try {
+      const page1 = await makeZodVerifiedAPICall(
+        GetUnstableDashboardsResponse,
+        "GET",
+        "/api/public/unstable/dashboards?page=1&limit=1",
+        undefined,
+        auth,
+      );
+      expect(page1.body.data).toHaveLength(1);
+      expect([first.body.id, second.body.id]).toContain(page1.body.data[0].id);
+      expect(page1.body.meta).toMatchObject({
+        page: 1,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+    } finally {
+      await prisma.dashboard.delete({ where: { id: langfuseManaged.id } });
+    }
+  });
+
+  it("rejects creating a dashboard whose definition references a missing widget", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/unstable/dashboards",
+      {
+        name: "Broken dashboard",
+        description: "",
+        definition: {
+          widgets: [
+            {
+              type: "widget",
+              id: "placement-1",
+              widgetId: "does-not-exist",
+              x: 0,
+              y: 0,
+              x_size: 4,
+              y_size: 3,
+            },
+          ],
+        },
+      },
+      auth,
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects widget updates that leave chartConfig.type out of sync with chartType", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const createdWidget = await makeZodVerifiedAPICall(
+      PostUnstableDashboardWidgetResponse,
+      "POST",
+      "/api/public/unstable/dashboard-widgets",
+      widget,
+      auth,
+    );
+    const mismatched = await makeAPICall(
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${createdWidget.body.id}`,
+      { chartType: "PIE" },
+      auth,
+    );
+    expect(mismatched.status).toBe(400);
   });
 });

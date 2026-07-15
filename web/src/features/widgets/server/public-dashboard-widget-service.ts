@@ -130,6 +130,15 @@ export function normalizePublicDashboardWidgetInput(
 export function validatePublicDashboardWidgetInput(
   widget: PostUnstableDashboardWidgetBodyType,
 ): void {
+  // POST enforces this via schema refinement; updates merge partial input
+  // with the stored widget, so the invariant must be re-checked here.
+  if (widget.chartConfig.type !== widget.chartType) {
+    throwInvalidWidget({
+      message: "chartConfig.type must match chartType",
+      field: "chartConfig.type",
+    });
+  }
+
   const viewVersion = getWidgetViewVersion(widget);
   const viewDeclaration = getPublicDashboardWidgetViewDeclaration(widget);
 
@@ -253,17 +262,13 @@ export async function createPublicDashboardWidget(params: {
 function toPublicWidgetInput(
   widget: WidgetDomain,
 ): PostUnstableDashboardWidgetBodyType {
-  return PostUnstableDashboardWidgetResponse.pick({
-    name: true,
-    description: true,
-    view: true,
-    dimensions: true,
-    metrics: true,
-    filters: true,
-    chartType: true,
-    chartConfig: true,
-    minVersion: true,
-  }).parse(toApiDashboardWidget(widget));
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    updatedAt: _updatedAt,
+    ...input
+  } = toApiDashboardWidget(widget);
+  return input;
 }
 
 async function getProjectWidgetOrThrow(projectId: string, widgetId: string) {

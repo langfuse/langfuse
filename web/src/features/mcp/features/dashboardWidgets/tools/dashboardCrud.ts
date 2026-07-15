@@ -76,7 +76,12 @@ const dashboardCreateBaseSchema = z.object({
   filters: z.array(z.object({}).loose()).optional(),
   definition: z.object({ widgets: z.array(z.object({}).loose()) }).optional(),
 });
-const placementSchema = placementBaseSchema.superRefine((placement, ctx) => {
+// NOTE: object-level refinements do not survive `.shape` spreads, so every
+// schema built via `.extend(x.shape)` below must re-apply them explicitly.
+const requirePlacementIds = (
+  placement: z.infer<typeof placementBaseSchema>,
+  ctx: z.RefinementCtx,
+) => {
   if (placement.type === "widget" && !placement.widgetId)
     ctx.addIssue({
       code: "custom",
@@ -89,8 +94,20 @@ const placementSchema = placementBaseSchema.superRefine((placement, ctx) => {
       path: ["presetId"],
       message: "presetId is required for preset placements",
     });
-});
-const toPlacement = (placement: z.infer<typeof placementSchema>) =>
+};
+const requirePatchField =
+  (idKeys: string[]) =>
+  (value: Record<string, unknown>, ctx: z.RefinementCtx) => {
+    const patchKeys = Object.keys(value).filter(
+      (key) => !idKeys.includes(key) && value[key] !== undefined,
+    );
+    if (patchKeys.length === 0)
+      ctx.addIssue({
+        code: "custom",
+        message: "At least one field is required",
+      });
+  };
+const toPlacement = (placement: z.infer<typeof placementBaseSchema>) =>
   placement.type === "widget"
     ? {
         type: "widget" as const,
@@ -169,17 +186,17 @@ export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
     baseSchema: dashboardWidgetPatchBaseSchema,
     inputSchema: DashboardWidgetIdQuery.extend(
       PatchUnstableDashboardWidgetBody.shape,
-    ),
+    ).superRefine(requirePatchField(["widgetId"])),
     destructiveHint: true,
-    handler: (input, context) =>
+    handler: ({ widgetId, ...patch }, context) =>
       runMcpTool({
         spanName: "mcp.dashboard_widgets.update",
         context,
         fn: async () =>
           updatePublicDashboardWidget({
             projectId: context.projectId,
-            widgetId: input.widgetId,
-            input,
+            widgetId,
+            input: patch,
             auditScope: auditScope(context),
           }),
       }),
@@ -280,17 +297,19 @@ export const [updateDashboardTool, handleUpdateDashboard] = defineTool({
   description:
     "Partially update dashboard metadata, filters, or its complete definition.",
   baseSchema: dashboardPatchBaseSchema,
-  inputSchema: DashboardIdQuery.extend(PatchUnstableDashboardBody.shape),
+  inputSchema: DashboardIdQuery.extend(
+    PatchUnstableDashboardBody.shape,
+  ).superRefine(requirePatchField(["dashboardId"])),
   destructiveHint: true,
-  handler: (input, context) =>
+  handler: ({ dashboardId, ...patch }, context) =>
     runMcpTool({
       spanName: "mcp.dashboards.update",
       context,
       fn: () =>
         updatePublicDashboard({
           projectId: context.projectId,
-          dashboardId: input.dashboardId,
-          input,
+          dashboardId,
+          input: patch,
           auditScope: auditScope(context),
         }),
     }),
@@ -322,7 +341,9 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
     name: "addDashboardPlacement",
     description: "Add a widget or preset placement to a dashboard grid.",
     baseSchema: DashboardIdQuery.extend(placementBaseSchema.shape),
-    inputSchema: DashboardIdQuery.extend(placementSchema.shape),
+    inputSchema: DashboardIdQuery.extend(placementBaseSchema.shape).superRefine(
+      requirePlacementIds,
+    ),
     destructiveHint: true,
     handler: (input, context) =>
       runMcpTool({
@@ -343,7 +364,9 @@ export const [updateDashboardPlacementTool, handleUpdateDashboardPlacement] =
     description:
       "Update an existing dashboard placement's grid position or size.",
     baseSchema: placementQuery.extend(placementBaseSchema.shape),
-    inputSchema: placementQuery.extend(placementSchema.shape),
+    inputSchema: placementQuery
+      .extend(placementBaseSchema.shape)
+      .superRefine(requirePlacementIds),
     destructiveHint: true,
     handler: (input, context) =>
       runMcpTool({

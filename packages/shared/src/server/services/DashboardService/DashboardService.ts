@@ -26,17 +26,27 @@ export class DashboardService {
     limit?: number;
     page?: number;
     orderBy?: OrderByState;
+    /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
+    includeLangfuseOwned?: boolean;
   }): Promise<DashboardListResponse> {
-    const { projectId, limit, page, orderBy } = props;
+    const {
+      projectId,
+      limit,
+      page,
+      orderBy,
+      includeLangfuseOwned = true,
+    } = props;
 
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
 
+    const where = includeLangfuseOwned
+      ? { OR: [{ projectId }, { projectId: null }] }
+      : { projectId };
+
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
           : [{ updatedAt: "desc" }],
@@ -44,9 +54,7 @@ export class DashboardService {
         take,
       }),
       prisma.dashboard.count({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
       }),
     ]);
 

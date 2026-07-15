@@ -64,17 +64,17 @@ export async function listPublicDashboards(params: {
   page: number;
   limit: number;
 }) {
-  const result = await DashboardService.listDashboards(params);
-  const dashboards = result.dashboards.filter(
-    (dashboard) => dashboard.projectId === params.projectId,
-  );
+  const result = await DashboardService.listDashboards({
+    ...params,
+    includeLangfuseOwned: false,
+  });
   return {
-    data: dashboards.map(toApiDashboard),
+    data: result.dashboards.map(toApiDashboard),
     meta: {
       page: params.page,
       limit: params.limit,
-      totalItems: dashboards.length,
-      totalPages: Math.ceil(dashboards.length / params.limit),
+      totalItems: result.totalCount,
+      totalPages: Math.ceil(result.totalCount / params.limit),
     },
   };
 }
@@ -93,6 +93,12 @@ export async function createPublicDashboard(params: {
   input: DashboardInput;
   auditScope: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
+  if (params.input.definition) {
+    await assertPlacementReferences({
+      projectId: params.projectId,
+      placements: params.input.definition.widgets,
+    });
+  }
   const dashboard = await DashboardService.createDashboard(
     params.projectId,
     params.input.name,
