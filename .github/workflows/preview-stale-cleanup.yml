@@ -26,7 +26,7 @@ on:
       stale_days:
         description: "Inactivity threshold in days"
         type: string
-        default: "2"
+        default: "3"
 
 permissions: {}
 
@@ -52,7 +52,7 @@ jobs:
         with:
           script: |
             const label = "preview";
-            const staleDays = Number(context.payload.inputs?.stale_days ?? "2");
+            const staleDays = Number(context.payload.inputs?.stale_days ?? "3");
             const dryRun = String(context.payload.inputs?.dry_run ?? "false") === "true";
             // Guard against stale_days <= 0: cutoff would be >= now and match
             // every labeled PR, reaping all previews in one run.
