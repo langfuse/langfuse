@@ -1,5 +1,5 @@
 import { Terminal, ChevronDown } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import { v4 as uuidv4 } from "uuid";
 
@@ -23,6 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   ChatMessageRole,
+  LLMAdapter,
   type Observation,
   type Prompt,
   supportedModels as playgroundSupportedModels,
@@ -41,6 +42,7 @@ import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
+import { getEnabledModelParamState } from "@/src/utils/getFinalModelParams";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
   type MetadataDomainClient,
@@ -77,8 +79,6 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
   const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
-  const [capturedState, setCapturedState] = useState<PlaygroundCache>(null);
-  const [isAvailable, setIsAvailable] = useState<boolean>(false);
   const [includeOutput, setIncludeOutput] = useState<boolean>(false);
 
   // Generate a stable window ID based on the source data
@@ -123,23 +123,16 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
   const generationData =
     props.source === "generation" ? props.generation : null;
 
-  useEffect(() => {
-    if (promptData) {
-      setCapturedState(parsePrompt(promptData));
-    } else if (generationData) {
-      setCapturedState(
-        parseGeneration(generationData, modelToProviderMap, includeOutput),
-      );
-    }
-  }, [promptData, generationData, modelToProviderMap, includeOutput]);
-
-  useEffect(() => {
-    if (capturedState) {
-      setIsAvailable(true);
-    } else {
-      setIsAvailable(false);
-    }
-  }, [capturedState, setIsAvailable]);
+  const capturedState = useMemo(
+    () =>
+      promptData
+        ? parsePrompt(promptData, modelToProviderMap)
+        : generationData
+          ? parseGeneration(generationData, modelToProviderMap, includeOutput)
+          : null,
+    [generationData, includeOutput, modelToProviderMap, promptData],
+  );
+  const isAvailable = Boolean(capturedState);
 
   const handlePlaygroundAction = (useFreshPlayground: boolean) => {
     capture(props.analyticsEventName, {
@@ -239,7 +232,10 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
+  modelToProviderMap: Record<string, string>,
 ): PlaygroundCache => {
+  const modelParams = parsePromptModelParams(prompt, modelToProviderMap);
+
   if (prompt.type === PromptType.Chat) {
     try {
       const inResult = normalizeInput(prompt.resolvedPrompt);
@@ -254,7 +250,7 @@ const parsePrompt = (
 
       if (messages.length === 0) return null;
 
-      return { messages };
+      return { messages, modelParams };
     } catch {
       return null;
     }
@@ -270,9 +266,45 @@ const parsePrompt = (
           content: typeof promptString === "string" ? promptString : "",
         }),
       ],
+      modelParams,
     };
   }
 };
+
+function parsePromptModelParams(
+  prompt: Prompt,
+  modelToProviderMap: Record<string, string>,
+):
+  | (Partial<UIModelParams> & Pick<UIModelParams, "provider" | "model">)
+  | undefined {
+  const config = prompt.config?.valueOf();
+  if (!config || typeof config !== "object" || Array.isArray(config)) return;
+
+  const model = "model" in config ? config.model : undefined;
+  if (typeof model !== "string") return;
+
+  const configuredProvider = "provider" in config ? config.provider : undefined;
+  const provider =
+    typeof configuredProvider === "string"
+      ? configuredProvider
+      : modelToProviderMap[model];
+  if (!provider) return;
+
+  const parsedConfig = ZodModelConfig.safeParse(config);
+  const configuredAdapter = "adapter" in config ? config.adapter : undefined;
+  const adapter = Object.values(LLMAdapter).find(
+    (candidate) => candidate === configuredAdapter,
+  );
+
+  return {
+    provider: { value: provider, enabled: true },
+    model: { value: model, enabled: true },
+    ...(adapter ? { adapter: { value: adapter, enabled: true } } : {}),
+    ...(parsedConfig.success
+      ? getEnabledModelParamState(parsedConfig.data)
+      : {}),
+  };
+}
 
 const parseGeneration = (
   generation: Omit<WithStringifiedMetadata<Observation>, "input" | "output"> & {
@@ -468,14 +500,10 @@ function parseModelParams(
       const parsedParams = ZodModelConfig.safeParse(generationModelParams);
 
       if (parsedParams.success) {
-        Object.entries(parsedParams.data).forEach(([key, value]) => {
-          if (!modelParams) return;
-
-          modelParams[key as keyof typeof parsedParams.data] = {
-            value: value as any,
-            enabled: true,
-          };
-        });
+        modelParams = {
+          ...modelParams,
+          ...getEnabledModelParamState(parsedParams.data),
+        };
       }
     }
   }
@@ -570,7 +598,7 @@ function parseStructuredOutputSchema(
 
 /**
  * LiteLLM supports custom providers such as with its CustomLLM interface. Clients may
- * send provider‑specific options in addition to standard parameters (e.g., temperature, top_p, max_tokens).
+ * send provider-specific options in addition to standard parameters (for example, temperature, topP, maxOutputTokens).
  * LiteLLM records those extras on the generation as metadata.requester_metadata. When a user clicks
  * “Open in Playground,” we lift requester_metadata into providerOptions so those custom options carry
  * over for re‑run/compare/edit. This lets the Playground faithfully replay LiteLLM CustomLLM‑based

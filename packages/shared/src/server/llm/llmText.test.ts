@@ -58,6 +58,50 @@ beforeEach(() => {
 });
 
 describe("generateLLMText", () => {
+  it("forwards the complete portable AI SDK settings contract", async () => {
+    const receivedOptions = vi.fn();
+    useModel(
+      new MockLanguageModelV4({
+        doGenerate: async (options) => {
+          receivedOptions(options);
+          return {
+            content: [{ type: "text", text: "ok" }],
+            finishReason,
+            usage,
+            warnings: [],
+          };
+        },
+      }),
+    );
+
+    await generateLLMText({
+      ...openAIOptions(),
+      maxOutputTokens: 512,
+      temperature: 0.2,
+      topP: 0.9,
+      topK: 40,
+      presencePenalty: 0.1,
+      frequencyPenalty: -0.2,
+      stopSequences: ["DONE"],
+      seed: 42,
+      reasoning: "high",
+    });
+
+    expect(receivedOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxOutputTokens: 512,
+        temperature: 0.2,
+        topP: 0.9,
+        topK: 40,
+        presencePenalty: 0.1,
+        frequencyPenalty: -0.2,
+        stopSequences: ["DONE"],
+        seed: 42,
+        reasoning: "high",
+      }),
+    );
+  });
+
   it("returns the native text and reasoning result", async () => {
     useModel(
       new MockLanguageModelV4({

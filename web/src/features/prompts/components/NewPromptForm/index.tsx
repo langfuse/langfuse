@@ -47,6 +47,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { getFinalModelConfig } from "@/src/utils/getFinalModelParams";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
@@ -187,6 +188,24 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
     if (shouldLoadPlaygroundCache && playgroundCache) {
       form.setValue("type", PromptType.Chat);
+      const cachedModelParams = playgroundCache.modelParams;
+      if (cachedModelParams?.provider && cachedModelParams.model) {
+        form.setValue(
+          "config",
+          JSON.stringify(
+            {
+              provider: cachedModelParams.provider.value,
+              model: cachedModelParams.model.value,
+              ...(cachedModelParams.adapter
+                ? { adapter: cachedModelParams.adapter.value }
+                : {}),
+              ...getFinalModelConfig(cachedModelParams),
+            },
+            null,
+            2,
+          ),
+        );
+      }
       setInitialMessages(playgroundCache.messages);
     } else if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);

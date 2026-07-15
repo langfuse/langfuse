@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import {
@@ -183,6 +183,17 @@ export const MultiStepExperimentForm = ({
     form,
   });
 
+  const promptConfigModel = useMemo(
+    () =>
+      selectedPromptModelConfig
+        ? {
+            selectionKey: promptIdFromHook,
+            ...selectedPromptModelConfig,
+          }
+        : null,
+    [promptIdFromHook, selectedPromptModelConfig],
+  );
+
   const {
     modelParams,
     updateModelParamValue,
@@ -191,15 +202,7 @@ export const MultiStepExperimentForm = ({
     providerModelCombinations,
     availableProviders,
   } = useModelParams(undefined, {
-    promptConfigModel: selectedPromptModelConfig
-      ? {
-          selectionKey: promptIdFromHook,
-          ...(selectedPromptModelConfig.provider
-            ? { provider: selectedPromptModelConfig.provider }
-            : {}),
-          model: selectedPromptModelConfig.model,
-        }
-      : null,
+    promptConfigModel,
   });
 
   useExperimentNameValidation({

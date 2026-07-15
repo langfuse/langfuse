@@ -267,24 +267,85 @@ export type ModelParams = {
   model: string;
 } & ModelConfig;
 
+export type LegacyCompatibleModelParams = {
+  provider: string;
+  adapter: LLMAdapter;
+  model: string;
+} & ModelConfigInput;
+
 type RecordWithEnabledFlag<T> = {
   [K in keyof T]: { value: T[K]; enabled: boolean };
 };
 export type UIModelParams = RecordWithEnabledFlag<
-  Required<ModelParams> & {
+  Required<Omit<ModelParams, "legacyReasoningTokenBudget">> & {
     maxTemperature: number;
   }
 >;
 
 // Generic config
-export type ModelConfig = z.infer<typeof ZodModelConfig>;
-export const ZodModelConfig = z.object({
-  max_tokens: z.coerce.number().optional(),
+export const MODEL_REASONING_LEVELS = [
+  "provider-default",
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+] as const;
+export const ModelReasoningLevelSchema = z.enum(MODEL_REASONING_LEVELS);
+export type ModelReasoningLevel = z.infer<typeof ModelReasoningLevelSchema>;
+
+/**
+ * Accepts the current AI SDK-shaped contract and the persisted pre-AI-SDK
+ * field names. Consumers should use {@link ZodModelConfig}, whose output is
+ * canonical camelCase.
+ */
+export const ZodModelConfigInput = z.object({
+  maxOutputTokens: z.coerce.number().optional(),
   temperature: z.coerce.number().optional(),
+  topP: z.coerce.number().optional(),
+  topK: z.coerce.number().optional(),
+  presencePenalty: z.coerce.number().optional(),
+  frequencyPenalty: z.coerce.number().optional(),
+  stopSequences: z.array(z.string()).optional(),
+  seed: z.coerce.number().optional(),
+  reasoning: ModelReasoningLevelSchema.optional(),
+  providerOptions: JSONObjectSchema.optional(),
+
+  // Persisted legacy aliases. These are normalized and never emitted by new
+  // UI writes.
+  max_tokens: z.coerce.number().optional(),
   top_p: z.coerce.number().optional(),
   maxReasoningTokens: z.coerce.number().optional(),
-  providerOptions: JSONObjectSchema.optional(),
+  legacyReasoningTokenBudget: z.coerce.number().optional(),
 });
+export type ModelConfigInput = z.input<typeof ZodModelConfigInput>;
+
+export const ZodModelConfig = ZodModelConfigInput.transform(
+  ({
+    max_tokens,
+    top_p,
+    maxReasoningTokens,
+    legacyReasoningTokenBudget,
+    ...config
+  }) => ({
+    ...config,
+    ...(config.maxOutputTokens !== undefined || max_tokens === undefined
+      ? {}
+      : { maxOutputTokens: max_tokens }),
+    ...(config.topP !== undefined || top_p === undefined
+      ? {}
+      : { topP: top_p }),
+    ...(legacyReasoningTokenBudget !== undefined ||
+    maxReasoningTokens !== undefined
+      ? {
+          legacyReasoningTokenBudget:
+            legacyReasoningTokenBudget ?? maxReasoningTokens,
+        }
+      : {}),
+  }),
+);
+export type ModelConfig = z.output<typeof ZodModelConfig>;
 
 // Experiment config
 export const ExperimentMetadataSchema = z
@@ -419,7 +480,7 @@ export const vertexAIModels = [
   "gemini-1.0-pro",
 ] as const;
 
-// WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
+// WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports topP, maxOutputTokens and temperature.
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",

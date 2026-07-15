@@ -55,7 +55,7 @@ const modelParams: ModelParams = {
   provider: "openai",
   adapter: LLMAdapter.OpenAI,
   model: "gpt-4o",
-  max_tokens: 128,
+  maxOutputTokens: 128,
 };
 
 // System-first message lists are the norm for compiled experiment prompts and

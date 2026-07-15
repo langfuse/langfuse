@@ -86,10 +86,10 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
                 <span>{modelParams.temperature.value}</span>
               </div>
             )}
-            {modelParams.max_tokens.enabled && (
+            {modelParams.maxOutputTokens.enabled && (
               <div className="flex gap-2">
                 <span className="text-muted-foreground">Max Tokens:</span>
-                <span>{modelParams.max_tokens.value}</span>
+                <span>{modelParams.maxOutputTokens.value}</span>
               </div>
             )}
             {structuredOutputEnabled && selectedSchemaName && (

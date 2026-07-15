@@ -103,6 +103,32 @@ describe("chatCompletionHandler", () => {
     });
   });
 
+  it("returns AI SDK compatibility warnings in a response header", async () => {
+    mocks.generate.mockResolvedValue({
+      text: "Hello back",
+      finalStep: { reasoningText: undefined },
+      warnings: [
+        {
+          type: "unsupported",
+          feature: "temperature",
+          details: "temperature is not supported for this reasoning model",
+        },
+      ],
+    });
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(
+      JSON.parse(
+        decodeURIComponent(
+          response.headers.get("x-langfuse-llm-warnings") ?? "[]",
+        ),
+      ),
+    ).toEqual([
+      "Unsupported temperature: temperature is not supported for this reasoning model",
+    ]);
+  });
+
   it("returns only the generated structured output", async () => {
     const output = { kind: "object-output" };
     mocks.createOutput.mockReturnValue(output);
@@ -174,7 +200,29 @@ describe("chatCompletionHandler", () => {
         controller.close();
       },
     });
-    mocks.stream.mockResolvedValue({ textStream });
+    const fullStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue({ type: "start" });
+        controller.enqueue({
+          type: "start-step",
+          request: {},
+          warnings: [
+            {
+              type: "compatibility",
+              feature: "reasoning",
+              details: "reasoning was mapped to a token budget",
+            },
+          ],
+        });
+      },
+      // A teed stream may not settle this promise until the text branch ends.
+      // The handler must not await it before returning the streaming response.
+      cancel: () => new Promise(() => {}),
+    });
+    mocks.stream.mockResolvedValue({
+      textStream,
+      stream: fullStream,
+    });
 
     const response = await chatCompletionHandler(
       createRequest({ ...baseBody, streaming: true }),
@@ -184,6 +232,15 @@ describe("chatCompletionHandler", () => {
     expect(response.headers.get("content-type")).toBe(
       "text/plain; charset=utf-8",
     );
+    expect(
+      JSON.parse(
+        decodeURIComponent(
+          response.headers.get("x-langfuse-llm-warnings") ?? "[]",
+        ),
+      ),
+    ).toEqual([
+      "Compatibility mode for reasoning: reasoning was mapped to a token budget",
+    ]);
     expect(mocks.generate).not.toHaveBeenCalled();
   });
 

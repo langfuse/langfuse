@@ -24,6 +24,46 @@ import {
   streamLLMText,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
+import { createLlmWarningsHeader } from "../utils/llmWarnings";
+
+type AiSdkWarning =
+  | { type: "unsupported" | "compatibility"; feature: string; details?: string }
+  | { type: "deprecated"; setting: string; message: string }
+  | { type: "other"; message: string };
+
+function formatLlmWarnings(warnings: readonly AiSdkWarning[] | undefined) {
+  return (warnings ?? []).map((warning) => {
+    switch (warning.type) {
+      case "unsupported":
+        return `Unsupported ${warning.feature}${warning.details ? `: ${warning.details}` : ""}`;
+      case "compatibility":
+        return `Compatibility mode for ${warning.feature}${warning.details ? `: ${warning.details}` : ""}`;
+      case "deprecated":
+        return `Deprecated ${warning.setting}: ${warning.message}`;
+      case "other":
+        return warning.message;
+    }
+  });
+}
+
+async function getInitialStreamWarnings(
+  completion: Awaited<ReturnType<typeof streamLLMText>>,
+) {
+  const reader = completion.stream.getReader();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return [];
+      if (value.type === "error") throw value.error;
+      if (value.type === "start-step") return value.warnings;
+    }
+  } finally {
+    // Do not await cancellation: for a teed stream, that promise may settle
+    // only after the text branch finishes consuming the source.
+    reader.cancel().catch(() => undefined);
+  }
+}
 
 export default async function chatCompletionHandler(req: NextRequest) {
   try {
@@ -116,7 +156,9 @@ export default async function chatCompletionHandler(req: NextRequest) {
           ...completionParams,
           output: createLLMOutput(structuredOutputSchema),
         });
-        return NextResponse.json(result.output);
+        return NextResponse.json(result.output, {
+          headers: createLlmWarningsHeader(formatLlmWarnings(result.warnings)),
+        });
       }
 
       if ((tools && tools.length > 0) || hasToolResults) {
@@ -124,43 +166,62 @@ export default async function chatCompletionHandler(req: NextRequest) {
           ...completionParams,
           tools: createLLMToolSet(tools ?? []),
         });
-        return NextResponse.json({
-          content: result.text,
-          tool_calls: result.toolCalls.map((toolCall) => ({
-            name: toolCall.toolName,
-            id: toolCall.toolCallId,
-            args:
-              typeof toolCall.input === "object" &&
-              toolCall.input !== null &&
-              !Array.isArray(toolCall.input)
-                ? toolCall.input
-                : {},
-          })),
-          ...(result.finalStep.reasoningText
-            ? { reasoning: result.finalStep.reasoningText }
-            : {}),
-        });
+        return NextResponse.json(
+          {
+            content: result.text,
+            tool_calls: result.toolCalls.map((toolCall) => ({
+              name: toolCall.toolName,
+              id: toolCall.toolCallId,
+              args:
+                typeof toolCall.input === "object" &&
+                toolCall.input !== null &&
+                !Array.isArray(toolCall.input)
+                  ? toolCall.input
+                  : {},
+            })),
+            ...(result.finalStep.reasoningText
+              ? { reasoning: result.finalStep.reasoningText }
+              : {}),
+          },
+          {
+            headers: createLlmWarningsHeader(
+              formatLlmWarnings(result.warnings),
+            ),
+          },
+        );
       }
 
       if (streaming) {
         const completion = await streamLLMText(completionParams);
+        // Probe the first step from a teed full stream. AI SDK exposes provider
+        // warnings there before the first text delta, so response headers can
+        // include them without waiting for the generation to finish.
+        const warnings = await getInitialStreamWarnings(completion);
         return new Response(
           completion.textStream.pipeThrough(new TextEncoderStream()),
           {
             status: 200,
             headers: {
               "Content-Type": "text/plain; charset=utf-8",
+              ...createLlmWarningsHeader(formatLlmWarnings(warnings)),
             },
           },
         );
       }
       const completion = await generateLLMText(completionParams);
-      return NextResponse.json({
-        content: completion.text,
-        ...(completion.finalStep.reasoningText
-          ? { reasoning: completion.finalStep.reasoningText }
-          : {}),
-      });
+      return NextResponse.json(
+        {
+          content: completion.text,
+          ...(completion.finalStep.reasoningText
+            ? { reasoning: completion.finalStep.reasoningText }
+            : {}),
+        },
+        {
+          headers: createLlmWarningsHeader(
+            formatLlmWarnings(completion.warnings),
+          ),
+        },
+      );
     });
   } catch (err) {
     logger.error("Failed to handle chat completion", err);
