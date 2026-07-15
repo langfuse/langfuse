@@ -222,9 +222,12 @@ jobs:
             .
           docker push "${IMAGE}"
 
-  # Single authoritative status comment once both builds settle. Runs even when a
-  # build fails (if: always()) so the PR always gets a definitive success or
-  # failure comment, updating the same marker-tagged comment the meta job posted.
+  # Single authoritative status comment once both builds settle, updating the
+  # same marker-tagged comment the meta job posted. Runs on always() so it still
+  # reports after a failure, but each step keys on a definite success/failure
+  # result (see the per-step guards) so a cancelled run — e.g. superseded by a
+  # newer push — posts nothing and leaves the incoming run's "building" comment
+  # to take over.
   notify:
     name: Report preview result
     needs: [meta, build]
@@ -270,8 +273,26 @@ jobs:
 
             Synthetic preview data only. Never add production data to public accounts.
 
-      - name: Report failure
-        if: needs.build.result != 'success'
+      # Two distinct failure paths, each keyed on `== 'failure'` (NOT
+      # `!= 'success'`): that keeps them from firing on `cancelled` (a
+      # superseding push cancels the run via cancel-in-progress, and always()
+      # still runs this job — a `!= 'success'` guard would post a spurious
+      # "failed" comment on every new commit) or on `skipped`. meta-failure and
+      # build-failure are mutually exclusive: if meta fails, build is skipped
+      # (not failure), so at most one comment posts, pointing at the job that
+      # actually broke.
+      - name: Report setup failure
+        if: needs.meta.result == 'failure'
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### ⚠️ AWS preview build failed
+
+            Preview setup failed during tag resolution — no image was built: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Report build failure
+        if: needs.build.result == 'failure'
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
