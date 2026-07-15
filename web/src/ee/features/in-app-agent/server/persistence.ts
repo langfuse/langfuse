@@ -19,6 +19,7 @@ import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import { truncate } from "@/src/utils/string";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -432,6 +433,10 @@ ${JSON.stringify(transcript, null, 2)}
             traceName: "in-app-agent-conversation-title",
             userId: params.userId,
             metadata: {
+              langfuse_project_url: new URL(
+                `project/${encodeURIComponent(params.projectId)}`,
+                getProductBaseUrl(),
+              ).toString(),
               conversation_id: params.conversationId,
             },
           })

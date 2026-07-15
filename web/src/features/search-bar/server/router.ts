@@ -34,6 +34,7 @@ import {
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -160,6 +161,10 @@ export const searchBarRouter = createTRPCRouter({
                 userId: ctx.session.user.id,
                 metadata: {
                   langfuse_user_id: ctx.session.user.id,
+                  langfuse_project_url: new URL(
+                    `project/${encodeURIComponent(ctx.session.projectId)}`,
+                    getProductBaseUrl(),
+                  ).toString(),
                   ...(ctx.session.user.email
                     ? { langfuse_user_email: ctx.session.user.email }
                     : {}),
