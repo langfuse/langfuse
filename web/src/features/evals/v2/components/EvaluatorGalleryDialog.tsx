@@ -10,22 +10,14 @@ import {
 } from "@/src/components/ui/dialog";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   ChevronDown,
   ChevronUp,
-  Code2,
-  Copy,
   Plus,
   Search,
-  Sparkles,
+  User,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +27,7 @@ import {
   getCatalogMeta,
   getCategoryIconClasses,
 } from "@/src/features/evals/v2/catalog-meta";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { cn } from "@/src/utils/tailwind";
 
 type EvalTemplate = RouterOutputs["evalsV2"]["catalog"][number];
@@ -43,8 +36,12 @@ type GalleryTemplate = EvalTemplate & {
   createdByUser?: { name: string | null; email: string | null } | null;
 };
 
+// Two rows at the three-column grid before "Show all" takes over.
 const MAX_TILES_PER_SECTION = 6;
 const CLONE_SECTION_KEY = "clone";
+// Experiment: cards without the per-category icon tile, with a "Use template"
+// pill on hover instead. Flip to true to restore the icon tiles.
+const SHOW_CARD_ICONS = false;
 
 // Partner slugs ("ragas") render as author names ("by Ragas").
 function formatPartner(partner: string) {
@@ -91,9 +88,13 @@ function EvaluatorCard({
   // maintained, not edited); project templates credit their creator and show
   // when they last changed. With an author shown, the "Updated" prefix is
   // dropped so the line fits the card at the two-column width.
+  // Maintained catalog templates (no project, no partner) are Langfuse's own.
+  const isLangfuseMaintained = !template.partner && template.projectId === null;
   const author = template.partner
     ? formatPartner(template.partner)
-    : (template.createdByUser?.name ?? template.createdByUser?.email ?? null);
+    : isLangfuseMaintained
+      ? "Langfuse"
+      : (template.createdByUser?.name ?? template.createdByUser?.email ?? null);
   const updated = template.projectId
     ? formatDistanceToNowStrict(new Date(template.updatedAt), {
         addSuffix: true,
@@ -116,50 +117,59 @@ function EvaluatorCard({
           onSelect(template);
         }
       }}
-      className="hover:border-primary/30 hover:bg-accent/40 flex h-22 cursor-pointer items-center gap-3 rounded-lg border p-3.5 text-left transition-all hover:shadow-sm"
+      // pb-2 pairs with the footer's mt-2: description → author and
+      // author → lower border share the same vertical space.
+      className="hover:border-primary hover:bg-accent/40 flex cursor-pointer items-center gap-3 rounded-lg border px-3.5 pt-3.5 pb-2 text-left transition-all hover:shadow-sm"
     >
-      <div
-        className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-          iconClassName,
-        )}
-      >
-        <Icon className="h-[18px] w-[18px]" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center gap-2">
+      {SHOW_CARD_ICONS ? (
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+            iconClassName,
+          )}
+        >
+          <Icon className="h-[18px] w-[18px]" />
+        </div>
+      ) : null}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-col gap-1">
           <span className="truncate text-sm font-medium" title={template.name}>
             {template.name}
           </span>
+          {description ? (
+            <p
+              className="text-muted-foreground line-clamp-1 text-sm leading-relaxed"
+              title={description}
+            >
+              {description}
+            </p>
+          ) : null}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          {attribution ? (
+            <p className="text-muted-foreground/80 flex min-w-0 items-center gap-1.5 text-sm">
+              {isLangfuseMaintained ? <LangfuseIcon size={14} /> : null}
+              <span className="truncate" title={attribution}>
+                {attribution}
+              </span>
+            </p>
+          ) : null}
           <Badge
             variant="outline-solid"
             size="sm"
-            className="text-muted-foreground ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
+            className="text-muted-foreground ml-auto shrink-0 px-1.5 py-0.5 text-sm font-medium"
           >
             {template.type === "CODE" ? "Code" : "LLM-as-a-Judge"}
           </Badge>
         </div>
-        {attribution ? (
-          <p
-            className="text-muted-foreground/80 truncate text-[11px]"
-            title={attribution}
-          >
-            {attribution}
-          </p>
-        ) : null}
-        {description ? (
-          <p
-            className="text-muted-foreground line-clamp-1 text-xs leading-relaxed"
-            title={description}
-          >
-            {description}
-          </p>
-        ) : null}
       </div>
     </div>
   );
 }
 
+// Header sizes follow the app-wide scale from layouts/header.tsx: the
+// "Templates" group header uses the h4 size (text-lg/medium), so sections
+// sit one level below at the h5 size.
 function SectionHeader({
   label,
   description,
@@ -169,7 +179,7 @@ function SectionHeader({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold">{label}</h3>
+      <h3 className="text-base leading-6 font-medium">{label}</h3>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
@@ -179,9 +189,9 @@ function GallerySkeleton() {
   return (
     <div className="flex flex-col gap-3 pt-2">
       <Skeleton className="h-5 w-32" />
-      <div className="grid grid-cols-2 gap-3 2xl:grid-cols-3">
+      <div className="grid grid-cols-3 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 rounded-lg" />
+          <Skeleton key={i} className="h-25 rounded-lg" />
         ))}
       </div>
     </div>
@@ -202,6 +212,7 @@ export function EvaluatorGalleryDialog({
   );
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef(new Map<string, HTMLElement>());
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const catalog = api.evalsV2.catalog.useQuery(
     { projectId },
@@ -275,7 +286,7 @@ export function EvaluatorGalleryDialog({
           {
             key: CLONE_SECTION_KEY,
             label: "Start from existing",
-            icon: Copy,
+            icon: User,
             count: projectTemplates.data?.length,
           },
         ]
@@ -297,6 +308,13 @@ export function EvaluatorGalleryDialog({
   };
 
   const scrollToSection = (key: string) => {
+    // The first section already sits at the top; scrollIntoView would align
+    // it with the container edge and clip the top padding, nudging the view
+    // down a little. Scroll home instead.
+    if (key === navItems[0]?.key) {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     sectionRefs.current
       .get(key)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -315,8 +333,10 @@ export function EvaluatorGalleryDialog({
         variant={isActive ? "secondary" : "ghost"}
         className={cn(
           "h-8 justify-start px-3 font-normal",
-          // Nav items only signal state via the active background, not hover.
-          isActive ? "hover:bg-secondary" : "hover:bg-transparent",
+          // Same hover as the app sidebar's menu buttons (ui/sidebar.tsx).
+          isActive
+            ? "hover:bg-secondary"
+            : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
         )}
         onClick={() => scrollToSection(item.key)}
       >
@@ -369,26 +389,27 @@ export function EvaluatorGalleryDialog({
     const isExpanded = expandedSections.has(key);
     // The clone section lists the project's own evaluators, not templates.
     const noun = key === CLONE_SECTION_KEY ? "evaluators" : "templates";
+    // Plain flush-left toggle (like the form's "Advanced") so the chevron
+    // aligns with the cards' left edge instead of floating in ghost-button
+    // padding.
     return (
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="sm"
-        className="text-muted-foreground self-start"
+        className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 text-sm"
         onClick={() => toggleSection(key)}
       >
         {isExpanded ? (
           <>
-            <ChevronUp className="mr-1.5 h-3.5 w-3.5" />
+            <ChevronUp className="h-3.5 w-3.5" />
             Show fewer
           </>
         ) : (
           <>
-            <ChevronDown className="mr-1.5 h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5" />
             Show all {total} {noun}
           </>
         )}
-      </Button>
+      </button>
     );
   };
 
@@ -403,7 +424,7 @@ export function EvaluatorGalleryDialog({
       : templates.slice(0, MAX_TILES_PER_SECTION);
     return (
       <>
-        <div className="grid grid-cols-2 gap-3 2xl:grid-cols-3">
+        <div className="grid grid-cols-3 gap-3">
           {shown.map((template) => (
             <EvaluatorCard
               key={template.id}
@@ -421,7 +442,15 @@ export function EvaluatorGalleryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[80dvh] flex-col gap-0 p-0 sm:max-w-[66vw]">
+      <DialogContent
+        className="flex h-[80dvh] flex-col gap-0 p-0 sm:max-w-[66vw]"
+        // Radix would focus the first focusable element (the header close
+        // button); typing to filter is the expected first action.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          searchInputRef.current?.focus();
+        }}
+      >
         {/* Bespoke header: DialogHeader centers its built-in close button
             against the full title+description block, but the title and close
             button must share one centered row. sticky+z-30+bg-background must
@@ -449,49 +478,26 @@ export function EvaluatorGalleryDialog({
         </div>
         <DialogBody className="flex-row gap-4 overflow-hidden p-0">
           <div className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="mb-2 w-full"
-                >
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Create from scratch
-                  <ChevronDown className="ml-1.5 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-72">
-                <DropdownMenuItem
-                  className="items-start gap-3"
-                  onClick={() => onCreateFromScratch("llm")}
-                >
-                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-medium">LLM-as-a-Judge</span>
-                    <span className="text-muted-foreground text-xs">
-                      Write a prompt from scratch to evaluate your data.
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="items-start gap-3"
-                  onClick={() => onCreateFromScratch("code")}
-                >
-                  <Code2 className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-medium">Code</span>
-                    <span className="text-muted-foreground text-xs">
-                      Score data with Python or TypeScript.
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* Lands on the LLM-as-a-Judge editor; its type tabs switch to
+                Python/TypeScript from there. */}
+            <Button
+              type="button"
+              variant="secondary"
+              // Matches renderNavItem's px-3 + mr-2 icon so the plus lines up
+              // with the section icons below; spacing to the nav comes from
+              // the container's gap, same as between nav items.
+              className="w-full justify-start px-3"
+              onClick={() => onCreateFromScratch("llm")}
+            >
+              <Plus className="mr-2 h-4 w-4 shrink-0" />
+              Create from scratch
+            </Button>
             {existingNav.map(renderNavItem)}
             {existingNav.length > 0 && categoryNav.length > 0 ? (
               <div className="bg-border my-1.5 h-px shrink-0" />
             ) : null}
+            {/* Group header: one hierarchy level above the sm/font-normal
+                nav items, so it must not render smaller than them. */}
             {categoryNav.length > 0 ? (
               <div className="flex h-8 shrink-0 items-center px-3 text-sm font-semibold">
                 Templates
@@ -500,11 +506,15 @@ export function EvaluatorGalleryDialog({
             {categoryNav.map(renderNavItem)}
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-4 pl-0">
+          {/* Bottom padding lives inside the scroll container (pb-4 below,
+              not on this column) so content scrolls to the dialog edge
+              instead of clipping at an inset line. */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden p-4 pb-0 pl-0">
             <div className="shrink-0 border-b pb-4">
               <div className="relative">
                 <Search className="text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
                 <Input
+                  ref={searchInputRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search evaluators..."
@@ -516,7 +526,7 @@ export function EvaluatorGalleryDialog({
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex flex-1 flex-col gap-4 overflow-y-auto pt-4"
+              className="flex flex-1 flex-col gap-4 overflow-y-auto py-4"
             >
               {catalog.isLoading ? (
                 <GallerySkeleton />
@@ -538,20 +548,19 @@ export function EvaluatorGalleryDialog({
                       {renderTemplateGrid(
                         CLONE_SECTION_KEY,
                         filteredProjectTemplates,
-                        Copy,
+                        User,
                         "bg-muted text-muted-foreground",
                       )}
                     </section>
                   ) : null}
 
-                  {/* Labeled divider separating the project's own evaluators
+                  {/* Group label separating the project's own evaluators
                       from the maintained catalog below. */}
                   {filteredProjectTemplates.length > 0 &&
                   visibleCategorySections.length > 0 ? (
-                    <div className="flex items-center gap-3 pt-2">
-                      <h3 className="text-base font-semibold">Templates</h3>
-                      <div className="bg-border h-px flex-1" />
-                    </div>
+                    <h3 className="pt-2 text-lg leading-6 font-medium">
+                      Templates
+                    </h3>
                   ) : null}
 
                   {visibleCategorySections.map((category) => (

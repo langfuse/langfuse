@@ -1,15 +1,13 @@
-import { useState } from "react";
-import { ChevronDown, Play } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Clock, ExternalLink, Play } from "lucide-react";
 
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import {
+  deepParseJson,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
@@ -28,9 +26,20 @@ export type TestRunPayload = {
   observationStartTime?: Date;
 };
 
+export type CodeTestRunPayload = {
+  projectId: string;
+  sourceCode: string;
+  sourceCodeLanguage: "PYTHON" | "TYPESCRIPT";
+  scoreName: string;
+  mapping: ObservationVariableMapping[];
+  observationId: string;
+  traceId: string;
+  observationStartTime: Date;
+};
+
 /**
- * The test-run mutation, owned by the form so the trigger (panel header) and
- * the result (panel footer) can share its state.
+ * The test-run mutations, owned by the form so the trigger and the result
+ * can share their state.
  */
 export function useTestRunMutation() {
   return api.evalsV2.testRunLlmJudge.useMutation();
@@ -38,38 +47,34 @@ export function useTestRunMutation() {
 
 export type TestRunMutation = ReturnType<typeof useTestRunMutation>;
 
-/** Full-width CTA pinned to the companion footer, right above the result. */
-export function TestRunButton({
-  testRun,
-  getPayload,
-  disabledReason,
-  codeMode = false,
-}: {
-  testRun: TestRunMutation;
-  /** Returns null when the current form state cannot be tested. */
-  getPayload: () => TestRunPayload | null;
-  disabledReason: string | null;
-  /** Code evaluators cannot be test-run in this prototype. */
-  codeMode?: boolean;
-}) {
-  const disabled = codeMode || Boolean(disabledReason);
-  const disabledHint = codeMode
-    ? "Test runs for code evaluators aren't wired in this prototype."
-    : disabledReason;
+export function useCodeTestRunMutation() {
+  return api.evalsV2.testRunCodeEval.useMutation();
+}
 
+export type CodeTestRunMutation = ReturnType<typeof useCodeTestRunMutation>;
+
+/** The test-run CTA for the Test step (LLM and code evaluators alike). */
+export function TestRunButton({
+  isPending,
+  onRun,
+  disabledReason,
+  className,
+}: {
+  isPending: boolean;
+  onRun: () => void;
+  disabledReason: string | null;
+  className?: string;
+}) {
   return (
     <Button
       type="button"
       variant="outline"
       size="sm"
-      className="w-full"
-      loading={testRun.isPending}
-      disabled={disabled}
-      title={disabledHint ?? "Run the evaluator on the selected sample"}
-      onClick={() => {
-        const payload = getPayload();
-        if (payload) testRun.mutate(payload);
-      }}
+      className={className}
+      loading={isPending}
+      disabled={Boolean(disabledReason)}
+      title={disabledReason ?? "Run the evaluator on the selected sample"}
+      onClick={onRun}
     >
       <Play className="mr-1.5 h-3.5 w-3.5" />
       Run test on this sample
@@ -77,68 +82,333 @@ export function TestRunButton({
   );
 }
 
-/** The judge's verdict (or error), rendered in the companion footer. */
-export function TestRunResult({
-  testRun,
-  codeMode = false,
+/** Legacy-shaped "Evaluator input" preview: what the code receives. */
+function EvaluatorInputPreview({
+  sampleObservation,
 }: {
-  testRun: TestRunMutation;
-  codeMode?: boolean;
+  sampleObservation: Record<string, unknown>;
 }) {
-  const [promptOpen, setPromptOpen] = useState(false);
-  const result = testRun.data;
+  // Same shape as the legacy code-eval test-run card's input preview.
+  const inputPreviewJson = useMemo(
+    () => ({
+      observation: {
+        input: deepParseJson(sampleObservation.input),
+        output: deepParseJson(sampleObservation.output),
+        metadata: deepParseJson(sampleObservation.metadata),
+      },
+    }),
+    [sampleObservation],
+  );
 
-  if (codeMode) return null;
+  return (
+    <div className="bg-muted/20 flex min-h-0 min-w-0 flex-1 flex-col rounded-md border">
+      {/* Fills whatever height the panel grants and scrolls inside it, so
+          expanding tree nodes can never grow the panel. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <PrettyJsonView
+          json={inputPreviewJson}
+          currentView="pretty"
+          isLoading={false}
+          showNullValues={true}
+          stickyTopLevelKey={false}
+          showObservationTypeBadge={false}
+          className="[&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Idle test hub for the code-evaluator split: code has no variables to map,
+ * so the panel's resting state is the run CTA plus the legacy-shaped
+ * evaluator-input preview of the sample the code will receive.
+ */
+export function TestIdlePanel({
+  isPending,
+  disabledReason,
+  onRun,
+  lastResultLabel,
+  onOpenLastResult,
+  sampleObservation,
+  className,
+}: {
+  isPending: boolean;
+  disabledReason: string | null;
+  onRun: () => void;
+  lastResultLabel: string | null;
+  onOpenLastResult: () => void;
+  /** The sample the code will run on — fills the panel with what
+      ctx.observation contains. */
+  sampleObservation?: Record<string, unknown> | null;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("flex min-h-0 flex-col gap-2 p-3", className)}
+      data-variable-mapping-panel=""
+    >
+      <p className="text-muted-foreground shrink-0 text-sm">
+        The data your evaluator receives as{" "}
+        <code className="font-mono">ctx.observation</code> — from the sample
+        selected in step 1.
+      </p>
+      {sampleObservation ? (
+        <EvaluatorInputPreview sampleObservation={sampleObservation} />
+      ) : (
+        <div className="text-muted-foreground flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
+          No matching observation
+        </div>
+      )}
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          size="sm"
+          loading={isPending}
+          disabled={Boolean(disabledReason)}
+          title={disabledReason ?? "Run the evaluator on the selected sample"}
+          onClick={onRun}
+        >
+          <Play className="mr-1.5 h-3.5 w-3.5" />
+          Test with sample
+        </Button>
+        {lastResultLabel && (
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground text-xs hover:underline"
+            onClick={onOpenLastResult}
+          >
+            {`${lastResultLabel} ›`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The code evaluator's scores (or error). */
+function CodeTestRunResultBody({ testRun }: { testRun: CodeTestRunMutation }) {
+  const result = testRun.data;
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        Test output
-      </p>
-
       {testRun.error && (
-        <p className="text-destructive text-xs">{testRun.error.message}</p>
+        <p className="text-destructive text-sm">{testRun.error.message}</p>
       )}
 
       {result &&
         (result.success ? (
-          <div className="bg-background flex max-h-72 flex-col gap-2 overflow-y-auto rounded-md border p-3">
+          <div className="flex flex-col gap-3">
+            {result.scores.map((score, index) => (
+              <div key={index} className="flex flex-col gap-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-muted-foreground text-sm">
+                    {score.name}:
+                  </span>
+                  <span className="text-2xl leading-none font-semibold">
+                    {String(score.value)}
+                  </span>
+                </div>
+                {score.comment && (
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    {score.comment}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
+            <p className="text-destructive text-sm font-medium">
+              Test run failed
+            </p>
+            <p className="text-sm">{result.error}</p>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/** The judge's verdict (or error). */
+function LlmTestRunResultBody({ testRun }: { testRun: TestRunMutation }) {
+  const result = testRun.data;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {testRun.error && (
+        <p className="text-destructive text-sm">{testRun.error.message}</p>
+      )}
+
+      {result &&
+        (result.success ? (
+          <div className="flex flex-col gap-2">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-muted-foreground text-xs">Score:</span>
+              <span className="text-muted-foreground text-sm">Score:</span>
               <span className="text-2xl leading-none font-semibold">
                 {String(result.score)}
               </span>
             </div>
             {result.reasoning && (
-              <p className="text-muted-foreground text-xs leading-relaxed">
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 {result.reasoning}
               </p>
             )}
-            <Collapsible open={promptOpen} onOpenChange={setPromptOpen}>
-              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs">
-                <ChevronDown
-                  className={cn(
-                    "h-3 w-3 transition-transform",
-                    !promptOpen && "-rotate-90",
-                  )}
-                />
-                Prompt sent to the judge
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <pre className="bg-background mt-1 max-h-56 overflow-y-auto rounded-md border p-2 font-mono text-xs whitespace-pre-wrap">
-                  {result.interpolatedPrompt}
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
           </div>
         ) : (
           <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-            <p className="text-destructive text-xs font-medium">
+            <p className="text-destructive text-sm font-medium">
               Test run failed
             </p>
-            <p className="text-xs">{result.error}</p>
+            <p className="text-sm">{result.error}</p>
           </div>
         ))}
+    </div>
+  );
+}
+
+/**
+ * Test result surface shared by the mapping-panel state and the Test step:
+ * header row with the toolbar (raw-output toggle, execution-trace link,
+ * re-run), one body. `onBack` renders the panel-navigation arrow — omit it
+ * where the surface isn't stacked on other views.
+ */
+export function TestResultPanel({
+  isCodeMode,
+  testRun,
+  codeTestRun,
+  isPending,
+  disabledReason,
+  onRerun,
+  onBack,
+  onOpenSampleTrace,
+  onOpenExecutionTrace,
+  className,
+}: {
+  isCodeMode: boolean;
+  testRun: TestRunMutation;
+  codeTestRun: CodeTestRunMutation;
+  isPending: boolean;
+  disabledReason: string | null;
+  onRerun: () => void;
+  onBack?: () => void;
+  /** Opens the sample trace in the standard trace peek. */
+  onOpenSampleTrace?: () => void;
+  /** Opens the run's execution trace in the standard trace peek. */
+  onOpenExecutionTrace?: (executionTraceId: string) => void;
+  className?: string;
+}) {
+  const [rawOpen, setRawOpen] = useState(false);
+
+  const hasData = isCodeMode
+    ? Boolean(codeTestRun.data || codeTestRun.error)
+    : Boolean(testRun.data || testRun.error);
+  const durationMs = isCodeMode
+    ? codeTestRun.data?.durationMs
+    : testRun.data?.durationMs;
+  const executionTraceId = isCodeMode
+    ? codeTestRun.data?.executionTraceId
+    : testRun.data?.executionTraceId;
+  // The raw view carries the untouched response — for the judge that
+  // includes the interpolated prompt and extracted variables.
+  const raw: unknown = isCodeMode
+    ? (codeTestRun.data?.raw ?? null)
+    : testRun.data;
+
+  return (
+    <div
+      className={cn("flex min-h-0 flex-col", className)}
+      data-variable-mapping-panel=""
+    >
+      <div className="flex flex-wrap items-center gap-2 border-b p-2">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0"
+            title="Back to the variables"
+            onClick={onBack}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <p className="text-sm font-medium">Test result</p>
+        {durationMs !== undefined && (
+          <span
+            className="text-muted-foreground flex items-center gap-1 text-xs"
+            title="Duration of the test call"
+          >
+            <Clock className="h-3 w-3" />
+            {(durationMs / 1000).toFixed(2)}s
+          </span>
+        )}
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+            <Switch size="sm" checked={rawOpen} onCheckedChange={setRawOpen} />
+            Raw output
+          </label>
+          {onOpenSampleTrace && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              title="Open the sample trace"
+              onClick={onOpenSampleTrace}
+            >
+              <ExternalLink className="mr-1 h-3 w-3" />
+              Sample trace
+            </Button>
+          )}
+          {executionTraceId && onOpenExecutionTrace && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              title="Open the execution trace of this test run"
+              onClick={() => onOpenExecutionTrace(executionTraceId)}
+            >
+              <ExternalLink className="mr-1 h-3 w-3" />
+              Execution trace
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            loading={isPending}
+            disabled={Boolean(disabledReason)}
+            title={disabledReason ?? "Run the test again"}
+            onClick={onRerun}
+          >
+            <Play className="mr-1.5 h-3 w-3" />
+            Run again
+          </Button>
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+        {!hasData ? (
+          <p className="text-muted-foreground text-sm">
+            {isPending ? "Running…" : "No test run yet."}
+          </p>
+        ) : rawOpen ? (
+          raw === null || raw === undefined ? (
+            <p className="text-muted-foreground text-sm">
+              No raw output available for this run.
+            </p>
+          ) : (
+            <pre className="bg-muted/30 rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
+              {JSON.stringify(raw, null, 2)}
+            </pre>
+          )
+        ) : isCodeMode ? (
+          <CodeTestRunResultBody testRun={codeTestRun} />
+        ) : (
+          <LlmTestRunResultBody testRun={testRun} />
+        )}
+      </div>
     </div>
   );
 }

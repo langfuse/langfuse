@@ -32,6 +32,11 @@ import {
   DEFAULT_OUTPUT_DEFINITION,
   runLlmJudgeTest,
 } from "@/src/features/evals/v2/server/testRunLlmJudge";
+import {
+  CodeEvalTestRunSetupError,
+  runDraftCodeEvalTest,
+} from "@/src/features/evals/server/codeEvalTestRun";
+import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
 
 // "trace" remains readable for scopes saved by the earlier prototype; new
 // scopes are observation ("event") or experiment based.
@@ -91,6 +96,17 @@ const TestRunSchema = z.object({
   observationId: z.string(),
   traceId: z.string(),
   observationStartTime: z.coerce.date().optional(),
+});
+
+const CodeTestRunSchema = z.object({
+  projectId: z.string(),
+  sourceCode: z.string().min(1),
+  sourceCodeLanguage: z.enum(["PYTHON", "TYPESCRIPT"]),
+  scoreName: z.string().min(1),
+  mapping: z.array(observationVariableMapping),
+  observationId: z.string(),
+  traceId: z.string(),
+  observationStartTime: z.coerce.date(),
 });
 
 export const evalsV2Router = createTRPCRouter({
@@ -495,7 +511,8 @@ export const evalsV2Router = createTRPCRouter({
           })
         : null;
 
-      return runLlmJudgeTest({
+      const startedAt = Date.now();
+      const result = await runLlmJudgeTest({
         projectId: input.projectId,
         prompt: input.prompt,
         provider: input.provider ?? sourceTemplate?.provider,
@@ -511,6 +528,66 @@ export const evalsV2Router = createTRPCRouter({
         traceId: input.traceId,
         observationStartTime: input.observationStartTime,
       });
+      return { ...result, durationMs: Date.now() - startedAt };
+    }),
+
+  // Test-runs the draft (unsaved) code of a code evaluator on the sample
+  // observation — same dispatch path as saved templates, nothing persisted.
+  testRunCodeEval: protectedProjectProcedure
+    .input(CodeTestRunSchema)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      if (!isCodeEvalEnabled()) {
+        throw new InvalidRequestError(
+          "Code evals are not enabled on this deployment.",
+        );
+      }
+
+      try {
+        const startedAt = Date.now();
+        const outcome = await runDraftCodeEvalTest({
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          sourceCode: input.sourceCode,
+          sourceCodeLanguage: input.sourceCodeLanguage,
+          target: "event",
+          mapping: input.mapping,
+          scoreName: input.scoreName,
+          observationId: input.observationId,
+          traceId: input.traceId,
+          startTime: input.observationStartTime,
+        });
+        const durationMs = Date.now() - startedAt;
+
+        // Flatten to the UI contract (mirrors the LLM test-run shape). `raw`
+        // carries the untouched evaluation output for the raw-output toggle —
+        // on failures, whatever the user's code returned (when available).
+        return outcome.success
+          ? {
+              success: true as const,
+              scores: outcome.result.scores,
+              raw: outcome.result as unknown,
+              executionTraceId: outcome.executionTraceId,
+              durationMs,
+            }
+          : {
+              success: false as const,
+              error: `${outcome.error.code}: ${outcome.error.message}`,
+              raw: outcome.error.returnedResult ?? null,
+              executionTraceId: outcome.executionTraceId,
+              durationMs,
+            };
+      } catch (error) {
+        if (error instanceof CodeEvalTestRunSetupError) {
+          throw new InvalidRequestError(error.message);
+        }
+        throw error;
+      }
     }),
 });
 

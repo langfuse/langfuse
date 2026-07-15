@@ -16,20 +16,21 @@ const EventsTable = lazy(
   () => import("@/src/features/events/components/EventsTable"),
 );
 
-// The preview starts with a minimal column set (no input/output/metadata —
-// too wide for a compact preview); users add columns via the picker.
+// The preview's default column set; users add more via the picker.
 const PREVIEW_DEFAULT_COLUMNS: Record<string, boolean> = {
   startTime: true,
   type: true,
   name: true,
   traceName: true,
+  input: true,
+  output: true,
 };
 
 /**
  * Read-only preview of observations matching the scope filter, embedded the
  * same way as the old evaluator configuration screen: the real events table
- * (hidden controls, capped rows) in a bordered container. The rows sample the
- * view's global time range.
+ * (hidden controls, compact local pagination) in a bordered container. The
+ * rows sample the view's global time range.
  */
 export function ScopePreviewTable({
   projectId,
@@ -61,7 +62,12 @@ export function ScopePreviewTable({
 
   const [columnVisibility, setColumnVisibility] = useLocalStorage<
     Record<string, boolean>
-  >(`evalScopePreviewColumns-${projectId}`, PREVIEW_DEFAULT_COLUMNS);
+  >(
+    // v2: input/output joined the default set — a fresh key so stored
+    // pre-change visibility doesn't mask the new defaults.
+    `evalScopePreviewColumns-v2-${projectId}`,
+    PREVIEW_DEFAULT_COLUMNS,
+  );
 
   // Zero matches: swap the visible table for a call to action. The table
   // stays mounted (hidden) so its query refetches on filter/range changes
@@ -101,7 +107,7 @@ export function ScopePreviewTable({
             hideControls
             externalFilterState={effectiveFilterState}
             externalDateRange={dateRange}
-            limitRows={10}
+            embeddedPageSize={5}
             externalColumnVisibility={columnVisibility}
             onExternalColumnVisibilityChange={setColumnVisibility}
             columnsPickerContainer={columnsPickerContainer}

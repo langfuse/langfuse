@@ -204,6 +204,12 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   /**
+   * Embedded previews: paginate with local state (page size given) instead
+   * of URL params, so the host page's query string stays untouched.
+   * Mutually exclusive with limitRows (limitRows wins).
+   */
+  embeddedPageSize?: number;
+  /**
    * When set (embedded previews), overrides the stored column visibility:
    * listed column ids are shown, every other column is hidden.
    */
@@ -273,6 +279,7 @@ export default function ObservationsEventsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  embeddedPageSize,
   externalColumnVisibility,
   onExternalColumnVisibilityChange,
   columnsPickerContainer,
@@ -299,6 +306,23 @@ export default function ObservationsEventsTable({
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
+  // Embedded previews paginate locally so the host page's URL stays clean.
+  const [embeddedPagination, setEmbeddedPagination] = useState({
+    page: 1,
+    limit: embeddedPageSize ?? 10,
+  });
+  const effectivePagination = limitRows
+    ? { page: 1, limit: limitRows }
+    : embeddedPageSize
+      ? embeddedPagination
+      : paginationState;
+  // A changed filter invalidates the page position (the cursor-style footer
+  // can't auto-reset without a total count), so jump back to page 1.
+  useEffect(() => {
+    setEmbeddedPagination((prev) =>
+      prev.page === 1 ? prev : { ...prev, page: 1 },
+    );
+  }, [externalFilterState]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
@@ -642,9 +666,7 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
-    paginationState: limitRows
-      ? { page: 1, limit: limitRows }
-      : paginationState,
+    paginationState: effectivePagination,
     orderByState,
     searchQuery,
     searchType,
@@ -1896,22 +1918,25 @@ export default function ObservationsEventsTable({
                       hasNextPage: hasMore,
                       hideTotalCount: true,
                       canJumpPages: false,
+                      ...(embeddedPageSize ? { options: [5, 10, 20, 50] } : {}),
                       onChange: (updater) => {
                         const newState =
                           typeof updater === "function"
                             ? updater({
-                                pageIndex: paginationState.page - 1,
-                                pageSize: paginationState.limit,
+                                pageIndex: effectivePagination.page - 1,
+                                pageSize: effectivePagination.limit,
                               })
                             : updater;
-                        setPaginationState({
+                        (embeddedPageSize
+                          ? setEmbeddedPagination
+                          : setPaginationState)({
                           page: newState.pageIndex + 1,
                           limit: newState.pageSize,
                         });
                       },
                       state: {
-                        pageIndex: paginationState.page - 1,
-                        pageSize: paginationState.limit,
+                        pageIndex: effectivePagination.page - 1,
+                        pageSize: effectivePagination.limit,
                       },
                     }
               }

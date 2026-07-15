@@ -31,11 +31,32 @@ type CodeEvalTemplateFormBodyProps = {
   headerAction?: ReactNode;
   /** Hide the language label when the surrounding UI already names it. */
   hideLanguageLabel?: boolean;
+  /** Hide the trailing contract hint (render it elsewhere via
+      CodeEvalFunctionContractHint, e.g. below a split layout). */
+  hideFunctionContractHint?: boolean;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
 const FUNCTION_CONTRACT_DOCS_URL =
   "https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators#function-contract";
+
+/** The contract hint under the editor, exported for split layouts. */
+export function CodeEvalFunctionContractHint() {
+  return (
+    <p className="text-muted-foreground text-xs">
+      The evaluate function receives an EvaluationContext and returns an
+      EvaluationResult with one or more scores.{" "}
+      <a
+        href={FUNCTION_CONTRACT_DOCS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline"
+      >
+        See type definitions.
+      </a>
+    </p>
+  );
+}
 
 function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
   return hoverTooltip((view, pos) => {
@@ -89,6 +110,7 @@ export function CodeEvalTemplateFormBody({
   validationResult,
   headerAction,
   hideLanguageLabel = false,
+  hideFunctionContractHint = false,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -183,7 +205,7 @@ export function CodeEvalTemplateFormBody({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      {(!hideLanguageLabel || headerAction) && (
         <div className="flex min-w-0 items-center gap-2">
           {!hideLanguageLabel ? (
             <span className="text-muted-foreground text-sm">
@@ -192,11 +214,45 @@ export function CodeEvalTemplateFormBody({
           ) : null}
           {headerAction}
         </div>
+      )}
+      {/* The Format button floats inside the editor's top-right corner so
+          the editor box can align with siblings without a header row. */}
+      <div className="relative">
+        <CodeMirror
+          value={sourceCode}
+          theme={codeMirrorTheme}
+          basicSetup={{
+            foldGutter: true,
+            highlightActiveLine: false,
+            lineNumbers: true,
+            searchKeymap: true,
+          }}
+          extensions={[
+            ...(!editable ? [EditorState.readOnly.of(true)] : []),
+            languageExtension,
+            codeEvalHoverExtension,
+            linterExtension,
+            ...(shouldShowFormatButton ? [formatShortcutExtension] : []),
+            EditorView.lineWrapping,
+            EditorView.theme({
+              "&.cm-focused": { outline: "none" },
+              ".cm-gutters": { borderRight: "1px solid" },
+              ".cm-scroller": {
+                maxHeight: "60dvh",
+                overflow: "auto",
+              },
+            }),
+          ]}
+          editable={editable}
+          onChange={onSourceCodeChange}
+          className="overflow-hidden rounded-md border text-xs"
+        />
         {shouldShowFormatButton ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="bg-background/90 absolute top-2 right-2"
             disabled={isFormatting}
             aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
             onClick={() => formatSource()}
@@ -217,47 +273,7 @@ export function CodeEvalTemplateFormBody({
           </Button>
         ) : null}
       </div>
-      <CodeMirror
-        value={sourceCode}
-        theme={codeMirrorTheme}
-        basicSetup={{
-          foldGutter: true,
-          highlightActiveLine: false,
-          lineNumbers: true,
-          searchKeymap: true,
-        }}
-        extensions={[
-          ...(!editable ? [EditorState.readOnly.of(true)] : []),
-          languageExtension,
-          codeEvalHoverExtension,
-          linterExtension,
-          ...(shouldShowFormatButton ? [formatShortcutExtension] : []),
-          EditorView.lineWrapping,
-          EditorView.theme({
-            "&.cm-focused": { outline: "none" },
-            ".cm-gutters": { borderRight: "1px solid" },
-            ".cm-scroller": {
-              maxHeight: "60dvh",
-              overflow: "auto",
-            },
-          }),
-        ]}
-        editable={editable}
-        onChange={onSourceCodeChange}
-        className="overflow-hidden rounded-md border text-xs"
-      />
-      <p className="text-muted-foreground text-xs">
-        The evaluate function receives an EvaluationContext and returns an
-        EvaluationResult with one or more scores.{" "}
-        <a
-          href={FUNCTION_CONTRACT_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          See type definitions.
-        </a>
-      </p>
+      {!hideFunctionContractHint && <CodeEvalFunctionContractHint />}
     </div>
   );
 }

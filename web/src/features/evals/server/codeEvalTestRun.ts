@@ -131,15 +131,6 @@ async function runCodeEvalTestForObservation(params: {
   scoreName: string;
   observation: ObservationForEval;
 }): Promise<CodeEvalTestRunResult> {
-  const dispatcher = resolveConfiguredCodeEvalDispatcher();
-
-  if (!dispatcher) {
-    throw new CodeEvalTestRunSetupError(
-      "DISPATCHER_NOT_CONFIGURED",
-      "Code eval dispatcher is not configured",
-    );
-  }
-
   const codeTemplate = (await params.prisma.evalTemplate.findFirst({
     where: {
       id: params.evalTemplateId,
@@ -154,6 +145,76 @@ async function runCodeEvalTestForObservation(params: {
     throw new CodeEvalTestRunSetupError(
       "TEMPLATE_NOT_FOUND",
       "Evaluator template not found",
+    );
+  }
+
+  return dispatchCodeEvalTestRun({ ...params, codeTemplate });
+}
+
+/**
+ * Test-runs UNSAVED code (the v2 setup form's draft source) by dispatching a
+ * synthetic in-memory template — same execution path as saved templates,
+ * without persisting anything.
+ */
+export async function runDraftCodeEvalTest(params: {
+  orgId: string;
+  projectId: string;
+  sourceCode: string;
+  sourceCodeLanguage: EvalTemplateCodeBased["sourceCodeLanguage"];
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observationId: string;
+  traceId: string;
+  startTime: Date;
+}): Promise<CodeEvalTestRunResult> {
+  const observation = await getObservationForEvalById({
+    projectId: params.projectId,
+    id: params.observationId,
+    traceId: params.traceId,
+    startTime: params.startTime,
+    shouldReadFromObservationsTable: false,
+  });
+
+  const codeTemplate = {
+    id: `draft-${randomUUID()}`,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    projectId: params.projectId,
+    name: params.scoreName,
+    version: 1,
+    prompt: null,
+    model: null,
+    provider: null,
+    modelParams: null,
+    vars: [],
+    outputSchema: null,
+    outputDefinition: null,
+    partner: null,
+    type: EvalTemplateType.CODE,
+    sourceCode: params.sourceCode,
+    sourceCodeLanguage: params.sourceCodeLanguage,
+  } as unknown as EvalTemplateCodeBased;
+
+  return dispatchCodeEvalTestRun({ ...params, codeTemplate, observation });
+}
+
+async function dispatchCodeEvalTestRun(params: {
+  orgId: string;
+  projectId: string;
+  codeTemplate: EvalTemplateCodeBased;
+  target: EvalTargetObject;
+  mapping: ObservationVariableMapping[];
+  scoreName: string;
+  observation: ObservationForEval;
+}): Promise<CodeEvalTestRunResult> {
+  const { codeTemplate } = params;
+  const dispatcher = resolveConfiguredCodeEvalDispatcher();
+
+  if (!dispatcher) {
+    throw new CodeEvalTestRunSetupError(
+      "DISPATCHER_NOT_CONFIGURED",
+      "Code eval dispatcher is not configured",
     );
   }
 
@@ -377,7 +438,7 @@ function throwObservationNotFound(): never {
   );
 }
 
-async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
+export async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
   const rootEventInput =
     trace.eventInputs.find(
       (eventInput) => eventInput.spanId === trace.rootSpanId,

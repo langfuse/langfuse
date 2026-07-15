@@ -584,7 +584,9 @@ export function RunScopeSection({
       <div className="flex flex-col gap-4">
         <button
           type="button"
-          className="flex w-fit items-center gap-1 text-sm font-medium"
+          // -ml-5.5 hangs the chevron into the step gutter (mirroring the
+          // step headers) so the label text aligns with sibling labels.
+          className="-ml-5.5 flex w-fit items-center gap-1.5 text-sm font-medium"
           aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen((prev) => !prev)}
         >
@@ -596,27 +598,6 @@ export function RunScopeSection({
           />
           Advanced
         </button>
-
-        {advancedOpen && scope.mode === "new" && (
-          <div className="flex flex-col gap-2">
-            <Label>Shared filter name</Label>
-            <p className="text-muted-foreground text-sm">
-              The filter is saved for reuse under this name — leave empty to
-              name it after its contents.
-            </p>
-            <Input
-              className="max-w-md"
-              placeholder={generatedName}
-              value={scope.name ?? ""}
-              onChange={(event) =>
-                onChange({
-                  ...scope,
-                  name: event.target.value === "" ? null : event.target.value,
-                })
-              }
-            />
-          </div>
-        )}
 
         {advancedOpen && (
           <div className="flex flex-col gap-2">

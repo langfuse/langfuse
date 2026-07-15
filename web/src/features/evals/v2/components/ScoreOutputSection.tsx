@@ -207,7 +207,9 @@ export function ScoreOutputSection({
       <div className="flex flex-col gap-4">
         <button
           type="button"
-          className="flex w-fit items-center gap-1 text-sm font-medium"
+          // -ml-5.5 hangs the chevron into the step gutter (mirroring the
+          // step headers) so the label text aligns with sibling labels.
+          className="-ml-5.5 flex w-fit items-center gap-1.5 text-sm font-medium"
           aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen((prev) => !prev)}
         >
@@ -221,7 +223,7 @@ export function ScoreOutputSection({
         </button>
 
         {advancedOpen && (
-          <>
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label>Score description</Label>
               <p className="text-muted-foreground text-sm">
@@ -250,7 +252,7 @@ export function ScoreOutputSection({
                 }
               />
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

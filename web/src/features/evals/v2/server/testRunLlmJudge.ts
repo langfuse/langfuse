@@ -10,12 +10,15 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
+  createW3CTraceId,
   DefaultEvalModelService,
   extractObservationVariables,
   fetchLLMCompletion,
   getObservationByIdFromEventsTable,
+  INTERNAL_TRACE_EVENT_SOURCE,
   logger,
 } from "@langfuse/shared/src/server";
+import { writeTraceViaIngestion } from "@/src/features/evals/server/codeEvalTestRun";
 
 // Prototype fallback for templates without an output definition (create from
 // scratch). Mirrors the legacy managed-evaluator shape.
@@ -35,13 +38,65 @@ export type LlmJudgeTestRunResult =
       extractedVariables: { var: string; value: string }[];
       model: string;
       provider: string;
+      executionTraceId?: string;
     }
   | {
       success: false;
       error: string;
       interpolatedPrompt?: string;
       extractedVariables?: { var: string; value: string }[];
+      executionTraceId?: string;
     };
+
+/**
+ * Persists the judge call as an internal execution trace (same ingestion
+ * path the code-eval test runs use) so "Execution trace" can link to it.
+ * Best-effort: a write failure only costs the link, not the test result.
+ */
+async function writeJudgeExecutionTrace(params: {
+  projectId: string;
+  input: string;
+  output: unknown;
+  level?: "ERROR";
+  statusMessage?: string;
+  startTime: Date;
+  metadata: Record<string, unknown>;
+}): Promise<string | undefined> {
+  const executionTraceId = createW3CTraceId();
+  // W3C span ids are 16 hex chars; reuse the trace-id generator's entropy.
+  const rootSpanId = createW3CTraceId().slice(0, 16);
+  try {
+    await writeTraceViaIngestion({
+      rootSpanId,
+      eventInputs: [
+        {
+          projectId: params.projectId,
+          traceId: executionTraceId,
+          spanId: rootSpanId,
+          source: INTERNAL_TRACE_EVENT_SOURCE,
+          startTimeISO: params.startTime.toISOString(),
+          endTimeISO: new Date().toISOString(),
+          name: "Test evaluator: LLM-as-a-judge",
+          traceName: "Test evaluator: LLM-as-a-judge",
+          input: params.input,
+          output:
+            params.output === null || params.output === undefined
+              ? undefined
+              : typeof params.output === "string"
+                ? params.output
+                : JSON.stringify(params.output),
+          metadata: params.metadata,
+          level: params.level,
+          statusMessage: params.statusMessage,
+        },
+      ],
+    });
+    return executionTraceId;
+  } catch (error) {
+    logger.warn("Failed to write LLM judge test execution trace", { error });
+    return undefined;
+  }
+}
 
 // Same substitution the worker applies (worker/src/features/utils/utilities.ts).
 // Not extracted to shared to keep this prototype self-contained.
@@ -163,6 +218,14 @@ export async function runLlmJudgeTest(params: {
     };
   }
 
+  const callStartTime = new Date();
+  const traceMetadata = {
+    model: modelConfig.config.model,
+    provider: modelConfig.config.provider,
+    target_trace_id: params.traceId,
+    target_observation_id: params.observationId,
+  };
+
   try {
     const response = await fetchLLMCompletion({
       streaming: false,
@@ -184,6 +247,14 @@ export async function runLlmJudgeTest(params: {
       maxRetries: 1,
     });
 
+    const executionTraceId = await writeJudgeExecutionTrace({
+      projectId: params.projectId,
+      input: interpolatedPrompt,
+      output: response,
+      startTime: callStartTime,
+      metadata: traceMetadata,
+    });
+
     const validated = validateEvalOutputResult({
       response,
       compiledOutputDefinition,
@@ -195,6 +266,7 @@ export async function runLlmJudgeTest(params: {
         error: `Model returned an unexpected result: ${validated.error}`,
         interpolatedPrompt,
         extractedVariables,
+        executionTraceId,
       };
     }
 
@@ -210,14 +282,26 @@ export async function runLlmJudgeTest(params: {
       extractedVariables,
       model: modelConfig.config.model,
       provider: modelConfig.config.provider,
+      executionTraceId,
     };
   } catch (error) {
     logger.info("LLM judge test run failed", { error });
+    const message = error instanceof Error ? error.message : String(error);
+    const executionTraceId = await writeJudgeExecutionTrace({
+      projectId: params.projectId,
+      input: interpolatedPrompt,
+      output: null,
+      level: "ERROR",
+      statusMessage: message,
+      startTime: callStartTime,
+      metadata: traceMetadata,
+    });
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
       interpolatedPrompt,
       extractedVariables,
+      executionTraceId,
     };
   }
 }

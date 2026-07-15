@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useMemo, useRef, type ReactNode } from "react";
 import {
   Decoration,
   type DecorationSet,
@@ -11,13 +10,8 @@ import {
 } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "@/src/components/ui/popover";
-import { cn } from "@/src/utils/tailwind";
 
 // Prompts are prose, not code: use the app font instead of the editor's
 // monospace default (which lives on .cm-scroller), and match the text inset
@@ -36,10 +30,22 @@ export type VariableMappingStatus = {
   message?: string;
 };
 
-// Keep long JSONPath bindings from blowing up the pill; CSS cannot ellipsize
-// just the middle of the ::after content, so the label is shortened here.
-function truncateLabel(label: string, max = 24): string {
+// Safety net for pathological labels; the mapping labels themselves are
+// already collapsed to "root › … › leaf" upstream (formatMappingLabel).
+function truncateLabel(label: string, max = 36): string {
   return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
+// Positions strictly inside a {{token}} snap to just after it — drops and
+// insertions must never split an existing token.
+function snapOutOfTokens(doc: string, pos: number): number {
+  const regex = /{{\s*[\w.]+\s*}}/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(doc)) !== null) {
+    const end = match.index + match[0].length;
+    if (pos > match.index && pos < end) return end;
+  }
+  return pos;
 }
 
 // Pill styling for {{variable}} tokens — one clickable surface reading
@@ -49,20 +55,19 @@ function truncateLabel(label: string, max = 24): string {
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
   getMappingLabel: (variable: string) => string | undefined,
+  isActive: (variable: string) => boolean,
 ) {
   const decorator = new MatchDecorator({
     regexp: /{{\s*([\w.]+)\s*}}/g,
     decorate: (add, from, to, match) => {
       const status = getStatus(match[1]);
       const invalid = status?.status === "invalid";
-      const label = invalid
-        ? "select data"
-        : truncateLabel(getMappingLabel(match[1]) ?? "map data");
+      const label = truncateLabel(getMappingLabel(match[1]) ?? "map data");
       add(
         from,
         to,
         Decoration.mark({
-          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}`,
+          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}${isActive(match[1]) ? " cm-eval-variable-active" : ""}`,
           attributes: {
             "data-mapping": label,
             title: invalid
@@ -94,19 +99,40 @@ const INVALID_BORDER = `1px dashed color-mix(in srgb, hsl(var(--dark-yellow)) 70
 const INVALID_BACKGROUND = `color-mix(in srgb, hsl(var(--dark-yellow)) 7%, transparent)`;
 const INVALID_BACKGROUND_HOVER = `color-mix(in srgb, hsl(var(--dark-yellow)) 16%, transparent)`;
 
-// Lucide ChevronDown (the app-wide dropdown arrow) as a CSS background image.
-// The stroke color is baked in per light/dark theme because data-URI SVGs
-// cannot read CSS variables; the hsl() values mirror globals.css.
-const chevronDownImage = (strokeColor: string) =>
+// Lucide icons as CSS background images. The stroke color is baked in per
+// light/dark theme because data-URI SVGs cannot read CSS variables; the
+// hsl() values mirror globals.css.
+const lucideImage = (path: string, strokeColor: string) =>
   `url("data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>`,
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${strokeColor}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='${path}'/></svg>`,
+  )}")`;
+// ChevronRight: the pill is a master-detail row — clicking it opens the
+// mapping panel beside the prompt, so the disclosure arrow points there.
+const CHEVRON_RIGHT = "m9 18 6-6-6-6";
+// GripVertical as two columns of filled dots — lucide's stroke-dot version
+// renders ~1px at pill size, far too faint for a grab handle.
+const gripImage = (fillColor: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='${fillColor}'>` +
+      [5, 12, 19]
+        .flatMap((cy) => [9, 15].map((cx) => ({ cx, cy })))
+        .map(({ cx, cy }) => `<circle cx='${cx}' cy='${cy}' r='2.4'/>`)
+        .join("") +
+      `</svg>`,
   )}")`;
 // --muted-foreground light/dark
-const CHEVRON_LIGHT = chevronDownImage("hsl(215.4, 16.3%, 46.9%)");
-const CHEVRON_DARK = chevronDownImage("hsl(215, 20.2%, 65.1%)");
+const CHEVRON_LIGHT = lucideImage(CHEVRON_RIGHT, "hsl(215.4, 16.3%, 46.9%)");
+const CHEVRON_DARK = lucideImage(CHEVRON_RIGHT, "hsl(215, 20.2%, 65.1%)");
 // --dark-yellow light/dark
-const CHEVRON_INVALID_LIGHT = chevronDownImage("hsl(43, 96%, 40%)");
-const CHEVRON_INVALID_DARK = chevronDownImage("hsl(53, 98.3%, 76.9%)");
+const CHEVRON_INVALID_LIGHT = lucideImage(CHEVRON_RIGHT, "hsl(43, 96%, 40%)");
+const CHEVRON_INVALID_DARK = lucideImage(
+  CHEVRON_RIGHT,
+  "hsl(53, 98.3%, 76.9%)",
+);
+// Grip in the pill's accent color (--primary-accent light/dark) so it reads
+// as a handle, not a faded decoration.
+const GRIP_LIGHT = gripImage("hsl(243, 75.4%, 58.6%)");
+const GRIP_DARK = gripImage("hsl(246, 55%, 70%)");
 
 const variableTheme = EditorView.baseTheme({
   // Button-like pill, one clickable surface: "{{variable}} → binding ▾".
@@ -115,7 +141,8 @@ const variableTheme = EditorView.baseTheme({
   ".cm-eval-variable": {
     display: "inline-block",
     borderRadius: "6px",
-    padding: "3px 10px",
+    // Slim left inset: the grip handle should hug the pill's left edge.
+    padding: "3px 10px 3px 4px",
     margin: "2px 0",
     // Explicit button typography (matches the default shadcn button size)
     // instead of inheriting the editor's smaller prose size.
@@ -135,9 +162,29 @@ const variableTheme = EditorView.baseTheme({
     backgroundColor:
       "color-mix(in srgb, hsl(var(--primary-accent)) 22%, transparent)",
   },
-  // The binding suffix "→ Input ⌄": the → points from the variable to the
-  // data it pulls in, the trailing chevron (the app-wide lucide ChevronDown,
-  // as a background image) signals that clicking opens a picker. A ::after
+  // Left grip: drag handle for moving the pill within the prompt — mousedown
+  // in this zone starts the explicit move handled in handleMouseDownRef.
+  ".cm-eval-variable::before": {
+    content: '""',
+    display: "inline-block",
+    width: "13px",
+    height: "14px",
+    marginRight: "5px",
+    verticalAlign: "-2px",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "center",
+    backgroundSize: "14px 14px",
+    cursor: "grab",
+  },
+  "&light .cm-eval-variable::before": {
+    backgroundImage: GRIP_LIGHT,
+  },
+  "&dark .cm-eval-variable::before": {
+    backgroundImage: GRIP_DARK,
+  },
+  // The binding suffix "→ Input ›": the → points from the variable to the
+  // data it pulls in, the trailing › is a disclosure indicator — clicking
+  // the pill opens its mapping in the panel beside the prompt. A ::after
   // with attr() because CodeMirror marks cannot carry extra DOM — and it
   // keeps the whole pill one clickable surface.
   ".cm-eval-variable::after": {
@@ -179,43 +226,39 @@ const variableTheme = EditorView.baseTheme({
   "&dark .cm-eval-variable-invalid::after": {
     backgroundImage: CHEVRON_INVALID_DARK,
   },
+  // While grip-dragging, the caret is the drop indicator: a fat accent bar
+  // with blinking suspended so it stays visible while aiming.
+  "&.cm-eval-dragging .cm-cursorLayer": {
+    animationName: "none",
+  },
+  "&.cm-eval-dragging .cm-cursor": {
+    display: "block",
+    borderLeftWidth: "3px",
+    borderLeftColor: "hsl(var(--primary-accent))",
+  },
+  "&.cm-eval-dragging .cm-content": {
+    cursor: "grabbing",
+  },
+  // The variable currently being mapped in the side panel.
+  ".cm-eval-variable-active": {
+    borderColor: "hsl(var(--primary-accent))",
+    boxShadow:
+      "0 0 0 2px color-mix(in srgb, hsl(var(--primary-accent)) 30%, transparent)",
+  },
 });
-
-type ActiveVariable = {
-  variable: string;
-  rect: DOMRect;
-};
-
-function toDomRect(coords: {
-  top: number;
-  bottom: number;
-  left: number;
-  right: number;
-}): DOMRect {
-  return {
-    top: coords.top,
-    bottom: coords.bottom,
-    left: coords.left,
-    right: coords.right,
-    width: coords.right - coords.left,
-    height: coords.bottom - coords.top,
-    x: coords.left,
-    y: coords.top,
-    toJSON: () => ({}),
-  } as DOMRect;
-}
 
 /**
  * Prompt editor with inline {{variable}} pills: variables are styled inside
- * the CodeMirror document, and clicking one opens a popover (anchored to the
- * clicked token) with the per-variable mapping controls.
+ * the CodeMirror document, and clicking one activates it in the mapping
+ * panel next to the editor (via onVariableClick).
  */
 export function PromptVariableEditor({
   value,
   onChange,
   variableStatus,
   variableMappings,
-  renderVariableContent,
+  activeVariable,
+  onVariableClick,
   previewEnabled = false,
   onPreviewEnabledChange,
   showPreviewToggle = false,
@@ -229,9 +272,10 @@ export function PromptVariableEditor({
   /** Per-variable display label of the current data binding (e.g. "Input"),
       shown inside the pill next to the variable name. */
   variableMappings?: Record<string, string>;
-  /** Popover body for the clicked variable (mapping controls). `close`
-      dismisses the popover, e.g. when handing off to the sample panel. */
-  renderVariableContent: (variable: string, close: () => void) => ReactNode;
+  /** The variable being mapped in the side panel — its pill gets a ring. */
+  activeVariable?: string | null;
+  /** Called when a {{variable}} pill is clicked. */
+  onVariableClick: (variable: string) => void;
   /** When true, render previewSlot instead of the editor (toolbar stays). */
   previewEnabled?: boolean;
   onPreviewEnabledChange?: (enabled: boolean) => void;
@@ -240,20 +284,6 @@ export function PromptVariableEditor({
   previewSlot?: ReactNode;
 }) {
   const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-  const [active, setActive] = useState<ActiveVariable | null>(null);
-
-  // The anchor rect is virtual: it tracks the last clicked {{variable}} token.
-  const anchorRectRef = useRef<DOMRect>(
-    toDomRect({
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0,
-    }),
-  );
-  const virtualAnchorRef = useRef({
-    getBoundingClientRect: () => anchorRectRef.current,
-  });
 
   // Click handling lives inside CodeMirror (domEventHandlers) so no extra
   // interactive wrapper element is needed. Routed through a ref so the
@@ -263,19 +293,6 @@ export function PromptVariableEditor({
     () => undefined,
   );
   handleClickRef.current = (event, view) => {
-    const openForRange = (variable: string, from: number, to: number) => {
-      const start = view.coordsAtPos(from);
-      if (!start) return;
-      const end = view.coordsAtPos(to);
-      anchorRectRef.current = toDomRect({
-        top: start.top,
-        bottom: start.bottom,
-        left: start.left,
-        right: end?.right ?? start.right,
-      });
-      setActive({ variable, rect: anchorRectRef.current });
-    };
-
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return;
     const line = view.state.doc.lineAt(pos);
@@ -285,14 +302,95 @@ export function PromptVariableEditor({
       const from = line.from + match.index;
       const to = from + match[0].length;
       if (pos < from || pos > to) continue;
-      openForRange(match[1], from, to);
+      onVariableClick(match[1]);
       return;
     }
   };
 
+  // Grip drag: mousedown on a pill's grip zone starts an explicit move —
+  // while dragging, the caret tracks the pointer as the drop indicator, and
+  // mouseup moves the {{variable}} text there. (The browser's native
+  // drag-of-selected-text can't be used: it only starts from a selection
+  // that existed before the press.)
+  const handleMouseDownRef = useRef<
+    (event: MouseEvent, view: EditorView) => boolean
+  >(() => false);
+  handleMouseDownRef.current = (event, view) => {
+    if (event.button !== 0) return false;
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+    const line = view.state.doc.lineAt(pos);
+    const regex = /{{\s*([\w.]+)\s*}}/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(line.text)) !== null) {
+      const from = line.from + match.index;
+      const to = from + match[0].length;
+      if (pos < from || pos > to) continue;
+      const start = view.coordsAtPos(from);
+      // Grip = the zone left of the first character (the ::before box).
+      const inGripZone =
+        start !== null &&
+        event.clientX < start.left &&
+        event.clientX > start.left - 30;
+      if (!inGripZone) return false;
+
+      event.preventDefault();
+      // The caret is the drop indicator, and CodeMirror only renders it on a
+      // focused editor — focus explicitly since preventDefault suppressed it.
+      view.focus();
+      view.dom.classList.add("cm-eval-dragging");
+      const previousBodyCursor = document.body.style.cursor;
+      document.body.style.cursor = "grabbing";
+      const text = view.state.sliceDoc(from, to);
+      // posAtCoords clamps out-of-editor coordinates to the nearest text
+      // position, so drops must be gated on the pointer actually being over
+      // the editor — otherwise releasing over the panel teleports the token.
+      const posInsideEditor = (x: number, y: number) => {
+        const rect = view.dom.getBoundingClientRect();
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom)
+          return null;
+        return view.posAtCoords({ x, y });
+      };
+      const onMove = (moveEvent: MouseEvent) => {
+        const dropPos = posInsideEditor(moveEvent.clientX, moveEvent.clientY);
+        if (dropPos !== null) {
+          view.dispatch({
+            selection: { anchor: dropPos },
+            scrollIntoView: true,
+          });
+        }
+      };
+      const onUp = (upEvent: MouseEvent) => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        view.dom.classList.remove("cm-eval-dragging");
+        document.body.style.cursor = previousBodyCursor;
+        const rawPos = posInsideEditor(upEvent.clientX, upEvent.clientY);
+        // Dropped outside the editor or back onto itself: nothing to move;
+        // the ensuing click event still activates the pill in the panel.
+        if (rawPos === null || (rawPos >= from && rawPos <= to)) return;
+        const dropPos = snapOutOfTokens(view.state.doc.toString(), rawPos);
+        view.dispatch({
+          changes: [
+            { from, to },
+            { from: dropPos, insert: text },
+          ],
+          selection: {
+            anchor: dropPos > to ? dropPos : dropPos + text.length,
+          },
+        });
+        view.focus();
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      return true;
+    }
+    return false;
+  };
+
   // Serialized so the memo only invalidates when the content changes; an
   // extensions identity change makes react-codemirror reconfigure the editor,
-  // which re-runs the decorator with the fresh statuses/colors.
+  // which re-runs the decorator with the fresh statuses/labels.
   const statusKey = JSON.stringify(variableStatus ?? {});
   const mappingsKey = JSON.stringify(variableMappings ?? {});
   const extensions = useMemo(() => {
@@ -302,31 +400,80 @@ export function PromptVariableEditor({
       createVariableHighlighter(
         (variable) => status[variable],
         (variable) => mappingLabels[variable],
+        (variable) => variable === activeVariable,
       ),
       variableTheme,
       promptFontTheme,
       EditorView.domEventHandlers({
         click: (event, view) => handleClickRef.current(event, view),
+        mousedown: (event, view) => handleMouseDownRef.current(event, view),
       }),
     ];
-  }, [statusKey, mappingsKey]);
+  }, [statusKey, mappingsKey, activeVariable]);
 
   // Inserts a {{variable}} template at the cursor (replacing any selection)
-  // and selects the placeholder name so the user can type over it.
+  // and selects the placeholder name so the user can type over it. The new
+  // variable is activated in the mapping panel right away — it starts
+  // unmapped, so the panel shows the map-me callout while the user names it
+  // (renames are followed upstream).
   const insertVariable = () => {
     const view = editorRef.current?.view;
     if (!view) return;
-    const { from, to } = view.state.selection.main;
+    let { from, to } = view.state.selection.main;
+    // Never mangle or replace an existing {{token}}: if the selection touches
+    // one (e.g. the caret sits inside a pill after clicking it), snap the
+    // insertion point to just after that token instead.
+    const doc = view.state.doc.toString();
+    const regex = /{{\s*[\w.]+\s*}}/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(doc)) !== null) {
+      const start = match.index;
+      const end = match.index + match[0].length;
+      if (from === start && to === end) {
+        from = to = end;
+      } else {
+        if (from > start && from < end) from = end;
+        if (to > start && to < end) to = end;
+      }
+    }
+    if (to < from) to = from;
     const placeholder = "variable";
     view.dispatch({
       changes: { from, to, insert: `{{${placeholder}}}` },
       selection: { anchor: from + 2, head: from + 2 + placeholder.length },
     });
     view.focus();
+    onVariableClick(placeholder);
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
+      {/* Toolbar attached above the prompt; the editor's (or preview's) own
+          top border draws the seam. Controls cluster on the right. */}
+      <div className="bg-muted/50 flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 font-mono text-[10px]"
+          title="Add variable"
+          disabled={previewEnabled}
+          onClick={insertVariable}
+        >
+          {"{{x}}"}
+        </Button>
+        {showPreviewToggle && (
+          <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 px-2 text-xs">
+            <Switch
+              size="sm"
+              checked={previewEnabled}
+              onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
+            />
+            Preview with sample
+          </label>
+        )}
+      </div>
+
       {previewEnabled && previewSlot ? (
         previewSlot
       ) : (
@@ -343,60 +490,9 @@ export function PromptVariableEditor({
           lineNumbers={false}
           editorRef={editorRef}
           extensions={extensions}
-          className="rounded-b-none text-sm"
+          className="rounded-t-none text-sm"
         />
       )}
-
-      {/* Toolbar attached below the prompt, left-aligned. The preview brings
-          its own frame, so the toolbar detaches into a standalone bar there. */}
-      <div
-        className={cn(
-          "bg-muted/50 flex items-center gap-2 border px-1.5 py-1",
-          previewEnabled ? "rounded-md" : "-mt-2 rounded-b-md border-t-0",
-        )}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs"
-          disabled={previewEnabled}
-          onClick={insertVariable}
-        >
-          <span className="mr-1.5 font-mono text-[10px]">{"{{x}}"}</span>
-          Add variable
-        </Button>
-        {showPreviewToggle && (
-          <Button
-            type="button"
-            variant={previewEnabled ? "secondary" : "ghost"}
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => onPreviewEnabledChange?.(!previewEnabled)}
-          >
-            {previewEnabled ? (
-              <EyeOff className="mr-1.5 h-3.5 w-3.5" />
-            ) : (
-              <Eye className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Preview with sample observation
-          </Button>
-        )}
-      </div>
-
-      <Popover
-        open={Boolean(active)}
-        onOpenChange={(open) => {
-          if (!open) setActive(null);
-        }}
-      >
-        <PopoverAnchor virtualRef={virtualAnchorRef} />
-        <PopoverContent className="w-96" align="start">
-          {active
-            ? renderVariableContent(active.variable, () => setActive(null))
-            : null}
-        </PopoverContent>
-      </Popover>
     </div>
   );
 }
