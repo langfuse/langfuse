@@ -77,6 +77,12 @@ export interface TimelineGutterRowProps {
   onToggleCollapse: () => void;
   hasChildren: boolean;
   isCollapsed: boolean;
+  /**
+   * Deepest level to render indentation for; deeper rows render flat at this
+   * level so extreme depth never clips names away (LFE-10959, see
+   * _shared/visual-depth.ts). Defaults to unbounded.
+   */
+  maxVisualDepth?: number;
 }
 
 /**

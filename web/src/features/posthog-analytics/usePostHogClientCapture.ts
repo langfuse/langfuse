@@ -115,6 +115,8 @@ export const events = {
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
+    "truncated_observation_open_trace_click",
+    "truncated_observation_download_click",
   ],
   eval_config: [
     "new_form_submit",

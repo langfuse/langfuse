@@ -17,7 +17,7 @@ import {
   createLLMOutput,
   createLLMToolSet,
   generateLLMText,
-  isLLMCompletionError,
+  getLLMErrorInfo,
   logger,
   contextWithLangfuseProps,
   mapLegacyLLMCompletionParams,
@@ -176,17 +176,14 @@ export default async function chatCompletionHandler(req: NextRequest) {
     }
 
     if (err instanceof Error) {
-      const statusCode =
-        (isLLMCompletionError(err) ? err.responseStatusCode : undefined) ??
-        (err as any)?.response?.status ??
-        (err as any)?.status ??
-        500;
-      const errorMessage = err.message || "An unknown error occurred";
+      const llmError = getLLMErrorInfo(err);
+      const statusCode = llmError?.statusCode ?? 500;
+      const errorMessage = llmError?.message ?? "An internal error occurred";
 
       return NextResponse.json(
         {
           message: errorMessage,
-          error: err.name || "Error",
+          error: llmError ? err.name || "Error" : "InternalServerError",
         },
         { status: statusCode },
       );
