@@ -39,6 +39,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
+import { SingleSelect } from "@/src/features/filters/components/single-select";
 import {
   type WipFilterState,
   type WipFilterCondition,
@@ -814,8 +815,8 @@ function FilterBuilderForm({
                         column?.type === "stringObject" ||
                         column?.type === "booleanObject") ? (
                         stringObjectSuggest ? (
-                          // Case 0: opt-in stringObject - searchable key combo with free text
-                          <MultiSelect
+                          // Case 0: opt-in stringObject - single key select with free text
+                          <SingleSelect
                             title="Key"
                             className="min-w-[100px]"
                             options={
@@ -824,9 +825,8 @@ function FilterBuilderForm({
                                 ? column.keyOptions.map((value) => ({ value }))
                                 : []
                             }
-                            values={filter.key ? [filter.key] : []}
-                            onValueChange={(values) => {
-                              const nextKey = values[values.length - 1] ?? "";
+                            value={filter.key ?? undefined}
+                            onValueChange={(nextKey) => {
                               handleFilterChange(
                                 { ...filter, key: nextKey },
                                 i,
@@ -968,7 +968,7 @@ function FilterBuilderForm({
                     </td>
                     <td className="p-1">
                       {stringObjectSuggest && filter.type === "stringObject" ? (
-                        <MultiSelect
+                        <SingleSelect
                           title="Value"
                           className="min-w-[100px]"
                           options={
@@ -976,15 +976,9 @@ function FilterBuilderForm({
                               ? stringObjectValueOptions[filter.key]
                               : []) ?? []
                           }
-                          values={filter.value ? [filter.value] : []}
-                          onValueChange={(values) =>
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                value: values[values.length - 1] ?? "",
-                              },
-                              i,
-                            )
+                          value={filter.value ?? undefined}
+                          onValueChange={(value) =>
+                            handleFilterChange({ ...filter, value }, i)
                           }
                           disabled={disabled}
                           isCustomSelectEnabled
