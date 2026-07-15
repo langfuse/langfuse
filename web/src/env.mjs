@@ -333,6 +333,18 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
+    // MCP GET SSE stream keep-alive (see web/src/features/mcp/server/sseKeepAlive.ts)
+    LANGFUSE_MCP_SSE_PING_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30_000),
+    LANGFUSE_MCP_SSE_MAX_CONNECTION_AGE_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(900_000),
+
     // Multimodal media upload to S3
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
       .number()
@@ -819,6 +831,10 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: process.env.LANGFUSE_CACHE_API_KEY_ENABLED,
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS:
       process.env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS,
+    LANGFUSE_MCP_SSE_PING_INTERVAL_MS:
+      process.env.LANGFUSE_MCP_SSE_PING_INTERVAL_MS,
+    LANGFUSE_MCP_SSE_MAX_CONNECTION_AGE_MS:
+      process.env.LANGFUSE_MCP_SSE_MAX_CONNECTION_AGE_MS,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

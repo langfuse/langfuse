@@ -12,6 +12,9 @@ import { type Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { formatErrorForUser } from "../core/error-formatting";
 import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { isSigtermReceived } from "@/src/utils/shutdown";
+import { startSseKeepAlive } from "./sseKeepAlive";
 
 /**
  * Handle MCP request using Streamable HTTP transport.
@@ -68,6 +71,20 @@ export async function handleMcpRequest(
       enableJsonResponse: true, // Use JSON response (simpler for stateless mode)
     });
 
+    // GET opens a long-lived SSE stream that the stateless transport never
+    // pings or closes on its own. Keep it alive through LB idle timeouts and
+    // proactively end it during graceful shutdown / after max age so drains
+    // don't hold MCP connections until the SIGKILL (see sseKeepAlive.ts).
+    const keepAlive =
+      req.method === "GET"
+        ? startSseKeepAlive({
+            res,
+            pingIntervalMs: env.LANGFUSE_MCP_SSE_PING_INTERVAL_MS,
+            maxConnectionAgeMs: env.LANGFUSE_MCP_SSE_MAX_CONNECTION_AGE_MS,
+            isDraining: () => Boolean(isSigtermReceived()),
+          })
+        : undefined;
+
     try {
       // Connect server to transport
       await server.connect(transport);
@@ -85,6 +102,7 @@ export async function handleMcpRequest(
       // Note: Do NOT end the response here. The transport has already
       // sent the response (JSON or SSE) and ended it appropriately.
     } finally {
+      keepAlive?.stop();
       // Clean up server and transport to prevent memory leaks
       // server.close() internally calls transport.close()
       await server.close().catch((err) => {
