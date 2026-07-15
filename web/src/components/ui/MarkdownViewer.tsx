@@ -455,6 +455,7 @@ export function MarkdownView({
   className,
   controlButtons,
   afterHeader,
+  isSystemPrompt,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -466,6 +467,10 @@ export function MarkdownView({
   controlButtons?: React.ReactNode;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Collapse long content to a preview. Pass the raw message role check
+      (`role === "system"`) — the title can be a message `name` instead of the
+      role. Falls back to matching the title for callers without role data. */
+  isSystemPrompt?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -480,7 +485,7 @@ export function MarkdownView({
     toggleCollapsed,
     truncatedContent,
   } = useCollapsibleSystemPrompt({
-    role: title ?? "",
+    isSystemPrompt: isSystemPrompt ?? title === "system",
     content: markdownContent,
   });
 

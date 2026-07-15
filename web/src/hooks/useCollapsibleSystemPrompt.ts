@@ -1,11 +1,40 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const COLLAPSE_CHAR_THRESHOLD = 250;
-const STORAGE_KEY = "traceSystemPrompt:collapsed";
+const DEFAULT_PREVIEW_LINES = 4;
+const DEFAULT_PREVIEW_CHAR_LIMIT = 250;
+
+const STORAGE_KEY = "collapseSystemPrompt";
+const LEGACY_STORAGE_KEY = "traceSystemPrompt:collapsed";
+
+function getInitialCollapsePreference(): boolean {
+  if (typeof window === "undefined") return true;
+  // Migration: the legacy key stored `false` when a user explicitly expanded
+  // a system prompt; keep respecting that choice under the new key.
+  return localStorage.getItem(LEGACY_STORAGE_KEY) !== "false";
+}
+
+/**
+ * Persisted default for whether long system prompts render collapsed.
+ * Shared by the inline expand/collapse toggle and the trace view preferences
+ * (ViewPreferencesContext); all instances stay in sync via useLocalStorage's
+ * localStorageChange events.
+ */
+export function useCollapseSystemPromptPreference() {
+  return useLocalStorage<boolean>(STORAGE_KEY, getInitialCollapsePreference());
+}
 
 interface UseCollapsibleSystemPromptOptions {
-  role: string;
+  /** Decide from the raw message role, not the display title — a system
+      message that carries a `name` is titled by that name. */
+  isSystemPrompt: boolean;
   content: string;
+  /** Number of lines shown while collapsed. */
+  previewLines?: number;
+  /** Character cap applied to the collapsed preview. */
+  previewCharLimit?: number;
 }
 
 interface UseCollapsibleSystemPromptReturn {
@@ -16,66 +45,47 @@ interface UseCollapsibleSystemPromptReturn {
 }
 
 /**
- * Auto-collapses system prompts >250 chars.
- * Saves user preference when manually expanded to localStorage.
+ * Collapses long system prompts to a first-N-lines preview by default.
+ * Toggling flips the persisted preference, so an explicit "expanded" choice
+ * sticks across messages and navigation instead of being force-collapsed.
  */
 export function useCollapsibleSystemPrompt({
-  role,
+  isSystemPrompt,
   content,
+  previewLines = DEFAULT_PREVIEW_LINES,
+  previewCharLimit = DEFAULT_PREVIEW_CHAR_LIMIT,
 }: UseCollapsibleSystemPromptOptions): UseCollapsibleSystemPromptReturn {
-  const shouldBeCollapsible = useMemo(() => {
-    if (role !== "system") return false;
-    if (!content || typeof content !== "string") return false;
-    return content.length > COLLAPSE_CHAR_THRESHOLD;
-  }, [role, content]);
+  const capture = usePostHogClientCapture();
+  const [collapsePreference, setCollapsePreference] =
+    useCollapseSystemPromptPreference();
 
-  // Default: collapsed if long
-  // Override: expanded if user previously expanded (localStorage = false)
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (!shouldBeCollapsible) return false;
+  const shouldBeCollapsible =
+    isSystemPrompt &&
+    typeof content === "string" &&
+    content.length > COLLAPSE_CHAR_THRESHOLD;
 
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      // No preference = use default (collapsed)
-      // false = user expanded it
-      return stored !== null ? JSON.parse(stored) : true;
-    } catch {
-      return true;
-    }
-  });
+  const isCollapsed = shouldBeCollapsible && collapsePreference;
 
   const toggleCollapsed = () => {
-    setIsCollapsed((prev: boolean) => {
-      const newValue = !prev;
-
-      try {
-        if (newValue) {
-          // delete key on collapse to get default behavior
-          localStorage.removeItem(STORAGE_KEY);
-        } else {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(false));
-        }
-      } catch {
-        // Ignore localStorage errors
-      }
-
-      return newValue;
+    const next = !collapsePreference;
+    capture("trace_detail:system_prompt_collapse_toggle", {
+      collapsed: next,
+      source: "inline",
     });
+    setCollapsePreference(next);
   };
 
-  // Truncated preview (first 4 lines or 250 chars)
   const truncatedContent = useMemo(() => {
     if (!shouldBeCollapsible || !content) return content;
 
     const lines = content.split("\n");
-    const preview = lines.slice(0, 4).join("\n");
-    const hasMore = lines.length > 4;
-    const tooLong = preview.length > COLLAPSE_CHAR_THRESHOLD;
+    const preview = lines.slice(0, previewLines).join("\n");
+    const hasMore = lines.length > previewLines;
 
-    return tooLong
-      ? preview.slice(0, COLLAPSE_CHAR_THRESHOLD) + "..."
+    return preview.length > previewCharLimit
+      ? preview.slice(0, previewCharLimit) + "..."
       : preview + (hasMore ? "\n..." : "");
-  }, [shouldBeCollapsible, content]);
+  }, [shouldBeCollapsible, content, previewLines, previewCharLimit]);
 
   return {
     shouldBeCollapsible,
