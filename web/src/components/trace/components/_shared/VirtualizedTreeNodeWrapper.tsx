@@ -23,6 +23,12 @@ export interface TreeNodeMetadata {
   depth: number;
   treeLines: boolean[];
   isLastSibling: boolean;
+  /**
+   * Deepest level to render indentation for; nodes beyond it render flat at
+   * this level so extremely deep trees never push content off-viewport
+   * (LFE-10959). Defaults to unbounded for callers that don't measure.
+   */
+  maxVisualDepth?: number;
 }
 
 interface TreeNodeWrapperProps {
@@ -56,6 +62,13 @@ export function VirtualizedTreeNodeWrapper({
   className,
 }: TreeNodeWrapperProps) {
   const { depth, treeLines, isLastSibling } = metadata;
+  const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
+  // Visual depth: real depth, capped so indentation never exceeds the
+  // container. Rows past the cap render flat at the cap level.
+  const visualDepth = Math.min(depth, maxVisualDepth);
+  // A capped node's children render at the SAME indent (not one level right),
+  // so its child spine would dangle next to nothing — suppress it.
+  const childrenAreCapped = depth >= maxVisualDepth;
 
   return (
     <div
@@ -79,12 +92,12 @@ export function VirtualizedTreeNodeWrapper({
       }}
     >
       <div className="flex w-full pl-2">
-        {/* 1. Indents: ancestor level indicators */}
-        {depth > 0 && (
+        {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}
+        {visualDepth > 0 && (
           <div className="flex shrink-0">
             {/* Math.max floors the length at 0 so a stray non-positive/NaN depth
                 can never reach Array.from as a value that throws RangeError. */}
-            {Array.from({ length: Math.max(0, depth - 1) }, (_, i) => (
+            {Array.from({ length: Math.max(0, visualDepth - 1) }, (_, i) => (
               <div key={i} className="relative w-5">
                 {treeLines[i] && (
                   <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
@@ -95,7 +108,7 @@ export function VirtualizedTreeNodeWrapper({
         )}
 
         {/* 2. Current element bars: up/down/horizontal connectors */}
-        {depth > 0 && (
+        {visualDepth > 0 && (
           <div className="relative w-5 shrink-0">
             <>
               {/* Vertical bar connecting upwards */}
@@ -120,12 +133,14 @@ export function VirtualizedTreeNodeWrapper({
           <div className="relative z-10 flex h-4 items-center justify-center">
             <ItemBadge type={nodeType} isSmall className="size-3!" />
           </div>
-          {/* Vertical bar downwards if there are expanded children */}
-          {hasChildren && !isCollapsed && (
+          {/* Vertical bar downwards if there are expanded children (skipped
+              when children render capped at this same indent — the spine
+              would point at nothing) */}
+          {hasChildren && !isCollapsed && !childrenAreCapped && (
             <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
           )}
           {/* Root node downward connector */}
-          {depth === 0 && hasChildren && !isCollapsed && (
+          {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
             <div className="bg-border-contrast absolute top-3 bottom-0 left-1/2 w-px" />
           )}
         </div>
