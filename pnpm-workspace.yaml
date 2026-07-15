@@ -62,8 +62,8 @@ overrides:
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
-  # Remove once next-auth allows nodemailer ^8.
-  "next-auth>nodemailer": "^8.0.11"
+  # Remove once next-auth allows nodemailer ^9.
+  "next-auth>nodemailer": "^9.0.3"
 patchedDependencies:
   next-auth@4.24.14: patches/next-auth@4.24.14.patch
 publicHoistPattern:
