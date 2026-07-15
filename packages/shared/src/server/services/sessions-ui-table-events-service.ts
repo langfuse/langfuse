@@ -18,7 +18,10 @@ import {
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { sessionEventsCols } from "../tableMappings/mapSessionTable";
+import {
+  sessionEventsCols,
+  sessionEventsOrderByCols,
+} from "../tableMappings/mapSessionTable";
 import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
@@ -224,8 +227,12 @@ const getSessionsTableFromEventsGeneric = async <T>(
 
   const requiresScoresJoin =
     sessionFilters.some((f) => f.clickhouseTable === "scores") ||
-    findUiColumnMapping(sessionEventsCols, orderBy?.column)
+    findUiColumnMapping(sessionEventsOrderByCols, orderBy?.column)
       ?.clickhouseTableName === "scores";
+  const requiresMetadata = sessionFilters.some(
+    (filter) =>
+      filter.clickhouseTable === "events_proto" && filter.field === "metadata",
+  );
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -234,6 +241,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     startTimeFrom: traceTimestampFilter
       ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
       : null,
+    includeMetadata: requiresMetadata,
   });
 
   // Compose query using CTEQueryBuilder
@@ -304,7 +312,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
   }
 
-  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionEventsCols);
+  const orderBySql = orderByToClickhouseSql(
+    orderBy ?? null,
+    sessionEventsOrderByCols,
+  );
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);
   }

@@ -1463,6 +1463,10 @@ const SESSION_AGGREGATION_FIELD_SETS = {
   all: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS) as Array<
     keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS
   >,
+  base: Object.keys(EVENTS_SESSION_AGGREGATION_FIELDS).filter(
+    (field) => field !== "metadata_names" && field !== "metadata_values",
+  ) as Array<keyof typeof EVENTS_SESSION_AGGREGATION_FIELDS>,
+  metadata: ["metadata_names", "metadata_values"],
 } as const;
 
 /**
