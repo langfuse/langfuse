@@ -509,6 +509,17 @@ export function MarkdownView({
     getRenderedInlineMediaIds({ markdown, audio }),
   );
 
+  const collapseToggle = shouldBeCollapsible ? (
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={toggleCollapsed}
+      className="w-fit text-xs underline"
+    >
+      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+    </Button>
+  ) : null;
+
   return (
     <div className="overflow-hidden" key={theme}>
       {title ? (
@@ -546,77 +557,73 @@ export function MarkdownView({
           ) : (
             <>
               <MarkdownRenderer
-                markdown={
-                  shouldBeCollapsible && isCollapsed
-                    ? truncatedContent
-                    : markdown
-                }
+                markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
-              {shouldBeCollapsible && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={toggleCollapsed}
-                  className="w-fit text-xs underline"
-                >
-                  {isCollapsed
-                    ? "Expand system prompt"
-                    : "Collapse system prompt"}
-                </Button>
-              )}
+              {collapseToggle}
             </>
           )
         ) : (
-          // content parts (multi-modal)
-          (markdown ?? []).map((content, index) => {
-            if (isOpenAITextContentPart(content)) {
-              return (
-                <MarkdownRenderer
-                  key={index}
-                  markdown={content.text}
-                  theme={theme}
-                  customCodeHeaderClassName={customCodeHeaderClassName}
-                />
-              );
-            }
-
-            if (isOpenAIImageContentPart(content)) {
-              const imageUrl = content.image_url.url;
-              const safeImageUrl =
-                typeof imageUrl === "string" &&
-                OpenAIUrlImageUrl.safeParse(imageUrl).success
-                  ? getSafeImageUrl(imageUrl)
-                  : null;
-
-              return safeImageUrl ? (
-                <div key={index}>
-                  <ResizableImage src={safeImageUrl} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                <LangfuseMediaView mediaReferenceString={imageUrl} />
-              ) : (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                  <span title="<Base64 data URI>" className="h-4 w-4">
-                    <ImageOff className="h-4 w-4" />
-                  </span>
-                  <span
-                    className="truncate text-sm"
-                    title={imageUrl.toString()}
-                  >
-                    {imageUrl.toString()}
-                  </span>
-                </div>
-              );
-            }
-
-            return content.type === "input_audio" ? (
-              <LangfuseMediaView
-                mediaReferenceString={content.input_audio.data}
+          // content parts (multi-modal); collapsed = preview of the joined text
+          <>
+            {isCollapsed ? (
+              <MarkdownRenderer
+                markdown={truncatedContent}
+                theme={theme}
+                customCodeHeaderClassName={customCodeHeaderClassName}
               />
-            ) : null;
-          })
+            ) : (
+              (markdown ?? []).map((content, index) => {
+                if (isOpenAITextContentPart(content)) {
+                  return (
+                    <MarkdownRenderer
+                      key={index}
+                      markdown={content.text}
+                      theme={theme}
+                      customCodeHeaderClassName={customCodeHeaderClassName}
+                    />
+                  );
+                }
+
+                if (isOpenAIImageContentPart(content)) {
+                  const imageUrl = content.image_url.url;
+                  const safeImageUrl =
+                    typeof imageUrl === "string" &&
+                    OpenAIUrlImageUrl.safeParse(imageUrl).success
+                      ? getSafeImageUrl(imageUrl)
+                      : null;
+
+                  return safeImageUrl ? (
+                    <div key={index}>
+                      <ResizableImage src={safeImageUrl} />
+                    </div>
+                  ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                    <LangfuseMediaView mediaReferenceString={imageUrl} />
+                  ) : (
+                    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                      <span title="<Base64 data URI>" className="h-4 w-4">
+                        <ImageOff className="h-4 w-4" />
+                      </span>
+                      <span
+                        className="truncate text-sm"
+                        title={imageUrl.toString()}
+                      >
+                        {imageUrl.toString()}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return content.type === "input_audio" ? (
+                  <LangfuseMediaView
+                    mediaReferenceString={content.input_audio.data}
+                  />
+                ) : null;
+              })
+            )}
+            {collapseToggle}
+          </>
         )}
         {audio ? (
           <>

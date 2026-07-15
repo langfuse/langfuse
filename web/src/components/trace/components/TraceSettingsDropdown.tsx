@@ -240,10 +240,12 @@ export function TraceViewOptionsMenuItems({
               size="sm"
               checked={collapseSystemPrompt}
               onCheckedChange={(checked) => {
+                // No analyticsDimensions: the inline toggle fires this event
+                // from shared components without trace context, and the event
+                // must keep one shape across sources.
                 capture("trace_detail:system_prompt_collapse_toggle", {
                   collapsed: checked,
                   source: "settings",
-                  ...analyticsDimensions,
                 });
                 setCollapseSystemPrompt(checked);
               }}

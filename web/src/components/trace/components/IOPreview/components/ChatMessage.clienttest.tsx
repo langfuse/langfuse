@@ -114,7 +114,7 @@ describe("ChatMessage system prompt collapse", () => {
     expect(collapseButton()).toBeInTheDocument();
   });
 
-  it("migrates the legacy expanded preference key", () => {
+  it("migrates the legacy expanded preference key and writes it through", () => {
     // pre-existing "user expanded" choice under the old global key
     localStorage.setItem("traceSystemPrompt:collapsed", "false");
 
@@ -125,6 +125,75 @@ describe("ChatMessage system prompt collapse", () => {
 
     expect(expandButton()).not.toBeInTheDocument();
     expect(collapseButton()).toBeInTheDocument();
+    // the choice lands under the new key even without user interaction
+    expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
+  });
+
+  it("collapses a long system prompt sent as content parts", () => {
+    renderChatMessage({
+      role: "system",
+      content: [{ type: "text", text: longSystemPrompt }],
+    } as unknown as ChatMlMessage);
+
+    expect(expandButton()).toBeInTheDocument();
+
+    fireEvent.click(expandButton()!);
+
+    expect(collapseButton()).toBeInTheDocument();
+  });
+
+  it("offers no toggle when the preview would hide nothing", () => {
+    // above the char threshold, but fits within 4 lines / 500 chars, so
+    // collapsing would not hide anything — a toggle would be dead
+    const content = Array.from(
+      { length: 3 },
+      (_, i) => `line-${i + 1} ${"x".repeat(90)}`,
+    ).join("\n");
+
+    renderChatMessage({ role: "system", content } as ChatMlMessage);
+
+    expect(expandButton()).not.toBeInTheDocument();
+    expect(collapseButton()).not.toBeInTheDocument();
+  });
+
+  it("keeps the toggle functional in-session when localStorage is blocked", () => {
+    const throwingStorage: Storage = {
+      get length() {
+        return 0;
+      },
+      clear: () => {
+        throw new Error("storage blocked");
+      },
+      getItem: () => {
+        throw new Error("storage blocked");
+      },
+      key: () => null,
+      removeItem: () => {
+        throw new Error("storage blocked");
+      },
+      setItem: () => {
+        throw new Error("storage blocked");
+      },
+    };
+    vi.stubGlobal("localStorage", throwingStorage);
+
+    renderChatMessage({
+      role: "system",
+      content: longSystemPrompt,
+    } as ChatMlMessage);
+
+    // initial state comes from the in-memory session fallback; whichever
+    // toggle is offered, clicking it must flip the state
+    const startedExpanded = collapseButton() !== null;
+    fireEvent.click((startedExpanded ? collapseButton() : expandButton())!);
+
+    if (startedExpanded) {
+      expect(expandButton()).toBeInTheDocument();
+      expect(collapseButton()).not.toBeInTheDocument();
+    } else {
+      expect(collapseButton()).toBeInTheDocument();
+      expect(expandButton()).not.toBeInTheDocument();
+    }
   });
 
   it("does not collapse long non-system messages", () => {

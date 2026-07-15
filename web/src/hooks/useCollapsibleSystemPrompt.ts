@@ -10,15 +10,26 @@ const DEFAULT_PREVIEW_CHAR_LIMIT = 500;
 const STORAGE_KEY = "collapseSystemPrompt";
 const LEGACY_STORAGE_KEY = "traceSystemPrompt:collapsed";
 
+// Session fallback when localStorage is blocked entirely (sandboxed iframe,
+// strict privacy mode): the toggle must still work in-session even if it
+// can't persist. Consulted only when reading the stored value throws.
+let inMemoryPreference: boolean | null = null;
+
 function readCollapsePreference(): boolean {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored !== null) return stored !== "false";
     // Migration: the legacy key stored `false` when a user explicitly
-    // expanded a system prompt; keep respecting that choice.
-    return localStorage.getItem(LEGACY_STORAGE_KEY) !== "false";
-  } catch {
+    // expanded a system prompt. Write the choice through to the new key so
+    // it survives removing the legacy fallback; the write happens at most
+    // once, since the next read hits the stored-value fast path.
+    if (localStorage.getItem(LEGACY_STORAGE_KEY) === "false") {
+      localStorage.setItem(STORAGE_KEY, "false");
+      return false;
+    }
     return true;
+  } catch {
+    return inMemoryPreference ?? true;
   }
 }
 
@@ -39,10 +50,11 @@ function subscribeToCollapsePreference(onChange: () => void): () => void {
 }
 
 function writeCollapsePreference(value: boolean): void {
+  inMemoryPreference = value;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch {
-    // ignore localStorage errors
+    // keep going: the in-memory fallback makes the toggle work in-session
   }
   // Same event contract as useLocalStorage, so all subscribers (every mounted
   // system prompt plus ViewPreferencesContext) update in the same tab.
@@ -106,15 +118,39 @@ export function useCollapsibleSystemPrompt({
   const [collapsePreference, setCollapsePreference] =
     useCollapseSystemPromptPreference();
 
-  const shouldBeCollapsible =
-    isSystemPrompt &&
-    typeof content === "string" &&
-    content.length > COLLAPSE_CHAR_THRESHOLD;
+  // null = collapsing would hide nothing, so no toggle is offered. Deriving
+  // collapsibility from the actual truncation result (instead of a bare char
+  // threshold) avoids a dead toggle for content that clears the threshold but
+  // fits entirely within the preview.
+  const preview = useMemo(() => {
+    if (
+      !isSystemPrompt ||
+      typeof content !== "string" ||
+      content.length <= COLLAPSE_CHAR_THRESHOLD
+    ) {
+      return null;
+    }
 
+    const lines = content.split("\n");
+    const previewText = lines.slice(0, previewLines).join("\n");
+
+    if (previewText.length > previewCharLimit) {
+      return previewText.slice(0, previewCharLimit) + "...";
+    }
+    if (lines.length > previewLines) {
+      return previewText + "\n...";
+    }
+    return null;
+  }, [isSystemPrompt, content, previewLines, previewCharLimit]);
+
+  const shouldBeCollapsible = preview !== null;
   const isCollapsed = shouldBeCollapsible && collapsePreference;
 
   const toggleCollapsed = () => {
     const next = !collapsePreference;
+    // No trace analytics dimensions here on purpose: this fires from shared
+    // components that also render outside trace contexts (e.g. session view),
+    // and the event must keep one shape across sources.
     capture("trace_detail:system_prompt_collapse_toggle", {
       collapsed: next,
       source: "inline",
@@ -122,22 +158,10 @@ export function useCollapsibleSystemPrompt({
     setCollapsePreference(next);
   };
 
-  const truncatedContent = useMemo(() => {
-    if (!shouldBeCollapsible || !content) return content;
-
-    const lines = content.split("\n");
-    const preview = lines.slice(0, previewLines).join("\n");
-    const hasMore = lines.length > previewLines;
-
-    return preview.length > previewCharLimit
-      ? preview.slice(0, previewCharLimit) + "..."
-      : preview + (hasMore ? "\n..." : "");
-  }, [shouldBeCollapsible, content, previewLines, previewCharLimit]);
-
   return {
     shouldBeCollapsible,
     isCollapsed,
     toggleCollapsed,
-    truncatedContent,
+    truncatedContent: preview ?? content,
   };
 }
