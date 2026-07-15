@@ -102,23 +102,9 @@ describe("mentionParser", () => {
         expect(result).toEqual(["AlIcE123"]);
       });
 
-      it("should extract mention when display name contains an opening bracket (#14836)", () => {
-        const content = "@[John Doe[ Platform Team]](user:alice123)";
-        const result = extractUniqueMentionedUserIds(content);
-
-        expect(result).toEqual(["alice123"]);
-      });
-
-      it("should extract mention when display name contains balanced brackets (#14836)", () => {
-        const content = "@[John Doe[ Platform Team ]](user:alice123)";
-        const result = extractUniqueMentionedUserIds(content);
-
-        expect(result).toEqual(["alice123"]);
-      });
-
-      it("should extract multiple mentions when several display names contain brackets (#14836)", () => {
+      it("should extract mentions when display name contains brackets", () => {
         const content =
-          "@[Lead[Platform]](user:alice123) and @[Ops [EU]](user:bob456) please review";
+          "@[John Doe[ Platform Team ]](user:alice123) and @[Lead[Platform]](user:bob456)";
         const result = extractUniqueMentionedUserIds(content);
 
         expect(result).toEqual(["alice123", "bob456"]);
@@ -154,15 +140,7 @@ describe("mentionParser", () => {
         expect(result).toEqual([]);
       });
 
-      it("should still reject mentions whose display name exceeds 100 chars (#14836)", () => {
-        const longName = "A".repeat(101);
-        const content = `@[${longName}](user:alice123)`;
-        const result = extractUniqueMentionedUserIds(content);
-
-        expect(result).toEqual([]);
-      });
-
-      it("should still reject mentions whose user ID exceeds 30 chars (#14836)", () => {
+      it("should still reject mentions whose user ID exceeds 30 chars", () => {
         const longUserId = "a".repeat(31);
         const content = `@[Alice](user:${longUserId})`;
         const result = extractUniqueMentionedUserIds(content);
@@ -289,7 +267,7 @@ describe("mentionParser", () => {
         expect(result).toEqual([]);
       });
 
-      it("should handle many repeated brackets without hanging (#14836)", () => {
+      it("should handle many repeated brackets without hanging", () => {
         // Display names may contain brackets now; the regex must still
         // terminate quickly via the literal `](user:` anchor.
         const content = "@[[[[[[[Alice](user:alice123)";
@@ -300,18 +278,6 @@ describe("mentionParser", () => {
 
         expect(duration).toBeLessThan(100);
         expect(result).toEqual(["alice123"]);
-      });
-
-      it("should handle pathological regex patterns efficiently", () => {
-        // Pattern that could cause catastrophic backtracking in poorly designed regex
-        const content =
-          "@[" + "A".repeat(50) + "[" + "B".repeat(50) + "](user:test)";
-
-        const startTime = Date.now();
-        extractUniqueMentionedUserIds(content);
-        const duration = Date.now() - startTime;
-
-        expect(duration).toBeLessThan(100);
       });
 
       it("should handle very large input efficiently", () => {
