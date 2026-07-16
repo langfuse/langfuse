@@ -46,7 +46,10 @@ const CommandDialog = ({
       <DialogContent
         className={cn(
           commandDialogSurfaceClass,
-          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_rgb(0_0_0/0.95),0_16px_40px_-24px_rgb(0_0_0/0.9),0_0_0_1px_rgb(148_163_184/0.1)]",
+          // Dark-mode depth: two near-black ambient layers (background is 6%
+          // lightness in dark mode, visually black at these alphas) plus a
+          // faint foreground-tinted hairline ring.
+          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
         )}
         closeOnInteractionOutside
         overlayMode="invisible"

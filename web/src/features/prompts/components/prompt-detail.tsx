@@ -338,7 +338,7 @@ export const PromptDetail = ({
             <CommandInput
               showBorder={false}
               placeholder="Search..."
-              className="text-muted-foreground h-fit border-none py-0 text-sm font-light focus:ring-0"
+              className="text-muted-foreground h-fit border-none py-0 text-sm focus:ring-0"
             />
 
             <Button

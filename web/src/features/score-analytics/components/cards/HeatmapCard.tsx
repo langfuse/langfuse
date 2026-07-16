@@ -222,7 +222,7 @@ export function HeatmapCard() {
             showLabels={true}
             showAxisLabels={true}
           />
-          <p className="text-muted-foreground text-center text-sm font-light">
+          <p className="text-muted-foreground text-center text-sm">
             Select a second score to view comparison heatmap
           </p>
         </CardContent>
