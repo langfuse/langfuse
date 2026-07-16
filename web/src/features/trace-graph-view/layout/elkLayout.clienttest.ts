@@ -1,5 +1,10 @@
 import { type GraphCanvasData, type GraphNodeData } from "../types";
-import { computeGraphLayout } from "./elkLayout";
+import {
+  computeGraphLayout,
+  dedupeEdges,
+  MAX_GRAPH_LAYOUT_EDGES,
+  MAX_GRAPH_LAYOUT_NODES,
+} from "./elkLayout";
 
 const node = (id: string): GraphNodeData => ({ id, label: id, type: "AGENT" });
 
@@ -72,5 +77,94 @@ describe("computeGraphLayout", () => {
       (n) => n.id === "important-node",
     )!.width;
     expect(multiWidth).toBeGreaterThan(singleWidth);
+  });
+});
+
+describe("dedupeEdges", () => {
+  it("collapses duplicate (from,to) pairs and drops self-loops", () => {
+    const result = dedupeEdges([
+      { from: "a", to: "b" },
+      { from: "a", to: "b" },
+      { from: "b", to: "a" }, // reverse is distinct
+      { from: "c", to: "c" }, // self-loop
+    ]);
+    expect(result).toEqual([
+      { from: "a", to: "b" },
+      { from: "b", to: "a" },
+    ]);
+  });
+
+  it("does not collide edges whose ids would merge when space-joined", () => {
+    const result = dedupeEdges([
+      { from: "a b", to: "c" },
+      { from: "a", to: "b c" },
+    ]);
+    expect(result).toHaveLength(2);
+  });
+});
+
+describe("computeGraphLayout layout budget", () => {
+  // A dense cyclic aggregated graph freezes ELK (measured: 100 nodes/800 edges
+  // ≈ 177s on the main thread, a real trace fed 1,422 edges froze >110s). ELK
+  // is synchronous, so the only safe fix is to refuse the layout up front.
+  const distinctEdges = (n: number): GraphCanvasData["edges"] => {
+    const edges: GraphCanvasData["edges"] = [];
+    let i = 0;
+    outer: for (let a = 0; a < n; a++) {
+      for (let b = 0; b < n; b++) {
+        if (a === b) continue;
+        edges.push({ from: `n${a}`, to: `n${b}` });
+        if (++i > n) break outer;
+      }
+    }
+    return edges;
+  };
+
+  it("refuses to lay out an over-budget aggregated (DOWN) graph without running ELK", async () => {
+    const count = MAX_GRAPH_LAYOUT_EDGES + 10;
+    const nodes = Array.from({ length: 60 }, (_, i) => node(`n${i}`));
+    const edges = distinctEdges(count).slice(0, count);
+    const graph: GraphCanvasData = { nodes, edges };
+
+    // If ELK actually ran on this dense graph the test would hang for minutes;
+    // the budget must make it return near-instantly.
+    const start = Date.now();
+    const layout = await computeGraphLayout(graph, {}, "DOWN");
+    expect(Date.now() - start).toBeLessThan(1000);
+
+    expect(layout.tooLarge).toBe(true);
+    expect(layout.nodes).toHaveLength(0);
+    expect(layout.edges).toHaveLength(0);
+    expect(layout.edgeCount).toBe(count);
+  });
+
+  it("refuses an aggregated graph with too many nodes", async () => {
+    const nodes = Array.from({ length: MAX_GRAPH_LAYOUT_NODES + 1 }, (_, i) =>
+      node(`n${i}`),
+    );
+    const graph: GraphCanvasData = {
+      nodes,
+      edges: [{ from: "n0", to: "n1" }],
+    };
+
+    const layout = await computeGraphLayout(graph, {}, "DOWN");
+    expect(layout.tooLarge).toBe(true);
+    expect(layout.nodeCount).toBe(MAX_GRAPH_LAYOUT_NODES + 1);
+  });
+
+  it("still lays out an over-budget expanded (RIGHT) chain — exempt from the budget", async () => {
+    // Expanded graphs are acyclic and bounded upstream; a long thin chain of
+    // more than MAX_GRAPH_LAYOUT_EDGES edges lays out in milliseconds.
+    const n = MAX_GRAPH_LAYOUT_EDGES + 5;
+    const nodes = Array.from({ length: n + 1 }, (_, i) => node(`n${i}`));
+    const edges = Array.from({ length: n }, (_, i) => ({
+      from: `n${i}`,
+      to: `n${i + 1}`,
+    }));
+    const graph: GraphCanvasData = { nodes, edges };
+
+    const layout = await computeGraphLayout(graph, {}, "RIGHT");
+    expect(layout.tooLarge).toBeFalsy();
+    expect(layout.nodes.length).toBeGreaterThan(0);
   });
 });

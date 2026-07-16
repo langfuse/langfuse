@@ -352,8 +352,22 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </Button>
         </div>
       )}
+      {layout?.tooLarge && (
+        // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
+        // — it would just wedge again. Point the user at the tree/timeline.
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>
+            This graph is too large to lay out
+            {layout.nodeCount != null && layout.edgeCount != null
+              ? ` (${layout.nodeCount.toLocaleString()} nodes, ${layout.edgeCount.toLocaleString()} connections)`
+              : ""}
+            .
+          </span>
+          <span>Use the tree or timeline view to explore this trace.</span>
+        </div>
+      )}
 
-      {layout && (
+      {layout && !layout.tooLarge && (
         <div
           ref={worldRef}
           className="absolute top-0 left-0 origin-top-left"
