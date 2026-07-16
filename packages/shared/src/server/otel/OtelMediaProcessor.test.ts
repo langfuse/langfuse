@@ -216,21 +216,29 @@ describe("processOtelMedia", () => {
     expect(result.detectionChecks.stringified_json).toBe(1);
   });
 
-  it("uploads once when dual normalized representations contain the same media", async () => {
+  it("lets the media service deduplicate dual normalized representations", async () => {
     const value = `data:image/png;base64,${PNG_BASE64}`;
     const first = createTarget({ value, observationId: SPAN_ID });
     const second = createTarget({ value, observationId: SPAN_ID });
-    const uploadMedia = createUploadMock();
+    const uploadMedia = vi
+      .fn()
+      .mockResolvedValueOnce({ mediaId: MEDIA_ID, outcome: "uploaded" })
+      .mockResolvedValueOnce({ mediaId: MEDIA_ID, outcome: "reused" });
 
     const result = await processTargets(
       [first.target, second.target],
       uploadMedia,
     );
 
-    expect(uploadMedia).toHaveBeenCalledTimes(1);
+    expect(uploadMedia).toHaveBeenCalledTimes(2);
     expect(first.body.input).toBe(MEDIA_REFERENCE);
     expect(second.body.input).toBe(MEDIA_REFERENCE);
-    expect(result.candidates).toBe(1);
+    expect(result).toMatchObject({
+      uploaded: 1,
+      reused: 1,
+      candidates: 2,
+      bytesProcessed: PNG_BYTES.length * 2,
+    });
     expect(result.detectionChecks.data_uri).toBe(2);
   });
 

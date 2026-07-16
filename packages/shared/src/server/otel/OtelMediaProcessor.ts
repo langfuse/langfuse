@@ -41,11 +41,6 @@ export type OtelMediaProcessResult = {
   detectionCheckedBytes: Record<MediaDetectionPath, number>;
 };
 
-type UploadCache = Map<
-  string,
-  Map<string, Promise<UploadMediaForTraceResult | undefined>>
->;
-
 type ProcessContext = {
   projectId: string;
   traceId: string;
@@ -54,7 +49,6 @@ type ProcessContext = {
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
-  uploadCache: UploadCache;
   result: OtelMediaProcessResult;
 };
 
@@ -85,8 +79,6 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  const uploadCache: UploadCache = new Map();
-
   for (const target of targets) {
     const originalValue = target.body[target.field];
     if (originalValue == null) continue;
@@ -99,7 +91,6 @@ export async function processOtelMedia(params: {
       mediaBucket,
       mediaPrefix,
       uploadMedia,
-      uploadCache,
       result,
     };
     const transformed = await transformMediaPayload(originalValue, {
@@ -128,34 +119,6 @@ async function processCandidate(
   candidate: MediaPayloadCandidate,
   context: ProcessContext,
 ): Promise<string | undefined> {
-  let uploadsByContext = context.uploadCache.get(candidate.base64Data);
-  if (!uploadsByContext) {
-    uploadsByContext = new Map();
-    context.uploadCache.set(candidate.base64Data, uploadsByContext);
-  }
-
-  const cacheKey = [
-    context.traceId,
-    context.observationId ?? "",
-    context.field,
-    candidate.contentType,
-  ].join("\0");
-  let upload = uploadsByContext.get(cacheKey);
-  if (!upload) {
-    upload = uploadCandidate(candidate, context);
-    uploadsByContext.set(cacheKey, upload);
-  }
-
-  const uploadResult = await upload;
-  if (!uploadResult) return;
-
-  return `@@@langfuseMedia:type=${candidate.contentType}|id=${uploadResult.mediaId}|source=${candidate.source}@@@`;
-}
-
-async function uploadCandidate(
-  candidate: MediaPayloadCandidate,
-  context: ProcessContext,
-): Promise<UploadMediaForTraceResult | undefined> {
   await new Promise<void>((resolve) => setImmediate(resolve));
 
   let contentBytes: Buffer;
@@ -196,7 +159,7 @@ async function uploadCandidate(
       { media_kind: candidate.kind },
     );
 
-    return uploadResult;
+    return `@@@langfuseMedia:type=${candidate.contentType}|id=${uploadResult.mediaId}|source=${candidate.source}@@@`;
   } catch (error) {
     context.result.failed += 1;
     recordIncrement("langfuse.ingestion.otel.media", 1, {
