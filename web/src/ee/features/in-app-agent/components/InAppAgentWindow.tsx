@@ -55,13 +55,11 @@ import {
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
-  IN_APP_AGENT_QUICK_ACTION_AREAS,
-  IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS,
-  getInAppAgentQuickActionArea,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
   getInAppAgentQuickActions,
-  isInAppAgentQuickActionArea,
+  isInAppAgentQuickActionContext,
   type InAppAgentQuickAction,
-  type InAppAgentQuickActionArea,
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/ee/features/in-app-agent/quickActions";
@@ -81,7 +79,10 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   });
 }
 
-const QUICK_ACTION_AREA_ICONS: Record<InAppAgentQuickActionArea, LucideIcon> = {
+const QUICK_ACTION_CONTEXT_ICONS: Record<
+  InAppAgentQuickActionContext,
+  LucideIcon
+> = {
   observability: ListTree,
   dashboards: LayoutDashboard,
   prompts: FileJson,
@@ -103,17 +104,12 @@ function InAppAgentQuickActionPicker({
     position: number,
   ) => void;
 }) {
-  const initialArea = getInAppAgentQuickActionArea(initialContext);
-  const [selectedArea, setSelectedArea] = useState(initialArea);
-  const selectedContext =
-    selectedArea === initialArea
-      ? initialContext
-      : IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[selectedArea].defaultContext;
+  const [selectedContext, setSelectedContext] = useState(initialContext);
   const selectedActions =
-    selectedArea === initialArea && focusedActions
+    selectedContext === initialContext && focusedActions
       ? focusedActions
       : getInAppAgentQuickActions(selectedContext);
-  const ActionIcon = QUICK_ACTION_AREA_ICONS[selectedArea];
+  const ActionIcon = QUICK_ACTION_CONTEXT_ICONS[selectedContext];
 
   return (
     <>
@@ -124,29 +120,26 @@ function InAppAgentQuickActionPicker({
         What do you want to do?
       </p>
       <Tabs
-        value={selectedArea}
+        value={selectedContext}
         className="mt-5 w-full max-w-md"
         onValueChange={(value) => {
-          if (isInAppAgentQuickActionArea(value)) {
-            setSelectedArea(value);
+          if (isInAppAgentQuickActionContext(value)) {
+            setSelectedContext(value);
           }
         }}
       >
         <TabsList
-          aria-label="Quick action area"
+          aria-label="Quick action category"
           className="h-auto w-full justify-between rounded-none border-b bg-transparent p-0"
         >
-          {IN_APP_AGENT_QUICK_ACTION_AREAS.map((area) => (
+          {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
             <TabsTrigger
-              key={area}
-              value={area}
+              key={context}
+              value={context}
               disabled={isDisabled}
-              aria-label={
-                IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[area].label
-              }
               className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-8 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm tracking-[-0.04em] shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              {IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[area].label}
+              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -944,7 +937,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isInputDisabled}
-              aria-label="Let me know what I can do for you"
+              aria-label="Message the assistant"
               placeholder="Let me know what I can do for you..."
               rows={1}
               className={cn(

@@ -1,45 +1,23 @@
 import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
 
 export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
-  "tracing",
-  "dashboards",
-  "prompts",
-  "evaluators",
-  "datasets",
-] as const;
-
-export type InAppAgentQuickActionContext =
-  (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];
-
-export const IN_APP_AGENT_QUICK_ACTION_AREAS = [
   "observability",
   "prompts",
   "evaluation",
   "dashboards",
 ] as const;
 
-export type InAppAgentQuickActionArea =
-  (typeof IN_APP_AGENT_QUICK_ACTION_AREAS)[number];
+export type InAppAgentQuickActionContext =
+  (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];
 
-export const IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS: Record<
-  InAppAgentQuickActionArea,
-  { label: string; defaultContext: InAppAgentQuickActionContext }
-> = {
-  observability: { label: "Observability", defaultContext: "tracing" },
-  prompts: { label: "Prompts", defaultContext: "prompts" },
-  evaluation: { label: "Evaluation", defaultContext: "evaluators" },
-  dashboards: { label: "Dashboard", defaultContext: "dashboards" },
-};
-
-const QUICK_ACTION_AREA_BY_CONTEXT: Record<
+export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
   InAppAgentQuickActionContext,
-  InAppAgentQuickActionArea
+  string
 > = {
-  tracing: "observability",
-  dashboards: "dashboards",
-  prompts: "prompts",
-  evaluators: "evaluation",
-  datasets: "evaluation",
+  observability: "Observability",
+  prompts: "Prompts",
+  evaluation: "Evaluation",
+  dashboards: "Dashboard",
 };
 
 export type InAppAgentQuickAction = {
@@ -62,7 +40,7 @@ export type InAppAgentSubmitOptions = {
 // supports a stronger ranking. Prompts stay product-generic and act on the
 // current page context without copying customer data.
 export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
-  tracing: [
+  observability: [
     {
       id: "analyze-failure-patterns",
       label: "Analyze failure patterns",
@@ -131,7 +109,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
         "Summarize which prompts are used most in production, which versions are live, and their latency, cost, and score performance.",
     },
   ],
-  evaluators: [
+  evaluation: [
     {
       id: "set-up-evaluator",
       label: "Set up an evaluator",
@@ -139,22 +117,6 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       prompt:
         "Run a structured error analysis on recent traces to identify recurring failure modes, then help me set up an LLM-as-a-judge evaluator that targets the top failure mode, including picking a template, mapping variables, and choosing which data it runs on.",
     },
-    {
-      id: "review-evaluator-results",
-      label: "Review evaluator results",
-      description: "Find where evaluation quality is slipping",
-      prompt:
-        "Summarize how my evaluators are scoring recent traces and highlight where quality is slipping.",
-    },
-    {
-      id: "improve-evaluator-reliability",
-      label: "Improve evaluator reliability",
-      description: "Reduce inconsistent judgments and mappings",
-      prompt:
-        "Review this evaluator's configuration and recent results for inconsistent judgments, then recommend improvements to its rubric, model, or variable mapping.",
-    },
-  ],
-  datasets: [
     {
       id: "create-dataset-from-traces",
       label: "Create a dataset",
@@ -167,14 +129,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       label: "Set up an experiment",
       description: "Compare prompt, model, or code changes",
       prompt:
-        "Explain how to set up an experiment on this dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
-    },
-    {
-      id: "compare-experiment-runs",
-      label: "Compare experiment runs",
-      description: "Identify the best-performing experiment run",
-      prompt:
-        "Compare my recent experiment runs on this dataset and summarize which configuration performed best.",
+        "Explain how to set up an experiment on a dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
     },
   ],
 } satisfies Record<
@@ -323,44 +278,27 @@ export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
   ],
 } satisfies Record<string, readonly InAppAgentQuickAction[]>;
 
-const FOCUSED_SCREEN_CONTEXT_TYPES_BY_QUICK_ACTION_CONTEXT: Record<
-  InAppAgentQuickActionContext,
-  readonly (keyof typeof IN_APP_AGENT_FOCUSED_QUICK_ACTIONS)[]
-> = {
-  tracing: ["trace", "observation", "session"],
-  dashboards: [],
-  prompts: ["prompt"],
-  evaluators: [],
-  datasets: ["dataset", "experimentRun"],
-};
-
-// This section->context map and getInAppAgentScreenContextDescription() in
-// context.ts are two parallel classifiers of the same project URL (both parse
-// via getInAppAgentProjectRoute). This one is COARSE: section -> one of five
-// quick-action areas. The other is GRANULAR: single entity vs list view, and
-// collapses non-entity sections (scores, evals, annotation-queues, dashboards,
-// widgets, playground, experiments, users, monitors) to `page`, so it cannot
-// replace this map without regressing those areas to the `tracing` fallback.
-// Follow-up: merge the two into one section-aware classifier that yields both
-// the coarse area and the granular description in a single pass.
+// Coarse section -> tab classifier for the quick-action picker.
+// getInAppAgentScreenContextDescription() in context.ts classifies the same
+// URL at entity granularity (for the banner and focused action sets).
 const QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION: Record<
   string,
   InAppAgentQuickActionContext
 > = {
-  traces: "tracing",
-  observations: "tracing",
-  sessions: "tracing",
-  users: "tracing",
-  monitors: "tracing",
+  traces: "observability",
+  observations: "observability",
+  sessions: "observability",
+  users: "observability",
+  monitors: "observability",
   dashboards: "dashboards",
   widgets: "dashboards",
   prompts: "prompts",
   playground: "prompts",
-  scores: "evaluators",
-  evals: "evaluators",
-  "annotation-queues": "evaluators",
-  datasets: "datasets",
-  experiments: "datasets",
+  scores: "evaluation",
+  evals: "evaluation",
+  "annotation-queues": "evaluation",
+  datasets: "evaluation",
+  experiments: "evaluation",
 };
 
 export function getInAppAgentQuickActionContext(
@@ -369,8 +307,8 @@ export function getInAppAgentQuickActionContext(
   const section = getInAppAgentProjectRoute(currentUrl)?.routeSegments[0];
 
   return section
-    ? (QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION[section] ?? "tracing")
-    : "tracing";
+    ? (QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION[section] ?? "observability")
+    : "observability";
 }
 
 export function getInAppAgentQuickActions(
@@ -391,40 +329,10 @@ export function getInAppAgentFocusedQuickActions(
   ];
 }
 
-export function isInAppAgentQuickActionId(
-  actionId: string,
-  context: InAppAgentQuickActionContext,
-): boolean {
-  if (
-    getInAppAgentQuickActions(context).some((action) => action.id === actionId)
-  ) {
-    return true;
-  }
-
-  return FOCUSED_SCREEN_CONTEXT_TYPES_BY_QUICK_ACTION_CONTEXT[context].some(
-    (screenContextType) =>
-      getInAppAgentFocusedQuickActions(screenContextType)?.some(
-        (action) => action.id === actionId,
-      ),
-  );
-}
-
-export function getInAppAgentQuickActionArea(
-  context: InAppAgentQuickActionContext,
-): InAppAgentQuickActionArea {
-  return QUICK_ACTION_AREA_BY_CONTEXT[context];
-}
-
 export function isInAppAgentQuickActionContext(
   value: string,
 ): value is InAppAgentQuickActionContext {
   return IN_APP_AGENT_QUICK_ACTION_CONTEXTS.some(
     (context) => context === value,
   );
-}
-
-export function isInAppAgentQuickActionArea(
-  value: string,
-): value is InAppAgentQuickActionArea {
-  return IN_APP_AGENT_QUICK_ACTION_AREAS.some((area) => area === value);
 }

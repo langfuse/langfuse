@@ -488,9 +488,7 @@ export default async function handler(request: Request) {
                       parsedState.data.type === "existingConversation"
                         ? "existing"
                         : "new",
-                    ...getInAppAgentQuickActionTraceMetadata(
-                      sanitizedInput.context,
-                    ),
+                    ...getInAppAgentQuickActionTraceMetadata(input.context),
                   },
                 });
 

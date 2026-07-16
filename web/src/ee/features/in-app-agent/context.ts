@@ -1,7 +1,6 @@
 import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
 import {
   isInAppAgentQuickActionContext,
-  isInAppAgentQuickActionId,
   type InAppAgentQuickActionAttribution,
 } from "@/src/ee/features/in-app-agent/quickActions";
 import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
@@ -47,14 +46,9 @@ const USER_CONTEXT_DESCRIPTIONS = new Set([
   "browser_languages",
 ]);
 
-// GRANULAR classifier of a project URL (single entity vs list view), used for
-// the screen-context banner and to pick focused quick actions. Runs in parallel
-// with the COARSE section->area map QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION in
-// quickActions.ts; both parse via getInAppAgentProjectRoute. This one collapses
-// non-entity sections to `page`, so it deliberately carries less section
-// identity than the coarse map.
-// Follow-up: merge the two into one section-aware classifier that yields both
-// the coarse area and the granular description in a single pass.
+// Entity-granular classifier of a project URL, used for the screen-context
+// banner and focused quick actions. getInAppAgentQuickActionContext() in
+// quickActions.ts classifies the same URL coarsely by section for the picker.
 export function getInAppAgentScreenContextDescription(
   currentUrl: string,
 ): InAppAgentScreenContextDescription {
@@ -200,21 +194,8 @@ export function sanitizeInAppAgentContext(
   }
 
   sanitizedContext.push(...sanitizeUserContext(context));
-  sanitizedContext.push(...sanitizeQuickActionAttribution(context));
 
   return sanitizedContext;
-}
-
-function sanitizeQuickActionAttribution(
-  context: InAppAgentContext,
-): InAppAgentContext {
-  const attribution = getInAppAgentQuickActionAttribution(context);
-
-  if (!attribution) {
-    return [];
-  }
-
-  return createInAppAgentQuickActionAttributionContext(attribution);
 }
 
 export function createInAppAgentQuickActionAttributionContext(
@@ -232,6 +213,8 @@ export function createInAppAgentQuickActionAttributionContext(
   ];
 }
 
+// Attribution is telemetry only: it is validated by shape here and read for
+// trace metadata, but never forwarded into the model-visible sanitized context.
 export function getInAppAgentQuickActionAttribution(
   context: InAppAgentContext,
 ): InAppAgentQuickActionAttribution | undefined {
@@ -251,10 +234,6 @@ export function getInAppAgentQuickActionAttribution(
     !quickActionContext ||
     !isInAppAgentQuickActionContext(quickActionContext)
   ) {
-    return undefined;
-  }
-
-  if (!isInAppAgentQuickActionId(actionId, quickActionContext)) {
     return undefined;
   }
 

@@ -1,9 +1,0 @@
-interface:
-  display_name: "Curate Assistant Quick Actions"
-  short_description: "Refresh assistant actions from real usage"
-  default_prompt: "Use $curate-assistant-quick-actions to refresh the contextual assistant action catalog from recent internal usage."
-dependencies:
-  tools:
-    - type: "mcp"
-      value: "langfuse"
-      description: "Authenticated Langfuse MCP server for the internal AI-features project"
