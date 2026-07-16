@@ -18,6 +18,7 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   PostUnstableDashboardWidgetResponse,
+  type DashboardWidgetViewOutputType,
   type PostUnstableDashboardWidgetBodyType,
 } from "@/src/features/public-api/types/unstable-dashboard-widgets";
 import { ChartConfigSchema, LangfuseNotFoundError } from "@langfuse/shared";
@@ -37,14 +38,13 @@ type NormalizedWidgetInput = Omit<
   "id" | "createdAt" | "updatedAt"
 > & { minVersion: number };
 
-const viewMapping: Record<
-  PostUnstableDashboardWidgetBodyType["view"],
-  DashboardWidgetViews
-> = {
-  observations: DashboardWidgetViews.OBSERVATIONS,
-  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
-  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
-};
+const viewMapping: Record<DashboardWidgetViewOutputType, DashboardWidgetViews> =
+  {
+    observations: DashboardWidgetViews.OBSERVATIONS,
+    "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+    "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+    traces: DashboardWidgetViews.TRACES,
+  };
 
 const reverseViewMapping: Record<
   DashboardWidgetViews,
@@ -94,8 +94,13 @@ function getPublicDashboardWidgetViewDeclaration(
   }
 }
 
+type PublicDashboardWidgetInput = Omit<
+  PostUnstableDashboardWidgetBodyType,
+  "view"
+> & { view: DashboardWidgetViewOutputType };
+
 export function normalizePublicDashboardWidgetInput(
-  input: PostUnstableDashboardWidgetBodyType,
+  input: PublicDashboardWidgetInput,
   minVersion = 2,
 ): NormalizedWidgetInput {
   const { mappedFilters, unsupportedFilters } =
@@ -336,6 +341,10 @@ export async function updatePublicDashboardWidget(params: {
   const chartTypeChanged =
     params.input.chartType !== undefined &&
     params.input.chartType !== currentPublic.chartType;
+  // Keep the stored minVersion (and thus v1/v2 query semantics) unless the
+  // caller explicitly changes the view; view changes land on v2 like create.
+  const mergedView = params.input.view ?? currentPublic.view;
+  const minVersion = mergedView === currentPublic.view ? current.minVersion : 2;
   const input = normalizePublicDashboardWidgetInput(
     {
       ...currentPublic,
@@ -349,7 +358,7 @@ export async function updatePublicDashboardWidget(params: {
           ? { type: params.input.chartType }
           : currentPublic.chartConfig),
     },
-    current.minVersion,
+    minVersion,
   );
   validatePublicDashboardWidgetInput(input);
   const updated = await DashboardService.updateWidget(
