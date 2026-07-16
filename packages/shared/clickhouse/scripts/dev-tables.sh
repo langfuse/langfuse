@@ -792,8 +792,10 @@ FROM (
     event_time,
     JSONExtractString(log_comment, 'route') AS raw_route,
     -- Split '<METHOD> <path>' on the FIRST space only; splitByChar with
-    -- max_substrings would silently DROP everything after the limit, which
-    -- truncates paths containing spaces (e.g. unencoded prompt names).
+    -- max_substrings DROPS everything after the limit under the default
+    -- splitby_max_substrings_includes_remaining_string=0 (verified on 26.3:
+    -- splitByChar(' ', 'GET /path with spaces', 2) = ['GET','/path']), which
+    -- would truncate paths containing spaces (e.g. unencoded prompt names).
     position(raw_route, ' ') AS method_separator,
     if(method_separator = 0, '', substring(raw_route, 1, method_separator - 1)) AS method,
     if(method_separator = 0, '', substring(raw_route, method_separator + 1)) AS raw_path,
