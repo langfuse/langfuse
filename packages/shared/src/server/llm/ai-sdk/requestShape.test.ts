@@ -366,7 +366,7 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("api-key")).toBe("azure-key");
   });
 
-  it("OpenAI chat completions: gpt-5.4 mini keeps non-reasoning request params", async () => {
+  it("OpenAI chat completions: gpt-5.4 mini uses portable non-reasoning settings", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "openai",
@@ -380,10 +380,50 @@ describe("AI SDK request shapes", () => {
       response: OPENAI_CHAT_RESPONSE,
     });
 
-    expect(request.body.max_tokens).toBe(64);
-    expect(request.body.max_completion_tokens).toBeUndefined();
+    expect(request.body.max_tokens).toBeUndefined();
+    expect(request.body.max_completion_tokens).toBe(64);
     expect(request.body.temperature).toBe(0.2);
     expect(request.body.top_p).toBe(0.9);
+    expect(request.body.reasoning_effort).toBe("none");
+    expect(request.body.forceReasoning).toBeUndefined();
+  });
+
+  it("OpenAI-compatible chat completions: gpt-5.4 mini does not leak internal reasoning controls", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-5.4-mini",
+        max_tokens: 64,
+        temperature: 0.2,
+        top_p: 0.9,
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.max_tokens).toBe(64);
+    expect(request.body.temperature).toBe(0.2);
+    expect(request.body.top_p).toBe(0.9);
+    expect(request.body.forceReasoning).toBeUndefined();
+  });
+
+  it("OpenAI-compatible chat completions: explicit gpt-5.4 mini reasoning remains a wire setting", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-5.4-mini",
+        providerOptions: { reasoning_effort: "high" },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.forceReasoning).toBeUndefined();
   });
 
   it("Anthropic: /v1/messages on a custom origin with snake_case thinking body", async () => {

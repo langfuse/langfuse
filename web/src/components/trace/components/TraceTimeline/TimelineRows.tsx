@@ -37,6 +37,8 @@ interface RowShellSharedProps {
 type GutterRowShellProps = RowShellSharedProps & {
   hasChildren: boolean;
   isCollapsed: boolean;
+  /** Indentation cap from the gutter width (see visual-depth.ts). */
+  maxVisualDepth: number;
   onToggleCollapse: (nodeId: string) => void;
 };
 
@@ -48,6 +50,7 @@ function TimelineGutterRowShellComponent({
   isHovered,
   hasChildren,
   isCollapsed,
+  maxVisualDepth,
   onSelect,
   onHover,
   onToggleCollapse,
@@ -80,6 +83,7 @@ function TimelineGutterRowShellComponent({
         onToggleCollapse={() => onToggleCollapse(nodeId)}
         hasChildren={hasChildren}
         isCollapsed={isCollapsed}
+        maxVisualDepth={maxVisualDepth}
       />
     </div>
   );

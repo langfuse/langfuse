@@ -11,6 +11,7 @@ import {
   CTEWithSchema,
   EventsAggQueryBuilder,
   StringFilter,
+  extractTimeFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -23,8 +24,10 @@ import {
   eventsTracesScoresAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { extractTimeFilter, queryClickhouse } from "../repositories";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories/clickhouse";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
