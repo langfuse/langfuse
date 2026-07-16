@@ -115,6 +115,51 @@ describe("processOtelMedia", () => {
     );
   });
 
+  it.each([
+    "langfuse.trace.metadata",
+    "langfuse.observation.metadata",
+    "langfuse.metadata.image",
+    "ai.telemetry.metadata.image",
+  ])("uploads media from the metadata attribute %s", async (attributeKey) => {
+    const spans = resourceSpans({
+      attributeKey,
+      value: `data:image/png;base64,${PNG_BASE64}`,
+    });
+    const uploadMedia = createUploadMock();
+
+    await processOtelMedia({
+      resourceSpans: spans,
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      uploadMedia,
+    });
+
+    expect(uploadMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ field: "metadata" }),
+    );
+  });
+
+  it("does not inspect unrelated attributes", async () => {
+    const value = `data:image/png;base64,${PNG_BASE64}`;
+    const spans = resourceSpans({
+      attributeKey: "unrelated.attribute",
+      value,
+    });
+    const uploadMedia = createUploadMock();
+
+    await processOtelMedia({
+      resourceSpans: spans,
+      projectId: "project-id",
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      uploadMedia,
+    });
+
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(getAttributeValue(spans)).toBe(value);
+  });
+
   it("replaces an embedded data URI in an arbitrary string", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
     const spans = resourceSpans({
