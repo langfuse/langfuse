@@ -6,7 +6,8 @@ import { type ViewVersion, type views } from "@langfuse/shared/query";
 
 import { type z } from "zod";
 
-type GetWidgetFilterColumnsParams = {
+/** GetMetricsFilterColumnsParams is the option dictionary the metric filter column specs are built from. */
+export type GetMetricsFilterColumnsParams = {
   selectedView: z.infer<typeof views>;
   viewVersion: ViewVersion;
   environmentOptions: SingleValueOption[];
@@ -31,12 +32,12 @@ type GetWidgetFilterColumnsParams = {
   metadataKeyOptions: string[];
 };
 
-type WidgetFilterColumnSpec = {
+type MetricsFilterColumnSpec = {
   column: ColumnDefinition;
   customSelect?: boolean;
 };
 
-const getWidgetFilterColumnSpecs = ({
+const getMetricsFilterColumnSpecs = ({
   selectedView,
   viewVersion,
   environmentOptions,
@@ -59,14 +60,14 @@ const getWidgetFilterColumnSpecs = ({
   scoreNameOptions,
   experimentIdOptions,
   metadataKeyOptions,
-}: GetWidgetFilterColumnsParams): WidgetFilterColumnSpec[] => {
+}: GetMetricsFilterColumnsParams): MetricsFilterColumnSpec[] => {
   // Value suggestions come from the v2 events filter-options; v1 keeps manual
   // entry (plain string columns), per LFE-9570 decision to leave v1 plain.
   const suggestString = (
     name: string,
     id: string,
     options: SingleValueOption[],
-  ): WidgetFilterColumnSpec =>
+  ): MetricsFilterColumnSpec =>
     viewVersion === "v2"
       ? {
           column: {
@@ -82,7 +83,7 @@ const getWidgetFilterColumnSpecs = ({
           column: { name, id, type: "string", internal: "internalValue" },
         };
   const metadataSuggest = viewVersion === "v2";
-  const filterColumns: WidgetFilterColumnSpec[] = [
+  const filterColumns: MetricsFilterColumnSpec[] = [
     {
       column: {
         name: "Environment",
@@ -186,7 +187,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",
@@ -196,7 +197,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Dataset",
@@ -206,7 +207,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment ID",
@@ -216,7 +217,7 @@ const getWidgetFilterColumnSpecs = ({
                 internal: "internalValue",
               },
               customSelect: true,
-            } satisfies WidgetFilterColumnSpec,
+            } satisfies MetricsFilterColumnSpec,
           ]
         : []),
       {
@@ -315,14 +316,16 @@ const getWidgetFilterColumnSpecs = ({
   return filterColumns;
 };
 
-export const getWidgetFilterColumns = (
-  params: GetWidgetFilterColumnsParams,
+/** getMetricsFilterColumns builds the InlineFilterBuilder column definitions for a metric view. */
+export const getMetricsFilterColumns = (
+  params: GetMetricsFilterColumnsParams,
 ): ColumnDefinition[] =>
-  getWidgetFilterColumnSpecs(params).map((spec) => spec.column);
+  getMetricsFilterColumnSpecs(params).map((spec) => spec.column);
 
-export const getWidgetColumnsWithCustomSelect = (
-  params: GetWidgetFilterColumnsParams,
+/** getMetricsColumnsWithCustomSelect lists the column ids that render a custom (searchable) select control. */
+export const getMetricsColumnsWithCustomSelect = (
+  params: GetMetricsFilterColumnsParams,
 ): string[] =>
-  getWidgetFilterColumnSpecs(params)
+  getMetricsFilterColumnSpecs(params)
     .filter((spec) => spec.customSelect)
     .map((spec) => spec.column.id);

@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import {
   Accordion,
@@ -42,25 +42,15 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import {
-  mapWidgetUiTableFilterToView,
-  normalizeStoredWidgetFiltersForEditor,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
-import {
-  getWidgetColumnsWithCustomSelect,
-  getWidgetFilterColumns,
-} from "@/src/features/widgets/components/widgetFilterColumns";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
-import { useMetadataValueOptions } from "@/src/features/events/hooks/useMetadataValueOptions";
+import { MetricsFilterBuilderV2 } from "@/src/features/metrics/components/MetricsFilterBuilderV2";
+import { supportedViewFilters } from "@/src/features/metrics/components/MetricsFilterView";
 import { cn } from "@/src/utils/tailwind";
 
 import {
   CreateMonitorSchema,
   type CreateMonitor,
   getValidMonitorAggregationsForMeasure,
-  getValidMonitorFilterColumns,
   type Monitor,
   type MonitorNoData,
   MonitorNoDataModeSchema,
@@ -76,14 +66,7 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import {
-  ObservationLevelDomain,
-  ObservationTypeDomain,
-  viewDeclarations,
-  type FilterState,
-  type SingleValueOption,
-  type TimeFilter,
-} from "@langfuse/shared";
+import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
 import TagManager from "@/src/features/tag/components/TagManager";
 
@@ -124,11 +107,7 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   id: monitor.id,
   projectId: monitor.projectId,
   view: monitor.view,
-  // Stored filters use the view's dimension names (e.g. "environment"); the
-  // InlineFilterBuilder works in UI-table column space (e.g. "Environment").
-  // Translate on load so the builder shows the right rows.
-  filters: normalizeStoredWidgetFiltersForEditor(monitor.view, monitor.filters)
-    .editorFilters,
+  filters: monitor.filters,
   metric: monitor.metric,
   window: monitor.window,
   thresholdOperator: monitor.thresholdOperator,
@@ -147,90 +126,6 @@ const nameOrPlaceholder = (
   name: string | undefined,
   placeholder: string,
 ): string => name || placeholder;
-
-// Observation Level and Type are closed enums, so their filter value pickers
-// list every domain value. Deriving them from the monitor's (short, default 5m)
-// evaluation window instead left them empty whenever that window happened to
-// contain no matching events — e.g. a fresh monitor whose lookback saw no errors
-// or tool calls yet — so the non-searchable "Level"/"Type" value dropdowns
-// showed "No results found" with no way to pick a value (LFE-10616). Mirrors
-// WidgetForm, which builds these two option lists from the domain enums too.
-const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
-  value,
-}));
-const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
-  value,
-}));
-
-/**
- * buildFilterColumnsParams assembles the InlineFilterBuilder option dictionaries
- * for the picked view. Open-ended facets (environment, model, tags, …) come from
- * the time-windowed events filter-options discovery; the closed Type/Level enums
- * come from the domain schemas so their value pickers are always complete.
- */
-const buildFilterColumnsParams = ({
-  view,
-  filterOptions,
-  datasets,
-  metadataKeys,
-}: {
-  view: "traces" | "observations" | "scores-numeric" | "scores-categorical";
-  filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
-  datasets: Array<{ id: string; name: string }> | undefined;
-  metadataKeys?: string[];
-}) => {
-  const datasetIds = new Set(
-    (filterOptions?.experimentDatasetId ?? []).map((e) => e.value),
-  );
-  return {
-    selectedView: view,
-    viewVersion: "v2" as const,
-    environmentOptions: filterOptions?.environment ?? [],
-    nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
-    observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
-    tagsOptions: filterOptions?.traceTags ?? [],
-    modelOptions: filterOptions?.providedModelName ?? [],
-    toolNamesOptions: filterOptions?.toolNames ?? [],
-    calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
-    observationLevelOptions,
-    experimentNameOptions: filterOptions?.experimentName ?? [],
-    experimentDatasetOptions:
-      datasets
-        ?.filter((d) => datasetIds.has(d.id))
-        .map((d) => ({ value: d.id, displayValue: d.name })) ?? [],
-    observationTypeOptions,
-    userOptions: normalizeSingleValueOptions(filterOptions?.userId),
-    sessionOptions: normalizeSingleValueOptions(filterOptions?.sessionId),
-    versionOptions: normalizeSingleValueOptions(filterOptions?.version),
-    // Events denormalize trace release into e.release, so the Release and Trace
-    // Release columns share one source; e.version conflates observation and
-    // trace version, so Version and Trace Version share it too.
-    releaseOptions: normalizeSingleValueOptions(filterOptions?.release),
-    traceReleaseOptions: normalizeSingleValueOptions(filterOptions?.release),
-    traceVersionOptions: normalizeSingleValueOptions(filterOptions?.version),
-    scoreNameOptions: scoreNameOptionsForView(view, filterOptions),
-    experimentIdOptions: normalizeSingleValueOptions(
-      filterOptions?.experimentId,
-    ),
-    metadataKeyOptions: metadataKeys ?? [],
-  };
-};
-
-/** scoreNameOptionsForView sources Score Name suggestions from the view's score facet. */
-const scoreNameOptionsForView = (
-  view: "traces" | "observations" | "scores-numeric" | "scores-categorical",
-  filterOptions: RouterOutputs["events"]["filterOptions"] | undefined,
-): SingleValueOption[] => {
-  if (view === "scores-numeric") {
-    return (filterOptions?.scores_avg ?? []).map((value) => ({ value }));
-  }
-  if (view === "scores-categorical") {
-    return (filterOptions?.score_categories ?? []).map((category) => ({
-      value: category.label,
-    }));
-  }
-  return [];
-};
 
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
@@ -262,19 +157,14 @@ export const MonitorForm = ({
   /** namePlaceholderRef holds the latest computed name placeholder for the resolver. */
   const namePlaceholderRef = useRef("");
 
-  /** resolver wraps zodResolver, mapping filter columns into view-space and filling a blank name with the computed placeholder before validation. */
+  /** resolver wraps zodResolver, filling a blank name with the computed placeholder before validation. */
   const resolver = useMemo(() => {
     const base = zodResolver(schema as any);
     return ((values, context, options) => {
-      const v = values as {
-        view: MonitorView;
-        filters?: FilterState;
-        name?: string;
-      };
+      const v = values as { name?: string };
       const mapped = {
         ...values,
         name: nameOrPlaceholder(v.name, namePlaceholderRef.current),
-        filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
       };
       return base(mapped as any, context, options);
     }) as typeof base;
@@ -313,14 +203,13 @@ export const MonitorForm = ({
     onError: (e) => showErrorToast("Failed to save monitor", e.message),
   });
 
-  /** onSubmit normalizes filter columns into view-space and dispatches the create or update mutation. */
+  /** onSubmit strips unsupported filter rows and dispatches the create or update mutation. */
   const onSubmit = form.handleSubmit(
-    /** onValid normalize filter values before updating or saving the monitor  */
     (values) => {
       const normalizedValues = {
         ...values,
-        filters: mapWidgetUiTableFilterToView(
-          values.view as Parameters<typeof mapWidgetUiTableFilterToView>[0],
+        filters: supportedViewFilters(
+          values.view as Parameters<typeof supportedViewFilters>[0],
           (values.filters ?? []) as FilterState,
         ),
       } as typeof values;
@@ -349,93 +238,16 @@ export const MonitorForm = ({
   const watched = useWatch({ control: form.control });
   const monitorWindow = (watched.window ?? "5m") as MonitorWindow;
 
-  /** filterOptionsStartTimeFilter lower-bounds discovery at max(20×window, 7d) so even a small monitor window still yields value suggestions. */
-  const filterOptionsStartTimeFilter = useMemo<TimeFilter[]>(
-    () => [
-      {
-        column: "startTime",
-        type: "datetime",
-        operator: ">=",
-        value: getMonitorFilterOptionsLookbackFrom(monitorWindow, Date.now()),
-      },
-    ],
+  /** filterOptionsLookbackFrom lower-bounds discovery at max(20×window, 7d) so even a small monitor window still yields value suggestions. */
+  const filterOptionsLookbackFrom = useMemo(
+    () => getMonitorFilterOptionsLookbackFrom(monitorWindow, Date.now()),
     [monitorWindow],
   );
-
-  /** eventsFilterOptions loads the events v2 filter dictionary (environments, tags, models, …) for the picked view. */
-  const eventsFilterOptions = api.events.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter: filterOptionsStartTimeFilter,
-    },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  /** metadataKeys loads the most common metadata key names for the Metadata filter column. */
-  const metadataKeys = api.events.metadataKeys.useQuery(
-    {
-      projectId,
-      startTimeFilter: filterOptionsStartTimeFilter,
-    },
-    {
-      trpc: { context: { skipBatch: true } },
-      staleTime: 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  );
-
-  // metadataValueOptions maps every in-use metadata key to its value suggestions;
-  // onMetadataKeyChange records a row's key the moment it is picked.
-  const { metadataValueOptions, onMetadataKeyChange } = useMetadataValueOptions(
-    {
-      projectId,
-      filterState: (watched.filters ?? []) as FilterState,
-      startTimeFilter: filterOptionsStartTimeFilter,
-    },
-  );
-
-  /** datasets loads dataset metadata for the project; used to label experiment-dataset filter options. */
-  const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
   /** monitorFilterOptions loads the project's existing monitor tags for the tag picker's available-options list. */
   const monitorFilterOptions = api.monitors.getFilterOptions.useQuery(
     { projectId },
     { staleTime: Infinity, refetchOnWindowFocus: false },
-  );
-
-  /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
-  const filterColumnsParams = useMemo(
-    () =>
-      buildFilterColumnsParams({
-        view: (watched.view ?? "observations") as
-          | "traces"
-          | "observations"
-          | "scores-numeric"
-          | "scores-categorical",
-        filterOptions: eventsFilterOptions.data,
-        datasets: datasets.data,
-        metadataKeys: metadataKeys.data?.map((row) => row.value),
-      }),
-    [eventsFilterOptions.data, datasets.data, metadataKeys.data, watched.view],
-  );
-
-  /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
-  const filterColumns = useMemo(
-    () =>
-      getValidMonitorFilterColumns(getWidgetFilterColumns(filterColumnsParams)),
-    [filterColumnsParams],
-  );
-
-  /** customSelectColumnIds is the set of filter columns that render a custom select control. */
-  const customSelectColumnIds = useMemo(
-    () => getWidgetColumnsWithCustomSelect(filterColumnsParams),
-    [filterColumnsParams],
   );
 
   /** measureOptions is the list of measure names available on the currently picked view. */
@@ -479,12 +291,12 @@ export const MonitorForm = ({
 
   namePlaceholderRef.current = namePlaceholder;
 
-  /** previewFilters translates the UI-table column filters into the view's dimension space for the preview query. */
+  /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
     () =>
-      mapWidgetUiTableFilterToView(
+      supportedViewFilters(
         (watched.view ?? "observations") as Parameters<
-          typeof mapWidgetUiTableFilterToView
+          typeof supportedViewFilters
         >[0],
         (watched.filters ?? []) as FilterState,
       ),
@@ -673,13 +485,12 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormLabel>Filters</FormLabel>
                       <FormControl>
-                        <InlineFilterBuilder
-                          columns={filterColumns}
-                          filterState={(field.value ?? []) as FilterState}
+                        <MetricsFilterBuilderV2
+                          view={(watched.view ?? "observations") as MonitorView}
+                          projectId={projectId}
+                          dateRange={{ from: filterOptionsLookbackFrom }}
+                          filters={(field.value ?? []) as FilterState}
                           onChange={(next: FilterState) => field.onChange(next)}
-                          columnsWithCustomSelect={customSelectColumnIds}
-                          stringObjectValueOptions={metadataValueOptions}
-                          onStringObjectKeyChange={onMetadataKeyChange}
                         />
                       </FormControl>
                       <FormMessage />
@@ -1203,5 +1014,4 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
-  buildFilterColumnsParams,
 };
