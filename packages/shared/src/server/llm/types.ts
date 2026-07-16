@@ -42,8 +42,16 @@ export const JSONSchemaFormSchema = z
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
+export const LLMToolNameSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
+  )
+  .min(1, "Name is required");
+
 export const LLMToolDefinitionSchema = z.object({
-  name: z.string(),
+  name: LLMToolNameSchema,
   description: z.string(),
   parameters: LLMJSONSchema,
 });
