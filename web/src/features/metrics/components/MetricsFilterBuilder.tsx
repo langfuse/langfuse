@@ -134,11 +134,6 @@ const MetricsFilterBuilderV2 = ({
     v2FilterOptionsQueryConfig,
   );
 
-  const metadataKeys = api.events.metadataKeys.useQuery(
-    { projectId, startTimeFilter },
-    v2FilterOptionsQueryConfig,
-  );
-
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
   const { metadataValueOptions, onMetadataKeyChange } = useMetadataValueOptions(
@@ -149,7 +144,9 @@ const MetricsFilterBuilderV2 = ({
     view,
     filterOptions: eventsFilterOptions.data,
     datasets: datasets.data,
-    metadataKeys: metadataKeys.data?.map((row) => row.value),
+    metadataKeys: eventsFilterOptions.data?.metadataKeys?.map(
+      (row) => row.value,
+    ),
   });
 
   return (

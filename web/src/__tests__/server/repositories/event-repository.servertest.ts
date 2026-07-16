@@ -945,6 +945,40 @@ describe("Clickhouse Events Repository Test", () => {
         expect(options.trace_scores_avg).toBeUndefined();
         expect(options.trace_score_categories).toBeUndefined();
         expect(options.trace_score_booleans).toBeUndefined();
+        expect(options.metadataKeys).toBeUndefined();
+      });
+    });
+
+    it("loads requested metadata key filter option column", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "metadata-filter-option-event",
+          metadata_names: ["region", "tier"],
+          metadata_values: ["us-east", "gold"],
+          start_time: now * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["metadataKeys"],
+        });
+
+        expect(options.metadataKeys?.map((key) => key.value)).toEqual(
+          expect.arrayContaining(["region", "tier"]),
+        );
+        expect(options.level).toBeUndefined();
+        expect(options.name).toBeUndefined();
       });
     });
 

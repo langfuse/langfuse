@@ -125,9 +125,13 @@ const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
   "trace_score_booleans",
 ] as const;
 
+// Metadata keys come from a distinct ClickHouse query, so they load lazily as their own group.
+const EVENT_METADATA_FILTER_OPTION_COLUMNS = ["metadataKeys"] as const;
+
 export const EVENT_FILTER_OPTIONS_COLUMNS = [
   ...EVENT_FILTER_OPTION_COLUMNS,
   ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
+  ...EVENT_METADATA_FILTER_OPTION_COLUMNS,
 ] as const;
 
 type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
@@ -556,6 +560,7 @@ export async function getEventFilterOptions(
   const shouldLoadTraceScoreBooleans = requestedColumns.has(
     "trace_score_booleans",
   );
+  const shouldLoadMetadataKeys = requestedColumns.has("metadataKeys");
 
   // Observation-scoped and trace-scoped discovery are kept separate so each
   // score column only offers names its filter/join can actually match.
@@ -567,6 +572,7 @@ export async function getEventFilterOptions(
     traceCategoricalScoreColumns,
     traceBooleanScoreColumns,
     eventFilterOptions,
+    metadataKeyRows,
   ] = await Promise.all([
     shouldLoadScoresAvg
       ? getNumericScoresGroupedByName(projectId, [
@@ -610,6 +616,9 @@ export async function getEventFilterOptions(
           filter: eventsFilter,
           columns: eventColumns,
         })
+      : Promise.resolve([]),
+    shouldLoadMetadataKeys
+      ? getEventsMetadataKeys({ projectId, filter: eventsFilter })
       : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
@@ -657,20 +666,15 @@ export async function getEventFilterOptions(
           ),
         }
       : {}),
+    ...(shouldLoadMetadataKeys
+      ? {
+          metadataKeys: metadataKeyRows.map((row) => ({
+            value: row.value,
+            count: row.count,
+          })),
+        }
+      : {}),
   };
-}
-
-/** getEventMetadataKeys returns the most common metadata key names for the events filter builder. */
-export async function getEventMetadataKeys(
-  params: GetObservationsFilterOptionsParams,
-): Promise<EventFilterValueOption[]> {
-  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
-  const { projectId } = scopedParams;
-  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
-
-  const rows = await getEventsMetadataKeys({ projectId, filter: eventsFilter });
-
-  return rows.map((row) => ({ value: row.value, count: row.count }));
 }
 
 /** getEventMetadataValues returns the most common values observed for one metadata key. */
