@@ -353,17 +353,13 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
-            // Don't retry on 4xx errors — they're client errors and never transient.
-            // 429 is excluded from this: rate limiting is expected to be transient
-            // and self-heal on retry (see the dedicated 429 handling in trpcErrorToast.tsx).
+            // Don't retry on 404s: a deleted/missing resource never appears via
+            // retry, so failing fast avoids piling up pointless refetches (and
+            // ClickHouse load for resources backed by it). Every other 4xx keeps
+            // the default retry/backoff — some (e.g. a route param that hasn't
+            // hydrated yet, a proxy-level 429) are transient and self-heal.
             retry: (failureCount, error) => {
-              const httpStatus = getHttpStatus(error);
-              if (
-                httpStatus !== undefined &&
-                httpStatus >= 400 &&
-                httpStatus < 500 &&
-                httpStatus !== 429
-              ) {
+              if (getHttpStatus(error) === 404) {
                 return false;
               }
               return failureCount < 3;
