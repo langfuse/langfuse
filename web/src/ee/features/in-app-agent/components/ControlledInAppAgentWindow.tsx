@@ -7,7 +7,10 @@ import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
-import { getInAppAgentQuickActionContext } from "@/src/ee/features/in-app-agent/quickActions";
+import {
+  getInAppAgentFocusedQuickActions,
+  getInAppAgentQuickActionContext,
+} from "@/src/ee/features/in-app-agent/quickActions";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -61,6 +64,12 @@ export function ControlledInAppAgentWindow(
     [router.asPath],
   );
   const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
+  const focusedQuickActions = getInAppAgentFocusedQuickActions(
+    screenContextDescription.type,
+  );
+  // Strip query and hash so peek views and filter changes on the same page do
+  // not reset the quick-action picker.
+  const quickActionResetKey = router.asPath.replace(/[?#].*$/, "");
 
   const drawerMessages = useMemo(
     () =>
@@ -87,7 +96,8 @@ export function ControlledInAppAgentWindow(
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
-      quickActionResetKey={router.asPath}
+      focusedQuickActions={focusedQuickActions}
+      quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}

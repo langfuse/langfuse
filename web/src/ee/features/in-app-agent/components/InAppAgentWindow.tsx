@@ -56,8 +56,10 @@ import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   IN_APP_AGENT_QUICK_ACTION_AREAS,
+  IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS,
   getInAppAgentQuickActionArea,
   getInAppAgentQuickActions,
+  isInAppAgentQuickActionArea,
   type InAppAgentQuickAction,
   type InAppAgentQuickActionArea,
   type InAppAgentQuickActionContext,
@@ -87,10 +89,12 @@ const QUICK_ACTION_AREA_ICONS: Record<InAppAgentQuickActionArea, LucideIcon> = {
 };
 
 function InAppAgentQuickActionPicker({
+  focusedActions,
   initialContext,
   isDisabled,
   onSelectAction,
 }: {
+  focusedActions?: readonly InAppAgentQuickAction[];
   initialContext: InAppAgentQuickActionContext;
   isDisabled: boolean;
   onSelectAction: (
@@ -101,15 +105,14 @@ function InAppAgentQuickActionPicker({
 }) {
   const initialArea = getInAppAgentQuickActionArea(initialContext);
   const [selectedArea, setSelectedArea] = useState(initialArea);
-  const selectedAreaDefinition =
-    IN_APP_AGENT_QUICK_ACTION_AREAS.find(
-      (area) => area.area === selectedArea,
-    ) ?? IN_APP_AGENT_QUICK_ACTION_AREAS[0];
   const selectedContext =
     selectedArea === initialArea
       ? initialContext
-      : selectedAreaDefinition.defaultContext;
-  const selectedActions = getInAppAgentQuickActions(selectedContext);
+      : IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[selectedArea].defaultContext;
+  const selectedActions =
+    selectedArea === initialArea && focusedActions
+      ? focusedActions
+      : getInAppAgentQuickActions(selectedContext);
   const ActionIcon = QUICK_ACTION_AREA_ICONS[selectedArea];
 
   return (
@@ -124,12 +127,8 @@ function InAppAgentQuickActionPicker({
         value={selectedArea}
         className="mt-5 w-full max-w-md"
         onValueChange={(value) => {
-          const selectedArea = IN_APP_AGENT_QUICK_ACTION_AREAS.find(
-            (area) => area.area === value,
-          );
-
-          if (selectedArea) {
-            setSelectedArea(selectedArea.area);
+          if (isInAppAgentQuickActionArea(value)) {
+            setSelectedArea(value);
           }
         }}
       >
@@ -139,13 +138,15 @@ function InAppAgentQuickActionPicker({
         >
           {IN_APP_AGENT_QUICK_ACTION_AREAS.map((area) => (
             <TabsTrigger
-              key={area.area}
-              value={area.area}
+              key={area}
+              value={area}
               disabled={isDisabled}
-              aria-label={area.label}
+              aria-label={
+                IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[area].label
+              }
               className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-8 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm tracking-[-0.04em] shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              {area.label}
+              {IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS[area].label}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -298,6 +299,7 @@ export type InAppAgentWindowProps = {
   }) => Promise<void>;
   screenContextDescription: InAppAgentScreenContextDescription;
   quickActionContext: InAppAgentQuickActionContext;
+  focusedQuickActions?: readonly InAppAgentQuickAction[];
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
@@ -387,6 +389,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    focusedQuickActions,
     quickActionContext,
     quickActionResetKey,
     screenContextDescription,
@@ -723,6 +726,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                  focusedActions={focusedQuickActions}
                   initialContext={quickActionContext}
                   isDisabled={isInputDisabled}
                   onSelectAction={(action, context, position) => {
@@ -940,7 +944,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isInputDisabled}
-              aria-label="Ask the assistant a question"
+              aria-label="Let me know what I can do for you"
               placeholder="Let me know what I can do for you..."
               rows={1}
               className={cn(

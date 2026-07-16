@@ -572,7 +572,6 @@ export const ToolApprovalRequired = meta.story({
 export const Empty = meta.story({
   args: {
     messages: [],
-    quickActionContext: "tracing",
   },
 });
 

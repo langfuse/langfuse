@@ -1,7 +1,9 @@
 import {
+  getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionArea,
   getInAppAgentQuickActionContext,
   getInAppAgentQuickActions,
+  isInAppAgentQuickActionId,
 } from "./quickActions";
 
 describe("contextual assistant quick actions", () => {
@@ -41,5 +43,76 @@ describe("contextual assistant quick actions", () => {
     expect(getInAppAgentQuickActions("datasets")).not.toEqual(
       getInAppAgentQuickActions("evaluators"),
     );
+  });
+
+  it("returns focused action sets for detail views and undefined for list views", () => {
+    expect(
+      getInAppAgentFocusedQuickActions("trace")?.map((action) => action.id),
+    ).toEqual([
+      "analyze-this-trace",
+      "summarize-this-trace",
+      "break-down-this-trace-cost",
+    ]);
+    expect(
+      getInAppAgentFocusedQuickActions("observation")?.map(
+        (action) => action.id,
+      ),
+    ).toEqual([
+      "analyze-this-observation",
+      "explain-this-generation",
+      "optimize-this-generation-cost",
+    ]);
+    expect(
+      getInAppAgentFocusedQuickActions("prompt")?.map((action) => action.id),
+    ).toEqual([
+      "review-prompt-best-practices",
+      "compare-prompt-versions",
+      "check-prompt-performance",
+    ]);
+    expect(getInAppAgentFocusedQuickActions("trace-list")).toBeUndefined();
+    expect(getInAppAgentFocusedQuickActions("page")).toBeUndefined();
+    expect(getInAppAgentFocusedQuickActions("datasetItem")).toBeUndefined();
+  });
+
+  it("keeps the coarse prompts set non-prompt-focused and distinct from the focused prompt set", () => {
+    const coarsePromptActionIds = getInAppAgentQuickActions("prompts").map(
+      (action) => action.id,
+    );
+    const focusedPromptActionIds = getInAppAgentFocusedQuickActions(
+      "prompt",
+    )?.map((action) => action.id);
+
+    expect(coarsePromptActionIds).toEqual([
+      "create-prompt",
+      "find-prompts-to-improve",
+      "review-prompt-usage",
+    ]);
+    expect(focusedPromptActionIds).toEqual([
+      "review-prompt-best-practices",
+      "compare-prompt-versions",
+      "check-prompt-performance",
+    ]);
+    expect(
+      coarsePromptActionIds.some((id) => focusedPromptActionIds?.includes(id)),
+    ).toBe(false);
+  });
+
+  it("accepts focused action ids for attribution validation", () => {
+    expect(isInAppAgentQuickActionId("analyze-this-trace", "tracing")).toBe(
+      true,
+    );
+    expect(
+      isInAppAgentQuickActionId("review-prompt-best-practices", "prompts"),
+    ).toBe(true);
+    expect(
+      isInAppAgentQuickActionId(
+        "set-up-experiment-on-this-dataset",
+        "datasets",
+      ),
+    ).toBe(true);
+    expect(isInAppAgentQuickActionId("analyze-this-trace", "prompts")).toBe(
+      false,
+    );
+    expect(isInAppAgentQuickActionId("unknown-action", "tracing")).toBe(false);
   });
 });

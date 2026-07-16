@@ -11,34 +11,25 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
 export type InAppAgentQuickActionContext =
   (typeof IN_APP_AGENT_QUICK_ACTION_CONTEXTS)[number];
 
-export type InAppAgentQuickActionArea =
-  | "observability"
-  | "dashboards"
-  | "prompts"
-  | "evaluation";
-
 export const IN_APP_AGENT_QUICK_ACTION_AREAS = [
-  {
-    area: "observability",
-    label: "Observability",
-    defaultContext: "tracing",
-  },
-  { area: "prompts", label: "Prompts", defaultContext: "prompts" },
-  {
-    area: "evaluation",
-    label: "Evaluation",
-    defaultContext: "evaluators",
-  },
-  {
-    area: "dashboards",
-    label: "Dashboard",
-    defaultContext: "dashboards",
-  },
-] as const satisfies readonly {
-  area: InAppAgentQuickActionArea;
-  label: string;
-  defaultContext: InAppAgentQuickActionContext;
-}[];
+  "observability",
+  "prompts",
+  "evaluation",
+  "dashboards",
+] as const;
+
+export type InAppAgentQuickActionArea =
+  (typeof IN_APP_AGENT_QUICK_ACTION_AREAS)[number];
+
+export const IN_APP_AGENT_QUICK_ACTION_AREA_DEFINITIONS: Record<
+  InAppAgentQuickActionArea,
+  { label: string; defaultContext: InAppAgentQuickActionContext }
+> = {
+  observability: { label: "Observability", defaultContext: "tracing" },
+  prompts: { label: "Prompts", defaultContext: "prompts" },
+  evaluation: { label: "Evaluation", defaultContext: "evaluators" },
+  dashboards: { label: "Dashboard", defaultContext: "dashboards" },
+};
 
 const QUICK_ACTION_AREA_BY_CONTEXT: Record<
   InAppAgentQuickActionContext,
@@ -75,9 +66,9 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "analyze-failure-patterns",
       label: "Analyze failure patterns",
-      description: "Find recurring causes behind failed traces",
+      description: "Run structured error analysis on failed traces",
       prompt:
-        "Analyze failed or low-scoring traces in the current view, group recurring failure patterns across their observations, and recommend what to fix first.",
+        "Run a structured error analysis on failed or low-scoring traces in the current view: sample representative traces, open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
     },
     {
       id: "summarize-trace-session",
@@ -112,41 +103,41 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "track-quality-scores",
       label: "Track quality scores",
-      description: "Track evaluation quality over time",
+      description: "Track evaluation scores over time",
       prompt:
         "Chart how my evaluation scores are trending over time and flag any scores that are declining.",
     },
   ],
   prompts: [
     {
-      id: "improve-prompt",
-      label: "Improve this prompt",
-      description: "Strengthen instructions, structure, and variables",
+      id: "create-prompt",
+      label: "Create a prompt",
+      description: "Add a new prompt to prompt management",
       prompt:
-        "Review the prompt currently in view and suggest concrete improvements to its structure, instructions, and variables while preserving its intent.",
+        "Help me create a new prompt in Langfuse prompt management, including choosing between a text and chat prompt, defining its variables, and setting a label.",
     },
     {
-      id: "compare-prompt-versions",
-      label: "Compare prompt versions",
-      description: "Review what changed and how versions perform",
+      id: "find-prompts-to-improve",
+      label: "Find prompts to improve",
+      description: "Spot prompts with weak performance",
       prompt:
-        "Compare recent versions of this prompt, summarize what changed between them, and how each version performs in production.",
+        "Across my prompts, identify which ones have declining scores, high latency, or high cost in production, and suggest which to improve first.",
     },
     {
-      id: "check-prompt-performance",
-      label: "Check prompt performance",
-      description: "Connect this prompt to latency, cost, and scores",
+      id: "review-prompt-usage",
+      label: "Review prompt usage",
+      description: "See which prompts drive production traffic",
       prompt:
-        "Find the traces that use this prompt and summarize its latency, cost, and score performance.",
+        "Summarize which prompts are used most in production, which versions are live, and their latency, cost, and score performance.",
     },
   ],
   evaluators: [
     {
       id: "set-up-evaluator",
       label: "Set up an evaluator",
-      description: "Create an LLM-as-a-judge evaluation",
+      description: "Create an evaluator from failure analysis",
       prompt:
-        "Walk me through setting up an LLM-as-a-judge evaluator, including picking a template, mapping variables, and choosing which data it runs on.",
+        "Run a structured error analysis on recent traces to identify recurring failure modes, then help me set up an LLM-as-a-judge evaluator that targets the top failure mode, including picking a template, mapping variables, and choosing which data it runs on.",
     },
     {
       id: "review-evaluator-results",
@@ -173,10 +164,10 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     },
     {
       id: "run-experiment",
-      label: "Run an experiment",
+      label: "Set up an experiment",
       description: "Compare prompt, model, or code changes",
       prompt:
-        "Explain how to run an experiment on this dataset to compare prompt, model, or code changes.",
+        "Explain how to set up an experiment on this dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
     },
     {
       id: "compare-experiment-runs",
@@ -191,6 +182,167 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
   readonly InAppAgentQuickAction[]
 >;
 
+export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
+  trace: [
+    {
+      id: "analyze-this-trace",
+      label: "Analyze this trace",
+      description: "Run structured error analysis on this trace",
+      prompt:
+        "Run a structured error analysis on this trace: review its observations and generations, identify failure modes, explain what went wrong, and recommend what to fix first.",
+    },
+    {
+      id: "summarize-this-trace",
+      label: "Summarize this trace",
+      description: "Get a plain-language recap of this execution",
+      prompt:
+        "Summarize this trace, including its execution sequence, generations, tool calls, errors, scores, and outcome.",
+    },
+    {
+      id: "break-down-this-trace-cost",
+      label: "Break down this trace's cost",
+      description: "See where latency and tokens add up",
+      prompt:
+        "Break down this trace's latency, token usage, and cost across its generation observations, and identify the largest drivers.",
+    },
+  ],
+  observation: [
+    {
+      id: "analyze-this-observation",
+      label: "Analyze this observation",
+      description: "Inspect this generation for issues",
+      prompt:
+        "Analyze this observation, including its input, output, errors, scores, and linked prompt version, and explain what went wrong or could be improved.",
+    },
+    {
+      id: "explain-this-generation",
+      label: "Explain this generation",
+      description: "Understand what this generation did",
+      prompt:
+        "Explain what this generation did, how it fits into the surrounding trace, and whether its output looks correct.",
+    },
+    {
+      id: "optimize-this-generation-cost",
+      label: "Optimize this generation's cost",
+      description: "Reduce tokens and latency for this step",
+      prompt:
+        "Review this generation's token usage, latency, and model choice, then suggest concrete ways to reduce cost or latency without hurting quality.",
+    },
+  ],
+  session: [
+    {
+      id: "summarize-this-session",
+      label: "Summarize this session",
+      description: "Get a plain-language recap of this session",
+      prompt:
+        "Summarize this session, including its traces, execution flow, errors, scores, and overall outcome.",
+    },
+    {
+      id: "analyze-this-session",
+      label: "Analyze this session",
+      description: "Find issues across this session's traces",
+      prompt:
+        "Analyze this session's traces for recurring failure patterns, quality issues, and unusual latency or cost, then recommend what to investigate next.",
+    },
+    {
+      id: "break-down-this-session-cost",
+      label: "Break down this session's cost",
+      description: "See where this session spends tokens",
+      prompt:
+        "Break down this session's token usage and cost across its traces and generations, and highlight the largest drivers.",
+    },
+  ],
+  prompt: [
+    {
+      id: "review-prompt-best-practices",
+      label: "Review with best practices",
+      description: "Check this prompt against Langfuse guidance",
+      prompt:
+        "Review this prompt against prompt engineering best practices and suggest concrete improvements to its structure, instructions, and variables while preserving its intent.",
+    },
+    {
+      id: "compare-prompt-versions",
+      label: "Compare prompt versions",
+      description: "Review how versions changed",
+      prompt:
+        "Compare recent versions of this prompt, summarize what changed between them, and how each version performs in production.",
+    },
+    {
+      id: "check-prompt-performance",
+      label: "Check prompt performance",
+      description: "Connect this prompt to latency, cost, and scores",
+      prompt:
+        "Find the traces that use this prompt and summarize its latency, cost, and score performance.",
+    },
+  ],
+  dataset: [
+    {
+      id: "add-items-to-this-dataset",
+      label: "Add items from traces",
+      description: "Populate this dataset from production traces",
+      prompt:
+        "Help me add representative production traces as items to this dataset so I can use it for experiments and evaluation.",
+    },
+    {
+      id: "set-up-experiment-on-this-dataset",
+      label: "Set up an experiment",
+      description: "Compare prompt, model, or code changes",
+      prompt:
+        "Explain how to set up an experiment on this dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
+    },
+    {
+      id: "review-this-dataset",
+      label: "Review this dataset",
+      description: "Assess coverage and quality of items",
+      prompt:
+        "Review this dataset's items for coverage, diversity, and quality, and recommend improvements before I run experiments or evaluations on it.",
+    },
+  ],
+  experimentRun: [
+    {
+      id: "summarize-this-experiment-run",
+      label: "Summarize this experiment run",
+      description: "Understand how this run performed",
+      prompt:
+        "Summarize this experiment run, including its configuration, scores, and how it compares to the dataset baseline.",
+    },
+    {
+      id: "compare-this-experiment-run",
+      label: "Compare to other runs",
+      description: "See how this run stacks up",
+      prompt:
+        "Compare this experiment run to other recent runs on the same dataset and summarize which configuration performed best.",
+    },
+    {
+      id: "investigate-this-experiment-run",
+      label: "Investigate this run's results",
+      description: "Find where this run succeeded or failed",
+      prompt:
+        "Investigate this experiment run's results, highlight the best and worst-performing items, and explain likely causes.",
+    },
+  ],
+} satisfies Record<string, readonly InAppAgentQuickAction[]>;
+
+const FOCUSED_SCREEN_CONTEXT_TYPES_BY_QUICK_ACTION_CONTEXT: Record<
+  InAppAgentQuickActionContext,
+  readonly (keyof typeof IN_APP_AGENT_FOCUSED_QUICK_ACTIONS)[]
+> = {
+  tracing: ["trace", "observation", "session"],
+  dashboards: [],
+  prompts: ["prompt"],
+  evaluators: [],
+  datasets: ["dataset", "experimentRun"],
+};
+
+// This section->context map and getInAppAgentScreenContextDescription() in
+// context.ts are two parallel classifiers of the same project URL (both parse
+// via getInAppAgentProjectRoute). This one is COARSE: section -> one of five
+// quick-action areas. The other is GRANULAR: single entity vs list view, and
+// collapses non-entity sections (scores, evals, annotation-queues, dashboards,
+// widgets, playground, experiments, users, monitors) to `page`, so it cannot
+// replace this map without regressing those areas to the `tracing` fallback.
+// Follow-up: merge the two into one section-aware classifier that yields both
+// the coarse area and the granular description in a single pass.
 const QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION: Record<
   string,
   InAppAgentQuickActionContext
@@ -227,6 +379,36 @@ export function getInAppAgentQuickActions(
   return IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT[context];
 }
 
+export function getInAppAgentFocusedQuickActions(
+  screenContextType: string,
+): readonly InAppAgentQuickAction[] | undefined {
+  if (!(screenContextType in IN_APP_AGENT_FOCUSED_QUICK_ACTIONS)) {
+    return undefined;
+  }
+
+  return IN_APP_AGENT_FOCUSED_QUICK_ACTIONS[
+    screenContextType as keyof typeof IN_APP_AGENT_FOCUSED_QUICK_ACTIONS
+  ];
+}
+
+export function isInAppAgentQuickActionId(
+  actionId: string,
+  context: InAppAgentQuickActionContext,
+): boolean {
+  if (
+    getInAppAgentQuickActions(context).some((action) => action.id === actionId)
+  ) {
+    return true;
+  }
+
+  return FOCUSED_SCREEN_CONTEXT_TYPES_BY_QUICK_ACTION_CONTEXT[context].some(
+    (screenContextType) =>
+      getInAppAgentFocusedQuickActions(screenContextType)?.some(
+        (action) => action.id === actionId,
+      ),
+  );
+}
+
 export function getInAppAgentQuickActionArea(
   context: InAppAgentQuickActionContext,
 ): InAppAgentQuickActionArea {
@@ -239,4 +421,10 @@ export function isInAppAgentQuickActionContext(
   return IN_APP_AGENT_QUICK_ACTION_CONTEXTS.some(
     (context) => context === value,
   );
+}
+
+export function isInAppAgentQuickActionArea(
+  value: string,
+): value is InAppAgentQuickActionArea {
+  return IN_APP_AGENT_QUICK_ACTION_AREAS.some((area) => area === value);
 }

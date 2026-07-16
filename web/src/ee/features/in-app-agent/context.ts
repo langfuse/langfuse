@@ -1,7 +1,7 @@
 import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
 import {
-  getInAppAgentQuickActions,
   isInAppAgentQuickActionContext,
+  isInAppAgentQuickActionId,
   type InAppAgentQuickActionAttribution,
 } from "@/src/ee/features/in-app-agent/quickActions";
 import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
@@ -47,6 +47,14 @@ const USER_CONTEXT_DESCRIPTIONS = new Set([
   "browser_languages",
 ]);
 
+// GRANULAR classifier of a project URL (single entity vs list view), used for
+// the screen-context banner and to pick focused quick actions. Runs in parallel
+// with the COARSE section->area map QUICK_ACTION_CONTEXT_BY_PROJECT_SECTION in
+// quickActions.ts; both parse via getInAppAgentProjectRoute. This one collapses
+// non-entity sections to `page`, so it deliberately carries less section
+// identity than the coarse map.
+// Follow-up: merge the two into one section-aware classifier that yields both
+// the coarse area and the granular description in a single pass.
 export function getInAppAgentScreenContextDescription(
   currentUrl: string,
 ): InAppAgentScreenContextDescription {
@@ -246,11 +254,7 @@ export function getInAppAgentQuickActionAttribution(
     return undefined;
   }
 
-  if (
-    !getInAppAgentQuickActions(quickActionContext).some(
-      (action) => action.id === actionId,
-    )
-  ) {
+  if (!isInAppAgentQuickActionId(actionId, quickActionContext)) {
     return undefined;
   }
 
