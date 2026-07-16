@@ -5,13 +5,14 @@ packages:
   - "packages/**"
   - "ee"
 catalog:
-  "@aws-sdk/client-cloudwatch": 3.1056.0
-  "@aws-sdk/client-lambda": 3.1056.0
-  "@aws-sdk/client-s3": 3.1056.0
-  "@aws-sdk/client-sesv2": 3.1056.0
-  "@aws-sdk/credential-providers": 3.1056.0
-  "@aws-sdk/lib-storage": 3.1056.0
-  "@aws-sdk/s3-request-presigner": 3.1056.0
+  "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-lambda": 3.1074.0
+  "@aws-sdk/client-lambda-microvms": 3.1074.0
+  "@aws-sdk/client-s3": 3.1074.0
+  "@aws-sdk/client-sesv2": 3.1074.0
+  "@aws-sdk/credential-providers": 3.1074.0
+  "@aws-sdk/lib-storage": 3.1074.0
+  "@aws-sdk/s3-request-presigner": 3.1074.0
   typescript: ^6.0.3
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
@@ -37,6 +38,8 @@ allowBuilds:
   protobufjs: false
   "@datadog/pprof": false
   "@scarf/scarf": false
+  cpu-features: true
+  ssh2: true
 overrides:
   esbuild: "0.28.1"
   "undici@7": 7.28.0
