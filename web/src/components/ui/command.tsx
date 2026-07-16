@@ -17,7 +17,7 @@ import {
   DialogHeader,
 } from "@/src/components/ui/dialog";
 
-const commandDialogSurfaceClass = "bg-popover";
+const commandDialogSurfaceClass = "bg-modal";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -49,10 +49,10 @@ const CommandDialog = ({
           // Dark-mode depth: two near-black ambient layers (background is 6%
           // lightness in dark mode, visually black at these alphas) plus a
           // faint foreground-tinted hairline ring.
-          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
+          "dark:border-border-contrast/70 top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden rounded-xl border p-0 shadow-2xl sm:max-w-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9),0_0_0_1px_hsl(var(--foreground)/0.1)]",
         )}
         closeOnInteractionOutside
-        overlayMode="invisible"
+        overlayMode="blocking"
       >
         <DialogHeader className="sr-only p-0">
           <DialogTitle>Search</DialogTitle>
@@ -62,7 +62,7 @@ const CommandDialog = ({
             filter={filter}
             className={cn(
               commandDialogSurfaceClass,
-              "**:[[cmdk-group-heading]]:text-muted-foreground pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-bold **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12",
+              "**:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:font-regular pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-14",
             )}
           >
             {children}
@@ -86,7 +86,7 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="absolute top-1/2 left-2 mr-2 h-3.5 w-3.5 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search className="absolute top-1/2 left-3 mr-2 h-4 w-4 shrink-0 -translate-y-1/2 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
@@ -106,7 +106,7 @@ const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn("max-h-[300px] overflow-x-hidden overflow-y-auto", className)}
+    className={cn("max-h-[420px] overflow-x-hidden overflow-y-auto", className)}
     {...props}
   />
 ));
@@ -133,7 +133,7 @@ const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      "text-foreground **:[[cmdk-group-heading]]:text-muted-foreground overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-bold",
+      "text-foreground **:[[cmdk-group-heading]]:text-muted-foreground **:[[cmdk-group-heading]]:font-regular overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs",
       className,
     )}
     {...props}
@@ -162,7 +162,7 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-3 rounded-md px-3 py-2.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
     )}
     {...props}
   />
@@ -171,7 +171,15 @@ const CommandItem = React.forwardRef<
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
 const CommandShortcut = ({ className, ...props }: KeyboardShortcutProps) => {
-  return <KeyboardShortcut className={cn("ml-auto", className)} {...props} />;
+  return (
+    <KeyboardShortcut
+      className={cn(
+        "border-border-contrast/60 font-regular ml-auto h-6 min-w-6 bg-transparent text-xs",
+        className,
+      )}
+      {...props}
+    />
+  );
 };
 CommandShortcut.displayName = "CommandShortcut";
 
