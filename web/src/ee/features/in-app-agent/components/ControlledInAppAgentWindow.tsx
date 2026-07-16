@@ -12,6 +12,9 @@ import {
   getInAppAgentQuickActionContext,
 } from "@/src/ee/features/in-app-agent/quickActions";
 
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
@@ -51,14 +54,22 @@ export function ControlledInAppAgentWindow(
     rejectToolCall,
     selectConversation,
     selectedConversationId,
+    selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
     isRunning ||
     isSubmitting ||
+    selectedConversationIsWriteLocked ||
     isSelectedConversationHydrating ||
     pendingToolApprovals.length > 0;
+  const displayError = selectedConversationIsWriteLocked
+    ? ({
+        type: "generic",
+        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      } as const)
+    : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
@@ -89,11 +100,12 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={error}
+      error={displayError}
       isAssistantTurnInProgress={isRunning || pendingToolApprovals.length > 0}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
+      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}

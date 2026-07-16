@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type FullEventsObservation,
   type FullEventsObservations,
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
@@ -18,6 +19,7 @@ export {
   StringObjectFilter,
   NullFilter,
   encodeBooleanScoreEntry,
+  filtersRequireEventsFull,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 export {
@@ -88,8 +90,16 @@ export {
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
+  buildEventsBlobExportStreamQuery,
   buildEventsStreamQuery,
-  eventSearchCondition,
   type EventsStreamQuery,
   type EventsStreamQueryInput,
 } from "./clickhouse-sql/events-stream-query";
+export {
+  buildEventsObservationRowSelection,
+  eventSearchCondition,
+  groupEventsObservationFilters,
+  type EventsObservationFilterGroups,
+  type EventsObservationRowSelectionInput,
+} from "./clickhouse-sql/events-observation-row-selection";
+export { extractTimeFilter } from "./clickhouse-sql/filter-utils";
