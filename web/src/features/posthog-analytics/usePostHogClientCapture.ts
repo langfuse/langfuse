@@ -38,6 +38,9 @@ export const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
+    // `source` distinguishes the inline expand/collapse button from the
+    // trace settings switch; `collapsed` is the new preference value.
+    "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
