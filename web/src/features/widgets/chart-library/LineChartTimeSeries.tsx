@@ -204,6 +204,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   thresholds,
   missingValue = "gap",
   connectNulls = false,
+  hideXAxisLabels = false,
 }) => {
   const metricExtent = useMemo(() => computeMetricExtent(data), [data]);
 
@@ -239,8 +240,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
+        { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks],
+    [groupedData, maxTicks, hideXAxisLabels],
   );
 
   const {

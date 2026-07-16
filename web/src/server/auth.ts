@@ -1,7 +1,6 @@
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
-  type User,
   type NextAuthOptions,
   type Session,
 } from "next-auth";
@@ -38,6 +37,7 @@ import WorkOSProvider from "next-auth/providers/workos";
 import WordPressProvider from "next-auth/providers/wordpress";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
+import { nextAuthLogger } from "./utils/nextAuthLogger";
 import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
@@ -123,7 +123,7 @@ const staticProviders: Provider[] = [
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
 
-      const userObj: User = {
+      const userObj = {
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
@@ -739,6 +739,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
+    logger: nextAuthLogger,
     session: {
       strategy: "jwt",
       maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs

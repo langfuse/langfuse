@@ -85,6 +85,7 @@ import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import {
   getTraceById,
+  getTraceByIdFromEventsTable,
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
@@ -405,6 +406,14 @@ export const requireLangfuseCloud = t.middleware(({ next }) => {
   return next();
 });
 
+/** requireV4Writes rejects calls from deployments without v4 event tables */
+export const requireV4Writes = t.middleware(({ next }) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return next();
+});
+
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
@@ -499,20 +508,44 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
+  const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
-  const clickhouseTrace = traceId
+  let clickhouseTrace = traceId
     ? // eslint-disable-next-line @typescript-eslint/no-deprecated
       await getTraceById({
         traceId,
         projectId,
-        timestamp: timestamp ?? undefined,
-        fromTimestamp: fromTimestamp ?? undefined,
+        timestamp: isEventsOnly ? undefined : (timestamp ?? undefined),
+        fromTimestamp:
+          fromTimestamp ?? (isEventsOnly ? timestamp : undefined) ?? undefined,
         renderingProps: {
           truncated: verbosity === "truncated",
           shouldJsonParse: false, // we do not want to parse the input/output for tRPC
         },
       })
     : null;
+
+  // In dual write mode the lookup above reads the legacy traces table, but
+  // internally produced traces (e.g. code-eval execution traces) were written
+  // to the events tables only — fall back so trace-level auth does not 404 on
+  // a trace the events-backed views can render (LFE-10884). The timestamp can
+  // identify a clicked observation, so use it as a bounded lookup anchor rather
+  // than as the synthesized trace timestamp (LFE-10947).
+  if (
+    traceId &&
+    !clickhouseTrace &&
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual"
+  ) {
+    clickhouseTrace = await getTraceByIdFromEventsTable({
+      traceId,
+      projectId,
+      fromTimestamp: fromTimestamp ?? timestamp ?? undefined,
+      renderingProps: {
+        truncated: verbosity === "truncated",
+        shouldJsonParse: false,
+      },
+    });
+  }
 
   if (traceId && !clickhouseTrace) {
     logger.error(`Trace with id ${traceId} not found for project ${projectId}`);

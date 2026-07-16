@@ -1,5 +1,4 @@
 import { prisma } from "../../db";
-import { Readable } from "stream";
 import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
@@ -34,7 +33,10 @@ import {
   DateTimeFilter,
   type Filter,
   FilterList,
+  type FullEventsObservation,
   FullEventsObservations,
+  buildEventsObservationRowSelection,
+  extractTimeFilter,
   orderByToClickhouseSql,
   orderByToEntries,
   createPublicApiObservationsColumnMapping,
@@ -48,20 +50,14 @@ import {
   ObservationPriceFields,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import type {
-  EventsTableFilterState,
-  FilterCondition,
-  FilterState,
-} from "../../types";
+import type { EventsTableFilterState, FilterState } from "../../types";
 import type { TracingSearchType } from "../../interfaces/search";
 import {
-  eventsScoresAggregation,
   eventsSessionsAggregation,
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   eventsTableNativeUiColumnDefinitions,
   eventsTableUiColumnDefinitions,
@@ -174,31 +170,42 @@ type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   "trace_tags" | "trace_name" | "trace_user_id"
 >;
 
-const EVENT_SEARCH_COLUMNS = [
-  "span_id",
-  "name",
-  "trace_name",
-  "user_id",
-  "session_id",
-  "trace_id",
-] as const;
+/**
+ * Extra row fields present when the query ran with an `ioSizeCap`
+ * (EventsQueryBuilder.selectIOWithSizeCap). ClickHouse returns UInt64 as
+ * string and the exists-flag as 0/1.
+ */
+type IOSizeCapRowFields = {
+  input_length: string;
+  output_length: string;
+  metadata_truncated: 0 | 1;
+  metadata_length: string;
+};
 
-const eventSearchCondition = (opts: {
-  query?: string;
-  searchType?: TracingSearchType[];
-}) =>
-  clickhouseSearchCondition({
-    query: opts.query,
-    searchType: opts.searchType,
-    tablePrefix: "e",
-    searchColumns: EVENT_SEARCH_COLUMNS,
-    useEventsTablePath: true,
-  });
+/**
+ * Caller-facing truncation summary attached to observations fetched with an
+ * `ioSizeCap`: true field lengths (UTF-8 code points) plus flags telling a
+ * preview head apart from full content.
+ */
+export type ObservationIOSizeFields = {
+  inputLength: number;
+  outputLength: number;
+  inputTruncated: boolean;
+  outputTruncated: boolean;
+  metadataTruncated: boolean;
+  /** Shipped (capped) metadata weight in chars — for response budgeting. */
+  metadataLength: number;
+};
 
 /**
  * Internal helper: enrich observations with model pricing data
  * Uses events-specific converter to include userId and sessionId
  * Supports both V1 (complete observations) and V2 (partial observations with field groups)
+ *
+ * CONTRACT: a 1:1 order-preserving map over observationRecords — never
+ * filter, deduplicate, or reorder here. The ioSizeCap path in
+ * getObservationsWithModelDataFromEventsTable zips row-extra columns back on
+ * by index and asserts the row count.
  *
  * @param observationRecords - Raw observation records from ClickHouse
  * @param projectId - Project ID for model lookup
@@ -304,6 +311,12 @@ async function enrichObservationsWithModelData(
   });
 }
 
+/**
+ * CONTRACT: a 1:1 order-preserving map — never filter, deduplicate, or
+ * reorder here. The ioSizeCap path in
+ * getObservationsWithModelDataFromEventsTable zips row-extra columns back on
+ * by index and asserts the row count.
+ */
 async function enrichObservationsWithTraceFields(
   observationRecords: Array<EventsObservation & ObservationPriceFields>,
 ): Promise<FullEventsObservations> {
@@ -325,31 +338,6 @@ async function enrichObservationsWithTraceFields(
         : null,
     };
   });
-}
-
-/**
- * Internal helper: extract and convert time filter from FilterList
- * Common pattern: find time filter and convert to ClickHouse DateTime format
- */
-export function extractTimeFilter(
-  filter: FilterList,
-  tableName: "events_proto" | "traces" = "events_proto",
-  fieldName: "start_time" | "timestamp" = "start_time",
-  prefix?: "e" | "t",
-): string | null {
-  const timeFilter = filter.find(
-    (f) =>
-      // For events tables, match any events_* prefix (events_proto, events_core, events_full)
-      (tableName === "events_proto"
-        ? f.clickhouseTable.startsWith("events_")
-        : f.clickhouseTable === tableName) &&
-      f.field === (prefix ? `${prefix}.${fieldName}` : fieldName) &&
-      (f.operator === ">=" || f.operator === ">"),
-  );
-
-  return timeFilter
-    ? convertDateToClickhouseDateTime((timeFilter as DateTimeFilter).value)
-    : null;
 }
 
 /**
@@ -516,16 +504,23 @@ export const getObservationsCountsFromEventsTable = async (
   };
 };
 
-export const getObservationsWithModelDataFromEventsTable = async (
+export async function getObservationsWithModelDataFromEventsTable(
+  opts: ObservationTableQuery & {
+    ioSizeCap: NonNullable<ObservationTableQuery["ioSizeCap"]>;
+  },
+): Promise<Array<FullEventsObservation & ObservationIOSizeFields>>;
+export async function getObservationsWithModelDataFromEventsTable(
   opts: ObservationTableQuery,
-): Promise<FullEventsObservations> => {
-  const observationRecords =
-    await getObservationsFromEventsTableInternal<ObservationsTableQueryResultWitouhtTraceFields>(
-      {
-        ...opts,
-        select: "rows",
-      },
-    );
+): Promise<FullEventsObservations>;
+export async function getObservationsWithModelDataFromEventsTable(
+  opts: ObservationTableQuery,
+): Promise<FullEventsObservations> {
+  const observationRecords = await getObservationsFromEventsTableInternal<
+    ObservationsTableQueryResultWitouhtTraceFields & Partial<IOSizeCapRowFields>
+  >({
+    ...opts,
+    select: "rows",
+  });
 
   const withModelData: Array<EventsObservation & ObservationPriceFields> =
     await enrichObservationsWithModelData(
@@ -535,8 +530,36 @@ export const getObservationsWithModelDataFromEventsTable = async (
       null, // V1 path: always enrich all fields
     );
 
-  return enrichObservationsWithTraceFields(withModelData);
-};
+  const enriched = await enrichObservationsWithTraceFields(withModelData);
+
+  if (!opts.ioSizeCap) return enriched;
+
+  // Zip the size fields back on BY ROW ORDER: both enrichers above are 1:1
+  // order-preserving maps over the records (a documented contract on each).
+  // Never zip by id — un-merged ReplacingMergeTree versions of one span
+  // return multiple rows sharing an id, and an id-keyed lookup would attach
+  // one version's lengths to another version's payload.
+  if (enriched.length !== observationRecords.length) {
+    throw new Error(
+      "getObservationsWithModelDataFromEventsTable: enrichment changed the row count; the ioSizeCap zip requires 1:1 order-preserving enrichers",
+    );
+  }
+  const { inlineChars } = opts.ioSizeCap;
+  return enriched.map((observation, index) => {
+    const record = observationRecords[index];
+    const inputLength = Number(record.input_length ?? 0);
+    const outputLength = Number(record.output_length ?? 0);
+    return {
+      ...observation,
+      inputLength,
+      outputLength,
+      inputTruncated: inputLength > inlineChars,
+      outputTruncated: outputLength > inlineChars,
+      metadataTruncated: Boolean(Number(record.metadata_truncated ?? 0)),
+      metadataLength: Number(record.metadata_length ?? 0),
+    };
+  });
+}
 
 export const getTraceDeleteCursorPageFromEvents = async (props: {
   projectId: string;
@@ -625,46 +648,20 @@ async function getObservationsFromEventsTableInternal<T>(
     ...filter.filter((f) => f.type !== "positionInTrace"),
   ];
 
-  // Build filter list from baseFilter (without positionInTrace)
-  const observationsFilter = new FilterList(
-    createFilterFromFilterState(
-      baseFilter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const startTimeFrom = extractTimeFilter(observationsFilter);
-  const hasObservationScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "scores" ||
-      column === "scores_avg" ||
-      column === "score_categories" ||
-      column === "score_booleans" ||
-      column === "scores (numeric)" ||
-      column === "scores (categorical)" ||
-      column === "scores (boolean)"
-    );
-  });
-  const hasTraceScoresFilter = baseFilter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "trace_scores_avg" ||
-      column === "trace_score_categories" ||
-      column === "trace_score_booleans" ||
-      column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)" ||
-      column === "trace scores (boolean)"
-    );
-  });
   const orderByEntries = orderByToEntries(
     [orderBy ?? null],
     eventsTableUiColumnDefinitions,
   );
 
+  // Build filter list from baseFilter (without positionInTrace)
   // Build query using EventsQueryBuilder
-  const queryBuilder = new EventsQueryBuilder({ projectId });
+  const { queryBuilder, search } = buildEventsObservationRowSelection({
+    projectId,
+    filter: baseFilter,
+    searchQuery: opts.searchQuery,
+    searchType: opts.searchType,
+    scoreFilterCapabilities: { observation: true, trace: true },
+  });
 
   if (opts.select === "count") {
     queryBuilder.selectFieldSet("count");
@@ -682,19 +679,24 @@ async function getObservationsFromEventsTableInternal<T>(
       "calculated",
     );
     if (selectIOAndMetadata) {
-      queryBuilder
-        .selectIO(
-          renderingProps.truncated,
-          env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
-        )
-        .selectFieldSet("metadata");
+      if (opts.ioSizeCap) {
+        queryBuilder
+          .selectIOWithSizeCap(
+            opts.ioSizeCap.inlineChars,
+            opts.ioSizeCap.previewChars,
+          )
+          .selectFieldSet("metadata");
+      } else {
+        queryBuilder
+          .selectIO(
+            renderingProps.truncated,
+            env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
+          )
+          .selectFieldSet("metadata");
+      }
     }
   }
 
-  const search = eventSearchCondition({
-    query: opts.searchQuery,
-    searchType: opts.searchType,
-  });
   const isTraceDeleteCursorSelect = opts.select === "trace-delete-cursor";
 
   // Handle positionInTrace via CTE with ROW_NUMBER()
@@ -742,42 +744,29 @@ async function getObservationsFromEventsTableInternal<T>(
   }
 
   queryBuilder
-    .when(hasObservationScoresFilter, (b) =>
-      b.withCTE(
-        "scores_agg",
-        eventsScoresAggregation({ projectId, startTimeFrom }),
-      ),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.withCTE(
-        "trace_scores_agg",
-        eventsTracesScoresAggregation({
-          projectId,
-          startTimeFrom,
-          hasScoreAggregationFilters: true,
-        }),
-      ),
-    )
-    .when(hasObservationScoresFilter, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .when(hasTraceScoresFilter, (b) =>
-      b.leftJoin(
-        "trace_scores_agg AS ts",
-        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-      ),
-    )
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .applyFilters(observationsFilter)
-    .where(search)
     .when(isTraceDeleteCursorSelect, (b) =>
       applyObservationsCursorFilter(opts.cursor, b),
     )
     .when(isTraceDeleteCursorSelect, (b) =>
       applyOrderByForObservationsQuery(b).limitBy("e.trace_id", "e.project_id"),
     )
-    .when(!isTraceDeleteCursorSelect && orderByEntries.length > 0, (b) =>
-      b.orderByColumns(orderByEntries),
+    .when(
+      !isTraceDeleteCursorSelect &&
+        (orderByEntries.length > 0 || Boolean(opts.dedupeBySpanId)),
+      (b) =>
+        b.orderByColumns(
+          opts.dedupeBySpanId
+            ? // event_ts DESC within the caller's order so LIMIT 1 BY keeps
+              // the newest version of each span.
+              [
+                ...orderByEntries,
+                { column: "e.event_ts", direction: "DESC" as const },
+              ]
+            : orderByEntries,
+        ),
+    )
+    .when(!isTraceDeleteCursorSelect && Boolean(opts.dedupeBySpanId), (b) =>
+      b.limitBy("e.span_id", "e.project_id"),
     )
     .limit(limit, isTraceDeleteCursorSelect ? undefined : offset);
 
@@ -868,143 +857,6 @@ export const getObservationByIdFromEventsTable = async ({
     );
   }
   return mapped.shift();
-};
-
-/**
- * Lightweight event stream for batch observation evaluation.
- * Selects the eval field set and maps ClickHouse aliases toward ObservationForEval.
- */
-export const getEventsStreamForEval = async (props: {
-  projectId: string;
-  cutoffCreatedAt?: Date;
-  filter: FilterCondition[] | null;
-  searchQuery?: string;
-  searchType?: TracingSearchType[];
-  rowLimit: number;
-}): Promise<Readable> => {
-  const {
-    projectId,
-    cutoffCreatedAt,
-    filter = [],
-    searchQuery,
-    searchType,
-    rowLimit,
-  } = props;
-
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const filterConditions: FilterCondition[] = [...eventOnlyFilters];
-  if (cutoffCreatedAt) {
-    filterConditions.push({
-      column: "startTime",
-      operator: "<",
-      value: cutoffCreatedAt,
-      type: "datetime",
-    });
-  }
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      filterConditions,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = eventSearchCondition({
-    query: searchQuery,
-    searchType,
-  });
-
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("eval")
-    .selectIO(false)
-    .selectFieldSet("metadata")
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  type EvalEventRow = {
-    id: string;
-    trace_id: string;
-    project_id: string;
-    parent_observation_id: string | null;
-    type: string;
-    name: string | null;
-    environment: string | null;
-    version: string | null;
-    level: string;
-    status_message: string | null;
-    trace_name: string | null;
-    user_id: string | null;
-    session_id: string | null;
-    tags: string[];
-    release: string | null;
-    provided_model_name: string | null;
-    model_parameters: unknown;
-    prompt_id: string | null;
-    prompt_name: string | null;
-    prompt_version: number | null;
-    provided_usage_details: Record<string, number>;
-    usage_details: Record<string, number>;
-    provided_cost_details: Record<string, number>;
-    cost_details: Record<string, number>;
-    tool_definitions: Record<string, unknown>;
-    tool_calls: unknown[];
-    tool_call_names: string[];
-    input: unknown;
-    output: unknown;
-    metadata: Record<string, unknown> | null;
-    experiment_id: string | null;
-    experiment_item_root_span_id: string | null;
-    experiment_item_expected_output: string | null;
-    experiment_item_metadata: Record<string, unknown> | null;
-  };
-
-  const asyncGenerator = queryClickhouseStream<EvalEventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs: {
-      request_timeout: 180_000,
-      clickhouse_settings: {
-        http_send_timeout: 300,
-        http_receive_timeout: 300,
-      },
-    },
-    tags: { projectId },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  // Remap ClickHouse aliases to schema field names.
-  // Schema validation is left to the consumer so per-row errors can be handled gracefully.
-  return Readable.from(
-    (async function* () {
-      for await (const row of asyncGenerator) {
-        yield {
-          ...row,
-          span_id: row.id,
-          parent_span_id: row.parent_observation_id,
-        };
-      }
-    })(),
-  );
 };
 
 async function getObservationByIdFromEventsTableInternal({
@@ -2614,6 +2466,82 @@ export const getObservationsBatchIOFromEventsTable = async <
         }
       : {}),
   })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
+};
+
+/**
+ * Full raw I/O + metadata for ONE observation, scoped to a session (the
+ * session-detail download fallback for payloads too large to render inline,
+ * LFE-10958). Callers are session-authorized (public sessions included), so
+ * the session_id predicate is part of the authorization: the query itself
+ * guarantees the observation belongs to that session — never widen it.
+ */
+export const getObservationFullIOForSessionFromEventsTable = async (opts: {
+  projectId: string;
+  sessionId: string;
+  traceId: string;
+  observationId: string;
+  /** The observation's startTime; bounds the read for primary-key pruning. */
+  startTime: Date;
+}): Promise<{
+  id: string;
+  input: string | null;
+  output: string | null;
+  metadata: MetadataDomain;
+} | null> => {
+  // ±1s around start_time prunes on the primary key
+  // (project_id, toStartOfMinute(start_time), xxHash32(trace_id)).
+  const minTimestamp = new Date(opts.startTime.getTime() - 1000);
+  const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
+
+  const query = `
+    SELECT
+      e.span_id as id,
+      e.input as input,
+      e.output as output,
+      mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)) as metadata
+    FROM events_full e
+    WHERE e.project_id = {projectId: String}
+      AND e.session_id = {sessionId: String}
+      AND xxHash32(e.trace_id) = xxHash32({traceId: String})
+      AND e.trace_id = {traceId: String}
+      AND e.span_id = {observationId: String}
+      AND e.start_time >= {minTimestamp: DateTime64(3)}
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}
+    ORDER BY e.event_ts DESC
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{
+    id: string;
+    input: string | null;
+    output: string | null;
+    metadata: Record<string, string>;
+  }>({
+    query,
+    params: {
+      projectId: opts.projectId,
+      sessionId: opts.sessionId,
+      traceId: opts.traceId,
+      observationId: opts.observationId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: { projectId: opts.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    input: applyBatchIOStringRendering(row.input),
+    output: applyBatchIOStringRendering(row.output),
+    metadata:
+      row.metadata !== undefined
+        ? parseMetadataCHRecordToDomain(row.metadata)
+        : {},
+  };
 };
 
 /**
