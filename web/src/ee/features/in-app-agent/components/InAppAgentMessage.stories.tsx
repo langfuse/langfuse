@@ -292,17 +292,86 @@ export const ToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify({ view: "observations" }),
           result: JSON.stringify({ data: [{ count_count: 0 }] }),
         },
         {
           type: "tool",
           name: "langfuse_getTraces",
+          status: "succeeded",
           args: JSON.stringify({ limit: 10 }),
           result: JSON.stringify({ data: [] }),
         },
       ],
     },
+  },
+});
+
+export const MixedToolCallStatuses = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          status: "succeeded",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 42 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          status: "failed",
+          args: JSON.stringify({ limit: 10 }),
+          error: "Failed to load traces: missing project access.",
+        },
+        {
+          type: "tool",
+          name: "langfuse_upsertDataset",
+          status: "denied",
+          args: JSON.stringify({ name: "regression-examples" }),
+          result: "Tool call was not approved by the user.",
+          error: "Tool call was not approved by the user.",
+        },
+      ],
+    },
+  },
+});
+
+export const CompactMixedToolCallStatuses = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          status: "succeeded",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 42 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          status: "failed",
+          args: JSON.stringify({ limit: 10 }),
+          error: "Failed to load traces: missing project access.",
+        },
+        {
+          type: "tool",
+          name: "langfuse_upsertDataset",
+          status: "denied",
+          args: JSON.stringify({ name: "regression-examples" }),
+          result: "Tool call was not approved by the user.",
+          error: "Tool call was not approved by the user.",
+        },
+      ],
+    },
+    isCompact: true,
   },
 });
 
@@ -315,6 +384,7 @@ export const SingleToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify(
             {
               view: "observations",
@@ -373,12 +443,14 @@ export const LoadingToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify({ view: "observations" }),
           result: JSON.stringify({ data: [{ count_count: 0 }] }),
         },
         {
           type: "tool",
           name: "langfuse_getTraces",
+          status: "running",
           args: JSON.stringify({ limit: 10 }),
         },
       ],

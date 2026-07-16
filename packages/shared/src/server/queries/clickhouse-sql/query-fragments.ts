@@ -259,11 +259,15 @@ export const eventsSessionsAggregation = (params: {
   projectId: string;
   sessionIds?: string[];
   startTimeFrom?: string | null;
+  includeMetadata?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("all")
+    .selectFieldSet("base")
+    .when(Boolean(params.includeMetadata), (builder) =>
+      builder.selectFieldSet("metadata"),
+    )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
     .whereRaw("session_id != ''");

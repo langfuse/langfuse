@@ -1,6 +1,12 @@
 import { Rng } from "./rng";
 
-export type PayloadStyle = "json" | "text" | "malformed" | "unicode" | "bignum";
+export type PayloadStyle =
+  | "json"
+  | "text"
+  | "malformed"
+  | "unicode"
+  | "bignum"
+  | "base64";
 
 export const PAYLOAD_STYLES: PayloadStyle[] = [
   "json",
@@ -8,6 +14,7 @@ export const PAYLOAD_STYLES: PayloadStyle[] = [
   "malformed",
   "unicode",
   "bignum",
+  "base64",
 ];
 
 export const GEN_INPUT_PRICE = 2e-6;
@@ -176,10 +183,55 @@ const buildBignumPayload = (targetBytes: number): string => {
   return `{${entries.join(",")}}`;
 };
 
+const BASE64_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/**
+ * Builds a ChatML-shaped payload whose user message embeds one giant base64
+ * data-URI — the multimodal-trace shape (image/audio inlined instead of using
+ * the media SDK) that stresses IO viewers with a single unbroken multi-MB
+ * token: no whitespace to wrap on, no JSON structure to lazily expand.
+ */
+const buildBase64Payload = (rng: Rng, targetBytes: number): string => {
+  // Random 4KB blocks tiled to size: deterministic via the rng stream, and
+  // varied enough that ClickHouse compression doesn't collapse the payload
+  // into something unrealistically small on disk.
+  const blocks: string[] = [];
+  const blockCount = Math.ceil(targetBytes / 4096);
+  const distinctBlocks = Math.min(blockCount, 32);
+  for (let b = 0; b < distinctBlocks; b++) {
+    let block = "";
+    for (let i = 0; i < 4096; i++) block += BASE64_ALPHABET[rng.int(0, 63)];
+    blocks.push(block);
+  }
+  const parts: string[] = [];
+  for (let b = 0; b < blockCount; b++) {
+    parts.push(blocks[b % distinctBlocks]);
+  }
+  const b64 = parts.join("").slice(0, Math.max(targetBytes, 64));
+  return JSON.stringify({
+    messages: [
+      { role: "system", content: "You are a helpful vision assistant." },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "What is in this image?" },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${b64}` },
+          },
+        ],
+      },
+    ],
+  });
+};
+
 /**
  * Builds a payload string of approximately targetBytes. "malformed" returns
  * intentionally invalid JSON (truncated, unclosed) for JSON-viewer edge cases.
  * "bignum" returns integers beyond 2^53-1 for number-precision edge cases.
+ * "base64" returns ChatML messages embedding one giant base64 data-URI for
+ * huge-single-string IO-viewer edge cases.
  */
 export const buildPayload = (
   style: PayloadStyle,
@@ -195,6 +247,8 @@ export const buildPayload = (
       return buildUnicodePayload(rng, targetBytes);
     case "bignum":
       return buildBignumPayload(targetBytes);
+    case "base64":
+      return buildBase64Payload(rng, targetBytes);
     case "malformed": {
       const valid = buildJsonPayload(rng, targetBytes);
       return `${valid.slice(0, Math.floor(valid.length * 0.9))},"unclosed":"tr`;
