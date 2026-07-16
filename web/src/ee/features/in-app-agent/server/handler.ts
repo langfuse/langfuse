@@ -59,6 +59,7 @@ import {
 } from "@/src/features/public-api/server/RateLimitService";
 import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
@@ -534,6 +535,10 @@ export default async function handler(request: Request) {
                     langfuse_ai_feature: "in-app-agent",
                     langfuse_user_id: userId,
                     langfuse_project_id: projectId,
+                    langfuse_project_url: new URL(
+                      `project/${encodeURIComponent(projectId)}`,
+                      getProductBaseUrl(),
+                    ).toString(),
                     conversation_id: conversation.id,
                     thread_id: sanitizedInput.threadId,
                     run_id: sanitizedInput.runId,
