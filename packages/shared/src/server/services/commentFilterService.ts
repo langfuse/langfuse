@@ -188,9 +188,25 @@ export async function applyCommentFilters({
       // Find the upper bound filter (if any)
       // Exact zero is equivalent to the tightest possible upper bound because
       // comment counts cannot be negative.
-      const upperBoundFilter =
-        numberFilters.find((f) => f.operator === "=" && f.value === 0) ??
-        numberFilters.find((f) => f.operator === "<=" || f.operator === "<");
+      const upperBoundFilter = numberFilters.reduce<
+        (typeof numberFilters)[number] | undefined
+      >((tightest, filter) => {
+        const isUpperBound =
+          (filter.operator === "=" && filter.value === 0) ||
+          filter.operator === "<=" ||
+          filter.operator === "<";
+
+        if (!isUpperBound) return tightest;
+        if (!tightest) return filter;
+
+        const isTighter =
+          filter.value < tightest.value ||
+          (filter.value === tightest.value &&
+            filter.operator === "<" &&
+            tightest.operator !== "<");
+
+        return isTighter ? filter : tightest;
+      }, undefined);
 
       if (!upperBoundFilter) {
         // No upper bound + includes zero = match everything, skip comment count filter

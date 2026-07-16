@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../../db";
 import { InvalidRequestError } from "../../errors";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as commentsRepository from "../repositories/comments";
 import {
   applyCommentFilters,
   COMMENT_FILTER_THRESHOLD,
@@ -42,6 +43,10 @@ const createPrisma = (...queryResults: Array<Array<{ object_id: string }>>) => {
     queryRaw,
   };
 };
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("applyCommentFilters", () => {
   it("removes an unbounded zero-inclusive count filter without excluding uncommented events", async () => {
@@ -108,6 +113,33 @@ describe("applyCommentFilters", () => {
       });
     },
   );
+
+  it("uses the tightest of multiple zero-inclusive upper bounds", async () => {
+    const prisma = {} as PrismaClient;
+    const getObjectIdsByCommentCount = vi
+      .spyOn(commentsRepository, "getObjectIdsByCommentCount")
+      .mockResolvedValue(["observation-above-tightest-bound"]);
+
+    const result = await applyCommentFilters({
+      filterState: [commentCountFilter("<=", 10), commentCountFilter("<=", 3)],
+      prisma,
+      ...commonArgs,
+    });
+
+    expect(result).toEqual({
+      filterState: [
+        objectIdFilter("none of", ["observation-above-tightest-bound"]),
+      ],
+      hasNoMatches: false,
+      matchingIds: null,
+    });
+    expect(getObjectIdsByCommentCount).toHaveBeenCalledExactlyOnceWith({
+      prisma,
+      ...commonArgs,
+      operator: ">",
+      value: 3,
+    });
+  });
 
   it.each([
     {
