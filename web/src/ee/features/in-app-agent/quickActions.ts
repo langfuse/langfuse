@@ -46,7 +46,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       label: "Analyze failure patterns",
       description: "Run structured error analysis on failed traces",
       prompt:
-        "Run a structured error analysis on failed or low-scoring traces in the current view: sample up to 20 representative traces, open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
+        "Run a structured error analysis on failed or low-scoring traces in the current view: sample representative traces (as many as needed), open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
     },
     {
       id: "review-recent-activity",
