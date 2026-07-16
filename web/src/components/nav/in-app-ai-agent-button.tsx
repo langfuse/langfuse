@@ -146,6 +146,15 @@ export const InAppAiAgentButton = () => {
     setOpen(true);
   }, [floatingPanelHandle, open, organization, setOpen]);
 
+  const toggleAssistant = useCallback(() => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    openAssistant();
+  }, [open, openAssistant, setOpen]);
+
   useEffect(() => {
     if (!canUseAssistant) {
       return;
@@ -162,25 +171,16 @@ export const InAppAiAgentButton = () => {
       }
 
       event.preventDefault();
-      openAssistant();
+      toggleAssistant();
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [canUseAssistant, openAssistant]);
+  }, [canUseAssistant, toggleAssistant]);
 
   if (!canUseAssistant) {
     return null;
   }
-
-  const handleClick = () => {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-
-    openAssistant();
-  };
 
   return (
     <>
@@ -192,7 +192,7 @@ export const InAppAiAgentButton = () => {
         aria-label={open ? "Close assistant" : "Open assistant"}
         aria-pressed={open}
         data-ignore-outside-interaction
-        onClick={handleClick}
+        onClick={toggleAssistant}
         className="gap-2"
       >
         <BotMessageSquare className="h-4 w-4" />

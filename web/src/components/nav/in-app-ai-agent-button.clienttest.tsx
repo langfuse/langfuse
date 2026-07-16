@@ -3,6 +3,7 @@ import { fireEvent, render } from "@testing-library/react";
 import { InAppAiAgentButton } from "./in-app-ai-agent-button";
 
 const mocks = vi.hoisted(() => ({
+  open: false,
   resetGeometry: vi.fn(),
   setOpen: vi.fn(),
 }));
@@ -14,7 +15,7 @@ vi.mock(
       deleteConversation: vi.fn(),
       isAvailable: true,
       isExpanded: false,
-      open: false,
+      open: mocks.open,
       setIsExpanded: vi.fn(),
       setOpen: mocks.setOpen,
     }),
@@ -48,8 +49,14 @@ vi.mock("@/src/features/projects/hooks", () => ({
 }));
 
 describe("InAppAiAgentButton", () => {
-  it("opens the assistant with Cmd/Ctrl+I and leaves plain I alone", () => {
-    render(<InAppAiAgentButton />);
+  beforeEach(() => {
+    mocks.open = false;
+    mocks.resetGeometry.mockReset();
+    mocks.setOpen.mockReset();
+  });
+
+  it("toggles the assistant with Cmd/Ctrl+I and leaves other shortcuts alone", () => {
+    const { rerender } = render(<InAppAiAgentButton />);
 
     for (const modifiers of [
       {},
@@ -69,21 +76,33 @@ describe("InAppAiAgentButton", () => {
 
     expect(mocks.setOpen).not.toHaveBeenCalled();
 
-    for (const modifier of [{ metaKey: true }, { ctrlKey: true }]) {
-      const shortcut = new KeyboardEvent("keydown", {
-        key: "i",
-        bubbles: true,
-        cancelable: true,
-        ...modifier,
-      });
-      fireEvent(document, shortcut);
+    const openShortcut = new KeyboardEvent("keydown", {
+      key: "i",
+      bubbles: true,
+      cancelable: true,
+      metaKey: true,
+    });
+    fireEvent(document, openShortcut);
 
-      expect(shortcut.defaultPrevented).toBe(true);
-    }
+    expect(openShortcut.defaultPrevented).toBe(true);
+    expect(mocks.resetGeometry).toHaveBeenCalledOnce();
+    expect(mocks.setOpen).toHaveBeenCalledWith(true);
 
-    expect(mocks.resetGeometry).toHaveBeenCalledTimes(2);
+    mocks.open = true;
+    rerender(<InAppAiAgentButton />);
+
+    const closeShortcut = new KeyboardEvent("keydown", {
+      key: "i",
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+    });
+    fireEvent(document, closeShortcut);
+
+    expect(closeShortcut.defaultPrevented).toBe(true);
+    expect(mocks.resetGeometry).toHaveBeenCalledOnce();
     expect(mocks.setOpen).toHaveBeenCalledTimes(2);
     expect(mocks.setOpen).toHaveBeenNthCalledWith(1, true);
-    expect(mocks.setOpen).toHaveBeenNthCalledWith(2, true);
+    expect(mocks.setOpen).toHaveBeenNthCalledWith(2, false);
   });
 });
