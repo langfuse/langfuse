@@ -657,69 +657,72 @@ const extendedPrismaAdapter: Adapter = {
     }
   },
 
-  // Make email-OTP login that is used for password reset safer
+  // Make email-OTP login that is used for password reset safer.
+  //
+  // Look the token up before consuming it. The upstream PrismaAdapter
+  // implements this as an unconditional `verificationToken.delete`, which
+  // rejects with Prisma P2025 whenever the token is missing — expired,
+  // already consumed (e.g. an email security scanner prefetching the magic
+  // link), or a bogus value from endpoint scanning. Every rejected query is
+  // surfaced by the global Prisma error handler (packages/shared/src/db.ts) as
+  // a `prisma:error` ERROR log, so a routine "invalid or expired token" spams
+  // error logs and error-rate dashboards. Reading first keeps the happy path
+  // identical while treating a missing token as the ordinary invalid-token
+  // outcome instead of a failed query.
   async useVerificationToken(params) {
-    if (!prismaAdapter.useVerificationToken)
-      throw new Error("useVerificationToken not implemented");
+    const identifier_token = {
+      identifier: params.identifier,
+      token: params.token,
+    };
 
-    try {
-      // First, attempt to use the token with the default behavior
-      const result = await prismaAdapter.useVerificationToken(params);
+    const verificationToken = await prisma.verificationToken.findUnique({
+      where: { identifier_token },
+    });
 
-      if (result) {
-        // Token was valid and successfully used
-        logger.info("OTP verification successful", {
-          identifier: params.identifier,
-          timestamp: new Date().toISOString(),
-        });
-        return result;
-      }
-
-      // If no result, the token was either invalid or expired
-      // Log security event for monitoring
+    if (!verificationToken) {
+      // Token invalid or expired-and-swept. Log the security event and clear
+      // any remaining tokens for this identifier to prevent enumeration.
       logger.info("Failed OTP verification attempt", {
         identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****", // Log partial token for debugging
+        token: params.token?.substring(0, 2) + "****", // partial token for debugging
         timestamp: new Date().toISOString(),
         reason: "invalid_or_expired",
       });
 
-      // Delete any existing token for this identifier to prevent enumeration
       await prisma.verificationToken.deleteMany({
-        where: {
-          identifier: params.identifier,
-        },
+        where: { identifier: params.identifier },
       });
 
       return null;
+    }
+
+    try {
+      // Consume the token. NextAuth validates `expires` on the returned row.
+      await prisma.verificationToken.delete({ where: { identifier_token } });
     } catch (error) {
-      // Log security event for any error during token verification
-      logger.error("OTP verification error", {
-        identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****",
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // On any error (invalid token, etc.), delete all tokens for this identifier
-      // to prevent enumeration attacks
-      try {
-        await prisma.verificationToken.deleteMany({
-          where: {
-            identifier: params.identifier,
-          },
+      // A concurrent request may have consumed the token between the read and
+      // the delete. Treat that race as an already-used token, not a 500.
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === "P2025"
+      ) {
+        logger.info("OTP verification token already consumed", {
+          identifier: params.identifier,
+          timestamp: new Date().toISOString(),
         });
-      } catch (deleteError) {
-        // Log deletion error but don't throw to avoid masking original error
-        logger.error(
-          "Failed to delete verification tokens on error",
-          deleteError,
-        );
+        return null;
       }
-
-      // Re-throw the original error
       throw error;
     }
+
+    logger.info("OTP verification successful", {
+      identifier: params.identifier,
+      timestamp: new Date().toISOString(),
+    });
+
+    return verificationToken;
   },
 };
 
