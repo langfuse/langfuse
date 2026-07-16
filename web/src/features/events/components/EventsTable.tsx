@@ -14,6 +14,7 @@ import {
   useCallback,
   type Dispatch,
   type SetStateAction,
+  type UIEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
@@ -210,6 +211,12 @@ export type EventsTableProps = {
    */
   embeddedPageSize?: number;
   /**
+   * With embeddedPageSize: replace the pagination footer with infinite
+   * scrolling — scrolling near the bottom grows the fetch limit by
+   * embeddedPageSize while the already-loaded rows stay visible.
+   */
+  embeddedInfiniteScroll?: boolean;
+  /**
    * When set (embedded previews), overrides the stored column visibility:
    * listed column ids are shown, every other column is hidden.
    */
@@ -230,6 +237,15 @@ export type EventsTableProps = {
    * the peek view.
    */
   onExternalRowClick?: (row: EventsTableRow) => void;
+  /**
+   * Single-select row picker (embedded previews): when not undefined, a
+   * leading radio-dot column marks the picked row (`null` = nothing picked
+   * yet) and the picked row is highlighted. Clicking the dot picks without
+   * triggering `onExternalRowClick`'s row behavior.
+   */
+  externalSelectedRowId?: string | null;
+  /** Pick handler for the radio-dot cell (row clicks use onExternalRowClick). */
+  onExternalRowPick?: (row: EventsTableRow) => void;
   /**
    * When set (embedded previews), reports the currently displayed rows after
    * each load, so the embedder can derive state (e.g. sample candidates)
@@ -280,10 +296,13 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   embeddedPageSize,
+  embeddedInfiniteScroll = false,
   externalColumnVisibility,
   onExternalColumnVisibilityChange,
   columnsPickerContainer,
   onExternalRowClick,
+  externalSelectedRowId,
+  onExternalRowPick,
   onExternalRowsChange,
   sessionId,
   showControlsInPageHeader = false,
@@ -317,12 +336,19 @@ export default function ObservationsEventsTable({
       ? embeddedPagination
       : paginationState;
   // A changed filter invalidates the page position (the cursor-style footer
-  // can't auto-reset without a total count), so jump back to page 1.
+  // can't auto-reset without a total count), so jump back to page 1. In
+  // infinite mode the grown limit belongs to the old result set, so it
+  // shrinks back to one chunk too.
   useEffect(() => {
-    setEmbeddedPagination((prev) =>
-      prev.page === 1 ? prev : { ...prev, page: 1 },
-    );
-  }, [externalFilterState]);
+    setEmbeddedPagination((prev) => {
+      const limit = embeddedInfiniteScroll
+        ? (embeddedPageSize ?? 10)
+        : prev.limit;
+      return prev.page === 1 && prev.limit === limit
+        ? prev
+        : { page: 1, limit };
+    });
+  }, [externalFilterState, embeddedInfiniteScroll, embeddedPageSize]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
@@ -864,7 +890,52 @@ export default function ObservationsEventsTable({
 
   const enableSorting = !hideControls;
 
+  // Single-select sample picker: a radio dot (one pick, unlike the multi-
+  // select checkboxes) that fills on the picked row. Rendered as a button so
+  // the row-click handler ignores it (shouldIgnoreRowClickTarget) — the dot
+  // picks without the row-click side effects (e.g. opening the peek).
+  const externalRowPickerColumn: LangfuseColumnDef<EventsTableRow> = {
+    accessorKey: "externalRowPicker",
+    id: "externalRowPicker",
+    header: "Sample",
+    size: 55,
+    enableHiding: false,
+    cell: ({ row }) => {
+      const isPicked = row.original.id === externalSelectedRowId;
+      return (
+        <button
+          type="button"
+          className="group/picker flex h-full items-center px-1"
+          title={
+            isPicked ? "This row is the sample" : "Use this row as the sample"
+          }
+          aria-pressed={isPicked}
+          onClick={() => onExternalRowPick?.(row.original)}
+        >
+          <span
+            className={cn(
+              "flex h-4 w-4 items-center justify-center rounded-full border",
+              isPicked
+                ? "border-primary"
+                : "border-muted-foreground/40 group-hover/picker:border-primary/60",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                isPicked
+                  ? "bg-primary"
+                  : "group-hover/picker:bg-primary/30 bg-transparent",
+              )}
+            />
+          </span>
+        </button>
+      );
+    },
+  };
+
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
+    ...(externalSelectedRowId !== undefined ? [externalRowPickerColumn] : []),
     ...(hideControls ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
@@ -1493,7 +1564,13 @@ export default function ObservationsEventsTable({
               ("accessorKey" in def && typeof def.accessorKey === "string"
                 ? def.accessorKey
                 : undefined);
-            if (id) visibility[id] = externalColumnVisibility[id] ?? false;
+            // Non-hideable columns (e.g. the sample picker) are always shown;
+            // stored visibility maps predate them.
+            if (id)
+              visibility[id] =
+                def.enableHiding === false
+                  ? true
+                  : (externalColumnVisibility[id] ?? false);
             if (def.columns) collect(def.columns);
           }
         };
@@ -1656,6 +1733,53 @@ export default function ObservationsEventsTable({
       onExternalRowsChange(rows);
     }
   }, [onExternalRowsChange, observationsStatus, rows]);
+
+  // Infinite embedded mode: growing the limit refetches the whole page, and
+  // the query reports "loading" while its placeholder data is stale — so the
+  // last loaded rows are kept here and shown during that window, avoiding a
+  // skeleton flash and scroll reset on every load-more.
+  const [lastLoadedRows, setLastLoadedRows] = useState<EventsTableRow[]>([]);
+  const loadMorePendingRef = useRef(false);
+  useEffect(() => {
+    if (!embeddedInfiniteScroll) return;
+    if (observationsStatus === "success") {
+      setLastLoadedRows(rows);
+    }
+    if (observationsStatus !== "loading") {
+      loadMorePendingRef.current = false;
+    }
+  }, [embeddedInfiniteScroll, observationsStatus, rows]);
+  // A filter change starts a new result set: drop the stale rows so the
+  // skeleton shows instead of the old set, and jump back to the top — a
+  // preserved deep scroll position would land mid-list and, via the
+  // browser's scroll clamp, immediately re-trigger load-more.
+  const infiniteScrollWrapperRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    setLastLoadedRows((prev) => (prev.length === 0 ? prev : []));
+    infiniteScrollWrapperRef.current
+      ?.querySelectorAll<HTMLElement>(".overflow-auto")
+      .forEach((el) => {
+        el.scrollTop = 0;
+      });
+  }, [externalFilterState]);
+
+  // Scroll events don't bubble, so the wrapper listens in the capture phase
+  // to observe the scroll container inside DataTable.
+  const handleInfiniteScrollCapture = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (!hasMore || loadMorePendingRef.current) return;
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+        loadMorePendingRef.current = true;
+        setEmbeddedPagination((prev) => ({
+          ...prev,
+          limit: prev.limit + (embeddedPageSize ?? 10),
+        }));
+      }
+    },
+    [hasMore, embeddedPageSize],
+  );
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -1876,15 +2000,29 @@ export default function ObservationsEventsTable({
             />
           )}
 
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div
+            ref={embeddedInfiniteScroll ? infiniteScrollWrapperRef : undefined}
+            className="flex flex-1 flex-col overflow-hidden"
+            onScrollCapture={
+              embeddedInfiniteScroll ? handleInfiniteScrollCapture : undefined
+            }
+          >
             <DataTable
-              key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
+              // Infinite mode needs a stable key: a remount would recreate the
+              // scroll container and reset its position on every load-more.
+              key={
+                embeddedInfiniteScroll
+                  ? "observations-table-infinite"
+                  : `observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`
+              }
               tableName="observations"
               columns={displayColumns}
               peekView={peekConfig}
               data={
                 observations.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
+                  ? lastLoadedRows.length > 0
+                    ? { isLoading: false, isError: false, data: lastLoadedRows }
+                    : { isLoading: true, isError: false }
                   : observations.status === "error"
                     ? isSilencedError
                       ? {
@@ -1911,7 +2049,7 @@ export default function ObservationsEventsTable({
                 ) : undefined
               }
               pagination={
-                limitRows
+                limitRows || embeddedInfiniteScroll
                   ? undefined
                   : {
                       totalCount,
@@ -1940,7 +2078,15 @@ export default function ObservationsEventsTable({
                       },
                     }
               }
-              rowSelection={selectedRows}
+              rowSelection={
+                // Picker mode: the picked row doubles as the (highlighted)
+                // selection — bulk selection is off in embedded previews.
+                externalSelectedRowId !== undefined
+                  ? externalSelectedRowId
+                    ? { [externalSelectedRowId]: true }
+                    : {}
+                  : selectedRows
+              }
               highlightAllRows={selectAll}
               setRowSelection={setSelectedRows}
               setOrderBy={setOrderByState}

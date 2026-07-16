@@ -1,29 +1,55 @@
-import { useState } from "react";
 import { useRouter } from "next/router";
-import { Sparkles } from "lucide-react";
 
 import Page from "@/src/components/layouts/page";
-import { EvaluatorGalleryDialog } from "@/src/features/evals/v2/components/EvaluatorGalleryDialog";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   RuleSetupForm,
   type CatalogTemplate,
 } from "@/src/features/evals/v2/components/RuleSetupForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { api } from "@/src/utils/api";
 
+/**
+ * Standalone evaluator setup page. The template gallery lives on the
+ * evaluators list (`?gallery=1`) and deep-links here:
+ *   ?templateId=<id>   start from a catalog or project template
+ *   ?scratch=llm|code  start from scratch (default: llm)
+ */
 export default function NewEvaluationRulePage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-
-  const [template, setTemplate] = useState<CatalogTemplate | null>(null);
-  const [scratchType, setScratchType] = useState<"llm" | "code" | null>(null);
+  const templateId =
+    typeof router.query.templateId === "string"
+      ? router.query.templateId
+      : null;
+  const scratchType = router.query.scratch === "code" ? "code" : "llm";
 
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
   });
 
-  const galleryOpen = !template && !scratchType;
+  // Resolve the template from both gallery sources: the maintained catalog
+  // and the project's own templates ("start from existing").
+  const catalog = api.evalsV2.catalog.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId && templateId) },
+  );
+  const projectTemplates = api.evalsV2.projectTemplates.useQuery(
+    { projectId },
+    { enabled: Boolean(projectId && templateId) },
+  );
+
+  const template: CatalogTemplate | null = templateId
+    ? (catalog.data?.find((t) => t.id === templateId) ??
+      projectTemplates.data?.find((t) => t.id === templateId) ??
+      null)
+    : null;
+  const templateResolving =
+    Boolean(templateId) &&
+    template === null &&
+    (catalog.isLoading || projectTemplates.isLoading);
 
   if (!hasWriteAccess) {
     return <SupportOrUpgradePage />;
@@ -38,43 +64,23 @@ export default function NewEvaluationRulePage() {
         ],
         help: {
           description:
-            "Prototype: pick an evaluator or write one from scratch (LLM-as-a-judge or code), map variables against a real observation, pick where it runs via a shared run scope, test it, and save it as a draft or active — all in one place.",
+            "Prototype: define the evaluator on the left (name, prompt or code, score output), and where it runs on the right (data source, filter, sample, variable mapping) — then save it as a draft or save and run it.",
         },
       }}
     >
-      <EvaluatorGalleryDialog
-        projectId={projectId}
-        open={galleryOpen}
-        onOpenChange={(open) => {
-          // Closing the gallery without a selection leaves nothing to
-          // configure — go back to the evaluators list.
-          if (!open && galleryOpen) {
-            router.push(`/project/${projectId}/evals`).catch(() => undefined);
-          }
-        }}
-        onSelectTemplate={(t) => {
-          setTemplate(t);
-          setScratchType(null);
-        }}
-        onCreateFromScratch={(type) => {
-          setTemplate(null);
-          setScratchType(type);
-        }}
-      />
-
-      {galleryOpen ? (
-        <div className="flex h-full items-center justify-center">
-          <div className="text-muted-foreground flex flex-col items-center gap-2">
-            <Sparkles className="h-6 w-6" />
-            <p className="text-sm">Pick an evaluator to get started</p>
-          </div>
+      {templateResolving ? (
+        <div className="flex flex-col gap-4 p-6">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-40 w-full" />
         </div>
       ) : (
         <RuleSetupForm
           key={template?.id ?? `scratch-${scratchType}`}
           projectId={projectId}
           sourceTemplate={template}
-          initialEvaluatorType={scratchType ?? "llm"}
+          initialEvaluatorType={
+            template?.type === "CODE" ? "code" : scratchType
+          }
         />
       )}
     </Page>

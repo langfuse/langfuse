@@ -7,6 +7,9 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  ActionId,
+  BatchActionStatus,
+  BatchTableNames,
   InvalidRequestError,
   JobConfigState,
   LangfuseConflictError,
@@ -19,10 +22,14 @@ import {
   variableMapping,
 } from "@langfuse/shared";
 import {
+  BatchActionQueue,
+  getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
   invalidateProjectEvalConfigCaches,
   logger,
+  QueueJobs,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
@@ -57,11 +64,22 @@ const RunScopeInputSchema = z.discriminatedUnion("mode", [
     sampling: z.number().gt(0).lte(1),
     delay: z.number().gte(0).default(30_000),
   }),
+  // Draft save: the evaluator keeps its scope config on the job row but no
+  // shared scope is created and nothing runs (status is forced INACTIVE).
+  z.object({
+    mode: z.literal("none"),
+    targetObject: ScopeTargetObjectSchema,
+    filter: z.array(singleFilter).nullable(),
+    sampling: z.number().gt(0).lte(1),
+  }),
 ]);
 
 const CreateRuleSchema = z.object({
   projectId: z.string(),
   scoreName: z.string().min(1),
+  // Optional custom name for the written scores — scoreName (the evaluator
+  // name) is used when absent.
+  scoreNameOverride: z.string().trim().min(1).nullish(),
   description: z.string().nullish(),
   evaluatorType: z.enum(["LLM_AS_JUDGE", "CODE"]).default("LLM_AS_JUDGE"),
   // Managed (Langfuse/partner) template this evaluator started from. Absent
@@ -79,6 +97,18 @@ const CreateRuleSchema = z.object({
     z.array(observationVariableMapping),
   ]),
   scope: RunScopeInputSchema,
+  // Keep evaluating new data as it arrives (timeScope NEW).
+  runContinuously: z.boolean().default(true),
+  // One-time backfill (timeScope EXISTING) over the scope's existing matches
+  // within [from, to], via an observation batch-evaluation action. maxCount
+  // caps how many observations the pass evaluates.
+  backfill: z
+    .object({
+      from: z.coerce.date(),
+      to: z.coerce.date(),
+      maxCount: z.number().int().positive().nullish(),
+    })
+    .nullish(),
   status: z
     .enum([JobConfigState.ACTIVE, JobConfigState.INACTIVE])
     .default(JobConfigState.ACTIVE),
@@ -285,6 +315,14 @@ export const evalsV2Router = createTRPCRouter({
           sampling: existingScope.sampling.toNumber(),
           delay: existingScope.delay,
         };
+      } else if (input.scope.mode === "none") {
+        // Draft: keep the config on the job so it isn't lost, create no scope.
+        scopeValues = {
+          targetObject: input.scope.targetObject,
+          filter: input.scope.filter ?? [],
+          sampling: input.scope.sampling,
+          delay: 30_000,
+        };
       } else {
         // Prototype: keep search-bar-produced filters as-is when they don't
         // pass strict trace-column validation.
@@ -331,6 +369,59 @@ export const evalsV2Router = createTRPCRouter({
             );
           }
           throw error;
+        }
+      }
+
+      // A scope-less draft can never run — force it inactive.
+      const status =
+        input.scope.mode === "none" ? JobConfigState.INACTIVE : input.status;
+
+      // Backfill only applies to live observation-target rules. Count the
+      // matches first so an over-limit request fails before anything exists.
+      const backfill =
+        input.backfill &&
+        status === JobConfigState.ACTIVE &&
+        scopeValues.targetObject === "event"
+          ? input.backfill
+          : null;
+      if (
+        status === JobConfigState.ACTIVE &&
+        !input.runContinuously &&
+        !backfill
+      ) {
+        throw new InvalidRequestError(
+          "Nothing to run: enable continuous evaluation or a one-time backfill.",
+        );
+      }
+      const backfillFilter: z.infer<typeof singleFilter>[] = backfill
+        ? [
+            ...scopeValues.filter,
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: backfill.from,
+            },
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: "<=",
+              value: backfill.to,
+            },
+          ]
+        : scopeValues.filter;
+      if (backfill) {
+        const matchCount = await getObservationsCountFromEventsTable({
+          projectId: input.projectId,
+          filter: backfillFilter,
+        });
+        const effectiveCount = backfill.maxCount
+          ? Math.min(matchCount, backfill.maxCount)
+          : matchCount;
+        if (effectiveCount > env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT) {
+          throw new InvalidRequestError(
+            `The backfill matches ${matchCount} observations — the maximum is ${env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT}. Narrow the window, set a max limit, or disable the backfill.`,
+          );
         }
       }
 
@@ -442,21 +533,73 @@ export const evalsV2Router = createTRPCRouter({
           projectId: input.projectId,
           jobType: "EVAL",
           evalTemplateId,
-          scoreName: input.scoreName,
+          scoreName: input.scoreNameOverride ?? input.scoreName,
           description: input.description ?? null,
           targetObject: scopeValues.targetObject,
           filter: scopeValues.filter,
           variableMapping: input.mapping,
           sampling: scopeValues.sampling,
           delay: scopeValues.delay,
-          status: input.status,
-          timeScope: ["NEW"],
+          status,
+          timeScope: [
+            // Drafts keep NEW so activating them later behaves normally.
+            ...(input.runContinuously || status === JobConfigState.INACTIVE
+              ? ["NEW" as const]
+              : []),
+            ...(backfill ? ["EXISTING" as const] : []),
+          ],
           runScopeId,
         },
       });
 
-      if (input.status === JobConfigState.ACTIVE) {
+      if (status === JobConfigState.ACTIVE) {
         await invalidateProjectEvalConfigCaches(input.projectId);
+      }
+
+      // 4. Backfill: evaluate the scope's existing matches in [from, to] once,
+      // via the same batch action the events table's "Run Evaluation" uses.
+      if (backfill) {
+        const backfillQuery = {
+          filter: backfillFilter,
+          orderBy: { column: "startTime", order: "DESC" as const },
+        };
+        const batchAction = await ctx.prisma.batchAction.create({
+          data: {
+            projectId: input.projectId,
+            userId: ctx.session.user.id,
+            actionType: ActionId.ObservationBatchEvaluation,
+            tableName: BatchTableNames.Events,
+            status: BatchActionStatus.Queued,
+            query: backfillQuery,
+            config: { evaluatorIds: [job.id] },
+          },
+        });
+        await auditLog({
+          session: ctx.session,
+          resourceType: "batchAction",
+          resourceId: batchAction.id,
+          projectId: input.projectId,
+          action: ActionId.ObservationBatchEvaluation,
+          after: batchAction,
+        });
+        await BatchActionQueue.getInstance()?.add(
+          QueueJobs.BatchActionProcessingJob,
+          {
+            id: batchAction.id,
+            name: QueueJobs.BatchActionProcessingJob,
+            timestamp: new Date(),
+            payload: {
+              actionId: ActionId.ObservationBatchEvaluation,
+              batchActionId: batchAction.id,
+              projectId: input.projectId,
+              cutoffCreatedAt: new Date(),
+              query: backfillQuery,
+              evaluatorIds: [job.id],
+              maxCount: backfill.maxCount ?? null,
+            },
+          },
+          { jobId: batchAction.id },
+        );
       }
 
       return { id: job.id, runScopeId };

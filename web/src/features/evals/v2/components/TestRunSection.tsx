@@ -1,13 +1,25 @@
-import { useMemo, useState } from "react";
-import { ArrowLeft, Clock, ExternalLink, Play } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowLeft,
+  Clock,
+  Coins,
+  ExternalLink,
+  MoreVertical,
+  Play,
+} from "lucide-react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Button } from "@/src/components/ui/button";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { api } from "@/src/utils/api";
+import { costFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 import {
-  deepParseJson,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
@@ -79,110 +91,6 @@ export function TestRunButton({
       <Play className="mr-1.5 h-3.5 w-3.5" />
       Run test on this sample
     </Button>
-  );
-}
-
-/** Legacy-shaped "Evaluator input" preview: what the code receives. */
-function EvaluatorInputPreview({
-  sampleObservation,
-}: {
-  sampleObservation: Record<string, unknown>;
-}) {
-  // Same shape as the legacy code-eval test-run card's input preview.
-  const inputPreviewJson = useMemo(
-    () => ({
-      observation: {
-        input: deepParseJson(sampleObservation.input),
-        output: deepParseJson(sampleObservation.output),
-        metadata: deepParseJson(sampleObservation.metadata),
-      },
-    }),
-    [sampleObservation],
-  );
-
-  return (
-    <div className="bg-muted/20 flex min-h-0 min-w-0 flex-1 flex-col rounded-md border">
-      {/* Fills whatever height the panel grants and scrolls inside it, so
-          expanding tree nodes can never grow the panel. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <PrettyJsonView
-          json={inputPreviewJson}
-          currentView="pretty"
-          isLoading={false}
-          showNullValues={true}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={false}
-          className="[&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Idle test hub for the code-evaluator split: code has no variables to map,
- * so the panel's resting state is the run CTA plus the legacy-shaped
- * evaluator-input preview of the sample the code will receive.
- */
-export function TestIdlePanel({
-  isPending,
-  disabledReason,
-  onRun,
-  lastResultLabel,
-  onOpenLastResult,
-  sampleObservation,
-  className,
-}: {
-  isPending: boolean;
-  disabledReason: string | null;
-  onRun: () => void;
-  lastResultLabel: string | null;
-  onOpenLastResult: () => void;
-  /** The sample the code will run on — fills the panel with what
-      ctx.observation contains. */
-  sampleObservation?: Record<string, unknown> | null;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn("flex min-h-0 flex-col gap-2 p-3", className)}
-      data-variable-mapping-panel=""
-    >
-      <p className="text-muted-foreground shrink-0 text-sm">
-        The data your evaluator receives as{" "}
-        <code className="font-mono">ctx.observation</code> — from the sample
-        selected in step 1.
-      </p>
-      {sampleObservation ? (
-        <EvaluatorInputPreview sampleObservation={sampleObservation} />
-      ) : (
-        <div className="text-muted-foreground flex min-h-32 items-center justify-center rounded-md border border-dashed p-4 text-center text-sm">
-          No matching observation
-        </div>
-      )}
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          size="sm"
-          loading={isPending}
-          disabled={Boolean(disabledReason)}
-          title={disabledReason ?? "Run the evaluator on the selected sample"}
-          onClick={onRun}
-        >
-          <Play className="mr-1.5 h-3.5 w-3.5" />
-          Test with sample
-        </Button>
-        {lastResultLabel && (
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground text-xs hover:underline"
-            onClick={onOpenLastResult}
-          >
-            {`${lastResultLabel} ›`}
-          </button>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -308,6 +216,12 @@ export function TestResultPanel({
   const executionTraceId = isCodeMode
     ? codeTestRun.data?.executionTraceId
     : testRun.data?.executionTraceId;
+  // Per-run cost estimate — only the LLM judge path carries one (code evals
+  // run without an LLM call).
+  const estimatedCostUsd =
+    !isCodeMode && testRun.data?.success
+      ? (testRun.data.estimatedCostUsd ?? null)
+      : null;
   // The raw view carries the untouched response — for the judge that
   // includes the interpolated prompt and extracted variables.
   const raw: unknown = isCodeMode
@@ -342,37 +256,16 @@ export function TestResultPanel({
             {(durationMs / 1000).toFixed(2)}s
           </span>
         )}
+        {estimatedCostUsd !== null && (
+          <span
+            className="text-muted-foreground flex items-center gap-1 text-xs"
+            title="Estimated cost of the test call — also feeds the daily projection when saving"
+          >
+            <Coins className="h-3 w-3" />
+            {costFormatter(estimatedCostUsd)}
+          </span>
+        )}
         <span className="ml-auto flex shrink-0 items-center gap-2">
-          <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-xs">
-            <Switch size="sm" checked={rawOpen} onCheckedChange={setRawOpen} />
-            Raw output
-          </label>
-          {onOpenSampleTrace && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              title="Open the sample trace"
-              onClick={onOpenSampleTrace}
-            >
-              <ExternalLink className="mr-1 h-3 w-3" />
-              Sample trace
-            </Button>
-          )}
-          {executionTraceId && onOpenExecutionTrace && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-xs"
-              title="Open the execution trace of this test run"
-              onClick={() => onOpenExecutionTrace(executionTraceId)}
-            >
-              <ExternalLink className="mr-1 h-3 w-3" />
-              Execution trace
-            </Button>
-          )}
           <Button
             type="button"
             variant="ghost"
@@ -386,6 +279,43 @@ export function TestResultPanel({
             <Play className="mr-1.5 h-3 w-3" />
             Run again
           </Button>
+          <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-xs">
+            <Switch size="sm" checked={rawOpen} onCheckedChange={setRawOpen} />
+            Raw output
+          </label>
+          {/* Debugging links tucked behind a three-dot menu — power-user
+              detail, not part of the primary read-the-result flow. */}
+          {(onOpenSampleTrace ||
+            (executionTraceId && onOpenExecutionTrace)) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  title="More"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {onOpenSampleTrace && (
+                  <DropdownMenuItem onClick={onOpenSampleTrace}>
+                    <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                    Open sample trace
+                  </DropdownMenuItem>
+                )}
+                {executionTraceId && onOpenExecutionTrace && (
+                  <DropdownMenuItem
+                    onClick={() => onOpenExecutionTrace(executionTraceId)}
+                  >
+                    <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                    Open execution trace
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">

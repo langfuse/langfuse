@@ -8,7 +8,10 @@ import {
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   EvalTargetObject,
+  getGeneratedReasoningDescription,
+  getGeneratedScoreDescription,
   PersistedEvalOutputDefinitionSchema,
+  resolvePersistedEvalOutputDefinition,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
 } from "@langfuse/shared";
@@ -1062,6 +1065,88 @@ describe("evaluation helpers", () => {
       expect(result.success).toBe(false);
     });
 
+    it("should enforce numeric min/max bounds on responses", () => {
+      const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
+        createNumericEvalOutputDefinition({
+          scoreDescription: "",
+          reasoningDescription: "",
+          minValue: 0,
+          maxValue: 5,
+        }),
+      );
+
+      expect(
+        validateEvalOutputResult({
+          response: { score: 3, reasoning: "In range" },
+          compiledOutputDefinition,
+        }).success,
+      ).toBe(true);
+      expect(
+        validateEvalOutputResult({
+          response: { score: 7, reasoning: "Above max" },
+          compiledOutputDefinition,
+        }).success,
+      ).toBe(false);
+      expect(
+        validateEvalOutputResult({
+          response: { score: -1, reasoning: "Below min" },
+          compiledOutputDefinition,
+        }).success,
+      ).toBe(false);
+    });
+
+    it("should generate field descriptions from the structured settings when empty", () => {
+      const compiled = compilePersistedEvalOutputDefinition(
+        createNumericEvalOutputDefinition({
+          scoreDescription: "",
+          reasoningDescription: "",
+          minValue: 0,
+          maxValue: 5,
+        }),
+      );
+
+      expect(compiled.outputResultSchema.shape.score.description).toBe(
+        "Return a numeric score between 0 and 5, where 0 is the worst outcome and 5 is the best outcome.",
+      );
+      expect(compiled.outputResultSchema.shape.reasoning.description).toBe(
+        getGeneratedReasoningDescription({
+          dataType: ScoreDataTypeEnum.NUMERIC,
+        }),
+      );
+    });
+
+    it("should keep custom field descriptions over generated ones", () => {
+      const compiled = compilePersistedEvalOutputDefinition(
+        createNumericEvalOutputDefinition({
+          scoreDescription: "My custom score instructions",
+          reasoningDescription: "My custom reasoning instructions",
+        }),
+      );
+
+      expect(compiled.outputResultSchema.shape.score.description).toBe(
+        "My custom score instructions",
+      );
+      expect(compiled.outputResultSchema.shape.reasoning.description).toBe(
+        "My custom reasoning instructions",
+      );
+    });
+
+    it("should generate a categorical description matching the match mode", () => {
+      expect(
+        getGeneratedScoreDescription({
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+        }),
+      ).toBe("Choose exactly one category from the provided list.");
+      expect(
+        getGeneratedScoreDescription({
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          shouldAllowMultipleMatches: true,
+        }),
+      ).toBe(
+        "Choose one or more categories from the provided list. Only return categories that clearly apply.",
+      );
+    });
+
     it("should reject categorical multi-match responses with duplicate categories", () => {
       const outputDefinition = createCategoricalEvalOutputDefinition({
         scoreDescription: "Choose all matching categories",
@@ -1177,6 +1262,48 @@ describe("evaluation helpers", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.score.shouldAllowMultipleMatches).toBe(false);
+      }
+    });
+
+    it("should reject numeric definitions where min is not below max", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        reasoning: { description: "Why" },
+        score: { description: "Score", minValue: 5, maxValue: 0 },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should carry categorical category values through resolution", () => {
+      const resolved = resolvePersistedEvalOutputDefinition(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          categories: ["frustrated", "ok"],
+          categoryValues: { frustrated: 0, ok: 1 },
+        }),
+      );
+
+      expect(resolved.dataType).toBe(ScoreDataTypeEnum.CATEGORICAL);
+      if (resolved.dataType === ScoreDataTypeEnum.CATEGORICAL) {
+        expect(resolved.categories).toEqual(["frustrated", "ok"]);
+        expect(resolved.categoryValues).toEqual({ frustrated: 0, ok: 1 });
+      }
+    });
+
+    it("should resolve categorical definitions without values to null", () => {
+      const resolved = resolvePersistedEvalOutputDefinition(
+        createCategoricalEvalOutputDefinition({
+          scoreDescription: "Choose the best matching category",
+          reasoningDescription: "Explain the selected category",
+          categories: ["correct", "partial"],
+        }),
+      );
+
+      if (resolved.dataType === ScoreDataTypeEnum.CATEGORICAL) {
+        expect(resolved.categoryValues).toBeNull();
       }
     });
 

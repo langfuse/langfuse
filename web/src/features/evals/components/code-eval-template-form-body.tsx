@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { cn } from "@/src/utils/tailwind";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import {
@@ -34,6 +35,9 @@ type CodeEvalTemplateFormBodyProps = {
   /** Hide the trailing contract hint (render it elsewhere via
       CodeEvalFunctionContractHint, e.g. below a split layout). */
   hideFunctionContractHint?: boolean;
+  /** Extra classes for the editor box — e.g. squaring its bottom corners
+      when an attached panel sits directly beneath it. */
+  editorClassName?: string;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -111,6 +115,7 @@ export function CodeEvalTemplateFormBody({
   headerAction,
   hideLanguageLabel = false,
   hideFunctionContractHint = false,
+  editorClassName,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -245,7 +250,10 @@ export function CodeEvalTemplateFormBody({
           ]}
           editable={editable}
           onChange={onSourceCodeChange}
-          className="overflow-hidden rounded-md border text-xs"
+          className={cn(
+            "overflow-hidden rounded-md border text-xs",
+            editorClassName,
+          )}
         />
         {shouldShowFormatButton ? (
           <Button

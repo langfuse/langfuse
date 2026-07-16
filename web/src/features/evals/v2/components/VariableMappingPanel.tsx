@@ -144,8 +144,9 @@ function DrillRow({
   );
 }
 
-/** Inline JSONPath editor with suggestions from the sample (edit mode). */
-function JsonPathEditor({
+/** Inline JSONPath editor with suggestions from the sample (edit mode).
+    Shared with the tree mapper (VariableMappingTree). */
+export function JsonPathEditor({
   initialPath,
   suggestions,
   onApply,
@@ -323,73 +324,98 @@ export function VariableMappingPanel({
   }, [sourceObject, fieldState]);
 
   if (!activeVariable || !fieldState) {
-    // Idle: the friendly placeholder leads; unmapped variables follow as
-    // amber alerts (mapped ones need no attention, so they aren't listed).
+    // Idle: the full mapping manifest — every prompt variable with its
+    // current binding (unmapped first), each row opening the mapper.
     const unmapped = overview.filter((item) => item.unmapped);
     return (
       <div
-        className={cn("flex flex-col", className)}
+        className={cn("flex min-h-0 flex-col", className)}
         data-variable-mapping-panel=""
       >
-        <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm">
-          <MousePointerClick className="h-5 w-5" />
-          <p className="max-w-xs">
-            {overview.length === 0
-              ? `Add a {{variable}} to the prompt to pull in the data being evaluated.`
-              : `Click a {{variable}} in the prompt to map it to the data it should pull in.`}
-          </p>
-          {unmapped.length > 0 && (
-            <div className="mt-4 flex flex-col items-center gap-1.5">
-              {unmapped.map((item) => (
+        {overview.length === 0 ? (
+          <Callout icon={<MousePointerClick className="h-5 w-5" />}>
+            {`Add a {{variable}} to the prompt to pull in the data being evaluated.`}
+          </Callout>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
+            <p className="text-muted-foreground px-2 pb-2 text-xs">
+              {`Every {{variable}} and the data it pulls from the sample — click one to change its mapping.`}
+            </p>
+            <div className="divide-y rounded-md border">
+              {overview.map((item) => (
                 <button
                   key={item.variable}
                   type="button"
-                  className="text-dark-yellow flex items-center gap-1.5 text-sm font-semibold hover:underline"
+                  className="hover:bg-accent/50 flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-sm"
                   onClick={() => onSelectVariable(item.variable)}
                 >
-                  <TriangleAlert className="h-4 w-4 shrink-0" />
-                  {`{{${item.variable}}} is not mapped`}
+                  <span
+                    className="text-primary-accent shrink-0 font-mono font-medium"
+                    title={`{{${item.variable}}}`}
+                  >
+                    {`{{${item.variable}}}`}
+                  </span>
+                  {item.unmapped ? (
+                    <span className="text-dark-yellow flex min-w-0 flex-1 items-center gap-1.5 font-medium">
+                      <TriangleAlert className="h-4 w-4 shrink-0" />
+                      <span className="truncate" title="not mapped yet">
+                        not mapped yet
+                      </span>
+                    </span>
+                  ) : (
+                    <span
+                      className="text-muted-foreground min-w-0 flex-1 truncate"
+                      title={item.label}
+                    >
+                      {item.label}
+                    </span>
+                  )}
+                  <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                 </button>
               ))}
             </div>
-          )}
-          {/* Readiness hub: once every variable is mapped, the panel itself
-              hands over the next action. */}
-          {testAction && overview.length > 0 && (
-            <div className="mt-4 flex flex-col items-center gap-2">
-              {unmapped.length === 0 && (
-                <p className="text-dark-green flex items-center gap-1.5 text-sm font-medium">
-                  <Check className="h-4 w-4 shrink-0 text-green-600" />
-                  All variables mapped
-                </p>
-              )}
-              <Button
+          </div>
+        )}
+        {/* Readiness hub: once every variable is mapped, the panel itself
+            hands over the next action. */}
+        {testAction && (
+          <div className="flex shrink-0 flex-col items-center gap-2 border-t p-3">
+            {overview.length > 0 && unmapped.length === 0 && (
+              <p className="text-dark-green flex items-center gap-1.5 text-sm font-medium">
+                <Check className="h-4 w-4 shrink-0 text-green-600" />
+                All variables mapped
+              </p>
+            )}
+            <Button
+              type="button"
+              variant={
+                overview.length > 0 && unmapped.length === 0
+                  ? "default"
+                  : "outline"
+              }
+              size="sm"
+              loading={testAction.isPending}
+              disabled={Boolean(testAction.disabledReason)}
+              title={
+                testAction.disabledReason ??
+                "Run the evaluator on the selected sample"
+              }
+              onClick={testAction.run}
+            >
+              <Play className="mr-1.5 h-3.5 w-3.5" />
+              Test with sample
+            </Button>
+            {testAction.lastResultLabel && (
+              <button
                 type="button"
-                variant={unmapped.length === 0 ? "default" : "outline"}
-                size="sm"
-                loading={testAction.isPending}
-                disabled={Boolean(testAction.disabledReason)}
-                title={
-                  testAction.disabledReason ??
-                  "Run the evaluator on the selected sample"
-                }
-                onClick={testAction.run}
+                className="text-muted-foreground hover:text-foreground text-xs hover:underline"
+                onClick={testAction.onOpenLastResult}
               >
-                <Play className="mr-1.5 h-3.5 w-3.5" />
-                Test with sample
-              </Button>
-              {testAction.lastResultLabel && (
-                <button
-                  type="button"
-                  className="text-muted-foreground hover:text-foreground text-xs hover:underline"
-                  onClick={testAction.onOpenLastResult}
-                >
-                  {`${testAction.lastResultLabel} ›`}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+                {`${testAction.lastResultLabel} ›`}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -560,7 +586,7 @@ export function VariableMappingPanel({
           <Callout>
             {hasMatchingObservations
               ? "Loading sample data…"
-              : "No observations match the current scope — adjust the filters in step 1 to preview and drill into sample data."}
+              : "No observations match the current scope — adjust the filters in step 2 to preview and drill into sample data."}
           </Callout>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
@@ -595,7 +621,7 @@ export function VariableMappingPanel({
         <Callout>
           {hasMatchingObservations
             ? "Loading sample data…"
-            : "No observations match the current scope — adjust the filters in step 1 to preview and drill into sample data."}
+            : "No observations match the current scope — adjust the filters in step 2 to preview and drill into sample data."}
         </Callout>
       ) : segments === null ? (
         // A path the drill-down can't express (filter, slice, …).

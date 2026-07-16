@@ -14,6 +14,7 @@ import {
   DefaultEvalModelService,
   extractObservationVariables,
   fetchLLMCompletion,
+  findModel,
   getObservationByIdFromEventsTable,
   INTERNAL_TRACE_EVENT_SOURCE,
   logger,
@@ -39,6 +40,9 @@ export type LlmJudgeTestRunResult =
       model: string;
       provider: string;
       executionTraceId?: string;
+      /** Rough per-run cost (chars/4 token estimate × model prices);
+          null when the model has no price entry. */
+      estimatedCostUsd: number | null;
     }
   | {
       success: false;
@@ -95,6 +99,42 @@ async function writeJudgeExecutionTrace(params: {
   } catch (error) {
     logger.warn("Failed to write LLM judge test execution trace", { error });
     return undefined;
+  }
+}
+
+/**
+ * Prototype cost estimate for one judge call: chars/4 token approximation
+ * priced with the model's default pricing tier. fetchLLMCompletion's
+ * structured-output path doesn't surface real token usage, and the execution
+ * trace carries no usage either — good enough to project a daily run cost.
+ */
+async function estimateJudgeCallCostUsd(params: {
+  projectId: string;
+  model: string;
+  promptText: string;
+  responseText: string;
+}): Promise<number | null> {
+  try {
+    const { pricingTiers } = await findModel({
+      projectId: params.projectId,
+      model: params.model,
+    });
+    const tier =
+      pricingTiers.find((t) => t.isDefault) ?? pricingTiers[0] ?? null;
+    const inputPrice = tier?.prices.find((p) => p.usageType === "input")?.price;
+    const outputPrice = tier?.prices.find(
+      (p) => p.usageType === "output",
+    )?.price;
+    if (!inputPrice || !outputPrice) return null;
+    const inputTokens = Math.ceil(params.promptText.length / 4);
+    const outputTokens = Math.ceil(params.responseText.length / 4);
+    return (
+      inputPrice.toNumber() * inputTokens +
+      outputPrice.toNumber() * outputTokens
+    );
+  } catch (error) {
+    logger.info("Judge test-run cost estimate failed", { error });
+    return null;
   }
 }
 
@@ -270,6 +310,13 @@ export async function runLlmJudgeTest(params: {
       };
     }
 
+    const estimatedCostUsd = await estimateJudgeCallCostUsd({
+      projectId: params.projectId,
+      model: modelConfig.config.model,
+      promptText: interpolatedPrompt,
+      responseText: JSON.stringify(response) ?? "",
+    });
+
     return {
       success: true,
       score:
@@ -283,6 +330,7 @@ export async function runLlmJudgeTest(params: {
       model: modelConfig.config.model,
       provider: modelConfig.config.provider,
       executionTraceId,
+      estimatedCostUsd,
     };
   } catch (error) {
     logger.info("LLM judge test run failed", { error });

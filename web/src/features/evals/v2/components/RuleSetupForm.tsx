@@ -7,21 +7,24 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { Sparkles, TriangleAlert } from "lucide-react";
+import { FlaskConical, Sparkles, TriangleAlert } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+// Animated tab variants: the active pill slides between options.
+import {
+  Tabs,
+  AnimatedTabsList as TabsList,
+  AnimatedTabsTrigger as TabsTrigger,
+} from "@/src/components/ui/tabs";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   CodeEvalFunctionContractHint,
   CodeEvalTemplateFormBody,
@@ -43,11 +46,17 @@ import {
   type VariableMappingStatus,
 } from "@/src/features/evals/v2/components/PromptVariableEditor";
 import {
-  DEFAULT_RUN_SCOPE_STATE,
-  generateRunScopeName,
-  RunScopeSection,
-  type RunScopeFormState,
+  EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
+  EXAMPLE_FILTERS,
+  mergeExampleFilters,
+  ScopeFilterSearchBar,
+  TARGET_OBJECT_OPTIONS,
 } from "@/src/features/evals/v2/components/RunScopeSection";
+import {
+  SaveAndRunDialog,
+  type SaveAndRunOptions,
+  type SaveAndRunScopeChoice,
+} from "@/src/features/evals/v2/components/SaveAndRunDialog";
 import { type EventsTableRow } from "@/src/features/events/components/EventsTable";
 import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
 import {
@@ -58,7 +67,6 @@ import {
 } from "@/src/features/evals/v2/components/ScoreOutputSection";
 import { ScopePreviewTable } from "@/src/features/evals/v2/components/ScopePreviewTable";
 import {
-  TestIdlePanel,
   TestResultPanel,
   TestRunButton,
   useCodeTestRunMutation,
@@ -66,13 +74,16 @@ import {
   type CodeTestRunPayload,
   type TestRunPayload,
 } from "@/src/features/evals/v2/components/TestRunSection";
+import { CodeSampleContextDrawer } from "@/src/features/evals/v2/components/CodeSampleContextPreview";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   MAPPABLE_COLUMNS,
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
-import { VariableMappingPanel } from "@/src/features/evals/v2/components/VariableMappingPanel";
+import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
+import { type ScopeTargetObject } from "@/src/features/evals/v2/lib/scopeTarget";
+import { useScopeMatchCount } from "@/src/features/evals/v2/lib/useScopeMatchCount";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -80,12 +91,14 @@ import { useModelParams } from "@/src/features/playground/page/hooks/useModelPar
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   extractValueFromObjectAsString,
   extractVariables,
   getIsCharOrUnderscore,
+  type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 
@@ -93,7 +106,7 @@ export type CatalogTemplate = RouterOutputs["evalsV2"]["catalog"][number];
 
 export type EvaluatorTab = "llm" | "python" | "typescript";
 
-/** A sample candidate from the step-1 preview table. */
+/** A sample candidate from the scope-preview table. */
 type SampleObservationOption = {
   /** Observation id. */
   id: string;
@@ -103,7 +116,7 @@ type SampleObservationOption = {
   startTime: Date;
 };
 
-type SaveStatus = "ACTIVE" | "INACTIVE";
+type PendingSave = "draft" | "run";
 
 const SCRATCH_PROMPT = `You are an expert evaluator. Judge the quality of the model response below.
 
@@ -159,31 +172,67 @@ export function RuleSetupForm({
   const utils = api.useUtils();
 
   const [tab, setTab] = useState<EvaluatorTab>(
-    initialEvaluatorType === "code" ? "python" : "llm",
+    initialEvaluatorType === "code"
+      ? sourceTemplate?.sourceCodeLanguage === "TYPESCRIPT"
+        ? "typescript"
+        : "python"
+      : "llm",
   );
   const isCodeMode = tab !== "llm";
 
   // Starts empty on creation (template or scratch) — naming is a deliberate
   // step, not a prefill; the placeholder suggests the template's name.
   const [scoreName, setScoreName] = useState("");
+  // Optional score-name override (score output section's advanced settings);
+  // empty inherits the evaluator name.
+  const [scoreNameOverride, setScoreNameOverride] = useState("");
   const [description, setDescription] = useState("");
   const [prompt, setPrompt] = useState(
     sourceTemplate?.prompt ?? SCRATCH_PROMPT,
   );
-  const [pythonCode, setPythonCode] = useState(DEFAULT_PYTHON_CODE_EVAL_SOURCE);
+  // "Start from existing" with a code template lands with its source loaded.
+  const [pythonCode, setPythonCode] = useState(
+    sourceTemplate?.type === "CODE" &&
+      sourceTemplate.sourceCodeLanguage === "PYTHON" &&
+      sourceTemplate.sourceCode
+      ? sourceTemplate.sourceCode
+      : DEFAULT_PYTHON_CODE_EVAL_SOURCE,
+  );
   const [typescriptCode, setTypescriptCode] = useState(
-    DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
+    sourceTemplate?.type === "CODE" &&
+      sourceTemplate.sourceCodeLanguage === "TYPESCRIPT" &&
+      sourceTemplate.sourceCode
+      ? sourceTemplate.sourceCode
+      : DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   );
   const [previewEnabled, setPreviewEnabled] = useState(false);
-  const [scope, setScope] = useState<RunScopeFormState>(
-    DEFAULT_RUN_SCOPE_STATE,
-  );
+
+  // Adjustable split between the evaluator (left) and scope (right) panes,
+  // persisted per browser.
+  const [splitLayout, setSplitLayout] = useLocalStorage<
+    Record<string, number> | undefined
+  >("evalV2SetupSplitLayout", undefined);
+  // Code-mode counterpart of the prompt's interpolated preview: the sample
+  // drawer attached under the editor, expanded/collapsed via its own strip.
+  const [codeSampleDrawerOpen, setCodeSampleDrawerOpen] = useState(false);
+
+  // Scope draft: data source starts unpicked — the filter and mapping steps
+  // unlock once it is chosen. Naming/persisting the scope happens in the
+  // "Save and run" dialog, not inline.
+  const [dataSource, setDataSource] = useState<ScopeTargetObject | null>(null);
+  const [filterState, setFilterState] = useState<FilterState>(() => [
+    ...EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
+  ]);
+  // Sample rate: edited in the "Save and run" dialog (run-time decision),
+  // kept here so drafts and scope re-use persist it too.
+  const [sampling, setSampling] = useState(1);
+
   const [selectedObservationId, setSelectedObservationId] = useState<
     string | null
   >(null);
 
-  // Test mutations live here so the triggers (panel hub, step 3) and the
-  // result surfaces share their state.
+  // Test mutations live here so the triggers (panel hub, result surface) and
+  // the save dialog's cost estimate share their state.
   const testRun = useTestRunMutation();
   const codeTestRun = useCodeTestRunMutation();
 
@@ -205,11 +254,8 @@ export function RuleSetupForm({
   );
 
   // Which save button was clicked last — drives the pending spinner.
-  const [pendingStatus, setPendingStatus] = useState<SaveStatus | null>(null);
-  // Save was requested while an existing shared scope has local edits.
-  const [scopeDialogStatus, setScopeDialogStatus] = useState<SaveStatus | null>(
-    null,
-  );
+  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
+  const [saveRunDialogOpen, setSaveRunDialogOpen] = useState(false);
 
   // Portal target: the preview table renders its columns picker here, next to
   // the Preview label instead of inside its own bordered container.
@@ -236,12 +282,9 @@ export function RuleSetupForm({
     ),
   );
 
-  // The variable being edited in the mapping panel next to the prompt —
-  // activated by clicking a {{variable}} pill or a manifest row.
+  // The variable whose mapping card is open in step 3 — activated by
+  // clicking a {{variable}} pill in the prompt or the card's pencil.
   const [activeVariable, setActiveVariable] = useState<string | null>(null);
-  // Panel shows the last test result instead of the mapper. Precedence:
-  // active variable (pills always win) > test result > idle hub.
-  const [testResultOpen, setTestResultOpen] = useState(false);
 
   // Judge model (LLM mode): project default or custom via shared model params.
   const [judgeModelMode, setJudgeModelMode] =
@@ -302,6 +345,15 @@ export function RuleSetupForm({
     [timeRange],
   );
 
+  const isObservationTarget = dataSource === "event";
+
+  const scopeMatchCount = useScopeMatchCount({
+    projectId,
+    filterState,
+    timeRange: absoluteTimeRange,
+    enabled: isObservationTarget,
+  });
+
   // An observation picked from the scope preview may not be among the current
   // options (e.g. after a filter change), so it is carried separately and the
   // pick stays sticky.
@@ -330,7 +382,7 @@ export function RuleSetupForm({
       ? pickedObservation
       : null);
 
-  const handleSelectObservationFromPreview = (row: EventsTableRow) => {
+  const pickObservation = (row: EventsTableRow) => {
     if (!row.traceId) return;
     setSelectedObservationId(row.id);
     setPickedObservation({
@@ -339,8 +391,14 @@ export function RuleSetupForm({
       name: row.name ?? null,
       startTime: row.startTime,
     });
-    // Selecting is also inspecting: open the standard trace peek for the
-    // clicked row, like every other observations table.
+  };
+
+  const handleSelectObservationFromPreview = (row: EventsTableRow) => {
+    if (!row.traceId) return;
+    pickObservation(row);
+    // A row click is also inspecting: open the standard trace peek for the
+    // clicked row, like every other observations table. (The radio dot picks
+    // without opening the peek.)
     peekConfig.openPeek?.(row.traceId);
   };
 
@@ -353,9 +411,6 @@ export function RuleSetupForm({
     },
     { enabled: Boolean(selectedObservation) },
   );
-
-  const targetObject = scope.targetObject;
-  const isObservationTarget = targetObject === "event";
 
   // The shared source object every variable maps against: the sample
   // observation itself.
@@ -401,25 +456,6 @@ export function RuleSetupForm({
     const added = variables.filter((v) => !previous.includes(v));
     setActiveVariable(added.length === 1 ? added[0] : null);
   }, [activeVariable, variables]);
-
-  // Clicking away from the mapper returns the panel to its idle hub. A test
-  // result deliberately survives click-away — only its back button or
-  // activating a variable dismisses it. Clicks inside the panel keep it
-  // open; so do clicks in overlays (select menus etc.), which portal
-  // outside the app root.
-  useEffect(() => {
-    if (!activeVariable) return;
-    const handler = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const appRoot = document.getElementById("__next");
-      if (appRoot && !appRoot.contains(target)) return;
-      if (target.closest("[data-variable-mapping-panel]")) return;
-      setActiveVariable(null);
-    };
-    document.addEventListener("pointerdown", handler);
-    return () => document.removeEventListener("pointerdown", handler);
-  }, [activeVariable]);
 
   // Trash action in the mapping panel: removes every {{variable}} occurrence
   // from the prompt (the variable then leaves the panel via the effect above).
@@ -490,17 +526,15 @@ export function RuleSetupForm({
     return labels;
   }, [variables, variableFields]);
 
-  // Idle-panel overview: every variable with its mapping label, unmapped
-  // first so the outstanding work leads.
+  // Manifest for the mapping panel: every variable with its mapping label,
+  // in prompt order (the panel shows all of them, mapped or not).
   const variableOverview = useMemo(
     () =>
-      variables
-        .map((variable) => ({
-          variable,
-          label: variableMappingLabels[variable] ?? "map data",
-          unmapped: !variableFields[variable]?.selectedColumnId,
-        }))
-        .sort((a, b) => Number(b.unmapped) - Number(a.unmapped)),
+      variables.map((variable) => ({
+        variable,
+        label: variableMappingLabels[variable] ?? "map data",
+        unmapped: !variableFields[variable]?.selectedColumnId,
+      })),
     [variables, variableMappingLabels, variableFields],
   );
 
@@ -581,31 +615,62 @@ export function RuleSetupForm({
 
   const runScopes = api.evalsV2.runScopes.useQuery({ projectId });
 
-  const selectedExistingScope =
-    scope.mode === "existing"
-      ? runScopes.data?.find((s) => s.id === scope.runScopeId)
-      : undefined;
+  // Scopes saved by the earlier trace-based prototype can't drive this
+  // observation-centric form — hide them from the reuse section.
+  const reusableScopes = useMemo(
+    () => (runScopes.data ?? []).filter((s) => s.targetObject !== "trace"),
+    [runScopes.data],
+  );
 
-  // Baseline compare against the persisted scope: did the user edit the
-  // filter or sampling of a shared scope?
-  const existingScopeEdited = selectedExistingScope
-    ? JSON.stringify(scope.filterState) !==
-        JSON.stringify(selectedExistingScope.filter) ||
-      scope.sampling !== selectedExistingScope.sampling
-    : false;
+  // Selecting a shared scope from the search bar copies its whole config —
+  // whether it stays "the same scope" is decided in the save dialog, which
+  // matches by filter content.
+  const selectSharedScope = (id: string) => {
+    const s = reusableScopes.find((candidate) => candidate.id === id);
+    if (!s) return;
+    setDataSource(s.targetObject as ScopeTargetObject);
+    setFilterState(s.filter);
+    setSampling(s.sampling);
+  };
+
+  // Detail: the names of the evaluators using the scope, "a, b and x more"
+  // past two. The query returns the first 5 names; `_count` has the true total.
+  const evaluatorNamesDetail = (s: {
+    jobConfigurations: { scoreName: string }[];
+    _count: { jobConfigurations: number };
+  }): string => {
+    const total = s._count.jobConfigurations;
+    if (total === 0) return "no evaluators yet";
+    const names = s.jobConfigurations.map((jc) => jc.scoreName);
+    const shown = names.slice(0, 2).join(", ");
+    const rest = total - Math.min(2, names.length);
+    return rest > 0 ? `${shown} and ${rest} more` : shown;
+  };
+
+  const sharedFilterSection =
+    reusableScopes.length > 0
+      ? {
+          title: "Shared filters",
+          items: reusableScopes.map((s) => ({
+            id: s.id,
+            label: s.name,
+            detail: evaluatorNamesDetail(s),
+          })),
+        }
+      : undefined;
 
   const createRule = api.evalsV2.createRule.useMutation({
     onError: (error) => trpcErrorToast(error),
-    onSuccess: (_data, variables) => {
+    onSuccess: (_data, mutationInput) => {
       utils.evalsV2.invalidate().catch(() => undefined);
       showSuccessToast(
-        variables.status === "INACTIVE"
+        mutationInput.status === "INACTIVE"
           ? {
               title: "Draft saved",
               description: `"${scoreName}" was saved as a draft — activate it when it should start scoring.`,
             }
           : {
-              title: "Evaluator created",
+              title: "Evaluator running",
               description: `"${scoreName}" will score matching data from now on.`,
             },
       );
@@ -613,11 +678,7 @@ export function RuleSetupForm({
     },
   });
 
-  const updateRunScope = api.evalsV2.updateRunScope.useMutation({
-    onError: (error) => trpcErrorToast(error),
-  });
-
-  const isSaving = createRule.isPending || updateRunScope.isPending;
+  const isSaving = createRule.isPending;
 
   /**
    * Validates the evaluator definition (everything except scope + status) and
@@ -628,7 +689,7 @@ export function RuleSetupForm({
     if (!scoreName.trim()) {
       showErrorToast(
         "Missing evaluator name",
-        "Give the evaluator a name — it is also used as the score name.",
+        "Give the evaluator a name — scores use it too unless a custom score name is set.",
       );
       return null;
     }
@@ -661,7 +722,7 @@ export function RuleSetupForm({
     if (outputDefinitionRequired && !builtOutputDefinition) {
       showErrorToast(
         "Incomplete score output",
-        "Fill in the score output descriptions (categorical scores need at least 2 categories).",
+        "Check the score output: categorical scores need at least 2 unique choices, and a numeric range needs min below max.",
       );
       return null;
     }
@@ -669,6 +730,7 @@ export function RuleSetupForm({
     return {
       projectId,
       scoreName: scoreName.trim(),
+      scoreNameOverride: scoreNameOverride.trim() || undefined,
       description: description.trim() || null,
       evaluatorType: "LLM_AS_JUDGE" as const,
       sourceTemplateId: sourceTemplate?.id ?? null,
@@ -683,87 +745,71 @@ export function RuleSetupForm({
     };
   };
 
-  /** New-scope payload; auto-generates a unique name unless the user set one. */
-  const buildNewScopePayload = () =>
-    ({
-      mode: "new",
-      name:
-        scope.name?.trim() ||
-        generateRunScopeName({
-          filter: scope.filterState,
-          targetObject: scope.targetObject,
-          existingNames: (runScopes.data ?? []).map((s) => s.name),
-        }),
-      targetObject: scope.targetObject,
-      filter: scope.filterState,
-      sampling: scope.sampling,
-      delay: 30_000,
-    }) as const;
-
-  const handleSave = (status: SaveStatus) => {
+  /** Draft: saves the evaluator (and its scope config) without creating a
+      shared scope — nothing runs until it is activated. */
+  const handleSaveDraft = () => {
     const fields = buildRuleFields();
     if (!fields) return;
-    setPendingStatus(status);
-
-    if (scope.mode === "existing") {
-      if (!selectedExistingScope) {
-        showErrorToast("Missing run scope", "Select a run scope.");
-        return;
-      }
-      if (existingScopeEdited) {
-        // Shared scope has local edits: ask whether to propagate or fork.
-        setScopeDialogStatus(status);
-        return;
-      }
-      createRule.mutate({
-        ...fields,
-        scope: { mode: "existing", runScopeId: selectedExistingScope.id },
-        status,
-      });
-      return;
-    }
-
-    createRule.mutate({ ...fields, scope: buildNewScopePayload(), status });
-  };
-
-  const handleUpdateScopeForAll = async () => {
-    const status = scopeDialogStatus;
-    const fields = buildRuleFields();
-    if (!status || !fields || !selectedExistingScope) return;
-    try {
-      await updateRunScope.mutateAsync({
-        projectId,
-        runScopeId: selectedExistingScope.id,
-        filter: scope.filterState,
-        sampling: scope.sampling,
-      });
-    } catch {
-      // onError already showed a toast; keep the dialog open for a retry.
-      return;
-    }
-    setScopeDialogStatus(null);
+    setPendingSave("draft");
     createRule.mutate({
       ...fields,
-      scope: { mode: "existing", runScopeId: selectedExistingScope.id },
-      status,
+      scope: {
+        mode: "none",
+        targetObject: dataSource ?? "event",
+        filter: filterState,
+        sampling,
+      },
+      status: "INACTIVE",
     });
   };
 
-  const handleCreateNewScopeInstead = () => {
-    const status = scopeDialogStatus;
+  /** Save and run: validates, then hands off to the scope dialog. */
+  const handleSaveAndRun = () => {
     const fields = buildRuleFields();
-    if (!status || !fields) return;
-    setScopeDialogStatus(null);
-    createRule.mutate({ ...fields, scope: buildNewScopePayload(), status });
+    if (!fields) return;
+    if (!dataSource) {
+      showErrorToast(
+        "Missing data source",
+        "Pick a data source (step 1) before running the evaluator.",
+      );
+      return;
+    }
+    setSaveRunDialogOpen(true);
+  };
+
+  const handleConfirmSaveAndRun = (
+    choice: SaveAndRunScopeChoice,
+    options: SaveAndRunOptions,
+  ) => {
+    const fields = buildRuleFields();
+    if (!fields || !dataSource) return;
+    setPendingSave("run");
+    createRule.mutate({
+      ...fields,
+      scope:
+        choice.mode === "existing"
+          ? { mode: "existing", runScopeId: choice.runScopeId }
+          : {
+              mode: "new",
+              name: choice.name,
+              targetObject: dataSource,
+              filter: filterState,
+              sampling,
+              delay: 30_000,
+            },
+      runContinuously: options.runContinuously,
+      backfill: options.backfill,
+      status: "ACTIVE",
+    });
   };
 
   const unmappedVariables = variableOverview.filter((item) => item.unmapped);
   const testDisabledReason = !isObservationTarget
     ? TEST_RUN_OBSERVATIONS_ONLY_REASON
     : !selectedObservation
-      ? "Select a sample observation first."
+      ? "Pick a sample observation in step 2 first."
       : unmappedVariables.length > 0
-        ? "Map all {{variables}} in step 2 first."
+        ? "Map all {{variables}} first."
         : customModelIncomplete
           ? "Select a custom judge model first."
           : null;
@@ -791,7 +837,7 @@ export function RuleSetupForm({
   const codeTestDisabledReason = !isObservationTarget
     ? TEST_RUN_OBSERVATIONS_ONLY_REASON
     : !selectedObservation
-      ? "Select a sample observation first."
+      ? "Pick a sample observation in step 2 first."
       : !activeSourceCode.trim()
         ? "Write the evaluator code first."
         : null;
@@ -811,16 +857,6 @@ export function RuleSetupForm({
     };
   };
 
-  // The Test step drives whichever mutation matches the evaluator type.
-  const activeTestIsPending = isCodeMode
-    ? codeTestRun.isPending
-    : testRun.isPending;
-  const activeTestDisabledReason = isCodeMode
-    ? codeTestDisabledReason
-    : testDisabledReason;
-  const hasTestResult = isCodeMode
-    ? Boolean(codeTestRun.data || codeTestRun.error)
-    : Boolean(testRun.data || testRun.error);
   const runActiveTest = () => {
     if (isCodeMode) {
       const payload = getCodeTestPayload();
@@ -831,16 +867,36 @@ export function RuleSetupForm({
       if (!payload) return;
       testRun.mutate(payload);
     }
-    // The run's result takes over the panel next to the prompt/code.
+    // Close any open mapping popover — the result appears in the test step.
     setActiveVariable(null);
-    setTestResultOpen(true);
   };
 
-  // Pills always win: activating a variable swaps the panel back to the
-  // mapper; the last result stays reachable via the idle hub row.
+  // The test step shows the result permanently once a run exists.
+  const hasLlmTestResult = Boolean(testRun.data || testRun.error);
+  const hasCodeTestResult = Boolean(codeTestRun.data || codeTestRun.error);
+
+  // Per-evaluation cost from the last successful LLM test run — feeds the
+  // save dialog's daily projection. (Code evals run without LLM cost.)
+  const testRunCostUsd =
+    !isCodeMode && testRun.data?.success
+      ? (testRun.data.estimatedCostUsd ?? null)
+      : null;
+
+  // Activating a variable (inserting a new one, or a warning link) opens its
+  // mapping selector in step 3.
   const activateVariable = (variable: string) => {
-    setTestResultOpen(false);
     setActiveVariable(variable);
+  };
+
+  // Clicking a {{variable}} token in the prompt reveals, not edits: scrolls
+  // to the card and expands its value preview. The nonce makes repeated
+  // clicks on the same token re-fire.
+  const [revealSignal, setRevealSignal] = useState<{
+    variable: string;
+    nonce: number;
+  } | null>(null);
+  const revealVariable = (variable: string) => {
+    setRevealSignal((prev) => ({ variable, nonce: (prev?.nonce ?? 0) + 1 }));
   };
 
   const openSampleTracePeek = () => {
@@ -850,301 +906,394 @@ export function RuleSetupForm({
     peekConfig.openPeek?.(executionTraceId);
   };
 
-  const scopeDialogScopeName = selectedExistingScope?.name ?? "";
-  const scopeDialogEvaluatorCount =
-    selectedExistingScope?._count.jobConfigurations ?? 0;
-  const scopeDialogEvaluatorNames = (
-    selectedExistingScope?.jobConfigurations ?? []
-  )
-    .map((jc) => jc.scoreName)
-    .join(", ");
+  const stepsLocked = dataSource === null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Global time filter in the page header — same picker as the list
           views; the preview, sample candidates, and match count respect it. */}
       <TableHeaderControls timeRange={timeRange} setTimeRange={setTimeRange} />
-      <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <div className="flex min-w-0 flex-col px-6 py-6">
-            <SetupStep number={1} title="Choose where it runs">
-              <RunScopeSection
-                projectId={projectId}
-                scope={scope}
-                onChange={setScope}
+      {/* Adjustable split: the divider drags, and the layout persists per
+          browser via localStorage. */}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+        defaultLayout={splitLayout}
+        onLayoutChanged={setSplitLayout}
+      >
+        {/* LEFT — the evaluator template: name, description, and everything
+            that defines the evaluation. No stepper; this column is the
+            "what", the right column is the "where". */}
+        <ResizablePanel
+          id="evaluator"
+          defaultSize="50%"
+          minSize="25%"
+          className="min-h-0 min-w-0 overflow-y-auto"
+        >
+          <div className="flex min-w-0 flex-col gap-6 px-6 py-6">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="score-name">Evaluator name</Label>
+              <Input
+                id="score-name"
+                className="max-w-md"
+                placeholder={
+                  sourceTemplate
+                    ? `e.g. ${toKebabCase(sourceTemplate.name)}`
+                    : "e.g. hallucination"
+                }
+                value={scoreName}
+                onChange={(e) => setScoreName(e.target.value)}
               />
-              {scope.targetObject !== "experiment" && (
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="evaluator-description">
+                Description (optional)
+              </Label>
+              <Input
+                id="evaluator-description"
+                placeholder="What does this evaluator score?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Evaluator type</Label>
+              <p className="text-muted-foreground text-sm">
+                How scores are produced: an LLM judging with a prompt, or your
+                own Python or TypeScript code.
+              </p>
+              <Tabs
+                value={tab}
+                onValueChange={(value) => setTab(value as EvaluatorTab)}
+              >
+                <TabsList>
+                  <TabsTrigger value="llm" className="gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    LLM-as-a-judge
+                  </TabsTrigger>
+                  <TabsTrigger value="python" className="gap-1.5">
+                    <SiPython className="h-3.5 w-3.5" />
+                    Python
+                  </TabsTrigger>
+                  <TabsTrigger value="typescript" className="gap-1.5">
+                    <SiTypescript className="h-3.5 w-3.5" />
+                    TypeScript
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {isCodeMode ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium">Code</p>
+                <p className="text-muted-foreground text-sm">
+                  Computes the score for each matching item — it receives the
+                  data and returns a value. Test it against the sample in the
+                  right pane.
+                </p>
+                {/* Editor + attached sample drawer: one composite widget,
+                    the drawer strip draws the seam. */}
+                <div>
+                  <CodeEvalTemplateFormBody
+                    sourceCode={tab === "python" ? pythonCode : typescriptCode}
+                    sourceCodeLanguage={
+                      tab === "python" ? "PYTHON" : "TYPESCRIPT"
+                    }
+                    onSourceCodeChange={
+                      tab === "python" ? setPythonCode : setTypescriptCode
+                    }
+                    editable
+                    validationResult={null}
+                    hideLanguageLabel
+                    hideFunctionContractHint
+                    editorClassName={
+                      isObservationTarget ? "rounded-b-none" : undefined
+                    }
+                  />
+                  {isObservationTarget && (
+                    <CodeSampleContextDrawer
+                      open={codeSampleDrawerOpen}
+                      onOpenChange={setCodeSampleDrawerOpen}
+                      sampleObservation={sourceObject}
+                      sampleLabel={
+                        selectedObservation
+                          ? (selectedObservation.name ?? selectedObservation.id)
+                          : null
+                      }
+                      language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
+                    />
+                  )}
+                </div>
+                <CodeEvalFunctionContractHint />
+              </div>
+            ) : (
+              <>
                 <div className="flex flex-col gap-2">
-                  <div className="flex items-end justify-between gap-2">
-                    <div className="flex flex-col gap-2">
-                      <Label>Matching observations</Label>
-                      <p className="text-muted-foreground text-sm">
-                        Sample from the selected time range that matches these
-                        filters — click a row to use it as the sample.
-                      </p>
-                    </div>
-                    {/* Target for the preview table's portaled columns picker */}
-                    <div ref={setPreviewColumnsPickerEl} />
-                  </div>
-                  <ScopePreviewTable
+                  <p className="text-sm font-medium">Prompt</p>
+                  <p className="text-muted-foreground text-sm">
+                    {
+                      "The judge's instructions, run on the model below. {{variables}} pull in the data being evaluated — map them in step 3 on the right."
+                    }
+                  </p>
+                  {/* Experiment: the judge model lives with the prompt (its
+                      instructions run on it) instead of as its own section. */}
+                  <JudgeModelSection
                     projectId={projectId}
-                    filterState={scope.filterState}
-                    timeRange={absoluteTimeRange}
-                    onSelectObservation={handleSelectObservationFromPreview}
-                    onRowsChange={handlePreviewRowsChange}
-                    columnsPickerContainer={previewColumnsPickerEl}
+                    mode={judgeModelMode}
+                    onModeChange={setJudgeModelMode}
+                    modelParamsContext={{
+                      modelParams,
+                      availableModels,
+                      availableProviders,
+                      providerModelCombinations,
+                      updateModelParamValue,
+                      setModelParamEnabled,
+                    }}
+                  />
+                  <PromptVariableEditor
+                    value={prompt}
+                    onChange={setPrompt}
+                    variableStatus={variableStatus}
+                    variableMappings={variableMappingLabels}
+                    activeVariable={activeVariable}
+                    onVariableClick={revealVariable}
+                    onVariableInsert={activateVariable}
+                    showPreviewToggle
+                    previewEnabled={previewEnabled && isObservationTarget}
+                    onPreviewEnabledChange={setPreviewEnabled}
+                    previewDisabledReason={
+                      dataSource === null
+                        ? "Pick a data source in step 1 first — the preview interpolates a sample observation."
+                        : !isObservationTarget
+                          ? "Only available for the Observations data source in this prototype."
+                          : null
+                    }
+                    previewSlot={
+                      interpolatedPromptPreview !== null ? (
+                        // A reading surface, not a disabled editor:
+                        // muted document background, the injected sample
+                        // values highlighted. Attached under the top
+                        // toolbar (its top border draws the seam).
+                        <pre className="bg-muted/30 max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
+                          {interpolatedPromptPreview}
+                        </pre>
+                      ) : (
+                        <p className="text-muted-foreground bg-muted/30 rounded-b-md border p-3 text-sm">
+                          Pick a sample observation in step 2 to preview the
+                          interpolated prompt.
+                        </p>
+                      )
+                    }
                   />
                 </div>
-              )}
+
+                <div>
+                  <ScoreOutputSection
+                    state={outputState}
+                    onChange={setOutputState}
+                    scoreName={scoreNameOverride}
+                    onScoreNameChange={setScoreNameOverride}
+                    defaultScoreName={scoreName.trim()}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        {/* RIGHT — where it runs: data source → filter + sample → mapping
+            and test, as a stepper. */}
+        <ResizablePanel
+          id="scope"
+          defaultSize="50%"
+          minSize="25%"
+          className="min-h-0 min-w-0 overflow-y-auto"
+        >
+          <div className="flex min-w-0 flex-col px-6 py-6">
+            <SetupStep number={1} title="Pick the data source">
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground text-sm">
+                  What the evaluator runs on: individual observations (spans,
+                  generations, tool calls) or experiment runs.
+                </p>
+                <Tabs
+                  value={dataSource ?? ""}
+                  onValueChange={(value) =>
+                    setDataSource(value as ScopeTargetObject)
+                  }
+                >
+                  <TabsList>
+                    {TARGET_OBJECT_OPTIONS.map((option) => (
+                      <TabsTrigger
+                        key={option.value}
+                        value={option.value}
+                        className="gap-1.5"
+                      >
+                        <option.icon className="h-3.5 w-3.5" />
+                        {option.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
             </SetupStep>
 
             <SetupStep
               number={2}
-              title="Define the evaluation"
-              defaultOpen={false}
+              title="Filter and pick a sample"
+              disabled={stepsLocked}
+              disabledHint="Pick a data source first."
             >
-              <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground text-sm">
-                  How scores are produced: an LLM judging with a prompt, or your
-                  own Python or TypeScript code.
-                </p>
-                <Tabs
-                  value={tab}
-                  onValueChange={(value) => setTab(value as EvaluatorTab)}
-                >
-                  <TabsList>
-                    <TabsTrigger value="llm" className="gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      LLM-as-a-judge
-                    </TabsTrigger>
-                    <TabsTrigger value="python" className="gap-1.5">
-                      <SiPython className="h-3.5 w-3.5" />
-                      Python
-                    </TabsTrigger>
-                    <TabsTrigger value="typescript" className="gap-1.5">
-                      <SiTypescript className="h-3.5 w-3.5" />
-                      TypeScript
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              {isCodeMode ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium">Code</p>
-                  <p className="text-muted-foreground text-sm">
-                    Computes the score for each matching item — it receives the
-                    data and returns a value.
+              {dataSource === "experiment" ? (
+                <div className="text-muted-foreground flex flex-col items-center gap-1.5 rounded-md border border-dashed px-4 py-8 text-center text-sm">
+                  <FlaskConical className="h-4 w-4" />
+                  <p className="text-foreground font-medium">
+                    Experiments are not wired up in this prototype yet
                   </p>
-                  {/* Same split as the LLM prompt: code left, test panel
-                      right (code has no variables, so the panel is the test
-                      hub / result). */}
-                  <div className="grid items-stretch gap-3 md:grid-cols-2">
-                    <CodeEvalTemplateFormBody
-                      sourceCode={
-                        tab === "python" ? pythonCode : typescriptCode
-                      }
-                      sourceCodeLanguage={
-                        tab === "python" ? "PYTHON" : "TYPESCRIPT"
-                      }
-                      onSourceCodeChange={
-                        tab === "python" ? setPythonCode : setTypescriptCode
-                      }
-                      editable
-                      validationResult={null}
-                      hideLanguageLabel
-                      hideFunctionContractHint
-                    />
-                    {/* The editor is the height master: the panel fills its
-                        cell absolutely so top and bottom always align, and
-                        its own content scrolls internally. */}
-                    <div className="relative min-h-[140px]">
-                      {testResultOpen ? (
-                        <TestResultPanel
-                          className="absolute inset-0 rounded-md border"
-                          isCodeMode
-                          testRun={testRun}
-                          codeTestRun={codeTestRun}
-                          isPending={codeTestRun.isPending}
-                          disabledReason={codeTestDisabledReason}
-                          onRerun={runActiveTest}
-                          onBack={() => setTestResultOpen(false)}
-                          onOpenSampleTrace={openSampleTracePeek}
-                          onOpenExecutionTrace={openExecutionTracePeek}
-                        />
-                      ) : (
-                        <TestIdlePanel
-                          className="absolute inset-0 rounded-md border"
-                          isPending={codeTestRun.isPending}
-                          disabledReason={codeTestDisabledReason}
-                          onRun={runActiveTest}
-                          lastResultLabel={
-                            codeTestRun.data
-                              ? codeTestRun.data.success
-                                ? `Last test: ${String(codeTestRun.data.scores[0]?.value ?? "done")}`
-                                : "Last test: failed"
-                              : codeTestRun.error
-                                ? "Last test: failed"
-                                : null
-                          }
-                          onOpenLastResult={() => setTestResultOpen(true)}
-                          sampleObservation={sourceObject}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <CodeEvalFunctionContractHint />
+                  <p>
+                    Filtering and sampling experiment runs will land here —
+                    switch to Observations to try the full flow.
+                  </p>
                 </div>
               ) : (
                 <>
                   <div className="flex flex-col gap-2">
-                    <p className="text-sm font-medium">Model</p>
+                    <Label>Filter observations</Label>
                     <p className="text-muted-foreground text-sm">
-                      The LLM that acts as the judge. The project default keeps
-                      all evaluators on one model, managed in a single place.
+                      Narrow down which observations get evaluated — leave empty
+                      to evaluate everything, or reuse a shared filter to keep
+                      evaluators in sync.
                     </p>
-                    <JudgeModelSection
+                    <ScopeFilterSearchBar
                       projectId={projectId}
-                      mode={judgeModelMode}
-                      onModeChange={setJudgeModelMode}
-                      modelParamsContext={{
-                        modelParams,
-                        availableModels,
-                        availableProviders,
-                        providerModelCombinations,
-                        updateModelParamValue,
-                        setModelParamEnabled,
-                      }}
+                      filterState={filterState}
+                      setFilterState={setFilterState}
+                      savedQueries={sharedFilterSection}
+                      onPickSavedQuery={selectSharedScope}
                     />
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm font-medium">Prompt</p>
-                    <p className="text-muted-foreground text-sm">
-                      {
-                        "The judge's instructions. {{variables}} pull in the data being evaluated."
-                      }
-                    </p>
-                    {/* Split prompt section: editor left, mapping panel
-                        right — clicking a pill activates its mapping. */}
-                    <div className="grid items-stretch gap-3 md:grid-cols-2">
-                      <PromptVariableEditor
-                        value={prompt}
-                        onChange={setPrompt}
-                        variableStatus={variableStatus}
-                        variableMappings={variableMappingLabels}
-                        activeVariable={activeVariable}
-                        onVariableClick={activateVariable}
-                        showPreviewToggle={isObservationTarget}
-                        previewEnabled={previewEnabled && isObservationTarget}
-                        onPreviewEnabledChange={setPreviewEnabled}
-                        previewSlot={
-                          interpolatedPromptPreview !== null ? (
-                            // A reading surface, not a disabled editor:
-                            // muted document background, the injected sample
-                            // values highlighted. Attached under the top
-                            // toolbar (its top border draws the seam).
-                            <pre className="bg-muted/30 max-h-[60dvh] overflow-y-auto rounded-b-md border p-3 font-sans text-sm whitespace-pre-wrap">
-                              {interpolatedPromptPreview}
-                            </pre>
-                          ) : (
-                            <p className="text-muted-foreground bg-muted/30 rounded-b-md border p-3 text-sm">
-                              Select a sample observation in the sample widget
-                              to preview the interpolated prompt.
-                            </p>
-                          )
-                        }
-                      />
-                      {/* Editor = height master; the panel fills its cell
-                          absolutely and scrolls internally. */}
-                      <div className="relative min-h-[140px]">
-                        {!activeVariable && testResultOpen ? (
-                          <TestResultPanel
-                            className="absolute inset-0 rounded-md border"
-                            isCodeMode={false}
-                            testRun={testRun}
-                            codeTestRun={codeTestRun}
-                            isPending={testRun.isPending}
-                            disabledReason={testDisabledReason}
-                            onRerun={runActiveTest}
-                            onBack={() => setTestResultOpen(false)}
-                            onOpenSampleTrace={openSampleTracePeek}
-                            onOpenExecutionTrace={openExecutionTracePeek}
-                          />
-                        ) : (
-                          <VariableMappingPanel
-                            className="absolute inset-0 rounded-md border"
-                            activeVariable={activeVariable}
-                            fieldState={
-                              activeVariable
-                                ? getVariableFieldState(activeVariable)
-                                : null
-                            }
-                            overview={variableOverview}
-                            onSelectVariable={activateVariable}
-                            sourceObject={sourceObject}
-                            hasMatchingObservations={
-                              observationOptions.length > 0
-                            }
-                            onChange={(next) => {
-                              if (!activeVariable) return;
-                              setVariableFields((prev) => ({
-                                ...prev,
-                                [activeVariable]: next,
-                              }));
-                            }}
-                            onDelete={
-                              activeVariable
-                                ? () => deleteVariable(activeVariable)
-                                : undefined
-                            }
-                            testAction={{
-                              run: runActiveTest,
-                              isPending: testRun.isPending,
-                              disabledReason: testDisabledReason,
-                              lastResultLabel: testRun.data
-                                ? testRun.data.success
-                                  ? `Last test: score ${String(testRun.data.score)}`
-                                  : "Last test: failed"
-                                : testRun.error
-                                  ? "Last test: failed"
-                                  : null,
-                              onOpenLastResult: () => setTestResultOpen(true),
-                            }}
-                          />
-                        )}
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {EXAMPLE_FILTERS.map((example) => (
+                        <Button
+                          key={example.label}
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            setFilterState(
+                              mergeExampleFilters(filterState, example.filters),
+                            )
+                          }
+                        >
+                          <example.icon className="mr-1.5 h-3.5 w-3.5" />
+                          {example.label}
+                        </Button>
+                      ))}
                     </div>
                   </div>
 
-                  <div>
-                    <ScoreOutputSection
-                      state={outputState}
-                      onChange={setOutputState}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-end justify-between gap-2">
+                      <div className="flex flex-col gap-2">
+                        <Label>
+                          Matching observations
+                          {scopeMatchCount.count !== null && (
+                            <span className="text-muted-foreground ml-1.5 font-normal">
+                              {`(${compactNumberFormatter(scopeMatchCount.count)})`}
+                            </span>
+                          )}
+                        </Label>
+                        <p className="text-muted-foreground text-sm">
+                          The dot picks the sample row the mapping and test in
+                          step 3 run against; clicking a row also opens it.
+                        </p>
+                      </div>
+                      {/* Target for the preview table's portaled columns picker */}
+                      <div ref={setPreviewColumnsPickerEl} />
+                    </div>
+                    <ScopePreviewTable
+                      projectId={projectId}
+                      filterState={filterState}
+                      timeRange={absoluteTimeRange}
+                      onSelectObservation={handleSelectObservationFromPreview}
+                      onPickObservation={pickObservation}
+                      selectedObservationId={selectedObservationId}
+                      onRowsChange={handlePreviewRowsChange}
+                      columnsPickerContainer={previewColumnsPickerEl}
                     />
                   </div>
                 </>
               )}
             </SetupStep>
 
+            {!isCodeMode && (
+              <SetupStep
+                number={3}
+                title="Map variables to data"
+                disabled={stepsLocked}
+                disabledHint="Pick a data source first."
+              >
+                {!isObservationTarget ? (
+                  <p className="text-muted-foreground text-sm">
+                    Variable mapping is only available for the Observations data
+                    source in this prototype.
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-muted-foreground text-sm">
+                      {
+                        "Each {{variable}} in the prompt pulls data from the sample picked in step 2."
+                      }
+                    </p>
+                    <VariableMappingList
+                      overview={variableOverview}
+                      activeVariable={activeVariable}
+                      onActiveVariableChange={setActiveVariable}
+                      revealSignal={revealSignal}
+                      getFieldState={getVariableFieldState}
+                      onChangeField={(variable, next) =>
+                        setVariableFields((prev) => ({
+                          ...prev,
+                          [variable]: next,
+                        }))
+                      }
+                      onDeleteVariable={deleteVariable}
+                      sourceObject={sourceObject}
+                      hasMatchingObservations={observationOptions.length > 0}
+                    />
+                  </div>
+                )}
+              </SetupStep>
+            )}
+
             <SetupStep
-              number={3}
-              title="Test it on the sample"
-              defaultOpen={false}
+              number={isCodeMode ? 3 : 4}
+              title="Test on the sample"
+              isLast
+              disabled={stepsLocked}
+              disabledHint="Pick a data source first."
             >
               {!isObservationTarget ? (
                 <p className="text-muted-foreground text-sm">
                   {TEST_RUN_OBSERVATIONS_ONLY_REASON}
                 </p>
               ) : (
-                <div className="flex max-w-3xl flex-col rounded-md border">
-                  {!hasTestResult ? (
+                <div className="flex flex-col rounded-md border">
+                  {!(isCodeMode ? hasCodeTestResult : hasLlmTestResult) ? (
                     // Placeholder: the result's future home, with the
                     // trigger living inside it.
                     <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-6 text-center">
                       <TestRunButton
-                        isPending={activeTestIsPending}
-                        disabledReason={activeTestDisabledReason}
+                        isPending={
+                          isCodeMode ? codeTestRun.isPending : testRun.isPending
+                        }
+                        disabledReason={
+                          isCodeMode
+                            ? codeTestDisabledReason
+                            : testDisabledReason
+                        }
                         onRun={runActiveTest}
                       />
                       {selectedObservation ? (
@@ -1158,11 +1307,11 @@ export function RuleSetupForm({
                           >
                             {selectedObservation.name ?? selectedObservation.id}
                           </button>{" "}
-                          — pick a different row in step 1 to change it.
+                          — pick a different row in step 2 to change it.
                         </p>
                       ) : (
                         <p className="text-muted-foreground text-xs">
-                          No sample yet — pick a row in step 1.
+                          No sample yet — pick a row in step 2.
                         </p>
                       )}
                       {!isCodeMode && unmappedVariables.length > 0 && (
@@ -1173,10 +1322,10 @@ export function RuleSetupForm({
                               type="button"
                               className="flex items-center gap-1.5 hover:underline"
                               title="Open in the variable mapper"
-                              onClick={() => setActiveVariable(item.variable)}
+                              onClick={() => activateVariable(item.variable)}
                             >
                               <TriangleAlert className="h-4 w-4 shrink-0" />
-                              {`{{${item.variable}}} isn't mapped yet — map it in step 2 before testing.`}
+                              {`{{${item.variable}}} isn't mapped yet — map it in step 3 before testing.`}
                             </button>
                           ))}
                         </div>
@@ -1187,8 +1336,12 @@ export function RuleSetupForm({
                       isCodeMode={isCodeMode}
                       testRun={testRun}
                       codeTestRun={codeTestRun}
-                      isPending={activeTestIsPending}
-                      disabledReason={activeTestDisabledReason}
+                      isPending={
+                        isCodeMode ? codeTestRun.isPending : testRun.isPending
+                      }
+                      disabledReason={
+                        isCodeMode ? codeTestDisabledReason : testDisabledReason
+                      }
                       onRerun={runActiveTest}
                       onOpenSampleTrace={openSampleTracePeek}
                       onOpenExecutionTrace={openExecutionTracePeek}
@@ -1197,114 +1350,53 @@ export function RuleSetupForm({
                 </div>
               )}
             </SetupStep>
-
-            <SetupStep number={4} title="Describe the evaluator" isLast>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="score-name">Evaluator name</Label>
-                <Input
-                  id="score-name"
-                  className="max-w-md"
-                  placeholder={
-                    sourceTemplate
-                      ? `e.g. ${toKebabCase(sourceTemplate.name)}`
-                      : "e.g. hallucination"
-                  }
-                  value={scoreName}
-                  onChange={(e) => setScoreName(e.target.value)}
-                />
-                <p className="text-muted-foreground text-sm">
-                  Also used as the name of the score it creates.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="evaluator-description">
-                  Description (optional)
-                </Label>
-                <p className="text-muted-foreground text-sm">
-                  Helps your team understand what this evaluator checks.
-                </p>
-                <Input
-                  id="evaluator-description"
-                  placeholder="What does this evaluator score?"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
-            </SetupStep>
           </div>
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       {/* Standard trace peek: opened from "Sample trace" / "Execution
           trace" in the test result surfaces. */}
       <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
 
-      {/* Fixed action bar (Datadog-style): always visible while the steps
+      {/* Fixed action bar (Datadog-style): always visible while both panes
           scroll. */}
       <div className="bg-background flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2">
         <Button
           type="button"
           variant="outline"
-          size="sm"
           disabled={isSaving}
-          loading={isSaving && pendingStatus === "INACTIVE"}
-          onClick={() => handleSave("INACTIVE")}
-        >
-          Save as draft
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          disabled={isSaving}
-          loading={isSaving && pendingStatus === "ACTIVE"}
-          onClick={() => handleSave("ACTIVE")}
+          loading={isSaving && pendingSave === "draft"}
+          title="Saves the evaluator as a draft — it does not run yet."
+          onClick={handleSaveDraft}
         >
           Save
         </Button>
+        <Button
+          type="button"
+          disabled={isSaving}
+          loading={isSaving && pendingSave === "run"}
+          onClick={handleSaveAndRun}
+        >
+          Save and run evaluator
+        </Button>
       </div>
 
-      <Dialog
-        open={scopeDialogStatus !== null}
+      <SaveAndRunDialog
+        projectId={projectId}
+        open={saveRunDialogOpen}
         onOpenChange={(open) => {
-          if (!open) setScopeDialogStatus(null);
+          if (!isSaving) setSaveRunDialogOpen(open);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update shared filter?</DialogTitle>
-            <DialogDescription>
-              {`"${scopeDialogScopeName}" is used by ${scopeDialogEvaluatorCount} evaluator(s)${scopeDialogEvaluatorNames ? `: ${scopeDialogEvaluatorNames}` : ""}. Apply your changes to all of them, or keep them unchanged and create a new shared filter for this evaluator.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={isSaving}
-              onClick={() => setScopeDialogStatus(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSaving}
-              onClick={handleCreateNewScopeInstead}
-            >
-              Create new filter
-            </Button>
-            <Button
-              type="button"
-              loading={isSaving}
-              onClick={() => {
-                handleUpdateScopeForAll().catch(() => undefined);
-              }}
-            >
-              Update for all
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        dataSource={dataSource ?? "event"}
+        filterState={filterState}
+        sampling={sampling}
+        onSamplingChange={setSampling}
+        existingScopes={reusableScopes}
+        testRunCostUsd={testRunCostUsd}
+        isCodeEvaluator={isCodeMode}
+        isSaving={isSaving}
+        onConfirm={handleConfirmSaveAndRun}
+      />
     </div>
   );
 }

@@ -29,14 +29,16 @@ const PREVIEW_DEFAULT_COLUMNS: Record<string, boolean> = {
 /**
  * Read-only preview of observations matching the scope filter, embedded the
  * same way as the old evaluator configuration screen: the real events table
- * (hidden controls, compact local pagination) in a bordered container. The
- * rows sample the view's global time range.
+ * (hidden controls, infinite scroll) in a bordered container. The rows
+ * sample the view's global time range.
  */
 export function ScopePreviewTable({
   projectId,
   filterState,
   timeRange,
   onSelectObservation,
+  onPickObservation,
+  selectedObservationId,
   onRowsChange,
   columnsPickerContainer,
 }: {
@@ -46,6 +48,12 @@ export function ScopePreviewTable({
   timeRange: AbsoluteTimeRange | null;
   /** Row click: use the clicked observation as the sample. */
   onSelectObservation?: (row: EventsTableRow) => void;
+  /** Radio-dot pick: use the row as the sample without row-click side
+      effects (e.g. opening the peek). */
+  onPickObservation?: (row: EventsTableRow) => void;
+  /** The picked sample row — drives the radio-dot column and row highlight.
+      Pass null (not undefined) to show the picker with nothing picked. */
+  selectedObservationId?: string | null;
   /** Reports the loaded preview rows, e.g. to derive sample candidates. */
   onRowsChange?: (rows: EventsTableRow[]) => void;
   /** Where to render the columns picker (e.g. next to the section label). */
@@ -95,23 +103,29 @@ export function ScopePreviewTable({
           </p>
         </div>
       )}
+      {/* Exactly six fully visible rows: 40px header + 6 × 29px rows (h-7
+          plus the 1px separator) + 3px of borders — more rows load in on
+          scroll. */}
       <div
         className={cn(
-          "flex max-h-[30dvh] w-full flex-col overflow-hidden border",
+          "flex max-h-[217px] w-full flex-col overflow-hidden border",
           isEmpty && "hidden",
         )}
       >
-        <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
+        <Suspense fallback={<Skeleton className="h-[217px] w-full" />}>
           <EventsTable
             projectId={projectId}
             hideControls
             externalFilterState={effectiveFilterState}
             externalDateRange={dateRange}
-            embeddedPageSize={5}
+            embeddedPageSize={10}
+            embeddedInfiniteScroll
             externalColumnVisibility={columnVisibility}
             onExternalColumnVisibilityChange={setColumnVisibility}
             columnsPickerContainer={columnsPickerContainer}
             onExternalRowClick={onSelectObservation}
+            externalSelectedRowId={selectedObservationId}
+            onExternalRowPick={onPickObservation}
             onExternalRowsChange={handleRowsChange}
           />
         </Suspense>
