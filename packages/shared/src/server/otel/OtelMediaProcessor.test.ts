@@ -9,6 +9,7 @@ vi.mock("../logger", () => ({
 }));
 
 import type { ResourceSpan } from "./OtelIngestionProcessor";
+import { recordIncrement } from "../instrumentation";
 import { processOtelMedia, type UploadOtelMedia } from "./OtelMediaProcessor";
 
 const TRACE_ID = "0123456789abcdef0123456789abcdef";
@@ -112,6 +113,11 @@ describe("processOtelMedia", () => {
     );
     expect(getAttributeValue(spans)).toBe(
       `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`,
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.detection_check",
+      1,
+      { path: "data_uri" },
     );
   });
 
@@ -232,6 +238,11 @@ describe("processOtelMedia", () => {
       `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=bytes@@@`,
     );
     expect(uploadMedia).toHaveBeenCalledTimes(1);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.detection_check",
+      1,
+      { path: "stringified_json" },
+    );
   });
 
   it("processes media in span-event attributes", async () => {

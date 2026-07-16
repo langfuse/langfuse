@@ -176,6 +176,10 @@ async function processOtelAnyValue(
     const processedValue = await transformMediaPayload(originalValue, {
       processCandidate: (candidate) => processCandidate(candidate, context),
       onInvalidCandidate: (kind) => recordInvalidCandidate(kind, context),
+      onDetectionPath: (path) =>
+        recordIncrement("langfuse.ingestion.otel.media.detection_check", 1, {
+          path,
+        }),
     });
 
     if (processedValue !== originalValue) {

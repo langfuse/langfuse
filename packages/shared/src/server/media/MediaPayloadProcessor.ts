@@ -21,11 +21,14 @@ export type MediaPayloadCandidate = {
   source: "base64_data_uri" | "bytes";
 };
 
+export type MediaDetectionPath = "data_uri" | "stringified_json";
+
 type TransformParams = {
   processCandidate: (
     candidate: MediaPayloadCandidate,
   ) => Promise<string | undefined>;
   onInvalidCandidate: (kind: MediaPayloadKind) => void;
+  onDetectionPath: (path: MediaDetectionPath) => void;
 };
 
 type DataUriOccurrence = {
@@ -85,6 +88,7 @@ export async function transformMediaPayload(
     return value;
   }
 
+  params.onDetectionPath("stringified_json");
   let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
@@ -103,6 +107,7 @@ async function replaceDataUris(
   value: string,
   params: TransformParams,
 ): Promise<string> {
+  params.onDetectionPath("data_uri");
   const occurrences = findDataUris(value);
   if (occurrences.length === 0) {
     if (value.startsWith(DATA_URI_PREFIX)) {
