@@ -1,37 +1,68 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
-  getJsonStringSize,
+  probeJsonField,
 } from "./jsonViewSizeGate";
 
-// The component gates a field with `getJsonStringSize(x) > JSON_VIEW_RENDER_CHAR_LIMIT`.
+// The component gates a field with `probeJsonField(x).size > JSON_VIEW_RENDER_CHAR_LIMIT`.
 const isTooLarge = (value: unknown): boolean =>
-  getJsonStringSize(value) > JSON_VIEW_RENDER_CHAR_LIMIT;
+  probeJsonField(value).size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
 describe("jsonViewSizeGate", () => {
-  describe("getJsonStringSize", () => {
-    it("returns 0 for null / undefined", () => {
-      expect(getJsonStringSize(null)).toBe(0);
-      expect(getJsonStringSize(undefined)).toBe(0);
+  describe("probeJsonField", () => {
+    it("reports size 0 and no serialization for null / undefined", () => {
+      expect(probeJsonField(null)).toEqual({
+        size: 0,
+        serialized: "",
+        isString: false,
+      });
+      expect(probeJsonField(undefined)).toEqual({
+        size: 0,
+        serialized: "",
+        isString: false,
+      });
     });
 
-    it("measures strings by length without serializing", () => {
-      expect(getJsonStringSize("hello")).toBe(5);
-      expect(getJsonStringSize("")).toBe(0);
+    it("passes strings through raw, without JSON-quoting", () => {
+      expect(probeJsonField("hello")).toEqual({
+        size: 5,
+        serialized: "hello",
+        isString: true,
+      });
+      // A base64-ish string is returned verbatim (no surrounding quotes).
+      const b64 = "eyJhIjoxfQ==";
+      const probe = probeJsonField(b64);
+      expect(probe.serialized).toBe(b64);
+      expect(probe.isString).toBe(true);
     });
 
-    it("measures objects and arrays via JSON.stringify length", () => {
+    it("serializes objects and arrays exactly once (compact JSON)", () => {
       const obj = { a: 1, b: "two" };
-      expect(getJsonStringSize(obj)).toBe(JSON.stringify(obj).length);
+      const probe = probeJsonField(obj);
+      expect(probe.serialized).toBe(JSON.stringify(obj));
+      expect(probe.size).toBe(JSON.stringify(obj).length);
+      expect(probe.isString).toBe(false);
 
       const arr = [1, 2, 3];
-      expect(getJsonStringSize(arr)).toBe(JSON.stringify(arr).length);
+      expect(probeJsonField(arr).serialized).toBe(JSON.stringify(arr));
     });
 
-    it("returns 0 for values that cannot be serialized (circular)", () => {
+    it("calls JSON.stringify only once per object (no double serialization)", () => {
+      const spy = vi.spyOn(JSON, "stringify");
+      const obj = { nested: { deep: [1, 2, 3] } };
+      probeJsonField(obj);
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    });
+
+    it("reports size 0 for values that cannot be serialized (circular)", () => {
       const circular: Record<string, unknown> = {};
       circular.self = circular;
-      expect(getJsonStringSize(circular)).toBe(0);
+      expect(probeJsonField(circular)).toEqual({
+        size: 0,
+        serialized: "",
+        isString: false,
+      });
     });
   });
 

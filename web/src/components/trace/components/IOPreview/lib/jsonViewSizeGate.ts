@@ -9,10 +9,15 @@
  * seed: ~20 MB I/O deterministically crashes the tab, with multi-second parse
  * freezes.
  *
- * This helper decides, from a cheap serialized-length probe, whether a field is
- * too large to render in that unvirtualized viewer. Above the limit the caller
+ * This helper decides, from a single serialized probe, whether a field is too
+ * large to render in that unvirtualized viewer. Above the limit the caller
  * shows a bounded fallback (preview head + download) and skips both the
  * main-thread parse and the full render. Normal I/O (KB-scale) is untouched.
+ *
+ * `probeJsonField` serializes an object field exactly once and returns that
+ * string alongside its length, so the size check, the preview head, and the
+ * download all share one `JSON.stringify` — never re-serializing the payload
+ * (which would partly defeat the gate). String fields are never serialized.
  */
 
 /**
@@ -32,18 +37,34 @@
  */
 export const JSON_VIEW_RENDER_CHAR_LIMIT = 2_000_000;
 
+export interface JsonFieldProbe {
+  /** Serialized length in UTF-16 chars; drives the gating decision. */
+  size: number;
+  /** The value as text — the raw string for string fields, compact JSON for
+   *  objects/arrays, "" for null/undefined or on serialization failure. Reused
+   *  for the fallback's preview slice and download so nothing re-serializes. */
+  serialized: string;
+  /** Whether the source value was already a string (raw text, no JSON quotes). */
+  isString: boolean;
+}
+
 /**
- * Cheap serialized-length probe used only to decide gating. Strings measure by
- * length (instant); objects/arrays via `JSON.stringify`. Returns 0 for
- * null/undefined and on serialization failure (a value we cannot serialize is
- * not something the JSON viewer can render either).
+ * Serialize a field once and report its size. Strings pass through as-is
+ * (instant, no JSON quoting); objects/arrays are `JSON.stringify`-d a single
+ * time. Null/undefined and unserializable values (e.g. circular) report size 0,
+ * so they are never gated and never produce an empty download.
  */
-export function getJsonStringSize(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "string") return value.length;
+export function probeJsonField(value: unknown): JsonFieldProbe {
+  if (value === null || value === undefined) {
+    return { size: 0, serialized: "", isString: false };
+  }
+  if (typeof value === "string") {
+    return { size: value.length, serialized: value, isString: true };
+  }
   try {
-    return JSON.stringify(value)?.length ?? 0;
+    const serialized = JSON.stringify(value) ?? "";
+    return { size: serialized.length, serialized, isString: false };
   } catch {
-    return 0;
+    return { size: 0, serialized: "", isString: false };
   }
 }

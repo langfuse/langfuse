@@ -6,7 +6,7 @@ import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
-  getJsonStringSize,
+  probeJsonField,
 } from "./lib/jsonViewSizeGate";
 
 export interface IOPreviewJSONSimpleProps {
@@ -81,17 +81,18 @@ export function IOPreviewJSONSimple({
 }: IOPreviewJSONSimpleProps) {
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
-  // (LFE-10989). Measure the raw prop — it drives both the main-thread parse
+  // (LFE-10989). Probe the raw prop — it drives both the main-thread parse
   // below and the tree the viewer would build — and above the limit render a
-  // bounded preview + download instead. Sizes are memoized so we serialize a
-  // large object at most once per field, not on every render.
-  const inputSize = useMemo(() => getJsonStringSize(input), [input]);
-  const outputSize = useMemo(() => getJsonStringSize(output), [output]);
-  const metadataSize = useMemo(() => getJsonStringSize(metadata), [metadata]);
+  // bounded preview + download instead. The probe serializes an object field
+  // exactly once (memoized) and the resulting string is reused for the size
+  // check, the preview, and the download, so we never re-serialize the payload.
+  const inputProbe = useMemo(() => probeJsonField(input), [input]);
+  const outputProbe = useMemo(() => probeJsonField(output), [output]);
+  const metadataProbe = useMemo(() => probeJsonField(metadata), [metadata]);
 
-  const inputTooLarge = inputSize > JSON_VIEW_RENDER_CHAR_LIMIT;
-  const outputTooLarge = outputSize > JSON_VIEW_RENDER_CHAR_LIMIT;
-  const metadataTooLarge = metadataSize > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const inputTooLarge = inputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const outputTooLarge = outputProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
+  const metadataTooLarge = metadataProbe.size > JSON_VIEW_RENDER_CHAR_LIMIT;
 
   // Parse data if not pre-parsed
   // IMPORTANT: Don't parse while isParsing=true to avoid double-parsing with different object references
@@ -132,8 +133,9 @@ export function IOPreviewJSONSimple({
         (inputTooLarge ? (
           <LargeJsonFieldFallback
             title="Input"
-            value={input}
-            charCount={inputSize}
+            serialized={inputProbe.serialized}
+            isString={inputProbe.isString}
+            charCount={inputProbe.size}
             downloadFileBase={`input-${downloadName}`}
           />
         ) : (
@@ -158,8 +160,9 @@ export function IOPreviewJSONSimple({
         (outputTooLarge ? (
           <LargeJsonFieldFallback
             title="Output"
-            value={output}
-            charCount={outputSize}
+            serialized={outputProbe.serialized}
+            isString={outputProbe.isString}
+            charCount={outputProbe.size}
             downloadFileBase={`output-${downloadName}`}
           />
         ) : (
@@ -196,8 +199,9 @@ export function IOPreviewJSONSimple({
         (metadataTooLarge ? (
           <LargeJsonFieldFallback
             title="Metadata"
-            value={metadata}
-            charCount={metadataSize}
+            serialized={metadataProbe.serialized}
+            isString={metadataProbe.isString}
+            charCount={metadataProbe.size}
             downloadFileBase={`metadata-${downloadName}`}
           />
         ) : (

@@ -16,47 +16,48 @@ const PREVIEW_DISPLAY_CHARS = 4_000;
  * shows a bounded preview head plus escape hatches: a raw download, and a
  * pointer to the Formatted (lazy) and JSON Beta (virtualized) views that scale.
  *
- * The raw value is only serialized for the bounded preview and, on click, the
- * download. It is never handed to the JSON tree renderer.
+ * This component never serializes the payload: the caller's size probe already
+ * did that once and passes the `serialized` string in, reused here for both the
+ * preview slice and the download. Re-serializing a ~20 MB object here would
+ * partly defeat the gate.
  */
 export function LargeJsonFieldFallback({
   title,
-  value,
+  serialized,
+  isString,
   charCount,
   downloadFileBase,
 }: {
   title: string;
-  value: unknown;
+  /** Pre-serialized content: raw text for string fields, compact JSON for
+   *  objects. Used as-is for both the preview and the download. */
+  serialized: string;
+  /** True when the source value was a string — downloads as raw .txt so
+   *  base64/plain payloads are not quote/escape-wrapped; objects use .json. */
+  isString: boolean;
   charCount: number;
-  /** File name without extension; string values download as raw .txt, objects
-   *  as .json (matching how the value is actually serialized below). */
+  /** File name without extension. */
   downloadFileBase: string;
 }) {
   const capture = usePostHogClientCapture();
-  const isString = typeof value === "string";
 
-  // Serialize once for the preview head. This is the rare, gated path (payload
-  // already over the multi-MB limit), so a single bounded stringify here is far
-  // cheaper than the parse + unvirtualized render it replaces. String values
-  // are shown raw — JSON-wrapping them would add quotes + escapes (e.g. a
-  // base64 payload would be over-encoded).
-  const previewText = useMemo(() => {
-    const text = isString ? (value as string) : safeStringify(value);
-    return text.length > PREVIEW_DISPLAY_CHARS
-      ? text.slice(0, PREVIEW_DISPLAY_CHARS)
-      : text;
-  }, [value, isString]);
+  const previewText = useMemo(
+    () =>
+      serialized.length > PREVIEW_DISPLAY_CHARS
+        ? serialized.slice(0, PREVIEW_DISPLAY_CHARS)
+        : serialized,
+    [serialized],
+  );
 
   const onDownload = () => {
     capture("trace_detail:json_view_large_field_download");
-    // Download the value as-is: raw text for strings, pretty JSON for objects.
-    // Never JSON.stringify a string here — that would quote/escape the payload.
-    const content = isString ? (value as string) : safeStringify(value, 2);
+    // Reuse the already-serialized string as-is: raw text for strings (never
+    // JSON-quoted), compact JSON for objects. No re-serialization here.
     const extension = isString ? "txt" : "json";
     const mimeType = isString
       ? "text/plain; charset=utf-8"
       : "application/json; charset=utf-8";
-    downloadTextFile(content, `${downloadFileBase}.${extension}`, mimeType);
+    downloadTextFile(serialized, `${downloadFileBase}.${extension}`, mimeType);
   };
 
   return (
@@ -87,14 +88,6 @@ export function LargeJsonFieldFallback({
       </div>
     </div>
   );
-}
-
-function safeStringify(value: unknown, space?: number): string {
-  try {
-    return JSON.stringify(value, null, space) ?? "";
-  } catch {
-    return "";
-  }
 }
 
 function downloadTextFile(content: string, fileName: string, mimeType: string) {
