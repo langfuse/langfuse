@@ -1,4 +1,5 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -199,6 +200,18 @@ const getSessionsTableFromEventsGeneric = async <T>(
 ) => {
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
+
+  const nullMetadataFilter = filter.find(
+    (candidate) =>
+      candidate.type === "null" &&
+      findUiColumnMapping(sessionEventsCols, candidate.column)?.uiTableId ===
+        "metadata",
+  );
+  if (nullMetadataFilter) {
+    throw new InvalidRequestError(
+      `Invalid filter type 'null' for column '${nullMetadataFilter.column}'. Expected filter type 'stringObject'.`,
+    );
+  }
 
   const sessionFilters = new FilterList(
     createFilterFromFilterState(
