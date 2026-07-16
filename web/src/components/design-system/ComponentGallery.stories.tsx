@@ -64,7 +64,6 @@ const BUTTON_VARIANTS: ButtonProps["variant"][] = [
   "destructive",
   "destructive-secondary",
   "outline",
-  "outline-solid",
   "secondary",
   "tertiary",
   "ghost",

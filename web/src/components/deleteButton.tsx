@@ -134,7 +134,7 @@ export function DeleteButton({
                   ? undefined
                   : `You don't have permission to delete this ${entityToDeleteName}.`
               }
-              variant={variant ?? "outline-solid"}
+              variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
               disabled={!enabled}

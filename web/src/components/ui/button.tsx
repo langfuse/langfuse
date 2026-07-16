@@ -22,10 +22,6 @@ const buttonVariants = cva(
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         "outline-success":
           "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
-        // Deprecated: identical to `outline` — kept as an alias until the 26
-        // call sites migrate; use `outline` in new code.
-        "outline-solid":
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         tertiary:

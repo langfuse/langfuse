@@ -26,7 +26,7 @@ interface SlackDisconnectButtonProps {
   /** Button variant */
   variant?:
     | "default"
-    | "outline-solid"
+    | "outline"
     | "secondary"
     | "destructive"
     | "ghost"

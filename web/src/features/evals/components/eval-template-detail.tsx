@@ -121,7 +121,7 @@ export const EvalTemplateDetail = () => {
                   icon={<TrashIcon className="h-4 w-4" />}
                   label="Delete"
                   aria-label="delete"
-                  variant="outline-solid"
+                  variant="outline"
                   size="icon"
                   disabledReason={
                     hasDeleteAccess

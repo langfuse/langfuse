@@ -407,9 +407,7 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={
-                          field.value === v ? "default" : "outline-solid"
-                        }
+                        variant={field.value === v ? "default" : "outline"}
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
