@@ -106,9 +106,11 @@ describe("PromptService", () => {
       const cache = new Map<string, string>([
         ["prompt_cache_epoch:project1", "epoch-1"],
       ]);
-      mockRedis.get.mockImplementation(async (key) => cache.get(key) ?? null);
+      mockRedis.get.mockImplementation(
+        async (key) => cache.get(key.toString()) ?? null,
+      );
       mockRedis.set.mockImplementation(async (key, value) => {
-        cache.set(key, value.toString());
+        cache.set(key.toString(), value.toString());
         return "OK";
       });
 
@@ -125,7 +127,7 @@ describe("PromptService", () => {
         labels: ["3"],
         prompt: "Numeric label content",
       };
-      mockPrisma.prompt.findFirst
+      promptFindFirstMock
         .mockResolvedValueOnce(versionPrompt)
         .mockResolvedValueOnce(labelPrompt);
 

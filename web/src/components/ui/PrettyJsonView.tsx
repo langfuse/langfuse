@@ -787,6 +787,9 @@ export function PrettyJsonView(props: {
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
+  /** Collapse long string content to a preview (from raw `role === "system"`,
+      since the title can carry a message `name` instead of the role). */
+  isSystemPrompt?: boolean;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
@@ -1279,6 +1282,7 @@ export function PrettyJsonView(props: {
             <MarkdownView
               markdown={markdownContent || ""}
               media={props.media}
+              isSystemPrompt={props.isSystemPrompt}
             />
           )}
         </div>

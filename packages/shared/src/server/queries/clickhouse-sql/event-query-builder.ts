@@ -1002,7 +1002,11 @@ abstract class BaseEventsQueryBuilder<
 export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_FIELDS
 > {
-  private ioFields: { truncated: boolean; charLimit?: number } | null = null;
+  private ioFields:
+    | { mode: "full" }
+    | { mode: "truncated"; charLimit?: number }
+    | { mode: "sizeCapped"; inlineChars: number; previewChars: number }
+    | null = null;
   // Metadata expansion config: null = use truncated (default), string[] = expand specific keys, empty array = expand all
   private metadataExpansionKeys: string[] | null = null;
   private shouldForceFullTable = false;
@@ -1071,7 +1075,22 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * Add IO fields with optional truncation
    */
   selectIO(truncated = false, charLimit?: number): this {
-    this.ioFields = { truncated, charLimit };
+    this.ioFields = truncated
+      ? { mode: "truncated", charLimit }
+      : { mode: "full" };
+    return this;
+  }
+
+  /**
+   * Add IO fields with a per-field size cap: fields whose full length is
+   * within `inlineChars` come back whole; larger fields come back as a
+   * `previewChars` head. True lengths are exposed as `input_length` /
+   * `output_length` so callers can tell a preview from full content.
+   * Metadata values are capped with the same policy. Reads events_full
+   * (true lengths + full under-cap values).
+   */
+  selectIOWithSizeCap(inlineChars: number, previewChars: number): this {
+    this.ioFields = { mode: "sizeCapped", inlineChars, previewChars };
     return this;
   }
 
@@ -1100,6 +1119,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     ) {
       fieldsToExclude.push("metadata");
     }
+    // Size-capped I/O caps metadata values too (custom SELECT expression below)
+    if (this.ioFields?.mode === "sizeCapped") {
+      fieldsToExclude.push("metadata");
+    }
 
     const fieldsToProcess = [...this.selectFields].filter(
       (f) => !fieldsToExclude.includes(f),
@@ -1113,13 +1136,51 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     // Add I/O fields if configured
     // Note: needsFullTable() is responsible for choosing events_core/events_full (truncated vs full I/O)
     if (this.ioFields) {
-      if (this.ioFields.truncated && this.ioFields.charLimit !== undefined) {
+      if (
+        this.ioFields.mode === "truncated" &&
+        this.ioFields.charLimit !== undefined
+      ) {
         fieldExpressions.push(
           `leftUTF8(input, ${this.ioFields.charLimit}) as input, leftUTF8(output, ${this.ioFields.charLimit}) as output`,
+        );
+      } else if (this.ioFields.mode === "sizeCapped") {
+        const { inlineChars, previewChars } = this.ioFields;
+        // lengthUTF8() is computed inline instead of reading the materialized
+        // input_length/output_length columns: the full value is read by this
+        // select anyway, and not every deployment's events_full is guaranteed
+        // to carry the materialized columns.
+        fieldExpressions.push(
+          `if(lengthUTF8(e.input) <= ${inlineChars}, e.input, leftUTF8(e.input, ${previewChars})) as input`,
+          `if(lengthUTF8(e.output) <= ${inlineChars}, e.output, leftUTF8(e.output, ${previewChars})) as output`,
+          `lengthUTF8(e.input) as input_length`,
+          `lengthUTF8(e.output) as output_length`,
         );
       } else {
         fieldExpressions.push("input, output");
       }
+    }
+
+    // Size-capped metadata: same per-value policy as I/O, plus a truncation
+    // flag and the shipped size so callers can budget and surface capping.
+    // Mirrors the arrayReverse shape of the default metadata expression.
+    if (
+      this.ioFields?.mode === "sizeCapped" &&
+      this.selectFields.has("metadata")
+    ) {
+      const { inlineChars, previewChars } = this.ioFields;
+      fieldExpressions.push(
+        `mapFromArrays(arrayReverse(e.metadata_names), arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, v, leftUTF8(v, ${previewChars})), arrayReverse(e.metadata_values))) as metadata`,
+        // The flag checks only each key's WINNING value. A duplicate key ships
+        // both entries in the Map's JSON, and the client's JSON.parse keeps the
+        // last textual duplicate — with the arrayReverse above that resolves to
+        // the FIRST occurrence in the original arrays. A capped value that is
+        // shadowed by a small winner must not raise the flag (verified against
+        // ClickHouse + JSON.parse semantics).
+        `arrayExists((v, i) -> lengthUTF8(v) > ${inlineChars} AND arrayFirstIndex(n -> n = e.metadata_names[i], e.metadata_names) = i, e.metadata_values, arrayEnumerate(e.metadata_values)) as metadata_truncated`,
+        // Shipped metadata weight: every (capped) value counts, duplicates
+        // included, because duplicates are physically in the response.
+        `arraySum(arrayMap(v -> if(lengthUTF8(v) <= ${inlineChars}, lengthUTF8(v), ${previewChars}), e.metadata_values)) as metadata_length`,
+      );
     }
 
     // Add metadata field with expansion if configured
@@ -1158,8 +1219,10 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
    * - events_full: full I/O and metadata (when full data is needed)
    */
   private needsFullTable(): boolean {
-    // Need full I/O? (truncated = false means we need full data)
-    const needsFullIO = this.ioFields !== null && !this.ioFields.truncated;
+    // Need full I/O? (anything but the truncated mode needs full data;
+    // sizeCapped needs true lengths + full under-cap values)
+    const needsFullIO =
+      this.ioFields !== null && this.ioFields.mode !== "truncated";
 
     // Need full metadata? (any expansion requested — specific keys or all)
     const needsFullMetadata =

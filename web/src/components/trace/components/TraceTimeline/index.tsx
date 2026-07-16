@@ -51,6 +51,10 @@ import {
 } from "./timeline-calculations";
 import { TimelineScale } from "./TimelineScale";
 import { TimelineChartRowShell, TimelineGutterRowShell } from "./TimelineRows";
+import {
+  computeMaxVisualDepth,
+  GUTTER_VISUAL_DEPTH,
+} from "../_shared/visual-depth";
 import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
 import { type TreeNode } from "../../lib/types";
 import { cn } from "@/src/utils/tailwind";
@@ -274,6 +278,14 @@ export function TraceTimeline() {
   const stepSize = useMemo(() => {
     return calculateStepSize(traceDuration, SCALE_WIDTH);
   }, [traceDuration]);
+
+  // Cap gutter indentation to the gutter width so extremely deep traces (a
+  // reported one chained ~1400 levels) keep names readable instead of
+  // clipping into nothing (LFE-10959).
+  const gutterMaxVisualDepth = computeMaxVisualDepth(
+    gutterWidth,
+    GUTTER_VISUAL_DEPTH,
+  );
 
   const flattenedItems = useMemo(() => {
     return flattenTreeWithTimelineMetrics(
@@ -625,6 +637,7 @@ export function TraceTimeline() {
                   isHovered={hoveredNodeId === nodeId}
                   hasChildren={item.node.children.length > 0}
                   isCollapsed={collapsedNodes.has(nodeId)}
+                  maxVisualDepth={gutterMaxVisualDepth}
                   onSelect={handleSelectNode}
                   onHover={handleHoverNode}
                   onToggleCollapse={toggleCollapsed}

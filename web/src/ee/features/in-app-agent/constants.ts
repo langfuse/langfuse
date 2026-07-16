@@ -6,6 +6,9 @@ export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =
   "x-langfuse-in-app-agent-tool-override";
 
+export const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE =
+  "langfuse-in-app-agent-sandbox:latest";
+
 // Observation ids stay equal to the per-turn run id so persisted messages,
 // feedback, and traced generations all point at the same Langfuse observation.
 export const getInAppAgentInstrumentationObservationId = (runId: string) =>

@@ -48,6 +48,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   maxVisibleSeries,
   syncId,
   subtleFill = false,
+  hideXAxisLabels = false,
 }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
@@ -66,8 +67,9 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       prepareTimeAxis(
         groupedData.map((d) => d.time_dimension),
         maxTicks,
+        { hideCategoryTickLabels: hideXAxisLabels },
       ),
-    [groupedData, maxTicks],
+    [groupedData, maxTicks, hideXAxisLabels],
   );
 
   const { legendItems, onLegendClick, isRendered, isDimmed } = useSeriesLegend({

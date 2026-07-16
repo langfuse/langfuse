@@ -43,13 +43,17 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
+  type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
-import { type InAppAiAgentMessage } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
+const EMPTY_MESSAGES: AgUiMessage[] = [];
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -84,6 +88,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
   selectedConversationId: undefined,
+  selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -109,6 +114,7 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
+  isWriteLocked: boolean;
 };
 
 type InAppAiAgentContextType = {
@@ -127,6 +133,7 @@ type InAppAiAgentContextType = {
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
+  selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
@@ -211,9 +218,11 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
-  const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
-    string | null
-  >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
+  const [_selectedConversationId, setSelectedConversationId] =
+    useSessionStorage<string | null>(
+      `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
+      null,
+    );
   const [feedbackByConversationId, setFeedbackByConversationId] =
     useSessionStorage<InAppAiAgentFeedbackByConversationId>(
       `${FEEDBACK_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -250,15 +259,20 @@ function InAppAiAgentProviderInner({
   const conversationQuery = api.inAppAgent.getConversation.useQuery(
     {
       projectId,
-      conversationId: selectedConversationId ?? "",
+      conversationId: _selectedConversationId ?? "",
     },
     {
-      enabled: open && Boolean(selectedConversationId) && !isSubmitting,
+      enabled: open && Boolean(_selectedConversationId) && !isSubmitting,
     },
   );
   const deleteConversationMutation =
     api.inAppAgent.deleteConversation.useMutation();
   const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
+  const isSelectedConversationNotFound =
+    conversationQuery.error?.data?.code === "NOT_FOUND";
+  const selectedConversationId = isSelectedConversationNotFound
+    ? null
+    : _selectedConversationId;
 
   const conversations = useMemo(
     () =>
@@ -268,9 +282,37 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
+  const selectedConversationIsWriteLocked =
+    conversationQuery.data?.conversation.isWriteLocked ?? false;
+  const currentMessages = useMemo(() => {
+    if (isSelectedConversationNotFound) {
+      return EMPTY_MESSAGES;
+    }
+
+    const storedMessages =
+      conversationQuery.data?.conversation.id === selectedConversationId
+        ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+        : undefined;
+
+    if (
+      !isRunning &&
+      storedMessages &&
+      messages.length <= storedMessages.length
+    ) {
+      return storedMessages;
+    }
+
+    return messages;
+  }, [
+    conversationQuery.data,
+    isRunning,
+    isSelectedConversationNotFound,
+    messages,
+    selectedConversationId,
+  ]);
   const messagesWithUiState = useMemo(() => {
     const messagesWithFeedback = mergeMessagesWithFeedback(
-      messages,
+      currentMessages,
       selectedConversationId
         ? feedbackByConversationId[selectedConversationId]
         : undefined,
@@ -299,8 +341,8 @@ function InAppAiAgentProviderInner({
     });
   }, [
     feedbackByConversationId,
+    currentMessages,
     loadingEventIds,
-    messages,
     selectedConversationId,
   ]);
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
@@ -377,92 +419,20 @@ function InAppAiAgentProviderInner({
     );
   }, []);
 
-  const resetAgent = useCallback(
-    (options?: { preserveAgent?: boolean }) => {
-      if (options?.preserveAgent) {
-        return;
-      }
-
-      if (agentRef.current?.isRunning) {
-        intentionalAbortRef.current = true;
-      }
-
-      subscriptionRef.current?.unsubscribe();
-      subscriptionRef.current = null;
-      agentRef.current?.abortRun();
-      agentRef.current = null;
-      activeRunIdRef.current = null;
-      pendingToolApprovalsRef.current = [];
-      setPendingToolApprovals([]);
-      clearLoadingEvents();
-    },
-    [clearLoadingEvents],
-  );
-
-  // Hydrate local state from the selected persisted conversation once it loads.
-  useEffect(() => {
-    if (!selectedConversationId) {
-      if (!isRunning) {
-        resetAgent();
-        setMessages([]);
-      }
-      return;
+  const resetAgent = useCallback(() => {
+    if (agentRef.current?.isRunning) {
+      intentionalAbortRef.current = true;
     }
 
-    if (!conversationQuery.data || isRunning) {
-      return;
-    }
-
-    const storedMessages = conversationQuery.data.messages.filter(
-      isAgentConversationMessage,
-    );
-
-    if (messages.length > storedMessages.length) {
-      return;
-    }
-
-    const hasResumablePendingApproval =
-      pendingToolApprovalsRef.current.length > 0 &&
-      agentRef.current?.threadId === selectedConversationId;
-
-    resetAgent({ preserveAgent: hasResumablePendingApproval });
-    // TODO: Avoid replacing hydrated messages when only server-generated ids
-    // differ from optimistic client ids; this can cause a small post-run flicker.
-    setMessages(storedMessages);
-  }, [
-    conversationQuery.data,
-    isRunning,
-    messages.length,
-    resetAgent,
-    selectedConversationId,
-  ]);
-
-  // Clear local selection when the selected conversation cannot be loaded.
-  useEffect(() => {
-    if (!selectedConversationId || isRunning || !conversationQuery.error) {
-      return;
-    }
-
-    if (conversationQuery.error.data?.code !== "NOT_FOUND") {
-      console.error("Failed to load in-app agent conversation", {
-        error: conversationQuery.error,
-        projectId,
-        conversationId: selectedConversationId,
-      });
-      return;
-    }
-
-    resetAgent();
-    setMessages([]);
-    setSelectedConversationId(null);
-  }, [
-    conversationQuery.error,
-    isRunning,
-    projectId,
-    resetAgent,
-    selectedConversationId,
-    setSelectedConversationId,
-  ]);
+    subscriptionRef.current?.unsubscribe();
+    subscriptionRef.current = null;
+    agentRef.current?.abortRun();
+    agentRef.current = null;
+    activeRunIdRef.current = null;
+    pendingToolApprovalsRef.current = [];
+    setPendingToolApprovals([]);
+    clearLoadingEvents();
+  }, [clearLoadingEvents]);
 
   useEffect(() => {
     return () => {
@@ -720,7 +690,7 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (isRunning || conversationId === selectedConversationId) {
+      if (isRunning || conversationId === _selectedConversationId) {
         return;
       }
 
@@ -731,7 +701,7 @@ function InAppAiAgentProviderInner({
       setMessages([]);
       setSelectedConversationId(conversationId);
     },
-    [isRunning, resetAgent, selectedConversationId, setSelectedConversationId],
+    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
   );
 
   const deleteConversation = useCallback(
@@ -807,6 +777,14 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
+        if (selectedConversationIsWriteLocked) {
+          setError({
+            type: "generic",
+            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+          });
+          return false;
+        }
+
         const isNewConversation = !selectedConversationId;
         const conversationId =
           selectedConversationId ?? createInAppAgentConversationId();
@@ -873,6 +851,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       setSelectedConversationId,
     ],
   );
@@ -933,14 +912,30 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  useEffect(() => {
-    if (!open) {
-      setIsExpanded(false);
-    }
-  }, [open]);
+  const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
+    (action) => {
+      const nextOpen = evaluateSetStateAction(action, open);
+
+      if (!nextOpen) {
+        // Collapse the drawer when closing
+        setIsExpanded(false);
+      }
+
+      setOpen(nextOpen);
+    },
+    [open, setOpen],
+  );
 
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
+      if (selectedConversationIsWriteLocked) {
+        setError({
+          type: "generic",
+          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        });
+        return;
+      }
+
       const approval = pendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -1036,6 +1031,7 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       updatePendingToolApprovals,
     ],
   );
@@ -1054,12 +1050,14 @@ function InAppAiAgentProviderInner({
     () => ({
       isAvailable: true,
       open,
-      setOpen,
+      setOpen: setAgentOpen,
       isExpanded,
       setIsExpanded,
       isRunning,
       isSubmitting,
-      pendingToolApprovals,
+      pendingToolApprovals: isSelectedConversationNotFound
+        ? []
+        : pendingToolApprovals,
       isSelectedConversationHydrating,
       error,
       messages: messagesWithUiState,
@@ -1067,6 +1065,7 @@ function InAppAiAgentProviderInner({
       hasMoreConversations,
       isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
+      selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -1085,17 +1084,19 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
+      selectedConversationIsWriteLocked,
       isSubmitting,
+      isSelectedConversationNotFound,
       deleteConversation,
       loadMoreConversations,
       messagesWithUiState,
       open,
       pendingToolApprovals,
       rejectToolCall,
+      setAgentOpen,
       invalidateConversations,
       selectConversation,
       selectedConversationId,
-      setOpen,
       submit,
       submitFeedback,
     ],
