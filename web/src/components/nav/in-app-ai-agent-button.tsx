@@ -199,7 +199,7 @@ export const InAppAiAgentButton = () => {
         <span className="hidden sm:inline">Assistant</span>
         <KeyboardShortcut
           className="hidden bg-transparent shadow-none md:inline-flex"
-          keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "I"]}
+          keys={[typeof navigator !== "undefined" && navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "I"]}
         />
       </Button>
       {open ? (
