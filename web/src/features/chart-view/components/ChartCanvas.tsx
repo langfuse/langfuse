@@ -52,9 +52,12 @@ export const ChartCanvas = React.memo(function ChartCanvas({
     );
   }
 
+  // Show the series legend only for a multi-series time chart. The shared
+  // chart-library renders the legend below the plot now (LFE-10576), so "below"
+  // is the value that used to be "above" here.
   const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const legendPosition =
-    isTimeSeries && config.breakdown !== "none" ? "above" : "none";
+    isTimeSeries && config.breakdown !== "none" ? "below" : "none";
 
   return (
     <Chart
