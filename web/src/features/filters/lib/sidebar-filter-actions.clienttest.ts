@@ -32,8 +32,20 @@ const ctx: SidebarFilterActionContext = {
     { type: "numeric", column: "latency", label: "Latency", min: 0, max: 10 },
   ],
   columnDefinitions: [
-    { id: "env", name: "Environment", type: "stringOptions", internal: "e" },
-    { id: "tags", name: "Tags", type: "arrayOptions", internal: "t" },
+    {
+      id: "env",
+      name: "Environment",
+      type: "stringOptions",
+      options: [],
+      internal: "e",
+    },
+    {
+      id: "tags",
+      name: "Tags",
+      type: "arrayOptions",
+      options: [],
+      internal: "t",
+    },
   ],
   options: {
     env: ["prod", "dev", "test"],
