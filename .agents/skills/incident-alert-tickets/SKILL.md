@@ -43,6 +43,9 @@ monitors' tickets that links to it.
 - One ticket per monitor (per env when monitors are per-env), titled
   `[ENV] <Monitor title>`, in the Engineering (LFE) team, carrying the
   `incident-alert` label. The label set is the knowledge base.
+- Regional twins of one monitor (same metric and threshold per env) may share
+  a single ticket titled `[ENV1/ENV2] <Monitor title>` when the causes are
+  region-independent; list each env's monitor ID in the alert header.
 - The description opens with an alert header: monitor ID, trigger condition,
   and how it surfaces (incident.io urgency, auto-resolve behavior).
 - One dated section per distinct root cause, separated by `---`:
@@ -61,6 +64,9 @@ monitors' tickets that links to it.
 
 - Cause sections are append-only: never rewrite or delete an existing section;
   new knowledge gets a new dated block.
+- The description ends with a `## Your cause is not listed?` trailer: it
+  records firings that were never root-caused and tells the next engineer to
+  insert new dated sections above it, in the same format.
 - Keep each cause section to roughly one screen.
 - A distinct problem discovered during the investigation that is *not* a cause
   of this alert gets its own ticket (bug or incident-alert), cross-linked — do
@@ -106,11 +112,12 @@ proposal first:
 
 Wait for the human to select row IDs and actions before writing. On approval:
 
-- **Append**: add the new `---`-separated dated block after the existing
-  sections; leave everything else untouched.
+- **Append**: insert the new `---`-separated dated block after the existing
+  cause sections, above the `Your cause is not listed?` trailer; leave
+  everything else untouched.
 - **Create**: new Engineering (LFE) issue titled `[ENV] <Monitor title>` with
-  the `incident-alert` label; description = alert header plus the first dated
-  cause section.
+  the `incident-alert` label; description = alert header, the first dated
+  cause section, and the `Your cause is not listed?` trailer.
 
 ## Division of Labor
 
