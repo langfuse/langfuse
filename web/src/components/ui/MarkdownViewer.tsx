@@ -479,6 +479,18 @@ export function MarkdownView({
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
 
+  // Collapse preview is built from text parts only: serialized image/audio
+  // parts (media-reference strings, base64 data URIs) neither survive the
+  // generic markdown renderer nor belong in a first-lines text preview — and
+  // media alone should not make a prompt collapsible.
+  const collapsibleContent =
+    typeof markdown === "string"
+      ? markdown
+      : (markdown ?? [])
+          .filter(isOpenAITextContentPart)
+          .map((part) => part.text)
+          .join("\n");
+
   const {
     shouldBeCollapsible,
     isCollapsed,
@@ -486,7 +498,7 @@ export function MarkdownView({
     truncatedContent,
   } = useCollapsibleSystemPrompt({
     isSystemPrompt: isSystemPrompt ?? title === "system",
-    content: markdownContent,
+    content: collapsibleContent,
   });
 
   const handleOnCopy = () => {

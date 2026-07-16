@@ -142,6 +142,24 @@ describe("ChatMessage system prompt collapse", () => {
     expect(collapseButton()).toBeInTheDocument();
   });
 
+  it("does not collapse when only media parts push a system prompt over the threshold", () => {
+    // short text + a large image part: the serialized media must not count
+    // toward the collapse threshold (and must never appear in a preview)
+    renderChatMessage({
+      role: "system",
+      content: [
+        { type: "text", text: "Short system prompt." },
+        {
+          type: "image_url",
+          image_url: { url: `data:image/png;base64,${"A".repeat(1000)}` },
+        },
+      ],
+    } as unknown as ChatMlMessage);
+
+    expect(expandButton()).not.toBeInTheDocument();
+    expect(collapseButton()).not.toBeInTheDocument();
+  });
+
   it("offers no toggle when the preview would hide nothing", () => {
     // above the char threshold, but fits within 4 lines / 500 chars, so
     // collapsing would not hide anything — a toggle would be dead
