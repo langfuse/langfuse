@@ -7,7 +7,8 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { importWidgetFile } from "@/src/features/widgets/utils/import-export-utils";
+import { WidgetImporter } from "@/src/features/widgets/components/WidgetImporter";
+import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/import-export-utils";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -60,7 +61,6 @@ import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
   type TimeFilter,
@@ -79,7 +79,6 @@ import {
   Plus,
   X,
   AlertCircle,
-  Upload,
   Sparkles,
 } from "lucide-react";
 import {
@@ -330,7 +329,6 @@ export function WidgetForm({
 
   // Disables further auto-updates once the user edits name or description
   const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
@@ -1328,90 +1326,23 @@ export function WidgetForm({
     ],
   );
 
-  const handleImportWidget = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    const showMalformedImportToast = () =>
-      showErrorToast(
-        "Malformed input",
-        "This operation can't be done due to the malformed input",
-        "WARNING",
-      );
-
-    try {
-      const result = await importWidgetFile({
-        file,
-        optionSets: {
-          environmentValues: environmentFilterOptions.data?.map(
-            (option) => option.environment,
-          ),
-          traceNames: traceFilterOptions.data
-            ? normalizeSingleValueOptions(traceFilterOptions.data.name).map(
-                (option) => option.value,
-              )
-            : undefined,
-          tags: traceFilterOptions.data
-            ? traceFilterOptions.data.tags.map((option) => option.value)
-            : undefined,
-          toolNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.toolNames.map(
-                (option) => option.value,
-              )
-            : undefined,
-          calledToolNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.calledToolNames.map(
-                (option) => option.value,
-              )
-            : undefined,
-          modelNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.model.map((option) => option.value)
-            : undefined,
-          observationLevels: observationLevelOptions.map(
-            (option) => option.value,
-          ),
-        },
-        isBetaEnabled,
-      });
-
-      setAutoLocked(true);
-      setWidgetMinVersion(result.snapshot.widgetMinVersion);
-      setWidgetName(result.snapshot.widgetName);
-      setWidgetDescription(result.snapshot.widgetDescription);
-      setSelectedView(result.snapshot.selectedView);
-      setSelectedChartType(result.snapshot.selectedChartType);
-      setSelectedMeasure(result.snapshot.selectedMeasure);
-      setSelectedAggregation(result.snapshot.selectedAggregation);
-      setSelectedMetrics(result.snapshot.selectedMetrics);
-      setSelectedDimension(result.snapshot.selectedDimension);
-      setPivotDimensions(result.snapshot.pivotDimensions);
-      setUserFilterState(result.snapshot.userFilterState);
-      setRowLimit(result.snapshot.rowLimit);
-      setHistogramBins(result.snapshot.histogramBins);
-      setDefaultSortColumn(result.snapshot.defaultSortColumn);
-      setDefaultSortOrder(result.snapshot.defaultSortOrder);
-
-      showSuccessToast({
-        title: "Widget uploaded successfully",
-        description: "Widget configuration has been loaded.",
-      });
-
-      if (result.removedValues || result.removedFilters) {
-        showErrorToast(
-          "Widget filters were adjusted",
-          "Some imported filters or filter values were removed because they are not available in this project.",
-          "WARNING",
-        );
-      }
-    } catch {
-      showMalformedImportToast();
-    }
+  const handleImportedWidget = (snapshot: ImportedWidgetFormSnapshot) => {
+    setAutoLocked(true);
+    setWidgetMinVersion(snapshot.widgetMinVersion);
+    setWidgetName(snapshot.widgetName);
+    setWidgetDescription(snapshot.widgetDescription);
+    setSelectedView(snapshot.selectedView);
+    setSelectedChartType(snapshot.selectedChartType);
+    setSelectedMeasure(snapshot.selectedMeasure);
+    setSelectedAggregation(snapshot.selectedAggregation);
+    setSelectedMetrics(snapshot.selectedMetrics);
+    setSelectedDimension(snapshot.selectedDimension);
+    setPivotDimensions(snapshot.pivotDimensions);
+    setUserFilterState(snapshot.userFilterState);
+    setRowLimit(snapshot.rowLimit);
+    setHistogramBins(snapshot.histogramBins);
+    setDefaultSortColumn(snapshot.defaultSortColumn);
+    setDefaultSortOrder(snapshot.defaultSortOrder);
   };
 
   const chartPresentation = useMemo(() => {
@@ -1649,23 +1580,13 @@ export function WidgetForm({
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Widget Configuration</CardTitle>
               {!widgetId && isBetaEnabled && (
-                <>
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept="application/json,.json"
-                    className="hidden"
-                    onChange={handleImportWidget}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => importInputRef.current?.click()}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Import
-                  </Button>
-                </>
+                <WidgetImporter
+                  projectId={projectId}
+                  viewVersion={viewVersion}
+                  dateRange={dateRange}
+                  isBetaEnabled={isBetaEnabled}
+                  onImport={handleImportedWidget}
+                />
               )}
             </div>
             <CardDescription>
