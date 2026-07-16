@@ -46,6 +46,8 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -54,6 +56,8 @@ const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
+
+export type InAppAgentEntryPoint = "sidebar" | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -76,6 +80,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -121,6 +126,7 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -138,7 +144,10 @@ type InAppAiAgentContextType = {
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
-  submit: (content: string) => Promise<boolean>;
+  submit: (
+    content: string,
+    options?: { newConversation?: boolean },
+  ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -218,6 +227,8 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const { organization } = useQueryProjectOrOrganization();
+  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
     useSessionStorage<string | null>(
       `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -760,12 +771,13 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string) => {
+    async (content: string, options?: { newConversation?: boolean }) => {
       if (
         !content ||
         isRunning ||
         isInAppAgentRateLimited(error) ||
-        isSelectedConversationHydrating ||
+        (options?.newConversation !== true &&
+          isSelectedConversationHydrating) ||
         submitInFlightRef.current
       ) {
         return false;
@@ -777,7 +789,10 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        if (selectedConversationIsWriteLocked) {
+        const isNewConversation =
+          options?.newConversation === true || !selectedConversationId;
+
+        if (!isNewConversation && selectedConversationIsWriteLocked) {
           setError({
             type: "generic",
             message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
@@ -785,9 +800,13 @@ function InAppAiAgentProviderInner({
           return false;
         }
 
-        const isNewConversation = !selectedConversationId;
-        const conversationId =
-          selectedConversationId ?? createInAppAgentConversationId();
+        const conversationId = isNewConversation
+          ? createInAppAgentConversationId()
+          : selectedConversationId;
+
+        if (!conversationId) {
+          return false;
+        }
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -926,6 +945,21 @@ function InAppAiAgentProviderInner({
     [open, setOpen],
   );
 
+  const openAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      capture("in_app_agent:entry_point_click", { source });
+
+      if (organization && !organization.aiFeaturesEnabled) {
+        setEnableDialogOpen(true);
+        return false;
+      }
+
+      setAgentOpen(true);
+      return true;
+    },
+    [capture, organization, setAgentOpen],
+  );
+
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
       if (selectedConversationIsWriteLocked) {
@@ -1051,6 +1085,7 @@ function InAppAiAgentProviderInner({
       isAvailable: true,
       open,
       setOpen: setAgentOpen,
+      openAssistant,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1091,6 +1126,7 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       messagesWithUiState,
       open,
+      openAssistant,
       pendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
@@ -1105,6 +1141,11 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      <InAppAgentDisabledDialog
+        open={enableDialogOpen}
+        onOpenChange={setEnableDialogOpen}
+        organizationId={organization?.id}
+      />
     </InAppAiAgentContext.Provider>
   );
 }

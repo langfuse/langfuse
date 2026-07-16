@@ -1,16 +1,7 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { BotMessageSquare } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { DialogController } from "@/src/components/ui/dialog-controller";
 import { Layer } from "@/src/components/ui/layer";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -22,8 +13,6 @@ import {
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agent/components/InAppAgentWindow";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({
@@ -67,11 +56,11 @@ function DeleteConversationDialog({
 }
 
 export const InAppAiAgentButton = () => {
-  const { organization } = useQueryProjectOrOrganization();
   const {
     deleteConversation,
     isAvailable,
     open,
+    openAssistant,
     setOpen,
     isExpanded,
     setIsExpanded,
@@ -80,7 +69,6 @@ export const InAppAiAgentButton = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
   const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
     anchorRef: buttonRef,
@@ -125,18 +113,13 @@ export const InAppAiAgentButton = () => {
   }
 
   const handleClick = () => {
-    if (organization && !organization.aiFeaturesEnabled) {
-      setEnableDialogOpen(true);
+    if (open) {
+      setOpen(false);
       return;
     }
 
-    const willOpen = !open;
-
-    if (willOpen) {
-      floatingPanelHandle.resetGeometry();
-    }
-
-    setOpen((currentOpen) => !currentOpen);
+    floatingPanelHandle.resetGeometry();
+    openAssistant("sidebar");
   };
 
   return (
@@ -196,30 +179,6 @@ export const InAppAiAgentButton = () => {
           )}
         </DialogController>
       ) : null}
-      <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>AI features are disabled</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The assistant requires AI features to be enabled for this
-              organization.
-            </AIFeaturesDisabledNotice>
-          </DialogBody>
-          <DialogFooter>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEnableDialogOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 };
