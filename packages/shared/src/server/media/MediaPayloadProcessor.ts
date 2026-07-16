@@ -21,21 +21,41 @@ export type MediaPayloadCandidate = {
   source: "base64_data_uri" | "bytes";
 };
 
-export type MediaDetectionPath = "data_uri" | "stringified_json";
+export type MediaDetectionPath =
+  | "data_uri"
+  | "stringified_json"
+  | "structured_payload";
+
+export type TransformMediaPayloadResult = {
+  value: unknown;
+  bytesRemoved: number;
+};
 
 type TransformParams = {
   processCandidate: (
     candidate: MediaPayloadCandidate,
   ) => Promise<string | undefined>;
   onInvalidCandidate: (kind: MediaPayloadKind) => void;
-  onDetectionPath: (path: MediaDetectionPath) => void;
+  onDetectionPath: (path: MediaDetectionPath, checkedBytes: number) => void;
 };
 
 type DataUriOccurrence = {
   start: number;
   end: number;
-  raw: string;
   candidate?: MediaPayloadCandidate;
+};
+
+type TransformState = {
+  changed: boolean;
+  bytesRemoved: number;
+  checkedBytes: number;
+};
+
+type TraversalNode = {
+  value: unknown;
+  depth: number;
+  parent: Record<string, unknown> | unknown[];
+  key: string | number;
 };
 
 type StructuredMedia = {
@@ -68,14 +88,26 @@ const STRUCTURED_MEDIA_SHAPES = [
 ] as const;
 
 export async function transformMediaPayload(
-  value: string,
+  value: unknown,
   params: TransformParams,
-): Promise<string> {
-  if (isMediaReference(value)) return value;
+): Promise<TransformMediaPayloadResult> {
+  if (typeof value !== "string") {
+    if (!isObject(value) && !Array.isArray(value)) {
+      return { value, bytesRemoved: 0 };
+    }
+
+    const state = await transformStructuredValue(value, params, true);
+    return { value, bytesRemoved: state.bytesRemoved };
+  }
+
+  if (isMediaReference(value)) return { value, bytesRemoved: 0 };
 
   if (value.includes(BASE64_MARKER)) {
     const withDataUriReferences = await replaceDataUris(value, params);
-    if (withDataUriReferences !== value || value.includes(DATA_URI_PREFIX)) {
+    if (
+      withDataUriReferences.value !== value ||
+      value.includes(DATA_URI_PREFIX)
+    ) {
       return withDataUriReferences;
     }
   }
@@ -85,58 +117,79 @@ export async function transformMediaPayload(
     (!strippedValue.startsWith("{") && !strippedValue.startsWith("[")) ||
     !mayContainSerializedMedia(value)
   ) {
-    return value;
+    return { value, bytesRemoved: 0 };
   }
 
-  params.onDetectionPath("stringified_json");
+  params.onDetectionPath("stringified_json", Buffer.byteLength(value, "utf8"));
   let parsedValue: unknown;
   try {
     parsedValue = JSON.parse(value);
   } catch {
-    return value;
+    return { value, bytesRemoved: 0 };
   }
 
-  if (!isObject(parsedValue) && !Array.isArray(parsedValue)) return value;
+  if (!isObject(parsedValue) && !Array.isArray(parsedValue)) {
+    return { value, bytesRemoved: 0 };
+  }
 
-  const state = { changed: false };
-  await transformJsonValue(parsedValue, params, state, 1);
-  return state.changed ? JSON.stringify(parsedValue) : value;
+  const state = await transformStructuredValue(parsedValue, params, false);
+  if (!state.changed) return { value, bytesRemoved: 0 };
+
+  const transformedValue = JSON.stringify(parsedValue);
+  return {
+    value: transformedValue,
+    bytesRemoved: Math.max(
+      0,
+      Buffer.byteLength(value, "utf8") -
+        Buffer.byteLength(transformedValue, "utf8"),
+    ),
+  };
 }
 
 async function replaceDataUris(
   value: string,
   params: TransformParams,
-): Promise<string> {
-  params.onDetectionPath("data_uri");
+): Promise<{ value: string; bytesRemoved: number }> {
+  params.onDetectionPath("data_uri", Buffer.byteLength(value, "utf8"));
   const occurrences = findDataUris(value);
   if (occurrences.length === 0) {
     if (value.startsWith(DATA_URI_PREFIX)) {
       params.onInvalidCandidate("data_uri");
     }
-    return value;
+    return { value, bytesRemoved: 0 };
   }
 
   const replacements = new Map<string, Promise<string | undefined>>();
   let output = "";
   let cursor = 0;
+  let bytesRemoved = 0;
 
   for (const occurrence of occurrences) {
+    const original = value.slice(occurrence.start, occurrence.end);
     output += value.slice(cursor, occurrence.start);
     if (!occurrence.candidate) {
       params.onInvalidCandidate("data_uri");
-      output += occurrence.raw;
+      output += original;
     } else {
-      let replacement = replacements.get(occurrence.raw);
+      let replacement = replacements.get(original);
       if (!replacement) {
         replacement = params.processCandidate(occurrence.candidate);
-        replacements.set(occurrence.raw, replacement);
+        replacements.set(original, replacement);
       }
-      output += (await replacement) ?? occurrence.raw;
+      const resolvedReplacement = await replacement;
+      output += resolvedReplacement ?? original;
+      if (resolvedReplacement) {
+        bytesRemoved += Math.max(
+          0,
+          Buffer.byteLength(original, "utf8") -
+            Buffer.byteLength(resolvedReplacement, "utf8"),
+        );
+      }
     }
     cursor = occurrence.end;
   }
 
-  return output + value.slice(cursor);
+  return { value: output + value.slice(cursor), bytesRemoved };
 }
 
 function findDataUris(value: string): DataUriOccurrence[] {
@@ -144,19 +197,22 @@ function findDataUris(value: string): DataUriOccurrence[] {
   let cursor = 0;
 
   while (cursor < value.length) {
-    const start = value.indexOf(DATA_URI_PREFIX, cursor);
+    let start = value.indexOf(DATA_URI_PREFIX, cursor);
     if (start === -1) break;
 
-    const semicolon = value.indexOf(";", start + DATA_URI_PREFIX.length);
-    const nestedStart = value.indexOf(
-      DATA_URI_PREFIX,
-      start + DATA_URI_PREFIX.length,
-    );
-    if (nestedStart !== -1 && (semicolon === -1 || nestedStart < semicolon)) {
-      cursor = nestedStart;
-      continue;
+    let headerCursor = start + DATA_URI_PREFIX.length;
+    while (headerCursor < value.length) {
+      if (value.startsWith(DATA_URI_PREFIX, headerCursor)) {
+        start = headerCursor;
+        headerCursor += DATA_URI_PREFIX.length;
+        continue;
+      }
+      if (value.charCodeAt(headerCursor) === 59) break;
+      headerCursor += 1;
     }
-    if (semicolon === -1) break;
+
+    if (headerCursor === value.length) break;
+    const semicolon = headerCursor;
     if (!value.startsWith(BASE64_MARKER, semicolon)) {
       cursor = semicolon + 1;
       continue;
@@ -164,19 +220,29 @@ function findDataUris(value: string): DataUriOccurrence[] {
 
     const dataStart = semicolon + BASE64_MARKER.length;
     let end = dataStart;
+    let padding = 0;
+    let valid = true;
     while (end < value.length && isBase64Character(value.charCodeAt(end))) {
+      const code = value.charCodeAt(end);
+      if (code === 61) {
+        padding += 1;
+        if (padding > 2) valid = false;
+      } else if (padding > 0) {
+        valid = false;
+      }
       end += 1;
     }
 
-    const raw = value.slice(start, end);
     const contentType = value.slice(start + DATA_URI_PREFIX.length, semicolon);
     const base64Data = value.slice(dataStart, end);
     occurrences.push({
       start,
       end,
-      raw,
       candidate:
-        isMediaContentType(contentType) && isValidBase64(base64Data)
+        valid &&
+        base64Data.length > 0 &&
+        base64Data.length % 4 !== 1 &&
+        isMediaContentType(contentType)
           ? {
               base64Data,
               contentType,
@@ -191,49 +257,98 @@ function findDataUris(value: string): DataUriOccurrence[] {
   return occurrences;
 }
 
-async function transformJsonValue(
-  value: unknown,
+async function transformStructuredValue(
+  value: Record<string, unknown> | unknown[],
   params: TransformParams,
-  state: { changed: boolean },
-  depth: number,
-): Promise<unknown> {
-  if (depth > MAX_RECURSION_DEPTH) return value;
+  recordStructuredPath: boolean,
+): Promise<TransformState> {
+  const state: TransformState = {
+    changed: false,
+    bytesRemoved: 0,
+    checkedBytes: 0,
+  };
+  const operations: Array<() => Promise<void>> = [];
+  const root: Record<string, unknown> = { value };
+  const stack: TraversalNode[] = [
+    { value, depth: 1, parent: root, key: "value" },
+  ];
 
-  if (typeof value === "string") {
-    if (!value.includes(BASE64_MARKER)) return value;
-    const transformed = await replaceDataUris(value, params);
-    if (transformed !== value) state.changed = true;
-    return transformed;
-  }
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!node || node.depth > MAX_RECURSION_DEPTH) continue;
 
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      value[index] = await transformJsonValue(
-        value[index],
-        params,
-        state,
-        depth + 1,
-      );
+    if (typeof node.value === "string") {
+      state.checkedBytes += Buffer.byteLength(node.value, "utf8");
+      if (node.value.includes(BASE64_MARKER)) {
+        operations.push(async () => {
+          const transformed = await replaceDataUris(
+            node.value as string,
+            params,
+          );
+          if (transformed.value !== node.value) {
+            setTraversalValue(node, transformed.value);
+            state.changed = true;
+            state.bytesRemoved += transformed.bytesRemoved;
+          }
+        });
+      }
+      continue;
     }
-    return value;
-  }
-  if (!isObject(value)) return value;
 
-  const structuredMedia = matchStructuredMedia(value);
-  if (structuredMedia) {
-    await replaceStructuredMedia(structuredMedia, params, state);
-    return value;
+    if (Array.isArray(node.value)) {
+      for (let index = node.value.length - 1; index >= 0; index -= 1) {
+        stack.push({
+          value: node.value[index],
+          depth: node.depth + 1,
+          parent: node.value,
+          key: index,
+        });
+      }
+      continue;
+    }
+    if (!isObject(node.value)) continue;
+
+    const structuredMedia = matchStructuredMedia(node.value);
+    if (structuredMedia) {
+      state.checkedBytes += Buffer.byteLength(structuredMedia.content, "utf8");
+      operations.push(async () => {
+        const bytesRemoved = await replaceStructuredMedia(
+          structuredMedia,
+          params,
+        );
+        if (bytesRemoved !== undefined) {
+          state.changed = true;
+          state.bytesRemoved += bytesRemoved;
+        }
+      });
+      continue;
+    }
+
+    const entries = Object.entries(node.value);
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const [key, nestedValue] = entries[index]!;
+      stack.push({
+        value: nestedValue,
+        depth: node.depth + 1,
+        parent: node.value,
+        key,
+      });
+    }
   }
 
-  for (const [key, nestedValue] of Object.entries(value)) {
-    value[key] = await transformJsonValue(
-      nestedValue,
-      params,
-      state,
-      depth + 1,
-    );
+  if (recordStructuredPath) {
+    params.onDetectionPath("structured_payload", state.checkedBytes);
   }
-  return value;
+  for (const operation of operations) await operation();
+  return state;
+}
+
+function setTraversalValue(node: TraversalNode, value: unknown): void {
+  if (Array.isArray(node.parent) && typeof node.key === "number") {
+    node.parent[node.key] = value;
+  } else if (!Array.isArray(node.parent) && typeof node.key === "string") {
+    node.parent[node.key] = value;
+  }
 }
 
 function matchStructuredMedia(
@@ -294,8 +409,7 @@ function matchStructuredMedia(
 async function replaceStructuredMedia(
   media: StructuredMedia,
   params: TransformParams,
-  state: { changed: boolean },
-): Promise<void> {
+): Promise<number | undefined> {
   if (isMediaReference(media.content) || isRemoteUrl(media.content)) return;
 
   const candidate = parseRawBase64(media);
@@ -307,7 +421,11 @@ async function replaceStructuredMedia(
   const replacement = await params.processCandidate(candidate);
   if (replacement) {
     media.target[media.property] = replacement;
-    state.changed = true;
+    return Math.max(
+      0,
+      Buffer.byteLength(media.content, "utf8") -
+        Buffer.byteLength(replacement, "utf8"),
+    );
   }
 }
 
@@ -319,7 +437,9 @@ function parseRawBase64(
   if (media.content.startsWith(DATA_URI_PREFIX)) {
     const occurrences = findDataUris(media.content);
     const candidate =
-      occurrences.length === 1 && occurrences[0]?.raw === media.content
+      occurrences.length === 1 &&
+      occurrences[0]?.start === 0 &&
+      occurrences[0]?.end === media.content.length
         ? occurrences[0].candidate
         : undefined;
     return candidate

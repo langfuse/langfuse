@@ -46,7 +46,10 @@ import {
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
-import { processOtelMediaIfEnabled } from "../features/otel-media/processOtelMedia";
+import {
+  createOtelMediaTargets,
+  processOtelMediaIfEnabled,
+} from "../features/otel-media/processOtelMedia";
 
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
@@ -309,15 +312,6 @@ export const otelIngestionQueueProcessorBuilder = (
         parsedSpans = maskingResult.data;
       }
 
-      await processOtelMediaIfEnabled({
-        enabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
-        resourceSpans: parsedSpans,
-        projectId,
-        fileKey,
-        mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-        mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-      });
-
       // Generate events via OtelIngestionProcessor
       const processor = new OtelIngestionProcessor({
         projectId,
@@ -328,6 +322,43 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
+      let eventInputs:
+        | ReturnType<OtelIngestionProcessor["processToEvent"]>
+        | undefined;
+      let sdkInfo: ReturnType<typeof getSdkInfoFromResourceSpans> | undefined;
+      const mediaUploadEnabled =
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
+
+      if (mediaUploadEnabled) {
+        // Generate the direct-write representation before media extraction so
+        // original OTEL span-size telemetry is recorded on unmodified input.
+        eventInputs = processor.processToEvent(parsedSpans);
+        sdkInfo =
+          parsedSpans.length > 0
+            ? getSdkInfoFromResourceSpans(parsedSpans[0])
+            : {
+                scopeName: null,
+                scopeVersion: null,
+                telemetrySdkLanguage: null,
+              };
+        const mediaTargets = createOtelMediaTargets({
+          ingestionEvents: events,
+          eventInputs,
+        });
+
+        // Media extraction only needs normalized fields. Drop the expanded raw
+        // OTEL tree before decoding or uploading potentially large payloads.
+        parsedSpans = [];
+        await processOtelMediaIfEnabled({
+          enabled: true,
+          targets: mediaTargets,
+          projectId,
+          fileKey,
+          mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+        });
+      }
+
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
       const traces = events.filter(
@@ -406,16 +437,17 @@ export const otelIngestionQueueProcessorBuilder = (
           const body = o.body as { environment?: string };
           return body.environment === "sdk-experiment";
         });
-        const sdkInfo =
-          parsedSpans.length > 0
+        const currentSdkInfo =
+          sdkInfo ??
+          (parsedSpans.length > 0
             ? getSdkInfoFromResourceSpans(parsedSpans[0])
             : {
                 scopeName: null,
                 scopeVersion: null,
                 telemetrySdkLanguage: null,
-              };
+              });
         useDirectEventWrite = checkSdkVersionRequirements(
-          sdkInfo,
+          currentSdkInfo,
           hasExperimentEnvironment,
         );
       }
@@ -492,8 +524,7 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Both require enriched event records with trace-level attributes
       // (userId, sessionId, tags, release) that processToEvent provides.
-      const eventInputs = processor.processToEvent(parsedSpans);
-
+      eventInputs ??= processor.processToEvent(parsedSpans);
       if (eventInputs.length === 0) {
         return;
       }

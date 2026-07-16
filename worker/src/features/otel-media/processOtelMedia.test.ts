@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@langfuse/shared/src/server", () => ({
+  getClickhouseEntityType: vi.fn((type: string) =>
+    type === "trace-create" ? "trace" : "observation",
+  ),
   instrumentAsync: mocks.instrumentAsync,
   logger: { warn: vi.fn() },
   processOtelMedia: vi.fn(),
@@ -22,7 +25,67 @@ vi.mock("@langfuse/shared/src/server", () => ({
   uploadMediaForTrace: vi.fn(),
 }));
 
-import { processOtelMediaIfEnabled } from "./processOtelMedia";
+import {
+  createOtelMediaTargets,
+  processOtelMediaIfEnabled,
+} from "./processOtelMedia";
+
+describe("createOtelMediaTargets", () => {
+  it("selects only normalized input, output, and metadata fields", () => {
+    const traceBody = {
+      id: "trace-id",
+      input: "trace-input",
+      metadata: { source: "trace" },
+      name: "trace-name",
+    };
+    const observationBody = {
+      id: "observation-id",
+      traceId: "trace-id",
+      output: "observation-output",
+    };
+    const eventInput = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: { role: "user" },
+      name: "observation-name",
+    };
+
+    const targets = createOtelMediaTargets({
+      ingestionEvents: [
+        { type: "trace-create", body: traceBody } as never,
+        { type: "span-create", body: observationBody } as never,
+      ],
+      eventInputs: [eventInput],
+    });
+
+    expect(targets).toEqual([
+      {
+        traceId: "trace-id",
+        observationId: undefined,
+        field: "input",
+        body: traceBody,
+      },
+      {
+        traceId: "trace-id",
+        observationId: undefined,
+        field: "metadata",
+        body: traceBody,
+      },
+      {
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "output",
+        body: observationBody,
+      },
+      {
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        body: eventInput,
+      },
+    ]);
+  });
+});
 
 describe("processOtelMediaIfEnabled", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -32,7 +95,7 @@ describe("processOtelMediaIfEnabled", () => {
 
     await processOtelMediaIfEnabled({
       enabled: false,
-      resourceSpans: [],
+      targets: [],
       projectId: "project-id",
       fileKey: "file-key",
       mediaBucket: "media-bucket",
@@ -52,12 +115,21 @@ describe("processOtelMediaIfEnabled", () => {
       bytesRemoved: 5,
       candidates: 6,
       bytesProcessed: 7,
-      detectionChecks: { data_uri: 8, stringified_json: 9 },
+      detectionChecks: {
+        data_uri: 8,
+        stringified_json: 9,
+        structured_payload: 10,
+      },
+      detectionCheckedBytes: {
+        data_uri: 10,
+        stringified_json: 11,
+        structured_payload: 12,
+      },
     });
 
     await processOtelMediaIfEnabled({
       enabled: true,
-      resourceSpans: [],
+      targets: [],
       projectId: "project-id",
       fileKey: "file-key",
       mediaBucket: "media-bucket",
@@ -75,11 +147,16 @@ describe("processOtelMediaIfEnabled", () => {
         "langfuse.ingestion.otel.media.uploaded": 1,
         "langfuse.ingestion.otel.media.bytes_processed": 7,
         "langfuse.ingestion.otel.media.detection_checks.stringified_json": 9,
+        "langfuse.ingestion.otel.media.detection_checked_bytes.structured_payload": 12,
       }),
     );
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.batch_byte_length",
       7,
+    );
+    expect(mocks.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.batch_checked_byte_length",
+      33,
     );
     expect(mocks.recordDistribution).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.processing_duration_ms",
@@ -93,7 +170,7 @@ describe("processOtelMediaIfEnabled", () => {
     await expect(
       processOtelMediaIfEnabled({
         enabled: true,
-        resourceSpans: [],
+        targets: [],
         projectId: "project-id",
         fileKey: "file-key",
         mediaBucket: "media-bucket",

@@ -19,27 +19,34 @@ describe("transformMediaPayload", () => {
       onDetectionPath,
     });
 
-    expect(transformed).toBe(value);
+    expect(transformed.value).toBe(value);
     expect(processCandidate).not.toHaveBeenCalled();
     expect(onInvalidCandidate).not.toHaveBeenCalled();
     expect(onDetectionPath).not.toHaveBeenCalled();
   });
 
-  it("scans adversarial repeated data prefixes without a regular expression", async () => {
+  it("scans adversarial repeated data prefixes in linear time", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const onDetectionPath = vi.fn();
-    const value = `${"data:".repeat(10_000)}data:image/png;base64,${PNG_BASE64}`;
+    const repeatedPrefixes = "data:".repeat(256_000);
+    const value = `${repeatedPrefixes}data:image/png;base64,${PNG_BASE64}`;
+    const startedAt = performance.now();
 
     const transformed = await transformMediaPayload(value, {
       processCandidate,
       onInvalidCandidate: vi.fn(),
       onDetectionPath,
     });
+    const elapsedMs = performance.now() - startedAt;
 
-    expect(transformed).toBe(`${"data:".repeat(10_000)}${MEDIA_REFERENCE}`);
+    expect(transformed.value).toBe(`${repeatedPrefixes}${MEDIA_REFERENCE}`);
+    expect(elapsedMs).toBeLessThan(1_000);
     expect(processCandidate).toHaveBeenCalledTimes(1);
     expect(onDetectionPath).toHaveBeenCalledOnce();
-    expect(onDetectionPath).toHaveBeenCalledWith("data_uri");
+    expect(onDetectionPath).toHaveBeenCalledWith(
+      "data_uri",
+      Buffer.byteLength(value, "utf8"),
+    );
   });
 
   it("uploads identical embedded data URIs only once", async () => {
@@ -56,10 +63,15 @@ describe("transformMediaPayload", () => {
       },
     );
 
-    expect(transformed).toBe(`${MEDIA_REFERENCE} between ${MEDIA_REFERENCE}`);
+    expect(transformed.value).toBe(
+      `${MEDIA_REFERENCE} between ${MEDIA_REFERENCE}`,
+    );
     expect(processCandidate).toHaveBeenCalledTimes(1);
     expect(onDetectionPath).toHaveBeenCalledOnce();
-    expect(onDetectionPath).toHaveBeenCalledWith("data_uri");
+    expect(onDetectionPath).toHaveBeenCalledWith(
+      "data_uri",
+      Buffer.byteLength(`${dataUri} between ${dataUri}`, "utf8"),
+    );
   });
 
   it("reports checks of shape-based stringified JSON", async () => {
@@ -79,6 +91,29 @@ describe("transformMediaPayload", () => {
     );
 
     expect(onDetectionPath).toHaveBeenCalledOnce();
-    expect(onDetectionPath).toHaveBeenCalledWith("stringified_json");
+    expect(onDetectionPath).toHaveBeenCalledWith(
+      "stringified_json",
+      expect.any(Number),
+    );
+  });
+
+  it("processes structured normalized payloads without serializing them first", async () => {
+    const onDetectionPath = vi.fn();
+    const value = {
+      messages: [{ type: "base64", media_type: "image/png", data: PNG_BASE64 }],
+    };
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath,
+    });
+
+    expect(transformed.value).toBe(value);
+    expect(value.messages[0]?.data).toBe(MEDIA_REFERENCE);
+    expect(onDetectionPath).toHaveBeenCalledWith(
+      "structured_payload",
+      Buffer.byteLength(PNG_BASE64, "utf8"),
+    );
   });
 });

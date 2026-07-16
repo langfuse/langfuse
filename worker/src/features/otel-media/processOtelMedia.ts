@@ -1,15 +1,90 @@
 import {
+  getClickhouseEntityType,
   instrumentAsync,
   logger,
   processOtelMedia,
   recordDistribution,
-  type ResourceSpan,
+  type IngestionEventType,
+  type OtelMediaTarget,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 
+const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
+
+export function createOtelMediaTargets(params: {
+  ingestionEvents: IngestionEventType[];
+  eventInputs: unknown[];
+}): OtelMediaTarget[] {
+  const targets: OtelMediaTarget[] = [];
+
+  for (const event of params.ingestionEvents) {
+    const body: unknown = event.body;
+    if (!isObject(body)) continue;
+
+    const entityType = getClickhouseEntityType(event.type);
+    if (entityType !== "trace" && entityType !== "observation") continue;
+
+    const traceId = entityType === "trace" ? body.id : body.traceId;
+    const observationId = entityType === "observation" ? body.id : undefined;
+    if (
+      typeof traceId !== "string" ||
+      (observationId !== undefined && typeof observationId !== "string")
+    ) {
+      continue;
+    }
+
+    addMediaTargets({
+      targets,
+      body,
+      traceId,
+      observationId,
+    });
+  }
+
+  for (const eventInput of params.eventInputs) {
+    if (
+      !isObject(eventInput) ||
+      typeof eventInput.traceId !== "string" ||
+      typeof eventInput.spanId !== "string"
+    ) {
+      continue;
+    }
+
+    addMediaTargets({
+      targets,
+      body: eventInput,
+      traceId: eventInput.traceId,
+      observationId: eventInput.spanId,
+    });
+  }
+
+  return targets;
+}
+
+function addMediaTargets(params: {
+  targets: OtelMediaTarget[];
+  body: Record<string, unknown>;
+  traceId: string;
+  observationId?: string;
+}): void {
+  for (const field of MEDIA_FIELDS) {
+    if (params.body[field] == null) continue;
+    params.targets.push({
+      traceId: params.traceId,
+      observationId: params.observationId,
+      field,
+      body: params.body,
+    });
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function processOtelMediaIfEnabled(params: {
   enabled: boolean;
-  resourceSpans: ResourceSpan[];
+  targets: OtelMediaTarget[];
   projectId: string;
   fileKey: string;
   mediaBucket?: string;
@@ -18,7 +93,7 @@ export async function processOtelMediaIfEnabled(params: {
 }): Promise<void> {
   const {
     enabled,
-    resourceSpans,
+    targets,
     projectId,
     fileKey,
     mediaBucket,
@@ -43,7 +118,7 @@ export async function processOtelMediaIfEnabled(params: {
         const startedAt = Date.now();
         try {
           const result = await processMedia({
-            resourceSpans,
+            targets,
             projectId,
             mediaBucket,
             mediaPrefix,
@@ -63,11 +138,26 @@ export async function processOtelMediaIfEnabled(params: {
               result.detectionChecks.data_uri,
             "langfuse.ingestion.otel.media.detection_checks.stringified_json":
               result.detectionChecks.stringified_json,
+            "langfuse.ingestion.otel.media.detection_checks.structured_payload":
+              result.detectionChecks.structured_payload,
+            "langfuse.ingestion.otel.media.detection_checked_bytes.data_uri":
+              result.detectionCheckedBytes.data_uri,
+            "langfuse.ingestion.otel.media.detection_checked_bytes.stringified_json":
+              result.detectionCheckedBytes.stringified_json,
+            "langfuse.ingestion.otel.media.detection_checked_bytes.structured_payload":
+              result.detectionCheckedBytes.structured_payload,
           });
 
           recordDistribution(
             "langfuse.ingestion.otel.media.batch_byte_length",
             result.bytesProcessed,
+          );
+          recordDistribution(
+            "langfuse.ingestion.otel.media.batch_checked_byte_length",
+            Object.values(result.detectionCheckedBytes).reduce(
+              (total, bytes) => total + bytes,
+              0,
+            ),
           );
         } finally {
           recordDistribution(

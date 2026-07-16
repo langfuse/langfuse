@@ -153,7 +153,7 @@ export type UploadMediaForTraceResult = {
 export async function uploadMediaForTrace(params: {
   projectId: string;
   traceId: string;
-  observationId: string;
+  observationId?: string;
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;

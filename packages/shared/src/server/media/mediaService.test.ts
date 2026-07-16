@@ -107,4 +107,25 @@ describe("uploadMediaForTrace", () => {
     expect(mocks.executeRaw).not.toHaveBeenCalled();
     expect(mocks.uploadFile).not.toHaveBeenCalled();
   });
+
+  it("links trace media when no observation id is provided", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "existing-media-id",
+      uploadHttpStatus: 200,
+      contentType: MediaContentType.PNG,
+    });
+
+    await uploadMediaForTrace({
+      projectId: "project-id",
+      traceId: "trace-id",
+      field: "input",
+      contentType: MediaContentType.PNG,
+      contentBytes: CONTENT_BYTES,
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+    });
+
+    const query = mocks.queryRaw.mock.calls[0]?.[0] as TemplateStringsArray;
+    expect(query.join(" ")).toContain('INSERT INTO "trace_media"');
+  });
 });

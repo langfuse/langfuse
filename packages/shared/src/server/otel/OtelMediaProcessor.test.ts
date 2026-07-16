@@ -8,74 +8,36 @@ vi.mock("../logger", () => ({
   logger: { warn: vi.fn() },
 }));
 
-import type { ResourceSpan } from "./OtelIngestionProcessor";
-import { recordIncrement } from "../instrumentation";
-import { processOtelMedia, type UploadOtelMedia } from "./OtelMediaProcessor";
+import type { MediaField } from "../../domain/media";
+import { recordDistribution, recordIncrement } from "../instrumentation";
+import {
+  processOtelMedia,
+  type OtelMediaTarget,
+  type UploadOtelMedia,
+} from "./OtelMediaProcessor";
 
 const TRACE_ID = "0123456789abcdef0123456789abcdef";
 const SPAN_ID = "0123456789abcdef";
 const MEDIA_ID = "test-media-id";
 const PNG_BYTES = Buffer.from("test-image");
 const PNG_BASE64 = PNG_BYTES.toString("base64");
+const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
-function resourceSpans(params: {
-  attributeKey?: string;
-  value?: string;
-  eventAttributeKey?: string;
-  eventValue?: string;
-}): ResourceSpan[] {
-  const attributes =
-    params.attributeKey && params.value
-      ? [
-          {
-            key: params.attributeKey,
-            value: { stringValue: params.value },
-          },
-        ]
-      : [];
-  const events =
-    params.eventAttributeKey && params.eventValue
-      ? [
-          {
-            name: "gen_ai.client.inference.operation.details",
-            attributes: [
-              {
-                key: params.eventAttributeKey,
-                value: { stringValue: params.eventValue },
-              },
-            ],
-          },
-        ]
-      : [];
-
-  return [
-    {
-      scopeSpans: [
-        {
-          scope: { name: "test" },
-          spans: [
-            {
-              traceId: TRACE_ID,
-              spanId: SPAN_ID,
-              name: "test-span",
-              kind: 1,
-              attributes,
-              events,
-            },
-          ],
-        },
-      ],
+function createTarget(params: {
+  value: unknown;
+  field?: MediaField;
+  observationId?: string;
+}): { target: OtelMediaTarget; body: Record<string, unknown> } {
+  const body = { [params.field ?? "input"]: params.value };
+  return {
+    target: {
+      traceId: TRACE_ID,
+      observationId: params.observationId,
+      field: params.field ?? "input",
+      body,
     },
-  ] as ResourceSpan[];
-}
-
-function getAttributeValue(spans: ResourceSpan[]): string {
-  return spans[0]!.scopeSpans![0]!.spans![0]!.attributes![0]!.value.stringValue;
-}
-
-function getEventAttributeValue(spans: ResourceSpan[]): string {
-  return spans[0]!.scopeSpans![0]!.spans![0]!.events![0]!.attributes![0]!.value
-    .stringValue;
+    body,
+  };
 }
 
 function createUploadMock(
@@ -84,22 +46,29 @@ function createUploadMock(
   return vi.fn().mockResolvedValue({ mediaId: MEDIA_ID, outcome });
 }
 
+async function processTargets(
+  targets: OtelMediaTarget[],
+  uploadMedia: UploadOtelMedia = createUploadMock(),
+) {
+  return processOtelMedia({
+    targets,
+    projectId: "project-id",
+    mediaBucket: "media-bucket",
+    mediaPrefix: "media/",
+    uploadMedia,
+  });
+}
+
 describe("processOtelMedia", () => {
-  it("uploads a direct data URI and replaces it only after success", async () => {
+  it("uploads a normalized observation Data URI and replaces it after success", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
-    const spans = resourceSpans({
-      attributeKey: "langfuse.observation.input",
+    const { target, body } = createTarget({
       value: dataUri,
+      observationId: SPAN_ID,
     });
     const uploadMedia = createUploadMock();
 
-    const result = await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    const result = await processTargets([target], uploadMedia);
 
     expect(uploadMedia).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -111,84 +80,78 @@ describe("processOtelMedia", () => {
         contentBytes: PNG_BYTES,
       }),
     );
-    expect(getAttributeValue(spans)).toBe(
-      `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`,
-    );
+    expect(body.input).toBe(MEDIA_REFERENCE);
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.ingestion.otel.media.detection_check",
       1,
       { path: "data_uri" },
     );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.detection_check_byte_length",
+      Buffer.byteLength(dataUri, "utf8"),
+      { path: "data_uri" },
+    );
     expect(result).toMatchObject({
       candidates: 1,
       bytesProcessed: PNG_BYTES.length,
-      detectionChecks: { data_uri: 1, stringified_json: 0 },
+      detectionChecks: {
+        data_uri: 1,
+        stringified_json: 0,
+        structured_payload: 0,
+      },
+      detectionCheckedBytes: {
+        data_uri: Buffer.byteLength(dataUri, "utf8"),
+        stringified_json: 0,
+        structured_payload: 0,
+      },
     });
   });
 
-  it.each([
-    "langfuse.trace.metadata",
-    "langfuse.observation.metadata",
-    "langfuse.metadata.image",
-    "ai.telemetry.metadata.image",
-  ])("uploads media from the metadata attribute %s", async (attributeKey) => {
-    const spans = resourceSpans({
-      attributeKey,
+  it("links media to a normalized trace without an observation id", async () => {
+    const { target, body } = createTarget({
       value: `data:image/png;base64,${PNG_BASE64}`,
     });
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    await processTargets([target], uploadMedia);
 
     expect(uploadMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ field: "metadata" }),
+      expect.objectContaining({ observationId: undefined }),
     );
+    expect(body.input).toBe(MEDIA_REFERENCE);
   });
 
-  it("does not inspect unrelated attributes", async () => {
-    const value = `data:image/png;base64,${PNG_BASE64}`;
-    const spans = resourceSpans({
-      attributeKey: "unrelated.attribute",
-      value,
-    });
+  it("processes only the explicit normalized field target", async () => {
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const body = { input: "plain", unrelated: dataUri };
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+    await processTargets(
+      [
+        {
+          traceId: TRACE_ID,
+          observationId: SPAN_ID,
+          field: "input",
+          body,
+        },
+      ],
       uploadMedia,
-    });
+    );
 
     expect(uploadMedia).not.toHaveBeenCalled();
-    expect(getAttributeValue(spans)).toBe(value);
+    expect(body).toEqual({ input: "plain", unrelated: dataUri });
   });
 
-  it("replaces an embedded data URI in an arbitrary string", async () => {
+  it("replaces an embedded Data URI in a normalized string", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
-    const spans = resourceSpans({
-      attributeKey: "gen_ai.prompt",
+    const { target, body } = createTarget({
       value: `image: ${dataUri}`,
+      observationId: SPAN_ID,
     });
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia: createUploadMock(),
-    });
+    await processTargets([target]);
 
-    expect(getAttributeValue(spans)).toBe(
-      `image: @@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`,
-    );
+    expect(body.input).toBe(`image: ${MEDIA_REFERENCE}`);
   });
 
   it.each([
@@ -217,127 +180,102 @@ describe("processOtelMedia", () => {
       { type: "blob", mime_type: "image/png", content: PNG_BASE64 },
       "content",
     ],
-  ])("processes %s serialized media", async (_, mediaValue, referencePath) => {
-    const spans = resourceSpans({
-      attributeKey: "gen_ai.input.messages",
-      value: JSON.stringify([mediaValue]),
+  ])(
+    "processes %s media in normalized structured values",
+    async (_, mediaValue, referencePath) => {
+      const value = [structuredClone(mediaValue)];
+      const { target } = createTarget({ value, observationId: SPAN_ID });
+      const uploadMedia = createUploadMock();
+
+      const result = await processTargets([target], uploadMedia);
+
+      const reference = referencePath
+        .split(".")
+        .reduce((nested, key) => nested[key], value[0] as any) as string;
+      expect(reference).toBe(
+        `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=bytes@@@`,
+      );
+      expect(uploadMedia).toHaveBeenCalledTimes(1);
+      expect(result.detectionChecks.structured_payload).toBe(1);
+    },
+  );
+
+  it("processes shape-based media in stringified JSON", async () => {
+    const { target, body } = createTarget({
+      value: JSON.stringify([
+        { type: "base64", media_type: "image/png", data: PNG_BASE64 },
+      ]),
+      observationId: SPAN_ID,
     });
-    const uploadMedia = createUploadMock();
 
-    const result = await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    const result = await processTargets([target]);
 
-    const parsed = JSON.parse(getAttributeValue(spans));
-    const path = referencePath.split(".");
-    const reference = path.reduce(
-      (value, key) => value[key],
-      parsed[0],
-    ) as string;
-
-    expect(reference).toBe(
+    expect(JSON.parse(body.input as string)[0].data).toBe(
       `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=bytes@@@`,
     );
-    expect(uploadMedia).toHaveBeenCalledTimes(1);
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.ingestion.otel.media.detection_check",
-      1,
-      { path: "stringified_json" },
-    );
-    expect(result).toMatchObject({
-      candidates: 1,
-      bytesProcessed: PNG_BYTES.length,
-      detectionChecks: { data_uri: 0, stringified_json: 1 },
-    });
+    expect(result.detectionChecks.stringified_json).toBe(1);
   });
 
-  it("processes media in span-event attributes", async () => {
-    const spans = resourceSpans({
-      eventAttributeKey: "gen_ai.output.messages",
-      eventValue: `data:image/png;base64,${PNG_BASE64}`,
-    });
+  it("uploads once when dual normalized representations contain the same media", async () => {
+    const value = `data:image/png;base64,${PNG_BASE64}`;
+    const first = createTarget({ value, observationId: SPAN_ID });
+    const second = createTarget({ value, observationId: SPAN_ID });
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
+    const result = await processTargets(
+      [first.target, second.target],
       uploadMedia,
-    });
+    );
 
-    expect(uploadMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ field: "output" }),
-    );
-    expect(getEventAttributeValue(spans)).toContain(
-      "@@@langfuseMedia:type=image/png",
-    );
+    expect(uploadMedia).toHaveBeenCalledTimes(1);
+    expect(first.body.input).toBe(MEDIA_REFERENCE);
+    expect(second.body.input).toBe(MEDIA_REFERENCE);
+    expect(result.candidates).toBe(1);
+    expect(result.detectionChecks.data_uri).toBe(2);
   });
 
-  it("leaves the original value unchanged when upload fails", async () => {
+  it("leaves normalized values unchanged when upload fails", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
-    const spans = resourceSpans({
-      attributeKey: "langfuse.observation.input",
+    const { target, body } = createTarget({
       value: dataUri,
+      observationId: SPAN_ID,
     });
     const uploadMedia = vi.fn().mockRejectedValue(new Error("upload failed"));
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    await processTargets([target], uploadMedia);
 
-    expect(getAttributeValue(spans)).toBe(dataUri);
+    expect(body.input).toBe(dataUri);
   });
 
   it("ignores existing media references", async () => {
     const reference =
       "@@@langfuseMedia:type=image/png|id=existing|source=bytes@@@";
-    const spans = resourceSpans({
-      attributeKey: "langfuse.observation.input",
+    const { target, body } = createTarget({
       value: reference,
+      observationId: SPAN_ID,
     });
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    await processTargets([target], uploadMedia);
 
     expect(uploadMedia).not.toHaveBeenCalled();
-    expect(getAttributeValue(spans)).toBe(reference);
+    expect(body.input).toBe(reference);
   });
 
   it.each([
     ["an unsupported media type", "data:application/x-test;base64,dGVzdA=="],
     ["invalid base64", "data:image/png;base64,%%%"],
   ])("leaves %s unchanged", async (_, value) => {
-    const spans = resourceSpans({
-      attributeKey: "langfuse.observation.input",
+    const { target, body } = createTarget({
       value,
+      observationId: SPAN_ID,
     });
     const uploadMedia = createUploadMock();
 
-    const result = await processOtelMedia({
-      resourceSpans: spans,
-      projectId: "project-id",
-      mediaBucket: "media-bucket",
-      mediaPrefix: "media/",
-      uploadMedia,
-    });
+    const result = await processTargets([target], uploadMedia);
 
     expect(uploadMedia).not.toHaveBeenCalled();
-    expect(getAttributeValue(spans)).toBe(value);
+    expect(body.input).toBe(value);
     expect(result.invalid).toBe(1);
   });
 });
