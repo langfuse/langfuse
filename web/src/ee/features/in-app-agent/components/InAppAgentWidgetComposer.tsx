@@ -6,7 +6,7 @@ import { Input } from "@/src/components/ui/input";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 
 const getWidgetCreationPrompt = (request: string) =>
-  `Create a reusable dashboard widget for this request:\n\n${request}\n\nChoose an appropriate data view, metrics, dimensions, filters, and chart type. Briefly explain the plan, then create the widget. The write will still require my approval.`;
+  `Create a dashboard widget for this request and add it to the current dashboard:\n\n${request}\n\nChoose an appropriate data view, metrics, dimensions, filters, and chart type. Briefly explain the plan, then create the widget.`;
 
 export function InAppAgentWidgetComposer({
   onSubmitted,
@@ -54,7 +54,7 @@ export function InAppAgentWidgetComposer({
       </div>
       <p className="text-muted-foreground text-xs">
         Describe the chart you need. The Assistant will create it as a reusable
-        widget.
+        widget and add it to this dashboard.
       </p>
       <div className="flex gap-2">
         <Input
