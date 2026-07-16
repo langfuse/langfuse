@@ -16,7 +16,11 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: { userWasJustCreated?: boolean },
+  options?: {
+    userWasJustCreated?: boolean;
+    /** Google Ads click id, see getGclidFromRequest */
+    gclid?: string;
+  },
 ) {
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -274,6 +278,8 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
+            // Google Ads click id for ad conversion attribution
+            ...(options?.gclid ? { gclid: options.gclid } : {}),
           },
         });
         await posthog.shutdown();

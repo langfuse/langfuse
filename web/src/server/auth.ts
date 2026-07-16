@@ -591,7 +591,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
-const extendedPrismaAdapter: Adapter = {
+// Factory instead of a static adapter so that per-request signup attribution
+// (Google Ads click id from first-party cookies) can reach the signup event
+// captured for new SSO users.
+const createExtendedPrismaAdapter = (signupAttribution?: {
+  gclid?: string;
+}): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
@@ -611,7 +616,10 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user, { userWasJustCreated: true });
+    await createProjectMembershipsOnSignup(user, {
+      userWasJustCreated: true,
+      gclid: signupAttribution?.gclid,
+    });
 
     return user;
   },
@@ -653,7 +661,9 @@ const extendedPrismaAdapter: Adapter = {
       select: { id: true, email: true, name: true },
     });
     if (user) {
-      await createProjectMembershipsOnSignup(user);
+      await createProjectMembershipsOnSignup(user, {
+        gclid: signupAttribution?.gclid,
+      });
     }
   },
 
@@ -724,14 +734,20 @@ const extendedPrismaAdapter: Adapter = {
 
     return verificationToken;
   },
-};
+});
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
+ * @param signupAttribution - per-request marketing attribution (e.g. Google
+ * Ads click id) attached to the signup analytics event if the request results
+ * in a new user. Only passed by the NextAuth API route.
+ *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(): Promise<NextAuthOptions> {
+export async function getAuthOptions(signupAttribution?: {
+  gclid?: string;
+}): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
     dynamicSsoProviders = await loadSsoProviders();
@@ -1051,7 +1067,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         });
       },
     },
-    adapter: extendedPrismaAdapter,
+    adapter: createExtendedPrismaAdapter(signupAttribution),
     providers,
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,

@@ -1,4 +1,5 @@
 import { getAuthOptions } from "@/src/server/auth";
+import { getGclidFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { env } from "@/src/env.mjs";
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth from "next-auth";
@@ -38,7 +39,11 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Do whatever you want here, before the request is passed down to `NextAuth`
-  const authOptions = await getAuthOptions();
+  // Pass Google Ads click attribution from first-party cookies so that new
+  // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
+  const authOptions = await getAuthOptions({
+    gclid: getGclidFromRequest(req),
+  });
   // https://github.com/nextauthjs/next-auth/issues/2408#issuecomment-1382629234
   // for api routes, we need to call the headers in the api route itself
   // disable caching for anything auth related
