@@ -8,6 +8,7 @@ import {
   SecondaryIngestionQueue,
   logger,
   QueueName,
+  QueueJobs,
   getQueue,
   IngestionQueue,
   TraceUpsertQueue,
@@ -31,6 +32,14 @@ const BullStatus = z.enum([
   "wait",
 ]);
 
+// Scheduled jobs that can be started one-off via the "trigger" action. Their
+// processors read no job payload, so an ad-hoc empty job behaves exactly like
+// a scheduled run. Extend deliberately — most queues require typed payloads
+// and must not be triggerable with an empty job.
+const TRIGGERABLE_SCHEDULED_JOBS = {
+  [QueueName.CoreDataS3ExportQueue]: QueueJobs.CoreDataS3ExportJob,
+} as const;
+
 const ManageBullBody = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("retry"),
@@ -45,6 +54,10 @@ const ManageBullBody = z.discriminatedUnion("action", [
     action: z.literal("add"),
     queueName: z.literal(QueueName.IngestionSecondaryQueue),
     events: z.array(IngestionEvent),
+  }),
+  z.object({
+    action: z.literal("trigger"),
+    queueName: z.literal(QueueName.CoreDataS3ExportQueue),
   }),
 ]);
 
@@ -318,6 +331,27 @@ export default async function handler(
       }
 
       return res.status(200).json({ message: "Retried all jobs" });
+    }
+
+    if (req.method === "POST" && body.data.action === "trigger") {
+      const { queueName } = body.data;
+      const queue = getQueue(queueName);
+
+      if (!queue) {
+        return res.status(400).json({
+          error: `Queue ${queueName} is not available. It is only instantiated when its enabling env var is set on this container (LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED for the core data export).`,
+        });
+      }
+
+      const jobName = TRIGGERABLE_SCHEDULED_JOBS[queueName];
+      const job = await queue.add(jobName, {});
+      logger.info(
+        `Triggered one-off ${jobName} job ${job.id} on queue ${queueName}`,
+      );
+      return res.status(200).json({
+        message: `Triggered ${jobName} on queue ${queueName}`,
+        jobId: job.id,
+      });
     }
 
     // if (req.method === "POST" && body.data.action === "add") {
