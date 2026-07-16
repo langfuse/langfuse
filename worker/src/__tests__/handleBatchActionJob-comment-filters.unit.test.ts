@@ -130,29 +130,41 @@ describe("event batch-action comment filter wiring", () => {
     );
   });
 
-  it("resolves observation comments before streaming Events into an annotation queue", async () => {
-    resolveComments();
-
-    await runBatchAction({
-      projectId: "project-1",
-      actionId: "observation-add-to-annotation-queue",
+  it.each([
+    {
       tableName: BatchTableNames.Events,
-      cutoffCreatedAt: new Date(),
-      targetId: "queue-1",
-      query: createQuery(),
-      type: BatchActionType.Create,
-    });
+      getStream: mocks.getEventsStreamForAnnotationQueue,
+    },
+    {
+      tableName: BatchTableNames.Observations,
+      getStream: mocks.getObservationStream,
+    },
+  ])(
+    "resolves observation comments before streaming $tableName into an annotation queue",
+    async ({ tableName, getStream }) => {
+      resolveComments();
 
-    expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
-      filterState: rawCommentFilter,
-      prisma,
-      projectId: "project-1",
-      objectType: "OBSERVATION",
-    });
-    expect(mocks.getEventsStreamForAnnotationQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: resolvedCommentFilter }),
-    );
-  });
+      await runBatchAction({
+        projectId: "project-1",
+        actionId: "observation-add-to-annotation-queue",
+        tableName,
+        cutoffCreatedAt: new Date(),
+        targetId: "queue-1",
+        query: createQuery(),
+        type: BatchActionType.Create,
+      });
+
+      expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
+        filterState: rawCommentFilter,
+        prisma,
+        projectId: "project-1",
+        objectType: "OBSERVATION",
+      });
+      expect(getStream).toHaveBeenCalledWith(
+        expect.objectContaining({ filter: resolvedCommentFilter }),
+      );
+    },
+  );
 
   it("turns a no-match Events comment filter into an empty dataset selection", async () => {
     mocks.applyCommentFilters.mockResolvedValue({

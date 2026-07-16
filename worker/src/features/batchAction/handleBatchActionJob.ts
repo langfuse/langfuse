@@ -215,8 +215,7 @@ export const handleBatchActionJob = async (
       query.filter ?? [],
     );
     const filter =
-      actionId === "observation-add-to-annotation-queue" &&
-      tableName === BatchTableNames.Events
+      actionId === "observation-add-to-annotation-queue"
         ? await resolveObservationCommentFilters({
             projectId,
             filter: convertedFilter,

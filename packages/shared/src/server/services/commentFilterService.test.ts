@@ -82,24 +82,30 @@ describe("applyCommentFilters", () => {
     expect(queryRaw).toHaveBeenCalledOnce();
   });
 
-  it("expresses a bounded zero-inclusive count filter as an exclusion", async () => {
-    const excludedIds = ["observation-with-too-many-comments"];
-    const { prisma } = createPrisma(
-      excludedIds.map((object_id) => ({ object_id })),
-    );
+  it.each([
+    { operator: "<=" as const, value: 1 },
+    { operator: "=" as const, value: 0 },
+  ])(
+    "expresses a zero-inclusive $operator $value count filter as an exclusion",
+    async ({ operator, value }) => {
+      const excludedIds = ["observation-outside-count-range"];
+      const { prisma } = createPrisma(
+        excludedIds.map((object_id) => ({ object_id })),
+      );
 
-    const result = await applyCommentFilters({
-      filterState: [commentCountFilter("<=", 1)],
-      prisma,
-      ...commonArgs,
-    });
+      const result = await applyCommentFilters({
+        filterState: [commentCountFilter(operator, value)],
+        prisma,
+        ...commonArgs,
+      });
 
-    expect(result).toEqual({
-      filterState: [objectIdFilter("none of", excludedIds)],
-      hasNoMatches: false,
-      matchingIds: null,
-    });
-  });
+      expect(result).toEqual({
+        filterState: [objectIdFilter("none of", excludedIds)],
+        hasNoMatches: false,
+        matchingIds: null,
+      });
+    },
+  );
 
   it.each([
     {
@@ -107,6 +113,29 @@ describe("applyCommentFilters", () => {
       filters: [commentCountFilter("=", 1)],
       queryResults: [[{ object_id: "observation-with-one-comment" }]],
       matchingIds: ["observation-with-one-comment"],
+    },
+    {
+      name: "intersects an equality count filter with comment content",
+      filters: [
+        commentCountFilter("=", 1),
+        {
+          type: "string" as const,
+          column: "commentContent",
+          operator: "contains" as const,
+          value: "needs-review",
+        },
+      ],
+      queryResults: [
+        [
+          { object_id: "matching-observation" },
+          { object_id: "count-only-observation" },
+        ],
+        [
+          { object_id: "matching-observation" },
+          { object_id: "content-only-observation" },
+        ],
+      ],
+      matchingIds: ["matching-observation"],
     },
     {
       name: "applies all lower bounds when only some include zero",

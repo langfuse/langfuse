@@ -155,9 +155,11 @@ export async function applyCommentFilters({
     if (filterRangeIncludesZero(numberFilters)) {
       // When range includes zero, use EXCLUSION logic instead of inclusion
       // Find the upper bound filter (if any)
-      const upperBoundFilter = numberFilters.find(
-        (f) => f.operator === "<=" || f.operator === "<",
-      );
+      // Exact zero is equivalent to the tightest possible upper bound because
+      // comment counts cannot be negative.
+      const upperBoundFilter =
+        numberFilters.find((f) => f.operator === "=" && f.value === 0) ??
+        numberFilters.find((f) => f.operator === "<=" || f.operator === "<");
 
       if (!upperBoundFilter) {
         // No upper bound + includes zero = match everything, skip comment count filter
@@ -182,7 +184,7 @@ export async function applyCommentFilters({
         // Continue to content filter handling below
       } else {
         // Get IDs that EXCEED the upper bound (to exclude them)
-        const excludeOperator = upperBoundFilter.operator === "<=" ? ">" : ">=";
+        const excludeOperator = upperBoundFilter.operator === "<" ? ">=" : ">";
         const idsToExclude = await getObjectIdsByCommentCount({
           prisma,
           projectId,
