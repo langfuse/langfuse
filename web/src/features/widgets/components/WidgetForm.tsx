@@ -43,11 +43,11 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import {
   getUnsupportedViewFilters,
+  MetricsFilterBuilder,
   supportedViewFilters,
-} from "@/src/features/metrics/components/MetricsFilterView";
+} from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,

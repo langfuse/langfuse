@@ -43,8 +43,10 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
-import { MetricsFilterBuilderV2 } from "@/src/features/metrics/components/MetricsFilterBuilderV2";
-import { supportedViewFilters } from "@/src/features/metrics/components/MetricsFilterView";
+import {
+  MetricsFilterBuilder,
+  supportedViewFilters,
+} from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -485,7 +487,8 @@ export const MonitorForm = ({
                     <FormItem>
                       <FormLabel>Filters</FormLabel>
                       <FormControl>
-                        <MetricsFilterBuilderV2
+                        <MetricsFilterBuilder
+                          version="v2"
                           view={(watched.view ?? "observations") as MonitorView}
                           projectId={projectId}
                           dateRange={{ from: filterOptionsLookbackFrom }}
