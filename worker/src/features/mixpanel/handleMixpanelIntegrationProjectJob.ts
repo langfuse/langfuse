@@ -20,6 +20,7 @@ import {
   transformEventForMixpanel,
 } from "./transformers";
 import { env } from "../../env";
+import { assertLegacyExportSourceWritable } from "../exportWriteModeGuard";
 
 const sleep = (ms: number) =>
   ms > 0
@@ -248,6 +249,13 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148); the catch below logs and BullMQ retries.
+    assertLegacyExportSourceWritable(
+      mixpanelIntegration.exportSource,
+      "Select the enriched observations export source in the Mixpanel integration settings.",
+    );
+
     // Reuse a single client and run streams sequentially so the per-job export
     // rate stays bounded. Running the streams in parallel with one client each
     // produced an unbounded burst that overwhelmed the target (issue #12786).

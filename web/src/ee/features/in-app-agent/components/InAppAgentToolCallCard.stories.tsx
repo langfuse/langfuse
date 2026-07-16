@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { InAppAgentToolCallCard } from "./InAppAgentToolCallCard";
 
 const meta = preview.meta({
@@ -12,6 +12,7 @@ export const Default = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_queryMetrics",
+      status: "succeeded",
       args: JSON.stringify(
         {
           view: "observations",
@@ -31,6 +32,7 @@ export const Error = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_getTraces",
+      status: "failed",
       args: JSON.stringify({ limit: 10 }, null, 2),
       error: "Failed to load traces: missing project access.",
     },
@@ -43,6 +45,7 @@ export const ApprovalRequired = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_upsertDataset",
+      status: "running",
       args: JSON.stringify(
         {
           name: "regression-examples",
@@ -67,6 +70,7 @@ export const ApprovalSubmitting = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_upsertDataset",
+      status: "running",
       args: JSON.stringify(
         {
           name: "regression-examples",
@@ -82,5 +86,39 @@ export const ApprovalSubmitting = meta.story({
     },
     onApproveToolCall: fn(),
     onRejectToolCall: fn(),
+  },
+});
+
+export const ApprovalDisabled = meta.story({
+  args: {
+    isCompact: true,
+    isDisabled: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_upsertDataset",
+      status: "running",
+      args: JSON.stringify(
+        {
+          name: "regression-examples",
+          description: "Examples used for release regression tests",
+        },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "pending",
+      },
+    },
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByRole("button", { name: "Confirm" }),
+    ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
   },
 });

@@ -4,23 +4,25 @@ import { Check, Loader2, Wrench } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
+import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
 import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 export function InAppAgentToolCallCard({
   tool,
   isCompact = false,
+  isDisabled = false,
   onApproveToolCall,
   onRejectToolCall,
 }: {
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
+  isDisabled?: boolean;
   onApproveToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {
   const approval = tool.approval;
   const isApprovalPending = approval?.status === "pending";
   const isApprovalSubmitting = approval?.status === "submitting";
-  const resultLabel = tool.error ? "Error" : "Result";
   const approveLabel = `Approve ${tool.name}?`;
   const usedLabel = `Used ${tool.name}`;
 
@@ -45,14 +47,20 @@ export function InAppAgentToolCallCard({
             </span>
           </div>
           <div className="mt-2 space-y-2">
-            <InAppAgentToolPayload label="Arguments" value={tool.args} />
+            <InAppAgentToolPayload
+              label="Arguments"
+              value={tool.args}
+              variant="default"
+            />
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="outline-success"
                 className="h-7"
-                disabled={isApprovalSubmitting || !onApproveToolCall}
+                disabled={
+                  isDisabled || isApprovalSubmitting || !onApproveToolCall
+                }
                 onClick={() => {
                   if (isApprovalPending) {
                     onApproveToolCall?.(approval.id).catch(() => undefined);
@@ -71,7 +79,9 @@ export function InAppAgentToolCallCard({
                 size="sm"
                 variant="outline"
                 className="h-7"
-                disabled={isApprovalSubmitting || !onRejectToolCall}
+                disabled={
+                  isDisabled || isApprovalSubmitting || !onRejectToolCall
+                }
                 onClick={() => {
                   if (isApprovalPending) {
                     onRejectToolCall?.(approval.id).catch(() => undefined);
@@ -98,14 +108,12 @@ export function InAppAgentToolCallCard({
             </span>
           </summary>
           <div className="mt-2 space-y-2">
-            <InAppAgentToolPayload label="Arguments" value={tool.args} />
-            {tool.result !== undefined || tool.error !== undefined ? (
-              <InAppAgentToolPayload
-                label={resultLabel}
-                value={tool.error ?? tool.result ?? ""}
-                isError={Boolean(tool.error)}
-              />
-            ) : null}
+            <InAppAgentToolPayload
+              label="Arguments"
+              value={tool.args}
+              variant="default"
+            />
+            <InAppAgentToolResultPayload tool={tool} />
           </div>
         </details>
       )}

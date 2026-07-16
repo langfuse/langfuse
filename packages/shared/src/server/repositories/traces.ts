@@ -435,7 +435,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
           query,
           params: input.params,
           clickhouseConfigs: {
-            request_timeout: 120000, // 2 minutes timeout
+            request_timeout: 300000, // 5 minutes timeout
           },
         },
       );

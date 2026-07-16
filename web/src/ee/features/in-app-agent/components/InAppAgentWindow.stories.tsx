@@ -82,6 +82,7 @@ const streamingSeedMessages: InAppAgentWindowMessage[] = [
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify({
             view: "observations",
             metrics: [{ measure: "latency", aggregation: "p95" }],
@@ -132,6 +133,21 @@ const streamingInvestigations = [
         { traceId: "trace-ret-219", latencyMs: 5410 },
       ],
     },
+    subsequentTools: [
+      {
+        name: "langfuse_getObservations",
+        args: {
+          traceIds: ["trace-ret-104", "trace-ret-219"],
+          columns: ["name", "latency"],
+        },
+        result: {
+          data: [
+            { name: "document-reranking", latencyMs: 3910 },
+            { name: "vector-search", latencyMs: 480 },
+          ],
+        },
+      },
+    ],
     conclusion:
       "The slowest traces are retrieval-heavy. The expensive step is document reranking, not the initial vector search.",
   },
@@ -155,6 +171,21 @@ const streamingInvestigations = [
         { scoreName: "groundedness", avg_value: 0.68 },
       ],
     },
+    subsequentTools: [
+      {
+        name: "langfuse_getTraces",
+        args: {
+          limit: 5,
+          filter: "scoreName equals groundedness and scoreValue below 0.7",
+        },
+        result: {
+          data: [
+            { traceId: "trace-ret-104", groundedness: 0.61 },
+            { traceId: "trace-ret-219", groundedness: 0.65 },
+          ],
+        },
+      },
+    ],
     conclusion:
       "Quality moved down in the same segment. The groundedness score dropped most, which fits a retrieval or reranking regression.",
   },
@@ -178,6 +209,17 @@ const streamingInvestigations = [
         { providedModelName: "gpt-4.1", totalTokens: 17610, latencyMs: 3610 },
       ],
     },
+    subsequentTools: [
+      {
+        name: "langfuse_queryMetrics",
+        args: {
+          view: "observations",
+          metrics: [{ measure: "totalTokens", aggregation: "avg" }],
+          filter: "name contains retrieval",
+        },
+        result: { data: [{ avg_totalTokens: 8940 }] },
+      },
+    ],
     conclusion:
       "Model choice is stable, but token counts are much higher than the baseline. The reranker is likely passing too many documents forward.",
   },
@@ -213,6 +255,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: number;
     phase: StreamingPhase;
     phaseTicks: number;
+    toolIndex: number;
     reasoningMessageId: string;
     introMessageId: string;
     toolMessageId: string;
@@ -221,6 +264,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
     cycle: 0,
     phase: "start",
     phaseTicks: 0,
+    toolIndex: 0,
     reasoningMessageId: "",
     introMessageId: "",
     toolMessageId: "",
@@ -232,6 +276,15 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
       const stream = streamRef.current;
       const investigation =
         streamingInvestigations[stream.cycle % streamingInvestigations.length];
+      const toolCalls = [
+        {
+          name: investigation.toolName,
+          args: investigation.toolArgs,
+          result: investigation.toolResult,
+        },
+        ...investigation.subsequentTools,
+      ];
+      const activeTool = toolCalls[stream.toolIndex];
 
       if (stream.phase === "start") {
         const cycleId = `stream-${stream.cycle}`;
@@ -241,6 +294,7 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
         stream.conclusionMessageId = `${cycleId}-conclusion`;
         stream.phase = "reasoning";
         stream.phaseTicks = 0;
+        stream.toolIndex = 0;
 
         setMessages((currentMessages) => [
           ...currentMessages,
@@ -349,8 +403,9 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
               tools: [
                 {
                   type: "tool",
-                  name: investigation.toolName,
-                  args: JSON.stringify(investigation.toolArgs, null, 2),
+                  name: activeTool.name,
+                  status: "running",
+                  args: JSON.stringify(activeTool.args, null, 2),
                 },
               ],
             },
@@ -367,11 +422,18 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
           return;
         }
 
-        stream.phase = "conclusion";
+        const completedToolIndex = stream.toolIndex;
+        const nextTool = toolCalls[completedToolIndex + 1];
+
+        if (nextTool) {
+          stream.toolIndex += 1;
+        } else {
+          stream.phase = "conclusion";
+        }
         stream.phaseTicks = 0;
 
-        setMessages((currentMessages) => [
-          ...currentMessages.map((message) => {
+        setMessages((currentMessages) => {
+          const nextMessages = currentMessages.map((message) => {
             if (
               message.id !== stream.toolMessageId ||
               message.content.type !== "toolGroup"
@@ -379,27 +441,49 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
               return message;
             }
 
+            const completedTools = message.content.tools.map((tool, index) =>
+              index === completedToolIndex
+                ? {
+                    ...tool,
+                    status: "succeeded" as const,
+                    result: JSON.stringify(activeTool.result, null, 2),
+                  }
+                : tool,
+            );
+
             return {
               ...message,
               content: {
                 type: "toolGroup" as const,
-                tools: [
-                  {
-                    type: "tool" as const,
-                    name: investigation.toolName,
-                    args: JSON.stringify(investigation.toolArgs, null, 2),
-                    result: JSON.stringify(investigation.toolResult, null, 2),
-                  },
-                ],
+                ...(nextTool ? { isLoading: true } : {}),
+                tools: nextTool
+                  ? [
+                      ...completedTools,
+                      {
+                        type: "tool" as const,
+                        name: nextTool.name,
+                        status: "running" as const,
+                        args: JSON.stringify(nextTool.args, null, 2),
+                      },
+                    ]
+                  : completedTools,
               },
             };
-          }),
-          {
-            id: stream.conclusionMessageId,
-            role: "assistant",
-            content: { type: "text", text: "" },
-          },
-        ]);
+          });
+
+          if (nextTool) {
+            return nextMessages;
+          }
+
+          return [
+            ...nextMessages,
+            {
+              id: stream.conclusionMessageId,
+              role: "assistant",
+              content: { type: "text", text: "" },
+            },
+          ];
+        });
 
         return;
       }
@@ -521,6 +605,7 @@ const meta = preview.meta({
     onExpandedChange: fn(),
     onSubmit: fn(),
     onSubmitFeedback: fn(),
+    screenContextDescription: { type: "page" as const },
     showCloseButton: true,
   },
   render: (args) => <StatefulInAppAgentWindow {...args} />,
@@ -528,6 +613,7 @@ const meta = preview.meta({
 
 export const ToolApprovalRequired = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
@@ -548,6 +634,7 @@ export const ToolApprovalRequired = meta.story({
             {
               type: "tool",
               name: "langfuse_upsertDataset",
+              status: "running",
               args: JSON.stringify({
                 name: "regression-examples",
                 description: "Examples used for release regression tests",
@@ -573,6 +660,7 @@ export const Empty = meta.story({
 export const Conversation = meta.story({
   args: {
     selectedConversationId: "conversation-1",
+    screenContextDescription: { type: "experimentRun" as const },
     messages: [
       {
         id: "user-1",
@@ -600,6 +688,7 @@ export const Conversation = meta.story({
             {
               type: "tool",
               name: "langfuse_queryMetrics",
+              status: "succeeded",
               args: JSON.stringify({
                 view: "observations",
                 dimensions: [],
@@ -613,6 +702,7 @@ export const Conversation = meta.story({
             {
               type: "tool",
               name: "langfuse_getTraces",
+              status: "succeeded",
               args: JSON.stringify({ limit: 10 }),
               result: JSON.stringify({ data: [] }),
             },
@@ -741,6 +831,7 @@ export const Conversation = meta.story({
 
 export const Streaming = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
@@ -749,6 +840,7 @@ export const Streaming = meta.story({
 
 export const LoadingResponse = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     messages: [
       {
         id: "user-1",
@@ -771,6 +863,7 @@ export const LoadingResponse = meta.story({
 
 export const LoadingAfterToolCall = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -790,6 +883,7 @@ export const LoadingAfterToolCall = meta.story({
             {
               type: "tool",
               name: "langfuse_queryMetrics",
+              status: "succeeded",
               args: JSON.stringify({
                 view: "observations",
                 metrics: [{ measure: "totalTokens", aggregation: "sum" }],
@@ -827,6 +921,7 @@ export const LoadingAfterToolCall = meta.story({
             {
               type: "tool",
               name: "langfuse_getObservationFilterValues",
+              status: "succeeded",
               args: JSON.stringify({
                 column: "providedModelName",
                 limit: 50,
@@ -900,7 +995,6 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
   name: "(Test) Feedback Controls Show After Turn End",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: false,
     isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
     messages: [
@@ -937,6 +1031,7 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
 
 export const Connecting = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -961,7 +1056,10 @@ export const Connecting = meta.story({
 
 export const Error = meta.story({
   args: {
-    error: "Assistant is not enabled for this user",
+    error: {
+      type: "generic",
+      message: "Assistant is not enabled for this user",
+    },
     messages: [
       {
         id: "user-1",
@@ -972,6 +1070,72 @@ export const Error = meta.story({
         },
       },
     ],
+  },
+});
+
+export const RateLimited = meta.story({
+  name: "(Test) Rate Limited",
+  args: {
+    error: null,
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
+    messages: [
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              status: "running",
+              args: JSON.stringify({ name: "regression-examples" }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
+  render: function Render(args) {
+    const [retryAt] = useState(() => Date.now() + 12_000);
+
+    return (
+      <StatefulInAppAgentWindow
+        {...args}
+        error={{ type: "rate_limit", retryAt }}
+      />
+    );
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+    const alert = canvas.getByRole("alert");
+    const initialAlertText = alert.textContent;
+
+    await expect(alert).toHaveTextContent(
+      "You've reached the assistant request limit",
+    );
+    await expect(alert).toHaveTextContent("Try again in about");
+    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
+      timeout: 2_000,
+    });
+    await expect(
+      canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Confirm" }),
+    ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Start new conversation" }),
+    ).toBeDisabled();
+    await expect(
+      canvas.getByRole("button", { name: "Conversation history" }),
+    ).toBeDisabled();
   },
 });
 

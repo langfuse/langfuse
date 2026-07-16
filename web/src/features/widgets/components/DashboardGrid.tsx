@@ -2,6 +2,7 @@ import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
+import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
 import {
   PresetDashboardWidget,
   type PresetPlacement,
@@ -77,6 +78,9 @@ export function DashboardGrid({
   getWidgetSchedulerId,
   onLockedEditAttempt,
   readOnly,
+  onPasteWidget,
+  onDuplicateWidget,
+  onDuplicatePreset,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -97,6 +101,15 @@ export function DashboardGrid({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
+  /** Paste the clipboard widget/card next to a tile (editable dashboards only). */
+  onPasteWidget?: (anchor: DashboardPlacement) => void;
+  /** Duplicate a tile's widget next to it (editable dashboards only). */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
+  /** Duplicate a preset card next to it (editable dashboards only). */
+  onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
   const { containerRef, width } = useDebouncedContainerWidth(200);
   // Rows stay 16:9-proportional to column width, with a floor so tiles keep a
@@ -166,6 +179,8 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
+        onPasteWidget={onPasteWidget}
+        onDuplicatePreset={onDuplicatePreset}
       />
     ) : (
       <DashboardWidget
@@ -179,6 +194,8 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
+        onPasteWidget={onPasteWidget}
+        onDuplicateWidget={onDuplicateWidget}
       />
     );
 
