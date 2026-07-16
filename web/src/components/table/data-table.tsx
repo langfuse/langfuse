@@ -810,6 +810,7 @@ function TableBodyComponent<TData>({
                       isSmallRowHeight && !topAlignCells
                         ? "items-center"
                         : "items-start",
+                      isSmallRowHeight && "min-h-7.25",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
