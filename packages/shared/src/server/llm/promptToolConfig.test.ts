@@ -89,6 +89,38 @@ describe("parsePromptToolConfig", () => {
         ],
       });
     });
+
+    it("normalizes explicit null fields in flat and OpenAI-wrapped tools", () => {
+      expect(
+        parsePromptToolConfig({
+          tools: [
+            { name: "get_time", description: null, parameters: null },
+            {
+              type: "function",
+              function: {
+                name: "get_date",
+                description: null,
+                parameters: null,
+              },
+            },
+          ],
+        }),
+      ).toEqual({
+        status: "valid",
+        tools: [
+          {
+            name: "get_time",
+            description: "",
+            parameters: { type: "object", properties: {} },
+          },
+          {
+            name: "get_date",
+            description: "",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      });
+    });
   });
 
   describe("invalid tool configs", () => {

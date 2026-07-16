@@ -12,10 +12,15 @@ const EMPTY_TOOL_PARAMETERS = { type: "object", properties: {} };
 
 const PromptToolDefinitionSchema = LLMToolDefinitionSchema.extend({
   name: LLMToolNameSchema,
-  // OpenAI-compatible prompt configs may omit these fields. Keep the runtime
-  // representation complete for createLLMToolSet.
-  description: z.string().default(""),
-  parameters: LLMJSONSchema.default(EMPTY_TOOL_PARAMETERS),
+  // OpenAI-compatible prompt configs may omit or explicitly null these fields.
+  // Keep the runtime representation complete for createLLMToolSet.
+  description: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? ""),
+  parameters: LLMJSONSchema.nullish().transform(
+    (value) => value ?? EMPTY_TOOL_PARAMETERS,
+  ),
 });
 
 const PromptConfigToolSchema = z.union([
