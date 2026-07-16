@@ -161,6 +161,7 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
+  disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   hasMoreConversations: boolean;
   isAssistantTurnInProgress: boolean;
@@ -255,6 +256,7 @@ function InAppAgentGenericError({
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
+    disablePendingToolApprovalActions = false,
     error,
     hasMoreConversations,
     isAssistantTurnInProgress,
@@ -717,7 +719,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  isDisabled={isRateLimited}
+                  isDisabled={
+                    isRateLimited || disablePendingToolApprovalActions
+                  }
                   onApproveToolCall={onApproveToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />

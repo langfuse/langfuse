@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.214.0",
+  "version": "3.218.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -26,7 +26,8 @@
     "test:e2e:server": "vitest run --project e2e-server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack",
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
-    "build-storybook": "dotenv -e ../.env -- storybook build"
+    "build-storybook": "dotenv -e ../.env -- storybook build",
+    "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
@@ -36,6 +37,7 @@
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@astral-sh/ruff-wasm-web": "0.15.13",
     "@aws-crypto/sha256-browser": "^5.2.0",
+    "@aws-sdk/client-lambda-microvms": "catalog:",
     "@aws-sdk/credential-providers": "catalog:",
     "@baselime/trpc-opentelemetry-middleware": "^0.1.2",
     "@codemirror/autocomplete": "^6.17.0",
@@ -187,6 +189,7 @@
     "@types/cors": "^2.8.19",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-zoom": "^3.0.8",
+    "@types/dockerode": "^4.0.1",
     "@types/lodash": "^4.17.24",
     "@types/node": "24.3.0",
     "@types/react": "19.2.14",
@@ -195,6 +198,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/browser-playwright": "4.1.8",
+    "dockerode": "^4.0.9",
     "dotenv": "^16.6.1",
     "dotenv-cli": "^7.4.2",
     "dotenv-expand": "^10.0.0",
@@ -209,6 +213,7 @@
     "raw-loader": "^4.0.2",
     "storybook": "10.3.6",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.5",
     "typescript": "catalog:",
     "vite": "^7.3.5",
     "vite-tsconfig-paths": "^6.1.1",

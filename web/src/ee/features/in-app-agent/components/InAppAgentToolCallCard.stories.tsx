@@ -12,6 +12,7 @@ export const Default = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_queryMetrics",
+      status: "succeeded",
       args: JSON.stringify(
         {
           view: "observations",
@@ -31,6 +32,7 @@ export const Error = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_getTraces",
+      status: "failed",
       args: JSON.stringify({ limit: 10 }, null, 2),
       error: "Failed to load traces: missing project access.",
     },
@@ -43,6 +45,7 @@ export const ApprovalRequired = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_upsertDataset",
+      status: "running",
       args: JSON.stringify(
         {
           name: "regression-examples",
@@ -67,6 +70,7 @@ export const ApprovalSubmitting = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_upsertDataset",
+      status: "running",
       args: JSON.stringify(
         {
           name: "regression-examples",
@@ -92,6 +96,7 @@ export const ApprovalDisabled = meta.story({
     tool: {
       type: "tool",
       name: "langfuse_upsertDataset",
+      status: "running",
       args: JSON.stringify(
         {
           name: "regression-examples",

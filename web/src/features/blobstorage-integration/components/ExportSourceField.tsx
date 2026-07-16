@@ -21,13 +21,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { type AnalyticsIntegrationExportSource } from "@langfuse/shared";
+import {
+  validateExportSource,
+  type AnalyticsIntegrationExportSource,
+  type ExportSourceContext,
+} from "@langfuse/shared";
 import {
   getExportSourceOptions,
-  isExportSourceSelectable,
+  getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
-  type ExportSourceAvailability,
-} from "@/src/features/blobstorage-integration/exportSource";
+} from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source
@@ -35,25 +38,26 @@ import { type BlobStorageFormControl } from "@/src/features/blobstorage-integrat
 export const ExportSourceField = ({
   control,
   persistedExportSource,
-  availability,
+  exportSourceCtx,
 }: {
   control: BlobStorageFormControl;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
-  availability: ExportSourceAvailability;
+  exportSourceCtx: ExportSourceContext;
 }) => {
   const watchedExportSource = useWatch({ control, name: "exportSource" });
   const exportSourceOptions = getExportSourceOptions(
     persistedExportSource,
-    availability,
+    exportSourceCtx,
   );
   // No decision to make → no selector. Only the degenerate single-option
   // state (stale persisted source) stays visible, locked, so the
   // unavailable-source alert below has something to refer to.
   const hideExportSource = shouldHideExportSourceSelector(exportSourceOptions);
   const exportSourceLocked = exportSourceOptions.length === 1;
-  const exportSourceUnavailable =
-    watchedExportSource != null &&
-    !isExportSourceSelectable(watchedExportSource, availability);
+  const watchedValidation =
+    watchedExportSource != null
+      ? validateExportSource(watchedExportSource, exportSourceCtx)
+      : ({ ok: true } as const);
 
   return (
     <>
@@ -129,17 +133,12 @@ export const ExportSourceField = ({
         />
       )}
 
-      {exportSourceUnavailable && (
+      {!watchedValidation.ok && (
         <Alert variant="destructive">
           <AlertTitle>Saved export source is no longer available</AlertTitle>
           <AlertDescription>
-            {/* Two distinct rejection reasons; key on the deployment, not the
-                source, since TRACES_OBSERVATIONS_EVENTS is both enriched and
-                legacy. !eventsExportAvailable means enriched is genuinely
-                unavailable; otherwise the block is the Cloud legacy cutoff. */}
-            {!availability.eventsExportAvailable
-              ? "This integration is configured to export enriched observations, but enriched export is not available on this deployment. Saving is blocked until you select an available export source above. To keep the current configuration instead, re-enable enriched export (V4 preview opt-in) on your deployment."
-              : "This integration is configured to export legacy traces and observations, which is no longer available for this project. Saving is blocked until you select an available export source above."}
+            {/* Reason-specific body; texts live in the shared lookup. */}
+            {getExportSourceUnavailableMessage(watchedValidation.reason)}
           </AlertDescription>
         </Alert>
       )}

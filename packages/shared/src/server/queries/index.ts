@@ -19,6 +19,7 @@ export {
   StringObjectFilter,
   NullFilter,
   encodeBooleanScoreEntry,
+  filtersRequireEventsFull,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 export {

@@ -64,6 +64,10 @@
     "ee": {
       "project": ["src/**/*.ts"],
     },
+    "packages/in-app-agent-sandbox-runtime": {
+      "entry": ["src/server.ts"],
+      "project": ["src/**/*.ts"],
+    },
     "packages/config-eslint": {
       "project": ["*.js"],
     },
