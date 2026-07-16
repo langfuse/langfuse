@@ -314,6 +314,54 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
+  listDashboardWidgets: {
+    approval: "auto",
+    availability: { scope: "dashboards:read" },
+  },
+  getDashboardWidget: {
+    approval: "auto",
+    availability: { scope: "dashboards:read" },
+  },
+  updateDashboardWidget: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  deleteDashboardWidget: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  listDashboards: {
+    approval: "auto",
+    availability: { scope: "dashboards:read" },
+  },
+  getDashboard: {
+    approval: "auto",
+    availability: { scope: "dashboards:read" },
+  },
+  createDashboard: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  updateDashboard: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  deleteDashboard: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  addDashboardPlacement: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  updateDashboardPlacement: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
+  deleteDashboardPlacement: {
+    approval: "approval",
+    availability: { scope: "dashboards:CUD" },
+  },
 };
 
 export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(
