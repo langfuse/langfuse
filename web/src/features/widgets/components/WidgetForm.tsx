@@ -9,6 +9,10 @@ import {
 import { api } from "@/src/utils/api";
 import { importWidgetFile } from "@/src/features/widgets/utils/import-export-utils";
 import {
+  buildExplodedBreakdownNotice,
+  getExplodedDimensionFields,
+} from "@/src/features/widgets/utils/exploded-breakdown";
+import {
   buildWidgetOrderBy,
   getResultUnit,
   getValidAggregationsForMeasureType,
@@ -1161,6 +1165,56 @@ export function WidgetForm({
     useBackendProgress: false,
   });
 
+  // Exploded (array) breakdowns count an entity once per matching bucket:
+  // bucket values are honest, but aggregates across buckets overstate the real
+  // entity count. Say so (notice), and give the pie an honest center total via
+  // a companion no-breakdown query (same shape as the Big Number query).
+  const explodedDimensionFields = useMemo(
+    () =>
+      getExplodedDimensionFields(
+        selectedView,
+        viewVersion,
+        query.dimensions.map((dimension) => dimension.field),
+      ),
+    [selectedView, viewVersion, query.dimensions],
+  );
+  const explodedNotice = buildExplodedBreakdownNotice(
+    selectedView,
+    explodedDimensionFields,
+  );
+  const needsTrueTotal =
+    selectedChartType === "PIE" && explodedDimensionFields.length > 0;
+  const trueTotalQuery = api.dashboard.executeQuery.useQuery(
+    {
+      projectId,
+      query: {
+        ...query,
+        dimensions: [],
+        orderBy: null,
+        chartConfig: { type: "NUMBER" },
+      },
+      version: viewVersion,
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      meta: {
+        silentHttpCodes: [422],
+      },
+      enabled: queryValidation.valid && needsTrueTotal,
+    },
+  );
+  const trueTotalRaw = needsTrueTotal
+    ? trueTotalQuery.data?.[0]?.[`${selectedAggregation}_${selectedMeasure}`]
+    : undefined;
+  const trueTotal =
+    trueTotalRaw !== undefined && trueTotalRaw !== null
+      ? Number(trueTotalRaw)
+      : undefined;
+
   // Transform the query results to a consistent format for charts
   const transformedData: DataPoint[] = useMemo(
     () =>
@@ -2287,6 +2341,9 @@ export function WidgetForm({
                         }
                       : undefined
                   }
+                  notice={explodedNotice}
+                  explodedDimensions={explodedDimensionFields}
+                  trueTotal={trueTotal}
                   rowLimit={rowLimit}
                   chartConfig={
                     selectedChartType === "PIVOT_TABLE"

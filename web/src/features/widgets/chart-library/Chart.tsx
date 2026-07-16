@@ -20,7 +20,12 @@ import PieChart from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
@@ -50,6 +55,9 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  notice,
+  explodedDimensions,
+  trueTotal,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -88,6 +96,24 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Info note rendered as a small ⓘ in the chart corner. Used for honest
+   * counting semantics (e.g. exploded array breakdowns, where an entity is
+   * counted once per matching bucket). Decided by the caller, only rendered
+   * here — see ARCHITECTURE.md.
+   */
+  notice?: string;
+  /**
+   * Dimension fields the query engine explodes per element (e.g. tags).
+   * Forwarded to the pivot table so totals that aggregate across an exploded
+   * dimension are suppressed instead of double-counting entities.
+   */
+  explodedDimensions?: string[];
+  /**
+   * Deduplicated total for the pie center label; see PieChart. Supplied by
+   * the caller when slices of an exploded breakdown overlap.
+   */
+  trueTotal?: number;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -202,6 +228,7 @@ const ChartComponent = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            trueTotal={trueTotal}
           />
         );
       case "HISTOGRAM":
@@ -230,6 +257,7 @@ const ChartComponent = ({
           units: chartConfig?.units,
           rowLimit: chartConfig?.row_limit ?? rowLimit,
           defaultSort: chartConfig?.defaultSort,
+          explodedDimensions,
         };
         return (
           <PivotTable
@@ -273,8 +301,23 @@ const ChartComponent = ({
   );
 
   return (
-    <CardContent className="h-full p-0">
+    <CardContent className="relative h-full p-0">
       {shouldWarn ? renderWarning() : renderChart()}
+      {notice && !shouldWarn ? (
+        <div className="absolute right-1 bottom-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info
+                className="text-muted-foreground/60 hover:text-muted-foreground h-3.5 w-3.5"
+                aria-label={notice}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-64">
+              {notice}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      ) : null}
     </CardContent>
   );
 };

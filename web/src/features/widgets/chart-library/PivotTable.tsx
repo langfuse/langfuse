@@ -185,9 +185,12 @@ const PivotTableRowComponent: React.FC<{
           className={cn(
             "p-2 text-right align-middle tabular-nums",
             (row.isSubtotal || row.isTotal) && "font-semibold",
+            row.suppressedValues && "text-muted-foreground font-normal",
           )}
         >
-          {valueFormatter(row.values[metric], units?.[i])}
+          {row.suppressedValues
+            ? "–"
+            : valueFormatter(row.values[metric], units?.[i])}
         </TableCell>
       ))}
     </TableRow>
@@ -235,6 +238,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       metrics: config?.metrics ?? ["metric"], // Default to 'metric' field from DataPoint
       rowLimit: config?.rowLimit ?? DEFAULT_ROW_LIMIT,
       defaultSort: config?.defaultSort,
+      explodedDimensions: config?.explodedDimensions,
     };
 
     // Transform DataPoint[] to DatabaseRow[] format using utility functions
