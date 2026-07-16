@@ -481,4 +481,32 @@ describe("parseGeneratedFilters — extraction robustness", () => {
     expect(queryText).toBe("");
     expect(droppedCount).toBe(0);
   });
+
+  it("reports the LARGEST all-malformed array's size when nothing validates", () => {
+    // Reversed candidate iteration visits the trailing stray array first. When
+    // NO candidate yields a valid filter, `droppedCount` must reflect the
+    // largest array the model emitted (the one it most plausibly intended), not
+    // whichever was visited first. Here a 4-element all-malformed filter array
+    // precedes a stray 2-element prose list; the count must be 4, not 2.
+    const malformed = (column: string) => ({
+      type: "stringOptions",
+      column,
+      operator: "equals", // not a valid stringOptions operator → fails singleFilter
+      value: "x",
+    });
+    const completion = [
+      "My first attempt (four filters):",
+      JSON.stringify([
+        malformed("level"),
+        malformed("environment"),
+        malformed("name"),
+        malformed("userId"),
+      ]),
+      "Actually, ignore those and just consider these two tags:",
+      JSON.stringify(["a", "b"]),
+    ].join("\n");
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(4);
+  });
 });

@@ -143,7 +143,15 @@ function parseFilterArray(completion: string): {
       if (result.success) kept.push(result.data);
     }
     if (kept.length > 0) return { filters: kept, rawCount: raw.length };
-    if (fallback === null) fallback = { filters: [], rawCount: raw.length };
+    // No valid filter here. Remember the LARGEST such array as the fallback:
+    // when nothing validates, `droppedCount` should reflect the biggest array
+    // the model emitted (the one it most plausibly intended as the answer), not
+    // whichever candidate happened to be visited first. Reversed iteration
+    // visits the last text array first, which might be a stray 2-element prose
+    // list while the intended (all-malformed) array had more elements.
+    if (fallback === null || raw.length > fallback.rawCount) {
+      fallback = { filters: [], rawCount: raw.length };
+    }
   }
   return fallback ?? { filters: [], rawCount: 0 };
 }
