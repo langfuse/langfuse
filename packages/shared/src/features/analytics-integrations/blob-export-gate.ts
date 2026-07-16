@@ -75,6 +75,24 @@ export function isEnrichedBlobExportSource(
 }
 
 /**
+ * Whether an export source is one of the deprecated legacy sources — i.e. it
+ * still exports the legacy traces/observations tables. True for both
+ * TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS (the latter exports the
+ * legacy tables *and* the enriched events); false for the EVENTS-only source.
+ * Symmetric with isEnrichedBlobExportSource.
+ */
+export function isLegacyBlobExportSource(
+  source: AnalyticsIntegrationExportSource | null | undefined,
+): boolean {
+  return (
+    source != null &&
+    (
+      LEGACY_BLOB_EXPORT_SOURCES as readonly AnalyticsIntegrationExportSource[]
+    ).includes(source)
+  );
+}
+
+/**
  * Whether a blob storage integration row counts as legacy — i.e. may still use
  * legacy export sources. Applied to `BlobStorageIntegration.createdAt`.
  *

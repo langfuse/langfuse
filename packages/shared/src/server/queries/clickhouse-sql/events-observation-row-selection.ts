@@ -7,6 +7,7 @@ import {
   CategoryOptionsFilter,
   type Filter,
   FilterList,
+  filtersRequireEventsFull,
   NumberObjectFilter,
 } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
@@ -370,7 +371,10 @@ const buildEventsObservationRowSelectionInternal = (
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       ),
     )
-    .when(search.requiresEventsFull, (builder) => builder.forceFullTable());
+    .when(
+      search.requiresEventsFull || filtersRequireEventsFull(eventsFilter),
+      (builder) => builder.forceFullTable(),
+    );
 
   queryBuilder.applyFilters(eventsFilter).where(search);
 

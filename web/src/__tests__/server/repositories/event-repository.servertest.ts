@@ -27,7 +27,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import {
+  type EventsTableFilterState,
+  type FilterCondition,
+} from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -2186,6 +2189,129 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         expect(result.length).toBe(0);
+      });
+    });
+
+    describe("Truncation-sensitive filters (must read events_full)", () => {
+      // events_core stores input/output/metadata_values truncated to 200 chars
+      // (events_core_mv). Filters on these fields must run against events_full,
+      // otherwise matches beyond the truncation point are silently dropped.
+
+      it("metadata 'contains' matches a value beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const needle = `needle-${randomUUID()}`;
+        const longValue = "x".repeat(220) + needle;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-metadata-value",
+            metadata_names: ["payload"],
+            metadata_values: [longValue],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "contains",
+            key: "payload",
+            value: needle,
+          },
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: filterTime,
+          },
+          {
+            type: "string",
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+          },
+        ];
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter,
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-metadata-value");
+
+        const count = await getObservationsCountFromEventsTable({
+          projectId,
+          filter,
+        });
+        expect(count).toBe(1);
+      });
+
+      it("input 'matches' finds a token beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const token = `needletoken${randomUUID().replaceAll("-", "")}`;
+        const longInput = "x".repeat(220) + " " + token;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-input-value",
+            input: longInput,
+            start_time: now * 1000,
+          }),
+        ]);
+
+        // "matches" belongs to the events-table filter grammar
+        // (EventsTableFilterState); the events service passes it through the
+        // FilterState-typed repository signature untyped, so mirror that here.
+        const matchesFilter = {
+          type: "string",
+          column: "input",
+          operator: "matches",
+          value: token,
+        } satisfies EventsTableFilterState[number] as unknown as FilterCondition;
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            matchesFilter,
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-input-value");
       });
     });
   });

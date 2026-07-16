@@ -835,9 +835,10 @@ export const sessionRouter = createTRPCRouter({
       ];
 
       let orderBy: OrderByState = { column: "startTime", order: "ASC" };
-      // One extra row detects "more observations than the card shows", and
-      // one more because the synthetic trace-level row (id `t-<traceId>`)
-      // may sit in the fetched window without consuming a card slot.
+      // One extra row is returned as the "more observations exist" sentinel
+      // (the client shows the first LIMIT and surfaces a notice when it sees
+      // the +1), and one more because the synthetic trace-level row (id
+      // `t-<traceId>`) may sit in the fetched window without consuming a slot.
       let limit: number = SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 2;
       let offset: number | undefined;
 
@@ -880,15 +881,21 @@ export const sessionRouter = createTRPCRouter({
 
       // The synthetic trace-level row is metadata about the trace, not one of
       // its observations: it must neither consume one of the card's slots
-      // (displacing a real observation) nor count toward hasMore. The client
-      // decides whether to show or drop it (redundancy dedupe).
+      // (displacing a real observation) nor count toward the "more exist"
+      // signal. The client decides whether to show or drop it (redundancy
+      // dedupe).
+      //
+      // BACKWARD-COMPATIBLE RESPONSE SHAPE (LFE-10958 regression): this
+      // procedure returns a BARE ARRAY of observations. The client consumes
+      // the response as an array and calls `.find`/`.filter` on it directly,
+      // so wrapping it in an `{ observations, ... }` envelope crashes in-flight
+      // old clients during a rollout ("x.find is not a function"). "More
+      // observations exist" is therefore signalled IN-BAND: we return up to
+      // SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1 real observations, and the
+      // client treats that extra (+1) row as the "has more" sentinel, showing
+      // only the first LIMIT. (With a positionFilter the fetch limit is 1, so
+      // at most one row is returned and the sentinel can never appear.)
       const syntheticTraceRowId = `t-${input.traceId}`;
-      const realFetchedCount = fetched.filter(
-        (observation) => observation.id !== syntheticTraceRowId,
-      ).length;
-      const hasMoreObservations =
-        !positionFilter &&
-        realFetchedCount > SESSION_OBSERVATIONS_PER_TRACE_LIMIT;
       let realTaken = 0;
       const page: typeof fetched = [];
       for (const observation of fetched) {
@@ -896,7 +903,8 @@ export const sessionRouter = createTRPCRouter({
           page.push(observation);
           continue;
         }
-        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT) continue;
+        // Keep one past the display limit as the "more exist" sentinel.
+        if (realTaken >= SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1) continue;
         page.push(observation);
         realTaken++;
       }
@@ -958,7 +966,7 @@ export const sessionRouter = createTRPCRouter({
         };
       });
 
-      return { observations, hasMoreObservations };
+      return observations;
     }),
   /**
    * Full raw I/O for one observation, for the session card's download

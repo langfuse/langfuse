@@ -43,6 +43,7 @@ export type AuditableResource =
   | "automation"
   | "action"
   | "dashboardWidget"
+  | "dashboard"
   | "slackIntegration"
   | "cloudSpendAlert"
   | "verifiedDomain"

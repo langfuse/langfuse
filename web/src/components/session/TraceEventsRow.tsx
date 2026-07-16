@@ -157,10 +157,22 @@ export const TraceEventsRow = React.memo(
     // trace-level I/O that no observation shows (a v3-migrated trace can set
     // trace I/O apart from any observation; dropping it would lose content and
     // blind the annotation queue, which hides the trace panel).
-    const observations = observationsQuery.data?.observations;
-    const hasMoreObservations = Boolean(
-      observationsQuery.data?.hasMoreObservations,
-    );
+    // `observationsForTraceFromEvents` returns a BARE ARRAY of observations.
+    // #15124 briefly wrapped it as `{ observations, hasMoreObservations }`,
+    // which crashed in-flight old clients that call `.find` on the response
+    // directly during a rollout (LFE-10958 regression). Read it defensively so
+    // BOTH shapes are safe: this new client can also briefly hit a not-yet-
+    // updated server that still returns the envelope, so an Array method must
+    // never run on a non-array value.
+    type ObservationsResponse =
+      RouterOutputs["sessions"]["observationsForTraceFromEvents"];
+    const observationsData = observationsQuery.data as
+      | ObservationsResponse
+      | { observations?: ObservationsResponse }
+      | undefined;
+    const observations = Array.isArray(observationsData)
+      ? observationsData
+      : (observationsData?.observations ?? undefined);
 
     // Opens the trace peek AT the observation (the session page's peek config
     // mirrors row.observationId into the ?observation= param; the annotation
@@ -171,13 +183,38 @@ export const TraceEventsRow = React.memo(
       },
       [openPeek, trace],
     );
-    const visibleObservations = React.useMemo(() => {
-      if (!observations) return undefined;
+    const { visibleObservations, hasMoreObservations } = React.useMemo(() => {
+      const all = observations;
+      if (!all)
+        return {
+          visibleObservations: undefined,
+          hasMoreObservations: false,
+        };
       const syntheticTraceRowId = `t-${trace.id}`;
-      const syntheticRow = observations.find(
+      // The server returns up to SESSION_CARD_OBSERVATIONS_NOTICE_COUNT + 1
+      // real observations; the extra (+1) row is the "more exist" sentinel.
+      // Show only the first NOTICE_COUNT real observations, keeping the
+      // synthetic trace-level row wherever it sits (it never consumes a slot).
+      let realCount = 0;
+      let realShown = 0;
+      const page: typeof all = [];
+      for (const observation of all) {
+        if (observation.id === syntheticTraceRowId) {
+          page.push(observation);
+          continue;
+        }
+        realCount++;
+        if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) continue;
+        page.push(observation);
+        realShown++;
+      }
+      const hasMoreObservations =
+        realCount > SESSION_CARD_OBSERVATIONS_NOTICE_COUNT;
+
+      const syntheticRow = page.find(
         (observation) => observation.id === syntheticTraceRowId,
       );
-      const realObservations = observations.filter(
+      const realObservations = page.filter(
         (observation) => observation.id !== syntheticTraceRowId,
       );
       // I/O can be server-truncated to a preview head (LFE-10958), so equal
@@ -195,8 +232,12 @@ export const TraceEventsRow = React.memo(
               isEqual(observation.output, syntheticRow.output) &&
               observation.outputLength === syntheticRow.outputLength),
         );
-      if (!syntheticRowIsRedundant) return observations;
-      return realObservations.length > 0 ? realObservations : observations;
+      const visibleObservations = !syntheticRowIsRedundant
+        ? page
+        : realObservations.length > 0
+          ? realObservations
+          : page;
+      return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
     return (

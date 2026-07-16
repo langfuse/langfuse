@@ -22,12 +22,14 @@ import type {
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import {
+  createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/server/skills";
+import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
@@ -115,6 +117,20 @@ ${serializedContext}
 `;
 }
 
+function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
+  if (!sandbox) {
+    return "";
+  }
+
+  return `
+<sandbox_filesystem>
+When working in the sandbox filesystem, assume this layout:
+- "/workspace" is the current working directory for normal file operations and shell commands.
+- "/workspace/tool_calls" contains all past tool calls and their outputs. Treat this directory as read-only. Any changes to it will be discarded before the next tool call.
+</sandbox_filesystem>
+`;
+}
+
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
@@ -164,6 +180,7 @@ type CreateAgUiStreamOptions = {
   langfuseClient: Langfuse;
   useLocalPrompt: boolean;
   langfuseTracing?: InAppAgentTracingConfig;
+  sandbox?: InAppAgentSandbox;
 };
 
 export async function createAgUiStream(params: {
@@ -184,6 +201,7 @@ export async function createAgUiStream(params: {
     variables: {
       currentDate: new Date().toISOString(),
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      sandboxFilesystem: formatSandboxContext(params.options.sandbox),
       screenContext: formatScreenContext(params.input.context),
       userContext: formatUserContext(params.input.context),
       sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
@@ -214,6 +232,7 @@ export async function createAgUiStream(params: {
   let eventQueue = Promise.resolve();
   let cleanupAdapter: (() => Promise<void>) | undefined;
   let interruptAdapter: (() => void) | undefined;
+  let onFinishPromise: Promise<void> | undefined;
 
   const removeAbortHandler = () => {
     if (!abortHandler) {
@@ -232,10 +251,7 @@ export async function createAgUiStream(params: {
     finished = true;
     eventQueue
       .then(async () => {
-        const results = await Promise.allSettled([
-          cleanupAdapter?.(),
-          params.options.onFinish?.(),
-        ]);
+        const results = await Promise.allSettled([cleanupAdapter?.()]);
 
         for (const result of results) {
           if (result.status === "rejected") {
@@ -255,6 +271,11 @@ export async function createAgUiStream(params: {
           threadId: params.input.threadId,
         });
       });
+  };
+
+  const runOnFinish = () => {
+    onFinishPromise ??= Promise.resolve(params.options.onFinish?.());
+    return onFinishPromise;
   };
 
   const runTerminalCallback = async (
@@ -301,7 +322,14 @@ export async function createAgUiStream(params: {
         runTerminalCallback(
           () => params.options.onError?.(error),
           "Error while marking agent stream as failed",
-        ).finally(finish);
+        )
+          .then(() =>
+            runTerminalCallback(
+              runOnFinish,
+              "Error while running agent stream finish callback after failure",
+            ),
+          )
+          .finally(finish);
 
         controller.error(error);
       };
@@ -358,6 +386,7 @@ export async function createAgUiStream(params: {
             }
 
             await terminalCallback?.();
+            await runOnFinish();
 
             if (closed) {
               return;
@@ -389,6 +418,12 @@ export async function createAgUiStream(params: {
             runTerminalCallback(
               () => params.options.onAbort?.(),
               "Error while marking agent stream as aborted",
+            ),
+          )
+          .then(() =>
+            runTerminalCallback(
+              runOnFinish,
+              "Error while running agent stream finish callback after abort",
             ),
           )
           .then(() => {
@@ -649,6 +684,12 @@ export async function createAgUiStream(params: {
             "Error while marking agent stream as aborted",
           ),
         )
+        .then(() =>
+          runTerminalCallback(
+            runOnFinish,
+            "Error while running agent stream finish callback after cancel",
+          ),
+        )
         .then(() => {
           closed = true;
         })
@@ -744,6 +785,9 @@ async function createMastraAdapter(params: {
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
+      ...(params.options.sandbox
+        ? createSandboxTools(params.options.sandbox)
+        : {}),
     });
     params.onToolsAvailable?.(tools);
 
@@ -857,17 +901,39 @@ type PatchableMastraAgent = {
 
 type MastraStreamChunk = {
   type?:
+    | "start"
+    | "step-start"
+    | "step-finish"
+    | "text-start"
+    | "text-delta"
+    | "text-end"
     | "tool-call-input-streaming-start"
     | "tool-call-delta"
     | "tool-call-input-streaming-end"
     | "tool-call"
+    | "tool-result"
+    | "tool-error"
     | "tool-call-approval"
     | "tool-call-suspended";
   payload?: {
+    text?: string;
+    textDelta?: string;
+    textMessageId?: string;
+    error?: {
+      message?: string;
+      cause?: {
+        message?: string;
+      };
+      details?: {
+        errorMessage?: string;
+      };
+    };
     toolCallId?: string;
     toolName?: string;
     argsTextDelta?: string;
     args?: unknown;
+    result?: unknown;
+    isError?: boolean;
     resumeSchema?: unknown;
     suspendPayload?: unknown;
   };
@@ -876,10 +942,18 @@ type MastraStreamChunk = {
 type MastraStreamChunkType = NonNullable<MastraStreamChunk["type"]>;
 
 const MASTRA_STREAM_CHUNK_TYPES = [
+  "start",
+  "step-start",
+  "step-finish",
+  "text-start",
+  "text-delta",
+  "text-end",
   "tool-call-input-streaming-start",
   "tool-call-delta",
   "tool-call-input-streaming-end",
   "tool-call",
+  "tool-result",
+  "tool-error",
   "tool-call-approval",
   "tool-call-suspended",
 ] as const satisfies readonly MastraStreamChunkType[];
@@ -948,10 +1022,15 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
             "Received unknown Mastra chunk while patching tool-call input streaming",
             chunk,
           );
+
           return processor.handleChunk(chunk);
         }
 
         const mastraChunk = chunk;
+
+        if (mastraChunk.type === undefined) {
+          return processor.handleChunk(chunk);
+        }
 
         if (mastraChunk.type === "tool-call-input-streaming-start") {
           const { toolCallId, toolName } = mastraChunk.payload ?? {};
@@ -1034,6 +1113,60 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
           return processor.handleChunk(chunk);
         }
 
+        if (mastraChunk.type === "tool-error") {
+          const { toolCallId, toolName, args } = mastraChunk.payload ?? {};
+          if (!toolCallId || !toolName) {
+            callbacks.onError(
+              new Error(
+                "Malformed tool-error: missing toolCallId or toolName in payload",
+              ),
+            );
+            return true;
+          }
+
+          streamingToolCalls.delete(toolCallId);
+          synthesizedToolCallIds.delete(toolCallId);
+
+          return processor.handleChunk({
+            type: "tool-result",
+            payload: {
+              toolCallId,
+              toolName,
+              args,
+              isError: true,
+              result: JSON.stringify(
+                {
+                  error: ((): string => {
+                    if (
+                      typeof mastraChunk.payload?.error?.details
+                        ?.errorMessage === "string"
+                    ) {
+                      return mastraChunk.payload.error.details.errorMessage;
+                    }
+
+                    if (
+                      typeof mastraChunk.payload?.error?.cause?.message ===
+                      "string"
+                    ) {
+                      return mastraChunk.payload.error.cause.message;
+                    }
+
+                    if (
+                      typeof mastraChunk.payload?.error?.message === "string"
+                    ) {
+                      return mastraChunk.payload.error.message;
+                    }
+
+                    return "Unknown tool error";
+                  })(),
+                },
+                null,
+                2,
+              ),
+            },
+          });
+        }
+
         if (mastraChunk.type === "tool-call-approval") {
           const { toolCallId, toolName, args, resumeSchema } =
             mastraChunk.payload ?? {};
@@ -1075,7 +1208,15 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
           return processor.handleChunk(chunk);
         }
 
-        if (mastraChunk.type === undefined) {
+        if (
+          mastraChunk.type === "start" ||
+          mastraChunk.type === "step-start" ||
+          mastraChunk.type === "step-finish" ||
+          mastraChunk.type === "text-start" ||
+          mastraChunk.type === "text-delta" ||
+          mastraChunk.type === "text-end" ||
+          mastraChunk.type === "tool-result"
+        ) {
           return processor.handleChunk(chunk);
         }
 
@@ -1094,6 +1235,7 @@ async function getSystemPromptInstructions(params: {
   variables: {
     currentDate: string;
     redirectToolName: string;
+    sandboxFilesystem: string;
     screenContext: string;
     userContext: string;
     sidebarHiddenEnvironments: string;

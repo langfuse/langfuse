@@ -42,9 +42,9 @@ import {
   createPublicApiObservationsColumnMapping,
   createPublicApiTracesColumnMapping,
   deriveFilters,
+  filtersRequireEventsFull,
   isFtsAcceleratedIoOperator,
   isFtsEventsTable,
-  isFtsMetadataField,
   isFtsTextField,
   type ApiColumnMapping,
   ObservationPriceFields,
@@ -728,7 +728,10 @@ async function getObservationsFromEventsTableInternal<T>(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
       )
-      .when(search.requiresEventsFull, (b) => b.forceFullTable())
+      .when(
+        search.requiresEventsFull || filtersRequireEventsFull(nativeFilter),
+        (b) => b.forceFullTable(),
+      )
       .where(appliedNativeFilter)
       .where(search);
 
@@ -1269,11 +1272,7 @@ function buildObservationsQueryComponents(
   const hasTraceFilter = observationsFilter.some(
     (f) => f.clickhouseTable === "traces",
   );
-  const filtersNeedFullTable = observationsFilter.some(
-    (f) =>
-      f.clickhouseTable.startsWith("events") &&
-      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
-  );
+  const filtersNeedFullTable = filtersRequireEventsFull(observationsFilter);
 
   // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
