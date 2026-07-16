@@ -61,6 +61,30 @@ describe("classifyMediaValue", () => {
     );
   });
 
+  it("accepts the base64 token case-insensitively (WHATWG data-URL spec)", () => {
+    // Browsers accept `;BASE64,` / `;Base64,`; the regex's `i` flag matches
+    // them. The lowercase mediatype still gates previewability.
+    expect(classifyMediaValue("data:image/png;BASE64,AAAA")?.contentType).toBe(
+      "image/png",
+    );
+    expect(classifyMediaValue("data:audio/mpeg;Base64,AAAA")?.contentType).toBe(
+      "audio/mpeg",
+    );
+  });
+
+  it("does not classify a data URI whose header exceeds the scan window", () => {
+    // Documents the intentional bound: only the first 256 chars of the head are
+    // scanned, so a (valid but) pathologically long header pushes its mandatory
+    // comma out of range and the value falls through to plain-string handling.
+    // Real image/audio/video headers are well under 40 chars, so this never
+    // affects genuine media.
+    const longHeader = "data:image/png;charset=" + "a".repeat(300) + ",AAAA";
+    expect(classifyMediaValue(longHeader)).toBeNull();
+    // Same header, comfortably within the window, is classified normally.
+    const shortHeader = "data:image/png;charset=" + "a".repeat(10) + ",AAAA";
+    expect(classifyMediaValue(shortHeader)?.contentType).toBe("image/png");
+  });
+
   it("ignores non-previewable data URIs", () => {
     expect(classifyMediaValue("data:text/plain,hello")).toBeNull();
     expect(classifyMediaValue("data:application/json,{}")).toBeNull();

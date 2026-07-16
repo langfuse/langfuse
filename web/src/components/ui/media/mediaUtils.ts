@@ -49,8 +49,14 @@ const MAX_DATA_URI_HEADER_SCAN = 256;
 // is MANDATORY — requiring it (and a well-formed parameter list up to it) is
 // what stops ordinary strings that merely start with "data:image/…" from being
 // mistaken for previewable media. The first capture group is the MIME type.
+//
+// The `i` flag matches the `;base64` token ASCII-case-insensitively, per the
+// WHATWG data-URL spec (browsers accept `;BASE64,` / `;Base64,`). It does NOT
+// widen which media is previewable: the top-level type is still gated by the
+// lowercase `PREVIEWABLE_TOP_LEVEL` check below, so `data:IMAGE/PNG,…` remains
+// non-previewable regardless of the flag.
 const DATA_URI_HEADER_PATTERN =
-  /^data:([\w.+-]+\/[\w.+-]+)(?:;[\w.+-]+=[^;,]*)*(?:;base64)?,/;
+  /^data:([\w.+-]+\/[\w.+-]+)(?:;[\w.+-]+=[^;,]*)*(?:;base64)?,/i;
 
 /**
  * Classifies a string value as previewable media, or returns null. Pure and
