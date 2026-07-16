@@ -14,6 +14,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -61,12 +62,21 @@ const ScoreGroupBadge = <
 }) => {
   const projectId = useProjectIdFromURL();
 
+  // Score-level color coding (LFE-10596): one compact dot per distinct level
+  // in the group (a name can exist at both trace and observation level).
+  const levels = Array.from(
+    new Set(scores.map((score) => scoreLevelFromScore(score))),
+  );
+
   return (
     <Badge
       variant="tertiary"
       key={name}
       className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
     >
+      {levels.map((level) => (
+        <ScoreTag key={level} level={level} compact />
+      ))}
       <div
         className={`w-fit max-w-20 shrink-0 truncate ${compact ? "leading-tight" : ""}`}
         title={name}

@@ -63,11 +63,13 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 
 export type ScoresTableRow = {
   id: string;
   traceId?: string;
   sessionId?: string;
+  datasetRunId?: string;
   timestamp: Date;
   source: string;
   name: string;
@@ -637,6 +639,19 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 150,
+      cell: ({ row }) => {
+        const name: ScoresTableRow["name"] = row.getValue("name");
+        // Level tag (LFE-10596): trace- vs observation- (vs session-) level
+        // scores look identical here otherwise.
+        return (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate" title={name}>
+              {name}
+            </span>
+            <ScoreTag level={scoreLevelFromScore(row.original)} />
+          </span>
+        );
+      },
     },
     {
       accessorKey: "dataType",
@@ -835,6 +850,7 @@ export default function ScoresTable({
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       sessionId: score.sessionId ?? undefined,
+      datasetRunId: score.datasetRunId ?? undefined,
       traceId: score.traceId ?? undefined,
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
@@ -880,6 +896,7 @@ export default function ScoresTable({
         comment: score.comment ?? undefined,
         observationId: score.observationId ?? undefined,
         sessionId: score.sessionId ?? undefined,
+        datasetRunId: score.datasetRunId ?? undefined,
         traceId: score.traceId ?? undefined,
         traceName: meta?.traceName ?? undefined,
         userId: meta?.userId ?? undefined,

@@ -36,12 +36,25 @@ const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
 
 /**
  * Stored scores carry no explicit level field — level is derived from which
- * context id is set. Today that is observation vs trace; extend here when
- * session/experiment ids land on scores.
+ * context id is set, narrowest first (an observation score also carries its
+ * traceId). Callers with an implicit trace context (e.g. the trace detail
+ * view) may pass just `observationId`; the fallback is trace.
  */
 export const scoreLevelFromScore = (score: {
   observationId?: string | null;
-}): ScoreLevel => (score.observationId != null ? "observation" : "trace");
+  traceId?: string | null;
+  sessionId?: string | null;
+  datasetRunId?: string | null;
+}): ScoreLevel =>
+  score.observationId != null
+    ? "observation"
+    : score.traceId != null
+      ? "trace"
+      : score.sessionId != null
+        ? "session"
+        : score.datasetRunId != null
+          ? "experiment"
+          : "trace";
 
 // The global score-level color coding: one hue per level, used identically on
 // every surface (do not restate these colors at call sites). Hue pairs live in
