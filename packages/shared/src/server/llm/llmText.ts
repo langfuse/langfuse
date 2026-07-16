@@ -13,6 +13,7 @@ import {
   type GenerateTextResult,
   type Experimental_DownloadFunction,
   type JSONValue,
+  type LanguageModelCallOptions,
   type ModelMessage,
   type StreamTextOnErrorCallback,
   type StreamTextResult,
@@ -99,6 +100,7 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   /** Canonical, provider-namespaced AI SDK options. */
   providerOptions?: ProviderOptions;
   maxRetries?: number;
@@ -143,6 +145,7 @@ type PreparedLLMTextCall<TOOLS extends ToolSet> = {
     maxOutputTokens?: number;
     temperature?: number;
     topP?: number;
+    reasoning?: LanguageModelCallOptions["reasoning"];
     providerOptions?: ProviderOptions;
     maxRetries?: number;
     timeout: TimeoutConfiguration<TOOLS>;
@@ -331,6 +334,7 @@ async function prepareLLMTextCall<
       maxOutputTokens: options.maxOutputTokens,
       temperature: options.temperature,
       topP: options.topP,
+      reasoning: options.reasoning,
       providerOptions: options.providerOptions,
       maxRetries: options.maxRetries,
       timeout,
@@ -438,6 +442,7 @@ export type LegacyLLMTextOptions = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   providerOptions?: ProviderOptions;
   credentialSource: LLMCredentialSource;
 };
@@ -467,6 +472,11 @@ export function mapLegacyLLMCompletionParams(params: {
     maxOutputTokens: modelParams.max_tokens,
     temperature: modelParams.temperature,
     topP: modelParams.top_p,
+    reasoning:
+      modelParams.adapter === LLMAdapter.OpenAI &&
+      isOpenAIDefaultNonReasoningModel(modelParams.model)
+        ? "none"
+        : undefined,
     providerOptions,
     credentialSource: params.credentialSource ?? "user",
   };
@@ -490,16 +500,10 @@ function translateLegacyProviderOptions(params: {
         passthroughUnknown: useOpenAICompatibleChat,
         target: useOpenAICompatibleChat ? "openai-compatible" : "openai",
       });
-      if (
-        translated.ok &&
-        isOpenAINonReasoningChatModel(modelParams.model) &&
-        translated.value?.forceReasoning === undefined
-      ) {
-        translated.value = {
-          ...(translated.value ?? {}),
-          forceReasoning: false,
-        };
-      }
+      // Never add Langfuse-derived controls to these translated options.
+      // Custom OpenAI-compatible connections intentionally forward unknown
+      // keys to the wire. Portable controls such as reasoning belong on the
+      // top-level AI SDK call instead.
       break;
     }
     case LLMAdapter.Azure:
@@ -558,7 +562,7 @@ function translateLegacyProviderOptions(params: {
     : undefined;
 }
 
-function isOpenAINonReasoningChatModel(model: string): boolean {
+function isOpenAIDefaultNonReasoningModel(model: string): boolean {
   return /^gpt-5\.4-(mini|nano)(-\d{4}-\d{2}-\d{2})?$/i.test(
     model.replace(/^openai\//i, ""),
   );
