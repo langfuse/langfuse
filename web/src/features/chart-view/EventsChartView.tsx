@@ -5,11 +5,8 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ChartViewConfig } from "./types";
-import {
-  buildChartQuery,
-  rowsToDataPoints,
-  toChartFilters,
-} from "./lib/buildChartQuery";
+import { buildChartQuery, rowsToDataPoints } from "./lib/buildChartQuery";
+import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
 import { AskAiChartBar } from "./components/AskAiChartBar";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";

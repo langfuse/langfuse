@@ -46,7 +46,7 @@ const AGG_GUIDANCE = (
   .map(([metric, aggs]) => `    - ${metric}: ${aggs.join(", ")}`)
   .join("\n");
 
-const SYSTEM_PROMPT = `You translate a user's natural-language request into a chart specification for the Langfuse observations (events) view. Output must match the provided JSON schema exactly.
+const SYSTEM_PROMPT = `You translate a user's natural-language request into a chart specification for the Langfuse observations (events) view. Respond with ONLY a single JSON object — no markdown, no code fences, no prose — with exactly these fields: metric, aggregation, breakdown, chartType.
 
 Fields:
 - metric: what to measure. "count" = number of events; "latency" = duration in ms; "totalCost" = USD; "totalTokens" = token usage.

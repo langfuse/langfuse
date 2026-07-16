@@ -4,13 +4,8 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import {
-  fetchLLMCompletion,
-  LLMAdapter,
-  logger,
-} from "@langfuse/shared/src/server";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { logger } from "@langfuse/shared/src/server";
+import { generateLangfuseAIText } from "@/src/features/ai-features/server/bedrockCompletion";
 import { env } from "@/src/env.mjs";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -19,11 +14,26 @@ import {
 } from "./chartCompletion";
 
 /**
- * "Ask AI → chart": the sibling of `naturalLanguageFilters.createCompletion`
- * that emits a chart spec instead of a filter list. Same cloud-only +
- * `aiFeaturesEnabled` + Bedrock gating; uses an inline prompt + structured
- * output (the chart vocabulary is fixed) rather than a managed remote prompt.
- * Returns the raw spec — the client clamps it through `coerceConfig`.
+ * Parses the model's chart spec out of its text response. Extracts the
+ * outermost JSON object (tolerating a code fence or stray prose) and validates
+ * it against the schema — the client re-clamps it through `coerceConfig`.
+ */
+function parseChartCompletion(text: string) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("AI response did not contain a JSON chart spec.");
+  }
+  return chartCompletionSchema.parse(JSON.parse(text.slice(start, end + 1)));
+}
+
+/**
+ * "Ask AI → chart": the sibling of `searchBar.generateFilter` that emits a
+ * chart spec instead of a filter list. Same cloud-only + `aiFeaturesEnabled` +
+ * Bedrock gating; uses an inline prompt (the chart vocabulary is fixed) via the
+ * shared `generateLangfuseAIText` helper, then parses the JSON spec out of the
+ * text response. Returns the raw spec — the client clamps it through
+ * `coerceConfig`.
  */
 export const chartViewRouter = createTRPCRouter({
   generateChartConfig: protectedProjectProcedure
@@ -80,30 +90,17 @@ export const chartViewRouter = createTRPCRouter({
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
 
-        const completion = await fetchLLMCompletion({
+        const text = await generateLangfuseAIText({
           messages: buildChartCompletionMessages({
             prompt: input.prompt,
             currentDatetime,
           }),
-          // Omit temperature/top_p: newer Bedrock models (e.g. Claude Opus)
-          // reject them with a ValidationException; model defaults are fine for
-          // structured chart-spec generation. Only cap output length.
-          modelParams: {
-            provider: "bedrock",
-            adapter: LLMAdapter.Bedrock,
-            model: env.LANGFUSE_AWS_BEDROCK_MODEL ?? "",
-            max_tokens: 1000,
-          },
-          llmConnection: {
-            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-          },
-          streaming: false,
-          structuredOutputSchema: chartCompletionSchema,
-          shouldUseLangfuseAPIKey: true,
+          // The chart spec is small; cap output so a runaway generation can't
+          // stall the request.
+          maxTokens: 500,
         });
 
-        // Structured output is already schema-shaped; re-validate to be safe.
-        const config = chartCompletionSchema.parse(completion);
+        const config = parseChartCompletion(text);
         return { config };
       } catch (error) {
         // Already-shaped rejections (FORBIDDEN / PRECONDITION_FAILED / NOT_FOUND

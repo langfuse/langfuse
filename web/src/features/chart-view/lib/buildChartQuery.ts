@@ -8,45 +8,9 @@ const CATEGORICAL_ROW_LIMIT = 20;
 
 const VIEW = "observations" as const;
 
-/**
- * Events-table filter columns that map 1:1 onto observations-view dimensions and
- * are safe to forward to the aggregate query. Exotic filters (scores, metadata,
- * isRootObservation, time) are dropped here rather than risk an invalid query —
- * the happy-path scope ("punt gnarly FilterState"). The time window is passed
- * separately as from/to, so any time filter is intentionally excluded.
- */
-const SAFE_FILTER_COLUMNS = new Set([
-  "environment",
-  "type",
-  "name",
-  "level",
-  "providedModelName",
-]);
-
-/**
- * Narrows the events table's `FilterState` to the subset that maps cleanly onto
- * the observations query, so the chart reflects the table's filters without
- * choking on columns the query view doesn't model.
- */
-export function toChartFilters(filterState: FilterState): FilterState {
-  return filterState.filter((f) => SAFE_FILTER_COLUMNS.has(f.column));
-}
-
-/**
- * True only if EVERY filter in `filters` can be faithfully forwarded to the
- * chart query — i.e. nothing would be silently dropped. Callers hide the chart
- * when this is false (e.g. an `isRootObservation` / scores / metadata filter, or
- * a search-bar `startTime:>X` bound).
- *
- * NOTE: `startTime` is deliberately NOT treated as reproducible here. The chart's
- * time window comes from the date-range picker via from/to — so the caller must
- * pass the sidebar/search filter set that EXCLUDES the picker's own `startTime`
- * entries (any remaining `startTime` is a tighter search-bar bound the query
- * can't honour).
- */
-export function chartCanReproduceFilters(filters: FilterState): boolean {
-  return filters.every((f) => SAFE_FILTER_COLUMNS.has(f.column));
-}
+// Which sidebar/search filters the chart can honour (and the reasons it can't)
+// live in `chartFilterCompatibility`. Callers narrow the FilterState with its
+// `toChartFilters` before handing it here.
 
 /** The executeQuery column name for a metric, e.g. `p95_latency`, `count_count`. */
 export const metricField = (config: ChartViewConfig): string =>

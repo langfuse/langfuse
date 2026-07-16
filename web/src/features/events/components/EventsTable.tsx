@@ -126,7 +126,11 @@ import { TableViewPresetsDrawer } from "@/src/components/table/table-view-preset
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
-import { chartCanReproduceFilters } from "@/src/features/chart-view/lib/buildChartQuery";
+import {
+  chartFilterExclusionReason,
+  chartSearchFieldReason,
+  CHART_SEARCH_QUERY_REASON,
+} from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
 import {
   useObservedMetadataPaths,
@@ -679,19 +683,20 @@ export default function ObservationsEventsTable({
     ? externalFilterState.concat(dateRangeFilter)
     : combinedFilterState;
 
-  // Offer the chart only when it can exactly reproduce what the table shows:
-  // the full (v4) surface, no user/session scope, no free-text search, and no
-  // sidebar/search filter the aggregate query can't model (scores, metadata,
-  // isRootObservation, or a search-bar startTime:>X bound — see
-  // chartCanReproduceFilters). The check runs on effectiveFilterState, NOT the
-  // combined state: the date-range picker's own startTime is reproduced via the
-  // chart's from/to window, so it must not count against reproducibility.
-  const chartEnabled =
-    !hideControls &&
-    !userId &&
-    !sessionId &&
-    !searchQuery &&
-    chartCanReproduceFilters(queryFilter.effectiveFilterState);
+  // Offer the chart on the full (v4) surface — not embedded, not user/session
+  // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
+  // chart: the chart forwards what it can and the sidebar + search bar mark the
+  // rest as "not applied" (see chartFilterExclusions below).
+  const chartEnabled = !hideControls && !userId && !sessionId;
+
+  // The chart is actually on screen (not just enabled). Only then do we mark
+  // the filters it can't honour as "not applied", so table mode stays untouched.
+  // Both surfaces use the stateless per-column / per-field reason resolvers
+  // (chartFilterExclusionReason / chartSearchFieldReason) — a filter deactivates
+  // in the sidebar and its search-bar pill identically.
+  const chartActive = chartEnabled && chartViewMode === "chart";
+  // Free-text search is never applied to the chart (it has no aggregate form).
+  const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
 
   // Use the custom hook for observations data fetching
   const {
@@ -1798,6 +1803,10 @@ export default function ObservationsEventsTable({
                 commit={searchBarCommit}
                 observed={observedOptions}
                 erroredColumns={erroredColumns}
+                fieldReason={chartActive ? chartSearchFieldReason : undefined}
+                freeTextReason={
+                  chartFreeTextIgnored ? CHART_SEARCH_QUERY_REASON : undefined
+                }
                 onApplyFilters={searchBarApplyFilters}
                 onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}
@@ -1956,6 +1965,11 @@ export default function ObservationsEventsTable({
               // In bar mode AI filtering lives in the search bar; only offer the
               // sidebar wand on non-bar surfaces (embedded scoped tables).
               filterWithAI={!searchBarMode}
+              // In chart mode, dim active filters the chart can't apply (+ hover
+              // reason). Stateless per-column resolver — matches the search bar.
+              deactivatedColumnReason={
+                chartActive ? chartFilterExclusionReason : undefined
+              }
             />
           )}
 

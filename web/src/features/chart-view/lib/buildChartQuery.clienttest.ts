@@ -1,13 +1,10 @@
 import {
   buildChartQuery,
-  chartCanReproduceFilters,
   metricField,
   rowsToDataPoints,
-  toChartFilters,
 } from "./buildChartQuery";
 import { DEFAULT_CONFIG } from "../vocab";
 import { type ChartViewConfig } from "../types";
-import { type FilterState } from "@langfuse/shared";
 
 const FROM = new Date("2026-06-25T00:00:00.000Z");
 const TO = new Date("2026-06-26T00:00:00.000Z");
@@ -84,94 +81,6 @@ describe("buildChartQuery", () => {
     expect(
       metricField({ ...DEFAULT_CONFIG, metric: "count", aggregation: "count" }),
     ).toBe("count_count");
-  });
-});
-
-describe("toChartFilters", () => {
-  it("keeps mappable dimension filters and drops the rest", () => {
-    const filters: FilterState = [
-      {
-        column: "type",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["GENERATION"],
-      },
-      {
-        column: "environment",
-        type: "string",
-        operator: "=",
-        value: "production",
-      },
-      {
-        column: "startTime",
-        type: "datetime",
-        operator: ">=",
-        value: new Date(),
-      },
-      {
-        column: "scores_avg",
-        type: "numberObject",
-        operator: ">",
-        key: "accuracy",
-        value: 0.5,
-      },
-      {
-        column: "metadata",
-        type: "stringObject",
-        operator: "contains",
-        key: "x",
-        value: "y",
-      },
-    ];
-    const result = toChartFilters(filters);
-    expect(result.map((f) => f.column)).toEqual(["type", "environment"]);
-  });
-});
-
-describe("chartCanReproduceFilters", () => {
-  it("true when only forwardable dimension filters are present", () => {
-    expect(
-      chartCanReproduceFilters([
-        {
-          column: "type",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["GENERATION"],
-        },
-        {
-          column: "environment",
-          type: "string",
-          operator: "=",
-          value: "production",
-        },
-      ]),
-    ).toBe(true);
-  });
-
-  it("false for a filter the query can't model (isRootObservation)", () => {
-    expect(
-      chartCanReproduceFilters([
-        {
-          column: "isRootObservation",
-          type: "boolean",
-          operator: "=",
-          value: true,
-        },
-      ]),
-    ).toBe(false);
-  });
-
-  it("false for a search-bar startTime bound (not the date picker)", () => {
-    expect(
-      chartCanReproduceFilters([
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">",
-          value: new Date(),
-        },
-      ]),
-    ).toBe(false);
   });
 });
 
