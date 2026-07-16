@@ -117,6 +117,41 @@ describe("CategoricalFacet", () => {
     ).toBeTruthy();
   });
 
+  it("collapses an expanded list back to the cap via 'Show fewer values'", () => {
+    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={options}
+          counts={new Map()}
+          value={[]}
+          onChange={() => {}}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show more values" }));
+    // Expanded: the deep value renders and the toggle flips…
+    expect(screen.getByText("opt-19")).toBeInTheDocument();
+    const collapse = screen.getByRole("button", {
+      name: "Show fewer values",
+    });
+    // …and clicking it re-applies the cap.
+    fireEvent.click(collapse);
+    expect(screen.queryByText("opt-19")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show more values" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the 'Show more' cap when every option is reported selected (no-filter default)", () => {
     // useSidebarFilterState returns value === options when no filter is applied
     // (computeSelectedValues). That all-selected default must NOT be treated as

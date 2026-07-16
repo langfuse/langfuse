@@ -1151,17 +1151,18 @@ function CategoricalSelectContent({
                   />
                 )}
 
-              {/* Remaining options, capped */}
+              {/* Remaining options, capped; the toggle collapses an expanded
+                  list back to the cap without having to close the facet. */}
               {visibleRemainingOptions.map(renderOption)}
-              {hasMoreFilteredOptions && !showAll && (
+              {hasMoreFilteredOptions && (
                 <div className="px-2">
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setShowAll(true)}
+                    onClick={() => setShowAll((current) => !current)}
                     className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                   >
-                    Show more values
+                    {showAll ? "Show fewer values" : "Show more values"}
                   </Button>
                 </div>
               )}
