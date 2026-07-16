@@ -7,6 +7,21 @@ const MEDIA_REFERENCE =
   "@@@langfuseMedia:type=image/png|id=test-media-id|source=base64_data_uri@@@";
 
 describe("transformMediaPayload", () => {
+  it("does not inspect ordinary text containing data prefixes", async () => {
+    const processCandidate = vi.fn();
+    const onInvalidCandidate = vi.fn();
+    const value = "data: is a label, not necessarily an encoded media value";
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate,
+      onInvalidCandidate,
+    });
+
+    expect(transformed).toBe(value);
+    expect(processCandidate).not.toHaveBeenCalled();
+    expect(onInvalidCandidate).not.toHaveBeenCalled();
+  });
+
   it("scans adversarial repeated data prefixes without a regular expression", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const value = `${"data:".repeat(10_000)}data:image/png;base64,${PNG_BASE64}`;

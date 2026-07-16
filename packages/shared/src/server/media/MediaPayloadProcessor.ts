@@ -70,9 +70,11 @@ export async function transformMediaPayload(
 ): Promise<string> {
   if (isMediaReference(value)) return value;
 
-  const withDataUriReferences = await replaceDataUris(value, params);
-  if (withDataUriReferences !== value || value.includes(DATA_URI_PREFIX)) {
-    return withDataUriReferences;
+  if (value.includes(BASE64_MARKER)) {
+    const withDataUriReferences = await replaceDataUris(value, params);
+    if (withDataUriReferences !== value || value.includes(DATA_URI_PREFIX)) {
+      return withDataUriReferences;
+    }
   }
 
   const strippedValue = value.trimStart();
@@ -193,6 +195,7 @@ async function transformJsonValue(
   if (depth > MAX_RECURSION_DEPTH) return value;
 
   if (typeof value === "string") {
+    if (!value.includes(BASE64_MARKER)) return value;
     const transformed = await replaceDataUris(value, params);
     if (transformed !== value) state.changed = true;
     return transformed;
@@ -336,7 +339,7 @@ function parseRawBase64(
 
 function mayContainSerializedMedia(value: string): boolean {
   if (
-    value.includes(DATA_URI_PREFIX) ||
+    value.includes(BASE64_MARKER) ||
     value.includes('"inline_data"') ||
     value.includes('"inlineData"')
   ) {
