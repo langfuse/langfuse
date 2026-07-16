@@ -222,6 +222,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.score_categories",
   },
   {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_booleans",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "observations",

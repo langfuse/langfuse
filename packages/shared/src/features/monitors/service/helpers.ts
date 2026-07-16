@@ -5,14 +5,10 @@
 import { createHash } from "node:crypto";
 import {
   type Monitor as PrismaMonitor,
-  MonitorSeverity as PrismaMonitorSeverity,
-  MonitorStatus as PrismaMonitorStatus,
-  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
   MonitorView as PrismaMonitorView,
+  MonitorSeverity as PrismaMonitorSeverity,
   Prisma,
 } from "@prisma/client";
-
-import { InvalidRequestError } from "../../../errors";
 
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
@@ -20,19 +16,67 @@ import {
   type MonitorFilters,
   type MonitorSeverity,
   type MonitorStatus,
-  type MonitorThresholdOperator,
   type MonitorView,
-  type MonitorWindow,
   MonitorSchema,
+  MonitorStatusSchema,
+  windowFromMs,
+  windowToMs,
 } from "../types";
 
-import { MonitorNotFoundError, type MonitorListOrderBy } from "./types";
+import {
+  MonitorNotFoundError,
+  type ListMonitorFilter,
+  type ListMonitors,
+  type MonitorListOrderBy,
+} from "./types";
 
 /** nullableOrderColumns is the list of sortable columns that are nullable. */
-export const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
+const nullableOrderColumns: ReadonlySet<MonitorListOrderBy> = new Set([
   "severityChangedAt",
   "alertedAt",
 ]);
+
+/** toPrismaOrderBy builds the Prisma orderBy clause for MonitorService.list. */
+export const toPrismaOrderBy = (
+  orderBy: ListMonitors["orderBy"],
+): Prisma.MonitorOrderByWithRelationInput[] => {
+  if (!orderBy) return [{ severity: "desc" }, { id: "asc" }];
+  const sort = orderBy.order.toLowerCase() as Prisma.SortOrder;
+  const isNullable = nullableOrderColumns.has(orderBy.column);
+  return [
+    {
+      [orderBy.column]: isNullable ? { sort, nulls: "last" } : sort,
+    },
+    { id: "asc" },
+  ];
+};
+
+/** toPrismaWhere builds the Prisma where clause for a project-scoped ListMonitorFilter. */
+export const toPrismaWhere = (
+  projectId: string,
+  filter: ListMonitorFilter | undefined,
+): Prisma.MonitorWhereInput => {
+  const and: Prisma.MonitorWhereInput[] = [];
+  for (const f of filter ?? []) {
+    if (f.type === "stringOptions") {
+      and.push(
+        f.operator === "any of"
+          ? { [f.column]: { in: f.value } }
+          : { NOT: { [f.column]: { in: f.value } } },
+      );
+      continue;
+    }
+    if (f.value.length === 0) continue;
+    and.push(
+      f.operator === "any of"
+        ? { [f.column]: { hasSome: f.value } }
+        : f.operator === "all of"
+          ? { [f.column]: { hasEvery: f.value } }
+          : { NOT: { [f.column]: { hasSome: f.value } } },
+    );
+  }
+  return { projectId, AND: and };
+};
 
 /**
  * canonicalizeFilter normalizes a single filter for canonical comparison.
@@ -113,24 +157,6 @@ export const calculateSchedulerBatchId = (params: {
   return digest.readBigUInt64BE(0) & ((1n << 63n) - 1n);
 };
 
-/**
- * calculateLastRunAt picks the most recent cadence boundary at or before
- * `now`, offset by `(schedulerBatchId % 60) * 1000` ms. Persisted as
- * `monitor.nextRunAt` on create/update so the scheduler picks the monitor up
- * on its very next tick and advances it onto the deterministic slot.
- */
-export const calculateLastRunAt = (
-  now: Date,
-  cadenceMs: bigint,
-  schedulerBatchId: bigint,
-): Date => {
-  const cadence = Number(cadenceMs);
-  const offset = Number(schedulerBatchId % 60n) * 1000;
-  const aligned =
-    Math.floor((now.getTime() - offset) / cadence) * cadence + offset;
-  return new Date(aligned);
-};
-
 /** viewToPrisma converts the MonitorView api enum to the Prisma MonitorView enum. */
 export const viewToPrisma = (view: MonitorView): PrismaMonitorView => {
   switch (view) {
@@ -155,152 +181,13 @@ export const viewFromPrisma = (view: PrismaMonitorView): MonitorView => {
   }
 };
 
-/** severityFromPrisma converts the Prisma MonitorSeverity enum to the MonitorSeverity api enum. */
-export const severityFromPrisma = (
-  s: PrismaMonitorSeverity,
-): MonitorSeverity => {
-  switch (s) {
-    case PrismaMonitorSeverity.UNKNOWN:
-      return "unknown";
-    case PrismaMonitorSeverity.NO_DATA:
-      return "no-data";
-    case PrismaMonitorSeverity.OK:
-      return "ok";
-    case PrismaMonitorSeverity.WARNING:
-      return "warning";
-    case PrismaMonitorSeverity.ALERT:
-      return "alert";
-  }
-};
-
-/** statusToPrisma converts the MonitorStatus api enum to the Prisma MonitorStatus enum. */
-export const statusToPrisma = (s: MonitorStatus): PrismaMonitorStatus => {
-  switch (s) {
-    case "paused":
-      return PrismaMonitorStatus.PAUSED;
-    case "active":
-      return PrismaMonitorStatus.ACTIVE;
-    case "error-bad-query":
-      return PrismaMonitorStatus.ERROR_BAD_QUERY;
-  }
-};
-
-/** statusFromPrisma converts the Prisma MonitorStatus enum to the MonitorStatus api enum. */
-export const statusFromPrisma = (s: PrismaMonitorStatus): MonitorStatus => {
-  switch (s) {
-    case PrismaMonitorStatus.PAUSED:
-      return "paused";
-    case PrismaMonitorStatus.ACTIVE:
-      return "active";
-    case PrismaMonitorStatus.ERROR_BAD_QUERY:
-      return "error-bad-query";
-  }
-};
-
-/** thresholdOperatorToPrisma converts the MonitorThresholdOperator api enum to the Prisma MonitorThresholdOperator enum. */
-export const thresholdOperatorToPrisma = (
-  o: MonitorThresholdOperator,
-): PrismaMonitorThresholdOperator => {
-  switch (o) {
-    case "gt":
-      return PrismaMonitorThresholdOperator.GT;
-    case "gte":
-      return PrismaMonitorThresholdOperator.GTE;
-    case "lt":
-      return PrismaMonitorThresholdOperator.LT;
-    case "lte":
-      return PrismaMonitorThresholdOperator.LTE;
-    case "eq":
-      return PrismaMonitorThresholdOperator.EQ;
-    case "neq":
-      return PrismaMonitorThresholdOperator.NEQ;
-  }
-};
-
-/** thresholdOperatorFromPrisma converts the Prisma MonitorThresholdOperator enum to the MonitorThresholdOperator api enum. */
-export const thresholdOperatorFromPrisma = (
-  o: PrismaMonitorThresholdOperator,
-): MonitorThresholdOperator => {
-  switch (o) {
-    case PrismaMonitorThresholdOperator.GT:
-      return "gt";
-    case PrismaMonitorThresholdOperator.GTE:
-      return "gte";
-    case PrismaMonitorThresholdOperator.LT:
-      return "lt";
-    case PrismaMonitorThresholdOperator.LTE:
-      return "lte";
-    case PrismaMonitorThresholdOperator.EQ:
-      return "eq";
-    case PrismaMonitorThresholdOperator.NEQ:
-      return "neq";
-  }
-};
-
-/** windowToMs converts the MonitorWindow api enum to a bigint of milliseconds. */
-export const windowToMs = (w: MonitorWindow): bigint => {
-  switch (w) {
-    case "5m":
-      return 5n * 60_000n;
-    case "10m":
-      return 10n * 60_000n;
-    case "15m":
-      return 15n * 60_000n;
-    case "30m":
-      return 30n * 60_000n;
-    case "1h":
-      return 60n * 60_000n;
-    case "2h":
-      return 2n * 60n * 60_000n;
-    case "4h":
-      return 4n * 60n * 60_000n;
-    case "1d":
-      return 24n * 60n * 60_000n;
-    case "2d":
-      return 2n * 24n * 60n * 60_000n;
-    case "1w":
-      return 7n * 24n * 60n * 60_000n;
-  }
-};
-
-/** windowFromMs converts a bigint of milliseconds to the MonitorWindow api enum. */
-export const windowFromMs = (ms: bigint): MonitorWindow => {
-  switch (ms) {
-    case 5n * 60_000n:
-      return "5m";
-    case 10n * 60_000n:
-      return "10m";
-    case 15n * 60_000n:
-      return "15m";
-    case 30n * 60_000n:
-      return "30m";
-    case 60n * 60_000n:
-      return "1h";
-    case 2n * 60n * 60_000n:
-      return "2h";
-    case 4n * 60n * 60_000n:
-      return "4h";
-    case 24n * 60n * 60_000n:
-      return "1d";
-    case 2n * 24n * 60n * 60_000n:
-      return "2d";
-    case 7n * 24n * 60n * 60_000n:
-      return "1w";
-    default:
-      throw new InvalidRequestError(
-        `windowMs ${ms.toString()} does not correspond to a known MonitorWindow tier`,
-      );
-  }
-};
+export { windowToMs, windowFromMs };
 
 /** monitorFromPrisma converts a Prisma monitor row to the domain Monitor. */
 export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
   MonitorSchema.parse({
     ...monitor,
     view: viewFromPrisma(monitor.view),
-    severity: severityFromPrisma(monitor.severity),
-    status: statusFromPrisma(monitor.status),
-    thresholdOperator: thresholdOperatorFromPrisma(monitor.thresholdOperator),
     window: windowFromMs(monitor.windowMs),
     alertThreshold: monitor.alertThreshold.toNumber(),
     warningThreshold: monitor.warningThreshold?.toNumber() ?? null,
@@ -309,6 +196,74 @@ export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
 /** decimalToPrisma converts a nullable JS number to a Prisma.Decimal, preserving null. */
 export const decimalToPrisma = (n: number | null): Prisma.Decimal | null =>
   n == null ? null : new Prisma.Decimal(n);
+
+/** updateStatusAndSeverity returns the status write and its derived severity transition. */
+export const updateStatusAndSeverity = (
+  current: MonitorStatus,
+  next: MonitorStatus | undefined,
+): {
+  status?: MonitorStatus;
+  severity?: MonitorSeverity;
+  severityChangedAt?: Date;
+  nextRunAt?: null;
+  lastPublishedAt?: null;
+  lastCompletedAt?: null;
+  lastClaimedAt?: null;
+  alertedAt?: null;
+} => {
+  if (!next) return {};
+  const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
+  const toActive = next === MonitorStatusSchema.enum.ACTIVE;
+  const toPaused = fromActive && !toActive;
+  if (toPaused)
+    return {
+      status: next,
+      severity: PrismaMonitorSeverity.PAUSED,
+      severityChangedAt: new Date(),
+    };
+  if (!fromActive && toActive)
+    return {
+      status: next,
+      severity: PrismaMonitorSeverity.UNKNOWN,
+      severityChangedAt: new Date(),
+      nextRunAt: null,
+      lastPublishedAt: null,
+      lastCompletedAt: null,
+      lastClaimedAt: null,
+      alertedAt: null,
+    };
+  // No Severity Change (eg ACTIVE -> ACTIVE, ERROR_* -> PAUSED)
+  return { status: next };
+};
+
+/** updateSchedulerProperties returns the new schedulerBatchId and reset publish lifecycle stamps when the query-shape fingerprint changes; otherwise an empty object. */
+export const updateSchedulerProperties = (
+  current: bigint,
+  next: bigint,
+): {
+  schedulerBatchId?: bigint;
+  nextRunAt?: null;
+  lastPublishedAt?: null;
+  lastCompletedAt?: null;
+  lastClaimedAt?: null;
+} => {
+  if (current === next) return {};
+  return {
+    schedulerBatchId: next,
+    nextRunAt: null,
+    lastPublishedAt: null,
+    lastCompletedAt: null,
+    lastClaimedAt: null, // void the complete() CAS guard for an in-flight worker on the old query shape
+  };
+};
+
+/** initSeverity maps a MonitorStatus its initial severity value */
+export const initSeverity = (status: MonitorStatus) => {
+  if (status === MonitorStatusSchema.enum.ACTIVE) {
+    return PrismaMonitorSeverity.UNKNOWN;
+  }
+  return PrismaMonitorSeverity.PAUSED;
+};
 
 /** errorFromPrisma converts a Prisma row-not-found error to MonitorNotFoundError. */
 export const errorFromPrisma = (

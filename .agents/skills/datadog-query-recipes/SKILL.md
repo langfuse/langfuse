@@ -57,8 +57,13 @@ data domain you need: traces, logs, metrics, and visualizations.
 - Use [`debug-issue-with-datadog`](../debug-issue-with-datadog/SKILL.md) when a
   Linear issue, GitHub issue, incident report, or monitor needs root-cause
   analysis and patch recommendations.
-- Use [`detect-prod-regressions`](../detect-prod-regressions/SKILL.md) when the
-  user asks for a proactive production sweep or baseline comparison.
+- Use [`weekly-production-review`](../weekly-production-review/SKILL.md) when
+  the user asks for a weekly engineering overview of production bugs, pages,
+  and incidents.
+- Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) when the
+  research is anchored to a named production alert or monitor: look up
+  documented causes before measuring, and record new ones only after human
+  approval.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
   approves sharing measured findings in Linear.
 

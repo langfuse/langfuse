@@ -16,6 +16,7 @@ export default withMiddlewares({
     name: "Get Score",
     querySchema: GetScoreQueryV1,
     responseSchema: GetScoreResponseV1,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
       const score = await scoresApiService.getScoreById({

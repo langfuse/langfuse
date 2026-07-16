@@ -312,7 +312,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidMetricNameQuery))}`,
       undefined,
@@ -335,7 +338,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidAggregationQuery))}`,
       undefined,
@@ -358,7 +364,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidDimensionQuery))}`,
       undefined,
@@ -389,7 +398,10 @@ describe("/api/public/metrics API Endpoint", () => {
       toTimestamp: new Date().toISOString(),
     };
 
-    const { status, body } = await makeAPICall(
+    const { status, body } = await makeAPICall<{
+      error: string;
+      message: string;
+    }>(
       "GET",
       `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidFilterQuery))}`,
       undefined,
@@ -522,7 +534,10 @@ describe("/api/public/metrics API Endpoint", () => {
       };
 
       // Make API call and expect 400 error
-      const response = await makeAPICall(
+      const response = await makeAPICall<{
+        error: string;
+        message: string;
+      }>(
         "GET",
         `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidStringTypeQuery))}`,
       );
@@ -531,9 +546,10 @@ describe("/api/public/metrics API Endpoint", () => {
       expect(response.body).toMatchObject({
         error: "InvalidRequestError",
         message: expect.stringContaining(
-          "Array fields require type 'arrayOptions', not 'string'",
+          "Filter type 'string' is not supported for dimension type 'string[]'",
         ),
       });
+      expect(response.body.message).toContain("Expected 'arrayOptions'.");
     });
 
     it("should return 400 error for invalid metadata filters", async () => {
@@ -568,6 +584,57 @@ describe("/api/public/metrics API Endpoint", () => {
           "Metadata filters require type 'stringObject'",
         ),
       });
+    });
+
+    it("should return 400 when arrayOptions is used on scalar sessionId", async () => {
+      const invalidSessionIdTypeQuery = {
+        view: "observations",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "tags",
+            operator: "all of",
+            value: ["test-tag"],
+            type: "arrayOptions",
+          },
+          {
+            column: "type",
+            operator: "=",
+            value: "GENERATION",
+            type: "string",
+          },
+          {
+            column: "sessionId",
+            operator: "any of",
+            value: [randomUUID()],
+            type: "arrayOptions",
+          },
+        ],
+        timeDimension: null,
+        fromTimestamp: yesterday.toISOString(),
+        toTimestamp: tomorrow.toISOString(),
+        orderBy: null,
+      };
+
+      const response = await makeAPICall<{
+        error: string;
+        message: string;
+      }>(
+        "GET",
+        `/api/public/metrics?query=${encodeURIComponent(JSON.stringify(invalidSessionIdTypeQuery))}`,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        error: "InvalidRequestError",
+        message: expect.stringContaining(
+          "Filter type 'arrayOptions' is not supported for dimension type 'string'",
+        ),
+      });
+      expect(response.body.message).toContain(
+        "Expected 'string' or 'stringOptions'.",
+      );
     });
 
     it("should work correctly with proper array field filter configuration", async () => {
@@ -627,7 +694,7 @@ describe("/api/public/metrics API Endpoint", () => {
         (row: any) => row.name === "tagged-trace",
       );
       expect(taggedTraceResult).toBeDefined();
-      expect(Number(taggedTraceResult.count_count)).toBe(1);
+      expect(Number(taggedTraceResult!.count_count)).toBe(1);
     });
   });
 });

@@ -2,20 +2,19 @@ import { v4 } from "uuid";
 import { type z } from "zod";
 import { isBooleanDataType } from "@/src/features/scores/lib/helpers";
 import {
-  filterAndValidateDbScoreConfigList,
-  InternalServerError,
   InvalidRequestError,
   LangfuseNotFoundError,
   validateDbScoreConfig,
   validateDbScoreConfigSafe,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { traceException } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   type PostScoreConfigBody,
   type PutScoreConfigBody,
 } from "@/src/features/public-api/types/score-configs";
+
+export { listScoreConfigs, getScoreConfig } from "@langfuse/shared/src/server";
 
 type ApiKeyProjectContext = {
   projectId: string;
@@ -66,78 +65,6 @@ export const createScoreConfig = async ({
   });
 
   return validateDbScoreConfig(config);
-};
-
-export const listScoreConfigs = async ({
-  projectId,
-  page,
-  limit,
-}: {
-  projectId: string;
-  page: number;
-  limit: number;
-}) => {
-  const [rawConfigs, totalItems] = await Promise.all([
-    prisma.scoreConfig.findMany({
-      where: {
-        projectId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: limit,
-      skip: (page - 1) * limit,
-    }),
-    prisma.scoreConfig.count({
-      where: {
-        projectId,
-      },
-    }),
-  ]);
-
-  const configs = filterAndValidateDbScoreConfigList(
-    rawConfigs,
-    traceException,
-  );
-
-  return {
-    data: configs,
-    meta: {
-      page,
-      limit,
-      totalItems,
-      totalPages: Math.ceil(totalItems / limit),
-    },
-  };
-};
-
-export const getScoreConfig = async ({
-  projectId,
-  configId,
-}: {
-  projectId: string;
-  configId: string;
-}) => {
-  const config = await prisma.scoreConfig.findUnique({
-    where: {
-      id: configId,
-      projectId,
-    },
-  });
-
-  if (!config) {
-    throw new LangfuseNotFoundError(
-      "Score config not found within authorized project",
-    );
-  }
-
-  const parsedConfig = validateDbScoreConfigSafe(config);
-  if (!parsedConfig.success) {
-    traceException(parsedConfig.error);
-    throw new InternalServerError("Requested score config is corrupted");
-  }
-
-  return parsedConfig.data;
 };
 
 export const updateScoreConfig = async ({

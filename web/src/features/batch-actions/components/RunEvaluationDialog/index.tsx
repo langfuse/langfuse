@@ -6,7 +6,7 @@ import {
   BatchEvalSourceTable as SourceTable,
   getEvalTargetObjectFromSourceTable,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   Dialog,
   DialogBody,
@@ -117,8 +117,10 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       minStartTime: props.exampleObservation?.startTime as Date,
       maxStartTime: props.exampleObservation?.startTime as Date,
       truncated: false,
+      includeToolCalls: true,
     },
     {
+      ...sendAsPostOption,
       enabled:
         isBetaEnabled &&
         Boolean(

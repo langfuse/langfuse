@@ -18,6 +18,7 @@ const DEFAULT_OUTBOUND_URL_VALIDATION_WHITELIST: OutboundUrlValidationWhitelist 
     ips: [],
     ip_ranges: [],
   };
+export type RequestInitWithDispatcher = RequestInit & { dispatcher?: unknown };
 
 export interface OutboundUrlConnectionValidationOptions {
   whitelist?: OutboundUrlValidationWhitelist;
@@ -34,6 +35,14 @@ export function addSecureOutboundConnectionValidation(
   options: RequestInit,
   validationOptions: OutboundUrlConnectionValidationOptions,
 ): RequestInit {
+  if ((options as RequestInitWithDispatcher).dispatcher) {
+    // A dispatcher is already attached (today: HTTPS_PROXY routing via
+    // secureLlmFetch). Forward proxies own DNS resolution at the proxy hop,
+    // so a connect.lookup hook on our Agent would not see the target host
+    // anyway. Pre-fetch URL validation and redirect validation still run.
+    return options;
+  }
+
   return {
     ...options,
     dispatcher: getSecureOutboundDispatcher(validationOptions),

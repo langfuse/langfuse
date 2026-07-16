@@ -8,6 +8,8 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
+import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { paginationMeta } from "../../publicApi";
@@ -19,21 +21,15 @@ const ScoreFieldsSchema = z
     "Response field groups to include. 'score' is always required. Include 'trace' when filtering by userId or traceTags.",
   );
 
-const ListScoresInputSchema = z.object({
+const ListScoresSharedSchemaFields = {
   ...publicApiPaginationZod,
   fields: ScoreFieldsSchema,
   userId: z.string().optional(),
   dataType: ScoreDataTypeDomain.optional(),
   configId: z.string().optional(),
   queueId: z.string().optional(),
-  traceTags: z
-    .array(z.string())
-    .optional()
-    .describe("Trace tags to filter by."),
-  environment: z
-    .array(z.string())
-    .optional()
-    .describe("Score environments to filter by."),
+  traceTags: z.array(z.string()).optional(),
+  environment: z.array(z.string()).optional(),
   name: z.string().optional(),
   fromTimestamp: z.iso.datetime({ offset: true }).optional(),
   toTimestamp: z.iso.datetime({ offset: true }).optional(),
@@ -45,6 +41,20 @@ const ListScoresInputSchema = z.object({
   traceId: z.string().optional(),
   datasetRunId: z.string().optional(),
   observationId: z.array(z.string()).optional(),
+};
+
+const ListScoresBaseSchema = z.object({
+  ...ListScoresSharedSchemaFields,
+  filter: z
+    .array(McpAdvancedFilterBaseSchema)
+    .optional()
+    .describe(
+      "Advanced score filters as JSON objects with column, operator, value, and type.",
+    ),
+});
+
+const ListScoresInputSchema = z.object({
+  ...ListScoresSharedSchemaFields,
   filter: z
     .array(singleFilter)
     .optional()
@@ -75,8 +85,9 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Find scores in Langfuse.",
     "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
     "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
+    "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
-  baseSchema: ListScoresInputSchema,
+  baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {
     return await runMcpTool({
@@ -122,7 +133,16 @@ export const [listScoresTool, handleListScores] = defineTool({
         ]);
 
         const totalItems = count ?? 0;
-        const data = filterAndValidateV2GetScoreList(items);
+        const data = filterAndValidateV2GetScoreList(items).map((score) => {
+          const url = buildScoreTargetUrl({
+            projectId: context.projectId,
+            traceId: score.traceId,
+            observationId: score.observationId,
+            sessionId: score.sessionId,
+          });
+
+          return url ? { ...score, url } : score;
+        });
         span.setAttribute("mcp.result_count", data.length);
 
         return {

@@ -34,9 +34,9 @@ The table should include one row per candidate with:
 If the human does not explicitly approve, stop after presenting the table. Do
 not search Linear, do not comment on issues, and do not create issues.
 
-If this skill was invoked by `detect-prod-regressions` and that calling skill
-already showed the findings table and obtained explicit human approval for a
-Linear handoff, skip this gate and proceed directly to deduplication.
+If a calling workflow already showed the findings table and obtained explicit
+human approval for a Linear handoff, skip this gate and proceed directly to
+deduplication.
 
 ## Required Evidence
 

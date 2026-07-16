@@ -17,6 +17,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 
 export function JsonValue({
   value,
@@ -108,6 +110,13 @@ export function JsonValue({
       highlightEnd,
       adjustedCommentRanges,
     );
+
+    // Render previewable media as a hover-to-peek chip only when the existing
+    // text highlighter found no search/comment overlays to preserve.
+    const mediaDescriptor = classifyMediaValue(str);
+    if (mediaDescriptor && segments.every((segment) => segment.type === null)) {
+      return <JsonMediaTag descriptor={mediaDescriptor} />;
+    }
 
     return (
       <span

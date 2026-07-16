@@ -1,11 +1,13 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import {
@@ -14,6 +16,7 @@ import {
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -32,13 +35,13 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
-  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { processDeleteDatasets } from "./processDeleteDatasets";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -64,6 +67,8 @@ async function processActionChunk(
   try {
     switch (actionId) {
       case "trace-delete":
+        // Legacy queue path. Durable trace-delete BatchActions are processed
+        // by TraceDeleteBatchActionRunner.
         await traceDeletionProcessor(projectId, chunkIds, { delayMs: 0 });
         break;
 
@@ -89,6 +94,10 @@ async function processActionChunk(
 
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds);
+        break;
+
+      case "dataset-delete":
+        await processDeleteDatasets(projectId, chunkIds);
         break;
 
       default:
@@ -165,7 +174,8 @@ export const handleBatchActionJob = async (
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
     actionId === "observation-add-to-annotation-queue" ||
-    actionId === "score-delete"
+    actionId === "score-delete" ||
+    actionId === "dataset-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;
@@ -183,20 +193,27 @@ export const handleBatchActionJob = async (
     };
 
     const dbReadStream =
-      actionId === "trace-delete"
-        ? await getTraceIdentifierStream({
-            ...streamParams,
-            orderBy: query.orderBy,
+      actionId === "dataset-delete"
+        ? await findDatasetIdsForBatchDeletion({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            query,
           })
-        : tableName === BatchTableNames.Events
-          ? await getEventsStreamForAnnotationQueue(streamParams)
-          : tableName === BatchTableNames.Observations
-            ? await getObservationStream(streamParams)
-            : await getDatabaseReadStreamPaginated({
-                ...streamParams,
-                orderBy: query.orderBy,
-                tableName: tableName as BatchTableNames,
-              });
+        : actionId === "trace-delete"
+          ? await getTraceIdentifierStream({
+              ...streamParams,
+              orderBy: query.orderBy,
+            })
+          : tableName === BatchTableNames.Events
+            ? await getEventsStreamForAnnotationQueue(streamParams)
+            : tableName === BatchTableNames.Observations
+              ? await getObservationStream(streamParams)
+              : await getDatabaseReadStreamPaginated({
+                  ...streamParams,
+                  orderBy: query.orderBy,
+                  tableName: tableName as BatchTableNames,
+                  useEventsTable: query.useEventsTable,
+                });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -229,12 +246,29 @@ export const handleBatchActionJob = async (
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        evalTemplate: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!config) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+        projectId,
+        configId,
+        evalTemplateType: config.evalTemplate?.type ?? null,
+      });
       return;
     }
 
@@ -393,6 +427,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -400,6 +435,11 @@ export const handleBatchActionJob = async (
           id: true,
           projectId: true,
           evalTemplateId: true,
+          evalTemplate: {
+            select: {
+              type: true,
+            },
+          },
           scoreName: true,
           targetObject: true,
           variableMapping: true,
@@ -413,6 +453,7 @@ export const handleBatchActionJob = async (
       // sampling=1 to ensure every streamed observation is evaluated.
       evaluators = rawEvaluators.map((e) => ({
         ...e,
+        evalTemplate: e.evalTemplate!,
         filter: [] as [],
         sampling: new Decimal(1),
       }));

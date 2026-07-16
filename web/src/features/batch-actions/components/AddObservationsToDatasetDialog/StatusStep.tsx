@@ -199,7 +199,7 @@ export function StatusStep({
               <Button
                 className="flex-1"
                 onClick={() =>
-                  void router.push(
+                  router.push(
                     `/project/${projectId}/datasets/${encodeURIComponent(dataset.id)}/items`,
                   )
                 }

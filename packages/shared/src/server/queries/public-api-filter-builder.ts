@@ -10,7 +10,7 @@ import {
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 import { z } from "zod";
-import type { FilterState } from "../../types";
+import type { EventsTableFilterState } from "../../types";
 import type {
   UiColumnMappings,
   ColumnDefinition,
@@ -244,15 +244,11 @@ export function convertApiProvidedFilterToClickhouseFilter(
       let filterInstance;
       switch (columnMapping.filterType) {
         case "DateTimeFilter": {
-          // get filter options from the filterOperators
-          // validate that the user provided operator is in the list of available operators
-          const availableOperators = z.enum(filterOperators.datetime);
-          const parsedOperator = availableOperators.safeParse(filter.operator);
-
-          // otherwise fall back to the operator provided in the column mapping
-          const finalOperator = parsedOperator.success
-            ? parsedOperator.data
-            : columnMapping.operator;
+          // The operator of a datetime column is fixed in the column mapping
+          // (e.g. fromTimestamp => ">=", toTimestamp => "<"). The user-provided
+          // `operator` query param targets the value filter and must not
+          // override it (#8630).
+          const finalOperator = columnMapping.operator;
 
           finalOperator &&
           typeof value === "string" &&
@@ -368,7 +364,7 @@ export function convertApiProvidedFilterToClickhouseFilter(
 export function deriveFilters<T extends BaseQueryType>(
   simpleFilterProps: T,
   filterParamsMapping: ApiColumnMapping[],
-  advancedFilters: FilterState | undefined,
+  advancedFilters: EventsTableFilterState | undefined,
   uiColumnDefinitions: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ): FilterList {

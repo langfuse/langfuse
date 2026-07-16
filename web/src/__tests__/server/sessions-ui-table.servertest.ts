@@ -8,6 +8,7 @@ import {
   createSessionScore,
   createTracesCh,
   getSessionsWithMetrics,
+  getSessionsWithMetricsFromEvents,
   getSessionMetricsFromEvents,
   getSessionsTable,
   getSessionsTableFromEvents,
@@ -21,7 +22,7 @@ import { createTrace } from "@langfuse/shared/src/server";
 import { type FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 
-const isEventsPath = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+const isEventsPath = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
 // Pick the right listing function based on env flag
 const sessionsTable = isEventsPath
@@ -36,16 +37,29 @@ async function sessionsWithMetrics(props: {
   if (!isEventsPath) {
     return getSessionsWithMetrics(props);
   }
-  const idFilter = props.filter.find(
-    (f): f is Extract<FilterState[number], { column: "id" }> =>
-      f.column === "id",
-  );
+  const idFilter = props.filter.find((f) => f.column === "id");
   const sessionIds =
     idFilter && "value" in idFilter ? (idFilter.value as string[]) : [];
   return getSessionMetricsFromEvents({
     projectId: props.projectId,
     sessionIds,
   });
+}
+
+/**
+ * Type-level shim for event fixtures that pass `metadata` (and a stringified
+ * `prompt_version`), which EventRecordInsertType does not model. events_full
+ * has no `metadata` map column — ClickHouse skips unknown JSONEachRow fields
+ * on insert — so the extra key is inert; the cast keeps the fixture unchanged.
+ */
+type EventInsertInput = Parameters<typeof createEvent>[0];
+function asEventInsert(
+  event: Omit<EventInsertInput, "prompt_version"> & {
+    metadata?: Record<string, string>;
+    prompt_version?: string | number | null;
+  },
+): EventInsertInput {
+  return event as unknown as EventInsertInput;
 }
 
 /**
@@ -66,36 +80,38 @@ function buildMatchingEvents(
   // Root events — one per trace.
   for (const t of traces) {
     events.push(
-      createEvent({
-        id: `t-${t.id}`,
-        span_id: `t-${t.id}`,
-        trace_id: t.id,
-        project_id: t.project_id,
-        parent_span_id: "",
-        name: t.name ?? "",
-        type: "SPAN",
-        environment: t.environment,
-        trace_name: t.name ?? "",
-        user_id: t.user_id ?? "",
-        session_id: t.session_id ?? null,
-        tags: t.tags ?? [],
-        release: t.release ?? null,
-        version: t.version ?? null,
-        public: t.public,
-        bookmarked: t.bookmarked,
-        input: t.input ?? null,
-        output: t.output ?? null,
-        metadata: t.metadata ?? {},
-        start_time: t.timestamp * 1000,
-        end_time: null,
-        cost_details: {},
-        provided_cost_details: {},
-        usage_details: {},
-        provided_usage_details: {},
-        created_at: t.created_at * 1000,
-        updated_at: t.updated_at * 1000,
-        event_ts: t.event_ts * 1000,
-      }),
+      createEvent(
+        asEventInsert({
+          id: `t-${t.id}`,
+          span_id: `t-${t.id}`,
+          trace_id: t.id,
+          project_id: t.project_id,
+          parent_span_id: "",
+          name: t.name ?? "",
+          type: "SPAN",
+          environment: t.environment,
+          trace_name: t.name ?? "",
+          user_id: t.user_id ?? "",
+          session_id: t.session_id ?? null,
+          tags: t.tags ?? [],
+          release: t.release ?? null,
+          version: t.version ?? null,
+          public: t.public,
+          bookmarked: t.bookmarked,
+          input: t.input ?? null,
+          output: t.output ?? null,
+          metadata: t.metadata ?? {},
+          start_time: t.timestamp * 1000,
+          end_time: null,
+          cost_details: {},
+          provided_cost_details: {},
+          usage_details: {},
+          provided_usage_details: {},
+          created_at: t.created_at * 1000,
+          updated_at: t.updated_at * 1000,
+          event_ts: t.event_ts * 1000,
+        }),
+      ),
     );
   }
 
@@ -104,47 +120,49 @@ function buildMatchingEvents(
     const traceId = o.trace_id!;
     const t = traceMap.get(traceId)!;
     events.push(
-      createEvent({
-        id: o.id,
-        span_id: o.id,
-        trace_id: traceId,
-        project_id: o.project_id,
-        parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
-        name: o.name ?? "",
-        type: o.type as string,
-        environment: o.environment,
-        trace_name: t.name ?? "",
-        user_id: t.user_id ?? "",
-        session_id: t.session_id ?? undefined,
-        tags: t.tags ?? [],
-        release: t.release ?? null,
-        version: o.version ?? null,
-        level: o.level ?? "DEFAULT",
-        status_message: o.status_message ?? null,
-        provided_model_name: o.provided_model_name ?? null,
-        model_parameters: o.model_parameters ?? "{}",
-        input: o.input ?? null,
-        output: o.output ?? null,
-        metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
-        provided_usage_details: o.provided_usage_details ?? {},
-        usage_details: o.usage_details ?? {},
-        provided_cost_details: o.provided_cost_details ?? {},
-        cost_details: o.cost_details ?? {},
-        prompt_id: o.prompt_id ?? null,
-        prompt_name: o.prompt_name ?? null,
-        prompt_version: o.prompt_version ? String(o.prompt_version) : null,
-        tool_definitions: o.tool_definitions ?? {},
-        tool_calls: o.tool_calls ?? [],
-        tool_call_names: o.tool_call_names ?? [],
-        start_time: o.start_time * 1000,
-        end_time: o.end_time ? o.end_time * 1000 : null,
-        completion_start_time: o.completion_start_time
-          ? o.completion_start_time * 1000
-          : null,
-        created_at: o.created_at * 1000,
-        updated_at: o.updated_at * 1000,
-        event_ts: o.event_ts * 1000,
-      }),
+      createEvent(
+        asEventInsert({
+          id: o.id,
+          span_id: o.id,
+          trace_id: traceId,
+          project_id: o.project_id,
+          parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
+          name: o.name ?? "",
+          type: o.type as string,
+          environment: o.environment,
+          trace_name: t.name ?? "",
+          user_id: t.user_id ?? "",
+          session_id: t.session_id ?? undefined,
+          tags: t.tags ?? [],
+          release: t.release ?? null,
+          version: o.version ?? null,
+          level: o.level ?? "DEFAULT",
+          status_message: o.status_message ?? null,
+          provided_model_name: o.provided_model_name ?? null,
+          model_parameters: o.model_parameters ?? "{}",
+          input: o.input ?? null,
+          output: o.output ?? null,
+          metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
+          provided_usage_details: o.provided_usage_details ?? {},
+          usage_details: o.usage_details ?? {},
+          provided_cost_details: o.provided_cost_details ?? {},
+          cost_details: o.cost_details ?? {},
+          prompt_id: o.prompt_id ?? null,
+          prompt_name: o.prompt_name ?? null,
+          prompt_version: o.prompt_version ? String(o.prompt_version) : null,
+          tool_definitions: o.tool_definitions ?? {},
+          tool_calls: o.tool_calls ?? [],
+          tool_call_names: o.tool_call_names ?? [],
+          start_time: o.start_time * 1000,
+          end_time: o.end_time ? o.end_time * 1000 : null,
+          completion_start_time: o.completion_start_time
+            ? o.completion_start_time * 1000
+            : null,
+          created_at: o.created_at * 1000,
+          updated_at: o.updated_at * 1000,
+          event_ts: o.event_ts * 1000,
+        }),
+      ),
     );
   }
 
@@ -249,6 +267,44 @@ describe("trpc.sessions", () => {
     expect(uiSessions[0].trace_count).toBe(2);
     expect(uiSessions[0].trace_tags).toEqual(["doe", "john"]);
     expect(uiSessions[0].user_ids).toEqual(["user1"]);
+  });
+
+  it("LFE-10268: should GET sessions filtered by session id with 'none of' operator", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const excludedSessionId = v4();
+    const keptSessionId = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: excludedSessionId, projectId },
+        { id: keptSessionId, projectId },
+      ],
+    });
+
+    const traces = [
+      createTrace({ session_id: excludedSessionId, project_id: projectId }),
+      createTrace({ session_id: keptSessionId, project_id: projectId }),
+    ];
+
+    await seedSessionData(traces);
+
+    const uiSessions = await sessionsTable({
+      projectId: projectId,
+      filter: [
+        {
+          column: "id",
+          type: "stringOptions",
+          operator: "none of",
+          value: [excludedSessionId],
+        },
+      ],
+      orderBy: null,
+      limit: 10000,
+      page: 0,
+    });
+
+    expect(uiSessions.length).toBe(1);
+    expect(uiSessions[0].session_id).toBe(keptSessionId);
   });
 
   it("should GET sessions ordered by total cost", async () => {
@@ -588,5 +644,257 @@ describe("trpc.sessions", () => {
 
     expect(tableRows).toHaveLength(1);
     expect(tableRows[0].session_id).toEqual(session_id_with_score);
+  });
+
+  it("should GET correct session data with boolean score filters", async () => {
+    const project_id = v4();
+    const trace_id_with_score = v4();
+    const session_id_with_score = v4();
+    const trace_id_without_score = v4();
+    const session_id_without_score = v4();
+
+    const filterState: FilterState = [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "passes_guardrail",
+        operator: "=",
+        value: true,
+      },
+    ];
+
+    const trace_with_score = createTrace({
+      id: trace_id_with_score,
+      project_id,
+      session_id: session_id_with_score,
+    });
+    const trace_without_score = createTrace({
+      id: trace_id_without_score,
+      project_id,
+      session_id: session_id_without_score,
+    });
+    await seedSessionData([trace_with_score, trace_without_score]);
+
+    await createScoresCh([
+      createSessionScore({
+        project_id,
+        session_id: session_id_with_score,
+        name: "passes_guardrail",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+      }),
+      createSessionScore({
+        project_id,
+        session_id: session_id_without_score,
+        name: "passes_guardrail",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+      }),
+    ]);
+
+    const tableRows = await sessionsTable({
+      projectId: project_id,
+      filter: filterState,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0].session_id).toEqual(session_id_with_score);
+  });
+});
+
+// The events tables only exist where the v4 preview is enabled (CI creates
+// them via ch:dev-tables in the default deploy mode only).
+const maybeEventsTable = isEventsPath ? describe : describe.skip;
+
+maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
+  it("returns equivalent metric fields for the same session data", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const sessionId = v4();
+
+    await prisma.traceSession.create({
+      data: { id: sessionId, projectId },
+    });
+
+    const traces = [
+      createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        user_id: "user1",
+      }),
+      createTrace({
+        session_id: sessionId,
+        project_id: projectId,
+        user_id: "user2",
+      }),
+    ];
+
+    const observations = traces.flatMap((trace) => [
+      createObservation({ trace_id: trace.id, project_id: projectId }),
+      createObservation({ trace_id: trace.id, project_id: projectId }),
+    ]);
+
+    // Seed legacy path (sessions materialized view) and events table in parallel
+    await createTracesCh(traces);
+    await createObservationsCh(observations);
+    await createEventsCh(buildMatchingEvents(traces, observations));
+
+    const filter: FilterState = [];
+
+    const [legacy, fromEvents] = await Promise.all([
+      getSessionsWithMetrics({ projectId, filter }),
+      getSessionsWithMetricsFromEvents({ projectId, filter }),
+    ]);
+
+    expect(legacy).toHaveLength(1);
+    expect(fromEvents).toHaveLength(1);
+
+    const l = legacy[0];
+    const e = fromEvents[0];
+
+    expect(e.session_id).toBe(l.session_id);
+    expect(e.trace_count).toBe(l.trace_count);
+    expect([...e.trace_ids].sort()).toEqual([...l.trace_ids].sort());
+    expect([...e.user_ids].sort()).toEqual([...l.user_ids].sort());
+    expect(e.total_observations).toBe(l.total_observations);
+
+    // Export-critical cost/usage fields (getDatabaseReadStream maps these directly)
+    expect(Number(e.session_input_cost)).toBeCloseTo(
+      Number(l.session_input_cost),
+      4,
+    );
+    expect(Number(e.session_output_cost)).toBeCloseTo(
+      Number(l.session_output_cost),
+      4,
+    );
+    expect(Number(e.session_total_cost)).toBeCloseTo(
+      Number(l.session_total_cost),
+      4,
+    );
+    expect(Number(e.session_input_usage)).toBeCloseTo(
+      Number(l.session_input_usage),
+      0,
+    );
+    expect(Number(e.session_output_usage)).toBeCloseTo(
+      Number(l.session_output_usage),
+      0,
+    );
+    expect(Number(e.session_total_usage)).toBeCloseTo(
+      Number(l.session_total_usage),
+      0,
+    );
+  });
+
+  it("should GET correct session data with boolean score filters from events", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const sessionIdWithTrueScore = v4();
+    const sessionIdWithFalseScore = v4();
+    const sessionIdWithoutScore = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: sessionIdWithTrueScore, projectId },
+        { id: sessionIdWithFalseScore, projectId },
+        { id: sessionIdWithoutScore, projectId },
+      ],
+    });
+
+    const traces = [
+      createTrace({
+        session_id: sessionIdWithTrueScore,
+        project_id: projectId,
+      }),
+      createTrace({
+        session_id: sessionIdWithFalseScore,
+        project_id: projectId,
+      }),
+      createTrace({ session_id: sessionIdWithoutScore, project_id: projectId }),
+    ];
+
+    await createTracesCh(traces);
+    await createEventsCh(buildMatchingEvents(traces, []));
+
+    await createScoresCh([
+      createSessionScore({
+        project_id: projectId,
+        session_id: sessionIdWithTrueScore,
+        name: "passes_guardrail",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+      }),
+      createSessionScore({
+        project_id: projectId,
+        session_id: sessionIdWithFalseScore,
+        name: "passes_guardrail",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+      }),
+    ]);
+
+    const filterState: FilterState = [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "passes_guardrail",
+        operator: "=",
+        value: true,
+      },
+    ];
+
+    const tableRows = await getSessionsTableFromEvents({
+      projectId,
+      filter: filterState,
+      orderBy: null,
+      limit: 10,
+      page: 0,
+    });
+
+    expect(tableRows).toHaveLength(1);
+    expect(tableRows[0].session_id).toEqual(sessionIdWithTrueScore);
+  });
+
+  it("honours the same filter so only the targeted session is returned", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const targetId = v4();
+    const otherId = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: targetId, projectId },
+        { id: otherId, projectId },
+      ],
+    });
+
+    const traces = [
+      createTrace({ session_id: targetId, project_id: projectId }),
+      createTrace({ session_id: otherId, project_id: projectId }),
+    ];
+
+    await createTracesCh(traces);
+    await createEventsCh(buildMatchingEvents(traces, []));
+
+    const filter: FilterState = [
+      {
+        column: "id",
+        type: "stringOptions",
+        operator: "any of",
+        value: [targetId],
+      },
+    ];
+
+    const [legacy, fromEvents] = await Promise.all([
+      getSessionsWithMetrics({ projectId, filter }),
+      getSessionsWithMetricsFromEvents({ projectId, filter }),
+    ]);
+
+    expect(legacy).toHaveLength(1);
+    expect(fromEvents).toHaveLength(1);
+    expect(legacy[0].session_id).toBe(targetId);
+    expect(fromEvents[0].session_id).toBe(targetId);
   });
 });

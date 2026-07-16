@@ -1,4 +1,5 @@
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -9,6 +10,7 @@ import {
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
+  type SessionEventsMetricsRow,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -17,8 +19,11 @@ import {
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
 import { queryClickhouse } from "../repositories";
-import { sessionCols } from "../tableMappings/mapSessionTable";
-import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
+import {
+  sessionEventsCols,
+  sessionEventsOrderByCols,
+} from "../tableMappings/mapSessionTable";
+import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
 
@@ -36,6 +41,7 @@ type SessionEventsBaseReturnType = {
 type SessionScoreFields = {
   scores_avg?: Array<Array<[string, number]>>;
   score_categories?: Array<Array<string>>;
+  score_booleans?: Array<Array<string>>;
 };
 
 export type SessionEventsDataReturnType = SessionEventsBaseReturnType &
@@ -77,12 +83,7 @@ export const getSessionTracesFromEvents = async (props: {
         projectId: props.projectId,
         sessionId: props.sessionId,
       },
-      tags: {
-        feature: "tracing",
-        type: "sessions-traces",
-        projectId: props.projectId,
-        operation_name: "getSessionTracesFromEvents",
-      },
+      tags: { projectId: props.projectId },
     },
     fn: async (input) => {
       return queryClickhouse<{
@@ -123,7 +124,6 @@ export const getSessionsTableCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -144,12 +144,42 @@ export const getSessionsTableFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
     });
 
   return rows.map((row) => ({
     ...row,
     trace_count: Number(row.trace_count),
+  }));
+};
+
+// Single-query equivalent of getSessionsTableFromEvents + getSessionMetricsFromEvents,
+// mirroring the legacy getSessionsWithMetrics. Used by batch export so the metrics
+// aggregation inherits the same filter (incl. the createdAt cutoff) and clickhouseConfigs
+// (extended HTTP timeouts) as the row query, in a single round-trip.
+export const getSessionsWithMetricsFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const rows = await getSessionsTableFromEventsGeneric<SessionEventsMetricsRow>(
+    {
+      select: "metrics",
+      projectId: props.projectId,
+      filter: props.filter,
+      orderBy: props.orderBy,
+      limit: props.limit,
+      page: props.page,
+      clickhouseConfigs: props.clickhouseConfigs,
+    },
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
   }));
 };
 
@@ -171,8 +201,24 @@ const getSessionsTableFromEventsGeneric = async <T>(
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
+  const nullMetadataFilter = filter.find(
+    (candidate) =>
+      candidate.type === "null" &&
+      findUiColumnMapping(sessionEventsCols, candidate.column)?.uiTableId ===
+        "metadata",
+  );
+  if (nullMetadataFilter) {
+    throw new InvalidRequestError(
+      `Invalid filter type 'null' for column '${nullMetadataFilter.column}'. Expected filter type 'stringObject'.`,
+    );
+  }
+
   const sessionFilters = new FilterList(
-    createFilterFromFilterState(filter, sessionCols, sessionsViewCols),
+    createFilterFromFilterState(
+      filter,
+      sessionEventsCols,
+      sessionsEventsViewCols,
+    ),
   );
   const sessionsFilterRes = sessionFilters.apply();
 
@@ -182,14 +228,24 @@ const getSessionsTableFromEventsGeneric = async <T>(
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // Only push the session_id filter into the inner aggregation CTE for
+  // "any of": withSessionIds always emits `session_id IN (...)`, which would
+  // contradict the outer `NOT IN (...)` for "none of" and yield empty results.
   const sessionIdFilter = sessionFilters.find(
-    (f) => f instanceof StringOptionsFilter && f.field === "session_id",
+    (f) =>
+      f instanceof StringOptionsFilter &&
+      f.field === "session_id" &&
+      f.operator === "any of",
   ) as StringOptionsFilter | undefined;
 
   const requiresScoresJoin =
     sessionFilters.some((f) => f.clickhouseTable === "scores") ||
-    findUiColumnMapping(sessionCols, orderBy?.column)?.clickhouseTableName ===
-      "scores";
+    findUiColumnMapping(sessionEventsOrderByCols, orderBy?.column)
+      ?.clickhouseTableName === "scores";
+  const requiresMetadata = sessionFilters.some(
+    (filter) =>
+      filter.clickhouseTable === "events_proto" && filter.field === "metadata",
+  );
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -198,6 +254,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
     startTimeFrom: traceTimestampFilter
       ? convertDateToClickhouseDateTime(traceTimestampFilter.value)
       : null,
+    includeMetadata: requiresMetadata,
   });
 
   // Compose query using CTEQueryBuilder
@@ -255,7 +312,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
           "s.session_output_usage",
           "s.session_total_usage",
         )
-        .select("sc.scores_avg", "sc.score_categories");
+        .select("sc.scores_avg", "sc.score_categories", "sc.score_booleans");
       break;
     default: {
       const exhaustiveCheckDefault: never = select;
@@ -268,7 +325,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     queryBuilder.whereRaw(sessionsFilterRes.query, sessionsFilterRes.params);
   }
 
-  const orderBySql = orderByToClickhouseSql(orderBy ?? null, sessionCols);
+  const orderBySql = orderByToClickhouseSql(
+    orderBy ?? null,
+    sessionEventsOrderByCols,
+  );
   if (orderBySql) {
     queryBuilder.orderBy(orderBySql);
   }
@@ -287,13 +347,7 @@ const getSessionsTableFromEventsGeneric = async <T>(
         ...params,
         projectId,
       },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableFromEventsGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({

@@ -1,6 +1,7 @@
 import { EnvLabel } from "@/src/components/EnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
+import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -39,6 +40,9 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
+  /** Rich title rendering (e.g. inline-editable); replaces the plain title
+   * span inside the heading. `title` stays the canonical string. */
+  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -56,6 +60,7 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
+  titleContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -84,23 +89,38 @@ const PageHeader = ({
         <div className="border-b">
           <div
             className={cn(
-              "flex min-h-11 items-center gap-3 px-3 py-2",
+              // py-1.5 (not py-2) so a 32px control in the right-aligned slot
+              // fits inside the 44px (min-h-11) row without growing it; the
+              // min-height keeps rows without controls at the same height.
+              // justify-between (not ml-auto on the slot) so the controls sit
+              // right when the row fits on one line but fall back to the LEFT
+              // edge when they wrap to their own line on narrow viewports (a
+              // line with a single flex item renders as flex-start).
+              "flex min-h-11 flex-wrap items-center justify-between gap-3 px-3 py-1.5",
               container && containerLayoutClassName,
             )}
           >
-            {showSidebarTrigger ? (
-              <SidebarTrigger />
-            ) : (
-              leadingControl && (
-                <div className="flex items-center">{leadingControl}</div>
-              )
-            )}
-            <div>
-              <EnvLabel />
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              {showSidebarTrigger ? (
+                <SidebarTrigger />
+              ) : (
+                leadingControl && (
+                  <div className="flex items-center">{leadingControl}</div>
+                )
+              )}
+              <div>
+                <EnvLabel />
+              </div>
+              <div className="flex items-center gap-2">
+                <BreadcrumbComponent items={breadcrumb} />
+                {breadcrumbBadges}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <BreadcrumbComponent items={breadcrumb} />
-              {breadcrumbBadges}
+            {/* Slot for page-level controls (time range, auto-refresh)
+                hoisted from a list table via PageHeaderControlsPortal.
+                Empty on pages that don't use it. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <PageHeaderControlsSlotTarget />
             </div>
           </div>
         </div>
@@ -123,7 +143,9 @@ const PageHeader = ({
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
-                    {titleTooltip ? (
+                    {titleContent ? (
+                      titleContent
+                    ) : titleTooltip ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -132,16 +154,6 @@ const PageHeader = ({
                               data-testid="page-header-title"
                             >
                               {title}
-                              {help && (
-                                <span className="whitespace-nowrap">
-                                  &nbsp;
-                                  <DocPopup
-                                    description={help.description}
-                                    href={help.href}
-                                    className={help.className}
-                                  />
-                                </span>
-                              )}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" className="max-w-xs">
@@ -156,16 +168,16 @@ const PageHeader = ({
                         data-testid="page-header-title"
                       >
                         {title}
-                        {help && (
-                          <span className="whitespace-nowrap">
-                            &nbsp;
-                            <DocPopup
-                              description={help.description}
-                              href={help.href}
-                              className={help.className}
-                            />
-                          </span>
-                        )}
+                      </span>
+                    )}
+                    {help && (
+                      <span className="whitespace-nowrap">
+                        &nbsp;
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          className={help.className}
+                        />
                       </span>
                     )}
                   </h2>
@@ -183,8 +195,10 @@ const PageHeader = ({
               )}
             </div>
 
-            {/* Right side content */}
-            <div className="ml-auto flex grow flex-wrap items-center justify-end gap-1">
+            {/* Right side content — right-aligned by the row's
+                justify-between while it shares the line with the title;
+                left-aligned once it wraps to its own line. */}
+            <div className="flex flex-wrap items-center gap-1">
               {actionButtonsRight}
             </div>
           </div>
@@ -199,9 +213,9 @@ const PageHeader = ({
               >
                 {tabsProps.tabs.map((tab) => {
                   const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                     tab.value === tabsProps.activeTab
-                      ? "border-primary-accent bg-transparent shadow-none"
+                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
                       : "",
                     tab.disabled && "pointer-events-none opacity-50",
                     tab.className,

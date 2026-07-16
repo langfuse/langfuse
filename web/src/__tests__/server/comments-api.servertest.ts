@@ -59,6 +59,7 @@ describe("Create and get comments", () => {
   });
 
   it("should fail to create comment if reference object does not exist", async () => {
+    expect.assertions(2); // Ensure that we confirm two things
     try {
       await makeZodVerifiedAPICall(
         z.object({
@@ -75,8 +76,11 @@ describe("Create and get comments", () => {
         },
       );
     } catch (error) {
-      expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 404, body {\"message\":\"Reference object, TRACE: invalid-trace-id not found in Clickhouse. Skipping creating comment.\",\"error\":\"LangfuseNotFoundError\"}`,
+      expect((error as Error).message).toContain(
+        `API call did not return 200, returned status 404`,
+      );
+      expect((error as Error).message).toContain(
+        `TRACE: invalid-trace-id not found`,
       );
     }
   });

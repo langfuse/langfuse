@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("Langfuse context propagation", () => {
-  it("adds api key id to span attributes and baggage", () => {
+  it("adds api key metadata to span attributes and baggage", () => {
     const span = {
       setAttribute: vi.fn(),
     } as unknown as Span;
@@ -18,6 +18,7 @@ describe("Langfuse context propagation", () => {
           orgId: "org-1",
           plan: "cloud:hobby",
           apiKeyId: "api-key-1",
+          publicKey: "pk-lf-1",
         },
         span,
       );
@@ -31,6 +32,15 @@ describe("Langfuse context propagation", () => {
           .getBaggage(ctx!)
           ?.getEntry("langfuse.api_key.id")?.value,
       ).toBe("api-key-1");
+      expect(span.setAttribute).toHaveBeenCalledWith(
+        "langfuse.api_key.public_key",
+        "pk-lf-1",
+      );
+      expect(
+        opentelemetry.propagation
+          .getBaggage(ctx!)
+          ?.getEntry("langfuse.api_key.public_key")?.value,
+      ).toBe("pk-lf-1");
     });
   });
 
@@ -45,6 +55,28 @@ describe("Langfuse context propagation", () => {
 
       expect(baggage?.getEntry("langfuse.project.id")?.value).toBe("project-1");
       expect(baggage?.getEntry("langfuse.api_key.id")?.value).toBe("api-key-1");
+    });
+  });
+
+  it("adds clickhouse request metadata to context baggage", () => {
+    opentelemetry.context.with(opentelemetry.ROOT_CONTEXT, () => {
+      const ctx = contextWithLangfuseProps({
+        projectId: "project-1",
+        clickhouse: {
+          surface: "publicapi",
+          route: "GET /api/public/traces",
+        },
+      });
+
+      const baggage = opentelemetry.propagation.getBaggage(ctx);
+
+      expect(baggage?.getEntry("langfuse.project.id")?.value).toBe("project-1");
+      expect(baggage?.getEntry("langfuse.clickhouse.surface")?.value).toBe(
+        "publicapi",
+      );
+      expect(baggage?.getEntry("langfuse.clickhouse.route")?.value).toBe(
+        "GET /api/public/traces",
+      );
     });
   });
 });

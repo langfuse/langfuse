@@ -3,6 +3,12 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role, type Plan } from "@langfuse/shared";
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionProject = SessionUser["organizations"][number]["projects"][number];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import { v4 as uuidv4 } from "uuid";
 
 async function createTestOrg(plan: Plan) {
@@ -71,6 +77,7 @@ function createSession(
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: project.id,
@@ -79,14 +86,14 @@ function createSession(
               deletedAt: null,
               name: project.name,
               metadata: {},
-            },
+            } as SessionProject,
           ],
         },
       ],
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
-      },
+      } as SessionFeatureFlags,
       admin: false, // Not admin to test actual limits
     },
     environment: {
@@ -527,5 +534,83 @@ describe("membersRouter.updateProjectRole - audit log state capture", () => {
     });
 
     expect(logs.map((l) => l.action)).toEqual(["create", "update", "delete"]);
+  });
+});
+
+describe("membersRouter.updateProjectRole - orgMembership/userId consistency", () => {
+  it("rejects a mismatched orgMembershipId / userId pair with BAD_REQUEST and writes nothing", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+
+    // The org member who actually owns the targeted org membership.
+    const targetUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+
+    // A different, unrelated user whose id the caller tries to smuggle in.
+    // Project access is resolved via orgMembershipId, so accepting this would
+    // grant the role to targetUser while recording it against otherUser in both
+    // the ProjectMembership row and the audit log.
+    const otherUser = await createTestUser();
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: orgMembership.id,
+        userId: otherUser.id,
+        projectId: project.id,
+        projectRole: Role.ADMIN,
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    // No ProjectMembership row and no audit log entry should have been written.
+    const rows = await prisma.projectMembership.findMany({
+      where: { projectId: project.id },
+    });
+    expect(rows).toHaveLength(0);
+
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        orgId: org.id,
+        resourceType: "projectMembership",
+        resourceId: `${project.id}--${otherUser.id}`,
+      },
+    });
+    expect(logs).toHaveLength(0);
+  });
+
+  it("allows a matching orgMembershipId / userId pair", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+
+    const targetUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: {
+        userId: targetUser.id,
+        orgId: org.id,
+        role: Role.MEMBER,
+      },
+    });
+
+    await expect(
+      caller.members.updateProjectRole({
+        orgId: org.id,
+        orgMembershipId: orgMembership.id,
+        userId: targetUser.id,
+        projectId: project.id,
+        projectRole: Role.ADMIN,
+      }),
+    ).resolves.toMatchObject({ userId: targetUser.id, role: Role.ADMIN });
+
+    const row = await prisma.projectMembership.findUnique({
+      where: {
+        projectId_userId: { projectId: project.id, userId: targetUser.id },
+      },
+    });
+    expect(row?.role).toBe(Role.ADMIN);
+    expect(row?.orgMembershipId).toBe(orgMembership.id);
   });
 });

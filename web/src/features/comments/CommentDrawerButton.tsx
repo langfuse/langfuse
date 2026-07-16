@@ -10,7 +10,10 @@ import {
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type CommentObjectType } from "@langfuse/shared";
-import { MessageCircleIcon, MessageCircleOff } from "lucide-react";
+// LFE-7628: general (trace/observation/session) comments use a square speech
+// bubble to stay visually distinct from per-score comments, which use the round
+// MessageCircle bubble in the annotation form.
+import { MessageSquare, MessageSquareOff } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
@@ -25,6 +28,7 @@ export function CommentDrawerButton({
   size = "default",
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,
 }: {
@@ -37,6 +41,7 @@ export function CommentDrawerButton({
   size?: ButtonProps["size"];
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -111,7 +116,7 @@ export function CommentDrawerButton({
         className={className}
         disabled
       >
-        <MessageCircleOff
+        <MessageSquareOff
           className={
             size === "sm"
               ? "text-muted-foreground h-3.5 w-3.5"
@@ -162,7 +167,7 @@ export function CommentDrawerButton({
         >
           {!!count ? (
             <div className="flex items-center gap-1">
-              <MessageCircleIcon
+              <MessageSquare
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
               <span>Add comment</span>
@@ -172,7 +177,7 @@ export function CommentDrawerButton({
             </div>
           ) : (
             <div className="flex items-center gap-1">
-              <MessageCircleIcon
+              <MessageSquare
                 className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
               />
               <span>Add comment</span>
@@ -180,7 +185,10 @@ export function CommentDrawerButton({
           )}
         </Button>
       </DrawerTrigger>
-      <DrawerContent overlayClassName="bg-primary/10">
+      <DrawerContent
+        overlayClassName="bg-primary/10"
+        className="h-screen-with-banner max-h-screen-with-banner overflow-hidden"
+      >
         <div
           className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
           tabIndex={-1}
@@ -197,7 +205,10 @@ export function CommentDrawerButton({
               <Header title="Comments"></Header>
             </DrawerTitle>
           </DrawerHeader>
-          <div data-vaul-no-drag className="min-h-0 flex-1 px-2 pt-2">
+          <div
+            data-vaul-no-drag
+            className="min-h-0 flex-1 overflow-hidden px-2 py-2"
+          >
             <CommentList
               projectId={projectId}
               objectId={objectId}
@@ -206,6 +217,7 @@ export function CommentDrawerButton({
               isDrawerOpen={isDrawerOpen}
               pendingSelection={pendingSelection}
               onSelectionUsed={onSelectionUsed}
+              onCommentChange={onCommentChange}
             />
           </div>
         </div>

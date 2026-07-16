@@ -28,7 +28,7 @@ export default function NewWidget() {
       });
 
       if (dashboardId) {
-        void router.push(
+        router.push(
           `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
         );
       } else {

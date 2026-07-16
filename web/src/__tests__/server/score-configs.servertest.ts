@@ -126,6 +126,50 @@ describe("/api/public/score-configs API Endpoint", () => {
     });
   });
 
+  it("should paginate score configs deterministically when createdAt timestamps tie", async () => {
+    const configIDs = [v4(), v4(), v4()];
+    const sharedCreatedAt = new Date("2100-05-12T00:00:00.000Z");
+
+    await prisma.scoreConfig.createMany({
+      data: configIDs.map((id, index) => ({
+        id,
+        projectId,
+        name: `tie-config-${index}-${id.slice(0, 8)}`,
+        description: `tie config ${index}`,
+        dataType: ScoreConfigDataType.NUMERIC,
+        minValue: index,
+        maxValue: index + 1,
+        createdAt: sharedCreatedAt,
+        updatedAt: sharedCreatedAt,
+      })),
+    });
+
+    const firstPage = await makeZodVerifiedAPICall(
+      GetScoreConfigsResponse,
+      "GET",
+      "/api/public/score-configs?limit=2&page=1",
+      undefined,
+      auth,
+    );
+    const secondPage = await makeZodVerifiedAPICall(
+      GetScoreConfigsResponse,
+      "GET",
+      "/api/public/score-configs?limit=2&page=2",
+      undefined,
+      auth,
+    );
+
+    expect(firstPage.status).toBe(200);
+    expect(secondPage.status).toBe(200);
+
+    const tiedIDs = [...firstPage.body.data, ...secondPage.body.data]
+      .filter((config) => config.id && configIDs.includes(config.id))
+      .map((config) => config.id);
+
+    expect(tiedIDs).toEqual(configIDs.slice().sort());
+    expect(new Set(tiedIDs).size).toBe(configIDs.length);
+  });
+
   it("test invalid config id input", async () => {
     const configId = "invalid-config-id";
 

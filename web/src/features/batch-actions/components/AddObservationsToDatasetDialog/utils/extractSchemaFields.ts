@@ -60,7 +60,7 @@ type JSONSchemaObject = {
  */
 export function extractSchemaFields(
   schema: unknown,
-  maxDepth: number = 3,
+  maxDepth = 3,
 ): SchemaField[] {
   if (!isJsonSchemaObject(schema)) {
     return [];

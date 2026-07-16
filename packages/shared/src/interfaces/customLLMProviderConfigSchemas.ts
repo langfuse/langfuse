@@ -11,6 +11,23 @@ export const VERTEXAI_USE_DEFAULT_CREDENTIALS =
 export const BedrockConfigSchema = z.object({ region: z.string() });
 export type BedrockConfig = z.infer<typeof BedrockConfigSchema>;
 
+export const LLMConnectionConfigValueSchema = z.union([
+  z.string(),
+  z.boolean(),
+]);
+export const LLMConnectionConfigSchema = z.record(
+  z.string(),
+  LLMConnectionConfigValueSchema,
+);
+export type LLMConnectionConfig = z.infer<typeof LLMConnectionConfigSchema>;
+
+export const OpenAIConfigSchema = z
+  .object({
+    useResponsesApi: z.boolean().default(false),
+  })
+  .strict();
+export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;
+
 export const BedrockAccessKeysSchema = z
   .object({
     accessKeyId: z.string().min(1),

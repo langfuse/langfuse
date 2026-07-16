@@ -10,6 +10,7 @@ import {
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -31,6 +32,7 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  orderByTimestamp?: boolean;
   /**
    * Whether to use truncated I/O (events_core) or full I/O (events_full).
    * Default is false (full) for better compatibility.
@@ -59,10 +61,26 @@ export const eventsTracesAggregation = (
     .withStartTimeFrom(params.startTimeFrom)
     .withTruncated(params.truncated ?? false);
 
-  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  if (params.orderByTimestamp ?? true) {
+    builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  }
 
   return builder;
 };
+
+/**
+ * Aggregation expression producing a `score_booleans` array with entries
+ * encoded as `<name>:true|false` (lowercased via lowerUTF8). This is the
+ * producer half of a wire contract: `BooleanObjectFilter` and
+ * `InMemoryFilterService` build the same strings via `encodeBooleanScoreEntry`
+ * and do `has()` membership checks — every producer must use this fragment so
+ * the encoding cannot drift. groupUniqArrayIf (not groupArrayIf) because
+ * consumers only check existence, and dedup bounds the aggregation state to
+ * 2 × distinct boolean score names even when the surrounding GROUP BY keeps
+ * per-row columns like `id` or `comment`.
+ */
+export const scoreBooleansAggregation = (columnPrefix = ""): string =>
+  `groupUniqArrayIf(concat(${columnPrefix}name, ':', lowerUTF8(${columnPrefix}string_value)), ${columnPrefix}data_type = 'BOOLEAN' AND notEmpty(${columnPrefix}string_value))`;
 
 interface BaseScoresParams {
   projectId: string;
@@ -120,7 +138,9 @@ export const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories,
+        -- BOOLEAN scores also stay in scores_avg for legacy numeric filters; true/false filters need raw-value existence instead of avg(value).
+        ${scoreBooleansAggregation()} AS score_booleans${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
       FROM (
         SELECT
           ${primaryKey},
@@ -239,11 +259,15 @@ export const eventsSessionsAggregation = (params: {
   projectId: string;
   sessionIds?: string[];
   startTimeFrom?: string | null;
+  includeMetadata?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("all")
+    .selectFieldSet("base")
+    .when(Boolean(params.includeMetadata), (builder) =>
+      builder.selectFieldSet("metadata"),
+    )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
     .whereRaw("session_id != ''");
@@ -320,7 +344,8 @@ export const eventsSessionScoresAggregation = (params: {
       groupArrayIf(
         concat(name, ':', string_value),
         data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         project_id,
@@ -351,6 +376,7 @@ export const eventsSessionScoresAggregation = (params: {
       "score_session_id",
       "scores_avg",
       "score_categories",
+      "score_booleans",
     ],
   };
 };
@@ -366,6 +392,54 @@ export const eventsExperimentTraceIds = (
   eventsExperiments({ projectId })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
+
+export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const isTraceLevel = params.level === "trace";
+  const observationFilter = isTraceLevel
+    ? "AND observation_id IS NULL"
+    : "AND observation_id IS NOT NULL";
+
+  const query = `
+    SELECT
+      project_id,
+      trace_id,
+      observation_id,
+      name,
+      source,
+      data_type,
+      string_value
+    FROM scores s
+    WHERE
+      project_id = {projectId: String}
+      AND trace_id != ''
+      ${observationFilter}
+      AND data_type IN ({dataTypes: Array(String)})
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+  `.trim();
+
+  return {
+    query,
+    params: queryParams,
+    schema: [
+      "project_id",
+      "trace_id",
+      "observation_id",
+      "name",
+      "source",
+      "data_type",
+      "string_value",
+    ],
+  };
+};
 
 export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {

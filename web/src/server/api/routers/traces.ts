@@ -10,6 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
+  BatchTableNames,
   BatchExportTableName,
   BatchActionType,
   ActionId,
@@ -32,6 +33,7 @@ import {
   getTracesTableCount,
   getScoresForTraces,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getTracesGroupedByName,
   getTracesGroupedByTags,
   getObservationsForTrace,
@@ -39,7 +41,7 @@ import {
   logger,
   upsertTrace,
   convertTraceDomainToClickhouse,
-  hasAnyTrace,
+  hasAnyTracingData,
   traceDeletionProcessor,
   getTracesTableMetrics,
   getCategoricalScoresGroupedByName,
@@ -54,6 +56,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
@@ -66,12 +69,14 @@ import {
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
-const TraceFilterOptions = z.object({
+const TraceCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   searchQuery: z.string().nullable(),
   searchType: z.array(TracingSearchType),
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+});
+const TraceFilterOptions = TraceCountOptions.extend({
   ...paginationZod,
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;
@@ -102,8 +107,8 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Check if there are any traces in the database
-      const hasTraces = await hasAnyTrace(input.projectId);
+      // Check if there is any tracing data in the database
+      const hasTraces = await hasAnyTracingData(input.projectId);
 
       if (hasTraces) {
         return true;
@@ -125,6 +130,12 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -139,8 +150,8 @@ export const traceRouter = createTRPCRouter({
       const traces = await getTracesTable({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchQuery: input.searchQuery ?? undefined,
-        searchType: input.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         orderBy: normalizeOrderByForTable({
           orderBy: input.orderBy,
           expectedTimeColumn: "timestamp",
@@ -151,8 +162,14 @@ export const traceRouter = createTRPCRouter({
       return { traces };
     }),
   countAll: protectedProjectProcedure
-    .input(TraceFilterOptions)
+    .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -167,8 +184,8 @@ export const traceRouter = createTRPCRouter({
       const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchType: input.searchType,
-        searchQuery: input.searchQuery ?? undefined,
+        searchType: search.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
         limit: 1,
         page: 0,
       });
@@ -279,6 +296,7 @@ export const traceRouter = createTRPCRouter({
       const [
         numericScoreNames,
         categoricalScoreNames,
+        booleanScoreNames,
         traceNames,
         tags,
         userIds,
@@ -289,6 +307,7 @@ export const traceRouter = createTRPCRouter({
           input.projectId,
           traceScopedScoreFilters,
         ),
+        getBooleanScoresGroupedByName(input.projectId, traceScopedScoreFilters),
         getTracesGroupedByName(
           input.projectId,
           tracesTableUiColumnDefinitions,
@@ -318,6 +337,7 @@ export const traceRouter = createTRPCRouter({
         name: traceNames.map((n) => ({ value: n.name, count: n.count })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
+        score_booleans: booleanScoreNames.map((s) => s.name),
         tags: tags,
         users: userIds.map((u) => ({
           value: u.user,
@@ -340,6 +360,12 @@ export const traceRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx }) => {
+      if (!ctx.trace) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Trace not found",
+        });
+      }
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,
@@ -449,6 +475,43 @@ export const traceRouter = createTRPCRouter({
       });
 
       if (input.isBatchAction && input.query) {
+        // Comment filters (commentCount/commentContent in both the v3 traces
+        // and v4 events views) resolve via Postgres lookups at read time
+        // (applyCommentFilters); when the worker translates the stored
+        // filters into ClickHouse SQL, these columns map to a nonexistent
+        // "comments" table and would deterministically fail every batch, so
+        // reject them at dispatch.
+        const hasCommentFilter = (input.query.filter ?? []).some(
+          (f) => f.column === "commentCount" || f.column === "commentContent",
+        );
+        if (hasCommentFilter) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Batch deletion does not support comment filters. Remove the comment filter and try again.",
+          });
+        }
+
+        // Decide here whether this delete reads from the events table: the
+        // v4 events view sets query.useEventsTable: true, which we honor
+        // after checking the events view is actually available to this user
+        // (v4 beta flag, or the instance-wide preview opt-in). In every
+        // other case createBatchActionJob infers the choice from the user's
+        // v4 beta flag.
+        const declaresEventsTable = input.query.useEventsTable === true;
+        if (declaresEventsTable) {
+          const eventsSurfaceAvailable =
+            ctx.session.user.v4BetaEnabled === true ||
+            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          if (!eventsSurfaceAvailable) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "Events-backed batch deletion is not available for this user on this instance.",
+            });
+          }
+        }
+
         await createBatchActionJob({
           projectId: input.projectId,
           actionId: ActionId.TraceDelete,
@@ -456,6 +519,7 @@ export const traceRouter = createTRPCRouter({
           tableName: BatchExportTableName.Traces,
           session: ctx.session,
           query: input.query,
+          useEventsTableOverride: declaresEventsTable ? true : undefined,
         });
       } else {
         await Promise.all(
@@ -497,10 +561,10 @@ export const traceRouter = createTRPCRouter({
 
         let trace;
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "tracing-trpc",
         });
         if (clickhouseTrace) {
           trace = clickhouseTrace;
@@ -508,7 +572,7 @@ export const traceRouter = createTRPCRouter({
           const promises = [
             upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
           ];
-          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
             promises.push(
               updateEvents(
                 input.projectId,
@@ -555,10 +619,10 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "tracing-trpc",
         });
         if (!clickhouseTrace) {
           logger.error(
@@ -573,7 +637,7 @@ export const traceRouter = createTRPCRouter({
         const promises = [
           upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
         ];
-        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
           promises.push(
             updateEvents(
               input.projectId,

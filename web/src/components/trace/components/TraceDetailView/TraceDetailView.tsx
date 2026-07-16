@@ -12,7 +12,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { api } from "@/src/utils/api";
@@ -189,11 +189,11 @@ export function TraceDetailView({
   const showTabsBar = showLogViewTab || showScoresTab;
 
   const refreshTraceScores = useCallback(() => {
-    void utils.traces.byIdWithObservationsAndScores.invalidate({
+    utils.traces.byIdWithObservationsAndScores.invalidate({
       projectId,
       traceId: trace.id,
     });
-    void utils.events.scoresForTrace.invalidate({
+    utils.events.scoresForTrace.invalidate({
       projectId,
       traceId: trace.id,
     });

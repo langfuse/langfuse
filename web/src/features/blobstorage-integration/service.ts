@@ -4,7 +4,8 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
-  type BlobStorageIntegrationFileType,
+  validateExportSource,
+  BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -22,7 +23,9 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to PARQUET on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
@@ -43,7 +46,7 @@ function resolveExportStartDate(params: {
       return null;
     default: {
       const _exhaustive: never = params.exportMode;
-      void _exhaustive;
+      _exhaustive;
       return null;
     }
   }
@@ -58,12 +61,21 @@ export async function upsertBlobStorageIntegration(params: {
   // Evaluated inside the transaction so the row-state check and the INSERT are
   // atomic — no TOCTOU window.
   forceEventsOnCreate?: boolean;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch refuses a legacy export source (throws). Evaluated in-transaction so
+  // a concurrent DELETE between the router's pre-flight read and this upsert
+  // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
+  // forceEventsOnCreate; set by both the tRPC and REST paths on Cloud.
+  refuseLegacyOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
+
+  const accessKeyId = data.accessKeyId?.trim() || null;
+  const secretAccessKey = data.secretAccessKey?.trim() || null;
 
   if (data.endpoint) {
     try {
@@ -75,7 +87,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
   }
 
-  if (!canUseHostCredentials && !data.accessKeyId) {
+  if (!canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -91,7 +103,7 @@ export async function upsertBlobStorageIntegration(params: {
     bucketName: data.bucketName,
     endpoint: data.endpoint,
     region: data.region,
-    accessKeyId: data.accessKeyId,
+    accessKeyId,
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,
     enabled: data.enabled,
@@ -107,14 +119,14 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      select: { exportMode: true, lastError: true, runStartedAt: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =
-        canUseHostCredentials && (!data.accessKeyId || !data.secretAccessKey);
-      if (!isUsingHostCredentials && !data.secretAccessKey) {
+        canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+      if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
         );
@@ -122,9 +134,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const encryptedSecret = data.secretAccessKey
-      ? encrypt(data.secretAccessKey)
-      : null;
+    const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // exportSource for the CREATE payload. The !existing guard was previously
     // here, but it created a residual TOCTOU: READ COMMITTED isolation means
@@ -141,11 +151,15 @@ export async function upsertBlobStorageIntegration(params: {
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
 
-    return tx.blobStorageIntegration.upsert({
+    const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
         exportSource: createExportSource,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -154,11 +168,40 @@ export async function upsertBlobStorageIntegration(params: {
         // Only overwrite secretAccessKey when a new value is provided,
         // so partial updates don't wipe the existing encrypted secret.
         ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        // Schedule an immediate retry when saving an errored integration
+        // so the scheduler picks it up via the nextSyncAt clause.
+        ...(existing?.lastError && data.enabled && !modeChanged
+          ? { nextSyncAt: new Date() }
+          : {}),
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
+        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        runStartedAt: null,
       },
     });
+
+    // Race-free backstop over the *persisted* row. The pre-flight `existing`
+    // snapshot (and the router's pre-flight gate) are racy under READ
+    // COMMITTED: a concurrent DELETE can flip this upsert to a CREATE after
+    // those reads. `result.createdAt` reflects the actual CREATE/UPDATE
+    // outcome (CREATE → now(); UPDATE → preserved), so validating it catches a
+    // brand-new post-cutoff Cloud row born with a legacy source and rolls the
+    // transaction back. See export-source-policy.ts.
+    const backstop = validateExportSource(result.exportSource, {
+      isCloud: !isSelfHosted,
+      enrichedAvailable: true,
+      integrationCreatedAt: params.refuseLegacyOnCreate
+        ? result.createdAt
+        : undefined,
+    });
+    if (!backstop.ok) {
+      throw new InvalidRequestError(backstop.message);
+    }
+
+    return result;
   });
 }

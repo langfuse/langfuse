@@ -2,6 +2,7 @@ import { env } from "../../env";
 import {
   type OutboundUrlConnectionValidationOptions,
   type OutboundUrlValidationWhitelist,
+  OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
@@ -15,8 +16,15 @@ const STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhitelist = {
   ip_ranges: [],
 };
 
+function isLangfuseCloudEndpointValidationEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
+  );
+}
+
 export function blobStorageEndpointWhitelistFromEnv(): OutboundUrlValidationWhitelist {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (isLangfuseCloudEndpointValidationEnabled()) {
     return STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST;
   }
 
@@ -40,11 +48,15 @@ export async function validateBlobStorageEndpoint(
   const url = parseOutboundUrl(endpoint);
 
   if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS protocols are allowed");
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      "Only HTTP and HTTPS protocols are allowed",
+    );
   }
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
-    throw new Error(
+  if (isLangfuseCloudEndpointValidationEnabled() && url.protocol !== "https:") {
+    throw new OutboundUrlValidationError(
+      "https-required",
       "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
     );
   }
@@ -59,9 +71,21 @@ export async function validateBlobStorageEndpoint(
       shouldSkipDnsCheckForLiteralIps: true,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Validation failed";
-    throw new Error(`${message}${getSelfHostedWhitelistGuidance()}`);
+    // Re-wrap to append self-hosted guidance while preserving the validation
+    // `code` so the worker's customer-fault classifier still recognises the
+    // rejection. Do not chain `cause`: the guidance-suffixed message is the
+    // authoritative one, and downstream formatters (worker
+    // extractStorageErrorMessage, tRPC getErrorMessage) prefer a cause's
+    // message and would otherwise drop the guidance / duplicate the text.
+    // Unexpected non-validation errors pass through untouched so they are not
+    // misclassified as customer faults.
+    if (error instanceof OutboundUrlValidationError) {
+      throw new OutboundUrlValidationError(
+        error.code,
+        `${error.message}${getSelfHostedWhitelistGuidance()}`,
+      );
+    }
+    throw error;
   }
 }
 
@@ -83,7 +107,7 @@ export function blobStorageEndpointConnectionValidationOptions(
 function getEffectiveWhitelist(
   whitelist: OutboundUrlValidationWhitelist,
 ): OutboundUrlValidationWhitelist {
-  return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  return isLangfuseCloudEndpointValidationEnabled()
     ? STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST
     : whitelist;
 }
@@ -91,7 +115,7 @@ function getEffectiveWhitelist(
 function isBlobStorageEndpointValidationEnabled(
   whitelist: OutboundUrlValidationWhitelist,
 ): boolean {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  if (isLangfuseCloudEndpointValidationEnabled()) return true;
 
   // Compatibility rollout: self-hosted deployments may already point blob
   // exports at private MinIO/Azure endpoints. Keep the stricter SSRF/rebind
@@ -106,7 +130,7 @@ function isBlobStorageEndpointValidationEnabled(
 }
 
 function getSelfHostedWhitelistGuidance(): string {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "";
+  if (isLangfuseCloudEndpointValidationEnabled()) return "";
 
   return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

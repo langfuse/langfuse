@@ -1,21 +1,23 @@
 import {
   type Observation,
+  commaSeparatedEnumArray,
   type EventsObservation,
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
+  eventsTableSingleFilter,
+  optionalCommaSeparatedStringArray,
+  optionalJsonParam,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
+  type ObservationFieldGroupPublicApi,
 } from "@langfuse/shared";
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
   type ObservationPriceFields,
 } from "@langfuse/shared/src/server";
-import {
-  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
-  type ObservationFieldGroupPublicApi,
-} from "@langfuse/shared";
 import { z } from "zod";
 import { useEventsTableSchema } from "@langfuse/shared/query";
 
@@ -226,20 +228,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(singleFilter), "filter"),
 });
 export const GetObservationsV1Response = z
   .object({
@@ -315,35 +304,14 @@ export const encodeCursor = (
 export const GetObservationsV2Query = z.object({
   // Field groups parameter (optional - defaults to all groups)
   // Comma-separated list of field groups: fields=basic,metadata,io
-  fields: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      return v
-        .split(",")
-        .map((f) => f.trim())
-        .filter((f): f is ObservationFieldGroupPublicApi =>
-          OBSERVATION_FIELD_GROUPS_PUBLIC_API.includes(
-            f as ObservationFieldGroupPublicApi,
-          ),
-        );
-    })
-    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS_PUBLIC_API)).nullable()),
+  fields: commaSeparatedEnumArray(OBSERVATION_FIELD_GROUPS_PUBLIC_API, null, {
+    unknownValues: "filter",
+  }),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
-  expandMetadata: z
-    .string()
-    .nullish()
-    .transform((v) => {
-      if (!v) return null;
-      const keys = v
-        .split(",")
-        .map((k) => k.trim())
-        .filter((k) => k.length > 0);
-      return keys.length > 0 ? keys : null;
-    })
-    .pipe(z.array(z.string()).nullable()),
+  expandMetadata: optionalCommaSeparatedStringArray.transform(
+    (keys) => keys ?? null,
+  ),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),
@@ -366,20 +334,7 @@ export const GetObservationsV2Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(eventsTableSingleFilter), "filter"),
 });
 
 /**

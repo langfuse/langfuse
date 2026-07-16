@@ -64,9 +64,7 @@ const DuplicatePromptForm: React.FC<{
   const duplicatePrompt = api.prompts.duplicatePrompt.useMutation({
     onSuccess: ({ name }) => {
       utils.prompts.invalidate();
-      void router.push(
-        `/project/${projectId}/prompts/${encodeURIComponent(name)}`,
-      );
+      router.push(`/project/${projectId}/prompts/${encodeURIComponent(name)}`);
     },
   });
 

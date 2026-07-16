@@ -12,7 +12,6 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 
 interface EditDashboardDialogProps {
@@ -38,11 +37,7 @@ export function EditDashboardDialog({
 
   const updateDashboard = api.dashboard.updateDashboardMetadata.useMutation({
     onSuccess: () => {
-      void utils.dashboard.invalidate();
-      showSuccessToast({
-        title: "Dashboard updated",
-        description: "The dashboard has been updated successfully",
-      });
+      utils.dashboard.invalidate();
       onOpenChange(false);
     },
     onError: (e) => {

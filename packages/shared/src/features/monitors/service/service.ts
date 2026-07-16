@@ -5,15 +5,16 @@ import { type Monitor } from "../types";
 
 import {
   calculateCadence,
-  calculateLastRunAt,
   calculateSchedulerBatchId,
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
-  nullableOrderColumns,
   sortFiltersCanonically,
-  statusToPrisma,
-  thresholdOperatorToPrisma,
+  toPrismaOrderBy,
+  toPrismaWhere,
+  updateSchedulerProperties,
+  updateStatusAndSeverity,
+  initSeverity,
   viewToPrisma,
   windowToMs,
 } from "./helpers";
@@ -21,6 +22,7 @@ import {
   type CreateMonitor,
   type DeleteMonitor,
   type GetMonitorById,
+  type GetMonitorFilterOptions,
   type ListMonitors,
   MonitorNotFoundError,
   type SessionContext,
@@ -54,11 +56,6 @@ export class MonitorService {
       filters,
       windowMs,
     });
-    const nextRunAt = calculateLastRunAt(
-      new Date(),
-      cadenceMs,
-      schedulerBatchId,
-    );
 
     const created = await prisma.monitor.create({
       data: {
@@ -70,16 +67,18 @@ export class MonitorService {
         metric: input.metric,
         windowMs,
         cadenceMs,
-        thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
+        thresholdOperator: input.thresholdOperator,
         alertThreshold: new Prisma.Decimal(input.alertThreshold),
         warningThreshold: decimalToPrisma(input.warningThreshold),
         noData: input.noData,
         renotify: input.renotify,
-        status: statusToPrisma(input.status),
+        status: input.status,
+        severity: initSeverity(input.status),
         schedulerBatchId,
-        nextRunAt,
+        nextRunAt: null,
         name: input.name,
         tags: input.tags,
+        triggerIds: input.triggerIds,
       },
     });
     return monitorFromPrisma(created);
@@ -98,15 +97,15 @@ export class MonitorService {
       filters,
       windowMs,
     });
-    const nextRunAt = calculateLastRunAt(
-      new Date(),
-      cadenceMs,
-      schedulerBatchId,
-    );
 
-    // Scheduler and QueueProcessor columns are intentionally not touched
-    // (eg. severity, severityChangedAt, alertedAt, lastPublishedRunAt, lastCompletedRunAt).
     try {
+      const current = await prisma.monitor.findFirst({
+        where: { id: input.id, projectId: input.projectId },
+      });
+      if (!current) {
+        throw new MonitorNotFoundError(input.id, input.projectId);
+      }
+
       const updated = await prisma.monitor.update({
         where: { id: input.id, projectId: input.projectId },
         data: {
@@ -116,16 +115,19 @@ export class MonitorService {
           metric: input.metric,
           windowMs,
           cadenceMs,
-          thresholdOperator: thresholdOperatorToPrisma(input.thresholdOperator),
+          thresholdOperator: input.thresholdOperator,
           alertThreshold: new Prisma.Decimal(input.alertThreshold),
           warningThreshold: decimalToPrisma(input.warningThreshold),
           noData: input.noData,
           renotify: input.renotify,
-          status: statusToPrisma(input.status),
-          schedulerBatchId,
-          nextRunAt,
+          ...updateStatusAndSeverity(current.status, input.status),
+          ...updateSchedulerProperties(
+            current.schedulerBatchId,
+            schedulerBatchId,
+          ),
           name: input.name,
           tags: input.tags,
+          triggerIds: input.triggerIds,
         },
       });
       return monitorFromPrisma(updated);
@@ -153,25 +155,33 @@ export class MonitorService {
   ): Promise<{ monitors: Monitor[]; totalCount: number }> {
     const skip =
       input.page && input.limit ? (input.page - 1) * input.limit : undefined;
+    const where = toPrismaWhere(input.projectId, input.filter);
 
-    const sortOrder = input.orderBy?.order.toLowerCase();
-    const orderByValue =
-      input.orderBy && nullableOrderColumns.has(input.orderBy.column)
-        ? { sort: sortOrder, nulls: "last" as const }
-        : sortOrder;
     const [monitors, totalCount] = await Promise.all([
       prisma.monitor.findMany({
-        where: { projectId: input.projectId },
-        orderBy: input.orderBy
-          ? [{ [input.orderBy.column]: orderByValue }, { id: "asc" }]
-          : [{ severity: "desc" }, { id: "asc" }],
+        where,
+        orderBy: toPrismaOrderBy(input.orderBy),
         skip,
         take: input.limit,
       }),
-      prisma.monitor.count({ where: { projectId: input.projectId } }),
+      prisma.monitor.count({ where }),
     ]);
 
     return { monitors: monitors.map(monitorFromPrisma), totalCount };
+  }
+
+  public static async getFilterOptions(
+    _session: SessionContext,
+    input: GetMonitorFilterOptions,
+  ): Promise<{ tags: { value: string }[] }> {
+    const rows = await prisma.$queryRaw<{ value: string }[]>`
+      SELECT tags.tag AS value
+      FROM monitors, UNNEST(monitors.tags) AS tags(tag)
+      WHERE monitors.project_id = ${input.projectId}
+      GROUP BY tags.tag
+      ORDER BY tags.tag ASC;
+    `;
+    return { tags: rows };
   }
 
   public static async delete(

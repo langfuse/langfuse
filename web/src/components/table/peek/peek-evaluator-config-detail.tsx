@@ -9,11 +9,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
 import { UserCircle2Icon } from "lucide-react";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DeactivateEvalConfig } from "@/src/features/evals/components/deactivate-config";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useState } from "react";
 import { cn } from "@/src/utils/tailwind";
@@ -23,8 +22,10 @@ import { LegacyEvalCallout } from "@/src/features/evals/components/legacy-eval-c
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { TablePeekView } from "@/src/components/table/peek";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
-export const PeekViewEvaluatorConfigDetail = ({
+const PeekViewEvaluatorConfigDetail = ({
   projectId,
 }: {
   projectId: string;
@@ -158,5 +159,22 @@ export const PeekViewEvaluatorConfigDetail = ({
         />
       </div>
     </div>
+  );
+};
+
+export const TablePeekViewEvaluatorConfigDetail = (
+  props: Omit<
+    React.ComponentProps<typeof TablePeekView>,
+    "children" | "title"
+  > & {
+    projectId: string;
+  },
+) => {
+  const { projectId } = props;
+
+  return (
+    <TablePeekView {...props}>
+      <PeekViewEvaluatorConfigDetail projectId={projectId} />
+    </TablePeekView>
   );
 };

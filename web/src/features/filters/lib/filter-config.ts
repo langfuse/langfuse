@@ -1,10 +1,14 @@
 import type React from "react";
-import type { ColumnDefinition } from "@langfuse/shared";
+import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   isDisabled?: boolean;
   disabledReason?: string;
 }
@@ -13,13 +17,15 @@ interface CategoricalFacet extends BaseFacet {
   type: "categorical";
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** When true, the sidebar hides the contains/does-not-contain text filter mode for this facet. */
+  disableTextFilter?: boolean;
 }
 
 interface BooleanFacet extends BaseFacet {
   type: "boolean";
   trueLabel?: string;
   falseLabel?: string;
-  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
+  invertValue?: boolean; // When true, "True" maps to filter value=false.
 }
 
 interface NumericFacet extends BaseFacet {
@@ -44,6 +50,11 @@ interface NumericKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
+interface BooleanKeyValueFacet extends BaseFacet {
+  type: "booleanKeyValue";
+  keyOptions?: string[];
+}
+
 interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
   keyOptions?: string[];
@@ -56,7 +67,10 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
+  | BooleanKeyValueFacet
   | StringKeyValueFacet;
+
+export type FilterStateMigration = (filters: FilterState) => FilterState;
 
 export interface FilterConfig {
   tableName: string;
@@ -64,6 +78,8 @@ export interface FilterConfig {
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];
+  /** Runs after display-name normalization and before filter validation. */
+  migrateFilterState?: FilterStateMigration;
 }
 
 export function omitFilterFacets(

@@ -11,6 +11,14 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import {
+  type MonitorQueueEvent,
+  type MonitorQueueEventInput,
+  MonitorWebhookQueueEventSchema,
+} from "../features/monitors/scheduler/types";
+import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
+
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -19,6 +27,17 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Optional for rolling deploy compatibility with in-flight jobs created
+    // before ingestion attribution was added to the queue payload.
+    ingestionApiKey: z.string().optional(),
+    ingestionSdkName: z.string().optional(),
+    ingestionSdkVersion: z.string().optional(),
+    // Absolute S3 key prefix the producer used (ends with "/"). Set so the
+    // consumer never reconstructs the path and therefore can't drift from
+    // the producer when env values differ across containers. Optional for
+    // backward compatibility with in-flight jobs enqueued before this field
+    // existed — the consumer falls back to local reconstruction when absent.
+    bucketPrefix: z.string().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),
@@ -31,6 +50,8 @@ export const IngestionEvent = z.object({
 export const OtelIngestionEvent = z.object({
   data: z.object({
     fileKey: z.string(),
+    // Optional for compatibility with queued/replayed payloads that do not
+    // carry API-key attribution.
     publicKey: z.string().optional(),
   }),
   authCheck: z.object({
@@ -42,9 +63,18 @@ export const OtelIngestionEvent = z.object({
     }),
   }),
   propagatedHeaders: z.record(z.string(), z.string()).optional(),
+  // Optional for rolling deploy compatibility with in-flight jobs created
+  // before SDK attribution was added to the queue payload.
   sdkName: z.string().optional(),
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
+  // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
+  // executions published by the internal AI SDK LLM runtime). The
+  // consumer must parse these events with the INTERNAL ingestion schema:
+  // the public schema strips the reserved "langfuse-" environment prefix,
+  // which would expose internal traces as user environments and bypass the
+  // trace-upsert eval-loop guard. Optional for in-flight job compatibility.
+  isLangfuseInternal: z.boolean().optional(),
 });
 
 export const BatchExportJobSchema = z.object({
@@ -100,8 +130,8 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 
-// LLM-as-a-Judge execution for observation-based evals
-export const LLMAsJudgeExecutionEventSchema = z.object({
+// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+export const ObservationEvalExecutionEventSchema = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   observationS3Path: z.string(),
@@ -131,6 +161,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   [
     z.object({
       actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("dataset-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
       tableName: z.enum(BatchTableNames),
@@ -232,10 +271,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const promptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -244,6 +283,13 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  promptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+  ProjectNotificationWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -286,8 +332,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type LLMAsJudgeExecutionEventType = z.infer<
-  typeof LLMAsJudgeExecutionEventSchema
+export type ObservationEvalExecutionEventType = z.infer<
+  typeof ObservationEvalExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -327,7 +373,8 @@ export enum QueueName {
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
-  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based LLM-as-judge eval execution
+  CodeEvalExecution = "code-eval-execution-queue", // Observation-based code eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
@@ -357,6 +404,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -366,6 +414,7 @@ export enum QueueJobs {
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
+  CodeEvalExecution = "code-eval-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
@@ -392,6 +441,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -449,8 +499,15 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: LLMAsJudgeExecutionEventType;
+    payload: ObservationEvalExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.CodeEvalExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: ObservationEvalExecutionEventType;
+    name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {
@@ -565,5 +622,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEventInput;
+    name: QueueJobs.MonitorJob;
   };
 };

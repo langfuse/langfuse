@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getTraceById,
+  getTraceByIdFromTracesTable,
   getTracesBySessionId,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
@@ -135,6 +136,37 @@ describe("Clickhouse Traces Repository Test", () => {
       new Date(trace.updated_at).getTime(),
       -2, // Up to 50ms precision
     );
+  });
+
+  it("should return empty metadata and IO when excluded from the fetch", async () => {
+    const traceId = v4();
+
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+      metadata: { key: "value" },
+      input: "some input",
+      output: "some output",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const result = await getTraceByIdFromTracesTable({
+      traceId,
+      projectId,
+      timestamp: new Date(trace.timestamp),
+      excludeInputOutput: true,
+      excludeMetadata: true,
+    });
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
+    expect(result.id).toEqual(trace.id);
+    expect(result.metadata).toEqual({});
+    expect(result.input).toBeNull();
+    expect(result.output).toBeNull();
   });
 
   it("should retrieve traces by session ID", async () => {
@@ -397,75 +429,6 @@ describe("Clickhouse Traces Repository Test", () => {
     });
     expect(exists).toBe(true);
   });
-
-  it.each([
-    {
-      name: "latency",
-      column: "latency",
-      observationOverrides: {
-        start_time: Date.now() - 15_000,
-        end_time: Date.now(),
-      },
-      matchingValue: 10,
-      nonMatchingValue: 20,
-    },
-    {
-      name: "totalCost",
-      column: "totalCost",
-      observationOverrides: {
-        cost_details: { input: 5, output: 10, total: 15 },
-      },
-      matchingValue: 10,
-      nonMatchingValue: 20,
-    },
-  ])(
-    "should check if trace exists with $name filter",
-    async ({
-      column,
-      observationOverrides,
-      matchingValue,
-      nonMatchingValue,
-    }) => {
-      const traceId = v4();
-      const trace = createTrace({ id: traceId, project_id: projectId });
-
-      await createTracesCh([trace]);
-      await createObservationsCh([
-        createObservation({
-          trace_id: traceId,
-          project_id: projectId,
-          ...observationOverrides,
-        }),
-      ]);
-
-      const { exists: shouldExist } = await checkTraceExistsAndGetTimestamp({
-        projectId,
-        traceId,
-        timestamp: new Date(),
-        filter: [
-          { type: "number", column, operator: ">", value: matchingValue },
-        ],
-        maxTimeStamp: undefined,
-      });
-      expect(shouldExist).toBe(true);
-
-      const { exists: shouldNotExist } = await checkTraceExistsAndGetTimestamp({
-        projectId,
-        traceId,
-        timestamp: new Date(),
-        filter: [
-          {
-            type: "number",
-            column,
-            operator: ">",
-            value: nonMatchingValue,
-          },
-        ],
-        maxTimeStamp: undefined,
-      });
-      expect(shouldNotExist).toBe(false);
-    },
-  );
 
   it("should handle timestamp filter in checkTraceExistsAndGetTimestamp", async () => {
     const traceId = v4();

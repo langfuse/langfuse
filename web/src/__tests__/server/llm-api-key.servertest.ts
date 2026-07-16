@@ -2,7 +2,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi.fn(),
+    generateLLMText: vi.fn(),
   };
 });
 
@@ -16,10 +16,10 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { AuthMethod } from "@/src/features/llm-api-key/types";
 import {
   createOrgProjectAndApiKey,
-  fetchLLMCompletion,
+  generateLLMText,
 } from "@langfuse/shared/src/server";
 
-const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
+const mockGenerateLLMText = vi.mocked(generateLLMText);
 
 describe("llmApiKey.all RPC", () => {
   let projectId: string;
@@ -62,7 +62,7 @@ describe("llmApiKey.all RPC", () => {
     const setup = await createOrgProjectAndApiKey();
     projectId = setup.projectId;
     orgId = setup.orgId;
-    mockFetchLLMCompletion.mockReset().mockResolvedValue({});
+    mockGenerateLLMText.mockReset().mockResolvedValue({} as never);
 
     session = {
       expires: "1",
@@ -78,6 +78,8 @@ describe("llmApiKey.all RPC", () => {
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: false,
             projects: [
               {
                 id: projectId,
@@ -85,14 +87,20 @@ describe("llmApiKey.all RPC", () => {
                 name: "Test Project",
                 deletedAt: null,
                 retentionDays: null,
+                hasTraces: false,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
         featureFlags: {
+          searchBar: false,
           templateFlag: true,
           excludeClickhouseRead: false,
+          observationEvals: false,
+          v4BetaToggleVisible: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
@@ -240,6 +248,89 @@ describe("llmApiKey.all RPC", () => {
     // response must not contain the secret key itself
     const secretKey = llmApiKeys[0].secretKey;
     expect(secretKey).toBeUndefined();
+  });
+
+  it("should create and get an OpenAI llm api key with Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: true });
+    expect(llmApiKeys[0].customModels).toEqual(["openai.gpt-5.4"]);
+    expect(llmApiKeys[0].secretKey).toBeUndefined();
+  });
+
+  it("should update an OpenAI llm api key to disable Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai-responses",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: false },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: false });
+  });
+
+  it("should preserve empty VertexAI config without applying OpenAI defaults", async () => {
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "vertex-empty-config",
+        adapter: LLMAdapter.VertexAI,
+        secretKey: encrypt("test-secret"),
+        displaySecretKey: "...cret",
+        customModels: ["gemini-2.5-flash"],
+        withDefaultModels: false,
+        extraHeaderKeys: [],
+        config: {},
+      },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({});
   });
 
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
@@ -394,7 +485,7 @@ describe("llmApiKey.all RPC", () => {
       success: false,
       error: "Secret key is required when changing the base URL",
     });
-    expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+    expect(mockGenerateLLMText).not.toHaveBeenCalled();
   });
 
   it("should allow testing an existing connection with an unchanged localhost base URL", async () => {
@@ -419,7 +510,7 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
+    expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
   });
 
   it("should allow testUpdate without a new secret key when the base URL is unchanged", async () => {
@@ -453,11 +544,16 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
-    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
-    expect(llmConnection.baseURL).toBe("https://api.openai.com/v1");
-    expect(decrypt(llmConnection.secretKey)).toBe("sk-original");
-    expect(JSON.parse(decrypt(llmConnection.extraHeaders))).toEqual(
+    expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(connection.baseURL).toBe("https://api.openai.com/v1");
+    expect(decrypt(connection.secretKey)).toBe("sk-original");
+    const encryptedExtraHeaders = connection.extraHeaders;
+    expect(encryptedExtraHeaders).toBeTruthy();
+    if (!encryptedExtraHeaders) {
+      throw new Error("Expected extra headers to be preserved");
+    }
+    expect(JSON.parse(decrypt(encryptedExtraHeaders))).toEqual(
       existingExtraHeaders,
     );
   });
@@ -494,11 +590,11 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(result).toEqual({ success: true });
-    expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
-    const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
-    expect(llmConnection.baseURL).toBe("https://example.net/v1");
-    expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
-    expect(llmConnection.extraHeaders).toBeUndefined();
+    expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
+    const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+    expect(connection.baseURL).toBe("https://example.net/v1");
+    expect(decrypt(connection.secretKey)).toBe("sk-rotated");
+    expect(connection.extraHeaders).toBeUndefined();
   });
 
   it("should create and update an llm api key", async () => {

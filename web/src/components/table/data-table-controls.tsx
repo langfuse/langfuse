@@ -8,12 +8,13 @@ import {
   useCallback,
 } from "react";
 import { useMediaQuery } from "react-responsive";
-import useSessionStorage from "@/src/components/useSessionStorage";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -26,10 +27,12 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
+  BooleanKeyValueFilterEntry,
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
@@ -64,8 +67,18 @@ export function DataTableControlsProvider({
   const storageKey = tableName
     ? `data-table-controls-${tableName}`
     : "data-table-controls";
-  const defaultOpen = isDesktop ? !defaultSidebarCollapsed : false;
-  const [open, setOpen] = useSessionStorage(storageKey, defaultOpen);
+  // The desktop preference persists across tabs and sessions (localStorage,
+  // aligned with the peek-panel persistence direction — LFE-10601). Mobile
+  // uses per-mount local state instead, so the filter panel never covers the
+  // table by default and a narrow tab neither inherits nor overwrites the
+  // desktop preference.
+  const [desktopOpen, setDesktopOpen] = useLocalStorage(
+    storageKey,
+    !defaultSidebarCollapsed,
+  );
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const open = isDesktop ? desktopOpen : mobileOpen;
+  const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
     <ControlsContext.Provider value={{ open, setOpen, tableName }}>
@@ -110,7 +123,11 @@ export function DataTableControls({
   filterWithAI,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { setOpen } = useDataTableControls();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
+  const activeFilterCount = queryFilter.filters.filter(
+    (filter) => filter.isActive,
+  ).length;
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
@@ -134,203 +151,289 @@ export function DataTableControls({
   );
 
   return (
-    <div
-      className={cn(
-        "bg-background flex h-full w-full flex-col overflow-auto border-t",
-        "group-data-[expanded=false]/controls:hidden",
-      )}
-    >
-      <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-sm font-medium">Filters</span>
-        <div className="flex items-center gap-1">
-          {queryFilter.isFiltered && (
+    <>
+      {/* Collapsed rail: shown when the sidebar is collapsed on desktop, where
+          the resizable panel keeps a thin strip (see ResizableFilterLayout).
+          Mirrors the trace peek's collapsed-panel rail. */}
+      <div className="bg-background hidden h-full w-full flex-col items-center border-t group-data-[expanded=false]/controls:flex">
+        {/* Mirror the expanded header's metrics (h-10 row, border-b, 24px
+            button) so the toggle icon doesn't shift when collapsing. */}
+        <div className="flex h-10 w-full shrink-0 items-center justify-center border-b">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(true)}
+                aria-label="Show filters"
+                className="h-6 w-6"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Show filters</TooltipContent>
+          </Tooltip>
+        </div>
+        {activeFilterCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="secondary" className="mt-2 h-5 px-1.5 text-xs">
+                {activeFilterCount}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {activeFilterCount} active{" "}
+              {activeFilterCount === 1 ? "filter" : "filters"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+      <div
+        className={cn(
+          "bg-background flex h-full w-full flex-col overflow-auto border-t",
+          "group-data-[expanded=false]/controls:hidden",
+        )}
+      >
+        <div className="bg-background sticky top-0 z-20 mb-1 flex h-10 shrink-0 items-center justify-between border-b px-3">
+          <div className="flex items-center gap-1.5">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => queryFilter.clearAll()}
-                  className="h-7 px-2 text-xs"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                  aria-label="Hide filters"
+                  className="-ml-1 h-6 w-6"
                 >
-                  Clear all
+                  <PanelLeftClose className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Clear all filters</TooltipContent>
+              <TooltipContent>Hide filters</TooltipContent>
             </Tooltip>
-          )}
-          {filterWithAI && isLangfuseCloud && (
-            <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+            <span className="text-sm font-medium">Filters</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {queryFilter.isFiltered && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <WandSparkles className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => queryFilter.clearAll()}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Clear all
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>Filter with AI</TooltipContent>
+                <TooltipContent>Clear all filters</TooltipContent>
               </Tooltip>
-              <PopoverContent align="center" className="w-[400px]">
-                <DataTableAIFilters
-                  onFiltersGenerated={handleFiltersGenerated}
-                />
-              </PopoverContent>
-            </Popover>
-          )}
+            )}
+            {filterWithAI && isLangfuseCloud && (
+              <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <WandSparkles className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Filter with AI</TooltipContent>
+                </Tooltip>
+                <PopoverContent align="center" className="w-[400px]">
+                  <DataTableAIFilters
+                    onFiltersGenerated={handleFiltersGenerated}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+        </div>
+        <div className="pb-10">
+          <Accordion
+            type="multiple"
+            className="w-full"
+            value={queryFilter.expanded}
+            onValueChange={queryFilter.onExpandedChange}
+          >
+            {queryFilter.filters.map((filter) => {
+              if (filter.type === "categorical") {
+                return (
+                  <CategoricalFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    options={filter.options}
+                    counts={filter.counts}
+                    displayByValue={filter.displayByValue}
+                    loading={filter.loading}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    onOnlyChange={filter.onOnlyChange}
+                    renderIcon={filter.renderIcon}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    operator={filter.operator}
+                    onOperatorChange={filter.onOperatorChange}
+                    textFilters={filter.textFilters}
+                    onTextFilterAdd={filter.onTextFilterAdd}
+                    onTextFilterRemove={filter.onTextFilterRemove}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "numeric") {
+                return (
+                  <NumericFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    min={filter.min}
+                    max={filter.max}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    unit={filter.unit}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "string") {
+                return (
+                  <StringFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "keyValue") {
+                return (
+                  <KeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    availableValues={filter.availableValues}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "numericKeyValue") {
+                return (
+                  <NumericKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "booleanKeyValue") {
+                return (
+                  <BooleanKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    keyPlaceholder="Name"
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              if (filter.type === "stringKeyValue") {
+                return (
+                  <StringKeyValueFacet
+                    key={filter.column}
+                    filterKey={filter.column}
+                    label={filter.label}
+                    tooltip={filter.tooltip}
+                    help={filter.help}
+                    expanded={filter.expanded}
+                    loading={filter.loading}
+                    keyOptions={filter.keyOptions}
+                    value={filter.value}
+                    onChange={filter.onChange}
+                    isActive={filter.isActive}
+                    onReset={filter.onReset}
+                    isDisabled={filter.isDisabled}
+                    disabledReason={filter.disabledReason}
+                  />
+                );
+              }
+
+              return null;
+            })}
+          </Accordion>
         </div>
       </div>
-      <div className="pb-10">
-        <Accordion
-          type="multiple"
-          className="w-full"
-          value={queryFilter.expanded}
-          onValueChange={queryFilter.onExpandedChange}
-        >
-          {queryFilter.filters.map((filter) => {
-            if (filter.type === "categorical") {
-              return (
-                <CategoricalFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  options={filter.options}
-                  counts={filter.counts}
-                  displayByValue={filter.displayByValue}
-                  loading={filter.loading}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  onOnlyChange={filter.onOnlyChange}
-                  renderIcon={filter.renderIcon}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  operator={filter.operator}
-                  onOperatorChange={filter.onOperatorChange}
-                  textFilters={filter.textFilters}
-                  onTextFilterAdd={filter.onTextFilterAdd}
-                  onTextFilterRemove={filter.onTextFilterRemove}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "numeric") {
-              return (
-                <NumericFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  min={filter.min}
-                  max={filter.max}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  unit={filter.unit}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "string") {
-              return (
-                <StringFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "keyValue") {
-              return (
-                <KeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  availableValues={filter.availableValues}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  keyPlaceholder="Name"
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "numericKeyValue") {
-              return (
-                <NumericKeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  keyPlaceholder="Name"
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            if (filter.type === "stringKeyValue") {
-              return (
-                <StringKeyValueFacet
-                  key={filter.column}
-                  filterKey={filter.column}
-                  label={filter.label}
-                  tooltip={filter.tooltip}
-                  expanded={filter.expanded}
-                  loading={filter.loading}
-                  keyOptions={filter.keyOptions}
-                  value={filter.value}
-                  onChange={filter.onChange}
-                  isActive={filter.isActive}
-                  onReset={filter.onReset}
-                  isDisabled={filter.isDisabled}
-                  disabledReason={filter.disabledReason}
-                />
-              );
-            }
-
-            return null;
-          })}
-        </Accordion>
-      </div>
-    </div>
+    </>
   );
 }
 
 interface BaseFacetProps {
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -390,6 +493,13 @@ interface NumericKeyValueFacetProps extends BaseFacetProps {
   keyPlaceholder?: string;
 }
 
+interface BooleanKeyValueFacetProps extends BaseFacetProps {
+  keyOptions?: string[];
+  value: BooleanKeyValueFilterEntry[];
+  onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
+  keyPlaceholder?: string;
+}
+
 interface StringKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   value: StringKeyValueFilterEntry[];
@@ -432,6 +542,10 @@ const FilterAccordionContent = ({
 interface FilterAccordionItemProps {
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -444,6 +558,7 @@ interface FilterAccordionItemProps {
 export function FilterAccordionItem({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   children,
@@ -478,6 +593,16 @@ export function FilterAccordionItem({
                 {disabledReason}
               </TooltipContent>
             </Tooltip>
+          ) : help ? (
+            <div className="flex grow items-center gap-1">
+              {label}
+              <DocPopup description={help.description} href={help.href} />
+              {filterKeyShort && (
+                <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                  {filterKeyShort}
+                </code>
+              )}
+            </div>
           ) : tooltip ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
@@ -547,6 +672,7 @@ export function FilterAccordionItem({
 export function CategoricalFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded,
@@ -596,6 +722,8 @@ export function CategoricalFacet({
     [textFilters, onTextFilterRemove, onChange],
   );
 
+  const { tableName = "data" } = useContext(ControlsContext) ?? {};
+
   const MAX_VISIBLE_OPTIONS = 12;
   const visibleOptionValues = Array.from(
     new Set([...options, ...value.filter((option) => option.length > 0)]),
@@ -614,15 +742,85 @@ export function CategoricalFacet({
       })
     : visibleOptionValues;
 
-  const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
+  // Order the applied filter to the top of the list so it is immediately
+  // visible — without scrolling or expanding "Show more" — even when its
+  // value sits far down a long list (LFE-10494). The rows carrying the
+  // applied filter are the CHECKED values for a positive selection, but the
+  // UNCHECKED (excluded) values for a `none of` filter: under the
+  // checked=kept display model the checked set is the complement of the
+  // exclusions (LFE-10717), and pinning that complement would sink the
+  // just-unchecked row below the cap.
+  //
+  // Two guards keep this honest:
+  //   1. Only reorder long lists (more options than the cap) that carry a real,
+  //      strict-subset selection. `value` mirrors the hook's
+  //      `computeSelectedValues`, which reports EVERY option as "selected" when
+  //      no filter is applied (and the kept complement for `none of`).
+  //      Requiring a strict subset skips that all-selected default — otherwise
+  //      the whole list would be treated as pinned — and leaves short lists
+  //      untouched.
+  //   2. The visible-count cap is applied to the COMBINED ordered list, so even
+  //      a large pinned set (many selected values, or many exclusions) can
+  //      never render the entire list; "Show more" still gates the overflow.
+  const selectedSet = new Set(value);
+  const pinnedSet =
+    operator === "none of"
+      ? new Set(
+          visibleOptionValues.filter((option) => !selectedSet.has(option)),
+        )
+      : selectedSet;
+  const pinApplied =
+    hasMoreOptions &&
+    value.length > 0 &&
+    value.length < visibleOptionValues.length;
+  const orderedOptions = pinApplied
+    ? [
+        ...filteredOptions.filter((option) => pinnedSet.has(option)),
+        ...filteredOptions.filter((option) => !pinnedSet.has(option)),
+      ]
+    : filteredOptions;
+
+  const hasMoreFilteredOptions = orderedOptions.length > MAX_VISIBLE_OPTIONS;
   const visibleOptions = showAll
-    ? filteredOptions
-    : filteredOptions.slice(0, MAX_VISIBLE_OPTIONS);
+    ? orderedOptions
+    : orderedOptions.slice(0, MAX_VISIBLE_OPTIONS);
+
+  // Split the visible slice so a separator can mark where the pinned rows
+  // end. When not pinning, everything renders in natural order (no divider).
+  const visiblePinnedOptions = pinApplied
+    ? visibleOptions.filter((option) => pinnedSet.has(option))
+    : [];
+  const visibleRemainingOptions = pinApplied
+    ? visibleOptions.filter((option) => !pinnedSet.has(option))
+    : visibleOptions;
+
+  const renderOption = (option: string) => {
+    const displayLabel = displayByValue?.get(option) ?? option;
+    return (
+      <FilterValueCheckbox
+        key={option}
+        id={`${filterKey}-${option}`}
+        label={displayLabel}
+        icon={renderIcon?.(option)}
+        count={counts.get(option) || 0}
+        checked={value.includes(option)}
+        onCheckedChange={(checked) => {
+          const newValues = checked
+            ? [...value, option]
+            : value.filter((v: string) => v !== option);
+          onChange(newValues);
+        }}
+        onLabelClick={onOnlyChange ? () => onOnlyChange(option) : undefined}
+        totalSelected={value.length}
+      />
+    );
+  };
 
   return (
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -645,18 +843,27 @@ export function CategoricalFacet({
                 It allows switching between the supported array matching modes:
                 - SOME: Match items with ANY selected value (OR logic)
                 - ALL: Match items with ALL selected values (AND logic)
-                - NONE: Exclude items with ANY selected value
+                - NONE: Exclude items carrying any UNCHECKED value (the filter
+                  stores the exclusions; checkboxes show the kept complement,
+                  LFE-10717)
 
-                The toggle is shown whenever useSidebarFilterState exposes operator controls
-                for an arrayOptions column, including before any values are selected so users
-                can persist an operator preference first. Other filter types (stringOptions,
-                boolean, numeric) don't get this toggle because these array-specific modes
-                are not semantically meaningful there.
+                Toggling between modes carries the stored value list over, so
+                SOME "match a or b" becomes NONE "exclude a and b" — the
+                checked set visually flips to its complement.
+
+                NONE mode usually engages by itself: unchecking a value from
+                the all-checked default persists `none of [value]`. The toggle
+                remains for converting an existing selection or persisting an
+                operator preference before any values are selected. Other
+                filter types (stringOptions, boolean, numeric) don't get this
+                toggle because these array-specific modes are not semantically
+                meaningful there.
 
                 Currently enabled for:
                 - Traces: tags
                 - Sessions: userIds, tags
                 - Prompts: labels, tags
+                - Monitors: tags
             */}
             {onOperatorChange && (
               <div className="mb-1.5 flex items-center gap-1.5 px-2">
@@ -722,8 +929,8 @@ export function CategoricalFacet({
               <div className="text-muted-foreground py-1 text-xs">
                 {filterKey === "sessionId" ? (
                   <span>
-                    Sessions group traces together, which is useful for tracing
-                    multi-step workflows.{" "}
+                    Sessions group {tableName} together, which is useful for
+                    tracing multi-step workflows.{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/sessions"
                       target="_blank"
@@ -732,14 +939,16 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    to learn how to add sessions to your traces.
+                    to learn how to add sessions to your {tableName}.
                   </span>
                 ) : filterKey === "name" ? (
-                  <span>No trace names found in the given time range.</span>
+                  <span>
+                    No {tableName} names found in the given time range.
+                  </span>
                 ) : filterKey === "tags" ? (
                   <span>
-                    Tags let you filter traces according to custom categories
-                    (e.g. feature flags).{" "}
+                    Tags let you filter {tableName} according to custom
+                    categories (e.g. feature flags).{" "}
                     <a
                       href="https://langfuse.com/docs/observability/features/tags"
                       target="_blank"
@@ -748,7 +957,7 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    to learn how to add tags to your traces.
+                    to learn how to add tags to your {tableName}.
                   </span>
                 ) : (
                   "No options found"
@@ -778,39 +987,28 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => {
-                      const displayLabel =
-                        displayByValue?.get(option) ?? option;
-                      return (
-                        <FilterValueCheckbox
-                          key={option}
-                          id={`${filterKey}-${option}`}
-                          label={displayLabel}
-                          icon={renderIcon?.(option)}
-                          count={counts.get(option) || 0}
-                          checked={value.includes(option)}
-                          onCheckedChange={(checked) => {
-                            const newValues = checked
-                              ? [...value, option]
-                              : value.filter((v: string) => v !== option);
-                            onChange(newValues);
-                          }}
-                          onLabelClick={
-                            onOnlyChange
-                              ? () => onOnlyChange(option)
-                              : undefined
-                          }
-                          totalSelected={value.length}
+                    {/* Applied-filter rows (selected, or excluded under
+                        `none of`), pinned to the top (long lists only) */}
+                    {visiblePinnedOptions.map(renderOption)}
+
+                    {/* Separator between the pinned rows and the rest */}
+                    {visiblePinnedOptions.length > 0 &&
+                      visibleRemainingOptions.length > 0 && (
+                        <div
+                          className="border-border/60 mx-3 my-1 border-t"
+                          aria-hidden
                         />
-                      );
-                    })}
+                      )}
+
+                    {/* Remaining options, capped */}
+                    {visibleRemainingOptions.map(renderOption)}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setShowAll(true)}
-                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                          className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                         >
                           Show more values
                         </Button>
@@ -830,7 +1028,7 @@ export function CategoricalFacet({
                     >
                       See docs
                     </a>{" "}
-                    on how to add environments to your traces.
+                    on how to add environments to your {tableName}.
                   </div>
                 ) : null}
               </>
@@ -856,6 +1054,7 @@ export function CategoricalFacet({
 export function NumericFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -939,6 +1138,7 @@ export function NumericFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1020,6 +1220,7 @@ export function NumericFacet({
 export function StringFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1069,6 +1270,7 @@ export function StringFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1097,6 +1299,7 @@ export function StringFacet({
 export function KeyValueFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1115,6 +1318,7 @@ export function KeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1143,6 +1347,7 @@ export function KeyValueFacet({
 export function NumericKeyValueFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1160,6 +1365,7 @@ export function NumericKeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1184,9 +1390,56 @@ export function NumericKeyValueFacet({
   );
 }
 
+export function BooleanKeyValueFacet({
+  label,
+  tooltip,
+  help,
+  filterKey,
+  filterKeyShort,
+  expanded: _expanded,
+  loading,
+  keyOptions,
+  value,
+  onChange,
+  isActive,
+  isDisabled,
+  disabledReason,
+  onReset,
+  keyPlaceholder,
+}: BooleanKeyValueFacetProps) {
+  return (
+    <FilterAccordionItem
+      label={label}
+      tooltip={tooltip}
+      help={help}
+      filterKey={filterKey}
+      filterKeyShort={filterKeyShort}
+      isActive={isActive}
+      isDisabled={isDisabled}
+      disabledReason={disabledReason}
+      onReset={onReset}
+    >
+      {loading ? (
+        <div className="text-muted-foreground px-4 py-2 text-sm">
+          Loading...
+        </div>
+      ) : (
+        <KeyValueFilterBuilder
+          mode="boolean"
+          keyOptions={keyOptions}
+          activeFilters={value}
+          onChange={onChange}
+          keyPlaceholder={keyPlaceholder}
+        />
+      )}
+    </FilterAccordionItem>
+  );
+}
+
 export function StringKeyValueFacet({
   label,
   tooltip,
+  help,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1204,6 +1457,7 @@ export function StringKeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      help={help}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}

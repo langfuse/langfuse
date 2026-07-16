@@ -1,10 +1,13 @@
-import { createClient } from "@clickhouse/client";
+import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import { env } from "../../env";
 import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
+import { getClickHouseCompatibilitySettings } from "./compatibility";
+
+export { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
@@ -13,9 +16,17 @@ export type PreferredClickhouseService =
   | "ReadOnly"
   | "EventsReadOnly";
 
-type ServiceClickhouseSettings = {
+type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
+
+type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
+  max_execution_time?: number;
+  timeout_before_checking_execution_speed?: number;
+};
+
+const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
 
 /**
  * Remove these once we remove corresponding variables
@@ -25,6 +36,7 @@ const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
   "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
   "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
   "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
+  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
 ] as const;
 
 /**
@@ -82,22 +94,44 @@ export class ClickHouseClientManager {
 
       // Include any other relevant config options
     };
-    return { settings: keyParams, serviceClickhouseSettings };
+    return {
+      settings: keyParams,
+      serviceClickhouseSettings,
+    };
   }
 
   private getServiceClickhouseSettings(
     preferredClickhouseService: PreferredClickhouseService,
   ): ServiceClickhouseSettings {
-    return preferredClickhouseService === "EventsReadOnly" &&
+    const eventROSettings: ServiceClickhouseSettings =
+      preferredClickhouseService === "EventsReadOnly" &&
       this.isEventsTableReadPathEnabled()
-      ? { enable_full_text_index: 1 }
-      : {};
+        ? { enable_full_text_index: 1 }
+        : {};
+
+    return {
+      ...getClickHouseCompatibilitySettings(),
+      ...eventROSettings,
+    };
   }
 
   private isEventsTableReadPathEnabled(): boolean {
     return EVENTS_TABLE_READ_PATH_ENV_KEYS.some(
       (key) => process.env[key] === "true",
     );
+  }
+
+  private getRequestTimeoutClickHouseSettings(
+    requestTimeout?: number,
+  ): RequestTimeoutClickHouseSettings {
+    if (!requestTimeout) return {};
+
+    return {
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time:
+        Math.ceil(requestTimeout / 1000) +
+        CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS,
+    };
   }
 
   private generateClientSettingsKey(
@@ -153,6 +187,12 @@ export class ClickHouseClientManager {
         cloudOptions.input_format_json_throw_on_bad_escape_sequence = 0;
       }
 
+      const clickHouseRequestTimeout =
+        opts.request_timeout ?? CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+      const shouldSendProgressInHttpHeaders =
+        opts.request_timeout !== undefined &&
+        opts.request_timeout > CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+
       const client = createClient({
         ...opts,
         ...settings,
@@ -191,18 +231,13 @@ export class ClickHouseClientManager {
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
             : {}),
-          // Workaround for a 25.12 bug where lightweight updates/deletes
-          // interact incorrectly with lazy materialization. Remove after
-          // ClickHouse 26.4, or earlier if the fix is backported.
-          ...(env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION === "true"
-            ? { query_plan_optimize_lazy_materialization: 0 }
-            : {}),
           ...cloudOptions,
           ...serviceClickhouseSettings,
+          ...this.getRequestTimeoutClickHouseSettings(clickHouseRequestTimeout),
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse
-          ...(opts.request_timeout && opts.request_timeout > 30000
+          ...(shouldSendProgressInHttpHeaders
             ? {
                 send_progress_in_http_headers: 1,
                 http_headers_progress_interval_ms: "10000", // UInt64, should be passed as a string

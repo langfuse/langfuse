@@ -1,0 +1,148 @@
+name: AWS preview stale cleanup
+
+# Reap stale PR preview environments by removing the `preview` label from open
+# PRs with no activity for STALE_DAYS. Label removal is the ONLY action: the
+# Argo CD ApplicationSet in the infrastructure repo polls labeled open PRs, so
+# dropping the label makes it stop generating the Application, and its
+# resources-finalizer cascade-deletes the namespace, PVCs, and DNS. Re-adding
+# the label redeploys.
+#
+# "Activity" = GitHub's PR updated_at (commits, comments, reviews, label edits).
+# The auto-labeler applies `preview` on open, which bumps updated_at, so a
+# freshly labeled PR is never immediately reaped.
+#
+# Safe triggers only: `schedule` + `workflow_dispatch`. No checkout, no PR-code
+# execution, no cloud credentials — only PR label/comment mutations — so it
+# stays off zizmor's dangerous-triggers list.
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List stale previews without removing the label"
+        type: boolean
+        default: false
+      stale_days:
+        description: "Inactivity threshold in days"
+        type: string
+        default: "2"
+
+permissions: {}
+
+concurrency:
+  group: preview-stale-cleanup
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Remove preview label from stale PRs
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same gate
+    # as preview-build / preview-autolabel): unset => system off, nothing to reap.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      # Label + comment mutations on PRs are gated by the pull-requests scope
+      # (NOT issues), even though they go through the issues REST endpoints —
+      # same pattern as preview-autolabel / preview-build. Also covers pulls.list.
+      pull-requests: write
+      # Mark the reaped preview's GitHub deployments (environment pr-<n>,
+      # recorded by preview-build) inactive alongside the label removal, so the
+      # PR stops advertising an "Active" environment whose URL is gone.
+      deployments: write
+    steps:
+      - name: Reap stale previews
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const label = "preview";
+            const staleDays = Number(context.payload.inputs?.stale_days ?? "2");
+            const dryRun = String(context.payload.inputs?.dry_run ?? "false") === "true";
+            // Guard against stale_days <= 0: cutoff would be >= now and match
+            // every labeled PR, reaping all previews in one run.
+            if (!Number.isFinite(staleDays) || staleDays < 1) {
+              core.setFailed(`stale_days must be a positive integer, got: ${context.payload.inputs?.stale_days}`);
+              return;
+            }
+            const cutoff = Date.now() - staleDays * 86400000;
+            const { owner, repo } = context.repo;
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+
+            const labeled = prs.filter(pr => pr.labels.some(l => l.name === label));
+            const stale = labeled.filter(pr => new Date(pr.updated_at).getTime() < cutoff);
+
+            // Isolate failures per PR: an unhandled rejection fails the whole
+            // github-script step, so without this a single transient error
+            // (5xx, secondary rate limit, PR locked/closed since pulls.list)
+            // would skip every remaining stale PR and the summary.
+            let failures = 0;
+            for (const pr of stale) {
+              const ageDays = ((Date.now() - new Date(pr.updated_at).getTime()) / 86400000).toFixed(1);
+              core.info(`PR #${pr.number} stale ${ageDays}d (updated ${pr.updated_at}) — ${pr.html_url}`);
+              if (dryRun) continue;
+
+              try {
+                // Remove the label first — this is what triggers teardown. Tolerate
+                // a race where the label is already gone (removed by another path).
+                let labelRemoved = true;
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  name: label,
+                }).catch(e => {
+                  if (e.status === 404) { labelRemoved = false; }
+                  else throw e;
+                });
+
+                // Only comment when we actually removed the label; a 404 means
+                // another path already tore it down, so our message would mislead.
+                if (labelRemoved) {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: pr.number,
+                    body: `🧹 Preview environment torn down after **${staleDays} days** of inactivity `
+                      + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
+                  });
+
+                  // Retire the PR's GitHub deployments along with the preview
+                  // itself, so the PR stops showing an "Active" environment.
+                  // Re-adding the label redeploys, and the next build records a
+                  // fresh deployment.
+                  const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                    owner,
+                    repo,
+                    environment: `pr-${pr.number}`,
+                    per_page: 100,
+                  });
+                  for (const deployment of deployments) {
+                    await github.rest.repos.createDeploymentStatus({
+                      owner,
+                      repo,
+                      deployment_id: deployment.id,
+                      state: "inactive",
+                    });
+                  }
+                }
+              } catch (e) {
+                failures++;
+                core.warning(`PR #${pr.number}: ${e.message} — continuing with remaining PRs`);
+              }
+            }
+
+            core.notice(
+              `${dryRun ? "[dry-run] " : ""}${stale.length} stale preview(s) `
+              + `(threshold ${staleDays}d) out of ${labeled.length} labeled`
+              + `${failures ? `; ${failures} failed (see warnings)` : ""}.`
+            );
+            // Surface partial failure as a failed run so it isn't silently green.
+            if (failures) {
+              core.setFailed(`${failures} of ${stale.length} stale preview(s) could not be reaped.`);
+            }

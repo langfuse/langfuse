@@ -14,7 +14,7 @@ import {
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const hasV2Apis = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+const hasV2Apis = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
@@ -67,7 +67,11 @@ describe("/api/public/v2/metrics API Endpoint", () => {
             input: 0.001 * (i + 1),
             output: 0.002 * (i + 1),
           },
-          total_cost: 0.003 * (i + 1),
+          // total_cost is an ALIAS column in events_full (not insertable);
+          // ClickHouse skips the unknown JSONEachRow field, so it is inert.
+          ...({ total_cost: 0.003 * (i + 1) } as Partial<
+            Parameters<typeof createEvent>[0]
+          >),
         }),
       );
     }
@@ -278,7 +282,11 @@ describe("/api/public/v2/metrics API Endpoint", () => {
             name: `histogram-observation-${index}`,
             type: "GENERATION",
             start_time: timeValue,
-            total_cost: cost,
+            // total_cost is an ALIAS column in events_full (not insertable);
+            // ClickHouse skips the unknown JSONEachRow field, so it is inert.
+            ...({ total_cost: cost } as Partial<
+              Parameters<typeof createEvent>[0]
+            >),
             metadata_names: ["test"],
             metadata_values: [testMetadataValue],
           }),
@@ -522,7 +530,10 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         toTimestamp: new Date().toISOString(),
       };
 
-      const response = await makeAPICall(
+      const response = await makeAPICall<{
+        error: unknown;
+        message: string;
+      }>(
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
       );
@@ -656,7 +667,10 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       };
 
       // Make API call and expect 400 error
-      const response = await makeAPICall(
+      const response = await makeAPICall<{
+        error: string;
+        message: string;
+      }>(
         "GET",
         `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(invalidStringTypeQuery))}`,
       );
@@ -665,9 +679,10 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(response.body).toMatchObject({
         error: "InvalidRequestError",
         message: expect.stringContaining(
-          "Array fields require type 'arrayOptions', not 'string'",
+          "Filter type 'string' is not supported for dimension type 'string[]'",
         ),
       });
+      expect(response.body.message).toContain("Expected 'arrayOptions'.");
     });
 
     it("should return 400 error for invalid metadata filters", async () => {

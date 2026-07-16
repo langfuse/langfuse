@@ -1,5 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -21,6 +23,7 @@ import {
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -109,9 +112,13 @@ const setupTriggerAndAction = async (projectId: string) => {
   };
 };
 
+// The v2 prompts API returns the prompt with its dependency resolution graph
+// attached, which the Prisma-derived Prompt type does not carry.
+type PromptWithResolutionGraph = Prompt & { resolutionGraph?: unknown };
+
 const testPromptEquality = (
   promptParams: CreatePromptInDBParams,
-  prompt: Prompt,
+  prompt: PromptWithResolutionGraph,
 ) => {
   if (promptParams.promptId) {
     expect(prompt.id).toBe(promptParams.promptId);
@@ -592,7 +599,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Verify the placeholder message structure is preserved
       const messages = validatedPrompt.prompt as ChatMessage[];
-      const placeholderMessage = messages[1] as {
+      const placeholderMessage = messages[1] as unknown as {
         type: ChatMessageType.Placeholder;
         name: string;
       };
@@ -910,7 +917,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         expectedError: string,
         auth?: string,
       ) => {
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; error: unknown }>(
           "POST",
           baseURI,
           {
@@ -1665,7 +1672,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       // Should be resolved (no @@@langfusePrompt tags)
       expect(body.prompt).not.toContain("@@@langfusePrompt");
       expect(body.prompt).toContain("I am a child prompt");
@@ -1709,7 +1716,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.prompt).not.toContain("@@@langfusePrompt");
       expect(body.prompt).toContain("Child content");
     });
@@ -1752,7 +1759,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       // Should be unresolved (keep @@@langfusePrompt tags)
       expect(body.prompt).toContain("@@@langfusePrompt");
       expect(body.prompt).toContain(
@@ -1806,7 +1813,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.type).toBe("chat");
       // Verify the chat messages still contain unresolved tags
       const messages = body.prompt as Array<{ role: string; content: string }>;
@@ -1854,7 +1861,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.labels).toContain("production");
       expect(body.prompt).toContain("@@@langfusePrompt");
       expect(body.resolutionGraph).toBeNull();
@@ -1885,9 +1892,54 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.prompt).toBe(parentContent);
       expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return 409 when resolve=true and a stored dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const missingChildName = "missing-child-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${missingChildName}|version=1@@@`;
+
+      const parentPrompt = await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId,
+          parentId: parentPrompt.id,
+          childName: missingChildName,
+          childVersion: 1,
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        query: {
+          promptName: parentPromptName,
+          version: "1",
+        },
+        headers: {
+          authorization: auth,
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(409);
+      expect(JSON.stringify(res._getJSONData())).toContain(
+        "Prompt dependency not found",
+      );
     });
   });
 });
@@ -2141,7 +2193,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       );
 
       expect(getResponse.status).toBe(200);
-      const responseBody = getResponse.body as unknown as Prompt;
+      const responseBody =
+        getResponse.body as unknown as PromptWithResolutionGraph;
       const parsedPrompt = responseBody.prompt as string;
 
       // Verify the resolution graph is returned with the correct structure
@@ -2193,7 +2246,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
       expect(getResponseAfterUpdate.status).toBe(200);
       const responseBodyAfterUpdate =
-        getResponseAfterUpdate.body as unknown as Prompt;
+        getResponseAfterUpdate.body as unknown as PromptWithResolutionGraph;
       const parsedPromptAfterUpdate = responseBodyAfterUpdate.prompt as string;
 
       expect(parsedPromptAfterUpdate).toBe(

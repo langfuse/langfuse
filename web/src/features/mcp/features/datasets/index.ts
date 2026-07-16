@@ -1,9 +1,9 @@
 import type { McpFeatureModule } from "../../server/registry";
-import { createDatasetTool, handleCreateDataset } from "./tools/createDataset";
+import { upsertDatasetTool, handleUpsertDataset } from "./tools/upsertDataset";
 import {
-  createDatasetItemTool,
-  handleCreateDatasetItem,
-} from "./tools/createDatasetItem";
+  upsertDatasetItemTool,
+  handleUpsertDatasetItem,
+} from "./tools/upsertDatasetItem";
 import {
   createDatasetRunItemTool,
   handleCreateDatasetRunItem,
@@ -36,32 +36,28 @@ import {
 } from "./tools/listDatasetRuns";
 import { handleListDatasets, listDatasetsTool } from "./tools/listDatasets";
 
-export const datasetsFeature: McpFeatureModule = {
+export const datasetsFeature = {
   name: "datasets",
   description:
     "Manage datasets, named collections of dataset items for experiments and evaluations, plus runs and run items",
   tools: [
-    { definition: createDatasetTool, handler: handleCreateDataset },
+    { definition: upsertDatasetTool, handler: handleUpsertDataset },
     {
       definition: listDatasetsTool,
       handler: handleListDatasets,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetTool,
       handler: handleGetDataset,
-      allowInAppAgentKey: true,
     },
-    { definition: createDatasetItemTool, handler: handleCreateDatasetItem },
+    { definition: upsertDatasetItemTool, handler: handleUpsertDatasetItem },
     {
       definition: listDatasetItemsTool,
       handler: handleListDatasetItems,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetItemTool,
       handler: handleGetDatasetItem,
-      allowInAppAgentKey: true,
     },
     { definition: deleteDatasetItemTool, handler: handleDeleteDatasetItem },
     {
@@ -71,18 +67,15 @@ export const datasetsFeature: McpFeatureModule = {
     {
       definition: listDatasetRunItemsTool,
       handler: handleListDatasetRunItems,
-      allowInAppAgentKey: true,
     },
     {
       definition: listDatasetRunsTool,
       handler: handleListDatasetRuns,
-      allowInAppAgentKey: true,
     },
     {
       definition: getDatasetRunTool,
       handler: handleGetDatasetRun,
-      allowInAppAgentKey: true,
     },
     { definition: deleteDatasetRunTool, handler: handleDeleteDatasetRun },
   ],
-};
+} as const satisfies McpFeatureModule;

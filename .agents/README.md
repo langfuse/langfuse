@@ -46,7 +46,7 @@ Current shape:
         "--isolated",
         "--save-session",
         "--output-dir",
-        ".playwright-mcp",
+        "/tmp/playwright-mcp",
         "--test-id-attribute",
         "data-testid"
       ]
@@ -207,5 +207,3 @@ Do not use skills for one-off task notes or tool runtime configuration.
 Use `skills/skill-creator/SKILL.md` when creating or editing shared skills.
 `pnpm run agents:sync` projects the shared skills into `.claude/skills/` so
 Claude can discover the same repo-owned skills.
-
-For the skill authoring workflow, see [skills/README.md](skills/README.md).

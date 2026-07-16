@@ -35,7 +35,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
   const [templateId, setTemplateId] = useState<string | null>(null);
   const utils = api.useUtils();
 
-  const templatesQuery = api.evals.allTemplates.useQuery(
+  const templatesQuery = api.evals.latestTemplates.useQuery(
     {
       projectId,
       limit: 500,
@@ -119,7 +119,7 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
                 defaultTarget={targetObject}
                 onFormSuccess={() => {
                   handleClose(false);
-                  void utils.evals.jobConfigsByTarget.invalidate({
+                  utils.evals.jobConfigsByTarget.invalidate({
                     projectId,
                     targetObject,
                   });

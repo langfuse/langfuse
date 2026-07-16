@@ -142,6 +142,7 @@ export type InnerAnnotationFormProps<Target extends ScoreTarget> = {
   configControl: {
     configs: ScoreConfigDomain[];
     allowManualSelection: boolean;
+    emptySelectedConfigIdsStorageKey?: string;
   };
   scoreMetadata: {
     projectId: string;

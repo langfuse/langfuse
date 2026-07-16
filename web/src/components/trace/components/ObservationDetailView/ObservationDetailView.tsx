@@ -26,7 +26,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
@@ -139,11 +139,11 @@ export function ObservationDetailView({
   }, [globalSelectedTab, showLogViewTab]);
 
   const refreshTraceScores = useCallback(() => {
-    void utils.traces.byIdWithObservationsAndScores.invalidate({
+    utils.traces.byIdWithObservationsAndScores.invalidate({
       projectId,
       traceId,
     });
-    void utils.events.scoresForTrace.invalidate({
+    utils.events.scoresForTrace.invalidate({
       projectId,
       traceId,
     });

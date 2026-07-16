@@ -1,11 +1,54 @@
 import { describe, it, expect } from "vitest";
-import { extractObservationVariables } from "../extractObservationVariables";
+import { extractObservationVariables } from "../../../../../../packages/shared/src/server/evals/extractObservationVariables";
 import { type ObservationForEval } from "../types";
 import {
-  availableObservationEvalVariableColumns,
+  observationEvalVariableColumns,
   ObservationEvalVariableColumn,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
+
+// Test-only superset: extends the production columns with fields that are not
+// mappable in the product today, to cover extractObservationVariables'
+// custom-columns parameter.
+const availableObservationEvalVariableColumns = [
+  ...observationEvalVariableColumns,
+  {
+    id: "toolDefinitions",
+    name: "Tool Definitions",
+    description: "Tool definitions",
+    internal: "tool_definitions",
+  },
+  {
+    id: "toolCallNames",
+    name: "Tool Call Names",
+    description: "Tool call names",
+    internal: "tool_call_names",
+  },
+  {
+    id: "providedModelName",
+    name: "Model",
+    description: "Model",
+    internal: "provided_model_name",
+  },
+  {
+    id: "modelParameters",
+    name: "Model Parameters",
+    description: "Model parameters",
+    internal: "model_parameters",
+  },
+  {
+    id: "usageDetails",
+    name: "Usage Details",
+    description: "Usage details",
+    internal: "usage_details",
+  },
+  {
+    id: "costDetails",
+    name: "Cost Details",
+    description: "Cost details",
+    internal: "cost_details",
+  },
+];
 
 describe("extractObservationVariables", () => {
   const mockObservation: ObservationForEval = {
@@ -41,7 +84,10 @@ describe("extractObservationVariables", () => {
 
     // Tool call properties
     tool_definitions: { search: '{"description": "Search the web"}' },
-    tool_calls: ['{"name": "search", "args": {"query": "test"}}'],
+    // Real storage shape: name-less JSON strings, names in the parallel array.
+    tool_calls: [
+      '{"id":"call_1","arguments":"{\\"query\\":\\"test\\"}","type":"function","index":0}',
+    ],
     tool_call_names: ["search"],
     tool_call_count: 1,
 
@@ -88,7 +134,10 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("input");
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
     it("should extract output variable", () => {
@@ -106,7 +155,10 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("output");
-      expect(result[0].value).toBe(mockObservation.output);
+      expect(result[0].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
     });
 
     it("should extract metadata variable as JSON string", () => {
@@ -124,7 +176,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("meta");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.metadata));
+      expect(result[0].value).toEqual(mockObservation.metadata);
     });
 
     it("should extract multiple variables", () => {
@@ -144,30 +196,140 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(3);
       expect(result[0].var).toBe("userInput");
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
       expect(result[1].var).toBe("modelOutput");
-      expect(result[1].value).toBe(mockObservation.output);
+      expect(result[1].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
       expect(result[2].var).toBe("metadata");
     });
   });
 
   describe("tool call extraction", () => {
-    it("should extract toolCalls variable", () => {
+    it("should extract toolCalls as zipped objects with the default columns", () => {
       const variableMapping: ObservationVariableMapping[] = [
         { templateVariable: "tools", selectedColumnId: "toolCalls" },
       ];
 
-      const result = extractObservationVariables(
-        {
-          observation: mockObservation,
-          variableMapping,
-        },
-        availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
-      );
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("tools");
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.tool_calls));
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: { query: "test" },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("passes string argument values through unchanged", () => {
+      // Zipped calls skip deepParseJson entirely (arguments are already parsed
+      // by the zip), so JSON-literal strings the model emitted ("true", "42",
+      // serialized objects) are NOT coerced. This pins the payload types
+      // evaluator code receives.
+      const args = JSON.stringify({
+        count: "42",
+        flag: "true",
+        nested: '{"a":1}',
+      });
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "call_1",
+            arguments: args,
+            type: "function",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["search"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "call_1",
+          name: "search",
+          arguments: {
+            count: "42",
+            flag: "true",
+            nested: '{"a":1}',
+          },
+          type: "function",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("keeps JSON-literal id/name/type strings as strings", () => {
+      // A tool named "null" (or an id/type of "true"/"false") is unusual but
+      // legal. deepParseJson would coerce these top-level fields to primitives
+      // at depth 2 — which then fails buildCodeEvalPayload's schema parse and
+      // empties the whole array, or leaks null/true into judge prompts.
+      const observation = {
+        ...mockObservation,
+        tool_calls: [
+          JSON.stringify({
+            id: "true",
+            arguments: "{}",
+            type: "false",
+            index: 0,
+          }),
+        ],
+        tool_call_names: ["null"],
+      };
+
+      const result = extractObservationVariables({
+        observation,
+        variableMapping: [
+          { templateVariable: "tools", selectedColumnId: "toolCalls" },
+        ],
+      });
+
+      expect(result[0].value).toEqual([
+        {
+          id: "true",
+          name: "null",
+          arguments: {},
+          type: "false",
+          index: 0,
+        },
+      ]);
+    });
+
+    it("should support JSONPath selectors over zipped toolCalls", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "calledTools",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].value).toEqual("search");
     });
 
     it("should extract toolDefinitions variable", () => {
@@ -188,9 +350,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("definitions");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.tool_definitions),
-      );
+      expect(result[0].value).toEqual(mockObservation.tool_definitions);
     });
   });
 
@@ -231,7 +391,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("params");
-      expect(result[0].value).toBe(mockObservation.model_parameters);
+      expect(result[0].value).toEqual({ temperature: 0.7 });
     });
   });
 
@@ -254,7 +414,7 @@ describe("extractObservationVariables", () => {
       expect(result[0].value).toBe("expected response");
     });
 
-    it("should extract experimentItemMetadata variable as JSON string", () => {
+    it("should extract experimentItemMetadata variable", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "item_metadata",
@@ -269,9 +429,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("item_metadata");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.experiment_item_metadata),
-      );
+      expect(result[0].value).toEqual(mockObservation.experiment_item_metadata);
     });
   });
 
@@ -291,9 +449,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("usage");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.usage_details),
-      );
+      expect(result[0].value).toEqual(mockObservation.usage_details);
     });
 
     it("should extract costDetails variable", () => {
@@ -311,9 +467,7 @@ describe("extractObservationVariables", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].var).toBe("cost");
-      expect(result[0].value).toBe(
-        JSON.stringify(mockObservation.cost_details),
-      );
+      expect(result[0].value).toEqual(mockObservation.cost_details);
     });
   });
 
@@ -401,12 +555,10 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(
-        JSON.stringify(["get_weather", "search_web"]),
-      );
+      expect(result[0].value).toEqual(["get_weather", "search_web"]);
     });
 
-    it("should handle null jsonSelector by returning full value", () => {
+    it("should handle null jsonSelector by returning full parsed value", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "input",
@@ -420,10 +572,13 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
-    it("should handle undefined jsonSelector by returning full value", () => {
+    it("should handle undefined jsonSelector by returning full parsed value", () => {
       const variableMapping: ObservationVariableMapping[] = [
         {
           templateVariable: "input",
@@ -437,7 +592,76 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
+    });
+
+    it("keeps parsed value for no-selector mapping when selector sibling uses the same JSON string column", () => {
+      const variableMapping: ObservationVariableMapping[] = [
+        {
+          templateVariable: "rawInput",
+          selectedColumnId: "input",
+        },
+        {
+          templateVariable: "prompt",
+          selectedColumnId: "input",
+          jsonSelector: "$.prompt",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: mockObservation,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        {
+          var: "rawInput",
+          value: {
+            prompt: "Hello, how are you?",
+            context: "greeting",
+          },
+        },
+        { var: "prompt", value: "Hello, how are you?" },
+      ]);
+    });
+
+    it("deep-parses mapped values without coercing numeric strings", () => {
+      const observationWithNestedJson: ObservationForEval = {
+        ...mockObservation,
+        input: JSON.stringify({
+          question: "2+2",
+          nested: JSON.stringify({ answer: 4 }),
+          num: "42",
+        }),
+        output: "true",
+        experiment_item_expected_output: "null",
+      };
+
+      const variableMapping: ObservationVariableMapping[] = [
+        { templateVariable: "input", selectedColumnId: "input" },
+        { templateVariable: "output", selectedColumnId: "output" },
+        {
+          templateVariable: "expected",
+          selectedColumnId: "experimentItemExpectedOutput",
+        },
+      ];
+
+      const result = extractObservationVariables({
+        observation: observationWithNestedJson,
+        variableMapping,
+      });
+
+      expect(result).toEqual([
+        {
+          var: "input",
+          value: { question: "2+2", nested: { answer: 4 }, num: "42" },
+        },
+        { var: "output", value: true },
+        { var: "expected", value: null },
+      ]);
     });
   });
 
@@ -471,8 +695,8 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe("");
-      expect(result[1].value).toBe("");
+      expect(result[0].value).toBeNull();
+      expect(result[1].value).toBeUndefined();
     });
 
     it("should handle invalid JSON selector gracefully", () => {
@@ -492,8 +716,8 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      // Non-matching JSONPath returns empty string
-      expect(result[0].value).toBe("");
+      // Non-matching JSONPath returns undefined
+      expect(result[0].value).toBeUndefined();
     });
 
     it("should handle non-JSON string column with JSON selector", () => {
@@ -537,7 +761,10 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe(mockObservation.input);
+      expect(result[0].value).toEqual({
+        prompt: "Hello, how are you?",
+        context: "greeting",
+      });
     });
 
     it("should map 'output' to observation output field", () => {
@@ -553,7 +780,10 @@ describe("extractObservationVariables", () => {
         availableObservationEvalVariableColumns as ObservationEvalVariableColumn[],
       );
 
-      expect(result[0].value).toBe(mockObservation.output);
+      expect(result[0].value).toEqual({
+        response: "I am fine, thank you!",
+        sentiment: "positive",
+      });
     });
 
     it("should map 'metadata' to observation metadata field as JSON string", () => {
@@ -566,7 +796,7 @@ describe("extractObservationVariables", () => {
         variableMapping,
       });
 
-      expect(result[0].value).toBe(JSON.stringify(mockObservation.metadata));
+      expect(result[0].value).toEqual(mockObservation.metadata);
     });
   });
 });

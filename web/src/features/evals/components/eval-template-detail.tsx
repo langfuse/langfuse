@@ -14,7 +14,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
 import { Badge } from "@/src/components/ui/badge";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
@@ -24,7 +24,10 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
+import { TrashIcon } from "lucide-react";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -32,6 +35,12 @@ export const EvalTemplateDetail = () => {
   const templateId = router.query.id as string;
   const mode = router.query.mode;
   const isEditing = mode === "edit";
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const capture = usePostHogClientCapture();
+  const hasDeleteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:CUD",
+  });
 
   // get the current template by id
   const template = api.evals.templateById.useQuery({
@@ -76,7 +85,7 @@ export const EvalTemplateDetail = () => {
       delete nextQuery.mode;
     }
 
-    void router.replace(
+    router.replace(
       {
         pathname: router.pathname,
         query: nextQuery,
@@ -106,18 +115,41 @@ export const EvalTemplateDetail = () => {
               isCustom={!!template.data?.projectId}
             />
 
-            {/* TODO: moved to LFE-4573 */}
-            {/* <DeleteEvaluatorTemplateButton
-              itemId={templateId}
-              projectId={projectId}
-              redirectUrl={`/project/${projectId}/evals/templates`}
-              deleteConfirmation={
-                template.data != null
-                  ? `${template.data.name}-v${template.data.version}`
-                  : undefined
-              }
-              enabled={!template.isPending}
-            /> */}
+            {template.data?.projectId ? (
+              <>
+                <IconOnlyButton
+                  icon={<TrashIcon className="h-4 w-4" />}
+                  label="Delete"
+                  aria-label="delete"
+                  variant="outline-solid"
+                  size="icon"
+                  disabledReason={
+                    hasDeleteAccess
+                      ? undefined
+                      : "You don't have permission to delete this evaluator."
+                  }
+                  onClick={() => {
+                    capture("eval_templates:delete_form_open", {
+                      source: "template",
+                    });
+                    setIsDeleteDialogOpen(true);
+                  }}
+                />
+                <DeleteEvalTemplateDialog
+                  projectId={projectId}
+                  templateId={templateId}
+                  templateName={template.data.name}
+                  open={isDeleteDialogOpen}
+                  onOpenChange={setIsDeleteDialogOpen}
+                  onSuccess={() => {
+                    capture("eval_templates:delete_template_button_click", {
+                      source: "template",
+                    });
+                    router.push(`/project/${projectId}/evals/templates`);
+                  }}
+                />
+              </>
+            ) : null}
           </>
         ),
       }}

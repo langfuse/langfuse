@@ -1,13 +1,10 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteAnnotationQueueItemForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import {
   DeleteAnnotationQueueItemQuery,
   DeleteAnnotationQueueItemResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { verifyAnnotationQueue } from "../utils";
 
 export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
   defineTool({
@@ -25,45 +22,14 @@ export const [deleteAnnotationQueueItemTool, handleDeleteAnnotationQueueItem] =
           "mcp.annotation_queue_item_id": input.itemId,
         },
         fn: async () => {
-          await verifyAnnotationQueue({
+          const result = await deleteAnnotationQueueItemForApi({
             projectId: context.projectId,
             queueId: input.queueId,
+            itemId: input.itemId,
+            auditScope: context,
           });
 
-          const existingItem = await prisma.annotationQueueItem.findUnique({
-            where: {
-              id: input.itemId,
-              queueId: input.queueId,
-              projectId: context.projectId,
-            },
-          });
-
-          if (!existingItem) {
-            throw new LangfuseNotFoundError("Annotation queue item not found");
-          }
-
-          await prisma.annotationQueueItem.delete({
-            where: {
-              id: input.itemId,
-              queueId: input.queueId,
-              projectId: context.projectId,
-            },
-          });
-
-          await auditLog({
-            action: "delete",
-            resourceType: "annotationQueueItem",
-            resourceId: existingItem.id,
-            projectId: context.projectId,
-            orgId: context.orgId,
-            apiKeyId: context.apiKeyId,
-            before: existingItem,
-          });
-
-          return DeleteAnnotationQueueItemResponse.parse({
-            success: true,
-            message: "Annotation queue item deleted successfully",
-          });
+          return DeleteAnnotationQueueItemResponse.parse(result);
         },
       }),
     destructiveHint: true,

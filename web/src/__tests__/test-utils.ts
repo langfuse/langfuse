@@ -1,4 +1,5 @@
 import {
+  CodeEvalExecutionQueue,
   EvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   SecondaryEvalExecutionQueue,
@@ -22,6 +23,7 @@ export const getQueues = () => {
     ...EvalExecutionQueue.getShardNames(),
     ...SecondaryEvalExecutionQueue.getShardNames(),
     ...LLMAsJudgeExecutionQueue.getShardNames(),
+    ...CodeEvalExecutionQueue.getShardNames(),
     ...OtelIngestionQueue.getShardNames(),
     ...SecondaryOtelIngestionQueue.getShardNames(),
     ...TraceUpsertQueue.getShardNames(),
@@ -54,29 +56,36 @@ export const getQueues = () => {
                 ? LLMAsJudgeExecutionQueue.getInstance({
                     shardName: queueName,
                   })
-                : queueName.startsWith(QueueName.TraceUpsert)
-                  ? TraceUpsertQueue.getInstance({ shardName: queueName })
-                  : queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)
-                    ? SecondaryOtelIngestionQueue.getInstance({
-                        shardName: queueName,
-                      })
-                    : queueName.startsWith(QueueName.OtelIngestionQueue)
-                      ? OtelIngestionQueue.getInstance({
+                : queueName.startsWith(QueueName.CodeEvalExecution)
+                  ? CodeEvalExecutionQueue.getInstance({
+                      shardName: queueName,
+                    })
+                  : queueName.startsWith(QueueName.TraceUpsert)
+                    ? TraceUpsertQueue.getInstance({ shardName: queueName })
+                    : queueName.startsWith(
+                          QueueName.OtelIngestionSecondaryQueue,
+                        )
+                      ? SecondaryOtelIngestionQueue.getInstance({
                           shardName: queueName,
                         })
-                      : getQueue(
-                          queueName as Exclude<
-                            QueueName,
-                            | QueueName.IngestionQueue
-                            | QueueName.IngestionSecondaryQueue
-                            | QueueName.EvaluationExecution
-                            | QueueName.EvaluationExecutionSecondaryQueue
-                            | QueueName.LLMAsJudgeExecution
-                            | QueueName.TraceUpsert
-                            | QueueName.OtelIngestionQueue
-                            | QueueName.OtelIngestionSecondaryQueue
-                          >,
-                        ),
+                      : queueName.startsWith(QueueName.OtelIngestionQueue)
+                        ? OtelIngestionQueue.getInstance({
+                            shardName: queueName,
+                          })
+                        : getQueue(
+                            queueName as Exclude<
+                              QueueName,
+                              | QueueName.IngestionQueue
+                              | QueueName.IngestionSecondaryQueue
+                              | QueueName.EvaluationExecution
+                              | QueueName.EvaluationExecutionSecondaryQueue
+                              | QueueName.LLMAsJudgeExecution
+                              | QueueName.CodeEvalExecution
+                              | QueueName.TraceUpsert
+                              | QueueName.OtelIngestionQueue
+                              | QueueName.OtelIngestionSecondaryQueue
+                            >,
+                          ),
     );
 };
 
@@ -170,7 +179,12 @@ export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   auth?: string,
   statusCode = 200,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
   if (status !== statusCode) {
     throw new Error(
       `API call did not return ${statusCode}, returned status ${status}, body ${JSON.stringify(resBody)}`,
@@ -193,7 +207,12 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   body?: unknown,
   auth?: string,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
 
   if (status === 200) {
     const typeCheckResult = responseZodSchema.safeParse(resBody);

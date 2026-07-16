@@ -2,7 +2,7 @@ import {
   createObservation,
   createTrace,
   createTracesCh,
-  createEvent,
+  createEvent as createEventBase,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
@@ -16,6 +16,15 @@ import {
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+
+// The events tables carry metadata as flattened `metadata_names` /
+// `metadata_values` arrays. The fixture below also passes the nested object
+// form for readability; it is not a column and is ignored by the insert.
+const createEvent = (
+  event: Parameters<typeof createEventBase>[0] & {
+    metadata?: Record<string, unknown>;
+  },
+) => createEventBase(event);
 
 // Helper type for creating observation data
 type ObservationData = {
@@ -69,25 +78,24 @@ const createObservationData = (
       user_id: trace?.user_id ?? null,
       tags: trace?.tags ?? [],
     });
-  } else {
-    // For observations table: milliseconds, simpler structure
-    return createObservation({
-      id,
-      trace_id: data.trace_id,
-      project_id: data.project_id,
-      name: data.name,
-      type: data.type,
-      level: data.level,
-      start_time: data.start_time,
-      end_time: data.end_time === null ? null : data.end_time,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      provided_model_name: data.provided_model_name,
-      provided_usage_details: data.provided_usage_details,
-      provided_cost_details: data.provided_cost_details,
-    });
   }
+  // For observations table: milliseconds, simpler structure
+  return createObservation({
+    id,
+    trace_id: data.trace_id,
+    project_id: data.project_id,
+    name: data.name,
+    type: data.type,
+    level: data.level,
+    start_time: data.start_time,
+    end_time: data.end_time === null ? null : data.end_time,
+    input: data.input,
+    output: data.output,
+    metadata: data.metadata,
+    provided_model_name: data.provided_model_name,
+    provided_usage_details: data.provided_usage_details,
+    provided_cost_details: data.provided_cost_details,
+  });
 };
 
 // Helper to create trace and observations in one go
@@ -573,7 +581,7 @@ describe("/api/public/observations API Endpoint", () => {
   };
 
   // Run tests with both implementations
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
     runTestSuite(true); // with events table
   }
   runTestSuite(false); // with observations table
@@ -710,7 +718,7 @@ describe("/api/public/observations API Endpoint", () => {
               undefined,
               auth,
             );
-            fail("Should have thrown an error");
+            throw new Error("Should have thrown an error");
           } catch (error) {
             expect(error).toBeDefined();
           }
@@ -917,7 +925,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run all advanced filtering tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runAdvancedFilterTestSuite(true); // with events table
     }
     runAdvancedFilterTestSuite(false); // with observations table
@@ -1259,7 +1267,7 @@ describe("/api/public/observations API Endpoint", () => {
     };
 
     // Run parentObservationId filter tests for both implementations
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true") {
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
       runParentObservationIdFilterTestSuite(true); // with events table
     }
     runParentObservationIdFilterTestSuite(false); // with observations table

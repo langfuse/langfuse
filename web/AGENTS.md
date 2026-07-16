@@ -62,18 +62,36 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
+- Large frontend feature, virtualized-list, local state, and React
+  effect-free data-flow architecture:
+  [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
+- Avoidable React effect audits, refactors, and module migrations:
+  [`../.agents/skills/refactor-react-effects/SKILL.md`](../.agents/skills/refactor-react-effects/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+- PostHog product analytics — when and how to instrument user actions:
+  [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
-performance, bundle size, React/Next.js performance patterns, or browser-based
-signoff of user-visible changes.
+performance, virtualized lists, local feature stores, bundle size,
+React/Next.js performance patterns, or browser-based signoff of user-visible
+changes. If you are about to write a `useEffect` or wire form initial values
+from loaded data, read the frontend-large-feature-architecture skill first —
+most effects that derive or sync state should not exist. When adding a
+meaningful user action (button, handler, form, mutation, feature surface),
+read the PostHog instrumentation skill and decide explicitly whether the
+action should emit an analytics event.
 
 ## Web Conventions
 
+- **Before adding or modifying a chart, dashboard, or chart formatter, read
+  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions (formatting, colors, axis scale, overload) live in the preparer,
+  not the chart components.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
@@ -84,6 +102,21 @@ signoff of user-visible changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- Do not add `useEffect` by default. Use it only when a component must
+  synchronize with a concrete system outside React, such as a subscription,
+  browser event listener, observer, timer, or imperative third-party API.
+  Before writing an effect, name that external system and its setup/cleanup
+  lifecycle. If there is no external system, do not use an effect. In
+  particular, do not use effects to derive render state, mirror props or query
+  data into local state, react to user actions, or reset state when an ID
+  changes. Derive during render, run work in the initiating event handler, use
+  query APIs for server state, or mount a keyed child once required data is
+  available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
+  hook, an ESLint suppression, or disabled dependency checks. Use
+  `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
+- In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
+- Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
+  variant, or primitive before overriding with higher specificity.
 - When changing shared UI/table patterns, update sibling variants consistently,
   including default-visible and hidden columns or states.
 - For component style variants, prefer `cva` with `VariantProps` and merge
@@ -108,6 +141,35 @@ signoff of user-visible changes.
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
   the UI.
+- **Z-index / layers — key idea: we are migrating from z-indexes to a layer
+  system** (start of a developing design system; extend it, don't work around
+  it). **To put something on top of something else, use a layer, not a
+  z-index.** The app renders inside `#__next`, isolated into one stacking
+  context (`globals.css`), so its z-indexes can't escape; overlays go in layers
+  that sit outside it and always win. `LAYER_ORDER` is
+  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
+  `modal` is for true blocking Dialog and AlertDialog surfaces.
+  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
+  fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
+  `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
+  imperatively-positioned content renders via `<Layer name="…">`. z-index stays
+  local to a layer or component (1–2 max), never to escape the app — the
+  `@repo/no-overlay-zindex` lint rule enforces it.
+- **Overlay lifecycle — a dropdown that opens a modal should close first**, not
+  linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
+  layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
+  Dialog as a SIBLING (trigger inside, dialog outside), as
+  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  (LFE-10615).
+- Never import `prettier/plugins/typescript` in client code — it embeds the
+  TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
+  production-only `ReferenceError`; caught by the CI client-bundle scan,
+  LFE-10645). Format TypeScript with `parser: "babel-ts"` +
+  `prettier/plugins/babel` instead, as the eval-template editor does
+  (`src/features/evals/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
@@ -132,9 +194,9 @@ signoff of user-visible changes.
 - Lint: `pnpm --filter web run lint`
 - Lint fix: `pnpm --filter web run lint:fix`
 - Typecheck: `pnpm --filter web run typecheck`
-- Server tests: `pnpm --filter web run test -- <args>`
-- In-source tests: `pnpm --filter web run test:in-source -- <args>`
-- Client tests: `pnpm --filter web run test-client -- <args>`
+- Server tests: `pnpm --filter web run test <args>`
+- In-source tests: `pnpm --filter web run test:in-source <args>`
+- Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
@@ -159,7 +221,7 @@ signoff of user-visible changes.
 
 ### Error handling (tRPC + REST)
 
-1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services. 
+1. Throw `BaseError` subclasses (eg `LangfuseNotFoundError`) from handlers and services.
 2. Let `BaseError`s bubble up to the tRPC and REST middlewares (eg. don't `try/catch` and rethrow in to `TRPCError` the handler)
 3. Extend the `BaseError` or its subclasses in [`packages/shared/src/errors/`](../packages/shared/src/errors/) as needed.
 
@@ -168,7 +230,10 @@ signoff of user-visible changes.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP
+4. For meaningful user actions (buttons, form submits, mode switches), decide
+   explicitly whether to instrument them with PostHog. Use
+   `../.agents/skills/posthog-instrumentation/SKILL.md`.
+5. Review the affected user flow in a real browser with the Playwright MCP
    server before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 
@@ -178,7 +243,7 @@ signoff of user-visible changes.
 2. Install Chromium with `pnpm run playwright:install` if Playwright has not been set up on this machine yet.
 3. Use the workspace `playwright` MCP server from `.mcp.json`, `.cursor/mcp.json`, or `.vscode/mcp.json` for browser-driven review of user-visible frontend changes, not just debugging.
 4. Exercise the primary changed flow and check the resulting UI state for obvious visual regressions before signoff.
-5. Inspect traces and other artifacts under `../.playwright-mcp/` when a browser session fails.
+5. Inspect traces and other artifacts under `/tmp/playwright-mcp` when a browser session fails.
 
 ## Package-Specific Rules
 

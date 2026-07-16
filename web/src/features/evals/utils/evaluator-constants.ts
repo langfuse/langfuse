@@ -21,15 +21,6 @@ export const OBSERVATION_VARIABLES = [
   },
 ];
 
-export const COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION = new Set([
-  "release",
-  "traceName",
-  "traceTags",
-  "userId",
-  "sessionId",
-  "tags",
-]);
-
 export const OUTPUT_MAPPING = [
   "generation",
   "output",
@@ -40,6 +31,8 @@ export const OUTPUT_MAPPING = [
 
 export const INTERNAL_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.LLMJudge,
+  LangfuseInternalTraceEnvironment.CodeEval,
+  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
   "langfuse-prompt-experiment",
   "langfuse-evaluation",
   "sdk-experiment",

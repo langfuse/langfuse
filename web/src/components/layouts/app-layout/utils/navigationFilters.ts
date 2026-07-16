@@ -7,10 +7,13 @@ import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import type { User } from "next-auth";
+import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
 /**
  * Individual filter functions - each handles one concern
@@ -73,15 +76,11 @@ export const filters = {
     if (route.featureFlag === undefined) return route;
 
     if (route.featureFlag === "experimentsV4Enabled") {
-      return ctx.isLangfuseCloud && ctx.session?.user?.v4BetaEnabled === true
-        ? route
-        : null;
+      return ctx.session?.user?.v4BetaEnabled === true ? route : null;
     }
 
     if (route.featureFlag === "v4BetaToggleVisible") {
-      const isDev = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV";
-      const canToggleV4 = isDev || ctx.session?.user?.canToggleV4 === true;
-      return canToggleV4 && ctx.isLangfuseCloud ? route : null;
+      return ctx.session?.user?.canToggleV4 === true ? route : null;
     }
 
     const hasFlag =
@@ -162,12 +161,17 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    _ctx: NavigationFilterContext,
+    ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
     // Convert null to undefined for route.show compatibility
-    return route.show({ organization: organization ?? undefined })
+    return route.show({
+      organization: organization ?? undefined,
+      projectId: ctx.routerProjectId,
+      isLangfuseCloud: ctx.isLangfuseCloud,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
+    })
       ? route
       : null;
   },

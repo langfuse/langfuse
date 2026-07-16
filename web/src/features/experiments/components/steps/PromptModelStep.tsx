@@ -23,7 +23,7 @@ import {
 import { ChevronDown, CheckIcon, PlusIcon, EyeIcon } from "lucide-react";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 import { type LlmSchema } from "@langfuse/shared";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
@@ -264,7 +264,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"
-                className={cn("text-destructive text-sm font-medium")}
+                className="text-destructive text-sm font-medium"
               >
                 {[
                   form.formState.errors.modelConfig?.model?.message,

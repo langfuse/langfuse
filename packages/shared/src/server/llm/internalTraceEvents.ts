@@ -53,6 +53,7 @@ export type InternalTraceEventInput = {
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
+  isAppRoot?: boolean | null;
   userId?: string;
   sessionId?: string;
   level?: string;
@@ -74,6 +75,9 @@ export type InternalTraceEventInput = {
   output?: string;
   metadata: Record<string, unknown>;
   source: string;
+  ingestionApiKey?: string;
+  ingestionSdkName?: string;
+  ingestionSdkVersion?: string;
   serviceName?: string;
   serviceVersion?: string;
   scopeName?: string;

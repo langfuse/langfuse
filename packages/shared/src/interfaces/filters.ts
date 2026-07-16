@@ -16,10 +16,14 @@ export const filterOperators = {
     "ends with",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
+  booleanObject: ["=", "<>"],
   boolean: ["=", "<>"],
   null: ["is null", "is not null"],
   positionInTrace: ["="],
 } as const;
+
+export const FTS_MATCH_OPERATOR = "matches" as const;
+export type FtsMatchOperator = typeof FTS_MATCH_OPERATOR;
 
 export const timeFilter = z.object({
   column: z.string(),
@@ -77,6 +81,13 @@ export const numberObjectFilter = z.object({
   operator: z.enum(filterOperators.number),
   value: z.number(),
 });
+export const booleanObjectFilter = z.object({
+  type: z.literal("booleanObject"),
+  column: z.string(),
+  key: z.string(), // eg scores --> "is_hallucination"
+  operator: z.enum(filterOperators.booleanObject),
+  value: z.boolean(),
+});
 export const booleanFilter = z.object({
   type: z.literal("boolean"),
   column: z.string(),
@@ -123,7 +134,43 @@ export const singleFilter = z.discriminatedUnion("type", [
   arrayOptionsFilter,
   stringObjectFilter,
   numberObjectFilter,
+  booleanObjectFilter,
   booleanFilter,
   nullFilter,
   positionInTraceFilter,
 ]);
+
+const eventsTableStringOperator = z.union([
+  z.enum(filterOperators.string),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+const eventsTableStringObjectOperator = z.union([
+  z.enum(filterOperators.stringObject),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+export const eventsTableStringFilter = stringFilter.extend({
+  operator: eventsTableStringOperator,
+});
+
+export const eventsTableStringObjectFilter = stringObjectFilter.extend({
+  operator: eventsTableStringObjectOperator,
+});
+
+export const eventsTableSingleFilter = z.discriminatedUnion("type", [
+  timeFilter,
+  eventsTableStringFilter,
+  numberFilter,
+  stringOptionsFilter,
+  categoryOptionsFilter,
+  arrayOptionsFilter,
+  eventsTableStringObjectFilter,
+  numberObjectFilter,
+  booleanObjectFilter,
+  booleanFilter,
+  nullFilter,
+  positionInTraceFilter,
+]);
+
+export const eventsTableFilterState = z.array(eventsTableSingleFilter);

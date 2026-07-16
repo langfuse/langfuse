@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import {
   createShaHash,
+  deleteApiKeyFromDb,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
@@ -12,6 +13,7 @@ import {
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
+  createApiKeyCacheKey,
 } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -61,30 +63,13 @@ export class ApiAuthService {
    * @param scope - The scope of the API key (either "PROJECT" or "ORGANIZATION").
    */
   async deleteApiKey(id: string, entityId: string, scope: ApiKeyScope) {
-    const entity =
-      scope === "PROJECT" ? { projectId: entityId } : { orgId: entityId };
-    // Make sure the API key exists and belongs to the project the user has access to
-    const apiKey = await this.prisma.apiKey.findFirstOrThrow({
-      where: {
-        ...entity,
-        id: id,
-        scope,
-      },
+    return deleteApiKeyFromDb({
+      prisma: this.prisma,
+      id,
+      entityId,
+      scope,
+      redis: this.redis,
     });
-    if (!apiKey) {
-      return false;
-    }
-
-    // if redis is available, delete the key from there as well
-    // delete from redis even if caching is disabled via env for consistency
-    await this.invalidateCachedApiKeys([apiKey], `key ${id}`);
-
-    await this.prisma.apiKey.delete({
-      where: {
-        id: apiKey.id,
-      },
-    });
-    return true;
   }
 
   async verifyAuthHeaderAndReturnScope(
@@ -183,6 +168,7 @@ export class ApiAuthService {
                 orgId: finalApiKey.orgId,
                 plan,
                 apiKeyId: finalApiKey.id,
+                publicKey: finalApiKey.publicKey,
               },
               span,
             );
@@ -232,6 +218,7 @@ export class ApiAuthService {
                 orgId,
                 plan,
                 apiKeyId: dbKey.id,
+                publicKey: dbKey.publicKey,
               },
               span,
             );
@@ -370,7 +357,7 @@ export class ApiAuthService {
 
     try {
       await this.redis.set(
-        this.createRedisKey(hash),
+        createApiKeyCacheKey(hash),
         JSON.stringify(newApiKey),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
@@ -387,7 +374,7 @@ export class ApiAuthService {
 
     try {
       const redisApiKey = await this.redis.getex(
-        this.createRedisKey(hash),
+        createApiKeyCacheKey(hash),
         "EX",
         env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
       );
@@ -407,17 +394,13 @@ export class ApiAuthService {
           "Failed to parse API key from Redis, deleting existing key from cache",
           parsedApiKey.error,
         );
-        await this.redis.del(this.createRedisKey(hash));
+        await this.redis.del(createApiKeyCacheKey(hash));
       }
       return null;
     } catch (error: unknown) {
       logger.error("Error fetching key from redis", error);
       return null;
     }
-  }
-
-  private createRedisKey(hash: string) {
-    return `api-key:${hash}`;
   }
 
   private extractOrgIdAndCloudConfig(

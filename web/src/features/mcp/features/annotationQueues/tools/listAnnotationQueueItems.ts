@@ -1,13 +1,11 @@
-import { prisma } from "@langfuse/shared/src/db";
 import {
   GetAnnotationQueueItemsQuery,
   GetAnnotationQueueItemsResponse,
 } from "@/src/features/public-api/types/annotation-queues";
+import { listAnnotationQueueItemsForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
+import { buildAnnotationQueueItemUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
-import { annotationQueueItemToApi } from "../schema";
-import { verifyAnnotationQueue } from "../utils";
 
 export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
   defineTool({
@@ -26,35 +24,27 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
           "mcp.pagination_limit": input.limit,
         },
         fn: async () => {
-          await verifyAnnotationQueue({
+          const result = await listAnnotationQueueItemsForApi({
             projectId: context.projectId,
             queueId: input.queueId,
+            page: input.page,
+            limit: input.limit,
+            status: input.status,
           });
 
-          const where = {
-            projectId: context.projectId,
-            queueId: input.queueId,
-            ...(input.status ? { status: input.status } : {}),
+          const parsed = GetAnnotationQueueItemsResponse.parse(result);
+
+          return {
+            ...parsed,
+            data: parsed.data.map((item) => ({
+              ...item,
+              url: buildAnnotationQueueItemUrl({
+                projectId: context.projectId,
+                queueId: item.queueId,
+                itemId: item.id,
+              }),
+            })),
           };
-
-          const [items, totalItems] = await Promise.all([
-            prisma.annotationQueueItem.findMany({
-              where,
-              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-              take: input.limit,
-              skip: (input.page - 1) * input.limit,
-            }),
-            prisma.annotationQueueItem.count({ where }),
-          ]);
-
-          return GetAnnotationQueueItemsResponse.parse({
-            data: items.map(annotationQueueItemToApi),
-            meta: paginationMeta({
-              page: input.page,
-              limit: input.limit,
-              totalItems,
-            }),
-          });
         },
       }),
     readOnlyHint: true,

@@ -18,7 +18,6 @@ import {
   createDatasetRunItemsCh,
   createDatasetRunItem,
   createOrgProjectAndApiKey,
-  LLMCompletionError,
   LangfuseInternalTraceEnvironment,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
@@ -34,19 +33,17 @@ import {
 } from "../features/evaluation/evalService";
 import { requiresDatabaseLookup } from "../features/evaluation/traceFilterUtils";
 
-// Mock fetchLLMCompletion module with default passthrough behavior
+// Mock the shared LLM runtime with default passthrough behavior.
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi
-      .fn()
-      .mockImplementation(actual.fetchLLMCompletion as any),
+    generateLLMText: vi.fn().mockImplementation(actual.generateLLMText as any),
   };
 });
 
 // Import the mocked function
-import { fetchLLMCompletion } from "@langfuse/shared/src/server";
+import { generateLLMText } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../errors/UnrecoverableError";
 
 let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -1253,113 +1250,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(0);
     }, 10_000);
 
-    test("cancels a job if the second event deselects", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        user_id: "a",
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await prisma.llmApiKeys.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          secretKey: encrypt(String(OPENAI_API_KEY)),
-          provider: "openai",
-          adapter: LLMAdapter.OpenAI,
-          customModels: [],
-          displaySecretKey: "123456",
-        },
-      });
-
-      const templateId = randomUUID();
-      await prisma.evalTemplate.create({
-        data: {
-          id: templateId,
-          projectId,
-          name: "test-template",
-          version: 1,
-          prompt: "Please evaluate toxicity {{input}} {{output}}",
-          model: "gpt-3.5-turbo",
-          provider: "openai",
-          modelParams: {},
-          outputDefinition: {
-            reasoning: "Please explain your reasoning",
-            score: "Please provide a score between 0 and 1",
-          },
-        },
-      });
-
-      await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: [
-            {
-              type: "string",
-              value: "a",
-              column: "User ID",
-              operator: "contains",
-            },
-          ],
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          evalTemplateId: templateId,
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-
-      // Wait for .5s
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // update the trace to deselect the trace
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        user_id: "b",
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      }); // calling it twice to check it is only generated once
-
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(1);
-      expect(jobs[0].projectId).toBe(projectId);
-      expect(jobs[0].jobInputTraceId).toBe(traceId);
-      expect(jobs[0].status.toString()).toBe("CANCELLED");
-      expect(jobs[0].startTime).not.toBeNull();
-      expect(jobs[0].endTime).not.toBeNull();
-    }, 10_000);
-
     test("does not create eval job for existing traces if time scope is EXISTING but handler enforces NEW only", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -2061,15 +1951,11 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         delay: 1000,
       };
 
-      await expect(evaluate({ event: payload })).rejects.toThrowError(
-        new LLMCompletionError({
-          message:
-            "401 status code (no body)\n" +
-            "\n" +
-            "Troubleshooting URL: https://docs.langchain.com/oss/javascript/langchain/errors/MODEL_AUTHENTICATION/\n",
-          responseStatusCode: 401,
-        }),
-      );
+      await expect(evaluate({ event: payload })).rejects.toMatchObject({
+        name: "AI_APICallError",
+        statusCode: 401,
+        isRetryable: false,
+      });
 
       const jobs = await prisma.jobExecution.findMany({
         where: { projectId },
@@ -2246,8 +2132,8 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
     test("handles LLM timeout gracefully", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       // Set up the mock to simulate timeout for this test only
-      const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
-      mockFetchLLMCompletion.mockRejectedValueOnce(
+      const mockGenerateLLMText = vi.mocked(generateLLMText);
+      mockGenerateLLMText.mockRejectedValueOnce(
         new ApiError("Request timeout after 120000ms", 500),
       );
 
@@ -2351,7 +2237,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].status.toString()).toBe("PENDING");
 
       // Clean up the mock after this test
-      mockFetchLLMCompletion.mockReset();
+      mockGenerateLLMText.mockReset();
     }, 15_000);
   });
 
@@ -2403,11 +2289,11 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
         },
         {
-          value: '{"expected_output":"This is a great response"}',
+          value: { expected_output: "This is a great response" },
           var: "output",
         },
       ]);
@@ -2451,12 +2337,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"output":"This is a great response"}',
+          value: { output: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2516,12 +2402,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"huhu":"This is a great prompt"}',
+          value: { huhu: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"haha":"This is a great response"}',
+          value: { haha: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2613,12 +2499,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "input",
         },
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "output",
         },
       ]);
@@ -2694,12 +2580,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: '{"huhu":"This is a great prompt again"}',
+          value: { huhu: "This is a great prompt again" },
           var: "input",
         },
         {
           environment: "default",
-          value: '{"haha":"This is a great response again"}',
+          value: { haha: "This is a great response again" },
           var: "output",
         },
       ]);
@@ -2764,12 +2650,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
         expect(result).toEqual([
           {
-            value: '{"huhu":"This is a great prompt"}',
+            value: { huhu: "This is a great prompt" },
             var: "input",
             environment: "production",
           },
           {
-            value: '{"haha":"This is a great response"}',
+            value: { haha: "This is a great response" },
             var: "output",
             environment: "production",
           },
@@ -2852,7 +2738,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultV1).toEqual([
         {
-          value: '{"expected_output":"v1 expected output"}',
+          value: { expected_output: "v1 expected output" },
           var: "output",
         },
       ]);
@@ -2868,7 +2754,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultLatest).toEqual([
         {
-          value: '{"expected_output":"v2 expected output"}',
+          value: { expected_output: "v2 expected output" },
           var: "output",
         },
       ]);
@@ -3150,15 +3036,15 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      // Mock fetchLLMCompletion to capture the traceSinkParams
+      // Mock the LLM runtime to capture the trace parameters.
       let capturedTraceSinkParams: any = null;
 
-      vi.mocked(fetchLLMCompletion).mockImplementationOnce(
-        async (params: any) => {
-          capturedTraceSinkParams = params.traceSinkParams;
-          return { score: 0.8, reasoning: "Good response" };
-        },
-      );
+      vi.mocked(generateLLMText).mockImplementationOnce((async (
+        params: any,
+      ) => {
+        capturedTraceSinkParams = params.trace;
+        return { output: { score: 0.8, reasoning: "Good response" } };
+      }) as any);
 
       await evaluate({
         event: {
@@ -3167,7 +3053,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         },
       });
 
-      // Verify traceSinkParams were passed to fetchLLMCompletion
+      // Verify trace parameters were passed to the shared LLM runtime.
       expect(capturedTraceSinkParams).toBeDefined();
       expect(capturedTraceSinkParams.targetProjectId).toBe(projectId);
       expect(capturedTraceSinkParams.traceId).toMatch(/^[a-f0-9]{32}$/);
@@ -3181,9 +3067,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         job_execution_id: jobExecutionId,
         job_configuration_id: configId,
         target_trace_id: traceId,
-        score_id: capturedTraceSinkParams.metadata.score_id,
       });
-      expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
   });
 
@@ -3194,10 +3078,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       const jobExecutionId = randomUUID();
       const templateId = randomUUID();
 
-      vi.mocked(fetchLLMCompletion).mockResolvedValueOnce({
-        score: 0,
-        reasoning: "The response is safe and not toxic.",
-      });
+      vi.mocked(generateLLMText).mockResolvedValueOnce({
+        output: {
+          score: 0,
+          reasoning: "The response is safe and not toxic.",
+        },
+      } as any);
 
       await upsertTrace({
         id: traceId,

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
@@ -23,10 +22,7 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 
 export default function Dataset() {
   const router = useRouter();
@@ -43,61 +39,11 @@ export default function Dataset() {
     projectId,
     runId,
   });
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
-
-  const handleBetaSwitchChange = (enabled: boolean) => {
-    setExperimentsBetaEnabled(enabled);
-
-    if (enabled) {
-      void router.push(singleRunToExperimentsUrl(projectId, runId));
-    }
-  };
-
-  // Auto-redirect when beta is ON (via direct URL or back navigation)
-  useEffect(() => {
-    if (isExperimentsBetaActive && projectId && runId) {
-      void router.push(singleRunToExperimentsUrl(projectId, runId));
-    }
-  }, [isExperimentsBetaActive, projectId, runId, router]);
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={handleBetaSwitchChange}
-    />
-  ) : null;
-
-  if (isExperimentsBetaActive) {
-    return (
-      <Page
-        headerProps={{
-          title: run.data?.name ?? runId,
-          itemType: "DATASET_RUN",
-          breadcrumb: [
-            { name: "Datasets", href: `/project/${projectId}/datasets` },
-            {
-              name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-            {
-              name: "Experiments",
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-          ],
-          actionButtonsLeft: betaSwitch,
-        }}
-      >
-        <div className="flex h-full items-center justify-center">
-          <Spinner size="xl" variant="muted" />
-        </div>
-      </Page>
-    );
-  }
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page
@@ -105,17 +51,12 @@ export default function Dataset() {
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
+          ...breadcrumb,
           {
             name: "Experiments",
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
-        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Link
@@ -148,7 +89,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -183,7 +124,7 @@ export default function Dataset() {
                     <span className="text-sm font-medium">Dataset Version</span>
                     <Link
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
-                      className="text-accent-dark-blue hover:text-primary-accent/60 text-sm"
+                      className="text-link hover:text-link-hover text-sm"
                     >
                       <LocalIsoDate date={run.data.datasetVersion} />
                     </Link>

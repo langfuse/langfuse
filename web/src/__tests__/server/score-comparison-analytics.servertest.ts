@@ -27,6 +27,7 @@ describe("Score Comparison Analytics tRPC", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -34,7 +35,9 @@ describe("Score Comparison Analytics tRPC", () => {
               retentionDays: 30,
               deletedAt: null,
               name: "Test Project",
+              hasTraces: false,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -42,6 +45,10 @@ describe("Score Comparison Analytics tRPC", () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },

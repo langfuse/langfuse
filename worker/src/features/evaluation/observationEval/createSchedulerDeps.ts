@@ -1,8 +1,11 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
+  CodeEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   QueueJobs,
   QueueName,
+  safeBlobFilenameStem,
+  safeBlobKeySegment,
 } from "@langfuse/shared/src/server";
 import { env } from "../../../env";
 import { getEvalS3StorageClient } from "../s3StorageClient";
@@ -49,7 +52,16 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
     },
 
     uploadObservationToS3: async (params) => {
-      const path = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}evals/${params.projectId}/observations/${params.observationId}.json`;
+      // traceId is a directory segment; observationId is a filename stem
+      // (`.json` reserved out of the budget). Both come from user-supplied
+      // ids and must be sanitized so the resulting key never overflows
+      // NAME_MAX or contains path-breaking characters.
+      const safeTraceId = safeBlobKeySegment(params.traceId);
+      const safeObservationId = safeBlobFilenameStem(
+        params.observationId,
+        ".json",
+      );
+      const path = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}evals/${params.projectId}/traces/${safeTraceId}/observations/${safeObservationId}.json`;
       const s3Client = getEvalS3StorageClient();
 
       await s3Client.uploadJson(path, params.data);
@@ -59,6 +71,34 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
 
     enqueueEvalJob: async (params) => {
       const shardingKey = `${params.projectId}-${params.jobExecutionId}`;
+      const payload = {
+        projectId: params.projectId,
+        jobExecutionId: params.jobExecutionId,
+        observationS3Path: params.observationS3Path,
+        ...(params.executionMode
+          ? { executionMode: params.executionMode }
+          : {}),
+      };
+
+      if (params.evalTemplateType === EvalTemplateType.CODE) {
+        const queue = CodeEvalExecutionQueue.getInstance({ shardingKey });
+        if (!queue) {
+          throw new Error("CodeEvalExecutionQueue is not initialized");
+        }
+
+        await queue.add(
+          QueueName.CodeEvalExecution,
+          {
+            name: QueueJobs.CodeEvalExecution,
+            id: params.jobExecutionId,
+            timestamp: new Date(),
+            payload,
+          },
+          { delay: params.delay },
+        );
+        return;
+      }
+
       const queue = LLMAsJudgeExecutionQueue.getInstance({ shardingKey });
       if (!queue) {
         throw new Error("LLMAsJudgeExecutionQueue is not initialized");
@@ -70,18 +110,9 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           name: QueueJobs.LLMAsJudgeExecution,
           id: params.jobExecutionId,
           timestamp: new Date(),
-          payload: {
-            projectId: params.projectId,
-            jobExecutionId: params.jobExecutionId,
-            observationS3Path: params.observationS3Path,
-            ...(params.executionMode
-              ? { executionMode: params.executionMode }
-              : {}),
-          },
+          payload,
         },
-        {
-          delay: params.delay,
-        },
+        { delay: params.delay },
       );
     },
   };
