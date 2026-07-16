@@ -50,13 +50,16 @@ describe("mapUserToCoreDataRow", () => {
 });
 
 describe("mapJobConfigurationToCoreDataRow", () => {
-  it("flattens the eval template relation to evalTemplateName", () => {
+  const decimal = (value: number) => ({ toNumber: () => value });
+
+  it("flattens the eval template and casts sampling to a number", () => {
     const row = mapJobConfigurationToCoreDataRow({
       id: "config-1",
       projectId: "project-1",
       scoreName: "toxicity",
       evalTemplateId: "template-1",
       evalTemplate: { name: "toxicity-v2" },
+      sampling: decimal(0.5),
     });
 
     expect(row).toStrictEqual({
@@ -65,16 +68,23 @@ describe("mapJobConfigurationToCoreDataRow", () => {
       scoreName: "toxicity",
       evalTemplateId: "template-1",
       evalTemplateName: "toxicity-v2",
+      sampling: 0.5,
     });
+    expect(JSON.stringify(row)).toContain('"sampling":0.5');
   });
 
   it("exports null for configurations without an eval template", () => {
     const row = mapJobConfigurationToCoreDataRow({
       id: "config-2",
       evalTemplate: null,
+      sampling: decimal(1),
     });
 
-    expect(row).toStrictEqual({ id: "config-2", evalTemplateName: null });
+    expect(row).toStrictEqual({
+      id: "config-2",
+      evalTemplateName: null,
+      sampling: 1,
+    });
   });
 });
 

@@ -58,15 +58,19 @@ export const mapUserToCoreDataRow = ({
 
 type JobConfigurationCoreDataInput = {
   evalTemplate: { name: string } | null;
+  sampling: { toNumber: () => number };
 } & Record<string, unknown>;
 
 // Flattens the joined eval template into a plain column so the export stays
-// one JSONL row per configured evaluator.
+// one JSONL row per configured evaluator. The sampling Decimal is cast to a
+// JS number so it lands as a JSON number instead of a quoted string.
 export const mapJobConfigurationToCoreDataRow = ({
   evalTemplate,
+  sampling,
   ...jobConfiguration
 }: JobConfigurationCoreDataInput) => ({
   ...jobConfiguration,
+  sampling: sampling.toNumber(),
   evalTemplateName: evalTemplate?.name ?? null,
 });
 
