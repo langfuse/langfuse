@@ -1,5 +1,6 @@
 /**
- * Theme Lab - dev-only surface ladder / typography / text-color tuner.
+ * Theme Lab - dev-only docked drawer for tuning the surface ladder,
+ * typography, text colors, and accent colors.
  *
  * Vanilla-DOM port of `.screenshots-review/_tools/theme-lab.js` (the
  * standalone console/bookmarklet copy, which remains the fallback for
@@ -46,9 +47,19 @@ interface Pairing {
   bold: string | null;
 }
 
+interface Swatch {
+  btn: HTMLButtonElement;
+  picker: HTMLInputElement;
+  setFill: (hex: string) => void;
+}
+
 interface LadderRowEls {
   slider: HTMLInputElement;
   num: HTMLInputElement;
+}
+
+interface SurfaceRowEls extends LadderRowEls {
+  swatch: Swatch;
 }
 
 interface TypoRowEls extends LadderRowEls {
@@ -61,6 +72,30 @@ interface TypoRowEls extends LadderRowEls {
 interface TextRowEls extends LadderRowEls {
   label: HTMLSpanElement;
   ratio: HTMLSpanElement;
+  swatch: Swatch;
+}
+
+interface AccentTier {
+  key: string;
+  label: string;
+  prop: string;
+  vsProp: string | null;
+}
+
+interface Hsl {
+  h: number;
+  s: number;
+  l: number;
+}
+
+interface AccentRowEls {
+  slider: HTMLInputElement;
+  h: HTMLInputElement;
+  s: HTMLInputElement;
+  l: HTMLInputElement;
+  label: HTMLSpanElement;
+  ratio: HTMLSpanElement;
+  swatch: Swatch;
 }
 
 interface PersistedTypo {
@@ -72,6 +107,8 @@ interface PersistedTypo {
 interface Persisted extends Record<string, unknown> {
   typo?: PersistedTypo;
   textColors?: Partial<Record<Mode, Record<string, unknown>>>;
+  accentColors?: Partial<Record<Mode, Record<string, unknown>>>;
+  ui?: { width?: unknown; collapsed?: unknown };
 }
 
 interface SavedOut extends Record<string, unknown> {
@@ -81,6 +118,8 @@ interface SavedOut extends Record<string, unknown> {
     weights?: Record<string, number>;
   };
   textColors?: Partial<Record<Mode, Record<string, number>>>;
+  accentColors?: Partial<Record<Mode, Record<string, Hsl>>>;
+  ui?: { width: number; collapsed: boolean };
 }
 
 declare global {
@@ -91,6 +130,10 @@ declare global {
 
 const PANEL_ID = "theme-lab-panel";
 const LS_KEY = "themeLabOverrides";
+
+// The currently-mounted panel's theme-class observer, module-level so
+// unmountThemeLab (and the React cleanup path) can disconnect it.
+let activeModeObserver: MutationObserver | null = null;
 const TYPO_STYLE_ID = "theme-lab-typography";
 const PRECONNECT_ID = "theme-lab-fonts-preconnect";
 // Sans and Mono load separately with face-specific checks: the app ships
@@ -177,6 +220,44 @@ const VS_LADDER_KEY: Record<string, string> = {
   "--background": "canvas",
   "--sidebar-background": "chrome",
 };
+
+// Accent tokens need full H/S/L editing (brand hue + saturation matter).
+// vsProp = the surface the row's contrast readout compares against
+// (null = fill row, no readout of its own; its paired fg row reads vs it).
+const ACCENT_TIERS: AccentTier[] = [
+  {
+    key: "primaryAccent",
+    label: "primary",
+    prop: "--primary-accent",
+    vsProp: "--background",
+  },
+  { key: "accentFill", label: "accent", prop: "--accent", vsProp: null },
+  {
+    key: "accentFg",
+    label: "accent-fg",
+    prop: "--accent-foreground",
+    vsProp: "--accent",
+  },
+  { key: "ring", label: "ring", prop: "--ring", vsProp: "--background" },
+  {
+    key: "sbAccentFill",
+    label: "sb-accent",
+    prop: "--sidebar-accent",
+    vsProp: null,
+  },
+  {
+    key: "sbAccentFg",
+    label: "sb-acc-fg",
+    prop: "--sidebar-accent-foreground",
+    vsProp: "--sidebar-accent",
+  },
+];
+
+// Drawer UI prefs (width in px, collapsed-to-rail), persisted alongside
+// the token overrides. Defaults: 320px, expanded.
+const UI_DEFAULT_WIDTH = 320;
+const UI_MIN_WIDTH = 260;
+const UI_MAX_WIDTH = 560;
 
 // Tailwind v4 text-size tokens; defaults are the globals.css rem values verbatim.
 const TYPE_TOKENS: TypeToken[] = [
@@ -297,8 +378,8 @@ function relLum(rgb: [number, number, number]): number {
 }
 
 function contrastRatio(
-  t1: Triplet & { h: number | string },
-  t2: Triplet & { h: number | string },
+  t1: { h: number | string; s: number | string; l: number },
+  t2: { h: number | string; s: number | string; l: number },
 ): number {
   const l1 = relLum(hslToRgb(Number(t1.h), Number(t1.s), t1.l));
   const l2 = relLum(hslToRgb(Number(t2.h), Number(t2.s), t2.l));
@@ -313,6 +394,90 @@ function contrastColor(ratio: number): string {
   return "rgb(255,118,118)";
 }
 
+// hex round-trip for the native color picker
+function hslToHex(h: number, s: number, l: number): string {
+  const rgb = hslToRgb(h, s, l);
+  let out = "#";
+  for (let i = 0; i < 3; i++) {
+    const v = Math.round(Math.min(1, Math.max(0, rgb[i])) * 255);
+    const hx = v.toString(16);
+    out += hx.length === 1 ? "0" + hx : hx;
+  }
+  return out;
+}
+
+// hex -> { h: integer deg, s/l: one-decimal percentages }, or null
+function hexToHsl(hex: string): Hsl | null {
+  const clean = String(hex).replace(/[^0-9a-fA-F]/g, "");
+  if (clean.length !== 6) return null;
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = h * 60;
+  }
+  return {
+    h: Math.round(h),
+    s: Math.round(s * 1000) / 10,
+    l: Math.round(l * 1000) / 10,
+  };
+}
+
+// Black-to-white lightness track tinted by the row's current hue/sat.
+function accentSliderBg(a: Hsl): string {
+  return (
+    "linear-gradient(to right, rgb(0,0,0), " +
+    hslToHex(a.h, a.s, 50) +
+    ", rgb(255,255,255))"
+  );
+}
+
+// Swatch = 18px preview button that opens a visually-hidden native color
+// picker (Chrome's includes an eyedropper). The picker's value is synced
+// from current state only when opened - never written back on open - so
+// hex round-trips cannot drift values without an actual input event.
+function makeSwatch(
+  titleText: string,
+  getHex: () => string,
+  onPick: (hsl: Hsl) => void,
+): Swatch {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.title = titleText;
+  btn.style.cssText =
+    "width:18px;height:18px;flex:none;padding:0;margin:0;" +
+    "border:1px solid rgb(120,120,126);border-radius:4px;cursor:pointer;";
+  const picker = document.createElement("input");
+  picker.type = "color";
+  picker.style.cssText =
+    "position:absolute;width:0;height:0;opacity:0;border:none;padding:0;";
+  btn.addEventListener("click", () => {
+    picker.value = getHex();
+    picker.click();
+  });
+  picker.addEventListener("input", () => {
+    const hsl = hexToHsl(picker.value);
+    if (hsl) onPick(hsl);
+  });
+  return {
+    btn,
+    picker,
+    setFill: (hex: string) => {
+      btn.style.background = hex;
+    },
+  };
+}
+
 /**
  * Mounts the Theme Lab panel. Idempotent: if the panel already exists, it is
  * re-shown and flashed instead of duplicated. Persisted overrides in
@@ -324,19 +489,21 @@ export function mountThemeLab(): void {
 
   const root = document.documentElement;
 
-  // Re-run guard: if the panel already exists, just re-show and flash it.
+  // Re-run guard: if the drawer already exists, just re-show and flash it.
   const existing = document.getElementById(PANEL_ID);
   if (existing) {
     existing.style.display = "";
     existing.style.boxShadow =
-      "0 0 0 2px rgb(150,140,255), 0 8px 28px rgba(0,0,0,0.5)";
+      "0 0 0 2px rgb(150,140,255), -8px 0 28px rgba(0,0,0,0.4)";
     setTimeout(() => {
-      existing.style.boxShadow = "0 8px 28px rgba(0,0,0,0.5)";
+      existing.style.boxShadow = "-8px 0 28px rgba(0,0,0,0.4)";
     }, 600);
     return;
   }
 
-  const MODE: Mode = root.classList.contains("dark") ? "dark" : "light";
+  // Mutable: flips when the app theme toggles (see the class MutationObserver
+  // near the mount section).
+  let MODE: Mode = root.classList.contains("dark") ? "dark" : "light";
 
   // Baseline = the stylesheet values, read with any inline override
   // temporarily removed.
@@ -353,6 +520,9 @@ export function mountThemeLab(): void {
     tier.props.forEach(captureBaseline);
   });
   TEXT_TIERS.forEach((t) => {
+    captureBaseline(t.prop);
+  });
+  ACCENT_TIERS.forEach((t) => {
     captureBaseline(t.prop);
   });
 
@@ -386,12 +556,31 @@ export function mountThemeLab(): void {
     light: {},
   };
 
+  function baselineHsl(prop: string): Hsl {
+    const b = baseline[prop];
+    return { h: parseFloat(b.h) || 0, s: parseFloat(b.s) || 0, l: b.l };
+  }
+
+  const accentState: Record<string, Hsl> = {};
+  ACCENT_TIERS.forEach((t) => {
+    accentState[t.key] = baselineHsl(t.prop);
+  });
+  // Per-mode persisted accent sets, same contract as textColorsStore.
+  let accentColorsStore: Record<Mode, Record<string, Hsl>> = {
+    dark: {},
+    light: {},
+  };
+
+  // Drawer UI prefs; loaded from persistence below, applied at build time.
+  const ui = { width: UI_DEFAULT_WIDTH, collapsed: false };
+
   // UI element registries. Declared before the persisted-load block below
   // because applyTypography -> updateBoldHint can run before the panel DOM
   // is built (the standalone source relies on `var` hoisting for this).
-  const inputs: Record<string, LadderRowEls> = {};
+  const inputs: Record<string, SurfaceRowEls> = {};
   const typoInputs: Record<string, TypoRowEls> = {};
   const textInputs: Record<string, TextRowEls> = {};
+  const accentInputs: Record<string, AccentRowEls> = {};
   const pairingRadios: Record<string, HTMLInputElement> = {};
   const gapEls: HTMLDivElement[] = [];
   let boldHint: HTMLSpanElement | null = null;
@@ -439,6 +628,32 @@ export function mountThemeLab(): void {
     const fg = hslOfProp(t.prop, textState[t.key]);
     const bg = hslOfProp(t.vs, state[VS_LADDER_KEY[t.vs]]);
     return contrastRatio(fg, bg);
+  }
+
+  function accentTripletStr(t: AccentTier): string {
+    const a = accentState[t.key];
+    return fmtNum(a.h) + " " + fmtNum(a.s) + "% " + fmtNum(a.l) + "%";
+  }
+
+  function applyAccent(t: AccentTier): void {
+    root.style.setProperty(t.prop, accentTripletStr(t));
+  }
+
+  function isAccentChanged(t: AccentTier): boolean {
+    const b = baselineHsl(t.prop);
+    const a = accentState[t.key];
+    return (
+      Math.abs(a.h - b.h) > 0.001 ||
+      Math.abs(a.s - b.s) > 0.001 ||
+      Math.abs(a.l - b.l) > 0.001
+    );
+  }
+
+  // Accent readouts resolve both sides from the live computed value, so they
+  // track every edit path (accent rows, ladder tiers, secondary tokens).
+  function computedHsl(prop: string): Hsl {
+    const tr = parseTriplet(getComputedStyle(root).getPropertyValue(prop));
+    return { h: parseFloat(tr.h) || 0, s: parseFloat(tr.s) || 0, l: tr.l };
   }
 
   // ---------- typography engine: one managed style tag, never setProperty ----------
@@ -586,6 +801,26 @@ export function mountThemeLab(): void {
         any = true;
       }
     });
+    // accent colors: same per-mode contract, full h/s/l per changed row
+    const curAcc: Record<string, Hsl> = {};
+    ACCENT_TIERS.forEach((t) => {
+      if (isAccentChanged(t)) {
+        const a = accentState[t.key];
+        curAcc[t.key] = { h: a.h, s: a.s, l: a.l };
+      }
+    });
+    accentColorsStore[MODE] = curAcc;
+    MODES.forEach((m) => {
+      if (Object.keys(accentColorsStore[m]).length) {
+        out.accentColors = out.accentColors || {};
+        out.accentColors[m] = accentColorsStore[m];
+        any = true;
+      }
+    });
+    if (ui.width !== UI_DEFAULT_WIDTH || ui.collapsed) {
+      out.ui = { width: ui.width, collapsed: ui.collapsed };
+      any = true;
+    }
     try {
       if (any) localStorage.setItem(LS_KEY, JSON.stringify(out));
       else localStorage.removeItem(LS_KEY);
@@ -660,44 +895,178 @@ export function mountThemeLab(): void {
           }
         });
       }
+      const ac = saved.accentColors;
+      if (ac && typeof ac === "object") {
+        MODES.forEach((m) => {
+          const set = ac[m];
+          if (set && typeof set === "object") {
+            ACCENT_TIERS.forEach((t) => {
+              const v = set[t.key] as Partial<Hsl> | undefined;
+              if (
+                v &&
+                typeof v === "object" &&
+                typeof v.h === "number" &&
+                isFinite(v.h) &&
+                typeof v.s === "number" &&
+                isFinite(v.s) &&
+                typeof v.l === "number" &&
+                isFinite(v.l)
+              ) {
+                accentColorsStore[m][t.key] = {
+                  h: Math.min(360, Math.max(0, v.h)),
+                  s: Math.min(100, Math.max(0, v.s)),
+                  l: Math.min(100, Math.max(0, v.l)),
+                };
+              }
+            });
+          }
+        });
+        // only the set matching the page's current mode is applied
+        ACCENT_TIERS.forEach((t) => {
+          const v = accentColorsStore[MODE][t.key];
+          if (v) {
+            accentState[t.key] = { h: v.h, s: v.s, l: v.l };
+            applyAccent(t);
+          }
+        });
+      }
+      const u = saved.ui;
+      if (u && typeof u === "object") {
+        if (typeof u.width === "number" && isFinite(u.width)) {
+          ui.width = Math.round(
+            Math.min(UI_MAX_WIDTH, Math.max(UI_MIN_WIDTH, u.width)),
+          );
+        }
+        if (u.collapsed === true) ui.collapsed = true;
+      }
     }
   })();
 
   // ---------- panel UI ----------
 
+  // Docked side drawer: full height, overlays the page (fixed; no layout
+  // shift). Collapse-to-rail is the "get out of my way" mechanism.
   const panel = document.createElement("div");
   panel.id = PANEL_ID;
   panel.style.cssText =
-    "position:fixed;top:16px;right:16px;width:280px;z-index:2147483647;" +
-    "background:rgb(28,28,30);color:rgb(238,238,238);border:1px solid rgb(60,60,66);" +
-    "border-radius:8px;box-shadow:0 8px 28px rgba(0,0,0,0.5);" +
-    "font:12px/1.4 system-ui,-apple-system,sans-serif;user-select:none;-webkit-user-select:none;";
+    "position:fixed;top:0;right:0;bottom:0;width:" +
+    ui.width +
+    "px;z-index:2147483647;" +
+    "display:flex;flex-direction:column;" +
+    "background:rgb(28,28,30);color:rgb(238,238,238);border-left:1px solid rgb(60,60,66);" +
+    "box-shadow:-8px 0 28px rgba(0,0,0,0.4);" +
+    "font:12px/1.4 " +
+    MONO +
+    ";user-select:none;-webkit-user-select:none;";
+
+  // Left-edge resize handle (drag to resize; width persisted).
+  const resizeHandle = document.createElement("div");
+  resizeHandle.title = "drag to resize";
+  resizeHandle.style.cssText =
+    "position:absolute;left:0;top:0;bottom:0;width:5px;cursor:ew-resize;";
+  resizeHandle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    function move(ev: PointerEvent): void {
+      const wpx = Math.round(
+        Math.min(
+          UI_MAX_WIDTH,
+          Math.max(UI_MIN_WIDTH, window.innerWidth - ev.clientX),
+        ),
+      );
+      ui.width = wpx;
+      panel.style.width = wpx + "px";
+    }
+    function up(): void {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      save();
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  panel.appendChild(resizeHandle);
 
   const header = document.createElement("div");
   header.style.cssText =
-    "display:flex;align-items:center;justify-content:space-between;padding:7px 10px;" +
-    "cursor:grab;border-bottom:1px solid rgb(60,60,66);border-radius:8px 8px 0 0;";
+    "display:flex;flex:none;align-items:center;gap:6px;padding:7px 10px;" +
+    "border-bottom:1px solid rgb(60,60,66);";
+  const collapseBtn = document.createElement("button");
+  collapseBtn.type = "button";
+  collapseBtn.textContent = "»"; // chevrons pointing right
+  collapseBtn.title = "Collapse to rail";
+  collapseBtn.style.cssText =
+    "background:none;border:none;color:rgb(170,170,178);font-size:13px;line-height:1;" +
+    "font-family:" +
+    MONO +
+    ";cursor:pointer;padding:0 2px;margin:0;";
   const title = document.createElement("span");
   title.textContent = "theme lab";
   title.style.cssText =
-    "font-weight:600;letter-spacing:0.02em;color:rgb(238,238,238);";
+    "flex:1;font-weight:600;letter-spacing:0.02em;color:rgb(238,238,238);";
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.textContent = "×";
   closeBtn.title = "Close panel (keeps overrides applied)";
   closeBtn.style.cssText =
     "background:none;border:none;color:rgb(170,170,178);font-size:16px;line-height:1;" +
-    "cursor:pointer;padding:0 2px;margin:0;";
+    "font-family:" +
+    MONO +
+    ";cursor:pointer;padding:0 2px;margin:0;";
   closeBtn.addEventListener("click", () => {
+    modeObserver.disconnect();
+    if (activeModeObserver === modeObserver) activeModeObserver = null;
     panel.remove();
   });
+  header.appendChild(collapseBtn);
   header.appendChild(title);
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
+  // Scrollable section area; Reset/Copy CSS live in a pinned footer below.
   const body = document.createElement("div");
-  body.style.cssText = "padding:8px 10px 10px;";
+  body.style.cssText =
+    "padding:8px 10px 10px;flex:1;min-height:0;overflow-y:auto;";
   panel.appendChild(body);
+
+  // Slim rail shown when collapsed; click anywhere on it to re-expand.
+  const rail = document.createElement("button");
+  rail.type = "button";
+  rail.title = "Expand theme lab";
+  rail.textContent = "theme lab";
+  rail.style.cssText =
+    "display:none;flex:1;align-items:center;justify-content:center;" +
+    "background:none;border:none;color:rgb(198,198,205);cursor:pointer;" +
+    "writing-mode:vertical-rl;font:600 11px " +
+    MONO +
+    ";" +
+    "letter-spacing:0.08em;padding:10px 0;margin:0;";
+  panel.appendChild(rail);
+
+  function setCollapsed(c: boolean): void {
+    ui.collapsed = c;
+    if (c) {
+      panel.style.width = "28px";
+      resizeHandle.style.display = "none";
+      header.style.display = "none";
+      body.style.display = "none";
+      footer.style.display = "none";
+      rail.style.display = "flex";
+    } else {
+      panel.style.width = ui.width + "px";
+      resizeHandle.style.display = "";
+      header.style.display = "flex";
+      body.style.display = "";
+      footer.style.display = "";
+      rail.style.display = "none";
+    }
+    save();
+  }
+  collapseBtn.addEventListener("click", () => {
+    setCollapsed(true);
+  });
+  rail.addEventListener("click", () => {
+    setCollapsed(false);
+  });
 
   function makeSection(titleText: string, open: boolean): HTMLDetailsElement {
     const d = document.createElement("details");
@@ -742,6 +1111,22 @@ export function mountThemeLab(): void {
       MONO +
       ";font-size:11px;user-select:text;-webkit-user-select:text;";
 
+    // Surfaces are locked to the baseline hue/saturation by design, so the
+    // picker only applies its lightness.
+    const swatch = makeSwatch(
+      t.props.join(", ") +
+        " - picker applies lightness only (hue/saturation are fixed by design for surfaces)",
+      () => {
+        const b = baselineHsl(t.props[0]);
+        return hslToHex(b.h, b.s, state[t.key]);
+      },
+      (hsl) => {
+        slider.value = String(Math.min(30, Math.max(0, hsl.l)));
+        num.value = fmtNum(hsl.l);
+        commit(hsl.l);
+      },
+    );
+
     function commit(v: number): void {
       if (!isFinite(v)) return;
       v = Math.min(30, Math.max(0, v));
@@ -749,6 +1134,8 @@ export function mountThemeLab(): void {
       applyTier(t);
       save();
       updateGaps();
+      const b = baselineHsl(t.props[0]);
+      swatch.setFill(hslToHex(b.h, b.s, v));
     }
     slider.addEventListener("input", () => {
       const v = parseFloat(slider.value);
@@ -765,10 +1152,12 @@ export function mountThemeLab(): void {
       refresh(t); // normalize display after typing
     });
 
+    row.appendChild(swatch.btn);
+    row.appendChild(swatch.picker);
     row.appendChild(label);
     row.appendChild(slider);
     row.appendChild(num);
-    inputs[t.key] = { slider, num };
+    inputs[t.key] = { slider, num, swatch };
     return row;
   }
 
@@ -777,6 +1166,8 @@ export function mountThemeLab(): void {
     if (!el) return;
     el.slider.value = String(state[t.key]);
     el.num.value = fmtNum(state[t.key]);
+    const b = baselineHsl(t.props[0]);
+    el.swatch.setFill(hslToHex(b.h, b.s, state[t.key]));
   }
 
   // ---------- ladder section (expanded by default) ----------
@@ -818,8 +1209,9 @@ export function mountThemeLab(): void {
         el.style.fontWeight = "400";
       }
     });
-    // --background / --sidebar-background moved: refresh text contrast too
+    // --background / --sidebar-background moved: refresh contrasts too
     updateTextContrast();
+    updateAccentContrast();
   }
 
   // Secondary tokens, collapsed by default.
@@ -847,7 +1239,9 @@ export function mountThemeLab(): void {
     if (titleText) b.title = titleText;
     b.style.cssText =
       "background:rgb(56,56,62);color:rgb(230,230,236);border:1px solid rgb(78,78,84);" +
-      "border-radius:5px;padding:3px 7px;font-size:11px;cursor:pointer;flex:1;min-width:0;";
+      "border-radius:5px;padding:3px 7px;font-size:11px;font-family:" +
+      MONO +
+      ";cursor:pointer;flex:1;min-width:0;";
     b.addEventListener("click", onClick);
     return b;
   }
@@ -942,7 +1336,7 @@ export function mountThemeLab(): void {
     label.textContent = t.key + " (" + fmtRem(t.def) + ")";
     label.title = "--text-" + t.key + " (default " + fmtRem(t.def) + "rem)";
     label.style.cssText =
-      "width:60px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
+      "width:68px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;font-size:11px;";
 
     const slider = document.createElement("input");
@@ -1082,7 +1476,9 @@ export function mountThemeLab(): void {
   rescanBtn.title = "Re-sample rendered font-weights per .text-* class";
   rescanBtn.style.cssText =
     "background:none;border:none;color:rgb(150,140,255);font-size:10px;" +
-    "cursor:pointer;padding:0;margin-left:8px;text-decoration:underline;";
+    "font-family:" +
+    MONO +
+    ";cursor:pointer;padding:0;margin-left:8px;text-decoration:underline;";
   rescanBtn.addEventListener("click", (e) => {
     e.preventDefault(); // keep the details section from toggling
     e.stopPropagation();
@@ -1112,6 +1508,8 @@ export function mountThemeLab(): void {
     if (!el) return;
     el.slider.value = String(textState[t.key]);
     el.num.value = fmtNum(textState[t.key]);
+    const b = baselineHsl(t.prop);
+    el.swatch.setFill(hslToHex(b.h, b.s, textState[t.key]));
   }
 
   function makeTextRow(t: TextTier): HTMLDivElement {
@@ -1123,7 +1521,7 @@ export function mountThemeLab(): void {
     label.title =
       t.prop + " vs " + t.vs + ", sampled in " + MODE + " mode (" + MODE + ")";
     label.style.cssText =
-      "width:56px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
+      "width:68px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;font-size:11px;";
 
     const slider = document.createElement("input");
@@ -1154,6 +1552,22 @@ export function mountThemeLab(): void {
       MONO +
       ";font-size:9px;text-align:right;white-space:nowrap;";
 
+    // Text rows are lightness-only (hue/sat come from the mode's stylesheet
+    // baseline), so the picker applies its lightness only.
+    const swatch = makeSwatch(
+      t.prop +
+        " - picker applies lightness only (hue/saturation come from the stylesheet baseline)",
+      () => {
+        const b = baselineHsl(t.prop);
+        return hslToHex(b.h, b.s, textState[t.key]);
+      },
+      (hsl) => {
+        slider.value = String(Math.min(100, Math.max(0, hsl.l)));
+        num.value = fmtNum(hsl.l);
+        commit(hsl.l);
+      },
+    );
+
     function commit(v: number): void {
       if (!isFinite(v)) return;
       v = Math.min(100, Math.max(0, v));
@@ -1161,6 +1575,8 @@ export function mountThemeLab(): void {
       applyTextTier(t);
       save();
       updateTextContrast();
+      const b = baselineHsl(t.prop);
+      swatch.setFill(hslToHex(b.h, b.s, v));
     }
     slider.addEventListener("input", () => {
       const v = parseFloat(slider.value);
@@ -1177,16 +1593,188 @@ export function mountThemeLab(): void {
       refreshText(t); // normalize display after typing
     });
 
+    row.appendChild(swatch.btn);
+    row.appendChild(swatch.picker);
     row.appendChild(label);
     row.appendChild(slider);
     row.appendChild(num);
     row.appendChild(ratio);
-    textInputs[t.key] = { slider, num, label, ratio };
+    textInputs[t.key] = { slider, num, label, ratio, swatch };
     return row;
   }
 
   TEXT_TIERS.forEach((t) => {
     textSection.appendChild(makeTextRow(t));
+  });
+
+  // ---------- accent colors section (collapsed by default) ----------
+
+  const accentSection = makeSection("accent colors", false);
+  accentSection.style.marginTop = "6px";
+  body.appendChild(accentSection);
+
+  function updateAccentContrast(): void {
+    ACCENT_TIERS.forEach((t) => {
+      const el = accentInputs[t.key];
+      if (!el || !t.vsProp) return;
+      const ratio = contrastRatio(computedHsl(t.prop), computedHsl(t.vsProp));
+      el.ratio.textContent = fmtNum(ratio) + ":1";
+      el.ratio.style.color = contrastColor(ratio);
+    });
+  }
+
+  function refreshAccent(t: AccentTier): void {
+    const el = accentInputs[t.key];
+    if (!el) return;
+    const a = accentState[t.key];
+    el.h.value = fmtNum(a.h);
+    el.s.value = fmtNum(a.s);
+    el.l.value = fmtNum(a.l);
+    el.slider.value = String(a.l);
+    el.slider.style.background = accentSliderBg(a);
+    el.swatch.setFill(hslToHex(a.h, a.s, a.l));
+  }
+
+  function makeAccentRow(t: AccentTier): HTMLDivElement {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:4px;margin:2px 0;";
+
+    const label = document.createElement("span");
+    label.textContent = t.label;
+    label.title =
+      t.prop +
+      (t.vsProp ? " vs " + t.vsProp : " (fill)") +
+      ", sampled in " +
+      MODE +
+      " mode (" +
+      MODE +
+      ")";
+    label.style.cssText =
+      "width:52px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
+      "overflow:hidden;text-overflow:ellipsis;font-size:10px;";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "100";
+    slider.step = "0.1";
+    slider.title = "lightness";
+    slider.style.cssText =
+      "flex:1;min-width:24px;margin:0;height:10px;border-radius:5px;" +
+      "accent-color:rgb(150,140,255);cursor:pointer;";
+
+    function makeNum(
+      min: number,
+      max: number,
+      step: number,
+      titleText: string,
+      width: number,
+    ): HTMLInputElement {
+      const n = document.createElement("input");
+      n.type = "number";
+      n.min = String(min);
+      n.max = String(max);
+      n.step = String(step);
+      n.title = titleText;
+      n.style.cssText =
+        "width:" +
+        width +
+        "px;flex:none;background:rgb(44,44,48);color:rgb(238,238,238);" +
+        "border:1px solid rgb(72,72,78);border-radius:4px;padding:1px 3px;" +
+        "font-family:" +
+        MONO +
+        ";font-size:10px;user-select:text;-webkit-user-select:text;";
+      return n;
+    }
+    const hNum = makeNum(0, 360, 1, "hue (0-360)", 34);
+    const sNum = makeNum(0, 100, 0.5, "saturation (0-100)", 34);
+    const lNum = makeNum(0, 100, 0.1, "lightness (0-100)", 38);
+
+    const ratio = document.createElement("span");
+    if (t.vsProp) {
+      ratio.title = "WCAG contrast ratio " + t.prop + " vs " + t.vsProp;
+    }
+    ratio.style.cssText =
+      "width:28px;flex:none;font-family:" +
+      MONO +
+      ";font-size:9px;text-align:right;white-space:nowrap;";
+
+    // Full-color picker: applies H (integer) + S/L (one decimal) together.
+    const swatch = makeSwatch(
+      t.prop + " - pick a color (Chrome's picker includes an eyedropper)",
+      () => {
+        const a = accentState[t.key];
+        return hslToHex(a.h, a.s, a.l);
+      },
+      (hsl) => {
+        accentState[t.key] = { h: hsl.h, s: hsl.s, l: hsl.l };
+        refreshAccent(t); // syncs h/s/l inputs, slider, gradient, fill
+        applyAccent(t);
+        save();
+        updateAccentContrast();
+      },
+    );
+
+    function commitPart(
+      part: "h" | "s" | "l",
+      v: number,
+      min: number,
+      max: number,
+    ): void {
+      if (!isFinite(v)) return;
+      accentState[t.key][part] = Math.min(max, Math.max(min, v));
+      applyAccent(t);
+      save();
+      updateAccentContrast();
+      const a = accentState[t.key];
+      slider.style.background = accentSliderBg(a);
+      swatch.setFill(hslToHex(a.h, a.s, a.l));
+    }
+    slider.addEventListener("input", () => {
+      const v = parseFloat(slider.value);
+      lNum.value = fmtNum(v);
+      commitPart("l", v, 0, 100);
+    });
+    hNum.addEventListener("input", () => {
+      commitPart("h", parseFloat(hNum.value), 0, 360);
+    });
+    sNum.addEventListener("input", () => {
+      commitPart("s", parseFloat(sNum.value), 0, 100);
+    });
+    lNum.addEventListener("input", () => {
+      const v = parseFloat(lNum.value);
+      if (!isFinite(v)) return;
+      slider.value = String(Math.min(100, Math.max(0, v)));
+      commitPart("l", v, 0, 100);
+    });
+    [hNum, sNum, lNum].forEach((n) => {
+      n.addEventListener("change", () => {
+        refreshAccent(t); // normalize display after typing
+      });
+    });
+
+    row.appendChild(swatch.btn);
+    row.appendChild(swatch.picker);
+    row.appendChild(label);
+    row.appendChild(slider);
+    row.appendChild(hNum);
+    row.appendChild(sNum);
+    row.appendChild(lNum);
+    row.appendChild(ratio);
+    accentInputs[t.key] = {
+      slider,
+      h: hNum,
+      s: sNum,
+      l: lNum,
+      label,
+      ratio,
+      swatch,
+    };
+    return row;
+  }
+
+  ACCENT_TIERS.forEach((t) => {
+    accentSection.appendChild(makeAccentRow(t));
   });
 
   // ---------- global actions ----------
@@ -1216,6 +1804,12 @@ export function mountThemeLab(): void {
       refreshText(t);
     });
     textColorsStore = { dark: {}, light: {} };
+    ACCENT_TIERS.forEach((t) => {
+      root.style.removeProperty(t.prop);
+      accentState[t.key] = baselineHsl(t.prop);
+      refreshAccent(t);
+    });
+    accentColorsStore = { dark: {}, light: {} };
     try {
       localStorage.removeItem(LS_KEY);
     } catch {
@@ -1284,6 +1878,19 @@ export function mountThemeLab(): void {
         lines.push(l);
       });
     }
+    const accentLines: string[] = [];
+    ACCENT_TIERS.forEach((t) => {
+      if (isAccentChanged(t)) {
+        accentLines.push(t.prop + ": " + accentTripletStr(t) + ";");
+      }
+    });
+    if (accentLines.length) {
+      if (lines.length) lines.push("");
+      lines.push("/* accent colors (" + MODE + ") */");
+      accentLines.forEach((l) => {
+        lines.push(l);
+      });
+    }
     if (!lines.length) {
       flash(btn, "no changes");
       return;
@@ -1302,12 +1909,16 @@ export function mountThemeLab(): void {
     );
   }
 
+  // Pinned footer: Reset / Copy CSS always visible below the scroll area.
+  const footer = document.createElement("div");
+  footer.style.cssText =
+    "flex:none;padding:8px 10px;border-top:1px solid rgb(60,60,66);";
   const actionRow = document.createElement("div");
-  actionRow.style.cssText = "display:flex;gap:5px;margin-top:8px;";
+  actionRow.style.cssText = "display:flex;gap:5px;";
   actionRow.appendChild(
     makeBtn(
       "Reset",
-      "Clear all overrides (ladder, typography, text colors) and persisted values",
+      "Clear all overrides (ladder, typography, text colors, accents) and persisted values",
       resetAll,
     ),
   );
@@ -1319,41 +1930,105 @@ export function mountThemeLab(): void {
     },
   );
   actionRow.appendChild(copyBtn);
-  body.appendChild(actionRow);
+  footer.appendChild(actionRow);
+  panel.appendChild(footer);
 
-  // ---------- drag by header ----------
+  // ---------- mode observer ----------
 
-  header.addEventListener("pointerdown", (e) => {
-    if (e.target === closeBtn) return;
-    const rect = panel.getBoundingClientRect();
-    const dx = e.clientX - rect.left;
-    const dy = e.clientY - rect.top;
-    panel.style.left = rect.left + "px";
-    panel.style.top = rect.top + "px";
-    panel.style.right = "auto";
-    header.style.cursor = "grabbing";
-    function move(ev: PointerEvent): void {
-      panel.style.left = ev.clientX - dx + "px";
-      panel.style.top = ev.clientY - dy + "px";
-    }
-    function up(): void {
-      header.style.cursor = "grab";
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    }
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    e.preventDefault();
-  });
+  // The per-mode override sets (textColors.*, accentColors.*) are inline and
+  // therefore mode-blind once applied: when next-themes flips the `dark`
+  // class, the old mode's values would keep winning. Watch the class
+  // attribute and swap the mode-scoped sections over: drop all inline
+  // overrides, recapture the new mode's stylesheet baselines (H/S can differ
+  // per mode), re-apply the set stored for the new mode, and refresh rows.
+  // The surface ladder and typography are mode-agnostic by design (the
+  // ladder is dark-tuning oriented; its inline values persist across modes).
+  function handleModeFlip(): void {
+    const newMode: Mode = root.classList.contains("dark") ? "dark" : "light";
+    if (newMode === MODE) return;
+    MODE = newMode;
+    TEXT_TIERS.forEach((t) => {
+      root.style.removeProperty(t.prop);
+    });
+    ACCENT_TIERS.forEach((t) => {
+      root.style.removeProperty(t.prop);
+    });
+    TEXT_TIERS.forEach((t) => {
+      captureBaseline(t.prop);
+      const v = textColorsStore[MODE][t.key];
+      if (typeof v === "number") {
+        textState[t.key] = v;
+        applyTextTier(t);
+      } else {
+        textState[t.key] = baseline[t.prop].l;
+      }
+      const el = textInputs[t.key];
+      if (el) {
+        el.label.title =
+          t.prop +
+          " vs " +
+          t.vs +
+          ", sampled in " +
+          MODE +
+          " mode (" +
+          MODE +
+          ")";
+      }
+      refreshText(t);
+    });
+    ACCENT_TIERS.forEach((t) => {
+      captureBaseline(t.prop);
+      const v = accentColorsStore[MODE][t.key];
+      if (v) {
+        accentState[t.key] = { h: v.h, s: v.s, l: v.l };
+        applyAccent(t);
+      } else {
+        accentState[t.key] = baselineHsl(t.prop);
+      }
+      const el = accentInputs[t.key];
+      if (el) {
+        el.label.title =
+          t.prop +
+          (t.vsProp ? " vs " + t.vsProp : " (fill)") +
+          ", sampled in " +
+          MODE +
+          " mode (" +
+          MODE +
+          ")";
+      }
+      refreshAccent(t);
+    });
+    updateTextContrast();
+    updateAccentContrast();
+  }
+  const modeObserver = new MutationObserver(handleModeFlip);
+  modeObserver.observe(root, { attributes: true, attributeFilter: ["class"] });
+  activeModeObserver = modeObserver;
 
   // ---------- mount ----------
 
   ALL.forEach(refresh);
   TYPE_TOKENS.forEach(refreshTypo);
   TEXT_TIERS.forEach(refreshText);
+  ACCENT_TIERS.forEach(refreshAccent);
   pairingRadios[typo.pairing].checked = true;
   updateBoldHint();
-  updateGaps(); // also refreshes text contrast
+  updateGaps(); // also refreshes text + accent contrast
   sampleWeights();
+  if (ui.collapsed) setCollapsed(true);
   (document.body || root).appendChild(panel);
+}
+
+/**
+ * Removes the panel and disconnects its mode observer. Safe to call when the
+ * panel is not mounted. Token overrides stay applied (same contract as the
+ * panel's close button).
+ */
+export function unmountThemeLab(): void {
+  if (typeof document === "undefined") return;
+  if (activeModeObserver) {
+    activeModeObserver.disconnect();
+    activeModeObserver = null;
+  }
+  document.getElementById(PANEL_ID)?.remove();
 }

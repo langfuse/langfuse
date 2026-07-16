@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 
-import { mountThemeLab } from "@/src/features/theme-lab/theme-lab-script";
+import {
+  mountThemeLab,
+  unmountThemeLab,
+} from "@/src/features/theme-lab/theme-lab-script";
 
 /**
  * Dev-only mount point for the Theme Lab panel (see ./README.md).
@@ -20,14 +23,14 @@ export function ThemeLabMount(): null {
         },
         disable() {
           localStorage.removeItem("themeLab");
-          document.getElementById("theme-lab-panel")?.remove();
+          unmountThemeLab();
         },
       };
       if (localStorage.getItem("themeLab") === "1") {
         mountThemeLab();
       }
       return () => {
-        document.getElementById("theme-lab-panel")?.remove();
+        unmountThemeLab();
         delete window.themeLab;
       };
     }
