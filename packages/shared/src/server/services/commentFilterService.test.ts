@@ -19,6 +19,13 @@ const commentCountFilter = (operator: "=" | ">=" | "<=", value: number) => ({
   value,
 });
 
+const commentContentFilter = (value: string) => ({
+  type: "string" as const,
+  column: "commentContent",
+  operator: "contains" as const,
+  value,
+});
+
 const objectIdFilter = (operator: "any of" | "none of", value: string[]) => ({
   type: "stringOptions" as const,
   column: "id",
@@ -63,12 +70,7 @@ describe("applyCommentFilters", () => {
     const result = await applyCommentFilters({
       filterState: [
         commentCountFilter(">=", 0),
-        {
-          type: "string",
-          column: "commentContent",
-          operator: "contains",
-          value: "needs-review",
-        },
+        commentContentFilter("needs-review"),
       ],
       prisma,
       ...commonArgs,
@@ -118,12 +120,7 @@ describe("applyCommentFilters", () => {
       name: "intersects an equality count filter with comment content",
       filters: [
         commentCountFilter("=", 1),
-        {
-          type: "string" as const,
-          column: "commentContent",
-          operator: "contains" as const,
-          value: "needs-review",
-        },
+        commentContentFilter("needs-review"),
       ],
       queryResults: [
         [
@@ -133,6 +130,45 @@ describe("applyCommentFilters", () => {
         [
           { object_id: "matching-observation" },
           { object_id: "content-only-observation" },
+        ],
+      ],
+      matchingIds: ["matching-observation"],
+    },
+    {
+      name: "intersects multiple comment content filters",
+      filters: [
+        commentContentFilter("urgent"),
+        commentContentFilter("customer"),
+      ],
+      queryResults: [
+        [
+          { object_id: "matching-observation" },
+          { object_id: "first-content-only" },
+        ],
+        [
+          { object_id: "matching-observation" },
+          { object_id: "second-content-only" },
+        ],
+      ],
+      matchingIds: ["matching-observation"],
+    },
+    {
+      name: "intersects multiple content filters with a bounded count filter",
+      filters: [
+        commentCountFilter("<=", 1),
+        commentContentFilter("urgent"),
+        commentContentFilter("customer"),
+      ],
+      queryResults: [
+        [{ object_id: "observation-outside-count-range" }],
+        [
+          { object_id: "matching-observation" },
+          { object_id: "first-content-only" },
+          { object_id: "observation-outside-count-range" },
+        ],
+        [
+          { object_id: "matching-observation" },
+          { object_id: "second-content-only" },
         ],
       ],
       matchingIds: ["matching-observation"],

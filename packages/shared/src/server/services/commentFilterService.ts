@@ -10,6 +10,11 @@ import {
 } from "../repositories/comments";
 import type { z } from "zod";
 
+type CommentContentFilter = Extract<
+  z.infer<typeof singleFilter>,
+  { type: "string" }
+>;
+
 /**
  * Maximum number of object IDs that can be returned from comment filters.
  * This protects ClickHouse from processing excessively large IN clauses.
@@ -114,12 +119,13 @@ export async function applyCommentFilters({
       (f.type === "number" || f.type === "datetime") &&
       f.column === "commentCount",
   );
-  const commentContentFilter = filterState.find(
-    (f) => f.type === "string" && f.column === "commentContent",
+  const commentContentFilters = filterState.filter(
+    (f): f is CommentContentFilter =>
+      f.type === "string" && f.column === "commentContent",
   );
 
   // If no comment filters, return original filter state
-  if (commentCountFilters.length === 0 && !commentContentFilter) {
+  if (commentCountFilters.length === 0 && commentContentFilters.length === 0) {
     return {
       filterState,
       hasNoMatches: false,
@@ -139,6 +145,31 @@ export async function applyCommentFilters({
         (f.type === "string" && f.column === "commentContent")
       ),
   );
+
+  const resolveCommentContentFilterIds = async (): Promise<string[]> => {
+    let matchingIds: string[] | null = null;
+
+    for (const commentContentFilter of commentContentFilters) {
+      const filterObjectIds = await getObjectIdsByCommentContent({
+        prisma,
+        projectId,
+        objectType,
+        searchQuery: commentContentFilter.value,
+        operator: commentContentFilter.operator as CommentContentOperator,
+      });
+
+      validateObjectIdCount(filterObjectIds, objectType);
+
+      if (matchingIds === null) {
+        matchingIds = filterObjectIds;
+      } else {
+        const filterObjectIdSet = new Set(filterObjectIds);
+        matchingIds = matchingIds.filter((id) => filterObjectIdSet.has(id));
+      }
+    }
+
+    return matchingIds ?? [];
+  };
 
   // Handle comment count filters (may be multiple for ranges like >= 1 AND <= 100)
   if (commentCountFilters.length > 0) {
@@ -164,7 +195,7 @@ export async function applyCommentFilters({
       if (!upperBoundFilter) {
         // No upper bound + includes zero = match everything, skip comment count filter
         // But still process content filter if present
-        if (!commentContentFilter) {
+        if (commentContentFilters.length === 0) {
           return {
             filterState: updatedFilterState,
             hasNoMatches: false,
@@ -196,16 +227,8 @@ export async function applyCommentFilters({
         validateObjectIdCount(idsToExclude, objectType);
 
         // Handle content filter intersection if present
-        if (commentContentFilter && commentContentFilter.type === "string") {
-          const contentObjectIds = await getObjectIdsByCommentContent({
-            prisma,
-            projectId,
-            objectType,
-            searchQuery: commentContentFilter.value,
-            operator: commentContentFilter.operator as CommentContentOperator,
-          });
-
-          validateObjectIdCount(contentObjectIds, objectType);
+        if (commentContentFilters.length > 0) {
+          const contentObjectIds = await resolveCommentContentFilterIds();
 
           // For content filter with zero-inclusive count filter:
           // Include items matching content AND not exceeding upper bound
@@ -295,16 +318,8 @@ export async function applyCommentFilters({
   }
 
   // Handle comment content filter
-  if (commentContentFilter && commentContentFilter.type === "string") {
-    const contentObjectIds = await getObjectIdsByCommentContent({
-      prisma,
-      projectId,
-      objectType,
-      searchQuery: commentContentFilter.value,
-      operator: commentContentFilter.operator as CommentContentOperator,
-    });
-
-    validateObjectIdCount(contentObjectIds, objectType);
+  if (commentContentFilters.length > 0) {
+    const contentObjectIds = await resolveCommentContentFilterIds();
 
     // Intersect with comment count results if present
     if (shouldIntersectWithCommentCountIds) {
