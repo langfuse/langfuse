@@ -448,6 +448,7 @@ export function InlineFilterBuilder({
         filterWithAI={filterWithAI}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
+        compact
       />
     </div>
   );
@@ -493,6 +494,7 @@ function FilterBuilderForm({
   filterWithAI = false,
   stringObjectValueOptions = {},
   onStringObjectKeyChange,
+  compact = false,
 }: {
   columnIdentifier: ColumnIdentifier;
   columns: ColumnDefinitionWithAlert[];
@@ -505,6 +507,8 @@ function FilterBuilderForm({
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
   onStringObjectKeyChange?: (key: string) => void;
+  /** compact renders each condition as a wrapping block for width-constrained inline builders instead of the wide table. */
+  compact?: boolean;
 }) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [showAiFilter, setShowAiFilter] = useState(false);
@@ -575,6 +579,471 @@ function FilterBuilderForm({
       }
     }
   };
+
+  const conditionRows = filterState.map((filter, i) => {
+    const column = columns.find(
+      (c) =>
+        c.id === filter.column ||
+        c.name === filter.column ||
+        (filter.column !== undefined && c.aliases?.includes(filter.column)),
+    );
+    const keyOptions =
+      column?.type === "numberObject" ||
+      column?.type === "stringObject" ||
+      column?.type === "booleanObject"
+        ? column.keyOptions?.filter((o) => NonEmptyString.safeParse(o).success)
+        : undefined;
+    // Opt-in metadata suggestions: a stringObject column listed in
+    // columnsWithCustomSelect renders searchable key/value combos.
+    const stringObjectSuggest =
+      column?.type === "stringObject" &&
+      columnsWithCustomSelect.includes(column.id);
+    const columnLabel = column ? column.name : "Column";
+
+    const columnCombobox = (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            type="button"
+            disabled={disabled}
+            className={cn(
+              "flex items-center justify-between gap-2",
+              compact ? "w-full min-w-0" : "w-full min-w-32",
+            )}
+          >
+            <span className="min-w-0 truncate" title={columnLabel}>
+              {columnLabel}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="max-w-fit p-0"
+          onWheel={(e) => {
+            e.stopPropagation();
+          }}
+          onTouchMove={(e) => {
+            e.stopPropagation();
+          }}
+        >
+          <InputCommand>
+            <InputCommandInput
+              placeholder="Search for column"
+              variant="bottom"
+            />
+            <InputCommandList>
+              <InputCommandEmpty>No options found.</InputCommandEmpty>
+              <InputCommandGroup>
+                {columns.map((option) => {
+                  const hasAlert = !!option.alert;
+                  const severity = option.alert?.severity ?? "warning";
+                  const alertStyles = getAlertStyles(severity);
+
+                  return (
+                    <InputCommandItem
+                      key={option.id}
+                      value={option.id}
+                      onSelect={(value) => {
+                        const col = columns.find((c) => c.id === value);
+                        const defaultOperator = col?.type
+                          ? getOperator(col.type)
+                          : undefined;
+
+                        handleFilterChange(
+                          {
+                            column: col?.[columnIdentifier],
+                            type: col?.type,
+                            operator: defaultOperator,
+                            value: col?.type === "null" ? "" : undefined,
+                            key:
+                              col?.type === "positionInTrace"
+                                ? "last"
+                                : undefined,
+                          } as WipFilterCondition,
+                          i,
+                        );
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          option.id === column?.id ? "visible" : "invisible",
+                        )}
+                      />
+                      <span className="flex-1">{option.name}</span>
+                      {hasAlert && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info
+                              className={cn(
+                                "ml-2 h-4 w-4",
+                                alertStyles.iconColor,
+                              )}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent
+                            className={cn("max-w-xs", alertStyles.tooltipBg)}
+                          >
+                            {option.alert?.content}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </InputCommandItem>
+                  );
+                })}
+              </InputCommandGroup>
+            </InputCommandList>
+          </InputCommand>
+        </PopoverContent>
+      </Popover>
+    );
+
+    const keyControl =
+      filter.type &&
+      (filter.type === "numberObject" ||
+        filter.type === "stringObject" ||
+        filter.type === "booleanObject") &&
+      (column?.type === "numberObject" ||
+        column?.type === "stringObject" ||
+        column?.type === "booleanObject") ? (
+        stringObjectSuggest ? (
+          // Case 0: opt-in stringObject - single key select with free text
+          <SingleSelect
+            title="Key"
+            className="min-w-[100px]"
+            options={
+              column?.type === "stringObject" && column.keyOptions
+                ? column.keyOptions.map((value) => ({ value }))
+                : []
+            }
+            value={filter.key ?? undefined}
+            onValueChange={(nextKey) => {
+              handleFilterChange({ ...filter, key: nextKey }, i);
+              onStringObjectKeyChange?.(nextKey);
+            }}
+            disabled={disabled}
+            isCustomSelectEnabled
+          />
+        ) : keyOptions?.length ? (
+          // Case 1: object with keyOptions - selector of the key of the object
+          <Select
+            disabled={!filter.column}
+            onValueChange={(value) => {
+              handleFilterChange({ ...filter, key: value }, i);
+            }}
+            value={filter.key ?? ""}
+          >
+            <SelectTrigger className="min-w-[60px]">
+              <SelectValue placeholder="" />
+            </SelectTrigger>
+            <SelectContent>
+              {keyOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          // Case 2: object without keyOptions - text input
+          <Input
+            value={filter.key ?? ""}
+            placeholder="key"
+            disabled={disabled}
+            onChange={(e) =>
+              handleFilterChange({ ...filter, key: e.target.value }, i)
+            }
+          />
+        )
+      ) : filter.type === "categoryOptions" &&
+        column?.type === "categoryOptions" ? (
+        // Case 3: categoryOptions
+        <Select
+          onValueChange={(value) => {
+            handleFilterChange({ ...filter, key: value }, i);
+          }}
+          value={filter.key ?? ""}
+        >
+          <SelectTrigger className="min-w-[60px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            {column?.options.map((option) => (
+              <SelectItem key={option.label} value={option.label}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : filter.type === "positionInTrace" ? (
+        <Select
+          onValueChange={(value) => {
+            const needsValue =
+              value === "nthFromEnd" || value === "nthFromStart";
+            handleFilterChange(
+              {
+                ...filter,
+                key: value,
+                value: needsValue
+                  ? typeof filter.value === "number" && filter.value >= 1
+                    ? filter.value
+                    : 1
+                  : undefined,
+              } as WipFilterCondition,
+              i,
+            );
+          }}
+          value={getSessionPositionInTraceFilterMode(filter)}
+        >
+          <SelectTrigger className="min-w-[140px]">
+            <SelectValue placeholder="" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="first">1st</SelectItem>
+            <SelectItem value="last">last</SelectItem>
+            <SelectItem value="nthFromStart">nth from start</SelectItem>
+            <SelectItem value="nthFromEnd">nth from end</SelectItem>
+          </SelectContent>
+        </Select>
+      ) : null;
+
+    // Object/category columns need a key before the operator/value mean anything;
+    // in compact rows keep those controls inert until the key is chosen.
+    const keyPending =
+      compact && keyControl !== null && !("key" in filter && filter.key);
+
+    const operatorSelect = (
+      <Select
+        disabled={!filter.column || disabled || keyPending}
+        onValueChange={(value) => {
+          // protect against invalid empty operator values
+          if (value === "") return;
+          handleFilterChange(
+            {
+              ...filter,
+              operator: value as any,
+              // Ensure null filters always have empty string value
+              value: filter.type === "null" ? "" : (filter.value as any),
+            },
+            i,
+          );
+        }}
+        value={keyPending ? "" : (filter.operator ?? "")}
+      >
+        <SelectTrigger className={cn("min-w-[60px]", compact && "w-auto")}>
+          <SelectValue placeholder="" />
+        </SelectTrigger>
+        <SelectContent>
+          {filter.type !== undefined
+            ? filterOperators[filter.type].map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))
+            : null}
+        </SelectContent>
+      </Select>
+    );
+
+    const valueControl = keyPending ? (
+      <Input disabled />
+    ) : stringObjectSuggest && filter.type === "stringObject" ? (
+      <SingleSelect
+        title="Value"
+        className="min-w-[100px]"
+        options={(filter.key ? stringObjectValueOptions[filter.key] : []) ?? []}
+        value={filter.value ?? undefined}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        disabled={disabled}
+        isCustomSelectEnabled
+      />
+    ) : filter.type === "string" || filter.type === "stringObject" ? (
+      <Input
+        disabled={disabled}
+        value={filter.value ?? ""}
+        placeholder="string"
+        onChange={(e) =>
+          handleFilterChange({ ...filter, value: e.target.value }, i)
+        }
+      />
+    ) : filter.type === "number" || filter.type === "numberObject" ? (
+      <Input
+        value={filter.value ?? undefined}
+        disabled={disabled}
+        type="number"
+        step={(column?.type === "number" && column.step) || 0.01}
+        min={column?.type === "number" ? column.min : undefined}
+        placeholder="number"
+        lang="en-US"
+        onChange={(e) =>
+          handleFilterChange(
+            {
+              ...filter,
+              value: isNaN(Number(e.target.value))
+                ? e.target.value
+                : Number(e.target.value),
+            },
+            i,
+          )
+        }
+      />
+    ) : filter.type === "datetime" ? (
+      <DatePicker
+        className="w-full"
+        disabled={disabled}
+        date={filter.value ? new Date(filter.value) : undefined}
+        onChange={(date) => {
+          handleFilterChange(
+            {
+              ...filter,
+              value: date,
+            },
+            i,
+          );
+        }}
+        includeTimePicker
+      />
+    ) : filter.type === "stringOptions" || filter.type === "arrayOptions" ? (
+      <MultiSelect
+        title="Value"
+        chipsOnly={compact}
+        className="min-w-[100px]"
+        options={column?.type === filter.type ? column.options : []}
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        values={Array.isArray(filter.value) ? filter.value : []}
+        disabled={disabled}
+        isCustomSelectEnabled={
+          column?.type === filter.type &&
+          columnsWithCustomSelect.includes(column.id)
+        }
+      />
+    ) : filter.type === "categoryOptions" &&
+      column?.type === "categoryOptions" ? (
+      <MultiSelect
+        title="Value"
+        chipsOnly={compact}
+        className="min-w-[100px]"
+        options={
+          column?.options
+            .find((o) => o.label === filter.key)
+            ?.values?.map((v) => ({ value: v })) ?? []
+        }
+        onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
+        values={Array.isArray(filter.value) ? filter.value : []}
+        disabled={disabled}
+        isCustomSelectEnabled={
+          column?.type === filter.type &&
+          columnsWithCustomSelect.includes(column.id)
+        }
+      />
+    ) : filter.type === "boolean" || filter.type === "booleanObject" ? (
+      <Select
+        disabled={disabled}
+        onValueChange={(value) => {
+          handleFilterChange(
+            {
+              ...filter,
+              value: value !== "" ? value === "true" : undefined,
+            },
+            i,
+          );
+        }}
+        value={filter.value?.toString() ?? ""}
+      >
+        <SelectTrigger className="min-w-[60px]">
+          <SelectValue placeholder="" />
+        </SelectTrigger>
+        <SelectContent>
+          {["true", "false"].map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : filter.type === "positionInTrace" ? (
+      filter.key === "nthFromStart" || filter.key === "nthFromEnd" ? (
+        <Input
+          value={filter.value ?? ""}
+          disabled={disabled}
+          type="number"
+          min={1}
+          step={1}
+          onChange={(e) =>
+            handleFilterChange(
+              {
+                ...filter,
+                value: isNaN(Number(e.target.value))
+                  ? undefined
+                  : Math.max(1, Number(e.target.value)),
+              } as WipFilterCondition,
+              i,
+            )
+          }
+        />
+      ) : (
+        <Input disabled placeholder="-" />
+      )
+    ) : filter.type === "null" ? null : (
+      <Input disabled />
+    );
+
+    const removeButton = (
+      <Button
+        onClick={() => removeFilter(i)}
+        variant="ghost"
+        type="button"
+        disabled={disabled}
+        size="xs"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    );
+
+    const connector = i === 0 ? "Where" : "And";
+
+    return compact ? (
+      <div key={i} className="-mr-2 flex flex-col">
+        <div className="flex items-center gap-1.5">
+          <span className="text-muted-foreground w-11 shrink-0 text-sm">
+            {connector}
+          </span>
+          <div className={cn("min-w-0", keyControl ? "w-28" : "flex-1")}>
+            {columnCombobox}
+          </div>
+          {keyControl ? (
+            <div className="min-w-0 flex-1">{keyControl}</div>
+          ) : null}
+          <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
+        </div>
+        <div className="flex items-start">
+          <span className="w-16 shrink-0" aria-hidden="true" />
+          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
+            <div className="shrink-0">{operatorSelect}</div>
+            {valueControl ? (
+              <div className="min-w-0 flex-1">{valueControl}</div>
+            ) : null}
+            <span className="w-5 shrink-0" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    ) : (
+      <tr key={i}>
+        <td className="p-1 text-sm">{connector}</td>
+        <td className="flex gap-2 p-1">
+          {/* selector of the column to be filtered */}
+          {columnCombobox}
+          {keyControl}
+        </td>
+        <td className="p-1">{operatorSelect}</td>
+        <td className="p-1">{valueControl}</td>
+        <td>{removeButton}</td>
+      </tr>
+    );
+  });
 
   return (
     <>
@@ -669,495 +1138,18 @@ function FilterBuilderForm({
       {/* Hide filter builder UI while AI filter is open */}
       {!showAiFilter && (
         <>
-          <table className="table-auto">
-            <tbody>
-              {filterState.map((filter, i) => {
-                const column = columns.find(
-                  (c) =>
-                    c.id === filter.column ||
-                    c.name === filter.column ||
-                    (filter.column !== undefined &&
-                      c.aliases?.includes(filter.column)),
-                );
-                const keyOptions =
-                  column?.type === "numberObject" ||
-                  column?.type === "stringObject" ||
-                  column?.type === "booleanObject"
-                    ? column.keyOptions?.filter(
-                        (o) => NonEmptyString.safeParse(o).success,
-                      )
-                    : undefined;
-                // Opt-in metadata suggestions: a stringObject column listed in
-                // columnsWithCustomSelect renders searchable key/value combos.
-                const stringObjectSuggest =
-                  column?.type === "stringObject" &&
-                  columnsWithCustomSelect.includes(column.id);
-                const columnLabel = column ? column.name : "Column";
-                return (
-                  <tr key={i}>
-                    <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
-                    <td className="flex gap-2 p-1">
-                      {/* selector of the column to be filtered */}
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            type="button"
-                            disabled={disabled}
-                            className="flex w-full min-w-32 items-center justify-between gap-2"
-                          >
-                            <span className="truncate" title={columnLabel}>
-                              {columnLabel}
-                            </span>
-                            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="max-w-fit p-0"
-                          onWheel={(e) => {
-                            e.stopPropagation();
-                          }}
-                          onTouchMove={(e) => {
-                            e.stopPropagation();
-                          }}
-                        >
-                          <InputCommand>
-                            <InputCommandInput
-                              placeholder="Search for column"
-                              variant="bottom"
-                            />
-                            <InputCommandList>
-                              <InputCommandEmpty>
-                                No options found.
-                              </InputCommandEmpty>
-                              <InputCommandGroup>
-                                {columns.map((option) => {
-                                  const hasAlert = !!option.alert;
-                                  const severity =
-                                    option.alert?.severity ?? "warning";
-                                  const alertStyles = getAlertStyles(severity);
-
-                                  return (
-                                    <InputCommandItem
-                                      key={option.id}
-                                      value={option.id}
-                                      onSelect={(value) => {
-                                        const col = columns.find(
-                                          (c) => c.id === value,
-                                        );
-                                        const defaultOperator = col?.type
-                                          ? getOperator(col.type)
-                                          : undefined;
-
-                                        handleFilterChange(
-                                          {
-                                            column: col?.[columnIdentifier],
-                                            type: col?.type,
-                                            operator: defaultOperator,
-                                            value:
-                                              col?.type === "null"
-                                                ? ""
-                                                : undefined,
-                                            key:
-                                              col?.type === "positionInTrace"
-                                                ? "last"
-                                                : undefined,
-                                          } as WipFilterCondition,
-                                          i,
-                                        );
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          option.id === column?.id
-                                            ? "visible"
-                                            : "invisible",
-                                        )}
-                                      />
-                                      <span className="flex-1">
-                                        {option.name}
-                                      </span>
-                                      {hasAlert && (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Info
-                                              className={cn(
-                                                "ml-2 h-4 w-4",
-                                                alertStyles.iconColor,
-                                              )}
-                                            />
-                                          </TooltipTrigger>
-                                          <TooltipContent
-                                            className={cn(
-                                              "max-w-xs",
-                                              alertStyles.tooltipBg,
-                                            )}
-                                          >
-                                            {option.alert?.content}
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      )}
-                                    </InputCommandItem>
-                                  );
-                                })}
-                              </InputCommandGroup>
-                            </InputCommandList>
-                          </InputCommand>
-                        </PopoverContent>
-                      </Popover>
-                      {filter.type &&
-                      (filter.type === "numberObject" ||
-                        filter.type === "stringObject" ||
-                        filter.type === "booleanObject") &&
-                      (column?.type === "numberObject" ||
-                        column?.type === "stringObject" ||
-                        column?.type === "booleanObject") ? (
-                        stringObjectSuggest ? (
-                          // Case 0: opt-in stringObject - single key select with free text
-                          <SingleSelect
-                            title="Key"
-                            className="min-w-[100px]"
-                            options={
-                              column?.type === "stringObject" &&
-                              column.keyOptions
-                                ? column.keyOptions.map((value) => ({ value }))
-                                : []
-                            }
-                            value={filter.key ?? undefined}
-                            onValueChange={(nextKey) => {
-                              handleFilterChange(
-                                { ...filter, key: nextKey },
-                                i,
-                              );
-                              onStringObjectKeyChange?.(nextKey);
-                            }}
-                            disabled={disabled}
-                            isCustomSelectEnabled
-                          />
-                        ) : keyOptions?.length ? (
-                          // Case 1: object with keyOptions - selector of the key of the object
-                          <Select
-                            disabled={!filter.column}
-                            onValueChange={(value) => {
-                              handleFilterChange({ ...filter, key: value }, i);
-                            }}
-                            value={filter.key ?? ""}
-                          >
-                            <SelectTrigger className="min-w-[60px]">
-                              <SelectValue placeholder="" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {keyOptions.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          // Case 2: object without keyOptions - text input
-                          <Input
-                            value={filter.key ?? ""}
-                            placeholder="key"
-                            disabled={disabled}
-                            onChange={(e) =>
-                              handleFilterChange(
-                                { ...filter, key: e.target.value },
-                                i,
-                              )
-                            }
-                          />
-                        )
-                      ) : filter.type === "categoryOptions" &&
-                        column?.type === "categoryOptions" ? (
-                        // Case 3: categoryOptions
-                        <Select
-                          onValueChange={(value) => {
-                            handleFilterChange({ ...filter, key: value }, i);
-                          }}
-                          value={filter.key ?? ""}
-                        >
-                          <SelectTrigger className="min-w-[60px]">
-                            <SelectValue placeholder="" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {column?.options.map((option) => (
-                              <SelectItem
-                                key={option.label}
-                                value={option.label}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : filter.type === "positionInTrace" ? (
-                        <Select
-                          onValueChange={(value) => {
-                            const needsValue =
-                              value === "nthFromEnd" ||
-                              value === "nthFromStart";
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                key: value,
-                                value: needsValue
-                                  ? typeof filter.value === "number" &&
-                                    filter.value >= 1
-                                    ? filter.value
-                                    : 1
-                                  : undefined,
-                              } as WipFilterCondition,
-                              i,
-                            );
-                          }}
-                          value={getSessionPositionInTraceFilterMode(filter)}
-                        >
-                          <SelectTrigger className="min-w-[140px]">
-                            <SelectValue placeholder="" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="first">1st</SelectItem>
-                            <SelectItem value="last">last</SelectItem>
-                            <SelectItem value="nthFromStart">
-                              nth from start
-                            </SelectItem>
-                            <SelectItem value="nthFromEnd">
-                              nth from end
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : null}
-                    </td>
-                    <td className="p-1">
-                      <Select
-                        disabled={!filter.column || disabled}
-                        onValueChange={(value) => {
-                          // protect against invalid empty operator values
-                          if (value === "") return;
-                          handleFilterChange(
-                            {
-                              ...filter,
-                              operator: value as any,
-                              // Ensure null filters always have empty string value
-                              value:
-                                filter.type === "null"
-                                  ? ""
-                                  : (filter.value as any),
-                            },
-                            i,
-                          );
-                        }}
-                        value={filter.operator ?? ""}
-                      >
-                        <SelectTrigger className="min-w-[60px]">
-                          <SelectValue placeholder="" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filter.type !== undefined
-                            ? filterOperators[filter.type].map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))
-                            : null}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-1">
-                      {stringObjectSuggest && filter.type === "stringObject" ? (
-                        <SingleSelect
-                          title="Value"
-                          className="min-w-[100px]"
-                          options={
-                            (filter.key
-                              ? stringObjectValueOptions[filter.key]
-                              : []) ?? []
-                          }
-                          value={filter.value ?? undefined}
-                          onValueChange={(value) =>
-                            handleFilterChange({ ...filter, value }, i)
-                          }
-                          disabled={disabled}
-                          isCustomSelectEnabled
-                        />
-                      ) : filter.type === "string" ||
-                        filter.type === "stringObject" ? (
-                        <Input
-                          disabled={disabled}
-                          value={filter.value ?? ""}
-                          placeholder="string"
-                          onChange={(e) =>
-                            handleFilterChange(
-                              { ...filter, value: e.target.value },
-                              i,
-                            )
-                          }
-                        />
-                      ) : filter.type === "number" ||
-                        filter.type === "numberObject" ? (
-                        <Input
-                          value={filter.value ?? undefined}
-                          disabled={disabled}
-                          type="number"
-                          step={
-                            (column?.type === "number" && column.step) || 0.01
-                          }
-                          min={
-                            column?.type === "number" ? column.min : undefined
-                          }
-                          placeholder="number"
-                          lang="en-US"
-                          onChange={(e) =>
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                value: isNaN(Number(e.target.value))
-                                  ? e.target.value
-                                  : Number(e.target.value),
-                              },
-                              i,
-                            )
-                          }
-                        />
-                      ) : filter.type === "datetime" ? (
-                        <DatePicker
-                          className="w-full"
-                          disabled={disabled}
-                          date={
-                            filter.value ? new Date(filter.value) : undefined
-                          }
-                          onChange={(date) => {
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                value: date,
-                              },
-                              i,
-                            );
-                          }}
-                          includeTimePicker
-                        />
-                      ) : filter.type === "stringOptions" ||
-                        filter.type === "arrayOptions" ? (
-                        <MultiSelect
-                          title="Value"
-                          className="min-w-[100px]"
-                          options={
-                            column?.type === filter.type ? column.options : []
-                          }
-                          onValueChange={(value) =>
-                            handleFilterChange({ ...filter, value }, i)
-                          }
-                          values={
-                            Array.isArray(filter.value) ? filter.value : []
-                          }
-                          disabled={disabled}
-                          isCustomSelectEnabled={
-                            column?.type === filter.type &&
-                            columnsWithCustomSelect.includes(column.id)
-                          }
-                        />
-                      ) : filter.type === "categoryOptions" &&
-                        column?.type === "categoryOptions" ? (
-                        <MultiSelect
-                          title="Value"
-                          className="min-w-[100px]"
-                          options={
-                            column?.options
-                              .find((o) => o.label === filter.key)
-                              ?.values?.map((v) => ({ value: v })) ?? []
-                          }
-                          onValueChange={(value) =>
-                            handleFilterChange({ ...filter, value }, i)
-                          }
-                          values={
-                            Array.isArray(filter.value) ? filter.value : []
-                          }
-                          disabled={disabled}
-                          isCustomSelectEnabled={
-                            column?.type === filter.type &&
-                            columnsWithCustomSelect.includes(column.id)
-                          }
-                        />
-                      ) : filter.type === "boolean" ||
-                        filter.type === "booleanObject" ? (
-                        <Select
-                          disabled={disabled}
-                          onValueChange={(value) => {
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                value:
-                                  value !== "" ? value === "true" : undefined,
-                              },
-                              i,
-                            );
-                          }}
-                          value={filter.value?.toString() ?? ""}
-                        >
-                          <SelectTrigger className="min-w-[60px]">
-                            <SelectValue placeholder="" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["true", "false"].map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : filter.type === "positionInTrace" ? (
-                        filter.key === "nthFromStart" ||
-                        filter.key === "nthFromEnd" ? (
-                          <Input
-                            value={filter.value ?? ""}
-                            disabled={disabled}
-                            type="number"
-                            min={1}
-                            step={1}
-                            onChange={(e) =>
-                              handleFilterChange(
-                                {
-                                  ...filter,
-                                  value: isNaN(Number(e.target.value))
-                                    ? undefined
-                                    : Math.max(1, Number(e.target.value)),
-                                } as WipFilterCondition,
-                                i,
-                              )
-                            }
-                          />
-                        ) : (
-                          <Input disabled placeholder="-" />
-                        )
-                      ) : filter.type === "null" ? null : (
-                        <Input disabled />
-                      )}
-                    </td>
-                    <td>
-                      <Button
-                        onClick={() => removeFilter(i)}
-                        variant="ghost"
-                        type="button"
-                        disabled={disabled}
-                        size="xs"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {compact ? (
+            <div className="flex flex-col gap-4">{conditionRows}</div>
+          ) : (
+            <table className="table-auto">
+              <tbody>{conditionRows}</tbody>
+            </table>
+          )}
           {!disabled ? (
             <Button
               onClick={() => addNewFilter()}
               type="button" // required as it will otherwise submit forms where this component is used
-              className="mt-2"
+              className={cn("mt-2", compact && "mt-4")}
               variant="outline"
               size="sm"
             >
