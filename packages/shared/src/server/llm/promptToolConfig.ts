@@ -1,14 +1,28 @@
 import z from "zod";
 
 import {
+  LLMJSONSchema,
   LLMToolDefinitionSchema,
+  LLMToolNameSchema,
   OpenAIToolSchema,
   type LLMToolDefinition,
 } from "./types";
 
+const EMPTY_TOOL_PARAMETERS = { type: "object", properties: {} };
+
+const PromptToolDefinitionSchema = LLMToolDefinitionSchema.extend({
+  name: LLMToolNameSchema,
+  // OpenAI-compatible prompt configs may omit these fields. Keep the runtime
+  // representation complete for createLLMToolSet.
+  description: z.string().default(""),
+  parameters: LLMJSONSchema.default(EMPTY_TOOL_PARAMETERS),
+});
+
 const PromptConfigToolSchema = z.union([
-  LLMToolDefinitionSchema,
-  OpenAIToolSchema.transform((tool) => tool.function),
+  PromptToolDefinitionSchema,
+  OpenAIToolSchema.extend({
+    function: PromptToolDefinitionSchema,
+  }).transform((tool) => tool.function),
 ]);
 
 export type PromptToolConfig =

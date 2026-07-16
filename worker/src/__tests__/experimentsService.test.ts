@@ -649,7 +649,6 @@ describe("experiment prompt tool config", () => {
         tools: [
           {
             name: "get_weather",
-            description: "Get the weather for a location",
             parameters: {
               type: "object",
               properties: { location: { type: "string" } },
@@ -662,7 +661,6 @@ describe("experiment prompt tool config", () => {
             function: {
               name: "get_time",
               description: "Get the current time",
-              parameters: { type: "object", properties: {} },
             },
           },
         ],
@@ -686,7 +684,7 @@ describe("experiment prompt tool config", () => {
   test("ignores invalid prompt config tools and runs without tools", async () => {
     const { projectId, datasetId, runId } =
       await setupExperimentWithPromptConfig({
-        tools: [{ name: "broken_tool" }], // missing parameters
+        tools: [{ name: "broken_tool", parameters: "invalid" }],
       });
 
     const result = await createExperimentJobClickhouse({

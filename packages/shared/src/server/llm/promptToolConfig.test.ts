@@ -59,20 +59,43 @@ describe("parsePromptToolConfig", () => {
         }),
       ).toEqual({ status: "valid", tools: [weatherTool, timeTool] });
     });
+
+    it("normalizes omitted optional fields in the flat shape", () => {
+      expect(parsePromptToolConfig({ tools: [{ name: "get_time" }] })).toEqual({
+        status: "valid",
+        tools: [
+          {
+            name: "get_time",
+            description: "",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      });
+    });
+
+    it("normalizes omitted optional fields in the OpenAI wrapper", () => {
+      expect(
+        parsePromptToolConfig({
+          tools: [{ type: "function", function: { name: "get_time" } }],
+        }),
+      ).toEqual({
+        status: "valid",
+        tools: [
+          {
+            name: "get_time",
+            description: "",
+            parameters: { type: "object", properties: {} },
+          },
+        ],
+      });
+    });
   });
 
   describe("invalid tool configs", () => {
     it.each([
       ["tools is not an array", { tools: "get_weather" }],
       ["tools is an object", { tools: { get_weather: weatherTool } }],
-      ["entry missing parameters", { tools: [{ name: "broken" }] }],
       ["entry missing name", { tools: [{ parameters: { type: "object" } }] }],
-      [
-        "entry missing description",
-        {
-          tools: [{ name: "get_weather", parameters: { type: "object" } }],
-        },
-      ],
       ["entry is a string", { tools: ["get_weather"] }],
       ["entry has an empty name", { tools: [{ ...weatherTool, name: "" }] }],
       [
@@ -81,7 +104,7 @@ describe("parsePromptToolConfig", () => {
       ],
       [
         "one invalid entry invalidates all tools",
-        { tools: [weatherTool, { name: "broken" }] },
+        { tools: [weatherTool, { name: "broken", parameters: "invalid" }] },
       ],
       [
         "duplicate tool names",

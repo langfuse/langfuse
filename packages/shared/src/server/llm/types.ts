@@ -51,7 +51,7 @@ export const LLMToolNameSchema = z
   .min(1, "Name is required");
 
 export const LLMToolDefinitionSchema = z.object({
-  name: LLMToolNameSchema,
+  name: z.string(),
   description: z.string(),
   parameters: LLMJSONSchema,
 });
