@@ -46,21 +46,21 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       label: "Analyze failure patterns",
       description: "Run structured error analysis on failed traces",
       prompt:
-        "Run a structured error analysis on failed or low-scoring traces in the current view: sample representative traces, open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
+        "Run a structured error analysis on failed or low-scoring traces in the current view: sample up to 20 representative traces, open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
     },
     {
-      id: "summarize-trace-session",
-      label: "Summarize trace or session",
-      description: "Get a plain-language recap of this execution",
+      id: "review-recent-activity",
+      label: "Review recent activity",
+      description: "Get a digest of volume, errors, cost, and latency",
       prompt:
-        "Summarize the trace or session currently in view, including its execution sequence, generations, tool calls, errors, scores, and outcome.",
+        "Give me a digest of recent activity in the current view: trace volume, error rates, latency, and cost over the last seven days, and highlight anything that changed significantly.",
     },
     {
       id: "investigate-unusual-patterns",
       label: "Investigate unusual patterns",
       description: "Spot unusual cost, latency, or quality patterns",
       prompt:
-        "Review the current trace, session, or filtered view for unusual latency, cost, or quality patterns, explain likely causes, and suggest what to investigate next.",
+        "Review the current filtered view for unusual latency, cost, or quality patterns, explain likely causes, and suggest what to investigate next.",
     },
   ],
   dashboards: [
@@ -74,16 +74,16 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "track-cost-and-usage",
       label: "Track cost and usage",
-      description: "Monitor token usage and spend",
+      description: "Visualize token usage and spend",
       prompt:
-        "Show how token usage and cost are trending across my project, broken down by model, and highlight the largest drivers.",
+        "Help me build a dashboard widget to track how token usage and cost are trending across my project, broken down by trace name and model, and highlight the largest drivers.",
     },
     {
       id: "track-quality-scores",
       label: "Track quality scores",
-      description: "Track evaluation scores over time",
+      description: "Visualize evaluation scores over time",
       prompt:
-        "Chart how my evaluation scores are trending over time and flag any scores that are declining.",
+        "Help me build a dashboard widget to visualize how my evaluation scores are trending over time and flag any scores that are declining.",
     },
   ],
   prompts: [
@@ -99,14 +99,14 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       label: "Find prompts to improve",
       description: "Spot prompts with weak performance",
       prompt:
-        "Across my prompts, identify which ones have declining scores, high latency, or high cost in production, and suggest which to improve first.",
+        "Across my prompts, identify which ones have declining scores, high latency, or high cost in production based on their linked generations, and suggest which to improve first. If no generations are linked to prompts, explain how to link prompts to traces instead.",
     },
     {
       id: "review-prompt-usage",
       label: "Review prompt usage",
       description: "See which prompts drive production traffic",
       prompt:
-        "Summarize which prompts are used most in production, which versions are live, and their latency, cost, and score performance.",
+        "Summarize which prompts are used most in production, which versions are live, and their latency, cost, and score performance. If no generations are linked to prompts, explain how to link prompts to traces instead.",
     },
   ],
   evaluation: [
@@ -122,14 +122,14 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       label: "Create a dataset",
       description: "Build a dataset from representative traces",
       prompt:
-        "Create a dataset from representative production traces so I can use it for experiments and evaluation.",
+        "Create a dataset from a small set of five to ten representative production traces so I can use it for experiments and evaluation.",
     },
     {
       id: "run-experiment",
       label: "Set up an experiment",
       description: "Compare prompt, model, or code changes",
       prompt:
-        "Explain how to set up an experiment on a dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
+        "Help me set up an experiment on a dataset to compare prompt versions or models using Langfuse's in-product prompt experiments: check that my prompt variables match the dataset item keys and that an LLM connection is configured, suggest an evaluator to score the results, and point me to where to start the experiment. If I want to test application code changes instead, provide a ready-to-use prompt I can give a coding agent to run an experiment via the SDK.",
     },
   ],
 } satisfies Record<
@@ -220,14 +220,14 @@ export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
       label: "Compare prompt versions",
       description: "Review how versions changed",
       prompt:
-        "Compare recent versions of this prompt, summarize what changed between them, and how each version performs in production.",
+        "Compare recent versions of this prompt, summarize what changed between them, and how each version performs in production based on its linked generations. If no generations are linked to this prompt, explain how to link prompts to traces instead.",
     },
     {
       id: "check-prompt-performance",
       label: "Check prompt performance",
       description: "Connect this prompt to latency, cost, and scores",
       prompt:
-        "Find the traces that use this prompt and summarize its latency, cost, and score performance.",
+        "Find the generations that use this prompt and summarize its latency, cost, and score performance, pointing me to this prompt's Metrics tab for the full per-version breakdown. If no generations are linked to this prompt, explain how to link prompts to traces instead.",
     },
   ],
   dataset: [
@@ -236,14 +236,14 @@ export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
       label: "Add items from traces",
       description: "Populate this dataset from production traces",
       prompt:
-        "Help me add representative production traces as items to this dataset so I can use it for experiments and evaluation.",
+        "Help me add a small set of five to ten representative production traces as items to this dataset so I can use it for experiments and evaluation.",
     },
     {
       id: "set-up-experiment-on-this-dataset",
       label: "Set up an experiment",
       description: "Compare prompt, model, or code changes",
       prompt:
-        "Explain how to set up an experiment on this dataset to compare prompt, model, or code changes, and provide a ready-to-use prompt I can give a coding agent to run it.",
+        "Help me set up an experiment on this dataset to compare prompt versions or models using Langfuse's in-product prompt experiments: check that the dataset item keys match my prompt variables and that an LLM connection is configured, suggest an evaluator to score the results, and point me to where to start the experiment. If I want to test application code changes instead, provide a ready-to-use prompt I can give a coding agent to run an experiment via the SDK.",
     },
     {
       id: "review-this-dataset",
