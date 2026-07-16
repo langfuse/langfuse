@@ -6,12 +6,10 @@ import {
   MatchDecorator,
   ViewPlugin,
   type ViewUpdate,
-  type ReactCodeMirrorRef,
 } from "@uiw/react-codemirror";
 
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
 // Prompts are prose, not code: use the app font instead of the editor's
@@ -134,7 +132,6 @@ export function PromptVariableEditor({
   variableMappings,
   activeVariable,
   onVariableClick,
-  onVariableInsert,
   previewEnabled = false,
   onPreviewEnabledChange,
   showPreviewToggle = false,
@@ -153,10 +150,6 @@ export function PromptVariableEditor({
   activeVariable?: string | null;
   /** Called when a {{variable}} token is clicked (reveal, not edit). */
   onVariableClick: (variable: string) => void;
-  /** Called after "Add variable" inserts a fresh token — defaults to
-      onVariableClick; pass separately when insertion should open the mapper
-      while plain clicks only reveal. */
-  onVariableInsert?: (variable: string) => void;
   /** When true, render previewSlot instead of the editor (toolbar stays). */
   previewEnabled?: boolean;
   onPreviewEnabledChange?: (enabled: boolean) => void;
@@ -166,8 +159,6 @@ export function PromptVariableEditor({
   /** Interpolated-prompt preview rendered in place of the editor. */
   previewSlot?: ReactNode;
 }) {
-  const editorRef = useRef<ReactCodeMirrorRef | null>(null);
-
   // Click handling lives inside CodeMirror (domEventHandlers) so no extra
   // interactive wrapper element is needed. Routed through a ref so the
   // memoized extensions array keeps a stable identity (react-codemirror
@@ -212,64 +203,15 @@ export function PromptVariableEditor({
     ];
   }, [statusKey, mappingsKey, activeVariable]);
 
-  // Inserts a {{variable}} template at the cursor (replacing any selection)
-  // and selects the placeholder name so the user can type over it. The new
-  // variable is activated in the mapping panel right away — it starts
-  // unmapped, so the panel shows the map-me callout while the user names it
-  // (renames are followed upstream).
-  const insertVariable = () => {
-    const view = editorRef.current?.view;
-    if (!view) return;
-    let { from, to } = view.state.selection.main;
-    // Never mangle or replace an existing {{token}}: if the selection touches
-    // one (e.g. the caret sits inside a pill after clicking it), snap the
-    // insertion point to just after that token instead.
-    const doc = view.state.doc.toString();
-    const regex = /{{\s*[\w.]+\s*}}/g;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(doc)) !== null) {
-      const start = match.index;
-      const end = match.index + match[0].length;
-      if (from === start && to === end) {
-        from = to = end;
-      } else {
-        if (from > start && from < end) from = end;
-        if (to > start && to < end) to = end;
-      }
-    }
-    if (to < from) to = from;
-    const placeholder = "variable";
-    view.dispatch({
-      changes: { from, to, insert: `{{${placeholder}}}` },
-      selection: { anchor: from + 2, head: from + 2 + placeholder.length },
-    });
-    view.focus();
-    (onVariableInsert ?? onVariableClick)(placeholder);
-  };
-
   return (
     <div className="flex flex-col">
       {/* Toolbar attached above the prompt; the editor's (or preview's) own
-          top border draws the seam. Controls cluster on the right. */}
+          top border draws the seam. */}
       <div className="bg-muted/50 flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          // Same quiet tone as the "Preview with sample" label next to it —
-          // the toolbar reads as one control cluster.
-          className="text-muted-foreground h-6 gap-1.5 px-2 text-xs font-normal"
-          title="Insert a {{variable}} at the cursor"
-          disabled={previewEnabled}
-          onClick={insertVariable}
-        >
-          Add variable
-          <span className="font-mono text-[10px]">{"{{x}}"}</span>
-        </Button>
         {showPreviewToggle && (
           <label
             className={cn(
-              "text-muted-foreground flex items-center gap-1.5 px-2 text-xs",
+              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
               previewDisabledReason
                 ? "cursor-not-allowed opacity-60"
                 : "cursor-pointer",
@@ -282,7 +224,7 @@ export function PromptVariableEditor({
               disabled={Boolean(previewDisabledReason)}
               onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
             />
-            Preview with sample
+            Preview
           </label>
         )}
       </div>
@@ -301,7 +243,6 @@ export function PromptVariableEditor({
           minHeight={140}
           maxHeight="50dvh"
           lineNumbers={false}
-          editorRef={editorRef}
           extensions={extensions}
           className="rounded-t-none text-sm"
         />

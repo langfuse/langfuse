@@ -30,8 +30,8 @@ export default function NewEvaluationRulePage() {
     scope: "evalJob:CUD",
   });
 
-  // Resolve the template from both gallery sources: the maintained catalog
-  // and the project's own templates ("start from existing").
+  // Resolve the example from both gallery sources: the maintained catalog
+  // and the project's custom evaluators.
   const catalog = api.evalsV2.catalog.useQuery(
     { projectId },
     { enabled: Boolean(projectId && templateId) },
@@ -64,7 +64,7 @@ export default function NewEvaluationRulePage() {
         ],
         help: {
           description:
-            "Prototype: define the evaluator on the left (name, prompt or code, score output), and where it runs on the right (data source, filter, sample, variable mapping) — then save it as a draft or save and run it.",
+            "Define the evaluator on the left (name, prompt or code, score output), and which observations it runs on to the right (filter, sample, variable mapping) — then save it as a draft or save and run it.",
         },
       }}
     >

@@ -1973,6 +1973,7 @@ export default function ObservationsEventsTable({
                 columns={columns}
                 columnVisibility={effectiveColumnVisibility}
                 setColumnVisibility={onExternalColumnVisibilityChange}
+                iconOnly
               />,
               columnsPickerContainer,
             )
@@ -1982,6 +1983,7 @@ export default function ObservationsEventsTable({
                 columns={columns}
                 columnVisibility={effectiveColumnVisibility}
                 setColumnVisibility={onExternalColumnVisibilityChange}
+                iconOnly
               />
             </div>
           ))}

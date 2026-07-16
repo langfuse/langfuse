@@ -75,6 +75,18 @@ export const EXAMPLE_FILTERS: {
     ],
   },
   {
+    label: "Experiments",
+    icon: FlaskConical,
+    filters: [
+      {
+        column: "experimentId",
+        type: "null",
+        operator: "is not null",
+        value: "",
+      },
+    ],
+  },
+  {
     label: "Tools",
     icon: Wrench,
     filters: [

@@ -34,6 +34,7 @@ import {
   tryParseJson,
 } from "@/src/features/evals/v2/lib/jsonPathSuggestions";
 import {
+  LAST,
   WILDCARD,
   crumbLabel,
   jsonPathToSegments,
@@ -58,6 +59,9 @@ function resolveShapeNode(
     if (Array.isArray(node) && segment === WILDCARD) {
       if (node.length === 0) return { found: false, value: undefined };
       node = node[0];
+    } else if (Array.isArray(node) && segment === LAST) {
+      if (node.length === 0) return { found: false, value: undefined };
+      node = node[node.length - 1];
     } else if (Array.isArray(node) && typeof segment === "number") {
       if (segment >= node.length) return { found: false, value: undefined };
       node = node[segment];
@@ -658,15 +662,23 @@ export function VariableMappingPanel({
             <>
               <p className="text-muted-foreground px-2 pb-2 text-xs">
                 {backLink}
-                {`{{${activeVariable}}} pulls in this whole list — click an entry to narrow it, or [*] to keep every entry.`}
+                {`{{${activeVariable}}} pulls in this whole list — choose an entry, [*] for every entry, or last for the final entry.`}
               </p>
               <div className="divide-y rounded-md border">
                 {shape.value.length > 0 && (
-                  <DrillRow
-                    label="[*]"
-                    badge="every entry"
-                    onClick={() => setPath([...segments, WILDCARD])}
-                  />
+                  <>
+                    <DrillRow
+                      label="[*]"
+                      badge="every entry"
+                      onClick={() => setPath([...segments, WILDCARD])}
+                    />
+                    <DrillRow
+                      label="last"
+                      badge="last entry"
+                      value={shape.value[shape.value.length - 1]}
+                      onClick={() => setPath([...segments, LAST])}
+                    />
+                  </>
                 )}
                 {shape.value.slice(0, 50).map((item, index) => (
                   <DrillRow

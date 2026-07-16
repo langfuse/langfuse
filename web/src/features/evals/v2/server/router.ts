@@ -77,9 +77,6 @@ const RunScopeInputSchema = z.discriminatedUnion("mode", [
 const CreateRuleSchema = z.object({
   projectId: z.string(),
   scoreName: z.string().min(1),
-  // Optional custom name for the written scores — scoreName (the evaluator
-  // name) is used when absent.
-  scoreNameOverride: z.string().trim().min(1).nullish(),
   description: z.string().nullish(),
   evaluatorType: z.enum(["LLM_AS_JUDGE", "CODE"]).default("LLM_AS_JUDGE"),
   // Managed (Langfuse/partner) template this evaluator started from. Absent
@@ -533,7 +530,7 @@ export const evalsV2Router = createTRPCRouter({
           projectId: input.projectId,
           jobType: "EVAL",
           evalTemplateId,
-          scoreName: input.scoreNameOverride ?? input.scoreName,
+          scoreName: input.scoreName,
           description: input.description ?? null,
           targetObject: scopeValues.targetObject,
           filter: scopeValues.filter,

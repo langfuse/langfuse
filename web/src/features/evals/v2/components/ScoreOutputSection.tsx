@@ -1,15 +1,33 @@
-import { useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  InfoIcon,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-// Animated tab variants: the active pill slides between options.
 import {
-  Tabs,
-  AnimatedTabsList as TabsList,
-  AnimatedTabsTrigger as TabsTrigger,
-} from "@/src/components/ui/tabs";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import { Textarea } from "@/src/components/ui/textarea";
 import { cn } from "@/src/utils/tailwind";
 import { shouldReplaceDefaultOutputDefinitionField } from "@/src/features/evals/utils/template-form-defaults";
@@ -43,9 +61,9 @@ export type ScoreOutputFormState = {
 };
 
 const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
-  { value: ScoreDataTypeEnum.NUMERIC, label: "Numeric" },
-  { value: ScoreDataTypeEnum.CATEGORICAL, label: "Categorical" },
-  { value: ScoreDataTypeEnum.BOOLEAN, label: "Boolean" },
+  { value: ScoreDataTypeEnum.NUMERIC, label: "number" },
+  { value: ScoreDataTypeEnum.CATEGORICAL, label: "category" },
+  { value: ScoreDataTypeEnum.BOOLEAN, label: "boolean" },
 ];
 
 // Two empty rows with autofilled values — the minimum a categorical score
@@ -182,22 +200,131 @@ export function buildScoreOutputDefinition(
   return parsed.success ? parsed.data : null;
 }
 
+/** A section label with its helper copy tucked into a hover tooltip instead
+    of a permanent paragraph — keeps the label row compact. */
+function LabelWithTooltip({
+  htmlFor,
+  tooltip,
+  children,
+}: {
+  htmlFor?: string;
+  tooltip: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
+      {children}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
+      </Tooltip>
+    </Label>
+  );
+}
+
+function CategoryEditorPopover({
+  trigger,
+  title,
+  idSuffix,
+  choice,
+  onChange,
+  onDelete,
+  onDone,
+  open,
+  onOpenChange,
+}: {
+  trigger: ReactNode;
+  title: string;
+  idSuffix: string;
+  choice: ScoreOutputChoice;
+  onChange: (next: Partial<ScoreOutputChoice>) => void;
+  onDelete?: () => void;
+  onDone?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align="start" className="w-80">
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-sm font-medium">{title}</p>
+            <p className="text-muted-foreground text-xs">
+              Set the returned label and its optional numeric score.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`score-output-category-${idSuffix}`}>
+              Category
+            </Label>
+            <Input
+              id={`score-output-category-${idSuffix}`}
+              placeholder="Category label"
+              value={choice.label}
+              onChange={(event) => onChange({ label: event.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`score-output-category-value-${idSuffix}`}>
+              Numeric score
+            </Label>
+            <Input
+              id={`score-output-category-value-${idSuffix}`}
+              type="number"
+              placeholder="Optional"
+              value={choice.value}
+              onChange={(event) => onChange({ value: event.target.value })}
+            />
+          </div>
+          <div
+            className={cn(
+              "flex items-center",
+              onDelete ? "justify-between" : "justify-end",
+            )}
+          >
+            {onDelete && (
+              <PopoverClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                  aria-label="Delete category"
+                  title="Delete category"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </PopoverClose>
+            )}
+            <PopoverClose asChild>
+              <Button type="button" size="sm" onClick={onDone}>
+                Done
+              </Button>
+            </PopoverClose>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function ScoreOutputSection({
   state,
   onChange,
-  scoreName,
-  onScoreNameChange,
-  defaultScoreName,
 }: {
   state: ScoreOutputFormState;
   onChange: (next: ScoreOutputFormState) => void;
-  /** Optional score-name override — empty inherits the evaluator name. */
-  scoreName: string;
-  onScoreNameChange: (next: string) => void;
-  /** The inherited default (evaluator name), shown as the placeholder. */
-  defaultScoreName: string;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [newChoice, setNewChoice] = useState<ScoreOutputChoice>({
+    label: "",
+    value: "0",
+  });
 
   const handleDataTypeChange = (dataType: ScoreOutputDataType) => {
     onChange({
@@ -226,16 +353,22 @@ export function ScoreOutputSection({
     onChange({ ...state, choices });
   };
 
-  // New rows continue the numeric sequence (0, 1, 2, …) past the largest
-  // value already used, so autofill never collides with user overrides.
-  const addChoice = () => {
+  const nextChoiceValue = () => {
     const used = state.choices
       .map((choice) => Number(choice.value))
       .filter((value) => Number.isFinite(value));
-    const nextValue = used.length > 0 ? Math.max(...used) + 1 : 0;
+    return String(used.length > 0 ? Math.max(...used) + 1 : 0);
+  };
+
+  const handleAddCategoryOpenChange = (open: boolean) => {
+    if (open) setNewChoice({ label: "", value: nextChoiceValue() });
+    setAddCategoryOpen(open);
+  };
+
+  const addChoice = () => {
     onChange({
       ...state,
-      choices: [...state.choices, { label: "", value: String(nextValue) }],
+      choices: [...state.choices, newChoice],
     });
   };
 
@@ -247,133 +380,182 @@ export function ScoreOutputSection({
   const generatedReasoningDescription = getGeneratedReasoningDescription({
     dataType: state.dataType,
   });
+  const minimum = state.minValue.trim();
+  const maximum = state.maxValue.trim();
+  const numericBoundsLabel =
+    minimum && maximum
+      ? `between ${minimum} and ${maximum}`
+      : minimum
+        ? `of at least ${minimum}`
+        : maximum
+          ? `of at most ${maximum}`
+          : "without limits";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <Label>Score type</Label>
-        <p className="text-muted-foreground text-sm">
-          Choose whether the evaluator should return a numeric score, one of a
-          fixed set of categories, or a boolean verdict.
-        </p>
-        <Tabs
-          value={state.dataType}
-          onValueChange={(value) =>
-            handleDataTypeChange(value as ScoreOutputDataType)
-          }
-        >
-          <TabsList>
-            {DATA_TYPE_OPTIONS.map((option) => (
-              <TabsTrigger key={option.value} value={option.value}>
-                {option.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {state.dataType === ScoreDataTypeEnum.NUMERIC && (
-        <div className="flex flex-col gap-2">
-          <Label>Range (optional)</Label>
-          <p className="text-muted-foreground text-sm">
-            Constrains the judge to this range. Leave empty for an unbounded
-            score.
-          </p>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              className="w-32"
-              placeholder="Min, e.g. 0"
-              aria-label="Minimum score"
-              value={state.minValue}
-              onChange={(e) => onChange({ ...state, minValue: e.target.value })}
-            />
-            <span className="text-muted-foreground text-sm">to</span>
-            <Input
-              type="number"
-              className="w-32"
-              placeholder="Max, e.g. 1"
-              aria-label="Maximum score"
-              value={state.maxValue}
-              onChange={(e) => onChange({ ...state, maxValue: e.target.value })}
-            />
-          </div>
-        </div>
-      )}
-
-      {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
-        <div className="flex flex-col gap-2">
-          <Label>Choices (at least 2)</Label>
-          <p className="text-muted-foreground text-sm">
-            The labels the judge picks from, each with the numeric value it maps
-            to.
-          </p>
-          {state.choices.map((choice, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <Input
-                className="flex-1"
-                placeholder={`Choice ${index + 1}`}
-                aria-label={`Choice ${index + 1} label`}
-                value={choice.label}
-                onChange={(e) => updateChoice(index, { label: e.target.value })}
-              />
-              <Input
-                type="number"
-                className="w-24"
-                placeholder="Value"
-                aria-label={`Choice ${index + 1} value`}
-                value={choice.value}
-                onChange={(e) => updateChoice(index, { value: e.target.value })}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Remove choice"
-                onClick={() =>
-                  onChange({
-                    ...state,
-                    choices: state.choices.filter((_, i) => i !== index),
-                  })
-                }
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-fit"
-            onClick={addChoice}
+        <LabelWithTooltip tooltip="Choose the value the evaluator returns and how that value is constrained or mapped.">
+          Score output
+        </LabelWithTooltip>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span>
+            {state.dataType === ScoreDataTypeEnum.CATEGORICAL
+              ? "Return one"
+              : "Return a"}
+          </span>
+          <Select
+            value={state.dataType}
+            onValueChange={(value) =>
+              handleDataTypeChange(value as ScoreOutputDataType)
+            }
           >
-            <Plus className="mr-1.5 h-4 w-4" />
-            Add choice
-          </Button>
-        </div>
-      )}
+            <SelectTrigger
+              className="bg-muted hover:bg-muted/80 w-auto min-w-24"
+              aria-label="Score type"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DATA_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-      {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
-        <div className="flex flex-col gap-2">
-          <Label>Values</Label>
-          <p className="text-muted-foreground text-sm">
-            Boolean verdicts are fixed — stored as 1 (true) or 0 (false).
-          </p>
-          {[
-            { label: "true", value: "1" },
-            { label: "false", value: "0" },
-          ].map((row) => (
-            <div key={row.label} className="flex items-center gap-2">
-              <Input className="flex-1" value={row.label} disabled readOnly />
-              <Input className="w-24" value={row.value} disabled readOnly />
-              {/* Spacer matching the choices' remove button keeps columns aligned
-                  when switching between categorical and boolean. */}
-              <div className="w-10" aria-hidden />
-            </div>
-          ))}
-        </div>
-      )}
+          {state.dataType === ScoreDataTypeEnum.NUMERIC && (
+            <>
+              {minimum || maximum ? <span>with values</span> : null}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="bg-muted hover:bg-muted/80 h-8 font-normal"
+                  >
+                    {numericBoundsLabel}
+                    <ChevronDown className="text-muted-foreground ml-1 h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72">
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Number limits</p>
+                      <p className="text-muted-foreground text-sm">
+                        Leave either field empty when only one side should be
+                        constrained.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="score-output-minimum">Minimum</Label>
+                        <Input
+                          id="score-output-minimum"
+                          type="number"
+                          placeholder="No minimum"
+                          value={state.minValue}
+                          onChange={(e) =>
+                            onChange({
+                              ...state,
+                              minValue: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="score-output-maximum">Maximum</Label>
+                        <Input
+                          id="score-output-maximum"
+                          type="number"
+                          placeholder="No maximum"
+                          value={state.maxValue}
+                          onChange={(e) =>
+                            onChange({
+                              ...state,
+                              maxValue: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
 
+          {state.dataType === ScoreDataTypeEnum.CATEGORICAL && (
+            <>
+              <span>from</span>
+              {state.choices.map((choice, index) => (
+                <CategoryEditorPopover
+                  key={index}
+                  title="Edit category"
+                  idSuffix={String(index)}
+                  choice={choice}
+                  onChange={(next) => updateChoice(index, next)}
+                  onDelete={() =>
+                    onChange({
+                      ...state,
+                      choices: state.choices.filter((_, i) => i !== index),
+                    })
+                  }
+                  trigger={
+                    <button
+                      type="button"
+                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium focus-visible:ring-2 focus-visible:outline-hidden"
+                    >
+                      <span>
+                        {choice.label.trim() || `Category ${index + 1}`}
+                      </span>
+                      <ChevronRight className="text-muted-foreground h-4 w-4" />
+                    </button>
+                  }
+                />
+              ))}
+              <CategoryEditorPopover
+                title="Add category"
+                idSuffix="new"
+                choice={newChoice}
+                onChange={(next) =>
+                  setNewChoice((current) => ({ ...current, ...next }))
+                }
+                onDone={addChoice}
+                open={addCategoryOpen}
+                onOpenChange={handleAddCategoryOpenChange}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="bg-muted hover:bg-muted/80 h-8 w-8"
+                    aria-label="Add category"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                }
+              />
+            </>
+          )}
+
+          {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
+            <>
+              <span>as</span>
+              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium">
+                true
+                <span className="text-muted-foreground font-normal">· 1</span>
+              </span>
+              <span>or</span>
+              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium">
+                false
+                <span className="text-muted-foreground font-normal">· 0</span>
+              </span>
+            </>
+          )}
+        </div>
+      </div>
       <div className="flex flex-col gap-4">
         <button
           type="button"
@@ -393,26 +575,9 @@ export function ScoreOutputSection({
         {advancedOpen && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="score-output-name">Score name</Label>
-              <p className="text-muted-foreground text-sm">
-                Scores are written under this name. Leave empty to use the
-                evaluator name.
-              </p>
-              <Input
-                id="score-output-name"
-                className="max-w-md"
-                placeholder={defaultScoreName || "e.g. hallucination"}
-                value={scoreName}
-                onChange={(e) => onScoreNameChange(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label>Score description</Label>
-              <p className="text-muted-foreground text-sm">
-                How the score field is described to the judge. Leave empty to
-                use the text generated from the settings above.
-              </p>
+              <LabelWithTooltip tooltip="How the score field is described to the judge. Leave empty to use the text generated from the settings above.">
+                Score description
+              </LabelWithTooltip>
               <Textarea
                 className="min-h-16"
                 placeholder={generatedScoreDescription}
@@ -424,10 +589,9 @@ export function ScoreOutputSection({
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label>Reasoning description</Label>
-              <p className="text-muted-foreground text-sm">
-                Tells the judge what its written reasoning should cover.
-              </p>
+              <LabelWithTooltip tooltip="Tells the judge what its written reasoning should cover.">
+                Reasoning description
+              </LabelWithTooltip>
               <Textarea
                 className="min-h-16"
                 placeholder={generatedReasoningDescription}

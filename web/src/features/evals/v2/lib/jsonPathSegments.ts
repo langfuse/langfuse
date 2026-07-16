@@ -1,12 +1,15 @@
 /**
  * The drill-down JSONPath grammar shared between the prompt pills and the
- * mapping panel: plain keys, numeric indices, and the every-entry wildcard.
+ * mapping panel: plain keys, numeric indices, the every-entry wildcard, and
+ * a dynamic last-entry selector.
  * Anything else (filters, slices, …) is treated as an opaque path.
  */
 
-// A drill path segment: object key, array index, or the every-entry wildcard.
+// A drill path segment: object key, array index, every entry, or the final
+// entry. JSONPath-Plus expresses the latter as a one-item slice (`[-1:]`).
 export const WILDCARD = Symbol("wildcard");
-export type PathSegment = string | number | typeof WILDCARD;
+export const LAST = Symbol("last");
+export type PathSegment = string | number | typeof WILDCARD | typeof LAST;
 
 const IDENTIFIER_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -19,11 +22,13 @@ export function segmentsToJsonPath(segments: PathSegment[]): string | null {
       .map((segment) =>
         segment === WILDCARD
           ? "[*]"
-          : typeof segment === "number"
-            ? `[${segment}]`
-            : IDENTIFIER_REGEX.test(segment)
-              ? `.${segment}`
-              : `[${JSON.stringify(segment)}]`,
+          : segment === LAST
+            ? "[-1:]"
+            : typeof segment === "number"
+              ? `[${segment}]`
+              : IDENTIFIER_REGEX.test(segment)
+                ? `.${segment}`
+                : `[${JSON.stringify(segment)}]`,
       )
       .join("")
   );
@@ -46,11 +51,15 @@ export function jsonPathToSegments(path: string): PathSegment[] | null {
     } else if (path[i] === "[") {
       const rest = path.slice(i);
       const wildcard = /^\[\*\]/.exec(rest);
+      const last = /^\[-1:\]/.exec(rest);
       const numeric = /^\[(\d+)\]/.exec(rest);
       const quoted = /^\[("(?:[^"\\]|\\.)*")\]/.exec(rest);
       if (wildcard) {
         segments.push(WILDCARD);
         i += wildcard[0].length;
+      } else if (last) {
+        segments.push(LAST);
+        i += last[0].length;
       } else if (numeric) {
         segments.push(Number(numeric[1]));
         i += numeric[0].length;
@@ -74,9 +83,11 @@ export function jsonPathToSegments(path: string): PathSegment[] | null {
 export function crumbLabel(segment: PathSegment): string {
   return segment === WILDCARD
     ? "[*]"
-    : typeof segment === "number"
-      ? `[${segment}]`
-      : segment;
+    : segment === LAST
+      ? "[last]"
+      : typeof segment === "number"
+        ? `[${segment}]`
+        : segment;
 }
 
 function truncateEnd(label: string, max: number): string {
@@ -86,7 +97,7 @@ function truncateEnd(label: string, max: number): string {
 /**
  * Compact "root › … › leaf" label for a mapping, shared by the prompt pills
  * and any collapsed-path surface. The leaf is the semantically loaded part;
- * an index/wildcard leaf keeps its parent key ("tool_calls[*]") because a
+ * an index/wildcard/last-entry leaf keeps its parent key ("tool_calls[*]") because a
  * bare "[0]" says nothing. The full path belongs in a tooltip.
  */
 export function formatMappingLabel(

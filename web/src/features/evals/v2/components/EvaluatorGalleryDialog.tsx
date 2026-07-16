@@ -38,7 +38,7 @@ type GalleryTemplate = EvalTemplate & {
 
 // Two rows at the three-column grid before "Show all" takes over.
 const MAX_TILES_PER_SECTION = 6;
-const CLONE_SECTION_KEY = "clone";
+const CUSTOM_SECTION_KEY = "custom";
 // Experiment: cards without the per-category icon tile, with a "Use template"
 // pill on hover instead. Flip to true to restore the icon tiles.
 const SHOW_CARD_ICONS = false;
@@ -167,9 +167,8 @@ function EvaluatorCard({
   );
 }
 
-// Header sizes follow the app-wide scale from layouts/header.tsx: the
-// "Templates" group header uses the h4 size (text-lg/medium), so sections
-// sit one level below at the h5 size.
+// The gallery title is the parent heading; individual example groups sit one
+// level below it visually and semantically.
 function SectionHeader({
   label,
   description,
@@ -179,7 +178,7 @@ function SectionHeader({
 }) {
   return (
     <div>
-      <h3 className="text-base leading-6 font-medium">{label}</h3>
+      <h4 className="text-base leading-6 font-medium">{label}</h4>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
@@ -280,12 +279,12 @@ export function EvaluatorGalleryDialog({
     icon: c.icon,
     count: categoryCounts.get(c.key),
   }));
-  const existingNav: NavItem[] =
+  const customNav: NavItem[] =
     (projectTemplates.data?.length ?? 0) > 0
       ? [
           {
-            key: CLONE_SECTION_KEY,
-            label: "Start from existing",
+            key: CUSTOM_SECTION_KEY,
+            label: "Custom",
             icon: User,
             count: projectTemplates.data?.length,
           },
@@ -293,7 +292,7 @@ export function EvaluatorGalleryDialog({
       : [];
   // Scroll-spy iterates in content order, so this must match the section
   // order in the scroll container.
-  const navItems: NavItem[] = [...existingNav, ...categoryNav];
+  const navItems: NavItem[] = [...customNav, ...categoryNav];
 
   const visibleCategorySections = CATALOG_CATEGORIES.filter(
     (category) => (templatesByCategory.get(category.key)?.length ?? 0) > 0,
@@ -321,11 +320,7 @@ export function EvaluatorGalleryDialog({
   };
 
   const renderNavItem = (item: NavItem) => {
-    // The clone entry never gets the active background — it sits at the top
-    // and would read as permanently highlighted.
-    const isActive =
-      item.key !== CLONE_SECTION_KEY &&
-      (activeSection ?? navItems[0]?.key) === item.key;
+    const isActive = (activeSection ?? navItems[0]?.key) === item.key;
     return (
       <Button
         key={item.key}
@@ -387,8 +382,9 @@ export function EvaluatorGalleryDialog({
   const renderShowAllToggle = (key: string, total: number) => {
     if (total <= MAX_TILES_PER_SECTION) return null;
     const isExpanded = expandedSections.has(key);
-    // The clone section lists the project's own evaluators, not templates.
-    const noun = key === CLONE_SECTION_KEY ? "evaluators" : "templates";
+    // The custom section lists the project's own evaluators, not catalog
+    // examples.
+    const noun = key === CUSTOM_SECTION_KEY ? "evaluators" : "examples";
     // Plain flush-left toggle (like the form's "Advanced") so the chevron
     // aligns with the cards' left edge instead of floating in ghost-button
     // padding.
@@ -473,7 +469,7 @@ export function EvaluatorGalleryDialog({
             </DialogClose>
           </div>
           <DialogDescription>
-            Pick a maintained evaluator or start from scratch.
+            Pick an example or start from scratch.
           </DialogDescription>
         </div>
         <DialogBody className="flex-row gap-4 overflow-hidden p-0">
@@ -482,27 +478,24 @@ export function EvaluatorGalleryDialog({
                 Python/TypeScript from there. */}
             <Button
               type="button"
-              variant="secondary"
+              variant="ghost"
               // Matches renderNavItem's px-3 + mr-2 icon so the plus lines up
-              // with the section icons below; spacing to the nav comes from
-              // the container's gap, same as between nav items.
+              // with the section icons below.
               className="w-full justify-start px-3"
               onClick={() => onCreateFromScratch("llm")}
             >
               <Plus className="mr-2 h-4 w-4 shrink-0" />
               Create from scratch
             </Button>
-            {existingNav.map(renderNavItem)}
-            {existingNav.length > 0 && categoryNav.length > 0 ? (
-              <div className="bg-border my-1.5 h-px shrink-0" />
-            ) : null}
+            <div className="bg-border my-2 h-px shrink-0" />
             {/* Group header: one hierarchy level above the sm/font-normal
                 nav items, so it must not render smaller than them. */}
-            {categoryNav.length > 0 ? (
-              <div className="flex h-8 shrink-0 items-center px-3 text-sm font-semibold">
-                Templates
+            {navItems.length > 0 ? (
+              <div className="flex h-8 shrink-0 items-center px-3 text-base font-semibold">
+                Examples
               </div>
             ) : null}
+            {customNav.map(renderNavItem)}
             {categoryNav.map(renderNavItem)}
           </div>
 
@@ -517,7 +510,7 @@ export function EvaluatorGalleryDialog({
                   ref={searchInputRef}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search evaluators..."
+                  placeholder="Search examples..."
                   className="pl-8"
                 />
               </div>
@@ -536,31 +529,29 @@ export function EvaluatorGalleryDialog({
                 </div>
               ) : (
                 <>
+                  {filteredProjectTemplates.length > 0 ||
+                  visibleCategorySections.length > 0 ? (
+                    <h3 className="pt-2 text-xl leading-7 font-semibold">
+                      Start from Examples
+                    </h3>
+                  ) : null}
+
                   {filteredProjectTemplates.length > 0 ? (
                     <section
-                      ref={setSectionRef(CLONE_SECTION_KEY)}
+                      ref={setSectionRef(CUSTOM_SECTION_KEY)}
                       className="flex scroll-mt-1 flex-col gap-2.5 pt-2"
                     >
                       <SectionHeader
-                        label="Start from existing"
+                        label="Your examples"
                         description="Start from an evaluator this project already created."
                       />
                       {renderTemplateGrid(
-                        CLONE_SECTION_KEY,
+                        CUSTOM_SECTION_KEY,
                         filteredProjectTemplates,
                         User,
                         "bg-muted text-muted-foreground",
                       )}
                     </section>
-                  ) : null}
-
-                  {/* Group label separating the project's own evaluators
-                      from the maintained catalog below. */}
-                  {filteredProjectTemplates.length > 0 &&
-                  visibleCategorySections.length > 0 ? (
-                    <h3 className="pt-2 text-lg leading-6 font-medium">
-                      Templates
-                    </h3>
                   ) : null}
 
                   {visibleCategorySections.map((category) => (
@@ -585,7 +576,7 @@ export function EvaluatorGalleryDialog({
                   {visibleCategorySections.length === 0 &&
                   filteredProjectTemplates.length === 0 ? (
                     <div className="text-muted-foreground py-8 text-center text-sm">
-                      No evaluators match your search.
+                      No examples match your search.
                     </div>
                   ) : null}
                 </>

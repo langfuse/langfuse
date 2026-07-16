@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { FlaskConical, Sparkles, TriangleAlert } from "lucide-react";
+import { InfoIcon, Plus, Sparkles, TriangleAlert } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Button } from "@/src/components/ui/button";
@@ -19,6 +19,11 @@ import {
   AnimatedTabsList as TabsList,
   AnimatedTabsTrigger as TabsTrigger,
 } from "@/src/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -50,12 +55,10 @@ import {
   EXAMPLE_FILTERS,
   mergeExampleFilters,
   ScopeFilterSearchBar,
-  TARGET_OBJECT_OPTIONS,
 } from "@/src/features/evals/v2/components/RunScopeSection";
 import {
   SaveAndRunDialog,
-  type SaveAndRunOptions,
-  type SaveAndRunScopeChoice,
+  type SaveEvaluatorOptions,
 } from "@/src/features/evals/v2/components/SaveAndRunDialog";
 import { type EventsTableRow } from "@/src/features/events/components/EventsTable";
 import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
@@ -82,7 +85,6 @@ import {
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
-import { type ScopeTargetObject } from "@/src/features/evals/v2/lib/scopeTarget";
 import { useScopeMatchCount } from "@/src/features/evals/v2/lib/useScopeMatchCount";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -116,8 +118,6 @@ type SampleObservationOption = {
   startTime: Date;
 };
 
-type PendingSave = "draft" | "run";
-
 const SCRATCH_PROMPT = `You are an expert evaluator. Judge the quality of the model response below.
 
 Evaluation criteria:
@@ -141,9 +141,6 @@ const OUTPUT_HINTS = [
   "prediction",
 ];
 
-const TEST_RUN_OBSERVATIONS_ONLY_REASON =
-  "Test runs only support the Observations data source in this prototype.";
-
 function defaultColumnFor(templateVariable: string): string {
   const lower = templateVariable.toLowerCase();
   if (OUTPUT_HINTS.some((hint) => lower.includes(hint))) return "output";
@@ -157,6 +154,45 @@ function toKebabCase(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+// Scope filters are stored as JSONB, which can reorder nested object keys.
+// Canonicalising lets a save reuse an identical scope without surfacing that
+// implementation detail in the dialog.
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, node) =>
+    node && typeof node === "object" && !Array.isArray(node)
+      ? Object.fromEntries(
+          Object.entries(node as Record<string, unknown>).sort(([a], [b]) =>
+            a.localeCompare(b),
+          ),
+        )
+      : node,
+  );
+}
+
+/** A section label with its helper copy tucked into a hover tooltip instead
+    of a permanent paragraph — keeps the label row compact. */
+function LabelWithTooltip({
+  htmlFor,
+  tooltip,
+  children,
+}: {
+  htmlFor?: string;
+  tooltip: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
+      {children}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
+      </Tooltip>
+    </Label>
+  );
 }
 
 export function RuleSetupForm({
@@ -180,17 +216,18 @@ export function RuleSetupForm({
   );
   const isCodeMode = tab !== "llm";
 
-  // Starts empty on creation (template or scratch) — naming is a deliberate
-  // step, not a prefill; the placeholder suggests the template's name.
-  const [scoreName, setScoreName] = useState("");
-  // Optional score-name override (score output section's advanced settings);
-  // empty inherits the evaluator name.
-  const [scoreNameOverride, setScoreNameOverride] = useState("");
+  // Examples seed an editable evaluator name; scratch creation remains empty.
+  const [scoreName, setScoreName] = useState(() =>
+    sourceTemplate ? toKebabCase(sourceTemplate.name) : "",
+  );
   const [description, setDescription] = useState("");
+  // The description field starts hidden behind an "+ Add description"
+  // affordance; a non-empty value always shows it (covers prefill paths).
+  const [descriptionVisible, setDescriptionVisible] = useState(false);
   const [prompt, setPrompt] = useState(
     sourceTemplate?.prompt ?? SCRATCH_PROMPT,
   );
-  // "Start from existing" with a code template lands with its source loaded.
+  // A custom code example lands with its source loaded.
   const [pythonCode, setPythonCode] = useState(
     sourceTemplate?.type === "CODE" &&
       sourceTemplate.sourceCodeLanguage === "PYTHON" &&
@@ -216,15 +253,12 @@ export function RuleSetupForm({
   // drawer attached under the editor, expanded/collapsed via its own strip.
   const [codeSampleDrawerOpen, setCodeSampleDrawerOpen] = useState(false);
 
-  // Scope draft: data source starts unpicked — the filter and mapping steps
-  // unlock once it is chosen. Naming/persisting the scope happens in the
-  // "Save and run" dialog, not inline.
-  const [dataSource, setDataSource] = useState<ScopeTargetObject | null>(null);
+  // Scope draft. Evaluators always target observations; experiment runs are
+  // selected by filtering observations with an experiment id.
   const [filterState, setFilterState] = useState<FilterState>(() => [
     ...EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
   ]);
-  // Sample rate: edited in the "Save and run" dialog (run-time decision),
-  // kept here so drafts and scope re-use persist it too.
+  // Sample rate: edited in the save dialog and persisted with the run scope.
   const [sampling, setSampling] = useState(1);
 
   const [selectedObservationId, setSelectedObservationId] = useState<
@@ -253,8 +287,8 @@ export function RuleSetupForm({
     [peekNavigationProps],
   );
 
-  // Which save button was clicked last — drives the pending spinner.
-  const [pendingSave, setPendingSave] = useState<PendingSave | null>(null);
+  const [pendingSave, setPendingSave] = useState(false);
+  // The save dialog controls enablement and optional backfill.
   const [saveRunDialogOpen, setSaveRunDialogOpen] = useState(false);
 
   // Portal target: the preview table renders its columns picker here, next to
@@ -262,7 +296,7 @@ export function RuleSetupForm({
   const [previewColumnsPickerEl, setPreviewColumnsPickerEl] =
     useState<HTMLDivElement | null>(null);
 
-  // Variable mapping: per-variable field/path against the scope's data source.
+  // Variable mapping: per-variable field/path against the sample observation.
   // Variables present in the initial (curated) prompt get heuristic defaults;
   // variables the user adds later start unmapped until they pick a field.
   const [variableFields, setVariableFields] = useState<
@@ -282,7 +316,7 @@ export function RuleSetupForm({
     ),
   );
 
-  // The variable whose mapping card is open in step 3 — activated by
+  // The variable whose mapping card is open in step 2 — activated by
   // clicking a {{variable}} pill in the prompt or the card's pencil.
   const [activeVariable, setActiveVariable] = useState<string | null>(null);
 
@@ -345,13 +379,10 @@ export function RuleSetupForm({
     [timeRange],
   );
 
-  const isObservationTarget = dataSource === "event";
-
   const scopeMatchCount = useScopeMatchCount({
     projectId,
     filterState,
     timeRange: absoluteTimeRange,
-    enabled: isObservationTarget,
   });
 
   // An observation picked from the scope preview may not be among the current
@@ -416,10 +447,10 @@ export function RuleSetupForm({
   // observation itself.
   const sourceObject = useMemo(
     () =>
-      isObservationTarget && observationDetails.data
+      observationDetails.data
         ? (observationDetails.data as unknown as Record<string, unknown>)
         : null,
-    [isObservationTarget, observationDetails.data],
+    [observationDetails.data],
   );
 
   // Save/test payload. The server contract requires a column per variable,
@@ -615,11 +646,20 @@ export function RuleSetupForm({
 
   const runScopes = api.evalsV2.runScopes.useQuery({ projectId });
 
-  // Scopes saved by the earlier trace-based prototype can't drive this
-  // observation-centric form — hide them from the reuse section.
+  // Only observation scopes can drive this observation-centric form.
   const reusableScopes = useMemo(
-    () => (runScopes.data ?? []).filter((s) => s.targetObject !== "trace"),
+    () => (runScopes.data ?? []).filter((s) => s.targetObject === "event"),
     [runScopes.data],
+  );
+
+  const matchingScope = useMemo(
+    () =>
+      reusableScopes.find(
+        (candidate) =>
+          candidate.sampling === sampling &&
+          canonicalJson(candidate.filter) === canonicalJson(filterState),
+      ) ?? null,
+    [filterState, reusableScopes, sampling],
   );
 
   // Selecting a shared scope from the search bar copies its whole config —
@@ -628,7 +668,6 @@ export function RuleSetupForm({
   const selectSharedScope = (id: string) => {
     const s = reusableScopes.find((candidate) => candidate.id === id);
     if (!s) return;
-    setDataSource(s.targetObject as ScopeTargetObject);
     setFilterState(s.filter);
     setSampling(s.sampling);
   };
@@ -670,7 +709,7 @@ export function RuleSetupForm({
               description: `"${scoreName}" was saved as a draft — activate it when it should start scoring.`,
             }
           : {
-              title: "Evaluator running",
+              title: "Evaluator created",
               description: `"${scoreName}" will score matching data from now on.`,
             },
       );
@@ -689,7 +728,7 @@ export function RuleSetupForm({
     if (!scoreName.trim()) {
       showErrorToast(
         "Missing evaluator name",
-        "Give the evaluator a name — scores use it too unless a custom score name is set.",
+        "Give the evaluator a name — scores use the same name.",
       );
       return null;
     }
@@ -730,7 +769,6 @@ export function RuleSetupForm({
     return {
       projectId,
       scoreName: scoreName.trim(),
-      scoreNameOverride: scoreNameOverride.trim() || undefined,
       description: description.trim() || null,
       evaluatorType: "LLM_AS_JUDGE" as const,
       sourceTemplateId: sourceTemplate?.id ?? null,
@@ -745,77 +783,49 @@ export function RuleSetupForm({
     };
   };
 
-  /** Draft: saves the evaluator (and its scope config) without creating a
-      shared scope — nothing runs until it is activated. */
-  const handleSaveDraft = () => {
+  const handleSaveEvaluator = () => {
     const fields = buildRuleFields();
     if (!fields) return;
-    setPendingSave("draft");
-    createRule.mutate({
-      ...fields,
-      scope: {
-        mode: "none",
-        targetObject: dataSource ?? "event",
-        filter: filterState,
-        sampling,
-      },
-      status: "INACTIVE",
-    });
-  };
-
-  /** Save and run: validates, then hands off to the scope dialog. */
-  const handleSaveAndRun = () => {
-    const fields = buildRuleFields();
-    if (!fields) return;
-    if (!dataSource) {
-      showErrorToast(
-        "Missing data source",
-        "Pick a data source (step 1) before running the evaluator.",
-      );
-      return;
-    }
     setSaveRunDialogOpen(true);
   };
 
-  const handleConfirmSaveAndRun = (
-    choice: SaveAndRunScopeChoice,
-    options: SaveAndRunOptions,
-  ) => {
+  const handleConfirmSaveEvaluator = (options: SaveEvaluatorOptions) => {
     const fields = buildRuleFields();
-    if (!fields || !dataSource) return;
-    setPendingSave("run");
+    if (!fields) return;
+    setPendingSave(true);
     createRule.mutate({
       ...fields,
-      scope:
-        choice.mode === "existing"
-          ? { mode: "existing", runScopeId: choice.runScopeId }
-          : {
-              mode: "new",
-              name: choice.name,
-              targetObject: dataSource,
-              filter: filterState,
-              sampling,
-              delay: 30_000,
-            },
-      runContinuously: options.runContinuously,
+      scope: matchingScope
+        ? { mode: "existing", runScopeId: matchingScope.id }
+        : {
+            mode: "new",
+            name: `Evaluator scope ${new Date().toISOString()}`,
+            targetObject: "event",
+            filter: filterState,
+            sampling,
+            delay: 30_000,
+          },
+      runContinuously: options.enabled,
       backfill: options.backfill,
-      status: "ACTIVE",
+      status: options.enabled || options.backfill ? "ACTIVE" : "INACTIVE",
     });
   };
 
+  const handleCancel = () => {
+    router.push(`/project/${projectId}/evals`).catch(() => undefined);
+  };
+
   const unmappedVariables = variableOverview.filter((item) => item.unmapped);
-  const testDisabledReason = !isObservationTarget
-    ? TEST_RUN_OBSERVATIONS_ONLY_REASON
-    : !selectedObservation
-      ? "Pick a sample observation in step 2 first."
-      : unmappedVariables.length > 0
-        ? "Map all {{variables}} first."
-        : customModelIncomplete
-          ? "Select a custom judge model first."
-          : null;
+  const testDisabledReason = !selectedObservation
+    ? "Pick a sample observation in step 1 first."
+    : unmappedVariables.length > 0
+      ? "Map all {{variables}} first."
+      : customModelIncomplete
+        ? "Select a custom judge model first."
+        : null;
 
   const getTestPayload = (): TestRunPayload | null => {
-    if (!selectedObservation || !isObservationTarget) return null;
+    if (!selectedObservation) return null;
     return {
       projectId,
       prompt,
@@ -834,16 +844,14 @@ export function RuleSetupForm({
   // Code evaluators test the draft source directly; their variables are the
   // fixed code-eval set, not prompt {{variables}}.
   const activeSourceCode = tab === "python" ? pythonCode : typescriptCode;
-  const codeTestDisabledReason = !isObservationTarget
-    ? TEST_RUN_OBSERVATIONS_ONLY_REASON
-    : !selectedObservation
-      ? "Pick a sample observation in step 2 first."
-      : !activeSourceCode.trim()
-        ? "Write the evaluator code first."
-        : null;
+  const codeTestDisabledReason = !selectedObservation
+    ? "Pick a sample observation in step 1 first."
+    : !activeSourceCode.trim()
+      ? "Write the evaluator code first."
+      : null;
 
   const getCodeTestPayload = (): CodeTestRunPayload | null => {
-    if (!selectedObservation || !isObservationTarget) return null;
+    if (!selectedObservation) return null;
     if (!activeSourceCode.trim()) return null;
     return {
       projectId,
@@ -883,7 +891,7 @@ export function RuleSetupForm({
       : null;
 
   // Activating a variable (inserting a new one, or a warning link) opens its
-  // mapping selector in step 3.
+  // mapping selector in step 2.
   const activateVariable = (variable: string) => {
     setActiveVariable(variable);
   };
@@ -906,8 +914,6 @@ export function RuleSetupForm({
     peekConfig.openPeek?.(executionTraceId);
   };
 
-  const stepsLocked = dataSource === null;
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Global time filter in the page header — same picker as the list
@@ -921,49 +927,250 @@ export function RuleSetupForm({
         defaultLayout={splitLayout}
         onLayoutChanged={setSplitLayout}
       >
-        {/* LEFT — the evaluator template: name, description, and everything
-            that defines the evaluation. No stepper; this column is the
-            "what", the right column is the "where". */}
+        {/* LEFT — where it runs: filter + sample → mapping → test → naming. */}
+        <ResizablePanel
+          id="scope"
+          defaultSize="66.6667%"
+          minSize="25%"
+          className="min-h-0 min-w-0 overflow-y-auto"
+        >
+          <div className="flex min-w-0 flex-col px-6 py-6">
+            <SetupStep number={1} title="Choose data to evaluate">
+              <div className="flex flex-col gap-2">
+                <Label>Filter observations</Label>
+                <p className="text-muted-foreground text-sm">
+                  Choose which observations this evaluator will run on, then
+                  pick one as a test sample.
+                </p>
+                <ScopeFilterSearchBar
+                  projectId={projectId}
+                  filterState={filterState}
+                  setFilterState={setFilterState}
+                  savedQueries={sharedFilterSection}
+                  onPickSavedQuery={selectSharedScope}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  {EXAMPLE_FILTERS.map((example) => (
+                    <Button
+                      key={example.label}
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setFilterState(
+                          mergeExampleFilters(filterState, example.filters),
+                        )
+                      }
+                    >
+                      <example.icon className="mr-1.5 h-3.5 w-3.5" />
+                      {example.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <LabelWithTooltip tooltip="The dot picks the sample row the mapping and test run against; clicking a row also opens it.">
+                    Matching observations
+                    {scopeMatchCount.count !== null && (
+                      <span className="text-muted-foreground font-normal">
+                        {`(${compactNumberFormatter(scopeMatchCount.count)})`}
+                      </span>
+                    )}
+                  </LabelWithTooltip>
+                  {/* Target for the preview table's portaled columns picker */}
+                  <div ref={setPreviewColumnsPickerEl} />
+                </div>
+                <ScopePreviewTable
+                  projectId={projectId}
+                  filterState={filterState}
+                  timeRange={absoluteTimeRange}
+                  onSelectObservation={handleSelectObservationFromPreview}
+                  onPickObservation={pickObservation}
+                  selectedObservationId={selectedObservationId}
+                  onRowsChange={handlePreviewRowsChange}
+                  columnsPickerContainer={previewColumnsPickerEl}
+                />
+              </div>
+            </SetupStep>
+
+            {!isCodeMode && (
+              <SetupStep
+                number={2}
+                title="Map prompt variables"
+                defaultOpen={false}
+              >
+                <div className="flex flex-col gap-2">
+                  <p className="text-muted-foreground text-sm">
+                    {
+                      "Each {{variable}} in the prompt pulls data from the sample picked in step 1."
+                    }
+                  </p>
+                  <VariableMappingList
+                    overview={variableOverview}
+                    activeVariable={activeVariable}
+                    onActiveVariableChange={setActiveVariable}
+                    revealSignal={revealSignal}
+                    getFieldState={getVariableFieldState}
+                    onChangeField={(variable, next) =>
+                      setVariableFields((prev) => ({
+                        ...prev,
+                        [variable]: next,
+                      }))
+                    }
+                    onDeleteVariable={deleteVariable}
+                    sourceObject={sourceObject}
+                    hasMatchingObservations={observationOptions.length > 0}
+                  />
+                </div>
+              </SetupStep>
+            )}
+
+            <SetupStep
+              number={isCodeMode ? 2 : 3}
+              title="Test the evaluator"
+              defaultOpen={false}
+            >
+              <div className="flex flex-col rounded-md border">
+                {!(isCodeMode ? hasCodeTestResult : hasLlmTestResult) ? (
+                  // Placeholder: the result's future home, with the
+                  // trigger living inside it.
+                  <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-6 text-center">
+                    <TestRunButton
+                      isPending={
+                        isCodeMode ? codeTestRun.isPending : testRun.isPending
+                      }
+                      disabledReason={
+                        isCodeMode ? codeTestDisabledReason : testDisabledReason
+                      }
+                      onRun={runActiveTest}
+                    />
+                    {selectedObservation ? (
+                      <p className="text-muted-foreground text-xs">
+                        Sample:{" "}
+                        <button
+                          type="button"
+                          className="hover:text-foreground underline-offset-2 hover:underline"
+                          title="Open the sample trace"
+                          onClick={openSampleTracePeek}
+                        >
+                          {selectedObservation.name ?? selectedObservation.id}
+                        </button>{" "}
+                        — pick a different row in step 1 to change it.
+                      </p>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">
+                        No sample yet — pick a row in step 1.
+                      </p>
+                    )}
+                    {!isCodeMode && unmappedVariables.length > 0 && (
+                      <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-sm font-medium">
+                        {unmappedVariables.map((item) => (
+                          <button
+                            key={item.variable}
+                            type="button"
+                            className="flex items-center gap-1.5 hover:underline"
+                            title="Open in the variable mapper"
+                            onClick={() => activateVariable(item.variable)}
+                          >
+                            <TriangleAlert className="h-4 w-4 shrink-0" />
+                            {`{{${item.variable}}} isn't mapped yet — map it in step 2 before testing.`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <TestResultPanel
+                    isCodeMode={isCodeMode}
+                    testRun={testRun}
+                    codeTestRun={codeTestRun}
+                    isPending={
+                      isCodeMode ? codeTestRun.isPending : testRun.isPending
+                    }
+                    disabledReason={
+                      isCodeMode ? codeTestDisabledReason : testDisabledReason
+                    }
+                    onRerun={runActiveTest}
+                    onOpenSampleTrace={openSampleTracePeek}
+                    onOpenExecutionTrace={openExecutionTracePeek}
+                  />
+                )}
+              </div>
+            </SetupStep>
+
+            <SetupStep
+              number={isCodeMode ? 3 : 4}
+              title="Name the evaluator"
+              isLast
+              defaultOpen={false}
+            >
+              <div className="flex flex-col gap-2">
+                <LabelWithTooltip
+                  htmlFor="score-name"
+                  tooltip="This name is also used for scores created by the evaluator."
+                >
+                  Evaluator name
+                </LabelWithTooltip>
+                <Input
+                  id="score-name"
+                  className="max-w-md"
+                  placeholder="e.g. hallucination"
+                  value={scoreName}
+                  onChange={(e) => setScoreName(e.target.value)}
+                />
+                {/* The description is demoted behind this affordance — it stays
+                    revealed once opened, and a non-empty value (e.g. a future
+                    prefill) always shows the field. */}
+                {!(descriptionVisible || description !== "") && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground -ml-2.5 w-fit"
+                    onClick={() => setDescriptionVisible(true)}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Add description
+                  </Button>
+                )}
+              </div>
+
+              {(descriptionVisible || description !== "") && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="evaluator-description">
+                    Description (optional)
+                  </Label>
+                  <Input
+                    id="evaluator-description"
+                    autoFocus={descriptionVisible}
+                    placeholder="What does this evaluator score?"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+              )}
+            </SetupStep>
+          </div>
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        {/* RIGHT — everything that defines the evaluation. No stepper; this
+            column is the "what", the left column is the "where". */}
         <ResizablePanel
           id="evaluator"
-          defaultSize="50%"
+          defaultSize="33.3333%"
           minSize="25%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
           <div className="flex min-w-0 flex-col gap-6 px-6 py-6">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="score-name">Evaluator name</Label>
-              <Input
-                id="score-name"
-                className="max-w-md"
-                placeholder={
-                  sourceTemplate
-                    ? `e.g. ${toKebabCase(sourceTemplate.name)}`
-                    : "e.g. hallucination"
-                }
-                value={scoreName}
-                onChange={(e) => setScoreName(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="evaluator-description">
-                Description (optional)
-              </Label>
-              <Input
-                id="evaluator-description"
-                placeholder="What does this evaluator score?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label>Evaluator type</Label>
-              <p className="text-muted-foreground text-sm">
-                How scores are produced: an LLM judging with a prompt, or your
-                own Python or TypeScript code.
-              </p>
+              <div className="flex h-7 items-center">
+                <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
+                  Evaluator type
+                </LabelWithTooltip>
+              </div>
               <Tabs
                 value={tab}
                 onValueChange={(value) => setTab(value as EvaluatorTab)}
@@ -987,12 +1194,9 @@ export function RuleSetupForm({
 
             {isCodeMode ? (
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-medium">Code</p>
-                <p className="text-muted-foreground text-sm">
-                  Computes the score for each matching item — it receives the
-                  data and returns a value. Test it against the sample in the
-                  right pane.
-                </p>
+                <LabelWithTooltip tooltip="Computes the score for each matching item — it receives the data and returns a value. Test it against the sample in the left pane.">
+                  Code
+                </LabelWithTooltip>
                 {/* Editor + attached sample drawer: one composite widget,
                     the drawer strip draws the seam. */}
                 <div>
@@ -1008,35 +1212,28 @@ export function RuleSetupForm({
                     validationResult={null}
                     hideLanguageLabel
                     hideFunctionContractHint
-                    editorClassName={
-                      isObservationTarget ? "rounded-b-none" : undefined
-                    }
+                    editorClassName="rounded-b-none"
                   />
-                  {isObservationTarget && (
-                    <CodeSampleContextDrawer
-                      open={codeSampleDrawerOpen}
-                      onOpenChange={setCodeSampleDrawerOpen}
-                      sampleObservation={sourceObject}
-                      sampleLabel={
-                        selectedObservation
-                          ? (selectedObservation.name ?? selectedObservation.id)
-                          : null
-                      }
-                      language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
-                    />
-                  )}
+                  <CodeSampleContextDrawer
+                    open={codeSampleDrawerOpen}
+                    onOpenChange={setCodeSampleDrawerOpen}
+                    sampleObservation={sourceObject}
+                    sampleLabel={
+                      selectedObservation
+                        ? (selectedObservation.name ?? selectedObservation.id)
+                        : null
+                    }
+                    language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
+                  />
                 </div>
                 <CodeEvalFunctionContractHint />
               </div>
             ) : (
               <>
                 <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium">Prompt</p>
-                  <p className="text-muted-foreground text-sm">
-                    {
-                      "The judge's instructions, run on the model below. {{variables}} pull in the data being evaluated — map them in step 3 on the right."
-                    }
-                  </p>
+                  <LabelWithTooltip tooltip="The judge's instructions, run on the model below. {{variables}} pull in the data being evaluated — map them in step 2 on the left.">
+                    Prompt
+                  </LabelWithTooltip>
                   {/* Experiment: the judge model lives with the prompt (its
                       instructions run on it) instead of as its own section. */}
                   <JudgeModelSection
@@ -1059,17 +1256,10 @@ export function RuleSetupForm({
                     variableMappings={variableMappingLabels}
                     activeVariable={activeVariable}
                     onVariableClick={revealVariable}
-                    onVariableInsert={activateVariable}
                     showPreviewToggle
-                    previewEnabled={previewEnabled && isObservationTarget}
+                    previewEnabled={previewEnabled}
                     onPreviewEnabledChange={setPreviewEnabled}
-                    previewDisabledReason={
-                      dataSource === null
-                        ? "Pick a data source in step 1 first — the preview interpolates a sample observation."
-                        : !isObservationTarget
-                          ? "Only available for the Observations data source in this prototype."
-                          : null
-                    }
+                    previewDisabledReason={null}
                     previewSlot={
                       interpolatedPromptPreview !== null ? (
                         // A reading surface, not a disabled editor:
@@ -1081,7 +1271,7 @@ export function RuleSetupForm({
                         </pre>
                       ) : (
                         <p className="text-muted-foreground bg-muted/30 rounded-b-md border p-3 text-sm">
-                          Pick a sample observation in step 2 to preview the
+                          Pick a sample observation in step 1 to preview the
                           interpolated prompt.
                         </p>
                       )
@@ -1093,263 +1283,10 @@ export function RuleSetupForm({
                   <ScoreOutputSection
                     state={outputState}
                     onChange={setOutputState}
-                    scoreName={scoreNameOverride}
-                    onScoreNameChange={setScoreNameOverride}
-                    defaultScoreName={scoreName.trim()}
                   />
                 </div>
               </>
             )}
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        {/* RIGHT — where it runs: data source → filter + sample → mapping
-            and test, as a stepper. */}
-        <ResizablePanel
-          id="scope"
-          defaultSize="50%"
-          minSize="25%"
-          className="min-h-0 min-w-0 overflow-y-auto"
-        >
-          <div className="flex min-w-0 flex-col px-6 py-6">
-            <SetupStep number={1} title="Pick the data source">
-              <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground text-sm">
-                  What the evaluator runs on: individual observations (spans,
-                  generations, tool calls) or experiment runs.
-                </p>
-                <Tabs
-                  value={dataSource ?? ""}
-                  onValueChange={(value) =>
-                    setDataSource(value as ScopeTargetObject)
-                  }
-                >
-                  <TabsList>
-                    {TARGET_OBJECT_OPTIONS.map((option) => (
-                      <TabsTrigger
-                        key={option.value}
-                        value={option.value}
-                        className="gap-1.5"
-                      >
-                        <option.icon className="h-3.5 w-3.5" />
-                        {option.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-            </SetupStep>
-
-            <SetupStep
-              number={2}
-              title="Filter and pick a sample"
-              disabled={stepsLocked}
-              disabledHint="Pick a data source first."
-            >
-              {dataSource === "experiment" ? (
-                <div className="text-muted-foreground flex flex-col items-center gap-1.5 rounded-md border border-dashed px-4 py-8 text-center text-sm">
-                  <FlaskConical className="h-4 w-4" />
-                  <p className="text-foreground font-medium">
-                    Experiments are not wired up in this prototype yet
-                  </p>
-                  <p>
-                    Filtering and sampling experiment runs will land here —
-                    switch to Observations to try the full flow.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-col gap-2">
-                    <Label>Filter observations</Label>
-                    <p className="text-muted-foreground text-sm">
-                      Narrow down which observations get evaluated — leave empty
-                      to evaluate everything, or reuse a shared filter to keep
-                      evaluators in sync.
-                    </p>
-                    <ScopeFilterSearchBar
-                      projectId={projectId}
-                      filterState={filterState}
-                      setFilterState={setFilterState}
-                      savedQueries={sharedFilterSection}
-                      onPickSavedQuery={selectSharedScope}
-                    />
-                    <div className="flex flex-wrap items-center gap-2">
-                      {EXAMPLE_FILTERS.map((example) => (
-                        <Button
-                          key={example.label}
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            setFilterState(
-                              mergeExampleFilters(filterState, example.filters),
-                            )
-                          }
-                        >
-                          <example.icon className="mr-1.5 h-3.5 w-3.5" />
-                          {example.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-end justify-between gap-2">
-                      <div className="flex flex-col gap-2">
-                        <Label>
-                          Matching observations
-                          {scopeMatchCount.count !== null && (
-                            <span className="text-muted-foreground ml-1.5 font-normal">
-                              {`(${compactNumberFormatter(scopeMatchCount.count)})`}
-                            </span>
-                          )}
-                        </Label>
-                        <p className="text-muted-foreground text-sm">
-                          The dot picks the sample row the mapping and test in
-                          step 3 run against; clicking a row also opens it.
-                        </p>
-                      </div>
-                      {/* Target for the preview table's portaled columns picker */}
-                      <div ref={setPreviewColumnsPickerEl} />
-                    </div>
-                    <ScopePreviewTable
-                      projectId={projectId}
-                      filterState={filterState}
-                      timeRange={absoluteTimeRange}
-                      onSelectObservation={handleSelectObservationFromPreview}
-                      onPickObservation={pickObservation}
-                      selectedObservationId={selectedObservationId}
-                      onRowsChange={handlePreviewRowsChange}
-                      columnsPickerContainer={previewColumnsPickerEl}
-                    />
-                  </div>
-                </>
-              )}
-            </SetupStep>
-
-            {!isCodeMode && (
-              <SetupStep
-                number={3}
-                title="Map variables to data"
-                disabled={stepsLocked}
-                disabledHint="Pick a data source first."
-              >
-                {!isObservationTarget ? (
-                  <p className="text-muted-foreground text-sm">
-                    Variable mapping is only available for the Observations data
-                    source in this prototype.
-                  </p>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-muted-foreground text-sm">
-                      {
-                        "Each {{variable}} in the prompt pulls data from the sample picked in step 2."
-                      }
-                    </p>
-                    <VariableMappingList
-                      overview={variableOverview}
-                      activeVariable={activeVariable}
-                      onActiveVariableChange={setActiveVariable}
-                      revealSignal={revealSignal}
-                      getFieldState={getVariableFieldState}
-                      onChangeField={(variable, next) =>
-                        setVariableFields((prev) => ({
-                          ...prev,
-                          [variable]: next,
-                        }))
-                      }
-                      onDeleteVariable={deleteVariable}
-                      sourceObject={sourceObject}
-                      hasMatchingObservations={observationOptions.length > 0}
-                    />
-                  </div>
-                )}
-              </SetupStep>
-            )}
-
-            <SetupStep
-              number={isCodeMode ? 3 : 4}
-              title="Test on the sample"
-              isLast
-              disabled={stepsLocked}
-              disabledHint="Pick a data source first."
-            >
-              {!isObservationTarget ? (
-                <p className="text-muted-foreground text-sm">
-                  {TEST_RUN_OBSERVATIONS_ONLY_REASON}
-                </p>
-              ) : (
-                <div className="flex flex-col rounded-md border">
-                  {!(isCodeMode ? hasCodeTestResult : hasLlmTestResult) ? (
-                    // Placeholder: the result's future home, with the
-                    // trigger living inside it.
-                    <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-6 text-center">
-                      <TestRunButton
-                        isPending={
-                          isCodeMode ? codeTestRun.isPending : testRun.isPending
-                        }
-                        disabledReason={
-                          isCodeMode
-                            ? codeTestDisabledReason
-                            : testDisabledReason
-                        }
-                        onRun={runActiveTest}
-                      />
-                      {selectedObservation ? (
-                        <p className="text-muted-foreground text-xs">
-                          Sample:{" "}
-                          <button
-                            type="button"
-                            className="hover:text-foreground underline-offset-2 hover:underline"
-                            title="Open the sample trace"
-                            onClick={openSampleTracePeek}
-                          >
-                            {selectedObservation.name ?? selectedObservation.id}
-                          </button>{" "}
-                          — pick a different row in step 2 to change it.
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground text-xs">
-                          No sample yet — pick a row in step 2.
-                        </p>
-                      )}
-                      {!isCodeMode && unmappedVariables.length > 0 && (
-                        <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-sm font-medium">
-                          {unmappedVariables.map((item) => (
-                            <button
-                              key={item.variable}
-                              type="button"
-                              className="flex items-center gap-1.5 hover:underline"
-                              title="Open in the variable mapper"
-                              onClick={() => activateVariable(item.variable)}
-                            >
-                              <TriangleAlert className="h-4 w-4 shrink-0" />
-                              {`{{${item.variable}}} isn't mapped yet — map it in step 3 before testing.`}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <TestResultPanel
-                      isCodeMode={isCodeMode}
-                      testRun={testRun}
-                      codeTestRun={codeTestRun}
-                      isPending={
-                        isCodeMode ? codeTestRun.isPending : testRun.isPending
-                      }
-                      disabledReason={
-                        isCodeMode ? codeTestDisabledReason : testDisabledReason
-                      }
-                      onRerun={runActiveTest}
-                      onOpenSampleTrace={openSampleTracePeek}
-                      onOpenExecutionTrace={openExecutionTracePeek}
-                    />
-                  )}
-                </div>
-              )}
-            </SetupStep>
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -1358,44 +1295,37 @@ export function RuleSetupForm({
           trace" in the test result surfaces. */}
       <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
 
-      {/* Fixed action bar (Datadog-style): always visible while both panes
-          scroll. */}
+      {/* Fixed action bar: cancel abandons this setup; saving opens the
+          evaluator's enablement and backfill choices. */}
       <div className="bg-background flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2">
         <Button
           type="button"
           variant="outline"
           disabled={isSaving}
-          loading={isSaving && pendingSave === "draft"}
-          title="Saves the evaluator as a draft — it does not run yet."
-          onClick={handleSaveDraft}
+          onClick={handleCancel}
         >
-          Save
+          Cancel
         </Button>
         <Button
           type="button"
           disabled={isSaving}
-          loading={isSaving && pendingSave === "run"}
-          onClick={handleSaveAndRun}
+          loading={isSaving && pendingSave}
+          onClick={handleSaveEvaluator}
         >
-          Save and run evaluator
+          Save evaluator
         </Button>
       </div>
 
       <SaveAndRunDialog
         projectId={projectId}
         open={saveRunDialogOpen}
-        onOpenChange={(open) => {
-          if (!isSaving) setSaveRunDialogOpen(open);
-        }}
-        dataSource={dataSource ?? "event"}
+        onOpenChange={setSaveRunDialogOpen}
         filterState={filterState}
         sampling={sampling}
         onSamplingChange={setSampling}
-        existingScopes={reusableScopes}
         testRunCostUsd={testRunCostUsd}
-        isCodeEvaluator={isCodeMode}
         isSaving={isSaving}
-        onConfirm={handleConfirmSaveAndRun}
+        onConfirm={handleConfirmSaveEvaluator}
       />
     </div>
   );

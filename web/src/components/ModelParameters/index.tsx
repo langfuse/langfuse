@@ -67,6 +67,7 @@ export function ModelParamsSettingsButton({
   formDisabled = false,
   align = "end",
   label,
+  className,
 }: {
   modelParams: UIModelParams;
   updateModelParamValue: ModelParamsContext["updateModelParamValue"];
@@ -75,6 +76,7 @@ export function ModelParamsSettingsButton({
   align?: "start" | "end";
   /** When set, renders a labeled button instead of the icon-only square. */
   label?: string;
+  className?: string;
 }) {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
@@ -91,8 +93,10 @@ export function ModelParamsSettingsButton({
         <Button
           variant="outline"
           size={label ? "sm" : "icon"}
-          className={cn("relative", label ? "h-8" : "h-7 w-7")}
+          className={cn("relative", label ? "h-8" : "h-7 w-7", className)}
           disabled={formDisabled}
+          aria-label={label ? undefined : "Model parameters"}
+          title={label ? undefined : "Model parameters"}
         >
           <Settings2 size={14} className={label ? "mr-1.5" : undefined} />
           {label}

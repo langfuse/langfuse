@@ -36,7 +36,7 @@ export type JudgeModelMode = "default" | "custom";
 /**
  * Judge model picker: one searchable dropdown with the project default
  * pinned on top and all connected models grouped by provider, plus a
- * "Params" button for the advanced model settings (custom models only —
+ * joined icon button for the advanced model settings (custom models only —
  * the project default carries its own params).
  */
 export function JudgeModelSection({
@@ -96,14 +96,17 @@ export function JudgeModelSection({
       : "Select a model...";
 
   return (
-    <div className="flex max-w-sm flex-col gap-2">
-      <div className="flex items-center gap-2">
+    <div className="flex w-fit max-w-full flex-col gap-2">
+      <div className="flex max-w-full items-center">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
               type="button"
               variant="outline"
-              className="h-8 min-w-0 flex-1 justify-between font-normal"
+              className={cn(
+                "h-8 w-fit max-w-full min-w-0 justify-between font-normal",
+                mode === "custom" && "rounded-r-none",
+              )}
             >
               {mode === "default" ? (
                 defaultModel ? (
@@ -248,13 +251,14 @@ export function JudgeModelSection({
           </PopoverContent>
         </Popover>
 
-        <ModelParamsSettingsButton
-          modelParams={modelParams}
-          updateModelParamValue={updateModelParamValue}
-          setModelParamEnabled={setModelParamEnabled}
-          formDisabled={mode === "default"}
-          label="Params"
-        />
+        {mode === "custom" && (
+          <ModelParamsSettingsButton
+            modelParams={modelParams}
+            updateModelParamValue={updateModelParamValue}
+            setModelParamEnabled={setModelParamEnabled}
+            className="-ml-px h-8 w-8 rounded-l-none"
+          />
+        )}
       </div>
 
       {mode === "default" && !defaultModel && (

@@ -24,6 +24,7 @@ import {
   tryParseJson,
 } from "@/src/features/evals/v2/lib/jsonPathSuggestions";
 import {
+  LAST,
   WILDCARD,
   crumbLabel,
   jsonPathToSegments,
@@ -46,29 +47,35 @@ function MappedValuePreview({ value }: { value: string }) {
   const parsed = useMemo(() => tryParseJson(value), [value]);
   const isJson = parsed !== null && typeof parsed === "object";
 
-  return isJson ? (
-    <div className="max-h-96 overflow-y-auto">
-      <PrettyJsonView
-        json={parsed}
-        currentView="pretty"
-        isLoading={false}
-        showNullValues={true}
-        stickyTopLevelKey={false}
-        showObservationTypeBadge={false}
-        className="[&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-      />
+  return (
+    <div className="bg-muted/30 p-2.5">
+      <div className="border-primary-accent/40 bg-background overflow-hidden rounded-sm border-l-2 shadow-sm">
+        {isJson ? (
+          <div className="max-h-96 overflow-y-auto">
+            <PrettyJsonView
+              json={parsed}
+              currentView="pretty"
+              isLoading={false}
+              showNullValues={true}
+              stickyTopLevelKey={false}
+              showObservationTypeBadge={false}
+              className="[&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+            />
+          </div>
+        ) : (
+          <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
+            {value}
+          </pre>
+        )}
+      </div>
     </div>
-  ) : (
-    <pre className="max-h-96 overflow-y-auto p-3 font-sans text-sm break-words whitespace-pre-wrap">
-      {value}
-    </pre>
   );
 }
 
 /**
  * The card header's binding as crumbs — display, not a trigger. Array
- * segments are the one exception: inline [0] ↔ [*] toggles, so
- * wildcard-vs-index is fixable without opening the selector.
+ * segments are the one exception: inline array selection toggles let users
+ * switch among the first entry, every entry, and the dynamic last entry.
  */
 function BindingCrumbs({
   columnLabel,
@@ -100,7 +107,9 @@ function BindingCrumbs({
       <span className="shrink-0 font-medium">{columnLabel}</span>
       {segments.map((segment, index) => {
         const isArraySegment =
-          segment === WILDCARD || typeof segment === "number";
+          segment === WILDCARD ||
+          segment === LAST ||
+          typeof segment === "number";
         return (
           <span key={index} className="flex items-baseline gap-1">
             <ChevronRight className="text-muted-foreground h-3 w-3 shrink-0 self-center" />
@@ -110,8 +119,10 @@ function BindingCrumbs({
                 className="hover:bg-accent rounded px-1 font-mono text-sm font-medium underline decoration-dotted underline-offset-2"
                 title={
                   segment === WILDCARD
-                    ? "Every entry — click to switch to the first entry only"
-                    : `Entry ${String(segment)} only — click to switch to every entry`
+                    ? "Every entry — click to switch to the last entry"
+                    : segment === LAST
+                      ? "Last entry — click to switch to the first entry"
+                      : `Entry ${String(segment)} only — click to switch to every entry`
                 }
                 onClick={() => onToggleSegment(index)}
               >
@@ -377,11 +388,12 @@ function VariableMappingRow({
       : { value, error: null };
   }, [unmapped, fieldState, sourceObject]);
 
-  /** Flip an array segment between a concrete index and [*]. */
+  /** Cycle an array segment through every entry, last entry, and first entry. */
   const toggleSegment = (index: number) => {
     if (segments === null) return;
     const next = [...segments];
-    next[index] = next[index] === WILDCARD ? 0 : WILDCARD;
+    next[index] =
+      next[index] === WILDCARD ? LAST : next[index] === LAST ? 0 : WILDCARD;
     onChange({
       selectedColumnId: fieldState.selectedColumnId,
       jsonSelector: segmentsToJsonPath(next),
