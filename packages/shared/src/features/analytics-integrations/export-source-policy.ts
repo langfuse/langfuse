@@ -182,9 +182,12 @@ const PROJECT_CUTOFF_MESSAGE =
 const exporterCutoffMessage = () =>
   `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`;
 
-// Self-hosted-operator-facing: naming the env var is intentional.
+// Self-hosted-operator-facing: naming the env var is intentional. Worded
+// integration-neutrally since blob storage, PostHog, and Mixpanel all surface
+// it. (The Cloud-cutoff messages above keep their pre-existing
+// 'OBSERVATIONS_V2' blob-REST wording; tracked under LFE-9688.)
 const LEGACY_WRITES_DISABLED_MESSAGE =
-  "Legacy export sources are not available while LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only, because the legacy traces/observations tables are no longer written. Use 'OBSERVATIONS_V2' instead.";
+  "Legacy export sources are not available while LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only, because the legacy traces/observations tables are no longer written. Switch to the enriched observations export source instead.";
 
 /** Whether a source may be selected/kept in the given context. */
 export function validateExportSource(

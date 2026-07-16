@@ -252,4 +252,87 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
   });
+
+  // LFE-10148 review: the form schema's zod default must not be injected into
+  // partial updates — an omitted exportSource preserves the persisted value
+  // (capability-checked only), and CREATE picks an explicit, validated default.
+  describe("Mixpanel partial updates and create defaults", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("update omitting exportSource preserves a persisted EVENTS value (dual)", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        enabled: false,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
+      expect(result.config?.enabled).toBe(false);
+    });
+
+    it("update omitting exportSource succeeds on events_only with persisted EVENTS", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          enabled: false,
+        }),
+      ).resolves.not.toThrow();
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
+    });
+
+    it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("create without exportSource defaults to EVENTS on events_only", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
+    });
+  });
 });

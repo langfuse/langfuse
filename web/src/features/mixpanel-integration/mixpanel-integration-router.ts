@@ -11,7 +11,10 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { areLegacyWritesActive } from "@langfuse/shared";
+import {
+  AnalyticsIntegrationExportSource,
+  areLegacyWritesActive,
+} from "@langfuse/shared";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -57,7 +60,14 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
     }),
 
   update: protectedProjectProcedure
-    .input(mixpanelIntegrationFormSchema.extend({ projectId: z.string() }))
+    .input(
+      mixpanelIntegrationFormSchema.extend({
+        projectId: z.string(),
+        // Drop the base schema default so an omitted value preserves the
+        // persisted source instead of rewriting it to the legacy default.
+        exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -79,26 +89,44 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         }
       }
 
-      // Post-cutoff Cloud projects may not select a legacy export source
-      // (LFE-9688). EVENTS is always accepted by this router, hence
-      // enrichedAvailable: true. See export-source-policy.ts.
-      if (input.exportSource) {
-        const project = await ctx.prisma.project.findUniqueOrThrow({
-          where: { id: input.projectId },
-          select: { createdAt: true },
+      // EVENTS is always accepted by this router, hence enrichedAvailable:
+      // true. An omitted source preserves the persisted row; on CREATE it
+      // falls back to a default that is validated like an explicit choice
+      // (LFE-9688 / LFE-10148). See export-source-policy.ts.
+      const legacyWritesActive = areLegacyWritesActive(
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      );
+      const existingIntegration =
+        await ctx.prisma.mixpanelIntegration.findUnique({
+          where: { projectId: input.projectId },
+          select: { exportSource: true },
         });
-        assertExportSourceAllowed({
-          nextExportSource: input.exportSource,
-          ctx: {
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-            enrichedAvailable: true,
-            legacyWritesActive: areLegacyWritesActive(
-              env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
-            ),
-            projectCreatedAt: project.createdAt,
-          },
-        });
-      }
+      const createDefaultExportSource = legacyWritesActive
+        ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
+        : AnalyticsIntegrationExportSource.EVENTS;
+      const nextExportSource =
+        input.exportSource ??
+        (existingIntegration ? undefined : createDefaultExportSource);
+      // The Cloud cutoffs need the project only for explicitly chosen (or
+      // create-defaulted) sources.
+      const projectCreatedAt = nextExportSource
+        ? (
+            await ctx.prisma.project.findUniqueOrThrow({
+              where: { id: input.projectId },
+              select: { createdAt: true },
+            })
+          ).createdAt
+        : undefined;
+      assertExportSourceAllowed({
+        nextExportSource,
+        persistedExportSource: existingIntegration?.exportSource,
+        ctx: {
+          isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+          enrichedAvailable: true,
+          legacyWritesActive,
+          projectCreatedAt,
+        },
+      });
 
       await auditLog({
         session: ctx.session,
@@ -119,12 +147,14 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           mixpanelRegion: config.mixpanelRegion,
           encryptedMixpanelProjectToken,
           enabled: config.enabled,
-          exportSource: config.exportSource,
+          exportSource: config.exportSource ?? createDefaultExportSource,
         },
         update: {
           encryptedMixpanelProjectToken,
           mixpanelRegion: config.mixpanelRegion,
           enabled: config.enabled,
+          // undefined → Prisma omits the column → preserves the persisted
+          // value on partial updates (LFE-10296).
           exportSource: config.exportSource,
         },
       });
