@@ -2,7 +2,7 @@ import { eventsTableCols } from "../../../eventsTable";
 import type { TracingSearchType } from "../../../interfaces/search";
 import type { FilterCondition } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
-import { FilterList } from "./clickhouse-filter";
+import { FilterList, filtersRequireEventsFull } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
 import { createFilterFromFilterState } from "./factory";
 import { extractTimeFilter } from "./filter-utils";
@@ -217,7 +217,10 @@ const buildEventsObservationRowSelectionInternal = (
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       ),
     )
-    .when(search.requiresEventsFull, (builder) => builder.forceFullTable());
+    .when(
+      search.requiresEventsFull || filtersRequireEventsFull(eventsFilter),
+      (builder) => builder.forceFullTable(),
+    );
 
   queryBuilder.applyFilters(eventsFilter).where(search);
 

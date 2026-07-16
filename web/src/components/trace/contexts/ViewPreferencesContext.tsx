@@ -14,6 +14,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   GRAPH_VIEW_MODES,
   type GraphViewMode,
@@ -67,6 +68,9 @@ interface ViewPreferencesContextValue {
   /** Whether JSON Beta (advanced viewer) is enabled */
   jsonBetaEnabled: boolean;
   setJsonBetaEnabled: (value: boolean) => void;
+  /** Whether long system prompts render collapsed to a first-lines preview */
+  collapseSystemPrompt: boolean;
+  setCollapseSystemPrompt: (value: boolean) => void;
 }
 
 const ViewPreferencesContext =
@@ -139,6 +143,10 @@ export function ViewPreferencesProvider({
     typeof window !== "undefined" &&
       localStorage.getItem("jsonViewPreference") === '"json-beta"',
   );
+  // Shared with the inline expand/collapse toggle on system prompt messages;
+  // instances sync via useLocalStorage's localStorageChange events.
+  const [collapseSystemPrompt, setCollapseSystemPrompt] =
+    useCollapseSystemPromptPreference();
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -169,6 +177,8 @@ export function ViewPreferencesProvider({
       setJsonViewPreference,
       jsonBetaEnabled,
       setJsonBetaEnabled,
+      collapseSystemPrompt,
+      setCollapseSystemPrompt,
     }),
     [
       showDuration,
@@ -198,6 +208,8 @@ export function ViewPreferencesProvider({
       setJsonViewPreference,
       jsonBetaEnabled,
       setJsonBetaEnabled,
+      collapseSystemPrompt,
+      setCollapseSystemPrompt,
     ],
   );
 

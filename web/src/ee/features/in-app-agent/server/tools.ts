@@ -1,4 +1,5 @@
 import { createTool } from "@mastra/core/tools";
+import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import type { ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { assertUnreachable } from "@/src/utils/types";
@@ -371,6 +372,13 @@ export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 ]);
 
+export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([
+  "read",
+  "write",
+  "edit",
+  "bash",
+]);
+
 // Tools in this set can run without a human-in-the-loop approval prompt. Every
 // other MCP tool is still exposed to the model, but Mastra suspends execution
 // until the user explicitly approves the exact call.
@@ -379,6 +387,7 @@ export const IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES = new Set([
     .filter(([, policy]) => policy.approval === "auto")
     .map(([toolName]) => `langfuse_${toolName}`),
   ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
+  ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 ]);
 
 export function isMcpToolName(input: string): input is McpToolName {
@@ -450,6 +459,47 @@ function isInAppAgentAutoApprovedToolName(toolName: string): boolean {
     toolName.startsWith("langfuseDocs_") ||
     IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES.has(toolName)
   );
+}
+
+export function createSandboxTools(sandbox: InAppAgentSandbox) {
+  return {
+    read: createTool({
+      id: "read",
+      description: "Read a file.",
+      inputSchema: z.object({ path: z.string().min(1) }),
+      execute: async ({ path }) => sandbox.read({ path }),
+    }),
+    write: createTool({
+      id: "write",
+      description: "Create or overwrite a file.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        content: z.string(),
+      }),
+      execute: async ({ path, content }) => sandbox.write({ path, content }),
+    }),
+    edit: createTool({
+      id: "edit",
+      description: "Replace an exact text span inside a file with new text.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        oldText: z.string(),
+        newText: z.string(),
+      }),
+      execute: async ({ path, oldText, newText }) =>
+        sandbox.edit({ path, oldText, newText }),
+    }),
+    bash: createTool({
+      id: "bash",
+      description: "Run a shell command.",
+      inputSchema: z.object({
+        command: z.string().min(1),
+        timeoutMs: z.number().int().positive().max(120_000).default(120_000),
+      }),
+      execute: async ({ command, timeoutMs }) =>
+        sandbox.bash({ command, timeoutMs }),
+    }),
+  };
 }
 
 const InAppAgentRedirectDestinationSchema = z.enum([
