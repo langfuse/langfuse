@@ -16,13 +16,24 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 // Modal variant of the migration panel (experiment): mounted on pages that
 // use deprecated features (currently Evals) and opens on arrival.
 export function V4MigrationModal() {
-  const [open, setOpen] = useState(true);
   const { project } = useQueryProject();
   const { canToggleV4 } = useV4Beta();
 
   if (!canToggleV4 || !project) {
     return null;
   }
+
+  // Keyed by project so a projectId-only navigation (which reuses the page
+  // instance) re-opens the modal instead of inheriting the dismissal.
+  return <V4MigrationModalContent key={project.id} project={project} />;
+}
+
+function V4MigrationModalContent({
+  project,
+}: {
+  project: { id: string; name: string };
+}) {
+  const [open, setOpen] = useState(true);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

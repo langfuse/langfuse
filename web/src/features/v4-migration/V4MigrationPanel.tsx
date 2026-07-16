@@ -21,9 +21,12 @@ export const V4MigrationPanel = ({
 
   if (!open) return null;
 
-  const project =
-    targetProject ??
-    (routeProject ? { id: routeProject.id, name: routeProject.name } : null);
+  // Prefer the route's project so the panel follows navigation while open;
+  // targetProject only decides on project-less routes (home, status page),
+  // where it carries the project the opening surface was about.
+  const project = routeProject
+    ? { id: routeProject.id, name: routeProject.name }
+    : targetProject;
 
   return (
     <div
