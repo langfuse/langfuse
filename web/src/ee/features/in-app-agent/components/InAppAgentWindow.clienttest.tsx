@@ -49,16 +49,25 @@ describe("InAppAgentWindow quick actions", () => {
     expect(
       screen.getByPlaceholderText("Let me know what I can do for you..."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: "Your Project" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("radio", { name: "Dashboards" }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "Observability" })).toBeChecked();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Observability",
+      "Prompts",
+      "Evaluation",
+      "Dashboard",
+    ]);
+    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
 
-    fireEvent.click(screen.getByRole("radio", { name: "Prompts" }));
-    expect(screen.getByRole("radio", { name: "Prompts" })).toBeChecked();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Prompts" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(screen.getByRole("tab", { name: "Prompts" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
 
     rerender(
       <TooltipProvider>
@@ -93,10 +102,19 @@ describe("InAppAgentWindow quick actions", () => {
       </TooltipProvider>,
     );
 
-    expect(screen.getByRole("radio", { name: "Observability" })).toBeChecked();
-    fireEvent.click(screen.getByRole("radio", { name: "Prompts" }));
+    expect(screen.getByRole("tab", { name: "Observability" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Prompts" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    expect(
+      screen.getByText("Strengthen instructions, structure, and variables"),
+    ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Improve this prompt" }),
+      screen.getByRole("button", { name: /^Improve this prompt/ }),
     );
 
     await waitFor(() => {

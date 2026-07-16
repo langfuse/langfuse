@@ -8,8 +8,8 @@ import {
   useState,
 } from "react";
 import {
+  ArrowRight,
   BotMessageSquare,
-  Compass,
   FileJson,
   History,
   Info,
@@ -64,7 +64,7 @@ import {
   type InAppAgentSubmitOptions,
 } from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -80,7 +80,6 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
 }
 
 const QUICK_ACTION_AREA_ICONS: Record<InAppAgentQuickActionArea, LucideIcon> = {
-  langfuse: Compass,
   observability: ListTree,
   dashboards: LayoutDashboard,
   prompts: FileJson,
@@ -111,6 +110,7 @@ function InAppAgentQuickActionPicker({
       ? initialContext
       : selectedAreaDefinition.defaultContext;
   const selectedActions = getInAppAgentQuickActions(selectedContext);
+  const ActionIcon = QUICK_ACTION_AREA_ICONS[selectedArea];
 
   return (
     <>
@@ -118,18 +118,11 @@ function InAppAgentQuickActionPicker({
         Welcome to the Langfuse Assistant
       </p>
       <p className="text-muted-foreground mt-2 max-w-xs text-center text-sm leading-relaxed">
-        Pick something I can do for you, or just ask below.
+        What do you want to do?
       </p>
-      <p className="text-muted-foreground mt-7 text-xs font-medium tracking-[0.14em] uppercase">
-        Suggestions for
-      </p>
-      <ToggleGroup
-        type="single"
+      <Tabs
         value={selectedArea}
-        variant="outline"
-        size="sm"
-        aria-label="Quick action area"
-        className="mt-2 flex max-w-sm flex-wrap gap-2"
+        className="mt-5 w-full max-w-md"
         onValueChange={(value) => {
           const selectedArea = IN_APP_AGENT_QUICK_ACTION_AREAS.find(
             (area) => area.area === value,
@@ -140,36 +133,53 @@ function InAppAgentQuickActionPicker({
           }
         }}
       >
-        {IN_APP_AGENT_QUICK_ACTION_AREAS.map((area) => {
-          const Icon = QUICK_ACTION_AREA_ICONS[area.area];
-
-          return (
-            <ToggleGroupItem
+        <TabsList
+          aria-label="Quick action area"
+          className="h-auto w-full justify-between rounded-none border-b bg-transparent p-0"
+        >
+          {IN_APP_AGENT_QUICK_ACTION_AREAS.map((area) => (
+            <TabsTrigger
               key={area.area}
               value={area.area}
               disabled={isDisabled}
               aria-label={area.label}
-              className="text-muted-foreground hover:text-foreground data-[state=on]:border-primary-accent data-[state=on]:bg-primary-accent/10 data-[state=on]:text-foreground h-8 gap-1.5 rounded-full px-3 shadow-xs data-[state=on]:shadow-none"
+              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-8 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm tracking-[-0.04em] shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
-              <Icon aria-hidden="true" className="size-3.5" />
               {area.label}
-            </ToggleGroupItem>
-          );
-        })}
-      </ToggleGroup>
-      <div className="mt-7 flex max-w-sm flex-col items-center gap-2">
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      <div className="mt-4 flex w-full max-w-sm flex-col gap-2.5">
         {selectedActions.map((action, position) => (
           <Button
             key={action.id}
             type="button"
             variant="outline"
-            className="bg-card dark:bg-header hover:bg-muted/60 h-auto min-h-9 rounded-full px-5 py-2 text-sm shadow-xs"
+            className="bg-card dark:bg-header hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
             disabled={isDisabled}
             onClick={() => {
               onSelectAction(action, selectedContext, position);
             }}
           >
-            {action.label}
+            <span className="bg-muted text-primary-accent flex size-8 shrink-0 items-center justify-center rounded-md">
+              <ActionIcon aria-hidden="true" className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="text-foreground block text-sm leading-snug font-semibold">
+                {action.label}
+              </span>
+              <span
+                className="text-muted-foreground mt-0.5 block truncate text-sm leading-snug font-normal"
+                title={action.description}
+              >
+                {action.description}
+              </span>
+            </span>
+            <ArrowRight
+              aria-hidden="true"
+              className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+            />
           </Button>
         ))}
       </div>

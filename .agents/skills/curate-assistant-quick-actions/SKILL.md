@@ -50,13 +50,13 @@ editing the catalog and state the missing prerequisite.
    - `prompts`, `playground` → `prompts`
    - `scores`, `evals`, `annotation-queues` → `evaluators`
    - `datasets`, `experiments` → `datasets`
-   - everything else → `default`
+   - everything else → `tracing`
 7. Call `listScores` for `name: "in_app_agent_feedback"` over the same time
    window, page through all results, and join feedback by `traceId` within each
    cohort. Interpret Boolean `1` as positive and `0` as negative.
 8. After collecting both cohorts, count usable external primary observations.
    Evidence is sparse when there are fewer than 100 usable external primary
-   observations or no non-default context has four qualifying clusters. When
+   observations or no context has three qualifying clusters. When
    expansion was approved, rerun both cohorts and feedback over the next wider
    window (up to 60, then 90 days), replacing rather than combining the prior
    result so observations are not double-counted. Stop as soon as evidence is
@@ -76,21 +76,21 @@ editing the catalog and state the missing prerequisite.
    corroboration only; never let it satisfy a frequency threshold or introduce
    an action without qualifying external evidence.
 4. Require at least three distinct external primary traces for a cluster. If a
-   context has fewer than four qualifying clusters, preserve its existing
-   entry; `undefined` continues to use the default actions.
-5. Keep the best four actions per qualified context. Synthesize
+   context has fewer than three qualifying clusters, preserve its existing
+   entry.
+5. Keep the best three actions per qualified context. Synthesize
    product-generic prompts that use the current page context without copying
    customer data or specific identifiers.
 6. Preserve an existing action ID when its intent is materially unchanged.
    Create new lowercase kebab-case IDs otherwise. Use a short two-to-five-word
-   label followed by a longer, self-contained prompt that says what the
-   assistant should inspect and return.
+   label, a concise one-line description, and a longer, self-contained prompt
+   that says what the assistant should inspect and return.
 7. Before editing, use `langfuse-docs` to validate every proposed action against
    current Langfuse terminology. Prefer documented concepts such as traces,
    observations, sessions, generations, scores, linked prompt versions, token
    usage, and cost; do not invent product terms.
-8. Edit only `IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT`. Do not change defaults,
-   route classification, tests, or attribution code.
+8. Edit only `IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT`. Do not change route
+   classification, tests, or attribution code.
 
 ## Validate and Report
 

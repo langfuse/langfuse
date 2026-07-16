@@ -1,10 +1,11 @@
 import {
+  getInAppAgentQuickActionArea,
   getInAppAgentQuickActionContext,
   getInAppAgentQuickActions,
 } from "./quickActions";
 
 describe("contextual assistant quick actions", () => {
-  it("maps product routes to page families and falls back to default actions", () => {
+  it("maps product routes to page families and falls back to observability", () => {
     const routes = [
       ["/project/project-1/traces", "tracing"],
       ["/project/project-1/sessions/session-1", "tracing"],
@@ -19,20 +20,26 @@ describe("contextual assistant quick actions", () => {
       ["/project/project-1/annotation-queues/queue-1", "evaluators"],
       ["/project/project-1/datasets/dataset-1", "datasets"],
       ["/project/project-1/experiments/experiment-1", "datasets"],
-      ["/project/project-1/settings", "default"],
+      ["/project/project-1/settings", "tracing"],
     ] as const;
 
     for (const [url, expectedContext] of routes) {
       expect(getInAppAgentQuickActionContext(url)).toBe(expectedContext);
     }
 
-    const defaultActions = getInAppAgentQuickActions("default");
+    const observabilityActions = getInAppAgentQuickActions("tracing");
     expect(
       getInAppAgentQuickActions(
         getInAppAgentQuickActionContext(
           "/project/project-1/unsupported-feature",
         ),
       ),
-    ).toBe(defaultActions);
+    ).toBe(observabilityActions);
+
+    expect(getInAppAgentQuickActionArea("evaluators")).toBe("evaluation");
+    expect(getInAppAgentQuickActionArea("datasets")).toBe("evaluation");
+    expect(getInAppAgentQuickActions("datasets")).not.toEqual(
+      getInAppAgentQuickActions("evaluators"),
+    );
   });
 });
