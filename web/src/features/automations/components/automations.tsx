@@ -82,6 +82,11 @@ export default function AutomationsPage() {
       },
       {
         enabled: view === "list" && !!selectedAutomation,
+        // Suppress 404 toast: invalidation after deletion can trigger a refetch
+        // before the URL update commits. The error *state* is preserved so the
+        // NOT_FOUND check below (renderAutomationNotFoundError) still works for
+        // stale/invalid automation URLs.
+        meta: { silentHttpCodes: [404] },
       },
     );
 

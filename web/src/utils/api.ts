@@ -67,6 +67,11 @@ const ERROR_DEBOUNCE_MS = 20000;
 const hasResponseMeta = (error: TRPCClientError<any>): boolean =>
   Boolean((error.meta as { response?: unknown } | undefined)?.response);
 
+const getHttpStatus = (error: unknown): number | undefined =>
+  error instanceof TRPCClientError && typeof error.data?.httpStatus === "number"
+    ? error.data.httpStatus
+    : undefined;
+
 const getCause = (error: unknown): unknown =>
   error instanceof Error ? error.cause : undefined;
 
@@ -280,10 +285,9 @@ const shouldSilenceError = (
   }
 
   if (Array.isArray(meta?.silentHttpCodes)) {
+    const httpStatus = getHttpStatus(error);
     return (
-      error instanceof TRPCClientError &&
-      typeof error.data?.httpStatus === "number" &&
-      meta.silentHttpCodes.includes(error.data?.httpStatus)
+      httpStatus !== undefined && meta.silentHttpCodes.includes(httpStatus)
     );
   }
 
@@ -349,6 +353,21 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
+            // Don't retry on 4xx errors — they're client errors and never transient.
+            // 429 is excluded from this: rate limiting is expected to be transient
+            // and self-heal on retry (see the dedicated 429 handling in trpcErrorToast.tsx).
+            retry: (failureCount, error) => {
+              const httpStatus = getHttpStatus(error);
+              if (
+                httpStatus !== undefined &&
+                httpStatus >= 400 &&
+                httpStatus < 500 &&
+                httpStatus !== 429
+              ) {
+                return false;
+              }
+              return failureCount < 3;
+            },
           },
           mutations: {
             onError: (error) => handleTrpcError(error),
