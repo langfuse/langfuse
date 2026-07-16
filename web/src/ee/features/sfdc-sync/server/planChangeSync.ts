@@ -12,8 +12,11 @@ import { getSfdcService, toSfdcPlan } from "./sfdcService";
  * invoice cycling and payment-status flaps, which must not spam Mulesoft.
  *
  * `billingCycleAnchor` doubles as the Hobby→paid conversion date: it is set
- * from the org's first paid subscription and untouched by later plan
- * switches. It is omitted on downgrades to Hobby (SFDC keeps the previously
+ * from the org's paid subscription and stable across plan switches, but NOT
+ * across churn-and-resubscribe — subscription deletion resets the anchor and
+ * a later resubscription re-anchors it, so the pushed value tracks the MOST
+ * RECENT Hobby→paid conversion and overwrites the SFDC field on each paid
+ * push. It is omitted on downgrades to Hobby (SFDC keeps the previously
  * written value). Orgs on a manual cloudConfig.plan override never reach the
  * push: the override wins plan resolution on both sides of the comparison,
  * so their resolved plan cannot change here — sales owns those SFDC records.

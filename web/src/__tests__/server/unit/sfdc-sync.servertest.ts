@@ -26,7 +26,7 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
     },
     prismaMock: {
       user: {
-        findUnique: vi.fn(async (): Promise<unknown> => null),
+        findUnique: vi.fn(async (_args?: unknown): Promise<unknown> => null),
         update: vi.fn(async () => ({})),
       },
       organization: {
