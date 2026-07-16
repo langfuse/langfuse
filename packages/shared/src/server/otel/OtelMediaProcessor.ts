@@ -3,6 +3,7 @@ import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import {
   transformMediaPayload,
+  type MediaDetectionPath,
   type MediaPayloadCandidate,
   type MediaPayloadKind,
 } from "../media/MediaPayloadProcessor";
@@ -84,12 +85,15 @@ export type UploadOtelMedia = (params: {
   mediaPrefix: string;
 }) => Promise<UploadMediaForTraceResult>;
 
-type ProcessResult = {
+export type OtelMediaProcessResult = {
   uploaded: number;
   reused: number;
   invalid: number;
   failed: number;
   bytesRemoved: number;
+  candidates: number;
+  bytesProcessed: number;
+  detectionChecks: Record<MediaDetectionPath, number>;
 };
 
 type ProcessContext = {
@@ -100,7 +104,7 @@ type ProcessContext = {
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
-  result: ProcessResult;
+  result: OtelMediaProcessResult;
 };
 
 export async function processOtelMedia(params: {
@@ -109,15 +113,18 @@ export async function processOtelMedia(params: {
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
-}): Promise<ProcessResult> {
+}): Promise<OtelMediaProcessResult> {
   const { resourceSpans, projectId, mediaBucket, mediaPrefix, uploadMedia } =
     params;
-  const result: ProcessResult = {
+  const result: OtelMediaProcessResult = {
     uploaded: 0,
     reused: 0,
     invalid: 0,
     failed: 0,
     bytesRemoved: 0,
+    candidates: 0,
+    bytesProcessed: 0,
+    detectionChecks: { data_uri: 0, stringified_json: 0 },
   };
 
   for (const resourceSpan of resourceSpans) {
@@ -176,10 +183,7 @@ async function processOtelAnyValue(
     const processedValue = await transformMediaPayload(originalValue, {
       processCandidate: (candidate) => processCandidate(candidate, context),
       onInvalidCandidate: (kind) => recordInvalidCandidate(kind, context),
-      onDetectionPath: (path) =>
-        recordIncrement("langfuse.ingestion.otel.media.detection_check", 1, {
-          path,
-        }),
+      onDetectionPath: (path) => recordDetectionCheck(path, context),
     });
 
     if (processedValue !== originalValue) {
@@ -224,6 +228,9 @@ async function processCandidate(
     return;
   }
 
+  context.result.candidates += 1;
+  context.result.bytesProcessed += contentBytes.length;
+
   try {
     const uploadResult = await context.uploadMedia({
       projectId: context.projectId,
@@ -264,6 +271,16 @@ async function processCandidate(
       error,
     });
   }
+}
+
+function recordDetectionCheck(
+  path: MediaDetectionPath,
+  context: ProcessContext,
+): void {
+  context.result.detectionChecks[path] += 1;
+  recordIncrement("langfuse.ingestion.otel.media.detection_check", 1, {
+    path,
+  });
 }
 
 function recordInvalidCandidate(

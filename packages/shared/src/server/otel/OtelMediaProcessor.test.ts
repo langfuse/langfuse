@@ -93,7 +93,7 @@ describe("processOtelMedia", () => {
     });
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
+    const result = await processOtelMedia({
       resourceSpans: spans,
       projectId: "project-id",
       mediaBucket: "media-bucket",
@@ -119,6 +119,11 @@ describe("processOtelMedia", () => {
       1,
       { path: "data_uri" },
     );
+    expect(result).toMatchObject({
+      candidates: 1,
+      bytesProcessed: PNG_BYTES.length,
+      detectionChecks: { data_uri: 1, stringified_json: 0 },
+    });
   });
 
   it.each([
@@ -219,7 +224,7 @@ describe("processOtelMedia", () => {
     });
     const uploadMedia = createUploadMock();
 
-    await processOtelMedia({
+    const result = await processOtelMedia({
       resourceSpans: spans,
       projectId: "project-id",
       mediaBucket: "media-bucket",
@@ -243,6 +248,11 @@ describe("processOtelMedia", () => {
       1,
       { path: "stringified_json" },
     );
+    expect(result).toMatchObject({
+      candidates: 1,
+      bytesProcessed: PNG_BYTES.length,
+      detectionChecks: { data_uri: 0, stringified_json: 1 },
+    });
   });
 
   it("processes media in span-event attributes", async () => {

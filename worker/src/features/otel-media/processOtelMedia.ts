@@ -1,6 +1,8 @@
 import {
+  instrumentAsync,
   logger,
   processOtelMedia,
+  recordDistribution,
   type ResourceSpan,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
@@ -35,13 +37,46 @@ export async function processOtelMediaIfEnabled(params: {
   }
 
   try {
-    await processMedia({
-      resourceSpans,
-      projectId,
-      mediaBucket,
-      mediaPrefix,
-      uploadMedia: uploadMediaForTrace,
-    });
+    await instrumentAsync(
+      { name: "langfuse.ingestion.otel.media.process" },
+      async (span) => {
+        const startedAt = Date.now();
+        try {
+          const result = await processMedia({
+            resourceSpans,
+            projectId,
+            mediaBucket,
+            mediaPrefix,
+            uploadMedia: uploadMediaForTrace,
+          });
+
+          span.setAttributes({
+            "langfuse.ingestion.otel.media.uploaded": result.uploaded,
+            "langfuse.ingestion.otel.media.reused": result.reused,
+            "langfuse.ingestion.otel.media.invalid": result.invalid,
+            "langfuse.ingestion.otel.media.failed": result.failed,
+            "langfuse.ingestion.otel.media.candidates": result.candidates,
+            "langfuse.ingestion.otel.media.bytes_processed":
+              result.bytesProcessed,
+            "langfuse.ingestion.otel.media.bytes_removed": result.bytesRemoved,
+            "langfuse.ingestion.otel.media.detection_checks.data_uri":
+              result.detectionChecks.data_uri,
+            "langfuse.ingestion.otel.media.detection_checks.stringified_json":
+              result.detectionChecks.stringified_json,
+          });
+
+          recordDistribution(
+            "langfuse.ingestion.otel.media.batch_byte_length",
+            result.bytesProcessed,
+          );
+        } finally {
+          recordDistribution(
+            "langfuse.ingestion.otel.media.processing_duration_ms",
+            Date.now() - startedAt,
+          );
+        }
+      },
+    );
   } catch (error) {
     logger.warn(
       "OTEL media processing failed; continuing ingestion with original span values",
