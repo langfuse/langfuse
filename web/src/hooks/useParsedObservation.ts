@@ -26,6 +26,7 @@ import type {
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
 import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
+import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
 
 type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
   input: string | null;
@@ -86,8 +87,8 @@ function getOrCreateWorker(): Worker | null {
         }
       };
 
-      workerInstance.onerror = (error) => {
-        console.error("[useParsedObservation] Worker error:", error);
+      workerInstance.onerror = (event) => {
+        reportParserWorkerError("useParsedObservation", event);
       };
     } catch (error) {
       console.error("[useParsedObservation] Failed to create worker:", error);
