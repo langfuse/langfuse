@@ -728,7 +728,7 @@ FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
 
-CREATE OR REPLACE VIEW analytics_public_api_usage AS
+CREATE VIEW analytics_public_api_usage AS
 SELECT
   project_id,
   toStartOfHour(event_time) AS hour,
