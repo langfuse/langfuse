@@ -44,6 +44,9 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Raw download from the JSON-view fallback shown when a field is too large
+    // to render in the unvirtualized viewer (LFE-10989).
+    "json_view_large_field_download",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
