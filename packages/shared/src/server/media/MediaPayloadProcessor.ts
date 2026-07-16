@@ -5,6 +5,8 @@ const DATA_URI_PREFIX = "data:";
 const BASE64_MARKER = ";base64,";
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
 const MEDIA_REFERENCE_SUFFIX = "@@@";
+const SERIALIZED_PROVIDER_MEDIA_TYPE =
+  /"type"\s*:\s*"(?:base64|media|blob|file)"/;
 
 export type MediaPayloadKind =
   | "data_uri"
@@ -159,7 +161,6 @@ async function replaceDataUris(
     return { value, bytesRemoved: 0 };
   }
 
-  const replacements = new Map<string, Promise<string | undefined>>();
   let output = "";
   let cursor = 0;
   let bytesRemoved = 0;
@@ -171,12 +172,9 @@ async function replaceDataUris(
       params.onInvalidCandidate("data_uri");
       output += original;
     } else {
-      let replacement = replacements.get(original);
-      if (!replacement) {
-        replacement = params.processCandidate(occurrence.candidate);
-        replacements.set(original, replacement);
-      }
-      const resolvedReplacement = await replacement;
+      const resolvedReplacement = await params.processCandidate(
+        occurrence.candidate,
+      );
       output += resolvedReplacement ?? original;
       if (resolvedReplacement) {
         bytesRemoved += Math.max(
@@ -472,24 +470,19 @@ function parseRawBase64(
 }
 
 function mayContainSerializedMedia(value: string): boolean {
-  if (
-    value.includes(BASE64_MARKER) ||
-    value.includes('"inline_data"') ||
-    value.includes('"inlineData"')
-  ) {
-    return true;
-  }
+  const hasData = value.includes('"data"');
+  const hasMimeType = value.includes('"mime_type"');
+  const hasProviderShapeKeys =
+    (hasData && (value.includes('"media_type"') || hasMimeType)) ||
+    (value.includes('"content"') && hasMimeType) ||
+    ((hasData || value.includes('"image"')) && value.includes('"mediaType"'));
 
-  const hasMediaType =
-    value.includes('"media_type"') ||
-    value.includes('"mediaType"') ||
-    value.includes('"mime_type"') ||
-    value.includes('"mimeType"');
-  const hasContent =
-    value.includes('"data"') ||
-    value.includes('"image"') ||
-    value.includes('"content"');
-  return hasMediaType && hasContent;
+  return (
+    (hasProviderShapeKeys && SERIALIZED_PROVIDER_MEDIA_TYPE.test(value)) ||
+    (hasData &&
+      (value.includes('"inline_data"') || value.includes('"inlineData"')) &&
+      (hasMimeType || value.includes('"mimeType"')))
+  );
 }
 
 function isMediaReference(value: string): boolean {

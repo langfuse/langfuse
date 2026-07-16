@@ -49,7 +49,7 @@ describe("transformMediaPayload", () => {
     );
   });
 
-  it("uploads identical embedded data URIs only once", async () => {
+  it("processes each embedded data URI occurrence independently", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const onDetectionPath = vi.fn();
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
@@ -66,7 +66,7 @@ describe("transformMediaPayload", () => {
     expect(transformed.value).toBe(
       `${MEDIA_REFERENCE} between ${MEDIA_REFERENCE}`,
     );
-    expect(processCandidate).toHaveBeenCalledTimes(1);
+    expect(processCandidate).toHaveBeenCalledTimes(2);
     expect(onDetectionPath).toHaveBeenCalledOnce();
     expect(onDetectionPath).toHaveBeenCalledWith(
       "data_uri",
@@ -78,11 +78,15 @@ describe("transformMediaPayload", () => {
     const onDetectionPath = vi.fn();
 
     await transformMediaPayload(
-      JSON.stringify({
-        type: "base64",
-        media_type: "image/png",
-        data: PNG_BASE64,
-      }),
+      JSON.stringify(
+        {
+          type: "base64",
+          media_type: "image/png",
+          data: PNG_BASE64,
+        },
+        null,
+        2,
+      ),
       {
         processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
         onInvalidCandidate: vi.fn(),
@@ -95,6 +99,28 @@ describe("transformMediaPayload", () => {
       "stringified_json",
       expect.any(Number),
     );
+  });
+
+  it("does not parse generic stringified JSON with data-like keys", async () => {
+    const processCandidate = vi.fn();
+    const onDetectionPath = vi.fn();
+    const value = JSON.stringify({
+      metadata: {
+        type: "record",
+        media_type: "report",
+        data: "ordinary application data",
+      },
+    });
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate,
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath,
+    });
+
+    expect(transformed.value).toBe(value);
+    expect(processCandidate).not.toHaveBeenCalled();
+    expect(onDetectionPath).not.toHaveBeenCalled();
   });
 
   it("processes structured normalized payloads without serializing them first", async () => {
