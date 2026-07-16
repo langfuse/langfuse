@@ -4,6 +4,19 @@ import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/largeStringGate";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
+
+/**
+ * Head slice bounded to `maxChars` UTF-16 units, backed off by one unit if the
+ * boundary would split a surrogate pair (which renders as a stray U+FFFD).
+ * O(1) — never materializes the full multi-MB string.
+ */
+function codePointSafeSlice(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  const lastUnit = value.charCodeAt(maxChars - 1);
+  const isHighSurrogate = lastUnit >= 0xd800 && lastUnit <= 0xdbff;
+  return value.slice(0, isHighSurrogate ? maxChars - 1 : maxChars);
+}
 
 /**
  * Bounded fallback for a single top-level string value too large to render in
@@ -26,13 +39,13 @@ export function LargeStringFallback({
 }) {
   const capture = usePostHogClientCapture();
 
-  const previewText = useMemo(
-    () =>
-      value.length > LARGE_STRING_PREVIEW_CHARS
-        ? value.slice(0, LARGE_STRING_PREVIEW_CHARS)
-        : value,
-    [value],
-  );
+  const previewText = useMemo(() => {
+    // Decode \uXXXX escapes so the preview matches the normal viewer — but only
+    // over the bounded slice, never the full multi-MB value (keeps the perf
+    // win). The download stays raw/faithful to the stored value.
+    const sliced = codePointSafeSlice(value, LARGE_STRING_PREVIEW_CHARS);
+    return decodeUnicodeInJson(sliced) as string;
+  }, [value]);
 
   const onDownload = () => {
     capture("trace_detail:large_string_field_download");

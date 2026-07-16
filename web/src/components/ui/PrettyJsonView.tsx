@@ -798,14 +798,23 @@ export function PrettyJsonView(props: {
   // several full-length main-thread passes (parse, the markdown-probe
   // `JSON.stringify`, unicode decode — some of them twice, including inside the
   // always-mounted hidden JSON viewer) and mount the unvirtualized react18-json
-  // tree with the whole string, blocking the tab and inflating memory. Detect
-  // it from the raw props before any of that work; the body renders a bounded
-  // preview + download instead.
+  // tree with the whole string, blocking the tab and inflating memory. The body
+  // renders a bounded preview + download instead.
+  //
+  // Gate on the SETTLED value only. During an async worker parse the parsed
+  // value is not ready (`parsedJson === undefined`, `isParsing` true) and the
+  // raw `json` may be a *stringified* payload whose JSON-quoted form is itself
+  // >2M chars (e.g. the JSON tab passes raw `json` alongside a not-yet-ready
+  // `parsedJson`). Gating on that raw form would flash the fallback — and offer
+  // a quoted-form download — before the parse settles to the real value. The
+  // unvirtualized render we protect against does not run during parse anyway,
+  // so fall through to the normal loading/parsing state in that window.
   const largeStringValue = useMemo(() => {
-    const candidate =
+    if (props.isParsing) return null;
+    const settled =
       props.parsedJson !== undefined ? props.parsedJson : props.json;
-    return isLargeRenderString(candidate) ? candidate : null;
-  }, [props.parsedJson, props.json]);
+    return isLargeRenderString(settled) ? settled : null;
+  }, [props.parsedJson, props.json, props.isParsing]);
 
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
