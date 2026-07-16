@@ -28,7 +28,11 @@ export default function TableLink({
   return (
     <Link
       className={cn(
-        "text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-bold",
+        // text-primary, not text-link: inside row-clickable tables the accent
+        // paint is redundant signaling at column scale — links read as the
+        // bright emphasis tier (brighter than body) + bold, with underline on
+        // hover as the anchor cue. Prose links elsewhere keep --link.
+        "text-primary inline-block max-w-full text-xs leading-normal font-bold hover:underline",
         className,
       )}
       href={path}

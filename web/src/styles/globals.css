@@ -142,7 +142,7 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.75rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
@@ -276,14 +276,14 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 215 100% 51%;
 
-    --primary-accent: 243 75.4% 58.6%;
+    --primary-accent: 215 100% 51%;
     /* Hyperlinks get their own pair (tabs/selection stay on primary-accent):
        same lavender family as dark, but muted — links shouldn't be the
        loudest thing on a light page — with a clearly darker hover step. */
-    --link: 246 40% 50%;
-    --link-hover: 246 55% 36%;
+    --link: 227 76% 41%;
+    --link-hover: 227 76% 32%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -382,12 +382,12 @@
        plus hairline borders, not shadows. */
     /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
        cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
-       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
+       tiers: emphasis 91% > body 60% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
     --background: 0 0% 6%;
-    --foreground: 0 0% 70%;
+    --foreground: 0 0% 60%;
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
@@ -411,7 +411,7 @@
     --border-contrast: 0 0% 26%;
     --input: 0 0% 18%;
 
-    --primary: 0 0% 90%;
+    --primary: 0 0% 82%;
     --primary-foreground: 0 0% 3.5%;
 
     --secondary: 0 0% 11.6%;
@@ -428,11 +428,11 @@
     --destructive: 0 78.7% 63.1%;
     --destructive-foreground: 0 0% 100%;
 
-    --ring: 246 55% 70%;
+    --ring: 212 100% 66%;
 
-    --primary-accent: 246 55% 70%;
-    --link: 246 55% 70%;
-    --link-hover: 246 95% 85%;
+    --primary-accent: 212 100% 66%;
+    --link: 212 100% 66%;
+    --link-hover: 212 100% 80%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
@@ -485,7 +485,7 @@
     --sidebar-accent: 0 0% 10%;
     --sidebar-accent-foreground: 0 0% 91%;
     --sidebar-border: 0 0% 12%;
-    --sidebar-ring: 246 55% 70%;
+    --sidebar-ring: 212 100% 66%;
 
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
