@@ -2,6 +2,8 @@ name: AWS preview status comment
 description: >-
   Create or update the single marker-tagged AWS preview status comment on a
   pull request, so each PR carries exactly one authoritative preview comment.
+  Optionally also upserts a one-line banner at the very top of the PR
+  description, so the preview URL is visible without scrolling the timeline.
 
 inputs:
   pr-number:
@@ -10,6 +12,14 @@ inputs:
   body:
     description: Comment body (the hidden marker is prepended automatically)
     required: true
+  banner:
+    description: >-
+      Optional single-line markdown summary. When set, it is upserted as a
+      marker-delimited blockquote at the very top of the PR description, with
+      a link to the full status comment appended. When empty, the description
+      is left untouched.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -18,6 +28,7 @@ runs:
       env:
         PREVIEW_PR_NUMBER: ${{ inputs.pr-number }}
         PREVIEW_COMMENT_BODY: ${{ inputs.body }}
+        PREVIEW_BANNER: ${{ inputs.banner }}
       with:
         script: |
           const marker = "<!-- aws-preview -->";
@@ -37,6 +48,7 @@ runs:
               comment.body?.includes(marker),
           );
 
+          let commentId;
           if (previous) {
             await github.rest.issues.updateComment({
               owner,
@@ -44,11 +56,49 @@ runs:
               comment_id: previous.id,
               body,
             });
+            commentId = previous.id;
           } else {
-            await github.rest.issues.createComment({
+            const { data: created } = await github.rest.issues.createComment({
               owner,
               repo,
               issue_number,
               body,
             });
+            commentId = created.id;
+          }
+
+          // Optionally pin a one-line banner at the very top of the PR
+          // description, so the preview URL is readable without scrolling past
+          // the review timeline. The banner lives between two HTML-comment
+          // markers and is replaced in place on every update, preserving the
+          // author's own description around it.
+          const banner = (process.env.PREVIEW_BANNER ?? "").trim();
+          if (banner) {
+            const bannerStart = "<!-- aws-preview-banner -->";
+            const bannerEnd = "<!-- /aws-preview-banner -->";
+            const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
+            const commentUrl = `${serverUrl}/${owner}/${repo}/pull/${issue_number}#issuecomment-${commentId}`;
+            const block = `${bannerStart}\n> ${banner} ([details](${commentUrl}))\n${bannerEnd}`;
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue_number,
+            });
+            const prBody = pr.body ?? "";
+            const blockRe = /<!-- aws-preview-banner -->[\s\S]*?<!-- \/aws-preview-banner -->/;
+            // Replacer function: a literal replacement string would mangle any
+            // `$` sequences in the banner text.
+            const nextBody = blockRe.test(prBody)
+              ? prBody.replace(blockRe, () => block)
+              : `${block}\n\n${prBody}`;
+
+            if (nextBody !== prBody) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: issue_number,
+                body: nextBody,
+              });
+            }
           }

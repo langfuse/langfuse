@@ -3,7 +3,9 @@ name: AWS preview build
 # Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
 # The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
 # tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR.
+# the preview URL on the PR — both as the marker-tagged status comment and as a
+# one-line banner pinned to the top of the PR description, so the URL is
+# visible without scrolling the timeline.
 #
 # The two images are independent artifacts pushed to two independent ECR repos
 # under the same tag, with no ordering dependency between them. They therefore
@@ -122,6 +124,9 @@ jobs:
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
+          banner: >-
+            🟡 **AWS preview building** — deploys to
+            https://${{ steps.meta.outputs.preview_host }} in ~5 min
           body: |
             ### 🟡 AWS preview building
 
@@ -252,6 +257,10 @@ jobs:
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
+          banner: >-
+            🟢 **AWS preview:** https://${{ needs.meta.outputs.preview_host }}
+            — login `${{ needs.meta.outputs.login_email }}` /
+            `${{ needs.meta.outputs.login_password }}`
           body: |
             ### 🟢 AWS preview image pushed
 
@@ -290,6 +299,9 @@ jobs:
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
+          banner: >-
+            ⚠️ **AWS preview build failed** —
+            [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           body: |
             ### ⚠️ AWS preview build failed
 
@@ -300,6 +312,9 @@ jobs:
         uses: ./.github/actions/preview-comment
         with:
           pr-number: ${{ github.event.pull_request.number }}
+          banner: >-
+            ⚠️ **AWS preview build failed** —
+            [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           body: |
             ### ⚠️ AWS preview build failed
 
