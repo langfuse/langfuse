@@ -302,6 +302,11 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           {customHeader ? customHeader : <p className="font-semibold">Model</p>}
           {SettingsButton}
         </div>
+      ) : customHeader ? (
+        <div className="mb-2 flex items-center justify-between">
+          {customHeader}
+          {SettingsButton}
+        </div>
       ) : (
         <div className="mb-2 flex justify-end">{SettingsButton}</div>
       )}
