@@ -11,6 +11,9 @@ service:
       docs: |
         List dashboard widgets in the project, ordered by most recently
         updated first.
+
+        Responses may include legacy `traces` widgets created before this
+        API existed. New widgets cannot be created with `view: traces`.
       method: GET
       path: /dashboard-widgets
       request:
@@ -93,7 +96,10 @@ service:
                 type: HORIZONTAL_BAR
                 row_limit: 10
     get:
-      docs: Get a dashboard widget by id.
+      docs: |
+        Get a dashboard widget by id.
+
+        The response may use `view: traces` for legacy widgets.
       method: GET
       path: /dashboard-widgets/{widgetId}
       path-parameters:
@@ -115,6 +121,9 @@ service:
         Changing `chartType` without sending `chartConfig` resets the config
         to the new chart type's defaults. When `chartConfig.type` is given
         it must match the widget's (possibly updated) `chartType`.
+
+        `view` cannot be changed to the legacy `traces` value. Existing
+        `traces` widgets may be updated on other fields.
       method: PATCH
       path: /dashboard-widgets/{widgetId}
       path-parameters:
@@ -158,6 +167,18 @@ types:
         value: scores-numeric
       - name: ScoresCategorical
         value: scores-categorical
+
+  DashboardWidgetViewWithLegacy:
+    docs: |
+      Widget data view. Responses may include the legacy `traces` value for
+      widgets created before this API existed.
+    enum:
+      - observations
+      - name: ScoresNumeric
+        value: scores-numeric
+      - name: ScoresCategorical
+        value: scores-categorical
+      - traces
 
   DashboardWidgetChartType:
     enum:
@@ -341,7 +362,7 @@ types:
       description:
         type: string
       view:
-        type: DashboardWidgetView
+        type: DashboardWidgetViewWithLegacy
       dimensions:
         type: list<DashboardWidgetDimension>
       metrics:

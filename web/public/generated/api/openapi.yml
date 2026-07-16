@@ -6538,6 +6538,9 @@ paths:
       description: |-
         List dashboard widgets in the project, ordered by most recently
         updated first.
+
+        Responses may include legacy `traces` widgets created before this
+        API existed. New widgets cannot be created with `view: traces`.
       operationId: unstable_dashboardWidgets_list
       tags:
         - UnstableDashboardWidgets
@@ -6689,7 +6692,10 @@ paths:
               $ref: '#/components/schemas/unstableCreateDashboardWidgetRequest'
   /api/public/unstable/dashboard-widgets/{widgetId}:
     get:
-      description: Get a dashboard widget by id.
+      description: |-
+        Get a dashboard widget by id.
+
+        The response may use `view: traces` for legacy widgets.
       operationId: unstable_dashboardWidgets_get
       tags:
         - UnstableDashboardWidgets
@@ -6752,6 +6758,9 @@ paths:
         Changing `chartType` without sending `chartConfig` resets the config
         to the new chart type's defaults. When `chartConfig.type` is given
         it must match the widget's (possibly updated) `chartType`.
+
+        `view` cannot be changed to the legacy `traces` value. Existing
+        `traces` widgets may be updated on other fields.
       operationId: unstable_dashboardWidgets_update
       tags:
         - UnstableDashboardWidgets
@@ -14811,6 +14820,17 @@ components:
         - observations
         - scores-numeric
         - scores-categorical
+    unstableDashboardWidgetViewWithLegacy:
+      title: unstableDashboardWidgetViewWithLegacy
+      type: string
+      enum:
+        - observations
+        - scores-numeric
+        - scores-categorical
+        - traces
+      description: |-
+        Widget data view. Responses may include the legacy `traces` value for
+        widgets created before this API existed.
     unstableDashboardWidgetChartType:
       title: unstableDashboardWidgetChartType
       type: string
@@ -15088,7 +15108,7 @@ components:
         description:
           type: string
         view:
-          $ref: '#/components/schemas/unstableDashboardWidgetView'
+          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
         dimensions:
           type: array
           items:

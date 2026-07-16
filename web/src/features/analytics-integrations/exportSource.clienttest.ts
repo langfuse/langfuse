@@ -1,58 +1,58 @@
-import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
+import {
+  AnalyticsIntegrationExportSource,
+  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  type ExportSourceContext,
+} from "@langfuse/shared";
 
 import {
   getExportSourceFormValue,
   getExportSourceOptions,
+  getExportSourceUnavailableMessage,
   isExportSourceSelectable,
   shouldHideExportSourceSelector,
 } from "./exportSource";
 
-const cloudPreCutoff = {
-  eventsExportAvailable: true,
-  forceEventsExport: false,
+// UI-adapter tests. The policy matrix itself lives with the policy
+// (packages/shared/.../export-source-policy.test.ts); these cover the
+// option-list/form-value/alert derivations on representative contexts.
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PROJECT_PRE = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
+const PROJECT_POST = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const ROW_PRE = new Date(LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY);
+
+const cloudPreCutoff: ExportSourceContext = {
+  isCloud: true,
+  enrichedAvailable: true,
+  projectCreatedAt: PROJECT_PRE,
+  integrationCreatedAt: ROW_PRE,
 };
-const cloudPostCutoff = {
-  eventsExportAvailable: true,
-  forceEventsExport: true,
+const cloudPostCutoff: ExportSourceContext = {
+  isCloud: true,
+  enrichedAvailable: true,
+  projectCreatedAt: PROJECT_POST,
+  integrationCreatedAt: ROW_PRE,
 };
-const selfHostedWithPreview = {
-  eventsExportAvailable: true,
-  forceEventsExport: false,
+const selfHostedWithPreview: ExportSourceContext = {
+  isCloud: false,
+  enrichedAvailable: true,
 };
-const selfHostedRolledBack = {
-  eventsExportAvailable: false,
-  forceEventsExport: false,
+const selfHostedRolledBack: ExportSourceContext = {
+  isCloud: false,
+  enrichedAvailable: false,
 };
 
 describe("getExportSourceFormValue", () => {
-  it("keeps a persisted enriched value when enriched export is unavailable (LFE-10296)", () => {
-    // Regression: the form used to substitute TRACES_OBSERVATIONS here, so any
-    // save silently overwrote the persisted enriched configuration.
-    expect(
-      getExportSourceFormValue(
-        AnalyticsIntegrationExportSource.EVENTS,
-        selfHostedRolledBack,
-      ),
-    ).toBe(AnalyticsIntegrationExportSource.EVENTS);
-    expect(
-      getExportSourceFormValue(
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
-        selfHostedRolledBack,
-      ),
-    ).toBe(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS);
-  });
-
-  it("keeps any persisted value regardless of deployment state", () => {
+  it("keeps any persisted value regardless of deployment state (LFE-10296)", () => {
     for (const persisted of Object.values(AnalyticsIntegrationExportSource)) {
-      for (const availability of [
+      for (const ctx of [
         cloudPreCutoff,
         cloudPostCutoff,
         selfHostedWithPreview,
         selfHostedRolledBack,
       ]) {
-        expect(getExportSourceFormValue(persisted, availability)).toBe(
-          persisted,
-        );
+        expect(getExportSourceFormValue(persisted, ctx)).toBe(persisted);
       }
     }
   });
@@ -77,7 +77,7 @@ describe("getExportSourceFormValue", () => {
 });
 
 describe("isExportSourceSelectable", () => {
-  it("rejects enriched sources when enriched export is unavailable", () => {
+  it("rejects enriched sources when enriched export is unavailable, legacy stays", () => {
     expect(
       isExportSourceSelectable(
         AnalyticsIntegrationExportSource.EVENTS,
@@ -98,16 +98,10 @@ describe("isExportSourceSelectable", () => {
     ).toBe(true);
   });
 
-  it("rejects legacy sources on post-cutoff Cloud projects", () => {
+  it("rejects legacy sources on post-cutoff Cloud projects, EVENTS stays", () => {
     expect(
       isExportSourceSelectable(
         AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-        cloudPostCutoff,
-      ),
-    ).toBe(false);
-    expect(
-      isExportSourceSelectable(
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
         cloudPostCutoff,
       ),
     ).toBe(false);
@@ -119,7 +113,7 @@ describe("isExportSourceSelectable", () => {
     ).toBe(true);
   });
 
-  it("accepts all sources when enriched export is available and legacy is allowed", () => {
+  it("accepts all sources when everything is available", () => {
     for (const source of Object.values(AnalyticsIntegrationExportSource)) {
       expect(isExportSourceSelectable(source, cloudPreCutoff)).toBe(true);
       expect(isExportSourceSelectable(source, selfHostedWithPreview)).toBe(
@@ -138,17 +132,6 @@ describe("getExportSourceOptions", () => {
       AnalyticsIntegrationExportSource.EVENTS,
     ]);
     expect(options.every((o) => !o.unavailable)).toBe(true);
-  });
-
-  it("offers only the legacy source on a rolled-back self-hosted deployment", () => {
-    const options = getExportSourceOptions(
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      selfHostedRolledBack,
-    );
-    expect(options.map((o) => o.value)).toEqual([
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    ]);
-    expect(options[0].unavailable).toBe(false);
   });
 
   it("offers only EVENTS for post-cutoff Cloud projects", () => {
@@ -171,17 +154,11 @@ describe("getExportSourceOptions", () => {
       options.find((o) => o.value === AnalyticsIntegrationExportSource.EVENTS)
         ?.unavailable,
     ).toBe(true);
-    expect(
-      options.find(
-        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-      )?.unavailable,
-    ).toBe(false);
   });
 });
 
 describe("shouldHideExportSourceSelector", () => {
   it("hides the selector when there is exactly one selectable source", () => {
-    // Post-cutoff Cloud project: EVENTS only.
     expect(
       shouldHideExportSourceSelector(
         getExportSourceOptions(undefined, cloudPostCutoff),
@@ -204,26 +181,32 @@ describe("shouldHideExportSourceSelector", () => {
         getExportSourceOptions(undefined, cloudPreCutoff),
       ),
     ).toBe(false);
-    // Stale persisted enriched source alongside the legacy fallback.
-    expect(
-      shouldHideExportSourceSelector(
-        getExportSourceOptions(
-          AnalyticsIntegrationExportSource.EVENTS,
-          selfHostedRolledBack,
-        ),
-      ),
-    ).toBe(false);
   });
 
   it("keeps the selector when the sole option is the stale persisted source", () => {
     // The unavailable-source alert points at the selector; hiding it here
     // would strand the user with a blocked save and nothing to change.
     const options = getExportSourceOptions(
-      AnalyticsIntegrationExportSource.EVENTS,
-      { eventsExportAvailable: false, forceEventsExport: true },
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      cloudPostCutoff,
     );
-    expect(options).toHaveLength(1);
+    expect(options).toHaveLength(2);
+    // Persisted legacy stays visible (unavailable) next to EVENTS.
     expect(options[0].unavailable).toBe(true);
     expect(shouldHideExportSourceSelector(options)).toBe(false);
+  });
+});
+
+describe("getExportSourceUnavailableMessage", () => {
+  it("names the enriched path for enriched-unavailable", () => {
+    const message = getExportSourceUnavailableMessage("enriched-unavailable");
+    expect(message).toContain("enriched observations");
+    expect(message).toContain("V4 preview opt-in");
+  });
+
+  it("describes the Cloud cutoff for cloud-cutoff", () => {
+    expect(getExportSourceUnavailableMessage("cloud-cutoff")).toContain(
+      "no longer available for this project",
+    );
   });
 });

@@ -12,8 +12,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
-import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
+import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -132,26 +131,29 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             select: { createdAt: true, exportSource: true },
           });
 
-        // Legacy gate checks explicit values only; omitted preserves the row,
-        // CREATE is covered by forceEventsOnCreate below.
-        if (input.exportSource) {
-          const project = await ctx.prisma.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          assertLegacyBlobExportSourceAllowedForUpsert({
-            project,
-            existingIntegration,
-            nextInternalExportSource: input.exportSource,
+        // Cloud cutoffs gate explicit values only (the project is fetched just
+        // for them); an omitted source preserves the row, and CREATE is covered
+        // by forceEventsOnCreate below. See export-source-policy.ts.
+        const projectCreatedAt = input.exportSource
+          ? (
+              await ctx.prisma.project.findUniqueOrThrow({
+                where: { id: input.projectId },
+                select: { createdAt: true },
+              })
+            ).createdAt
+          : undefined;
+        assertExportSourceAllowed({
+          nextExportSource: input.exportSource,
+          persistedExportSource: existingIntegration?.exportSource,
+          ctx: {
             isCloud,
-          });
-        }
-
-        assertEnrichedBlobExportSourceAllowed({
-          nextInternalExportSource: input.exportSource,
-          existingExportSource: existingIntegration?.exportSource,
-          isCloud,
-          isV4PreviewEnabled,
+            enrichedAvailable: isEnrichedBlobExportAvailable(
+              isCloud,
+              isV4PreviewEnabled,
+            ),
+            projectCreatedAt,
+            integrationCreatedAt: existingIntegration?.createdAt ?? null,
+          },
         });
 
         await auditLog({
