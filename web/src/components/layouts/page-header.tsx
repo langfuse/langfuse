@@ -142,7 +142,11 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
+                  {/* Explicit text-foreground: the SidebarProvider shell sets
+                      text-sidebar-foreground (60% grey in dark) on the whole
+                      app, so unstyled text here would inherit the dimmed
+                      sidebar tint. */}
+                  <h2 className="text-foreground line-clamp-1 text-xl leading-7 font-normal">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (

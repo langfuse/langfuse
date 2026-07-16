@@ -9,6 +9,33 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* IBM Plex via next/font (src/styles/fonts.ts; vars declared on <body> in
+   _document.tsx). Overrides Tailwind's font-sans/font-mono utilities AND the
+   preflight body default. System stacks remain as fallbacks. Deliberately a
+   plain @theme block (not `inline`): preflight reads var(--font-sans) at
+   runtime, and only non-inline themes emit the :root custom property. */
+/* `static`: emit the weight-role vars even before any font-emphasis/
+   font-strong utility exists in source — the theme-lab tool and inline
+   styles read them at runtime. */
+@theme static {
+  --font-sans:
+    var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Weight ROLES, tuned per font family — weights are font-relative (IBM
+     Plex renders heavier than e.g. Inter at the same number), so components
+     never hardcode numbers. Swapping the font = swap the families above and
+     retune these three lines (e.g. Inter: regular 400 / emphasis 500 /
+     strong 600). Keep loaded weights in src/styles/fonts.ts in sync.
+     Generated utilities: font-regular / font-emphasis / font-strong. */
+  --font-weight-regular: 400;
+  --font-weight-emphasis: 400;
+  --font-weight-strong: 500;
+}
+
 @theme inline {
   /* Disable unused built-in Tailwind color palettes. */
   --color-lime-*: initial;
@@ -105,13 +132,27 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
+  /* Text styles: each size token carries its canonical weight, so `text-*`
+     alone yields a complete style (one weight per token — the design-system
+     rule). Weights reference the font-relative weight roles above; heavier
+     text must opt in explicitly via `font-emphasis`/`font-strong` (which
+     still win over the token) — never a raw number. Treat every explicit
+     weight utility as either an intentional exception or drift to clean up
+     (the theme-lab tool samples drift per token). */
   --text-xs: 0.7rem;
+  --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
+  --text-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
+  --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1.1rem;
+  --text-lg--font-weight: var(--font-weight-regular);
   --text-xl: 1.2rem;
+  --text-xl--font-weight: var(--font-weight-regular);
   --text-2xl: 1.3rem;
+  --text-2xl--font-weight: var(--font-weight-regular);
   --text-3xl: 1.5rem;
+  --text-3xl--font-weight: var(--font-weight-regular);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
