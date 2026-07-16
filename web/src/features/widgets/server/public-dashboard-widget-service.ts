@@ -341,8 +341,10 @@ export async function updatePublicDashboardWidget(params: {
   const chartTypeChanged =
     params.input.chartType !== undefined &&
     params.input.chartType !== currentPublic.chartType;
+  // Keep the stored minVersion (and thus v1/v2 query semantics) unless the
+  // caller explicitly changes the view; view changes land on v2 like create.
   const mergedView = params.input.view ?? currentPublic.view;
-  const minVersion = mergedView === "traces" ? current.minVersion : 2;
+  const minVersion = mergedView === currentPublic.view ? current.minVersion : 2;
   const input = normalizePublicDashboardWidgetInput(
     {
       ...currentPublic,

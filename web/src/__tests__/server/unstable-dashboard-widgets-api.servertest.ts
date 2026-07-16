@@ -165,6 +165,40 @@ describe("/api/public/unstable/dashboard-widgets API", () => {
     );
   });
 
+  it("preserves minVersion on patches that do not change the view", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const v1Widget = await DashboardService.createWidget(projectId, {
+      ...legacyTracesWidgetInput,
+      name: "Legacy v1 observations widget",
+      view: DashboardWidgetViews.OBSERVATIONS,
+    });
+
+    await makeZodVerifiedAPICall(
+      PatchUnstableDashboardWidgetResponse,
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
+      { name: "Renamed v1 observations widget" },
+      auth,
+    );
+    const afterRename = await prisma.dashboardWidget.findUniqueOrThrow({
+      where: { id: v1Widget.id, projectId },
+    });
+    expect(afterRename.minVersion).toBe(1);
+
+    const patchViewResponse = await makeZodVerifiedAPICall(
+      PatchUnstableDashboardWidgetResponse,
+      "PATCH",
+      `/api/public/unstable/dashboard-widgets/${v1Widget.id}`,
+      { view: "scores-numeric" },
+      auth,
+    );
+    expect(patchViewResponse.body.view).toBe("scores-numeric");
+    const afterViewChange = await prisma.dashboardWidget.findUniqueOrThrow({
+      where: { id: v1Widget.id, projectId },
+    });
+    expect(afterViewChange.minVersion).toBe(2);
+  });
+
   it("rejects patching a widget into the legacy traces view", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 
