@@ -48,7 +48,8 @@ describe("POST /api/admin/bullmq action=trigger", () => {
 
   it("enqueues a one-off core data export job", async () => {
     const add = vi.fn().mockResolvedValue({ id: "job-1" });
-    getQueueMock.mockReturnValue({ add });
+    const getJobCounts = vi.fn().mockResolvedValue({ active: 0, waiting: 0 });
+    getQueueMock.mockReturnValue({ add, getJobCounts });
 
     const { req, res, status, json } = makeReqRes({
       body: {
@@ -65,6 +66,30 @@ describe("POST /api/admin/bullmq action=trigger", () => {
     expect(json).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: "job-1" }),
     );
+  });
+
+  it("returns 409 when a job is already active or waiting", async () => {
+    const add = vi.fn();
+    const getJobCounts = vi.fn().mockResolvedValue({ active: 1, waiting: 0 });
+    getQueueMock.mockReturnValue({ add, getJobCounts });
+
+    const { req, res, status, json } = makeReqRes({
+      body: {
+        action: "trigger",
+        queueName: QueueName.CoreDataS3ExportQueue,
+      },
+    });
+
+    await handler(req, res);
+
+    expect(getJobCounts).toHaveBeenCalledWith("active", "waiting");
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.stringContaining("active or waiting"),
+      }),
+    );
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("returns 400 when the queue is not instantiated on this container", async () => {

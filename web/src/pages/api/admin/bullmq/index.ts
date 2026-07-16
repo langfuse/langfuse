@@ -343,6 +343,17 @@ export default async function handler(
         });
       }
 
+      // Guard against overlapping runs. Deliberately not counting "delayed":
+      // the nightly repeatable job always sits there and would permanently
+      // block manual triggers.
+      const counts = await queue.getJobCounts("active", "waiting");
+      const inFlight = (counts.active ?? 0) + (counts.waiting ?? 0);
+      if (inFlight > 0) {
+        return res.status(409).json({
+          error: `Queue ${queueName} already has ${inFlight} active or waiting job(s); not enqueueing a duplicate.`,
+        });
+      }
+
       const jobName = TRIGGERABLE_SCHEDULED_JOBS[queueName];
       const job = await queue.add(jobName, {});
       logger.info(
