@@ -12,6 +12,7 @@ import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { areLegacyWritesActive } from "@langfuse/shared";
 
 export const posthogIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -22,6 +23,10 @@ export const posthogIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
+      // Data capability for legacy sources (see export-source-policy.ts).
+      const legacyWritesActive = areLegacyWritesActive(
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      );
       try {
         const dbConfig = await ctx.prisma.posthogIntegration.findFirst({
           where: {
@@ -30,15 +35,18 @@ export const posthogIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return null;
+          return { config: null, legacyWritesActive };
         }
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
         return {
-          ...config,
-          exportSource,
-          posthogApiKey: decrypt(encryptedPosthogApiKey),
+          config: {
+            ...config,
+            exportSource,
+            posthogApiKey: decrypt(encryptedPosthogApiKey),
+          },
+          legacyWritesActive,
         };
       } catch (e) {
         console.error("posthog integration get", e);
@@ -97,6 +105,9 @@ export const posthogIntegrationRouter = createTRPCRouter({
           ctx: {
             isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
             enrichedAvailable: true,
+            legacyWritesActive: areLegacyWritesActive(
+              env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+            ),
             projectCreatedAt: project.createdAt,
           },
         });

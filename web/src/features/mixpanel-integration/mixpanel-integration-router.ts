@@ -11,6 +11,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
+import { areLegacyWritesActive } from "@langfuse/shared";
 
 export const mixpanelIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -21,6 +22,10 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
+      // Data capability for legacy sources (see export-source-policy.ts).
+      const legacyWritesActive = areLegacyWritesActive(
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+      );
       try {
         const dbConfig = await ctx.prisma.mixpanelIntegration.findFirst({
           where: {
@@ -29,16 +34,19 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         });
 
         if (!dbConfig) {
-          return null;
+          return { config: null, legacyWritesActive };
         }
 
         const { encryptedMixpanelProjectToken, exportSource, ...config } =
           dbConfig;
 
         return {
-          ...config,
-          exportSource,
-          mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
+          config: {
+            ...config,
+            exportSource,
+            mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
+          },
+          legacyWritesActive,
         };
       } catch (e) {
         console.error("mixpanel integration get", e);
@@ -84,6 +92,9 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           ctx: {
             isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
             enrichedAvailable: true,
+            legacyWritesActive: areLegacyWritesActive(
+              env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+            ),
             projectCreatedAt: project.createdAt,
           },
         });

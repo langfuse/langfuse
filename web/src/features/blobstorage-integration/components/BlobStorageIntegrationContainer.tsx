@@ -27,11 +27,13 @@ export const BlobStorageIntegrationContainer = ({
   projectId,
   isLoading,
   isEnrichedExportAvailable,
+  legacyWritesActive,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
   isLoading: boolean;
   isEnrichedExportAvailable: boolean;
+  legacyWritesActive: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -45,6 +47,7 @@ export const BlobStorageIntegrationContainer = ({
     () => ({
       isCloud: isLangfuseCloud,
       enrichedAvailable: isEnrichedExportAvailable,
+      legacyWritesActive,
       projectCreatedAt: projectCreatedAt
         ? new Date(projectCreatedAt)
         : undefined,
@@ -55,6 +58,7 @@ export const BlobStorageIntegrationContainer = ({
     [
       isLangfuseCloud,
       isEnrichedExportAvailable,
+      legacyWritesActive,
       projectCreatedAt,
       integrationCreatedAt,
     ],

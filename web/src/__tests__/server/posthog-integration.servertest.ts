@@ -233,4 +233,67 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
     }
   });
+
+  // LFE-10148: events_only no longer writes the v3 tables, so legacy sources
+  // are refused by data capability, independent of Cloud date cutoffs.
+  describe("events_only write-mode gate", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("self-hosted + events_only + legacy source → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("self-hosted + events_only + EVENTS → allow", async () => {
+      const { caller, project } = await prepare();
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("get returns legacyWritesActive=false on events_only", async () => {
+      const { caller, project } = await prepare();
+      const result = await caller.posthogIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.legacyWritesActive).toBe(false);
+      expect(result.config).toBeNull();
+    });
+
+    it("get returns legacyWritesActive=true on dual, with config", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      const result = await caller.posthogIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.legacyWritesActive).toBe(true);
+      expect(result.config?.exportSource).toBe("EVENTS");
+    });
+  });
 });
