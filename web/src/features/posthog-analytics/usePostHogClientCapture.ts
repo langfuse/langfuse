@@ -44,6 +44,10 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Download from the large-string IO fallback (LFE-10991): a top-level
+    // string over the render limit is shown as a bounded preview + download
+    // instead of the full Pretty/JSON viewer. Measures how often users hit it.
+    "large_string_field_download",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens

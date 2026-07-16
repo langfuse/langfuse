@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/largeStringGate";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 /**
  * Bounded fallback for a single top-level string value too large to render in
@@ -23,6 +24,8 @@ export function LargeStringFallback({
   title?: string;
   value: string;
 }) {
+  const capture = usePostHogClientCapture();
+
   const previewText = useMemo(
     () =>
       value.length > LARGE_STRING_PREVIEW_CHARS
@@ -32,6 +35,7 @@ export function LargeStringFallback({
   );
 
   const onDownload = () => {
+    capture("trace_detail:large_string_field_download");
     // Raw .txt: the source value is already a plain string, so it must never be
     // JSON-quote/escape-wrapped.
     const base = (title ?? "value").toLowerCase().replace(/\s+/g, "-");
