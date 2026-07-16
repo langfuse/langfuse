@@ -16,6 +16,11 @@ type SupportDrawerContextType = {
   initialMode: SupportDrawerMode;
   /** Topic preselected in the support form; setOpen(true) resets it. */
   initialTopic: Topic | null;
+  /**
+   * Bumped on every open (setOpen(true) or openWithMode) so the drawer can
+   * remount via key and re-seed mode/topic even when it is already open.
+   */
+  openEpoch: number;
   openWithMode: (mode: SupportDrawerMode, options?: { topic?: Topic }) => void;
 };
 
@@ -35,11 +40,13 @@ export function SupportDrawerProvider({
   const [open, setOpenState] = useState(defaultOpen);
   const [initialMode, setInitialMode] = useState<SupportDrawerMode>("intro");
   const [initialTopic, setInitialTopic] = useState<Topic | null>(null);
+  const [openEpoch, setOpenEpoch] = useState(0);
 
   const setOpen = useCallback((v: boolean) => {
     if (v) {
       setInitialMode("intro");
       setInitialTopic(null);
+      setOpenEpoch((e) => e + 1);
     }
     setOpenState(v);
   }, []);
@@ -48,6 +55,7 @@ export function SupportDrawerProvider({
     (mode: SupportDrawerMode, options?: { topic?: Topic }) => {
       setInitialMode(mode);
       setInitialTopic(options?.topic ?? null);
+      setOpenEpoch((e) => e + 1);
       setOpenState(true);
     },
     [],
@@ -55,7 +63,14 @@ export function SupportDrawerProvider({
 
   return (
     <SupportDrawerContext.Provider
-      value={{ open, setOpen, initialMode, initialTopic, openWithMode }}
+      value={{
+        open,
+        setOpen,
+        initialMode,
+        initialTopic,
+        openEpoch,
+        openWithMode,
+      }}
     >
       {children}
     </SupportDrawerContext.Provider>
