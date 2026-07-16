@@ -65,6 +65,9 @@ export function parsePromptToolConfig(config: unknown): PromptToolConfig {
   }
 
   const rawTools = (config as Record<string, unknown>).tools;
+  if (rawTools === null || rawTools === undefined) {
+    return { status: "none" };
+  }
   if (!Array.isArray(rawTools)) {
     return { status: "invalid" };
   }

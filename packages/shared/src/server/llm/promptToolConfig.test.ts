@@ -24,6 +24,7 @@ describe("parsePromptToolConfig", () => {
       ["array config", [weatherTool]],
       ["empty object", {}],
       ["object without tools key", { model: "gpt-4.1" }],
+      ["null tools", { tools: null }],
       ["empty tools array", { tools: [] }],
     ])("returns none for %s", (_label, config) => {
       expect(parsePromptToolConfig(config)).toEqual({ status: "none" });
