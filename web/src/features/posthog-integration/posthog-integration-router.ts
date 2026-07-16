@@ -15,6 +15,8 @@ import { validateWebhookURL } from "@langfuse/shared/src/server";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
+  InvalidRequestError,
+  validateExportSource,
 } from "@langfuse/shared";
 
 export const posthogIntegrationRouter = createTRPCRouter({
@@ -112,7 +114,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
       const existingIntegration =
         await ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true },
+          select: { exportSource: true, createdAt: true },
         });
       const createDefaultExportSource = legacyWritesActive
         ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
@@ -151,25 +153,50 @@ export const posthogIntegrationRouter = createTRPCRouter({
 
       const encryptedPosthogApiKey = encrypt(posthogProjectApiKey);
 
-      await ctx.prisma.posthogIntegration.upsert({
-        where: {
-          projectId: input.projectId,
-        },
-        create: {
-          projectId: input.projectId,
-          posthogHostName: config.posthogHostname,
-          encryptedPosthogApiKey,
-          enabled: config.enabled,
-          exportSource: config.exportSource ?? createDefaultExportSource,
-        },
-        update: {
-          encryptedPosthogApiKey,
-          posthogHostName: config.posthogHostname,
-          enabled: config.enabled,
-          // undefined → Prisma omits the column → preserves the persisted
-          // value on partial updates (LFE-10296).
-          exportSource: config.exportSource,
-        },
+      await ctx.prisma.$transaction(async (tx) => {
+        const result = await tx.posthogIntegration.upsert({
+          where: {
+            projectId: input.projectId,
+          },
+          create: {
+            projectId: input.projectId,
+            posthogHostName: config.posthogHostname,
+            encryptedPosthogApiKey,
+            enabled: config.enabled,
+            exportSource: config.exportSource ?? createDefaultExportSource,
+          },
+          update: {
+            encryptedPosthogApiKey,
+            posthogHostName: config.posthogHostname,
+            enabled: config.enabled,
+            // undefined → Prisma omits the column → preserves the persisted
+            // value on partial updates (LFE-10296).
+            exportSource: config.exportSource,
+          },
+        });
+
+        // Race backstop (mirrors blob storage's service.ts): a concurrent
+        // delete between the pre-flight read and this upsert can flip the
+        // expected UPDATE into a CREATE carrying the unvalidated legacy
+        // default. Detectable as a createdAt change; re-validate the persisted
+        // row as an explicit choice and roll back on failure.
+        if (
+          input.exportSource === undefined &&
+          existingIntegration &&
+          result.createdAt.getTime() !== existingIntegration.createdAt.getTime()
+        ) {
+          const project = await tx.project.findUniqueOrThrow({
+            where: { id: input.projectId },
+            select: { createdAt: true },
+          });
+          const validation = validateExportSource(result.exportSource, {
+            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+            enrichedAvailable: true,
+            legacyWritesActive,
+            projectCreatedAt: project.createdAt,
+          });
+          if (!validation.ok) throw new InvalidRequestError(validation.message);
+        }
       });
     }),
   delete: protectedProjectProcedure

@@ -322,6 +322,55 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
     });
 
+    it("Cloud + post-cutoff project + create without exportSource → BAD_REQUEST (validated default)", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("raced delete between read and write: mis-created legacy row is rolled back (post-cutoff Cloud)", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+      // Simulate the TOCTOU: the pre-flight read sees a row that a concurrent
+      // delete removes before the upsert, flipping it into a CREATE carrying
+      // the legacy default. The in-transaction backstop must roll it back.
+      const spy = vi
+        .spyOn(prisma.mixpanelIntegration, "findUnique")
+        .mockResolvedValueOnce({
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+        } as never);
+      try {
+        await expect(
+          caller.mixpanelIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        spy.mockRestore();
+      }
+      // Transaction rolled back: nothing was persisted.
+      expect(
+        await prisma.mixpanelIntegration.findUnique({
+          where: { projectId: project.id },
+        }),
+      ).toBeNull();
+    });
+
     it("create without exportSource defaults to EVENTS on events_only", async () => {
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
       const { caller, project } = await prepare();
