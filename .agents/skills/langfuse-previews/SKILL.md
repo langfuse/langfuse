@@ -36,9 +36,10 @@ Pushing updates it; closing the PR tears it down.
 ## Using a preview
 
 - **Spin up** — open a same-repo PR. It's auto-labeled and builds (~5 min); a
-  bot comment then posts the preview URL and login, and a one-line banner with
-  the same URL is pinned to the top of the PR description. No manual step, no
-  label to add.
+  bot comment then posts the preview URL and login, a one-line banner with the
+  same URL is pinned to the top of the PR description, and a GitHub deployment
+  (environment `pr-<n>`) gives the PR a **View deployment** button. No manual
+  step, no label to add.
 - **Log in** — use the credentials in the **bot's PR comment** (the source of
   truth). The demo project's shared seed identity is `demo@langfuse.com` /
   `password`, with API keys `pk-lf-1234567890` / `sk-lf-1234567890` — shared and

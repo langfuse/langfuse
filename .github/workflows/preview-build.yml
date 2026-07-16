@@ -244,6 +244,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # createDeployment/createDeploymentStatus for the native "View deployment"
+      # button on the PR (see "Record GitHub deployment" below).
+      deployments: write
     steps:
       - name: Checkout base local actions
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -285,6 +288,63 @@ jobs:
             `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
 
             Synthetic preview data only. Never add production data to public accounts.
+
+      # Record a native GitHub deployment for the preview, so the PR shows
+      # "deployed to pr-<n>" with a "View deployment" button in the timeline /
+      # merge box, and the environment appears on the repo's Deployments page.
+      # Inline step (not the base-checkout composite action): it needs no shared
+      # logic, and inline steps run from the PR's own workflow file.
+      #
+      # `state: success` mirrors the 🟢 comment's semantics — images pushed,
+      # Argo CD rolling out; the URL is usually live minutes later. Like the
+      # comment, it cannot see the infra-repo deploy allowlist, so for a
+      # non-allowlisted author the deployment records but the URL 404s (same
+      # caveat as the comment's debug-guide link). `auto_inactive` retires the
+      # previous SHA's deployment on every new push; the preview-deactivate
+      # workflow retires the last one when the PR closes.
+      - name: Record GitHub deployment
+        if: needs.build.result == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_SHA: ${{ needs.meta.outputs.commit_sha }}
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+          PREVIEW_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const environment = process.env.PREVIEW_ENVIRONMENT;
+
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: process.env.PREVIEW_SHA,
+              environment,
+              // The images are the deployable; don't gate on commit statuses
+              // (this very workflow is one of them) and never let GitHub
+              // auto-merge base into the ref.
+              required_contexts: [],
+              auto_merge: false,
+              transient_environment: true,
+              description: `Langfuse PR preview at https://${process.env.PREVIEW_HOST}`,
+            });
+            // required_contexts: [] makes a non-201 unrepresentable in practice,
+            // but createDeployment's 202 "merged deployment" response has no id
+            // — fail loudly rather than posting a status against undefined.
+            if (!deployment?.id) {
+              core.setFailed(`createDeployment did not return a deployment id: ${JSON.stringify(deployment)}`);
+              return;
+            }
+
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: "success",
+              environment_url: `https://${process.env.PREVIEW_HOST}`,
+              log_url: `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+              auto_inactive: true,
+            });
+            core.info(`Recorded deployment ${deployment.id} for ${environment}.`);
 
       # Two distinct failure paths, each keyed on `== 'failure'` (NOT
       # `!= 'success'`): that keeps them from firing on `cancelled` (a
