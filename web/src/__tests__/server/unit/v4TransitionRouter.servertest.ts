@@ -113,24 +113,29 @@ const projectId = "project-v4-transition";
 const orgId = "org-v4-transition";
 const secondProjectId = "project-v4-transition-second";
 
+// Mocked Prisma delegates only implement the methods a test exercises, so
+// accept any subset of PrismaClient keys with loosely typed values.
+type MockPrismaClient = Partial<Record<keyof PrismaClient, unknown>>;
+
 const createCaller = (
-  prisma?: Partial<PrismaClient>,
+  prisma?: MockPrismaClient,
   callerSession: Session = session,
 ) =>
   v4TransitionRouter.createCaller({
     ...createInnerTRPCContext({ session: callerSession, headers: {} }),
-    ...(prisma ? { prisma: prisma as PrismaClient } : {}),
+    ...(prisma ? { prisma: prisma as unknown as PrismaClient } : {}),
   });
 
-type OrganizationRole = Session["user"]["organizations"][number]["role"];
+type SessionUser = NonNullable<Session["user"]>;
+type OrganizationRole = SessionUser["organizations"][number]["role"];
 type ProjectRole =
-  Session["user"]["organizations"][number]["projects"][number]["role"];
+  SessionUser["organizations"][number]["projects"][number]["role"];
 
 const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
   ...session,
   user: {
-    ...session.user,
-    organizations: session.user.organizations.map((organization) => ({
+    ...session.user!,
+    organizations: session.user!.organizations.map((organization) => ({
       ...organization,
       role,
     })),
@@ -140,8 +145,8 @@ const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
 const createSessionWithProjectRole = (role: ProjectRole): Session => ({
   ...session,
   user: {
-    ...session.user,
-    organizations: session.user.organizations.map((organization) => ({
+    ...session.user!,
+    organizations: session.user!.organizations.map((organization) => ({
       ...organization,
       projects: organization.projects.map((project) => ({
         ...project,

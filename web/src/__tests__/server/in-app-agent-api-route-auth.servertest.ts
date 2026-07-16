@@ -194,7 +194,7 @@ describe("in-app agent public API route auth", () => {
         resume: {
           approved: true,
           approvalRequest: {
-            type: "tool_approval_request",
+            type: "tool_approval_request" as const,
             toolCallId: "tool-call-1",
             toolName: "langfuse_upsertDataset",
             args: { name: "Approved dataset" },
@@ -682,7 +682,10 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(429);
       await expect(response.json()).resolves.toEqual({
-        error: "Rate limit exceeded",
+        code: "rate_limited",
+        details: {
+          retryAfterSeconds: 60,
+        },
       });
       expect(response.headers.get("Retry-After")).toBe("60");
       expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(

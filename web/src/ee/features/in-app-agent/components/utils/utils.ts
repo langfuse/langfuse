@@ -7,11 +7,22 @@ import { stableJsonStringify } from "@/src/utils/json";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
+  InAppAgentRateLimitErrorResponseSchema,
   type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
   InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+export type InAppAgentError =
+  | { type: "generic"; message: string }
+  | { type: "rate_limit"; retryAt: number };
+
+const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
+  z.object({ isLoading: z.boolean().optional() }),
+);
+
+export type InAppAiAgentMessage = z.infer<typeof InAppAiAgentMessageSchema>;
 
 export type InAppAgentToolCallContent = {
   type: "tool";
@@ -24,6 +35,15 @@ export type InAppAgentToolCallContent = {
     status: "pending" | "submitting";
   };
 };
+
+const InAppAgentTransportErrorSchema = z.object({
+  message: z.string().optional(),
+  payload: z.unknown().optional(),
+});
+
+const InAppAgentLegacyErrorPayloadSchema = z.object({
+  error: z.string(),
+});
 
 const LangfuseDocsDocumentSchema = z.object({
   type: z.literal("document"),
@@ -76,6 +96,82 @@ const InkeepChoiceResultSchema = z.object({
   }),
 });
 
+export function getInAppAgentError(
+  error: unknown,
+  now = Date.now(),
+): InAppAgentError {
+  const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
+  const payload = parsedError.success ? parsedError.data.payload : undefined;
+  const message = getErrorMessage(error);
+  const rateLimitError =
+    parseRateLimitError(payload) ??
+    parseRateLimitError(error) ??
+    parseEmbeddedRateLimitError(message);
+
+  if (rateLimitError) {
+    return {
+      type: "rate_limit",
+      retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
+    };
+  }
+
+  return { type: "generic", message };
+}
+
+function parseRateLimitError(value: unknown) {
+  const parsed = InAppAgentRateLimitErrorResponseSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function isInAppAgentRateLimited(
+  error: InAppAgentError | null,
+  now = Date.now(),
+) {
+  return error?.type === "rate_limit" && error.retryAt > now;
+}
+
+function parseEmbeddedRateLimitError(message: string) {
+  const endIndex = message.lastIndexOf("}");
+  let startIndex = message.indexOf("{");
+
+  while (startIndex !== -1 && startIndex < endIndex) {
+    try {
+      const parsed = JSON.parse(
+        message.slice(startIndex, endIndex + 1),
+      ) as unknown;
+      const rateLimitError = parseRateLimitError(parsed);
+
+      if (rateLimitError) {
+        return rateLimitError;
+      }
+    } catch {
+      // The transport prefixes JSON with error context, so try the next object.
+    }
+
+    startIndex = message.indexOf("{", startIndex + 1);
+  }
+
+  return null;
+}
+
+function getErrorMessage(error: unknown) {
+  const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
+  if (!parsedError.success) {
+    return "Assistant request failed. Please try again.";
+  }
+
+  const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
+    parsedError.data.payload,
+  );
+  if (legacyPayload.success) {
+    return legacyPayload.data.error;
+  }
+
+  return (
+    parsedError.data.message ?? "Assistant request failed. Please try again."
+  );
+}
+
 export function getDrawerMessages({
   error,
   isRunning,
@@ -87,7 +183,7 @@ export function getDrawerMessages({
   messages: unknown;
   pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
 }): InAppAgentWindowMessage[] {
-  const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
+  const parsedMessages = z.array(InAppAiAgentMessageSchema).parse(messages);
   const toolResults = getToolResultsByToolCallId(parsedMessages);
   const resolvedToolCallIds = new Set(toolResults.keys());
   const pendingApprovalsByToolCallId = new Map(
@@ -98,6 +194,7 @@ export function getDrawerMessages({
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
   let pendingToolGroupId: string | null = null;
+  let pendingToolGroupIsLoading = false;
   let pendingSources: InAppAgentMessageSource[] = [];
   const flushPendingTools = () => {
     if (pendingTools.length === 0) {
@@ -107,10 +204,15 @@ export function getDrawerMessages({
     mappedMessages.push({
       id: pendingToolGroupId ?? "tools-pending",
       role: "assistant",
-      content: { type: "toolGroup", tools: pendingTools },
+      content: {
+        type: "toolGroup",
+        tools: pendingTools,
+        isLoading: pendingToolGroupIsLoading,
+      },
     });
     pendingTools = [];
     pendingToolGroupId = null;
+    pendingToolGroupIsLoading = false;
   };
 
   parsedMessages.forEach((message, index) => {
@@ -162,10 +264,7 @@ export function getDrawerMessages({
     if (message.role === "reasoning") {
       flushPendingTools();
 
-      const isStreaming =
-        isRunning &&
-        !error &&
-        !hasLaterConversationMessageAfter(parsedMessages, index);
+      const isStreaming = isRunning && !error && message.isLoading === true;
 
       // Adaptive thinking can emit a reasoning start/end pair without any
       // content; a completed empty block has nothing to disclose, so only a
@@ -242,6 +341,11 @@ export function getDrawerMessages({
           ) ?? [])
         : [];
     const docsSources = extractLangfuseDocsSources(toolContent);
+    const isToolGroupLoading =
+      isRunning &&
+      !error &&
+      message.role === "assistant" &&
+      message.isLoading === true;
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
@@ -250,6 +354,7 @@ export function getDrawerMessages({
 
       pendingToolGroupId ??= `tools-${message.id}`;
       pendingTools.push(...toolContent);
+      pendingToolGroupIsLoading ||= isToolGroupLoading;
       return;
     }
 
@@ -295,7 +400,11 @@ export function getDrawerMessages({
       mappedMessages.push({
         id: `${message.id}-tools`,
         role,
-        content: { type: "toolGroup", tools: toolContent },
+        content: {
+          type: "toolGroup",
+          tools: toolContent,
+          isLoading: isToolGroupLoading,
+        },
       });
     }
   });
@@ -351,14 +460,7 @@ export function getDrawerMessages({
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {
     if (latestAssistantMessage?.content.type === "toolGroup") {
-      return mappedMessages.map((message, index) =>
-        index === latestAssistantMessageIndex
-          ? {
-              ...message,
-              content: { ...latestAssistantMessage.content, isLoading: true },
-            }
-          : message,
-      );
+      return mappedMessages;
     }
 
     const hasAssistantAnswer = mappedMessages.some(
@@ -379,31 +481,6 @@ export function getDrawerMessages({
   }
 
   return mappedMessages;
-}
-
-// A reasoning block stays live while the model is still acting on it — the
-// tool calls and tool results it triggered keep it open. It only collapses
-// once the model has visibly moved on: a newer reasoning block, an assistant
-// message with text, or a new user turn.
-function hasLaterConversationMessageAfter(
-  messages: readonly AgUiMessage[],
-  currentIndex: number,
-) {
-  return messages.some((message, messageIndex) => {
-    if (messageIndex <= currentIndex) {
-      return false;
-    }
-
-    if (message.role === "reasoning" || message.role === "user") {
-      return true;
-    }
-
-    return (
-      message.role === "assistant" &&
-      typeof message.content === "string" &&
-      message.content.trim().length > 0
-    );
-  });
 }
 
 function stringifyToolArgs(args: unknown) {

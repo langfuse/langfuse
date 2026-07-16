@@ -15,9 +15,36 @@
       "namespaceMembers",
       "duplicates",
     ],
+    "packages/shared/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
+    "worker/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
   },
-  "ignoreWorkspaces": ["worker", "packages/shared"],
   "workspaces": {
+    "worker": {
+      // Tests intentionally load these from @langfuse/shared's dependency tree.
+      "ignoreDependencies": [
+        "@aws-sdk/client-bedrock-runtime",
+        "@langchain/aws",
+        "@langchain/core",
+      ],
+    },
     "web": {
       // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
       "project": ["src/**/*.{ts,tsx,mjs}"],

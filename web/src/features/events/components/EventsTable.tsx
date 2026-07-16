@@ -87,6 +87,11 @@ import {
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import {
+  useAppRootDefault,
+  useApplyAppRootFallback,
+} from "@/src/features/events/hooks/useAppRootDefault";
+import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
@@ -216,6 +221,8 @@ export type EventsTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /** Explicit signal from the Fast Preview/v4 page routes. */
+  enableAppRootDefault?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -253,6 +260,7 @@ export default function ObservationsEventsTable({
   limitRows,
   sessionId,
   showControlsInPageHeader = false,
+  enableAppRootDefault = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -470,6 +478,11 @@ export default function ObservationsEventsTable({
     lazy: true,
   });
 
+  const appRootDefault = useAppRootDefault({
+    enabled: enableAppRootDefault,
+    projectId,
+  });
+
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isFilterOptionsPending,
@@ -477,6 +490,8 @@ export default function ObservationsEventsTable({
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
       // v4 fast-mode surface — drives `isV4` on filters:* analytics (LFE-10781).
       isV4: true,
+      defaultExplicitFilterState: appRootDefault.defaultExplicitFilterState,
+      onExplicitFilterStateChange: appRootDefault.onExplicitFilterStateChange,
     };
 
     if (peekContext) {
@@ -505,6 +520,8 @@ export default function ObservationsEventsTable({
     loadingColumns,
     peekContext,
     projectId,
+    appRootDefault.defaultExplicitFilterState,
+    appRootDefault.onExplicitFilterStateChange,
   ]);
 
   const queryFilter = useSidebarFilterState(
@@ -546,7 +563,15 @@ export default function ObservationsEventsTable({
   queryFilterRef.current = queryFilter;
 
   const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, { origin: "user" }),
+    [],
+  );
+  const setSavedViewFiltersWrapper = useCallback(
+    (filters: FilterState) =>
+      queryFilterRef.current?.setFilterState(filters, {
+        origin: "saved_view",
+      }),
     [],
   );
 
@@ -646,8 +671,13 @@ export default function ObservationsEventsTable({
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
-  // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  // Use external filter state if provided, otherwise use combined filter
+  // state. Even with an external filter, still apply the date-range bound so
+  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
+  // hours" window) have it honored for the row query, not just score columns.
+  const filterState = externalFilterState
+    ? externalFilterState.concat(dateRangeFilter)
+    : combinedFilterState;
 
   // Offer the chart only when it can exactly reproduce what the table shows:
   // the full (v4) surface, no user/session scope, no free-text search, and no
@@ -675,6 +705,7 @@ export default function ObservationsEventsTable({
     dataUpdatedAt,
     ioLoading,
     isSilencedError,
+    usedAppRootFallback,
   } = useEventsTableData({
     projectId,
     filterState,
@@ -687,6 +718,17 @@ export default function ObservationsEventsTable({
     selectedRows,
     selectAll,
     setSelectedRows,
+    appRootFallbackEnabled: appRootDefault.isAutoManaged,
+  });
+
+  useApplyAppRootFallback({
+    additionalRowsFound: usedAppRootFallback,
+    isAutoManaged: appRootDefault.isAutoManaged,
+    filters: queryFilter.explicitFilterState,
+    searchQuery,
+    dateRange,
+    setFilterState: queryFilter.setFilterState,
+    removeSdkVersionCache: appRootDefault.removeSdkVersionCache,
   });
 
   // Disabled for now because perhaps confusing
@@ -1589,7 +1631,7 @@ export default function ObservationsEventsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: setSavedViewFiltersWrapper,
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -1603,7 +1645,10 @@ export default function ObservationsEventsTable({
       ),
       migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: getAppRootSavedViewComparisonFilters(
+      queryFilter.explicitFilterState,
+      appRootDefault.isAutoManaged,
+    ),
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
     allowBackendSystemPresets: true,

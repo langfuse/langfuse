@@ -16,6 +16,27 @@ import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-en
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { MastraAgent } from "@ag-ui/mastra";
+import type { Langfuse } from "langfuse";
+import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+
+// Shape of the tool entries the mocked MCP client feeds into the Agent
+// constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
+// does not allow property access, so tests read it through this view.
+type MockedAgentTools = Record<
+  string,
+  | {
+      id?: string;
+      server?: string;
+      requireApproval?: boolean;
+      execute?: (...args: unknown[]) => Promise<unknown>;
+    }
+  | undefined
+>;
+
+const getAgentTools = (
+  agentConfig: { tools?: unknown } | undefined,
+): MockedAgentTools | undefined =>
+  agentConfig?.tools as MockedAgentTools | undefined;
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -33,6 +54,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordStepFinish: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -47,7 +69,10 @@ const instrumentationMocks = vi.hoisted(() => {
 });
 
 const promptMocks = vi.hoisted(() => ({
-  compile: vi.fn(() => "Prompt-managed assistant instructions"),
+  compile: vi.fn(
+    (_variables: Record<string, unknown>) =>
+      "Prompt-managed assistant instructions",
+  ),
   getPrompt: vi.fn(),
 }));
 
@@ -170,7 +195,7 @@ const createPatchedChunkProcessor = () => {
   const onError = vi.fn();
   const flush = vi.fn();
   const adapter = {
-    createChunkProcessor: vi.fn(() => ({
+    createChunkProcessor: vi.fn((_options: { onError: unknown }) => ({
       handleChunk: (chunk: unknown) => {
         forwardedChunks.push(chunk);
         return false;
@@ -565,7 +590,7 @@ describe("createAgUiStream", () => {
     const eventOrder: string[] = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -644,13 +669,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        langfuseTracing: {
-          environment: "langfuse-in-app-agent",
-          metadata: { langfuse_project_id: "project-1" },
-          user: { id: "user-1" },
-          traceId: "0123456789abcdef0123456789abcdef",
-          targetProjectId: "project-1",
-        },
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     const streamedText = await readStream(stream, (event) => {
@@ -700,33 +719,30 @@ describe("createAgUiStream", () => {
         },
       },
     });
-    expect(agentConfig?.tools).not.toHaveProperty("langfuse_search");
-    expect(agentConfig?.tools?.langfuse_getHealth).not.toHaveProperty(
+    const agentTools = getAgentTools(agentConfig);
+    expect(agentTools).not.toHaveProperty("langfuse_search");
+    expect(agentTools?.langfuse_getHealth).not.toHaveProperty(
       "requireApproval",
     );
-    expect(agentConfig?.tools?.langfuseDocs_search).not.toHaveProperty(
+    expect(agentTools?.langfuseDocs_search).not.toHaveProperty(
       "requireApproval",
     );
-    expect(agentConfig?.tools?.langfuseDocs_fetch).not.toHaveProperty(
+    expect(agentTools?.langfuseDocs_fetch).not.toHaveProperty(
       "requireApproval",
     );
     expect(
-      agentConfig?.tools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
+      agentTools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
     ).not.toBe(true);
-    const docsSearchTool = agentConfig?.tools?.langfuseDocs_search;
+    const docsSearchTool = agentTools?.langfuseDocs_search;
     await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
       _meta: expect.objectContaining({
         choices: expect.any(Array),
       }),
     });
 
-    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+    const redirectTool = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0])?.[
       IN_APP_AGENT_REDIRECT_TOOL_NAME
-    ] as
-      | {
-          execute?: (input: unknown) => Promise<unknown>;
-        }
-      | undefined;
+    ];
 
     await expect(
       redirectTool?.execute?.({
@@ -831,7 +847,18 @@ describe("createAgUiStream", () => {
           version: 2,
         },
       }),
+      model: "eu.anthropic.claude-opus-4-8",
     });
+    const onStepFinish = (
+      agentConfig?.defaultOptions as
+        | { onStepFinish?: (event: unknown) => void }
+        | undefined
+    )?.onStepFinish;
+    expect(onStepFinish).toEqual(expect.any(Function));
+    onStepFinish?.({ usage: { inputTokens: 10, outputTokens: 5 } });
+    expect(
+      instrumentationMocks.instrumentation.recordStepFinish,
+    ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),
@@ -875,7 +902,7 @@ describe("createAgUiStream", () => {
     };
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     adapterEvents.items = [
       {
@@ -938,7 +965,7 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1079,12 +1106,8 @@ describe("createAgUiStream", () => {
     });
 
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    const createScoreConfigTool = agentConfig?.tools
-      ?.langfuse_createScoreConfig as
-      | {
-          execute?: ReturnType<typeof vi.fn>;
-        }
-      | undefined;
+    const createScoreConfigTool =
+      getAgentTools(agentConfig)?.langfuse_createScoreConfig;
     expect(createScoreConfigTool?.execute).toHaveBeenCalledWith(
       {
         name: "readiness",
@@ -1123,7 +1146,7 @@ describe("createAgUiStream", () => {
     const onError = vi.fn();
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1152,7 +1175,12 @@ describe("createAgUiStream", () => {
     await readStream(stream);
 
     expect(onError).not.toHaveBeenCalled();
-    const resumedMessages = adapterEvents.inputs[0]?.messages ?? [];
+    const resumedMessages =
+      (
+        adapterEvents.inputs[0] as {
+          messages?: { id: string; role: string; content?: unknown }[];
+        }
+      )?.messages ?? [];
     const retryGuidanceMessage = resumedMessages.find(
       (message) =>
         message.id === "tool-call-1-approval-tool-error-guidance" &&
@@ -1268,7 +1296,7 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1339,7 +1367,7 @@ describe("createAgUiStream", () => {
     ];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
     const persistedEvents: AgUiEvent[] = [];
     const streamedEvents: AgUiEvent[] = [];
     const onComplete = vi.fn();
@@ -1490,7 +1518,7 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1514,13 +1542,9 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
 
-    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+    const redirectTool = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0])?.[
       IN_APP_AGENT_REDIRECT_TOOL_NAME
-    ] as
-      | {
-          execute?: (input: unknown) => Promise<unknown>;
-        }
-      | undefined;
+    ];
 
     const result = await redirectTool?.execute?.({
       label: "Open traces tagged checkout",
@@ -1574,7 +1598,7 @@ describe("createAgUiStream", () => {
     const runErrorMessage = "AWS credential provider failed: Token is expired.";
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     adapterEvents.items = [
       {
@@ -1706,14 +1730,17 @@ function createToolApprovalResumeInput(approved: boolean) {
   };
 }
 
-function createTestTracingConfig() {
+function createTestTracingConfig(): InAppAgentTracingConfig {
+  // Intentionally keeps the historical fixture shape (traceId instead of
+  // runId, no user.isAdmin); instrumentation is mocked in these tests and the
+  // config is only spread through, so the runtime payload must stay as-is.
   return {
     environment: "langfuse-in-app-agent",
     metadata: { langfuse_project_id: "project-1" },
     user: { id: "user-1" },
     traceId: "0123456789abcdef0123456789abcdef",
     targetProjectId: "project-1",
-  };
+  } as unknown as InAppAgentTracingConfig;
 }
 
 function parseEvents(chunk: string) {

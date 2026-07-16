@@ -837,6 +837,93 @@ describe("InAppAgentInstrumentation", () => {
       expect.anything(),
     );
   });
+
+  it("aggregates step usage and model onto the agent generation", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStepFinish({
+      usage: {
+        inputTokens: 1100,
+        outputTokens: 50,
+        totalTokens: 1150,
+        cachedInputTokens: 800,
+        cacheCreationInputTokens: 100,
+      },
+    });
+    instrumentation.recordStepFinish({
+      usage: {
+        inputTokens: 1200,
+        outputTokens: 30,
+        totalTokens: 1230,
+        cachedInputTokens: 1000,
+      },
+    });
+    instrumentation.end({});
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        usageDetails: {
+          // Mastra's inputTokens includes cache reads/writes; the priced
+          // `input` key must only contain non-cached input tokens.
+          input: 400,
+          output: 80,
+          cache_read_input_tokens: 1800,
+          cache_creation_input_tokens: 100,
+          total: 2380,
+        },
+      }),
+    );
+  });
+
+  it("records aggregated usage when the run fails", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+    });
+    instrumentation.endWithError(new Error("agent failed"));
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "ERROR",
+        model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        usageDetails: {
+          input: 100,
+          output: 10,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          total: 110,
+        },
+      }),
+    );
+  });
+
+  it("omits usage and model when no step reported usage", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.recordStepFinish(undefined);
+    instrumentation.recordStepFinish({ usage: { foo: 1 } });
+    instrumentation.end({});
+
+    const agentGenerationBody = mocks.agentGeneration.update.mock.calls[0]?.[0];
+
+    expect(agentGenerationBody).not.toHaveProperty("usageDetails");
+    expect(agentGenerationBody).not.toHaveProperty("model");
+  });
+
+  it("ignores step finish events after instrumentation ended", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.end({});
+    instrumentation.recordStepFinish({
+      usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    });
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.not.objectContaining({ usageDetails: expect.anything() }),
+    );
+  });
 });
 
 function createInstrumentation(
@@ -854,5 +941,6 @@ function createInstrumentation(
     targetProjectId: "project-1",
     environment: "prod",
     prompt,
+    model: "eu.anthropic.claude-sonnet-4-5-20250929-v1:0",
   });
 }
