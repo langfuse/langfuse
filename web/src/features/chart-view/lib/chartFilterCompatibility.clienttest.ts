@@ -26,8 +26,8 @@ describe("chartFilterExclusionReason", () => {
   });
 
   it("groups measures, scores, comments, and metadata by reason", () => {
-    expect(chartFilterExclusionReason("latency")).toMatch(/measure/i);
-    expect(chartFilterExclusionReason("totalCost")).toMatch(/measure/i);
+    expect(chartFilterExclusionReason("latency")).toMatch(/latency, cost/i);
+    expect(chartFilterExclusionReason("totalCost")).toMatch(/latency, cost/i);
     expect(chartFilterExclusionReason("scores_avg")).toMatch(/scores/i);
     expect(chartFilterExclusionReason("trace_score_categories")).toMatch(
       /scores/i,
@@ -39,7 +39,7 @@ describe("chartFilterExclusionReason", () => {
   it("falls back to a generic reason for other unsupported columns", () => {
     const reason = chartFilterExclusionReason("isRootObservation");
     expect(reason).not.toBeNull();
-    expect(reason).toMatch(/can't be applied/i);
+    expect(reason).toMatch(/this field/i);
   });
 });
 
@@ -87,15 +87,15 @@ describe("chartSearchFieldReason", () => {
   });
 
   it("classifies unsupported grammar fields by group", () => {
-    expect(chartSearchFieldReason("latency")).toMatch(/measure/i);
-    expect(chartSearchFieldReason("cost")).toMatch(/measure/i); // -> totalCost
+    expect(chartSearchFieldReason("latency")).toMatch(/latency, cost/i);
+    expect(chartSearchFieldReason("cost")).toMatch(/latency, cost/i); // -> totalCost
     expect(chartSearchFieldReason("scores.accuracy")).toMatch(/scores/i);
     expect(chartSearchFieldReason("traceScores.helpfulness")).toMatch(
       /scores/i,
     );
     expect(chartSearchFieldReason("metadata.region")).toMatch(/metadata/i);
     // a search-bar startTime bound the chart can't honour
-    expect(chartSearchFieldReason("startTime")).toMatch(/can't be applied/i);
+    expect(chartSearchFieldReason("startTime")).toMatch(/this field/i);
   });
 
   it("returns null for unknown fields and the has: pseudo-field", () => {
@@ -120,6 +120,6 @@ describe("classifyChartFilters", () => {
     const { forwarded, excluded } = classifyChartFilters(filters);
     expect(forwarded.map((f) => f.column)).toEqual(["environment"]);
     expect([...excluded.keys()].sort()).toEqual(["latency", "scores_avg"]);
-    expect(excluded.get("latency")).toMatch(/measure/i);
+    expect(excluded.get("latency")).toMatch(/latency, cost/i);
   });
 });

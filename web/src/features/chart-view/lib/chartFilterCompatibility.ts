@@ -82,23 +82,25 @@ const COMMENT_COLUMNS = new Set(["commentCount", "commentContent"]);
 
 /** Reason shown when full-text search is active — not a `FilterState` column. */
 export const CHART_SEARCH_QUERY_REASON =
-  "Full-text search isn't applied to the chart — it shows the metric across the current time range and forwarded filters.";
+  "Charts can't apply text search yet — it still narrows the table.";
 
 /**
  * The reason a filter on `column` is NOT applied to the chart, or `null` if it
- * is forwarded. The string is user-facing hover copy.
+ * is forwarded. User-facing hover copy: plain "not supported yet" framing (none
+ * of these are impossible — they're just not built into the chart query), with
+ * the reassurance that the filter still works on the table. No jargon.
  */
 export function chartFilterExclusionReason(column: string): string | null {
   if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) return null;
   if (MEASURE_COLUMNS.has(column))
-    return "Charts group results by dimension, so they can't filter on a measure like latency, cost, or tokens — this filter isn't applied to the chart.";
+    return "Charts can't filter by latency, cost, or tokens yet — still filters the table.";
   if (SCORE_COLUMNS.has(column))
-    return "Charts can't filter on scores yet — this filter isn't applied to the chart.";
+    return "Charts can't filter by scores yet — still filters the table.";
   if (COMMENT_COLUMNS.has(column))
-    return "Charts can't filter on comments yet — this filter isn't applied to the chart.";
+    return "Charts can't filter by comments yet — still filters the table.";
   if (column === "metadata")
-    return "Charts can't filter on metadata yet — this filter isn't applied to the chart.";
-  return "This filter can't be applied to the chart.";
+    return "Charts can't filter by metadata yet — still filters the table.";
+  return "Charts can't filter by this field yet — still filters the table.";
 }
 
 /**
