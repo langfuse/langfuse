@@ -24,7 +24,9 @@ import {
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { Plus, X, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
+import { ScoreTag } from "@/src/components/score-tag";
 import type {
+  KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   BooleanKeyValueFilterEntry,
@@ -35,6 +37,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "categorical";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       availableValues: Record<string, string[]>;
       activeFilters: KeyValueFilterEntry[];
       onChange: (filters: KeyValueFilterEntry[]) => void;
@@ -43,6 +46,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "numeric";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: NumericKeyValueFilterEntry[];
       onChange: (filters: NumericKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -50,6 +54,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "boolean";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: BooleanKeyValueFilterEntry[];
       onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -57,6 +62,7 @@ type KeyValueFilterBuilderProps =
   | {
       mode: "string";
       keyOptions?: string[];
+      keyLevels?: KeyScoreLevels;
       activeFilters: StringKeyValueFilterEntry[];
       onChange: (filters: StringKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
@@ -86,6 +92,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const {
     mode,
     keyOptions,
+    keyLevels,
     activeFilters,
     onChange,
     keyPlaceholder = "Key",
@@ -256,9 +263,21 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                       className="flex-1 justify-between text-left font-normal"
                     >
                       <span
-                        className={cn(!filter.key && "text-muted-foreground")}
+                        className={cn(
+                          "flex min-w-0 items-center gap-1.5",
+                          !filter.key && "text-muted-foreground",
+                        )}
                       >
-                        {filter.key || keyPlaceholder}
+                        <span
+                          className="truncate"
+                          title={filter.key || keyPlaceholder}
+                        >
+                          {filter.key || keyPlaceholder}
+                        </span>
+                        {filter.key &&
+                          keyLevels?.[filter.key]?.map((level) => (
+                            <ScoreTag key={level} level={level} />
+                          ))}
                       </span>
                       <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -292,7 +311,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                                     : "invisible",
                                 )}
                               />
-                              {option}
+                              <span
+                                className="min-w-0 flex-1 truncate"
+                                title={option}
+                              >
+                                {option}
+                              </span>
+                              {keyLevels?.[option]?.map((level) => (
+                                <ScoreTag
+                                  key={level}
+                                  level={level}
+                                  className="ml-1.5"
+                                />
+                              ))}
                             </InputCommandItem>
                           ))}
                         </InputCommandGroup>

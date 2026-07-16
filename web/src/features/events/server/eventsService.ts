@@ -43,6 +43,21 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   },
 ];
 
+const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "traceId",
+    operator: "is not null",
+    value: "",
+  },
+  {
+    type: "null",
+    column: "observationId",
+    operator: "is not null",
+    value: "",
+  },
+];
+
 // The level-agnostic "Scores" groups (`scores_avg` / `score_categories`) match a
 // score whether it sits at observation or trace level, but only if it rolls up
 // into a trace — i.e. `trace_id IS NOT NULL`. Session-level and dataset-run
@@ -556,14 +571,20 @@ export async function getEventFilterOptions(
   const shouldLoadTraceScoreBooleans = requestedColumns.has(
     "trace_score_booleans",
   );
+  // Level provenance for the level-agnostic "Scores" groups: which level(s)
+  // each offered score name exists at, so the UI can tag every score option
+  // with its level (ScoreTag, LFE-10596). Loaded with the agnostic groups.
+  const shouldLoadScoreNameLevels =
+    shouldLoadScoresAvg || shouldLoadScoreCategories || shouldLoadScoreBooleans;
 
-  // The `scores_avg` / `score_categories` groups are level-agnostic (their
-  // filter matches observation- OR trace-level scores; see
-  // `toLevelAgnosticScoreFilter` in events.ts), so they offer every score that
-  // rolls up into a trace — matchable-set == offered-set (LFE-10596). Scoping to
-  // trace-attached scores (`trace_id IS NOT NULL`) excludes session-/dataset-run
-  // scores the union can never match. The trace-scoped discovery below stays
-  // trace-only to back the search bar's `traceScores.` escape hatch.
+  // The `scores_avg` / `score_categories` / `score_booleans` groups are
+  // level-agnostic (their filter matches observation- OR trace-level scores;
+  // see `toLevelAgnosticScoreFilter` in events-observation-row-selection.ts),
+  // so they offer every score that rolls up into a trace — matchable-set ==
+  // offered-set (LFE-10596). Scoping to trace-attached scores (`trace_id IS
+  // NOT NULL`) excludes session-/dataset-run scores the union can never match.
+  // The trace-scoped discovery below stays trace-only to back the search bar's
+  // `traceScores.` escape hatch.
   const [
     numericScoreNames,
     booleanScoreNames,
@@ -571,6 +592,8 @@ export async function getEventFilterOptions(
     traceScoreColumns,
     traceCategoricalScoreColumns,
     traceBooleanScoreColumns,
+    observationLevelScoreNames,
+    traceLevelScoreNames,
     eventFilterOptions,
   ] = await Promise.all([
     shouldLoadScoresAvg
@@ -581,7 +604,7 @@ export async function getEventFilterOptions(
       : Promise.resolve([]),
     shouldLoadScoreBooleans
       ? getBooleanScoresGroupedByName(projectId, [
-          ...OBSERVATION_SCORE_SCOPE_FILTER,
+          ...TRACE_SCOPED_SCORE_FILTER,
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
@@ -609,6 +632,21 @@ export async function getEventFilterOptions(
           ...traceTimestampFilters,
         ])
       : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [
+            ...OBSERVATION_SCORE_SCOPE_FILTER,
+            ...traceScoreTimestampFilters,
+          ],
+        })
+      : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
     eventColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
@@ -630,6 +668,23 @@ export async function getEventFilterOptions(
   const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
     eventFilterOptions,
     eventColumns,
+  );
+
+  // name → the level(s) the name actually exists at. Discovery rows are
+  // grouped by (name, source, dataType), so names repeat — dedupe per level.
+  const scoreNameLevels: Record<string, ("observation" | "trace")[]> = {};
+  const addScoreNameLevel = (
+    name: string,
+    level: "observation" | "trace",
+  ): void => {
+    const levels = (scoreNameLevels[name] ??= []);
+    if (!levels.includes(level)) levels.push(level);
+  };
+  observationLevelScoreNames.forEach((score) =>
+    addScoreNameLevel(score.name, "observation"),
+  );
+  traceLevelScoreNames.forEach((score) =>
+    addScoreNameLevel(score.name, "trace"),
   );
 
   // Only include a score key when its column was requested, so an unrequested
@@ -661,6 +716,9 @@ export async function getEventFilterOptions(
             (score) => score.name,
           ),
         }
+      : {}),
+    ...(shouldLoadScoreNameLevels
+      ? { score_name_levels: scoreNameLevels }
       : {}),
   };
 }

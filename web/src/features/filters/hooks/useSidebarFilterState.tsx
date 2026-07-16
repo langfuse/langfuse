@@ -207,6 +207,17 @@ export interface StringUIFilter extends BaseUIFilter {
   onChange: (value: string) => void;
 }
 
+/**
+ * Score-name → the level(s) it exists at, for tagging each offered name with
+ * a ScoreTag (LFE-10596). Only present on the level-agnostic score facets
+ * (`scores_avg` / `score_categories` / `score_booleans`), fed by the
+ * filter-options `score_name_levels` payload.
+ */
+export type KeyScoreLevels = Record<
+  string,
+  readonly ("observation" | "trace")[]
+>;
+
 // Represents one active filter row in the key-value facet UI
 // Example: key="accuracy", operator="any of", value=["good", "excellent"]
 export type KeyValueFilterEntry = {
@@ -241,6 +252,7 @@ export interface KeyValueUIFilter extends BaseUIFilter {
   type: "keyValue";
   value: KeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   availableValues: Record<string, string[]>;
   onChange: (filters: KeyValueFilterEntry[]) => void;
 }
@@ -249,6 +261,7 @@ export interface NumericKeyValueUIFilter extends BaseUIFilter {
   type: "numericKeyValue";
   value: NumericKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
 }
 
@@ -256,6 +269,7 @@ export interface BooleanKeyValueUIFilter extends BaseUIFilter {
   type: "booleanKeyValue";
   value: BooleanKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
 }
 
@@ -283,6 +297,39 @@ const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
       lists.flatMap((list) => (list ?? []).filter((value) => value.length > 0)),
     ),
   );
+
+// The level-agnostic score facet columns whose name pickers carry ScoreTag
+// level provenance (LFE-10596). Other keyValue facets (metadata) never do.
+const SCORE_LEVEL_TAGGED_COLUMNS: ReadonlySet<string> = new Set([
+  "scores_avg",
+  "score_categories",
+  "score_booleans",
+]);
+
+const resolveKeyScoreLevels = (
+  column: string,
+  scoreNameLevels:
+    | (string | SingleValueOption)[]
+    | Record<string, string[]>
+    | undefined,
+): KeyScoreLevels | undefined => {
+  if (
+    !SCORE_LEVEL_TAGGED_COLUMNS.has(column) ||
+    scoreNameLevels === undefined ||
+    Array.isArray(scoreNameLevels)
+  ) {
+    return undefined;
+  }
+  const out: Record<string, ("observation" | "trace")[]> = {};
+  for (const [name, levels] of Object.entries(scoreNameLevels)) {
+    const valid = levels.filter(
+      (level): level is "observation" | "trace" =>
+        level === "observation" || level === "trace",
+    );
+    if (valid.length > 0) out[name] = valid;
+  }
+  return out;
+};
 
 const resolveKnownKeyOptions = (
   facetKeyOptions: string[] | undefined,
@@ -1622,6 +1669,10 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
+            keyLevels: resolveKeyScoreLevels(
+              facet.column,
+              options["score_name_levels"],
+            ),
             availableValues: mergedAvailableValues,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
@@ -1738,6 +1789,10 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
+            keyLevels: resolveKeyScoreLevels(
+              facet.column,
+              options["score_name_levels"],
+            ),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1823,6 +1878,10 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
+            keyLevels: resolveKeyScoreLevels(
+              facet.column,
+              options["score_name_levels"],
+            ),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,

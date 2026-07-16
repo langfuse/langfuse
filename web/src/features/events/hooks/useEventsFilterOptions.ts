@@ -300,6 +300,9 @@ export function useEventsFilterOptions({
       trace_score_categories: traceScoreCategories,
       trace_scores_avg: traceScoresNumeric,
       trace_score_booleans: rawData.trace_score_booleans ?? undefined,
+      // Level provenance for the level-agnostic score groups (ScoreTag,
+      // LFE-10596): name → the level(s) it exists at.
+      score_name_levels: rawData.score_name_levels ?? undefined,
     };
   }, [rawData]);
 

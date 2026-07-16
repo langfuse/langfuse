@@ -30,6 +30,7 @@ import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
+  KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   BooleanKeyValueFilterEntry,
@@ -341,6 +342,7 @@ export function DataTableControls({
                     expanded={filter.expanded}
                     loading={filter.loading}
                     keyOptions={filter.keyOptions}
+                    keyLevels={filter.keyLevels}
                     availableValues={filter.availableValues}
                     value={filter.value}
                     onChange={filter.onChange}
@@ -364,6 +366,7 @@ export function DataTableControls({
                     expanded={filter.expanded}
                     loading={filter.loading}
                     keyOptions={filter.keyOptions}
+                    keyLevels={filter.keyLevels}
                     value={filter.value}
                     onChange={filter.onChange}
                     isActive={filter.isActive}
@@ -386,6 +389,7 @@ export function DataTableControls({
                     expanded={filter.expanded}
                     loading={filter.loading}
                     keyOptions={filter.keyOptions}
+                    keyLevels={filter.keyLevels}
                     value={filter.value}
                     onChange={filter.onChange}
                     isActive={filter.isActive}
@@ -480,6 +484,7 @@ interface StringFacetProps extends BaseFacetProps {
 
 interface KeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   availableValues: Record<string, string[]>;
   value: KeyValueFilterEntry[];
   onChange: (filters: KeyValueFilterEntry[]) => void;
@@ -488,6 +493,7 @@ interface KeyValueFacetProps extends BaseFacetProps {
 
 interface NumericKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   value: NumericKeyValueFilterEntry[];
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -495,6 +501,7 @@ interface NumericKeyValueFacetProps extends BaseFacetProps {
 
 interface BooleanKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   value: BooleanKeyValueFilterEntry[];
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -1305,6 +1312,7 @@ export function KeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   availableValues,
   value,
   onChange,
@@ -1334,6 +1342,7 @@ export function KeyValueFacet({
         <KeyValueFilterBuilder
           mode="categorical"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           availableValues={availableValues}
           activeFilters={value}
           onChange={onChange}
@@ -1353,6 +1362,7 @@ export function NumericKeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   value,
   onChange,
   isActive,
@@ -1381,6 +1391,7 @@ export function NumericKeyValueFacet({
         <KeyValueFilterBuilder
           mode="numeric"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}
@@ -1399,6 +1410,7 @@ export function BooleanKeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   value,
   onChange,
   isActive,
@@ -1427,6 +1439,7 @@ export function BooleanKeyValueFacet({
         <KeyValueFilterBuilder
           mode="boolean"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}

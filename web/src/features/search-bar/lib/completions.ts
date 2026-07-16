@@ -44,6 +44,9 @@ export type CompletionOption =
       label: string;
       detail?: string;
       fieldId: string;
+      /** Score-name options only: the level(s) the name exists at, rendered as
+       *  ScoreTag(s) in the listbox (global score-level coding, LFE-10596). */
+      scoreLevels?: readonly ("observation" | "trace")[];
     }
   | {
       id: string;
@@ -512,12 +515,29 @@ function keyPathOptions(
         : "boolean score",
     );
   }
+  // Level provenance for the ScoreTag on each option (LFE-10596): the
+  // `traceScores.` namespace is trace-only by construction; `scores.` is
+  // level-agnostic, so tag the level(s) the name actually exists at (from the
+  // `score_name_levels` payload — absent levels mean no tag, never a guess).
+  const levelsOf = (
+    name: string,
+  ): readonly ("observation" | "trace")[] | undefined => {
+    if (kind.level === "trace") return ["trace"];
+    const levels = observedValues(observed, `score_name_levels.${name}`)
+      .map((o) => o.value)
+      .filter((v) => v === "observation" || v === "trace") as (
+      | "observation"
+      | "trace"
+    )[];
+    return levels.length > 0 ? levels : undefined;
+  };
   const options = [...seen.entries()].map(([name, detail]) => ({
     id: `key:${kind.canonical}${name}`,
     kind: "field" as const,
     label: `${kind.canonical}${name}`,
     detail,
     fieldId: keyText(name),
+    scoreLevels: levelsOf(name),
   }));
   return {
     title: SECTION_SCORE_NAMES,
