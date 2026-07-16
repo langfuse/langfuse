@@ -117,7 +117,7 @@ export function SplashScreen({
             {waitingFor}
           </StatusBadge>
         )}
-        <h2 className="font-strong mb-2 text-2xl">{title}</h2>
+        <h2 className="mb-2 text-2xl font-bold">{title}</h2>
         {/* text-base: without a size token this fell through to the 16px
             browser default — off the type scale. */}
         <div className="text-muted-foreground text-base">{description}</div>
@@ -164,7 +164,7 @@ export function SplashScreen({
             <div key={index} className="flex gap-4">
               {/* Left: circle + connecting line */}
               <div className="flex flex-col items-center">
-                <div className="bg-foreground text-background font-emphasis flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm">
+                <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold">
                   {index + 1}
                 </div>
                 {index < steps.length - 1 && (

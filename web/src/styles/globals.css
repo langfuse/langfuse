@@ -25,15 +25,16 @@
     var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
 
-  /* Weight ROLES, tuned per font family — weights are font-relative (IBM
-     Plex renders heavier than e.g. Inter at the same number), so components
-     never hardcode numbers. Swapping the font = swap the families above and
-     retune these three lines (e.g. Inter: regular 400 / emphasis 500 /
-     strong 600). Keep loaded weights in src/styles/fonts.ts in sync.
-     Generated utilities: font-regular / font-emphasis / font-strong. */
+  /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
+     Both are font-relative (IBM Plex reads bold at 400; a lighter face like
+     Inter would want 500–600), so components never hardcode numbers.
+     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
+     (700): the `font-bold` utility IS the bold role. font-medium /
+     font-semibold / raw numbers are drift — use font-bold or nothing.
+     Swapping the font = swap the families above and retune these two lines;
+     keep loaded weights in src/styles/fonts.ts in sync. */
   --font-weight-regular: 400;
-  --font-weight-emphasis: 400;
-  --font-weight-strong: 500;
+  --font-weight-bold: 400;
 }
 
 @theme inline {
