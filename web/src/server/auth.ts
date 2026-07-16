@@ -748,6 +748,26 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
       maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
     },
     callbacks: {
+      // Harden the callback-URL redirect against malformed input. NextAuth's
+      // default `redirect` callback calls `new URL(url)` on the caller-supplied
+      // `callbackUrl`; for a non-relative, unparsable value (e.g. the
+      // `.....///…/windows/win.ini` path-traversal payloads endpoint scanners
+      // send) that throws an uncaught `TypeError: ERR_INVALID_URL`, which
+      // escapes NextAuth's own error handling and surfaces as an HTTP 500 on
+      // POST /api/auth/callback/* and /api/auth/signin/*. Guarding the parse
+      // keeps the default same-origin semantics while turning malformed input
+      // into a safe redirect to baseUrl instead of a 500.
+      redirect({ url, baseUrl }) {
+        try {
+          // Relative callback URLs are always safe to resolve against baseUrl.
+          if (url.startsWith("/")) return `${baseUrl}${url}`;
+          // Absolute URLs are only honored when same-origin.
+          if (new URL(url).origin === baseUrl) return url;
+        } catch {
+          // Malformed callbackUrl (e.g. scanner payload) — fall through.
+        }
+        return baseUrl;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
