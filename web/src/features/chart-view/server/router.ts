@@ -14,17 +14,35 @@ import {
 } from "./chartCompletion";
 
 /**
- * Parses the model's chart spec out of its text response. Extracts the
- * outermost JSON object (tolerating a code fence or stray prose) and validates
- * it against the schema — the client re-clamps it through `coerceConfig`.
+ * Parses the model's chart spec out of its text response. Tolerates a ```json
+ * code fence or stray prose: tries the whole de-fenced text, then the outermost
+ * `{…}` slice, validating each with `safeParse`. A parse miss (truncated output,
+ * trailing prose with a brace, non-JSON) is a RECOVERABLE hiccup, surfaced as a
+ * "try rephrasing" TRPCError — not the generic "backend unavailable" 500 the
+ * mutation's catch would otherwise apply. The client re-clamps via `coerceConfig`.
  */
 function parseChartCompletion(text: string) {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error("AI response did not contain a JSON chart spec.");
+  const defenced = text.replace(/```(?:json)?/gi, "").trim();
+  const candidates = [defenced];
+  const start = defenced.indexOf("{");
+  const end = defenced.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    candidates.push(defenced.slice(start, end + 1));
   }
-  return chartCompletionSchema.parse(JSON.parse(text.slice(start, end + 1)));
+  for (const candidate of candidates) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    const result = chartCompletionSchema.safeParse(parsed);
+    if (result.success) return result.data;
+  }
+  throw new TRPCError({
+    code: "UNPROCESSABLE_CONTENT",
+    message: "Couldn't build a chart from that — try rephrasing your request.",
+  });
 }
 
 /**

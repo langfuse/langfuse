@@ -37,6 +37,12 @@ type UseEventsTableDataParams = {
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
   appRootFallbackEnabled?: boolean;
+  /**
+   * Gate the row + batched-I/O queries. Defaults to true; the events table
+   * passes `false` in chart mode so the (hidden) table's expensive row/IO
+   * fetches don't run alongside the chart's aggregate query.
+   */
+  rowsEnabled?: boolean;
 };
 
 export function useEventsTableData({
@@ -50,6 +56,7 @@ export function useEventsTableData({
   selectAll,
   setSelectedRows,
   appRootFallbackEnabled = false,
+  rowsEnabled = true,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -81,6 +88,7 @@ export function useEventsTableData({
   const silentHttpCodes = [422];
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    enabled: rowsEnabled,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
     meta: {
@@ -158,7 +166,8 @@ export function useEventsTableData({
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
     ...sendAsPostOption,
-    enabled: activeObservations.isSuccess && batchIOPayload !== null,
+    enabled:
+      rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });

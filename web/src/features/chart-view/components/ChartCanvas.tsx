@@ -13,12 +13,17 @@ const RANKED_ROW_LIMIT = 20;
  * bar/pie primitives colour through `--color-metric`) from the rendered series.
  */
 function buildChartConfig(data: DataPoint[], metricLabel: string): ChartConfig {
-  const config: ChartConfig = { metric: { label: metricLabel } };
+  const config: ChartConfig = {};
+  // Per-series labels first, so a breakdown value that is literally "metric"
+  // (e.g. an observation/model named "metric") keeps its own label.
   for (const point of data) {
-    if (point.dimension && !config[point.dimension]) {
+    if (point.dimension && config[point.dimension] === undefined) {
       config[point.dimension] = { label: point.dimension };
     }
   }
+  // Reserved key the bar/pie primitives colour through `--color-metric`; only
+  // add it if no real series already claimed the "metric" key above.
+  if (config.metric === undefined) config.metric = { label: metricLabel };
   return config;
 }
 

@@ -32,6 +32,9 @@ describe("chartFilterExclusionReason", () => {
     expect(chartFilterExclusionReason("trace_score_categories")).toMatch(
       /scores/i,
     );
+    // promptVersion is a numeric field but the observations dimension is a
+    // string — forwarding it errors the query, so it is NOT forwardable.
+    expect(chartFilterExclusionReason("promptVersion")).not.toBeNull();
     expect(chartFilterExclusionReason("commentContent")).toMatch(/comments/i);
     expect(chartFilterExclusionReason("metadata")).toMatch(/metadata/i);
   });
@@ -67,9 +70,11 @@ describe("toChartFilters", () => {
         value: 0.5,
       },
       { column: "latency", type: "number", operator: ">", value: 2 },
+      // a has:name presence check — dropped (null-type isn't applied to charts)
+      { column: "name", type: "null", operator: "is not null", value: "" },
     ];
     const result = toChartFilters(filters);
-    // scores + latency dropped; traceTags -> tags
+    // scores + latency + the null-check dropped; traceTags -> tags
     expect(result.map((f) => f.column)).toEqual(["type", "userId", "tags"]);
     // the rename keeps the rest of the filter intact
     const tags = result.find((f) => f.column === "tags");
@@ -98,9 +103,12 @@ describe("chartSearchFieldReason", () => {
     expect(chartSearchFieldReason("startTime")).toMatch(/this field/i);
   });
 
-  it("returns null for unknown fields and the has: pseudo-field", () => {
+  it("returns null for unknown fields", () => {
     expect(chartSearchFieldReason("nonsense")).toBeNull();
-    expect(chartSearchFieldReason("has")).toBeNull();
+  });
+
+  it("deactivates the has: presence pseudo-field (null-checks aren't charted)", () => {
+    expect(chartSearchFieldReason("has")).toMatch(/is set/i);
   });
 });
 

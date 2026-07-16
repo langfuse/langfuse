@@ -165,4 +165,27 @@ describe("rowsToDataPoints", () => {
       { time_dimension: undefined, dimension: undefined, metric: 42 },
     ]);
   });
+
+  it("preserves an explicit null as a gap on a time series (never coerces to 0)", () => {
+    const config: ChartViewConfig = {
+      ...DEFAULT_CONFIG,
+      metric: "latency",
+      aggregation: "p95",
+      breakdown: "none",
+      chartType: "LINE_TIME_SERIES",
+    };
+    const [point] = rowsToDataPoints(
+      [{ time_dimension: "2026-06-25T10:00:00Z", p95_latency: null }],
+      config,
+    );
+    expect(point.metric).toBeNull();
+  });
+
+  it("floors a missing value to 0 on a non-time-series chart", () => {
+    const [point] = rowsToDataPoints([{ count_count: null }], {
+      ...DEFAULT_CONFIG,
+      chartType: "NUMBER",
+    });
+    expect(point.metric).toBe(0);
+  });
 });

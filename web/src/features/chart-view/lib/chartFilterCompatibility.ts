@@ -37,7 +37,11 @@ export const FORWARDABLE_CHART_FILTER_COLUMNS: ReadonlySet<string> = new Set([
   "sessionId",
   "version",
   "promptName",
-  "promptVersion",
+  // NOTE: promptVersion is intentionally NOT forwardable. The search-bar
+  // grammar registers it as a numeric field, so `promptVersion:>2` lowers to a
+  // `number` filter — but the observations-view dimension is typed `string`,
+  // which rejects numeric filters and errors the chart query. It shows as "not
+  // applied" instead.
   "traceTags",
   "toolNames",
   "calledToolNames",
@@ -111,7 +115,13 @@ export function chartFilterExclusionReason(column: string): string | null {
  */
 export function toChartFilters(filterState: FilterState): FilterState {
   return filterState
-    .filter((f) => FORWARDABLE_CHART_FILTER_COLUMNS.has(f.column))
+    .filter(
+      (f) =>
+        // Presence checks (`has:`/`-has:`, a `null` filter) aren't applied by
+        // the aggregate chart query — drop them so we never forward one and
+        // 422; the search bar marks them "not applied" (chartSearchFieldReason).
+        f.type !== "null" && FORWARDABLE_CHART_FILTER_COLUMNS.has(f.column),
+    )
     .map((f) => {
       const renamed = CHART_FILTER_COLUMN_RENAME[f.column];
       return renamed ? { ...f, column: renamed } : f;
@@ -122,8 +132,7 @@ export function toChartFilters(filterState: FilterState): FilterState {
  * The reason a SEARCH-BAR field token is not applied to the chart, or `null` if
  * it is forwarded. Resolves a grammar field name (`level`, `user`, `latency`,
  * `scores.accuracy`, `metadata.region`) to its filter column via the bar's own
- * `resolveField`, so a token deactivates identically to its sidebar facet. The
- * `has:` pseudo-field is left alone (returns `null`).
+ * `resolveField`, so a token deactivates identically to its sidebar facet.
  */
 export function chartSearchFieldReason(fieldName: string): string | null {
   const ref = resolveField(fieldName);
@@ -133,7 +142,10 @@ export function chartSearchFieldReason(fieldName: string): string | null {
     return chartFilterExclusionReason(
       ref.level === "trace" ? "trace_scores_avg" : "scores_avg",
     );
-  if (ref.type === "pseudo") return null;
+  // `has:`/`-has:` presence checks lower to a null-check filter, which the chart
+  // doesn't apply (dropped by toChartFilters) — so the pill is deactivated too.
+  if (ref.type === "pseudo")
+    return "Charts can't filter by whether a field is set at the moment — still applies to the table.";
   return chartFilterExclusionReason(ref.field.id);
 }
 

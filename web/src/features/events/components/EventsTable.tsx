@@ -391,31 +391,42 @@ export default function ObservationsEventsTable({
   // never bumps.
   const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
 
+  // Tick-safe refresh: table rows + counts + the chart query, WITHOUT
+  // re-anchoring facet options (their values don't change tick-to-tick, so
+  // re-fetching open high-cardinality facets every tick is wasteful). The auto
+  // interval uses this. The chart runs dashboard.executeQuery; for absolute
+  // time ranges its query key is stable across refreshes, so invalidate it too.
+  const handleAutoRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    Promise.all([
+      utils.events.all.invalidate(),
+      utils.events.countAll.invalidate(),
+      utils.dashboard.executeQuery.invalidate(),
+    ]);
+  }, [utils]);
+
+  // Explicit refresh (manual button): everything the auto tick does, PLUS
+  // re-anchoring the facet options — the one place their values are re-read.
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
-    // An explicit refresh re-anchors the facets too (and invalidate refetches
-    // whatever is already open); the auto interval above does not.
     setFilterOptionsRefreshTick((t) => t + 1);
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
-      // The chart runs dashboard.executeQuery; for absolute time ranges its
-      // query key is stable across refreshes, so invalidate it explicitly.
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
 
-  // Auto-refresh: run the same invalidations as the manual button (incl. the
-  // chart query), not just a refreshTick bump — otherwise the chart serves
-  // stale data on absolute date ranges whose query key doesn't change.
+  // Auto-refresh runs the tick-safe set (rows + chart), NOT the facet
+  // re-anchor — otherwise every tick re-issues facet queries for open columns.
   useEffect(() => {
     if (!refreshInterval) return;
     const id = setInterval(() => {
-      handleRefresh();
+      handleAutoRefresh();
     }, refreshInterval);
     return () => clearInterval(id);
-  }, [refreshInterval, handleRefresh]);
+  }, [refreshInterval, handleAutoRefresh]);
 
   // Convert timeRange to absolute date range for compatibility
   // Include refreshTick to force recalculation on refresh
@@ -724,6 +735,9 @@ export default function ObservationsEventsTable({
     selectAll,
     setSelectedRows,
     appRootFallbackEnabled: appRootDefault.isAutoManaged,
+    // In chart mode the table is hidden and the chart runs its own aggregate
+    // query — don't also run the expensive row + batched-I/O fetches.
+    rowsEnabled: !chartActive,
   });
 
   useApplyAppRootFallback({
@@ -1881,7 +1895,8 @@ export default function ObservationsEventsTable({
                   tableName={BatchExportTableName.Events}
                   key="batchExport"
                 />,
-                selectedObservationIds.length > 0 || selectAll ? (
+                !chartActive &&
+                (selectedObservationIds.length > 0 || selectAll) ? (
                   <TableActionMenu
                     key="observations-multi-select-actions"
                     projectId={projectId}
@@ -1903,19 +1918,27 @@ export default function ObservationsEventsTable({
                   />
                 ) : null,
               ]}
-              multiSelect={{
-                selectAll,
-                setSelectAll,
-                selectedRowIds: selectedObservationIds,
-                setRowSelection: setSelectedRows,
-                totalCount,
-                // totalCount stays null until select-all triggers the lazy
-                // count query; hasNextPage lets the select-all banner show
-                // without an eager count over the events table.
-                hasNextPage: hasMore,
-                pageSize: paginationState.limit,
-                pageIndex: paginationState.page - 1,
-              }}
+              // No row selection in chart mode — the table (and its select-all
+              // banner) is hidden, so a stale selection must not keep the batch
+              // menu (incl. Delete) operable. The selection is preserved and
+              // reappears on switching back to Table.
+              multiSelect={
+                chartActive
+                  ? undefined
+                  : {
+                      selectAll,
+                      setSelectAll,
+                      selectedRowIds: selectedObservationIds,
+                      setRowSelection: setSelectedRows,
+                      totalCount,
+                      // totalCount stays null until select-all triggers the lazy
+                      // count query; hasNextPage lets the select-all banner show
+                      // without an eager count over the events table.
+                      hasNextPage: hasMore,
+                      pageSize: paginationState.limit,
+                      pageIndex: paginationState.page - 1,
+                    }
+              }
               // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}

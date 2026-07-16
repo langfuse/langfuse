@@ -91,6 +91,7 @@ export function rowsToDataPoints(
   const dimension = getDimension(config.breakdown);
   const field = metricField(config);
   const isNumber = config.chartType === "NUMBER";
+  const isTimeSeries = isTimeSeriesChartType(config.chartType);
   const hasBreakdown = !isNumber && dimension.field !== null;
 
   return rows.map((row) => {
@@ -101,10 +102,15 @@ export function rowsToDataPoints(
         ? undefined
         : metric.label;
     const value = row[field];
-    return {
-      time_dimension,
-      dimension: dim,
-      metric: Array.isArray(value) ? value : Number(value ?? 0),
-    };
+    // Preserve an explicit null on a time series as a GAP — never coerce it to
+    // 0 (the DataPoint contract, chart-props.ts: "null means measured nothing").
+    // Mirrors DashboardWidget's prep so the same rows render identically here
+    // and on a dashboard. Categorical/number charts still floor a missing value.
+    const metricValue = Array.isArray(value)
+      ? value
+      : isTimeSeries && value == null
+        ? null
+        : Number(value ?? 0);
+    return { time_dimension, dimension: dim, metric: metricValue };
   });
 }
