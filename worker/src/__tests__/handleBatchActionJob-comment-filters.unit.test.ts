@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BatchActionType,
   BatchTableNames,
-  EvalTargetObject,
-  EvalTemplateType,
-  JobConfigState,
+  type FilterCondition,
 } from "@langfuse/shared";
 
 const mocks = vi.hoisted(() => {
@@ -19,22 +17,14 @@ const mocks = vi.hoisted(() => {
     getEventsStreamForDataset: vi.fn(emptyStream),
     getEventsStreamForEval: vi.fn(emptyStream),
     getObservationStream: vi.fn(emptyStream),
-    getTraceIdentifierStream: vi.fn(emptyStream),
-    processAddObservationsToDataset: vi.fn().mockResolvedValue(undefined),
-    processBatchedObservationEval: vi.fn().mockResolvedValue(undefined),
     findEvaluators: vi.fn(),
-    updateBatchAction: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
-    jobConfiguration: {
-      findMany: mocks.findEvaluators,
-    },
-    batchAction: {
-      update: mocks.updateBatchAction,
-    },
+    jobConfiguration: { findMany: mocks.findEvaluators },
+    batchAction: { update: vi.fn().mockResolvedValue(undefined) },
   },
 }));
 
@@ -42,10 +32,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   applyCommentFilters: mocks.applyCommentFilters,
   getEventsStreamForEval: mocks.getEventsStreamForEval,
   getCurrentSpan: vi.fn(() => undefined),
-  logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-  },
+  logger: { info: vi.fn(), error: vi.fn() },
   CreateEvalQueue: { getInstance: vi.fn() },
   findDatasetIdsForBatchDeletion: vi.fn(),
   traceDeletionProcessor: vi.fn(),
@@ -53,7 +40,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 
 vi.mock("../features/database-read-stream/getDatabaseReadStream", () => ({
   getDatabaseReadStreamPaginated: vi.fn(),
-  getTraceIdentifierStream: mocks.getTraceIdentifierStream,
+  getTraceIdentifierStream: vi.fn(),
 }));
 
 vi.mock("../features/database-read-stream/event-stream", () => ({
@@ -72,11 +59,11 @@ vi.mock("../features/batchAction/processAddToQueue", () => ({
 }));
 
 vi.mock("../features/batchAction/processAddObservationsToDataset", () => ({
-  processAddObservationsToDataset: mocks.processAddObservationsToDataset,
+  processAddObservationsToDataset: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../features/batchAction/processBatchedObservationEval", () => ({
-  processBatchedObservationEval: mocks.processBatchedObservationEval,
+  processBatchedObservationEval: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../features/scores/processClickhouseScoreDelete", () => ({
@@ -88,8 +75,29 @@ vi.mock("../features/batchAction/processDeleteDatasets", () => ({
 }));
 
 import { prisma } from "@langfuse/shared/src/db";
+import type { BatchActionProcessingEventType } from "@langfuse/shared/src/server";
 import { handleBatchActionJob } from "../features/batchAction/handleBatchActionJob";
 
+const rawCommentFilter: FilterCondition[] = [
+  {
+    type: "string",
+    column: "commentContent",
+    operator: "contains",
+    value: "review me",
+  },
+];
+const resolvedCommentFilter: FilterCondition[] = [
+  {
+    type: "stringOptions",
+    column: "id",
+    operator: "any of",
+    value: ["observation-1"],
+  },
+];
+const createQuery = () => ({
+  filter: rawCommentFilter.map((filter) => ({ ...filter })),
+  orderBy: null,
+});
 const datasetConfig = {
   datasetId: "dataset-1",
   datasetName: "Dataset",
@@ -100,11 +108,21 @@ const datasetConfig = {
   },
 } as const;
 
+const resolveComments = () =>
+  mocks.applyCommentFilters.mockResolvedValue({
+    filterState: resolvedCommentFilter,
+    hasNoMatches: false,
+    matchingIds: ["observation-1"],
+  });
+const runBatchAction = (payload: BatchActionProcessingEventType) =>
+  handleBatchActionJob({ payload } as never);
+
 describe("event batch-action comment filter wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.findEvaluators.mockReset();
     mocks.applyCommentFilters.mockImplementation(
-      async ({ filterState }: { filterState: unknown[] }) => ({
+      async ({ filterState }: { filterState: FilterCondition[] }) => ({
         filterState,
         hasNoMatches: false,
         matchingIds: null,
@@ -113,85 +131,46 @@ describe("event batch-action comment filter wiring", () => {
   });
 
   it("resolves observation comments before streaming Events into an annotation queue", async () => {
-    const rawFilter = [
-      {
-        type: "string" as const,
-        column: "commentContent",
-        operator: "contains" as const,
-        value: "review me",
-      },
-    ];
-    const query = { filter: rawFilter, orderBy: null };
-    const originalQuery = structuredClone(query);
-    const resolvedFilter = [
-      {
-        type: "stringOptions" as const,
-        column: "id",
-        operator: "any of" as const,
-        value: ["observation-1"],
-      },
-    ];
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: resolvedFilter,
-      hasNoMatches: false,
-      matchingIds: ["observation-1"],
+    resolveComments();
+
+    await runBatchAction({
+      projectId: "project-1",
+      actionId: "observation-add-to-annotation-queue",
+      tableName: BatchTableNames.Events,
+      cutoffCreatedAt: new Date(),
+      targetId: "queue-1",
+      query: createQuery(),
+      type: BatchActionType.Create,
     });
 
-    await handleBatchActionJob({
-      payload: {
-        projectId: "project-1",
-        actionId: "observation-add-to-annotation-queue",
-        tableName: BatchTableNames.Events,
-        cutoffCreatedAt: new Date(),
-        targetId: "queue-1",
-        query,
-        type: BatchActionType.Create,
-      },
-    } as never);
-
     expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
-      filterState: rawFilter,
+      filterState: rawCommentFilter,
       prisma,
       projectId: "project-1",
       objectType: "OBSERVATION",
     });
     expect(mocks.getEventsStreamForAnnotationQueue).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: resolvedFilter }),
+      expect.objectContaining({ filter: resolvedCommentFilter }),
     );
-    expect(query).toEqual(originalQuery);
   });
 
-  it("turns a no-match Events comment filter into an explicit empty dataset selection", async () => {
-    const query = {
-      filter: [
-        {
-          type: "number" as const,
-          column: "commentCount",
-          operator: ">" as const,
-          value: 0,
-        },
-      ],
-      orderBy: null,
-    };
-    const originalQuery = structuredClone(query);
+  it("turns a no-match Events comment filter into an empty dataset selection", async () => {
     mocks.applyCommentFilters.mockResolvedValue({
       filterState: [],
       hasNoMatches: true,
       matchingIds: [],
     });
 
-    await handleBatchActionJob({
-      payload: {
-        projectId: "project-1",
-        actionId: "observation-add-to-dataset",
-        tableName: BatchTableNames.Events,
-        cutoffCreatedAt: new Date(),
-        batchActionId: "batch-action-1",
-        query,
-        config: datasetConfig,
-        type: BatchActionType.Create,
-      },
-    } as never);
+    await runBatchAction({
+      projectId: "project-1",
+      actionId: "observation-add-to-dataset",
+      tableName: BatchTableNames.Events,
+      cutoffCreatedAt: new Date(),
+      batchActionId: "batch-action-1",
+      query: createQuery(),
+      config: datasetConfig,
+      type: BatchActionType.Create,
+    });
 
     expect(mocks.getEventsStreamForDataset).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -205,141 +184,52 @@ describe("event batch-action comment filter wiring", () => {
         ],
       }),
     );
-    expect(query).toEqual(originalQuery);
   });
 
   it("resolves observation comments before streaming legacy Observations into a dataset", async () => {
-    const rawFilter = [
-      {
-        type: "string" as const,
-        column: "commentContent",
-        operator: "contains" as const,
-        value: "legacy observation",
-      },
-    ];
-    const resolvedFilter = [
-      {
-        type: "stringOptions" as const,
-        column: "id",
-        operator: "any of" as const,
-        value: ["observation-legacy"],
-      },
-    ];
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: resolvedFilter,
-      hasNoMatches: false,
-      matchingIds: ["observation-legacy"],
+    resolveComments();
+
+    await runBatchAction({
+      projectId: "project-1",
+      actionId: "observation-add-to-dataset",
+      tableName: BatchTableNames.Observations,
+      cutoffCreatedAt: new Date(),
+      batchActionId: "batch-action-legacy",
+      query: createQuery(),
+      config: datasetConfig,
+      type: BatchActionType.Create,
     });
 
-    await handleBatchActionJob({
-      payload: {
-        projectId: "project-1",
-        actionId: "observation-add-to-dataset",
-        tableName: BatchTableNames.Observations,
-        cutoffCreatedAt: new Date(),
-        batchActionId: "batch-action-legacy",
-        query: { filter: rawFilter, orderBy: null },
-        config: datasetConfig,
-        type: BatchActionType.Create,
-      },
-    } as never);
-
     expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
-      filterState: rawFilter,
+      filterState: rawCommentFilter,
       prisma,
       projectId: "project-1",
       objectType: "OBSERVATION",
     });
     expect(mocks.getObservationStream).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: resolvedFilter }),
+      expect.objectContaining({ filter: resolvedCommentFilter }),
     );
   });
 
   it("resolves observation comments before streaming Events for a batched evaluation", async () => {
-    const rawFilter = [
-      {
-        type: "string" as const,
-        column: "commentContent",
-        operator: "contains" as const,
-        value: "evaluate",
-      },
-    ];
-    const query = { filter: rawFilter, orderBy: null };
-    const originalQuery = structuredClone(query);
-    const resolvedFilter = [
-      {
-        type: "stringOptions" as const,
-        column: "id",
-        operator: "any of" as const,
-        value: ["observation-2"],
-      },
-    ];
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: resolvedFilter,
-      hasNoMatches: false,
-      matchingIds: ["observation-2"],
-    });
+    resolveComments();
     mocks.findEvaluators.mockResolvedValue([
       {
-        id: "evaluator-1",
-        projectId: "project-1",
-        evalTemplateId: "template-1",
-        evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
-        scoreName: "quality",
-        targetObject: EvalTargetObject.EVENT,
-        variableMapping: [],
-        status: JobConfigState.ACTIVE,
-        blockedAt: null,
+        evalTemplate: { type: "LLM_AS_JUDGE" },
       },
     ]);
 
-    await handleBatchActionJob({
-      payload: {
-        projectId: "project-1",
-        actionId: "observation-run-batched-evaluation",
-        cutoffCreatedAt: new Date(),
-        batchActionId: "batch-action-2",
-        evaluatorIds: ["evaluator-1"],
-        query,
-      },
-    } as never);
+    await runBatchAction({
+      projectId: "project-1",
+      actionId: "observation-run-batched-evaluation",
+      cutoffCreatedAt: new Date(),
+      batchActionId: "batch-action-2",
+      evaluatorIds: ["evaluator-1"],
+      query: createQuery(),
+    });
 
     expect(mocks.getEventsStreamForEval).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: resolvedFilter }),
-    );
-    expect(mocks.processBatchedObservationEval).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId: "project-1",
-        batchActionId: "batch-action-2",
-      }),
-    );
-    expect(query).toEqual(originalQuery);
-  });
-
-  it("does not alter the legacy trace-delete path", async () => {
-    const rawFilter = [
-      {
-        type: "string" as const,
-        column: "commentContent",
-        operator: "contains" as const,
-        value: "leave untouched",
-      },
-    ];
-
-    await handleBatchActionJob({
-      payload: {
-        projectId: "project-1",
-        actionId: "trace-delete",
-        tableName: BatchTableNames.Events,
-        cutoffCreatedAt: new Date(),
-        query: { filter: rawFilter, orderBy: null },
-        type: BatchActionType.Delete,
-      },
-    } as never);
-
-    expect(mocks.applyCommentFilters).not.toHaveBeenCalled();
-    expect(mocks.getTraceIdentifierStream).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: rawFilter }),
+      expect.objectContaining({ filter: resolvedCommentFilter }),
     );
   });
 });

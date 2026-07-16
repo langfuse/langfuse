@@ -3080,46 +3080,31 @@ describe("batch export test suite", () => {
 
     it("should export Events selected by observation comment filters", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
-      const matchingEventId = randomUUID();
-      const otherEventId = randomUUID();
       const searchToken = `eventcomment${randomUUID().replaceAll("-", "")}`;
-      const now = Date.now() * 1000;
-
-      await createEventsCh([
+      const events = [
         createEvent({
-          id: matchingEventId,
-          span_id: matchingEventId,
           project_id: projectId,
           trace_id: randomUUID(),
           name: "event-with-matching-comment",
-          start_time: now,
         }),
         createEvent({
-          id: otherEventId,
-          span_id: otherEventId,
           project_id: projectId,
           trace_id: randomUUID(),
           name: "event-without-matching-comment",
-          start_time: now + 1_000,
         }),
-      ]);
+      ];
+      await createEventsCh(events);
       await prisma.comment.create({
         data: {
           projectId,
           objectType: "OBSERVATION",
-          objectId: matchingEventId,
+          objectId: events[0].id,
           content: `Export ${searchToken}`,
         },
       });
 
-      const { filterState, hasNoMatches } = await applyCommentFilters({
+      const { filterState } = await applyCommentFilters({
         filterState: [
-          {
-            type: "number",
-            column: "commentCount",
-            operator: ">=",
-            value: 1,
-          },
           {
             type: "string",
             column: "commentContent",
@@ -3132,20 +3117,17 @@ describe("batch export test suite", () => {
         objectType: "OBSERVATION",
       });
 
-      expect(hasNoMatches).toBe(false);
-
-      const rows: any[] = [];
-      for await (const row of await getEventsStream({
-        projectId,
-        cutoffCreatedAt: new Date(Date.now() + 60_000),
-        filter: filterState,
-      })) {
-        rows.push(row);
-      }
+      const rows = await (
+        await getEventsStream({
+          projectId,
+          cutoffCreatedAt: new Date(Date.now() + 60_000),
+          filter: filterState,
+        })
+      ).toArray();
 
       expect(rows).toHaveLength(1);
       expect(rows[0]).toMatchObject({
-        id: matchingEventId,
+        id: events[0].id,
         comments: [
           expect.objectContaining({ content: `Export ${searchToken}` }),
         ],

@@ -1,30 +1,49 @@
 import type { PrismaClient } from "../../db";
+import { InvalidRequestError } from "../../errors";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyCommentFilters,
   COMMENT_FILTER_THRESHOLD,
+  validateObjectIdCount,
 } from "./commentFilterService";
 
-describe("applyCommentFilters", () => {
-  const projectId = "comment-filter-project";
+const commonArgs = {
+  projectId: "comment-filter-project",
+  objectType: "OBSERVATION" as const,
+};
 
+const commentCountFilter = (operator: "=" | ">=" | "<=", value: number) => ({
+  type: "number" as const,
+  column: "commentCount",
+  operator,
+  value,
+});
+
+const objectIdFilter = (operator: "any of" | "none of", value: string[]) => ({
+  type: "stringOptions" as const,
+  column: "id",
+  operator,
+  value,
+});
+
+const createPrisma = (...queryResults: Array<Array<{ object_id: string }>>) => {
+  const queryRaw = vi.fn();
+  queryResults.forEach((result) => queryRaw.mockResolvedValueOnce(result));
+
+  return {
+    prisma: { $queryRaw: queryRaw } as unknown as PrismaClient,
+    queryRaw,
+  };
+};
+
+describe("applyCommentFilters", () => {
   it("removes an unbounded zero-inclusive count filter without excluding uncommented events", async () => {
-    const prisma = {
-      $queryRaw: vi.fn(),
-    } as unknown as PrismaClient;
+    const { prisma, queryRaw } = createPrisma();
 
     const result = await applyCommentFilters({
-      filterState: [
-        {
-          type: "number",
-          column: "commentCount",
-          operator: ">=",
-          value: 0,
-        },
-      ],
+      filterState: [commentCountFilter(">=", 0)],
       prisma,
-      projectId,
-      objectType: "OBSERVATION",
+      ...commonArgs,
     });
 
     expect(result).toEqual({
@@ -32,26 +51,18 @@ describe("applyCommentFilters", () => {
       hasNoMatches: false,
       matchingIds: null,
     });
-    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 
   it("applies content filtering when an unbounded count filter includes zero", async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([
-        {
-          object_id: "observation-with-matching-comment",
-        },
-      ]),
-    } as unknown as PrismaClient;
+    const matchingIds = ["observation-with-matching-comment"];
+    const { prisma, queryRaw } = createPrisma(
+      matchingIds.map((object_id) => ({ object_id })),
+    );
 
     const result = await applyCommentFilters({
       filterState: [
-        {
-          type: "number",
-          column: "commentCount",
-          operator: ">=",
-          value: 0,
-        },
+        commentCountFilter(">=", 0),
         {
           type: "string",
           column: "commentContent",
@@ -60,87 +71,84 @@ describe("applyCommentFilters", () => {
         },
       ],
       prisma,
-      projectId,
-      objectType: "OBSERVATION",
+      ...commonArgs,
     });
 
     expect(result).toEqual({
-      filterState: [
-        {
-          type: "stringOptions",
-          operator: "any of",
-          column: "id",
-          value: ["observation-with-matching-comment"],
-        },
-      ],
+      filterState: [objectIdFilter("any of", matchingIds)],
       hasNoMatches: false,
-      matchingIds: ["observation-with-matching-comment"],
+      matchingIds,
     });
-    expect(prisma.$queryRaw).toHaveBeenCalledOnce();
+    expect(queryRaw).toHaveBeenCalledOnce();
   });
 
   it("expresses a bounded zero-inclusive count filter as an exclusion", async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue([
-        {
-          object_id: "observation-with-too-many-comments",
-        },
-      ]),
-    } as unknown as PrismaClient;
+    const excludedIds = ["observation-with-too-many-comments"];
+    const { prisma } = createPrisma(
+      excludedIds.map((object_id) => ({ object_id })),
+    );
 
     const result = await applyCommentFilters({
-      filterState: [
-        {
-          type: "number",
-          column: "commentCount",
-          operator: "<=",
-          value: 1,
-        },
-      ],
+      filterState: [commentCountFilter("<=", 1)],
       prisma,
-      projectId,
-      objectType: "OBSERVATION",
+      ...commonArgs,
     });
 
     expect(result).toEqual({
-      filterState: [
-        {
-          type: "stringOptions",
-          operator: "none of",
-          column: "id",
-          value: ["observation-with-too-many-comments"],
-        },
-      ],
+      filterState: [objectIdFilter("none of", excludedIds)],
       hasNoMatches: false,
       matchingIds: null,
     });
   });
 
-  it("preserves the 50,000-ID guard for Events comment filters", async () => {
-    const prisma = {
-      $queryRaw: vi.fn().mockResolvedValue(
-        Array.from({ length: COMMENT_FILTER_THRESHOLD + 1 }, (_, index) => ({
-          object_id: `observation-${index}`,
-        })),
-      ),
-    } as unknown as PrismaClient;
-
-    await expect(
-      applyCommentFilters({
-        filterState: [
-          {
-            type: "number",
-            column: "commentCount",
-            operator: ">=",
-            value: 1,
-          },
+  it.each([
+    {
+      name: "applies an equality count filter that excludes zero",
+      filters: [commentCountFilter("=", 1)],
+      queryResults: [[{ object_id: "observation-with-one-comment" }]],
+      matchingIds: ["observation-with-one-comment"],
+    },
+    {
+      name: "applies all lower bounds when only some include zero",
+      filters: [commentCountFilter(">=", 0), commentCountFilter(">=", 1)],
+      queryResults: [
+        [
+          { object_id: "matching-observation" },
+          { object_id: "first-query-only" },
         ],
-        prisma,
-        projectId,
-        objectType: "OBSERVATION",
-      }),
-    ).rejects.toThrow(
-      "Comment filter matches 50,001 observations (limit: 50,000)",
+        [{ object_id: "matching-observation" }],
+      ],
+      matchingIds: ["matching-observation"],
+    },
+  ])("$name", async ({ filters, queryResults, matchingIds }) => {
+    const { prisma, queryRaw } = createPrisma(...queryResults);
+
+    const result = await applyCommentFilters({
+      filterState: filters,
+      prisma,
+      ...commonArgs,
+    });
+
+    expect(result).toEqual({
+      filterState: [objectIdFilter("any of", matchingIds)],
+      hasNoMatches: false,
+      matchingIds,
+    });
+    expect(queryRaw).toHaveBeenCalledTimes(queryResults.length);
+  });
+});
+
+describe("validateObjectIdCount", () => {
+  it("rejects matches above the 50,000-ID guard with a user-facing error", () => {
+    const validate = () =>
+      validateObjectIdCount(
+        Array<string>(COMMENT_FILTER_THRESHOLD + 1).fill("observation-id"),
+        "OBSERVATION",
+      );
+
+    expect(validate).toThrow(InvalidRequestError);
+    expect(validate).toThrow(
+      "Comment filter matches 50,001 observations (limit: 50,000). Please add additional filters to narrow your search.",
     );
   });
 });

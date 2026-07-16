@@ -45,6 +45,10 @@ export function validateObjectIdCount(
 function filterRangeIncludesZero(
   filters: Array<{ type: string; operator: string; value: number }>,
 ): boolean {
+  if (filters.some((f) => f.operator === "=" && f.value !== 0)) {
+    return false;
+  }
+
   const lowerBoundFilters = filters.filter(
     (f) => f.type === "number" && (f.operator === ">=" || f.operator === ">"),
   );
@@ -54,8 +58,8 @@ function filterRangeIncludesZero(
     return true;
   }
 
-  // Check if any lower bound allows 0
-  return lowerBoundFilters.some(
+  // Every lower bound must allow 0 because filters are combined with AND.
+  return lowerBoundFilters.every(
     (f) =>
       (f.operator === ">=" && f.value <= 0) ||
       (f.operator === ">" && f.value < 0),
