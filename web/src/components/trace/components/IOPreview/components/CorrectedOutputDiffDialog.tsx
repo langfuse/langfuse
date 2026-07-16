@@ -84,7 +84,7 @@ export const CorrectedOutputDiffDialog: React.FC<
           {hasNoOriginalOutput ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <div className="text-muted-foreground">
-                <p className="text-lg font-medium">No original output</p>
+                <p className="text-lg font-bold">No original output</p>
                 <p className="mt-2 text-sm">
                   There is no original output to compare with the correction.
                 </p>

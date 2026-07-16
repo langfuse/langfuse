@@ -43,7 +43,7 @@ function PairChip({
   return (
     <div className="flex w-52 flex-col gap-1">
       <div
-        className="border-border flex h-12 items-center justify-center rounded-md border px-2 text-sm font-medium"
+        className="border-border flex h-12 items-center justify-center rounded-md border px-2 text-sm font-bold"
         style={{
           backgroundColor: `hsl(var(--${bg}))`,
           color: `hsl(var(--${fg}))`,
@@ -69,7 +69,7 @@ function Section({
 }) {
   return (
     <section className="mt-8">
-      <h2 className="text-foreground text-lg font-semibold">{title}</h2>
+      <h2 className="text-foreground text-lg font-bold">{title}</h2>
       {note && <p className="text-muted-foreground mt-1 text-xs">{note}</p>}
       <div className="mt-3 flex flex-wrap gap-3">{children}</div>
     </section>

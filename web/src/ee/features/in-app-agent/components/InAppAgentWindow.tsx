@@ -224,7 +224,7 @@ function InAppAgentRateLimitError({
       )}
     >
       <div className="space-y-0.5">
-        <p className="font-medium">
+        <p className="font-bold">
           You&apos;ve reached the assistant request limit
         </p>
         <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
@@ -405,13 +405,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p
-            className="shrink-0 truncate text-sm font-semibold"
-            title="Assistant"
-          >
+          <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
             Assistant
           </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
+          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
             Beta
           </span>
         </div>

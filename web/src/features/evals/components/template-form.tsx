@@ -576,7 +576,7 @@ export const InnerEvalTemplateForm = (props: {
                       <Input {...field} placeholder="Select a name" />
                     </FormControl>
                     {existingTemplate && (
-                      <p className="text-destructive text-sm font-medium">
+                      <p className="text-destructive text-sm font-bold">
                         Template with this name already exists.{" "}
                         <Link
                           href={`/project/${props.projectId}/evals/templates/${existingTemplate.id}`}
@@ -637,7 +637,7 @@ export const InnerEvalTemplateForm = (props: {
           {/* Model Selection Section */}
           <Card>
             <CardContent>
-              <p className="my-2 font-semibold">Model</p>
+              <p className="my-2 font-bold">Model</p>
               <FormField
                 control={form.control}
                 name="shouldUseDefaultModel"
@@ -693,7 +693,7 @@ export const InnerEvalTemplateForm = (props: {
                 ) : (
                   <ModelParameters
                     customHeader={
-                      <p className="text-sm leading-none font-medium">
+                      <p className="text-sm leading-none font-bold">
                         Custom model configuration
                       </p>
                     }
@@ -716,7 +716,7 @@ export const InnerEvalTemplateForm = (props: {
           <Card>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <p className="my-2 font-semibold">Prompt</p>
+                <p className="my-2 font-bold">Prompt</p>
                 <FormField
                   control={form.control}
                   name="prompt"
@@ -914,7 +914,7 @@ export const InnerEvalTemplateForm = (props: {
                         )}
                       />
                       {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-medium">
+                        <p className="text-destructive text-sm font-bold">
                           {categoriesErrorMessage}
                         </p>
                       ) : null}
@@ -1033,7 +1033,7 @@ function CodeEvalSdkVersionCallout({
       <AlertTriangle className="text-dark-yellow h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-1">
-          <span className="text-foreground font-medium">
+          <span className="text-foreground font-bold">
             Please verify your SDK version
           </span>
           <span className="text-foreground text-sm">
@@ -1044,7 +1044,7 @@ function CodeEvalSdkVersionCallout({
               href="https://langfuse.com/docs/observability/sdk/upgrade-path"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Learn more
             </a>

@@ -117,7 +117,7 @@ export function TimelineGutterRow({
         </div>
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-xs font-medium",
+            "min-w-0 flex-1 truncate text-xs font-bold",
             isSelected ? "text-foreground" : "dark:text-muted-foreground",
           )}
           title={node.name}

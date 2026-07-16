@@ -210,7 +210,7 @@ export function DataTableControls({
               </TooltipTrigger>
               <TooltipContent>Hide filters</TooltipContent>
             </Tooltip>
-            <span className="text-sm font-medium">Filters</span>
+            <span className="text-sm font-bold">Filters</span>
           </div>
           <div className="flex items-center gap-1">
             {queryFilter.isFiltered && (
@@ -518,7 +518,7 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="bg-background sticky top-10 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "flex flex-1 items-center justify-between text-left font-bold hover:underline [&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
@@ -876,7 +876,7 @@ export function CategoricalFacet({
                     className={cn(
                       "rounded-l px-1.5 py-0.5 transition-colors",
                       operator === "any of" || !operator
-                        ? "bg-accent text-accent-foreground font-medium"
+                        ? "bg-accent text-accent-foreground font-bold"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -888,7 +888,7 @@ export function CategoricalFacet({
                     className={cn(
                       "px-1.5 py-0.5 transition-colors",
                       operator === "all of"
-                        ? "bg-accent text-accent-foreground font-medium"
+                        ? "bg-accent text-accent-foreground font-bold"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -900,7 +900,7 @@ export function CategoricalFacet({
                     className={cn(
                       "rounded-r px-1.5 py-0.5 transition-colors",
                       operator === "none of"
-                        ? "bg-accent text-accent-foreground font-medium"
+                        ? "bg-accent text-accent-foreground font-bold"
                         : "text-muted-foreground hover:text-foreground",
                     )}
                   >
@@ -1498,7 +1498,7 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
           className={cn(
             "flex-1 rounded-t px-3 py-0.5 transition-colors @[7.5rem]:rounded-l @[7.5rem]:rounded-tr-none",
             mode === "select"
-              ? "bg-accent text-accent-foreground font-medium"
+              ? "bg-accent text-accent-foreground font-bold"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -1510,7 +1510,7 @@ function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
           className={cn(
             "flex-1 rounded-b px-3 py-0.5 transition-colors @[7.5rem]:rounded-r @[7.5rem]:rounded-bl-none",
             mode === "text"
-              ? "bg-accent text-accent-foreground font-medium"
+              ? "bg-accent text-accent-foreground font-bold"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -1555,7 +1555,7 @@ function TextFilterSection({
             className={cn(
               "rounded-l px-2 py-0.5 transition-colors",
               selectedOperator === "contains"
-                ? "bg-accent text-accent-foreground font-medium"
+                ? "bg-accent text-accent-foreground font-bold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1567,7 +1567,7 @@ function TextFilterSection({
             className={cn(
               "rounded-r px-2 py-0.5 transition-colors",
               selectedOperator === "does not contain"
-                ? "bg-accent text-accent-foreground font-medium"
+                ? "bg-accent text-accent-foreground font-bold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1609,11 +1609,11 @@ function TextFilterSection({
               key={idx}
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
-              <span className="text-muted-foreground shrink-0 text-[10px] font-medium">
+              <span className="text-muted-foreground shrink-0 text-[10px] font-bold">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
               <span
-                className="min-w-0 flex-1 truncate font-medium"
+                className="min-w-0 flex-1 truncate font-bold"
                 title={f.value}
               >
                 {f.value}
@@ -1727,7 +1727,7 @@ export function DataTableControlsSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-medium">{title}</h3>
+      <h3 className="text-foreground text-sm font-bold">{title}</h3>
       <div>{children}</div>
     </div>
   );

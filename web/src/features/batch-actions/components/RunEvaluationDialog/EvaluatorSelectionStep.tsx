@@ -189,7 +189,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       >
                         <div className="min-w-0 flex-1">
                           <p
-                            className="truncate text-sm font-medium"
+                            className="truncate text-sm font-bold"
                             title={item.scoreName}
                           >
                             {item.scoreName}

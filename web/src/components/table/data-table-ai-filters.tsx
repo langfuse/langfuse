@@ -77,7 +77,7 @@ export function DataTableAIFilters({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Filter with AI</span>
+        <span className="text-sm font-bold">Filter with AI</span>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

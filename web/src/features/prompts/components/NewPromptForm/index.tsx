@@ -258,8 +258,8 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                     </FormControl>
                     {/* Custom form message to include a link to the already existing prompt */}
                     {form.getFieldState("name").error ? (
-                      <div className="text-destructive flex flex-row space-x-1 text-sm font-medium">
-                        <p className="text-destructive text-sm font-medium">
+                      <div className="text-destructive flex flex-row space-x-1 text-sm font-bold">
+                        <p className="text-destructive text-sm font-bold">
                           {errorMessage}
                         </p>
                         {errorMessage?.includes("already exist") ? (
@@ -288,9 +288,9 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               Define your prompt template. You can use{" "}
               <code className="text-xs">{"{{variable}}"}</code> to insert
               variables into your prompt.
-              <b className="font-semibold"> Note:</b> Variables must be
-              alphabetical characters or underscores. You can also link other
-              text prompts using the plus button.
+              <b className="font-bold"> Note:</b> Variables must be alphabetical
+              characters or underscores. You can also link other text prompts
+              using the plus button.
             </FormDescription>
             <Tabs
               value={form.watch("type")}

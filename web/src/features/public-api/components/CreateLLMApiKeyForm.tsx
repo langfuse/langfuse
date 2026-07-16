@@ -1292,7 +1292,7 @@ export function CreateLLMApiKeyForm({
                           <FormDescription>
                             Google Cloud region (e.g., global, us-central1,
                             europe-west4). Defaults to{" "}
-                            <span className="font-medium">global</span> as
+                            <span className="font-bold">global</span> as
                             required for Gemini 3 models.
                           </FormDescription>
                           <FormControl>

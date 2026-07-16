@@ -45,7 +45,7 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                   index === selectedIndex
                     ? "border-primary-accent text-foreground"
                     : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
-                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap",
+                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-bold whitespace-nowrap",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
                 onClick={() => {

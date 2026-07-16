@@ -573,7 +573,7 @@ export function DashboardWidget({
       )}
       <div className="flex items-center justify-between">
         <span
-          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          className="flex min-w-0 items-center gap-1.5 truncate font-bold"
           title={widget.data.name}
         >
           <span className="truncate" title={widget.data.name}>

@@ -921,7 +921,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                               <HoverCardTrigger asChild>
                                 <span
                                   className={cn(
-                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-medium wrap-break-word underline decoration-dashed underline-offset-2",
+                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
                                     config.isArchived
                                       ? "text-foreground/40"
                                       : "",
@@ -937,7 +937,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           ) : (
                             <span
                               className={cn(
-                                "line-clamp-2 min-w-0 text-xs font-medium wrap-break-word",
+                                "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
                                 config.isArchived ? "text-foreground/40" : "",
                               )}
                               title={score.name}
@@ -1189,7 +1189,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
-                                <h2 className="mb-3 font-semibold">
+                                <h2 className="mb-3 font-bold">
                                   Your score is archived
                                 </h2>
                                 <p className="mb-3 text-sm">

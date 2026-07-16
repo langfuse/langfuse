@@ -16,7 +16,7 @@ function JSONTableViewHeaderInner<T>({
   hasExpandIcon,
 }: JSONTableViewHeaderProps<T>) {
   return (
-    <div className="border-border bg-muted/50 text-muted-foreground flex min-h-6 items-center gap-2 border-b px-3 py-0.5 text-xs font-medium">
+    <div className="border-border bg-muted/50 text-muted-foreground flex min-h-6 items-center gap-2 border-b px-3 py-0.5 text-xs font-bold">
       {/* Spacer for expand icon (aligns with chevron in rows) */}
       {hasExpandIcon && <div className="w-4" />}
 

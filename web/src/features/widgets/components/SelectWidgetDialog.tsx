@@ -62,7 +62,7 @@ function WidgetRow({
     <button type="button" onClick={onClick} className={rowClassName}>
       <RowIllustration type={widget.chartType} />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium" title={widget.name}>
+        <div className="truncate font-bold" title={widget.name}>
           {widget.name}
         </div>
         {widget.description ? (
@@ -174,7 +174,7 @@ export function SelectWidgetDialog({
               >
                 <RowIllustration type="CUSTOM" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium">Custom Chart</div>
+                  <div className="font-bold">Custom Chart</div>
                   <div className="text-muted-foreground text-xs">
                     Pick a data view, metrics, and chart type from scratch
                   </div>
@@ -235,7 +235,7 @@ export function SelectWidgetDialog({
                             <RowIllustration type={meta.illustration} />
                             <div className="min-w-0 flex-1">
                               <div
-                                className="truncate font-medium"
+                                className="truncate font-bold"
                                 title={meta.name}
                               >
                                 {meta.name}

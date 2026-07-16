@@ -467,13 +467,13 @@ function IOPreviewJSONInner({
         {needsVirtualization && (
           <HoverCard>
             <HoverCardTrigger asChild>
-              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-medium">
+              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
                 Virtualized
               </span>
             </HoverCardTrigger>
             <HoverCardContent className="w-80" side="bottom" align="end">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Virtualized View</p>
+                <p className="text-sm font-bold">Virtualized View</p>
                 <p className="text-muted-foreground text-xs">
                   This view is using virtualization due to a large number of
                   keys ({rowCounts.input.toLocaleString()} input,{" "}
