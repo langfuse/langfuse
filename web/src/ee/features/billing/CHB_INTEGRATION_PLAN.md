@@ -305,8 +305,25 @@ the cutoff and are additive/read-only, so they ship first.
   `packages/shared/src/server/repositories/`), filtered to the requested
   project. Response shape exactly per BIL-5794
   (`metrics: { traces: {sum}, scores: {sum}, observations: {sum} }`).
-- Guardrails: reject windows > 35 days; validate ISO timestamps; 404 unknown
-  project. Perf note: unbounded `created_at` scans on `observations` have hit
+- Guardrails: reject windows > 35 days; validate ISO timestamps. Auth and
+  input validation fail loudly (401/400) — only *resource existence* is soft,
+  per the next bullet.
+- **Unknown resources return zeros, never 404** (requirement added on
+  BIL-5794, 2026-07-16, to match the Billing Metrics Pipelines of other
+  ClickHouse products): a `resourceId` that does not exist during the
+  interval — never existed, already deleted, or homed in another region —
+  returns 200 with `traces/scores/observations = 0`. The ClickHouse count
+  queries yield this naturally (no rows → sum 0), so the endpoint performs no
+  project-existence check at all. Two consequences we accept and mitigate:
+  (a) zeros can mask a misconfigured/misrouted CHB poller, so responses for
+  project ids unknown to this region increment a dedicated metric
+  (`langfuse.billing_metrics.unknown_resource`) with a debug log, giving us a
+  signal without changing the contract; (b) after a project is hard-deleted
+  its *historical* intervals also read as zero — acceptable because CHB
+  receives `LANGFUSE_PROJECT_DELETED` at soft-delete time, stops metering,
+  and polls short trailing windows, so it never needs deep history for a
+  deleted project.
+- Perf note: unbounded `created_at` scans on `observations` have hit
   the 125 s ClickHouse ceiling in prod before — CHB's poller uses short
   (hourly/daily) windows, and the window cap keeps ad-hoc calls from
   triggering full scans; if wide-window calls become a requirement, add a
@@ -466,7 +483,8 @@ orgs · org-deletion path dispatches `cancelImmediatelyAndInvoice`.
 - **Server integration** (`pnpm --filter web run test`): webhook route
   end-to-end with signed fixtures (region-miss → 200-ignore; created →
   anchor + spend alerts + cache invalidation) · metrics API (auth failure,
-  window validation, counts against seeded CH data) · router dispatch: same
+  window validation, counts against seeded CH data, **unknown/deleted/foreign
+  `resourceId` → 200 with zero-valued metrics, not 404**) · router dispatch: same
   procedure hits Stripe service for a legacy-config org and CHB service for a
   cutoff org. Note: server tests run in dual write mode via root `.env` —
   metrics-API count tests must seed via the standard ingestion path, not raw
