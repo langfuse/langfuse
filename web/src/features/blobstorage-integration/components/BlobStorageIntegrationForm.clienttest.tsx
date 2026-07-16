@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
+  LEGACY_BLOB_EXPORT_CUTOFF,
   type BlobStorageIntegration,
+  type ExportSourceContext,
 } from "@langfuse/shared";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
@@ -10,13 +12,15 @@ import {
   buildBlobStorageFormValues,
   type BlobStorageFormValues,
 } from "./formValues";
-import { type ExportSourceAvailability } from "@/src/features/blobstorage-integration/exportSource";
 
-// EVENTS-only deployment: single selectable source, selector hidden —
-// keeps the rendered tree small and the submit payload valid.
-const availability: ExportSourceAvailability = {
-  eventsExportAvailable: true,
-  forceEventsExport: true,
+// EVENTS-only context (post-cutoff Cloud project, new row): single selectable
+// source, selector hidden — keeps the rendered tree small and the submit
+// payload valid.
+const exportSourceCtx: ExportSourceContext = {
+  isCloud: true,
+  enrichedAvailable: true,
+  projectCreatedAt: new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + 1),
+  integrationCreatedAt: null,
 };
 
 const savedConfig: Partial<BlobStorageIntegration> = {
@@ -37,7 +41,7 @@ const ui = (
     <BlobStorageIntegrationForm
       key={key}
       initialValues={initialValues}
-      availability={availability}
+      exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
       isSaving={false}
       onSubmit={onSubmit}
@@ -67,14 +71,16 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     const { rerender } = render(
       ui(
         "p1:configured",
-        buildBlobStorageFormValues(savedConfig, availability),
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
       ),
     );
     fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
     expect(bucketInput()).toHaveValue("edited-bucket");
 
     // Container behavior after delete: config becomes null → key flips.
-    rerender(ui("p1:new", buildBlobStorageFormValues(undefined, availability)));
+    rerender(
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
 
     expect(bucketInput()).toHaveValue("");
     expect(screen.getByLabelText("Region")).toHaveValue("auto");
@@ -82,7 +88,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
 
   it("project switch: key change discards unsaved input from the previous project", () => {
     const { rerender } = render(
-      ui("p1:new", buildBlobStorageFormValues(undefined, availability)),
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
     );
     fireEvent.change(bucketInput(), {
       target: { value: "project-a-secret-bucket" },
@@ -91,7 +97,9 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
       target: { value: "AKIA-PROJECT-A" },
     });
 
-    rerender(ui("p2:new", buildBlobStorageFormValues(undefined, availability)));
+    rerender(
+      ui("p2:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
 
     expect(bucketInput()).toHaveValue("");
     expect(screen.getByLabelText(/Access Key ID/)).toHaveValue("");
@@ -99,14 +107,14 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
 
   it("post-create: key flip to 'configured' initializes from the saved config", () => {
     const { rerender } = render(
-      ui("p1:new", buildBlobStorageFormValues(undefined, availability)),
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
     );
     fireEvent.change(bucketInput(), { target: { value: "typed-before-save" } });
 
     rerender(
       ui(
         "p1:configured",
-        buildBlobStorageFormValues(savedConfig, availability),
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
       ),
     );
 
@@ -120,7 +128,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     const { rerender } = render(
       ui(
         "p1:configured",
-        buildBlobStorageFormValues(savedConfig, availability),
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
       ),
     );
     fireEvent.change(bucketInput(), { target: { value: "mid-save-typing" } });
@@ -130,7 +138,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
         "p1:configured",
         buildBlobStorageFormValues(
           { ...savedConfig, bucketName: "refetched-bucket" },
-          availability,
+          exportSourceCtx,
         ),
       ),
     );
@@ -143,7 +151,7 @@ describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
     render(
       ui(
         "p1:new",
-        buildBlobStorageFormValues(undefined, availability),
+        buildBlobStorageFormValues(undefined, exportSourceCtx),
         onSubmit,
       ),
     );

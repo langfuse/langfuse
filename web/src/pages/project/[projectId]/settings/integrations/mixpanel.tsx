@@ -35,7 +35,7 @@ import {
 import {
   AnalyticsIntegrationExportSource,
   EXPORT_SOURCE_OPTIONS,
-  isLegacyBlobExportAllowed,
+  validateExportSource,
 } from "@langfuse/shared";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -152,10 +152,17 @@ const MixpanelIntegrationSettingsForm = ({
 
   // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
   // Export Source field is hidden in that case; the form value is pinned to
-  // EVENTS via the default below. Mirrors blob-storage settings (LFE-9688 / 9830).
+  // EVENTS via the default below (see export-source-policy.ts).
   const isPostCutoffCloud =
     project?.createdAt != null &&
-    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+    !validateExportSource(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      {
+        isCloud: isLangfuseCloud,
+        enrichedAvailable: true,
+        projectCreatedAt: new Date(project.createdAt),
+      },
+    ).ok;
   const showExportSourceField = isBetaEnabled && !isPostCutoffCloud;
 
   const mixpanelForm = useForm({
