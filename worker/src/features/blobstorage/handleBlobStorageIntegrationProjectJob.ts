@@ -1426,10 +1426,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       files: runFiles,
     });
 
-    // Warn legacy-source projects about the impending v3 deprecation by writing
-    // a notice file into their destination; remove a stale notice once a project
-    // has migrated off a legacy source. Cloud-only (see isCloud above); both
-    // sides are best-effort and never fail the run.
+    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
     if (isCloud) {
       if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
         await writeBlobExportDeprecationNotice({
@@ -1438,10 +1435,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
           projectId,
         });
       } else if (
-        // Only integrations old enough to have used a legacy source could have
-        // written a notice. New (post-cutoff) integrations can't select a legacy
-        // source, so skip the delete for them — otherwise every enriched-only
-        // export would add a needless per-run s3:DeleteObject dependency on the
+        // Gate cleanup on "old enough to have written a notice": otherwise every
+        // enriched-only export adds a needless per-run s3:DeleteObject on the
         // destination, which is write-only for many customers.
         isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
       ) {
