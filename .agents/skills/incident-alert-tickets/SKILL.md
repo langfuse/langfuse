@@ -32,6 +32,12 @@ present, the lookup is mandatory; recording is offered after the investigation
 and gated on human approval. A customer report or code question with no alert
 identity skips this skill.
 
+When multiple alerts fire together (a cascade), run lookup, compare, and
+classify for **each** alert identity — every monitor has its own ticket. If
+one root cause explains several alerts, write the full cause section on the
+monitor closest to the cause and propose a short dated section on the other
+monitors' tickets that links to it.
+
 ## Ticket Contract
 
 - One ticket per monitor (per env when monitors are per-env), titled
@@ -78,6 +84,11 @@ signals and classify:
 - **New cause on existing ticket** — the monitor has a ticket but no section
   matches the evidence. Propose appending a dated section.
 - **No ticket** — no ticket matches the monitor. Propose creating one.
+
+Treat a partial match — some "Recognize it" signals fit, others do not — as a
+**new cause**, never as a known one: do not recommend a documented "Fix"
+whose recognition signals only partially match. Name the near-miss section in
+the draft so the human can judge the overlap.
 
 ## Write-Back (Human Approval Gate)
 
