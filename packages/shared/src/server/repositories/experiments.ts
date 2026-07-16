@@ -11,6 +11,7 @@ import {
   CTEWithSchema,
   EventsAggQueryBuilder,
   StringFilter,
+  extractTimeFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -21,9 +22,12 @@ import {
   eventsExperimentsAggregation,
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
+  scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { extractTimeFilter, queryClickhouse } from "../repositories";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories/clickhouse";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
@@ -110,6 +114,7 @@ const experimentScoreCTE = (params: {
       "s.experiment_id AS experiment_id",
       `groupArrayIf(tuple(s.name, s.exp_avg, s.data_type, s.string_value), s.data_type IN ('NUMERIC', 'BOOLEAN')) AS ${prefix}_scores_avg`,
       `groupArrayIf(concat(s.name, ':', s.string_value), s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS ${prefix}_score_categories`,
+      `${scoreBooleansAggregation("s.")} AS ${prefix}_score_booleans`,
     )
     .groupBy("s.project_id", "s.experiment_id")
     .having(params.filters.apply())
@@ -130,7 +135,6 @@ export const getExperimentsCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -151,7 +155,6 @@ export const getExperimentsFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
     });
 
   return rows.map((row) => ({
@@ -189,12 +192,7 @@ export const getExperimentMetricsFromEvents = async (props: {
     projectId: props.projectId,
     input: {
       params,
-      tags: {
-        feature: "experiments",
-        type: "experiments-table",
-        projectId: props.projectId,
-        operation_name: "getExperimentMetricsFromEvents",
-      },
+      tags: { projectId: props.projectId },
     },
     fn: async (input) => {
       return queryClickhouse<ExperimentMetricsReturnType>({
@@ -258,10 +256,16 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   // Detect score filter presence to conditionally include score CTEs
   const hasTraceScoreFilter = scoreAggFilters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.field),
   );
   const hasObsScoreFilter = scoreAggFilters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.field,
+    ),
   );
 
   const experimentIds = experimentIdFilter?.values;
@@ -291,7 +295,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["obs_scores_avg", "obs_score_categories"].includes(f.field),
+              [
+                "obs_scores_avg",
+                "obs_score_categories",
+                "obs_score_booleans",
+              ].includes(f.field),
             ),
             level: "observation",
           }),
@@ -313,7 +321,11 @@ const getExperimentsFromEventsGeneric = async <T>(
               schema: ["project_id", "experiment_id", "trace_id"],
             },
             filters: scoreAggFilters.filter((f) =>
-              ["trace_scores_avg", "trace_score_categories"].includes(f.field),
+              [
+                "trace_scores_avg",
+                "trace_score_categories",
+                "trace_score_booleans",
+              ].includes(f.field),
             ),
             level: "trace",
           }),
@@ -352,13 +364,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     projectId,
     input: {
       params: finalParams,
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "experiments",
-        type: "experiments-table",
-        projectId,
-        operation_name: `getExperimentsFromEventsGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({
@@ -467,11 +473,7 @@ export const getExperimentItemsCountFromEvents = async (
   const rows = await queryClickhouse<{ count: string }>({
     query,
     params,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-count",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -595,6 +597,7 @@ export type ScoreColumnDefinition = {
 
 type ProcessedScoreFilterOptions = {
   numeric: string[];
+  boolean: string[];
   categorical: Array<{ label: string; values: string[] }>;
   scoreColumns: ScoreColumnDefinition[];
 };
@@ -603,6 +606,7 @@ const processScoreFilterOptionsResults = (
   rows: ScoreFilterOptionsRow[],
 ): ProcessedScoreFilterOptions => {
   const numeric = new Set<string>();
+  const boolean = new Set<string>();
   const categorical = new Map<string, Set<string>>();
   const scoreColumns: ScoreColumnDefinition[] = [];
 
@@ -616,6 +620,9 @@ const processScoreFilterOptionsResults = (
 
     if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
       numeric.add(row.name);
+    }
+    if (row.data_type === "BOOLEAN") {
+      boolean.add(row.name);
     } else if (row.data_type === "CATEGORICAL") {
       const existingValues = categorical.get(row.name) ?? new Set<string>();
       row.values.forEach((value) => existingValues.add(value));
@@ -625,6 +632,7 @@ const processScoreFilterOptionsResults = (
 
   return {
     numeric: Array.from(numeric),
+    boolean: Array.from(boolean),
     categorical: Array.from(categorical.entries()).map(([label, values]) => ({
       label,
       values: Array.from(values),
@@ -635,6 +643,7 @@ const processScoreFilterOptionsResults = (
 
 const emptyScoreFilterOptions = (): ProcessedScoreFilterOptions => ({
   numeric: [],
+  boolean: [],
   categorical: [],
   scoreColumns: [],
 });
@@ -678,23 +687,13 @@ const getExperimentItemScoreOptionsByLevel = async ({
     queryClickhouse<ScoreFilterOptionsRow>({
       query: traceQuery.query,
       params: traceQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "trace-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "observation-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
   ]);
@@ -710,9 +709,11 @@ export const getExperimentItemsFilterOptions = async (
 ): Promise<{
   obs_scores_avg: string[];
   obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_booleans: string[];
   obs_score_columns: ScoreColumnDefinition[];
   trace_scores_avg: string[];
   trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_booleans: string[];
   trace_score_columns: ScoreColumnDefinition[];
 }> => {
   const { observation, trace } =
@@ -721,9 +722,11 @@ export const getExperimentItemsFilterOptions = async (
   return {
     obs_scores_avg: observation.numeric,
     obs_score_categories: observation.categorical,
+    obs_score_booleans: observation.boolean,
     obs_score_columns: observation.scoreColumns,
     trace_scores_avg: trace.numeric,
     trace_score_categories: trace.categorical,
+    trace_score_booleans: trace.boolean,
     trace_score_columns: trace.scoreColumns,
   };
 };
@@ -756,23 +759,13 @@ const getExperimentScoreOptionsByLevel = async ({
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "observation-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: runQuery.query,
       params: runQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "run-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
   ]);
@@ -894,10 +887,16 @@ const buildQualificationPlan = (
 
   const filters = filterByExperiment.flatMap((f) => f.filters);
   const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.column),
+    ["obs_scores_avg", "obs_score_categories", "obs_score_booleans"].includes(
+      f.column,
+    ),
   );
   const hasTraceScoreFilters = filters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.column),
+    [
+      "trace_scores_avg",
+      "trace_score_categories",
+      "trace_score_booleans",
+    ].includes(f.column),
   );
 
   const allExperimentIds = [
@@ -1058,11 +1057,7 @@ export const getExperimentItemsFromEvents = async (
   const itemIdsResult = await queryClickhouse<{ item_id: string }>({
     query: itemIdsQuery,
     params: itemIdsParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-filter",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1103,11 +1098,7 @@ export const getExperimentItemsFromEvents = async (
   const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
     query: dataQuery,
     params: dataParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-data",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1211,11 +1202,7 @@ export const getExperimentItemsBatchIO = async (props: {
       ...params,
       truncateLength: IO_TRUNCATE_LENGTH,
     },
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-batch-io",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1294,12 +1281,7 @@ export const getExperimentNamesFromEvents = async (props: {
   }>({
     query,
     params,
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "analytic",
-      projectId: props.projectId,
-    },
+    tags: { projectId: props.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 

@@ -27,6 +27,7 @@ import {
   createIngestionEventSchema,
   IngestionEventType,
 } from "./types";
+import type { IngestionAttribution } from "./ingestionAttribution";
 import {
   StorageService,
   StorageServiceFactory,
@@ -42,6 +43,7 @@ import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { markProjectIngestFailure } from "../redis/ingestionFailureTracking";
 
 let s3StorageServiceClient: StorageService;
 
@@ -95,12 +97,14 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
  * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
  * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
  * @property forwardToEventsTable - Whether to forward events to the staging events table for batch propagation. If undefined, falls back to environment flags.
+ * @property attribution - Request-level ingestion attribution to persist on generated records.
  */
 type ProcessEventBatchOptions = {
   delay?: number | null;
   source?: "api" | "otel";
   isLangfuseInternal?: boolean;
   forwardToEventsTable?: boolean;
+  attribution: IngestionAttribution;
 };
 
 /**
@@ -112,7 +116,7 @@ type ProcessEventBatchOptions = {
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResultIngestion,
-  options: ProcessEventBatchOptions = {},
+  options: ProcessEventBatchOptions,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -130,6 +134,7 @@ export const processEventBatch = async (
     source = "api",
     isLangfuseInternal = false,
     forwardToEventsTable,
+    attribution,
   } = options;
 
   // add context of api call to the span
@@ -300,8 +305,16 @@ export const processEventBatch = async (
               error: result.reason,
             },
           );
-          // Fire and forget - don't await, don't block the error flow
           markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_slowdown",
+          });
+        } else {
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_upload_error",
+          });
         }
 
         logger.error("Failed to upload event to S3", {
@@ -378,6 +391,9 @@ export const processEventBatch = async (
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
                   bucketPrefix: eventData.bucketPrefix,
+                  ingestionApiKey: attribution.ingestionApiKey,
+                  ingestionSdkName: attribution.ingestionSdkName,
+                  ingestionSdkVersion: attribution.ingestionSdkVersion,
                 },
                 authCheck: authCheck as {
                   validKey: true;

@@ -1,3 +1,9 @@
+import {
+  getObservationById as getObservationByIdRoutingWrapper,
+  getTraceById as getTraceByIdRoutingWrapper,
+  getTracesIdentifierForSession as getTracesIdentifierForSessionRoutingWrapper,
+} from "./repositories/events";
+
 export * from "./services/StorageService";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
@@ -27,15 +33,17 @@ export * from "./evals/codeEvalDispatchers";
 export * from "./evals/codeEvalExecution";
 export * from "./evals/evalScoreIds";
 export * from "./evals/extractObservationVariables";
+export * from "./evals/classifyEvaluatorLlmError";
 export * from "./utils/traceId";
 export * from "./auth/apiKeyCache";
 export * from "./auth/apiKeys";
+export * from "./auth/credentials";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
 export * from "./auth/jumpcloudProvider";
 export * from "./auth/userProjectRoleAuth";
-export * from "./llm/fetchLLMCompletion";
+export * from "./llm/llmText";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
@@ -59,10 +67,12 @@ export {
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./clickhouse/queryTracking";
+export * from "./clickhouse/queryTags";
 export * from "./repositories/definitions";
 export * from "../utils/IORepresentation/chatML/types";
 export * from "../server/ingestion/types";
 export * from "../server/ingestion/modelMatch";
+export * from "./ingestion/ingestionAttribution";
 export * from "./ingestion/processEventBatch";
 export * from "../server/ingestion/validateAndInflateScore";
 export * from "./ingestion/extractToolsBackend";
@@ -105,8 +115,10 @@ export * from "./redis/entityChangeQueue";
 export * from "./redis/eventPropagationQueue";
 export * from "./redis/otelProjectTracking";
 export * from "./redis/s3SlowdownTracking";
+export * from "./redis/ingestionFailureTracking";
 export * from "./auth/types";
 export * from "./queues";
+export * from "./notifications";
 export * from "./orderByToPrisma";
 export * from "./filterToPrisma";
 export * from "./instrumentation";
@@ -116,6 +128,8 @@ export * from "./queries";
 export * from "./queries/clickhouse-sql/orderby-factory";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
+export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
+export { scoreDomainToV3 } from "./repositories/scores";
 export * from "./repositories/observations";
 export * from "./repositories/traces";
 export * from "./repositories/dataset-items";
@@ -136,6 +150,7 @@ export * from "./services/blockEvaluatorConfigs";
 export * from "./services/getProjectAdminEmails";
 export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
+export * from "./services/buildColoredAttachmentSlackMessage";
 export * from "./tableMappings";
 export * from "./otel";
 export * from "./datasets/executeWithDatasetServiceStrategy";
@@ -154,3 +169,31 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./analytics-integrations/types";
+
+// Re-annotate these deprecated routing wrappers at the public server barrel.
+// They are otherwise exposed through multiple `export *` hops, where consumers
+// and lint tooling can lose the original JSDoc deprecation metadata.
+/**
+ * @deprecated Please prefer `getTraceByIdFromEventsTable` for new use-cases.
+ * This should be exclusively used for backwards compatibility if the write mode
+ * is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getTraceById = getTraceByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getObservationById = getObservationByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession =
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+  getTracesIdentifierForSessionRoutingWrapper;

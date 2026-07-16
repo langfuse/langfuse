@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type ReactElement,
   memo,
+  useMemo,
   isValidElement,
   Children,
   createElement,
@@ -52,6 +53,7 @@ import {
   getRenderedInlineMediaIds,
   getStandaloneMediaReferenceStrings,
 } from "@/src/components/ui/markdown-media.utils";
+import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
 type ReactMarkdownNodeChildren = Exclude<
@@ -210,6 +212,30 @@ function MarkdownRenderer({
   customCodeHeaderClassName?: string;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
+
+  // Guard against payloads that would overflow the JS call stack while
+  // react-markdown recursively walks the parsed tree (crashes Firefox, whose
+  // stack is much smaller than Chrome's). Rendered as plain text instead.
+  // See markdown-render-limits.ts for the mechanism.
+  const tooLargeOrDeep = useMemo(
+    () => exceedsMarkdownRenderLimits(markdown),
+    [markdown],
+  );
+
+  if (tooLargeOrDeep) {
+    return (
+      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <Info className="h-3 w-3" />
+          Content is too large or deeply nested to render as markdown.
+          Displaying as plain text.
+        </div>
+        <pre className="text-sm break-words whitespace-pre-wrap">
+          {markdown}
+        </pre>
+      </div>
+    );
+  }
 
   // Try to parse markdown content
 
@@ -429,6 +455,7 @@ export function MarkdownView({
   className,
   controlButtons,
   afterHeader,
+  isSystemPrompt,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -440,6 +467,10 @@ export function MarkdownView({
   controlButtons?: React.ReactNode;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Collapse long content to a preview. Pass the raw message role check
+      (`role === "system"`) — the title can be a message `name` instead of the
+      role. Falls back to matching the title for callers without role data. */
+  isSystemPrompt?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -448,14 +479,26 @@ export function MarkdownView({
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
 
+  // Collapse preview is built from text parts only: serialized image/audio
+  // parts (media-reference strings, base64 data URIs) neither survive the
+  // generic markdown renderer nor belong in a first-lines text preview — and
+  // media alone should not make a prompt collapsible.
+  const collapsibleContent =
+    typeof markdown === "string"
+      ? markdown
+      : (markdown ?? [])
+          .filter(isOpenAITextContentPart)
+          .map((part) => part.text)
+          .join("\n");
+
   const {
     shouldBeCollapsible,
     isCollapsed,
     toggleCollapsed,
     truncatedContent,
   } = useCollapsibleSystemPrompt({
-    role: title ?? "",
-    content: markdownContent,
+    isSystemPrompt: isSystemPrompt ?? title === "system",
+    content: collapsibleContent,
   });
 
   const handleOnCopy = () => {
@@ -478,8 +521,19 @@ export function MarkdownView({
     getRenderedInlineMediaIds({ markdown, audio }),
   );
 
+  const collapseToggle = shouldBeCollapsible ? (
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={toggleCollapsed}
+      className="w-fit text-xs underline"
+    >
+      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+    </Button>
+  ) : null;
+
   return (
-    <div className={cn("overflow-hidden")} key={theme}>
+    <div className="overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader
@@ -499,9 +553,7 @@ export function MarkdownView({
           title === "assistant" || title === "Output" || title === "Model"
             ? "bg-accent-light-green"
             : "",
-          title === "system" || title === "Input"
-            ? "bg-primary-foreground"
-            : "",
+          title === "system" || title === "Input" ? "bg-card" : "",
           className,
         )}
       >
@@ -517,74 +569,73 @@ export function MarkdownView({
           ) : (
             <>
               <MarkdownRenderer
-                markdown={
-                  shouldBeCollapsible && isCollapsed
-                    ? truncatedContent
-                    : markdown
-                }
+                markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
               />
-              {shouldBeCollapsible && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={toggleCollapsed}
-                  className="w-fit text-xs underline"
-                >
-                  {isCollapsed
-                    ? "Expand system prompt"
-                    : "Collapse system prompt"}
-                </Button>
-              )}
+              {collapseToggle}
             </>
           )
         ) : (
-          // content parts (multi-modal)
-          (markdown ?? []).map((content, index) => {
-            if (isOpenAITextContentPart(content)) {
-              return (
-                <MarkdownRenderer
-                  key={index}
-                  markdown={content.text}
-                  theme={theme}
-                  customCodeHeaderClassName={customCodeHeaderClassName}
-                />
-              );
-            }
-
-            if (isOpenAIImageContentPart(content)) {
-              const imageUrl = content.image_url.url;
-              const safeImageUrl =
-                typeof imageUrl === "string" &&
-                OpenAIUrlImageUrl.safeParse(imageUrl).success
-                  ? getSafeImageUrl(imageUrl)
-                  : null;
-
-              return safeImageUrl ? (
-                <div key={index}>
-                  <ResizableImage src={safeImageUrl} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                <LangfuseMediaView mediaReferenceString={imageUrl} />
-              ) : (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                  <span title="<Base64 data URI>" className="h-4 w-4">
-                    <ImageOff className="h-4 w-4" />
-                  </span>
-                  <span className="truncate text-sm">
-                    {imageUrl.toString()}
-                  </span>
-                </div>
-              );
-            }
-
-            return content.type === "input_audio" ? (
-              <LangfuseMediaView
-                mediaReferenceString={content.input_audio.data}
+          // content parts (multi-modal); collapsed = preview of the joined text
+          <>
+            {isCollapsed ? (
+              <MarkdownRenderer
+                markdown={truncatedContent}
+                theme={theme}
+                customCodeHeaderClassName={customCodeHeaderClassName}
               />
-            ) : null;
-          })
+            ) : (
+              (markdown ?? []).map((content, index) => {
+                if (isOpenAITextContentPart(content)) {
+                  return (
+                    <MarkdownRenderer
+                      key={index}
+                      markdown={content.text}
+                      theme={theme}
+                      customCodeHeaderClassName={customCodeHeaderClassName}
+                    />
+                  );
+                }
+
+                if (isOpenAIImageContentPart(content)) {
+                  const imageUrl = content.image_url.url;
+                  const safeImageUrl =
+                    typeof imageUrl === "string" &&
+                    OpenAIUrlImageUrl.safeParse(imageUrl).success
+                      ? getSafeImageUrl(imageUrl)
+                      : null;
+
+                  return safeImageUrl ? (
+                    <div key={index}>
+                      <ResizableImage src={safeImageUrl} />
+                    </div>
+                  ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                    <LangfuseMediaView mediaReferenceString={imageUrl} />
+                  ) : (
+                    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                      <span title="<Base64 data URI>" className="h-4 w-4">
+                        <ImageOff className="h-4 w-4" />
+                      </span>
+                      <span
+                        className="truncate text-sm"
+                        title={imageUrl.toString()}
+                      >
+                        {imageUrl.toString()}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return content.type === "input_audio" ? (
+                  <LangfuseMediaView
+                    mediaReferenceString={content.input_audio.data}
+                  />
+                ) : null;
+              })
+            )}
+            {collapseToggle}
+          </>
         )}
         {audio ? (
           <>
@@ -604,11 +655,11 @@ export function MarkdownView({
           <div className="text-muted-foreground mx-3 border-t px-2 py-1 text-xs">
             Media
           </div>
-          <div className="flex flex-wrap gap-2 p-4 pt-1">
+          <div className="mx-3 flex flex-wrap gap-2 pt-1 pb-4">
             {remainingMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}

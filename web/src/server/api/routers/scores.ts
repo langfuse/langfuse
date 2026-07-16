@@ -100,6 +100,8 @@ type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
 };
 
+const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
+
 export const scoresRouter = createTRPCRouter({
   /**
    * Get all scores for a project, meant for internal use and *excludes metadata of scores*
@@ -339,20 +341,17 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      const scoredTracesScope =
-        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
-
       const [names, tags, traceNames, userIds, stringValues] =
         await Promise.all([
           getScoreNames(input.projectId, timestampFilter ?? []),
           getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
+            scope: "scoredTraces",
           }),
           getScoreStringValues(input.projectId, timestampFilter ?? []),
         ]);
@@ -369,6 +368,7 @@ export const scoresRouter = createTRPCRouter({
           count: Number(u.count),
         })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   filterOptions: protectedProjectProcedure
@@ -411,6 +411,7 @@ export const scoresRouter = createTRPCRouter({
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   deleteMany: protectedProjectProcedure
@@ -511,7 +512,6 @@ export const scoresRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "annotations-trpc",
         });
 
         if (!clickhouseTrace) {
@@ -681,7 +681,6 @@ export const scoresRouter = createTRPCRouter({
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
-            clickhouseFeatureTag: "annotations-trpc",
           });
 
           if (!clickhouseTrace) {
@@ -940,7 +939,6 @@ export const scoresRouter = createTRPCRouter({
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,
-        clickhouseFeatureTag: "annotations-trpc",
       });
 
       if (!clickhouseTrace) {

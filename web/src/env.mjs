@@ -73,6 +73,23 @@ export const env = createEnv({
           : [],
       ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Optional suffix appended to the auth cookie NAMES (e.g. ".pr-1234" ->
+    // "__Secure-next-auth.session-token.pr-1234"). Lets multiple Langfuse
+    // instances that share a parent cookie domain (preview/review environments)
+    // avoid reading each other's session cookie, which — encrypted with a
+    // different NEXTAUTH_SECRET — fails to decrypt and wedges login. It is the
+    // self-hosted-friendly equivalent of the per-region suffix Langfuse Cloud
+    // derives from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, without enabling cloud mode.
+    // SAFETY: the cloud region ALWAYS takes precedence over this (see
+    // getCookieName), so it can never alter cookie names on a region deployment
+    // even if set by mistake; it only takes effect when no region is configured.
+    NEXTAUTH_COOKIE_NAME_SUFFIX: z
+      .string()
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "NEXTAUTH_COOKIE_NAME_SUFFIX may only contain letters, numbers, hyphens, and underscores",
+      )
+      .optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
@@ -120,6 +137,15 @@ export const env = createEnv({
       .default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
+    // Mulesoft SFDC sync (Langfuse Cloud only). All must be set for the
+    // SfdcService factory to return a non-null instance; otherwise the
+    // integration is a no-op.
+    MULESOFT_SFDC_USER_URL: z.url().optional(),
+    MULESOFT_SFDC_ORG_URL: z.url().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_USER: z.string().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD: z.string().optional(),
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME: z.string().default("[not provided]"),
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS: z.coerce.number().int().default(10_000),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -396,6 +422,7 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -472,6 +499,18 @@ export const env = createEnv({
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+      .enum(["dangerous-docker", "lambda-microvm"])
+      .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+      .string()
+      .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+      .string()
+      .optional(),
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+      .string()
+      .optional(),
   },
 
   /**
@@ -518,6 +557,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
+    NEXTAUTH_COOKIE_NAME_SUFFIX: process.env.NEXTAUTH_COOKIE_NAME_SUFFIX,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
@@ -534,10 +574,27 @@ export const env = createEnv({
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
     LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
       process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN,
+    LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
+      process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
+    MULESOFT_SFDC_USER_URL: process.env.MULESOFT_SFDC_USER_URL,
+    MULESOFT_SFDC_ORG_URL: process.env.MULESOFT_SFDC_ORG_URL,
+    MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD:
+      process.env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD,
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME:
+      process.env.MULESOFT_SFDC_DEFAULT_COMPANY_NAME,
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS:
+      process.env.MULESOFT_SFDC_REQUEST_TIMEOUT_MS,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,
@@ -831,6 +888,8 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
+      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
@@ -876,3 +935,26 @@ export const env = createEnv({
   skipValidation: process.env.DOCKER_BUILD === "1",
   emptyStringAsUndefined: true, // https://env.t3.gg/docs/customization#treat-empty-strings-as-undefined
 });
+
+/**
+ * @param {typeof env} parsed
+ */
+const validateInAppAgentSandboxConfig = (parsed) => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
+    );
+  }
+};
+
+if (typeof window === "undefined") {
+  validateInAppAgentSandboxConfig(env);
+}

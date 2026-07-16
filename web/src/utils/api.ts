@@ -13,6 +13,7 @@ import {
   loggerLink,
   splitLink,
   TRPCClientError,
+  type TRPCClientErrorLike,
   type Operation,
   type TRPCLink,
 } from "@trpc/client";
@@ -66,6 +67,11 @@ const ERROR_DEBOUNCE_MS = 20000;
 const hasResponseMeta = (error: TRPCClientError<any>): boolean =>
   Boolean((error.meta as { response?: unknown } | undefined)?.response);
 
+const getHttpStatus = (error: unknown): number | undefined =>
+  error instanceof TRPCClientError && typeof error.data?.httpStatus === "number"
+    ? error.data.httpStatus
+    : undefined;
+
 const getCause = (error: unknown): unknown =>
   error instanceof Error ? error.cause : undefined;
 
@@ -75,7 +81,7 @@ const hasReportedFailedFetchMessage = (error: unknown): boolean => {
   return REPORTED_FAILED_FETCH_MESSAGE.test(error.message);
 };
 
-const isNetworkConnectivityError = (error: unknown): boolean => {
+export const isNetworkConnectivityError = (error: unknown): boolean => {
   if (!(error instanceof TRPCClientError)) return false;
 
   // tRPC server errors and infrastructure responses have response metadata.
@@ -88,71 +94,6 @@ const isNetworkConnectivityError = (error: unknown): boolean => {
     hasReportedFailedFetchMessage(error)
   );
 };
-
-/* eslint-disable @repo/no-in-source-vitest */
-const vitest = import.meta.vitest;
-
-if (vitest && typeof vitest === "object") {
-  const { describe, expect, it } = vitest;
-
-  describe("isNetworkConnectivityError", () => {
-    it("detects the reported failed fetch error without a response", () => {
-      const error = TRPCClientError.from(new TypeError("Failed to fetch"));
-
-      expect(isNetworkConnectivityError(error)).toBe(true);
-    });
-
-    it("detects the reported failed fetch error with a hostname suffix", () => {
-      const error = TRPCClientError.from(
-        new TypeError("Failed to fetch (cloud.langfuse.com)"),
-      );
-
-      expect(isNetworkConnectivityError(error)).toBe(true);
-    });
-
-    it("does not treat other network failures as connectivity errors", () => {
-      const error = TRPCClientError.from(new TypeError("Load failed"));
-
-      expect(isNetworkConnectivityError(error)).toBe(false);
-    });
-
-    it("does not treat tRPC server errors as connectivity errors", () => {
-      const error = TRPCClientError.from({
-        error: {
-          code: -32603,
-          message: "Internal server error",
-          data: {
-            code: "INTERNAL_SERVER_ERROR",
-            httpStatus: 500,
-            path: "events.all",
-          },
-        },
-      });
-
-      expect(isNetworkConnectivityError(error)).toBe(false);
-    });
-
-    it("does not treat response parsing errors as connectivity errors", () => {
-      const error = TRPCClientError.from(
-        new SyntaxError("Unexpected token <"),
-        {
-          meta: {
-            response: new Response("<html></html>", { status: 502 }),
-          },
-        },
-      );
-
-      expect(isNetworkConnectivityError(error)).toBe(false);
-    });
-
-    it("does not treat non-tRPC errors as connectivity errors", () => {
-      expect(isNetworkConnectivityError(new TypeError("Failed to fetch"))).toBe(
-        false,
-      );
-    });
-  });
-}
-/* eslint-enable @repo/no-in-source-vitest */
 
 /**
  * tRPC serializes query input into the GET URL. For reads whose input scales with
@@ -217,10 +158,7 @@ const shouldShowToast = (error: unknown): boolean => {
   return true;
 };
 
-const handleTrpcError = (
-  error: unknown,
-  shouldSilenceError: boolean = false,
-) => {
+const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -347,15 +285,17 @@ const shouldSilenceError = (
   }
 
   if (Array.isArray(meta?.silentHttpCodes)) {
+    const httpStatus = getHttpStatus(error);
     return (
-      error instanceof TRPCClientError &&
-      typeof error.data?.httpStatus === "number" &&
-      meta.silentHttpCodes.includes(error.data?.httpStatus)
+      httpStatus !== undefined && meta.silentHttpCodes.includes(httpStatus)
     );
   }
 
   return false;
 };
+
+/** APIError is returned by api.*.*.useQuery */
+export type APIError = TRPCClientErrorLike<AppRouter>;
 
 /** A set of type-safe react-query hooks for your tRPC API. */
 export const api = createTRPCNext<AppRouter>({
@@ -413,6 +353,17 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
+            // Don't retry on 404s: a deleted/missing resource never appears via
+            // retry, so failing fast avoids piling up pointless refetches (and
+            // ClickHouse load for resources backed by it). Every other 4xx keeps
+            // the default retry/backoff — some (e.g. a route param that hasn't
+            // hydrated yet, a proxy-level 429) are transient and self-heal.
+            retry: (failureCount, error) => {
+              if (getHttpStatus(error) === 404) {
+                return false;
+              }
+              return failureCount < 3;
+            },
           },
           mutations: {
             onError: (error) => handleTrpcError(error),

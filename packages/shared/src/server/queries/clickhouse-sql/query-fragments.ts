@@ -68,6 +68,20 @@ export const eventsTracesAggregation = (
   return builder;
 };
 
+/**
+ * Aggregation expression producing a `score_booleans` array with entries
+ * encoded as `<name>:true|false` (lowercased via lowerUTF8). This is the
+ * producer half of a wire contract: `BooleanObjectFilter` and
+ * `InMemoryFilterService` build the same strings via `encodeBooleanScoreEntry`
+ * and do `has()` membership checks — every producer must use this fragment so
+ * the encoding cannot drift. groupUniqArrayIf (not groupArrayIf) because
+ * consumers only check existence, and dedup bounds the aggregation state to
+ * 2 × distinct boolean score names even when the surrounding GROUP BY keeps
+ * per-row columns like `id` or `comment`.
+ */
+export const scoreBooleansAggregation = (columnPrefix = ""): string =>
+  `groupUniqArrayIf(concat(${columnPrefix}name, ':', lowerUTF8(${columnPrefix}string_value)), ${columnPrefix}data_type = 'BOOLEAN' AND notEmpty(${columnPrefix}string_value))`;
+
 interface BaseScoresParams {
   projectId: string;
   startTimeFrom?: string | null;
@@ -124,7 +138,9 @@ export const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories,
+        -- BOOLEAN scores also stay in scores_avg for legacy numeric filters; true/false filters need raw-value existence instead of avg(value).
+        ${scoreBooleansAggregation()} AS score_booleans${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
       FROM (
         SELECT
           ${primaryKey},
@@ -243,11 +259,15 @@ export const eventsSessionsAggregation = (params: {
   projectId: string;
   sessionIds?: string[];
   startTimeFrom?: string | null;
+  includeMetadata?: boolean;
 }): EventsSessionAggregationQueryBuilder => {
   return new EventsSessionAggregationQueryBuilder({
     projectId: params.projectId,
   })
-    .selectFieldSet("all")
+    .selectFieldSet("base")
+    .when(Boolean(params.includeMetadata), (builder) =>
+      builder.selectFieldSet("metadata"),
+    )
     .withSessionIds(params.sessionIds)
     .withStartTimeFrom(params.startTimeFrom)
     .whereRaw("session_id != ''");
@@ -324,7 +344,8 @@ export const eventsSessionScoresAggregation = (params: {
       groupArrayIf(
         concat(name, ':', string_value),
         data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         project_id,
@@ -355,6 +376,7 @@ export const eventsSessionScoresAggregation = (params: {
       "score_session_id",
       "scores_avg",
       "score_categories",
+      "score_booleans",
     ],
   };
 };

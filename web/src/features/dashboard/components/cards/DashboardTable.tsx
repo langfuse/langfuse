@@ -50,7 +50,7 @@ export const DashboardTable = ({
                   </tr>
                 </thead>
 
-                <tbody className="divide-accent bg-background divide-y">
+                <tbody className="divide-accent divide-y">
                   {rows
                     .slice(
                       0,
@@ -91,7 +91,12 @@ export const DashboardTable = ({
           ) : null}
         </div>
       ) : (
-        <NoDataOrLoading isLoading={isLoading} {...noDataProps} />
+        // Fills leftover tile height inside the card's flex column. (LFE-10813)
+        <NoDataOrLoading
+          isLoading={isLoading}
+          {...noDataProps}
+          className="h-auto grow"
+        />
       )}
     </>
   );

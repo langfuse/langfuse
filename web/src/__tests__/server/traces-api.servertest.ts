@@ -78,26 +78,25 @@ const createObservationOrEvent = (
             ? data.end_time * timeMultiplier
             : null,
     });
-  } else {
-    // For observations table: milliseconds
-    return createObservation({
-      id,
-      trace_id: data.trace_id,
-      project_id: data.project_id,
-      name: data.name,
-      type: data.type ?? "SPAN",
-      level: data.level ?? "DEFAULT",
-      start_time: data.start_time,
-      end_time: data.end_time === null ? null : data.end_time,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      provided_model_name: data.provided_model_name,
-      provided_usage_details: data.provided_usage_details,
-      provided_cost_details: data.provided_cost_details,
-      total_cost: data.total_cost,
-    });
   }
+  // For observations table: milliseconds
+  return createObservation({
+    id,
+    trace_id: data.trace_id,
+    project_id: data.project_id,
+    name: data.name,
+    type: data.type ?? "SPAN",
+    level: data.level ?? "DEFAULT",
+    start_time: data.start_time,
+    end_time: data.end_time === null ? null : data.end_time,
+    input: data.input,
+    output: data.output,
+    metadata: data.metadata,
+    provided_model_name: data.provided_model_name,
+    provided_usage_details: data.provided_usage_details,
+    provided_cost_details: data.provided_cost_details,
+    total_cost: data.total_cost,
+  });
 };
 
 const waitForEventsTable = async (useEventsTable: boolean) => {
@@ -2009,6 +2008,82 @@ describe("/api/public/traces API Endpoint", () => {
 
           expect(traces.status).toBe(200);
           expect(traces.body.data.map((d) => d.id)).toEqual([traceWithScore1]);
+          expect(traces.body.meta.totalItems).toBe(1);
+        });
+
+        it("should filter by score_booleans without requesting scores field group", async () => {
+          const baseTimestamp = Date.now();
+          const traceWithTrueScore = randomUUID();
+          const traceWithFalseScore = randomUUID();
+
+          const trace1 = createTrace({
+            id: traceWithTrueScore,
+            name: "trace-boolean-score-true",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+          const trace2 = createTrace({
+            id: traceWithFalseScore,
+            name: "trace-boolean-score-false",
+            project_id: projectId,
+            timestamp: baseTimestamp,
+          });
+
+          await Promise.all([
+            createTraceWithObservations(useEventsTable, trace1, []),
+            createTraceWithObservations(useEventsTable, trace2, []),
+            createScoresCh([
+              createTraceScore({
+                trace_id: traceWithTrueScore,
+                project_id: projectId,
+                name: "is_hallucination",
+                value: 1,
+                string_value: "True",
+                data_type: "BOOLEAN",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+              createTraceScore({
+                trace_id: traceWithFalseScore,
+                project_id: projectId,
+                name: "is_hallucination",
+                value: 0,
+                string_value: "False",
+                data_type: "BOOLEAN",
+                timestamp: baseTimestamp,
+                observation_id: null,
+              }),
+            ]),
+          ]);
+
+          const filterParam = JSON.stringify([
+            {
+              type: "booleanObject",
+              column: "score_booleans",
+              key: "is_hallucination",
+              operator: "=",
+              value: true,
+            },
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [traceWithTrueScore, traceWithFalseScore],
+            },
+          ]);
+
+          const traces = await makeZodVerifiedAPICall(
+            GetTracesV1Response,
+            "GET",
+            buildUrl(`fields=core&filter=${encodeURIComponent(filterParam)}`),
+            undefined,
+            auth,
+          );
+
+          expect(traces.status).toBe(200);
+          expect(traces.body.data.map((d) => d.id)).toEqual([
+            traceWithTrueScore,
+          ]);
           expect(traces.body.meta.totalItems).toBe(1);
         });
       });

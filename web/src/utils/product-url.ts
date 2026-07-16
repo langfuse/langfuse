@@ -1,12 +1,10 @@
 import type { FilterState } from "@langfuse/shared";
-import { env } from "@/src/env.mjs";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   rangeToString,
   type TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-
-const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 type ProductPathQuery = Record<string, string | string[] | null | undefined>;
 
@@ -40,21 +38,6 @@ type TracesPathParams = {
     type?: string[];
   };
   timeRange?: TracesPathTimeRange;
-};
-
-const getProductBaseUrl = () => {
-  const rawBaseUrl = env.NEXTAUTH_URL;
-  const baseUrl = new URL(
-    /^https?:\/\//i.test(rawBaseUrl)
-      ? rawBaseUrl
-      : `${LOCALHOST_HOST_PATTERN.test(rawBaseUrl) ? "http" : "https"}://${rawBaseUrl}`,
-  );
-
-  baseUrl.pathname = baseUrl.pathname.replace(/\/api\/auth\/?$/, "/");
-  baseUrl.search = "";
-  baseUrl.hash = "";
-
-  return baseUrl;
 };
 
 export const appendProductPathQuery = (
@@ -114,6 +97,15 @@ export const buildProjectPath = (params: { projectId: string }) =>
 export const buildDashboardsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/dashboards`;
 
+export const buildDashboardWidgetsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/widgets`;
+
+export const buildDashboardWidgetPath = (params: {
+  projectId: string;
+  widgetId: string;
+}) =>
+  `${buildDashboardWidgetsPath(params)}/${encodeURIComponent(params.widgetId)}`;
+
 export const buildDatasetsPath = (params: {
   projectId: string;
   folder?: string;
@@ -127,6 +119,14 @@ export const buildEvalsPath = (params: { projectId: string }) =>
 
 export const buildExperimentsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/experiments`;
+
+export const buildExperimentPath = (params: {
+  projectId: string;
+  experimentId: string;
+}) =>
+  appendProductPathQuery(`${buildExperimentsPath(params)}/results`, {
+    baseline: params.experimentId,
+  });
 
 export const buildModelsPath = (params: { projectId: string }) =>
   `${buildProjectPath(params)}/models`;
@@ -447,6 +447,11 @@ export const buildDatasetRunUrl = (params: {
     `/project/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/runs/${encodeURIComponent(params.datasetRunId)}`,
   );
 
+export const buildExperimentUrl = (params: {
+  projectId: string;
+  experimentId: string;
+}) => buildProductUrl(buildExperimentPath(params));
+
 export const buildAnnotationQueueUrl = (params: {
   projectId: string;
   queueId: string;
@@ -468,6 +473,27 @@ export const buildAnnotationQueueItemUrl = (params: {
 export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
   buildProductUrl(
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
+  );
+
+export const buildMonitorUrl = (params: {
+  projectId: string;
+  monitorId: string;
+}) =>
+  buildProductUrl(
+    `${buildMonitorsPath(params)}/${encodeURIComponent(params.monitorId)}`,
+  );
+
+export const buildDashboardWidgetUrl = (params: {
+  projectId: string;
+  widgetId: string;
+}) => buildProductUrl(buildDashboardWidgetPath(params));
+
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  buildProductUrl(
+    `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`,
   );
 
 export const buildEvaluatorUrl = (params: {

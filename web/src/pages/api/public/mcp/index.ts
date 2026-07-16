@@ -33,13 +33,16 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { addUserToSpan, logger, redis } from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { prisma } from "@langfuse/shared/src/db";
 import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { safeJsonParse } from "@/src/utils/json";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -98,6 +101,14 @@ export default async function handler(
       );
     }
 
+    addUserToSpan({
+      apiKeyId: authCheck.scope.apiKeyId,
+      publicKey: authCheck.scope.publicKey,
+      projectId: authCheck.scope.projectId,
+      orgId: authCheck.scope.orgId,
+      plan: authCheck.scope.plan,
+    });
+
     // Check if ingestion is suspended due to usage limits
     if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
@@ -116,7 +127,9 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope
+    // Build ServerContext from authenticated scope. In-app-agent keys need a
+    // run override for mutating tools; read-only tools remain available
+    // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
       projectId: authCheck.scope.projectId,
       orgId: authCheck.scope.orgId,
@@ -124,7 +137,8 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       accessLevel: "project",
       publicKey: authCheck.scope.publicKey,
-      isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
+      userAgent: req.headers["user-agent"],
+      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
     };
 
     logger.debug("MCP request authenticated", {
@@ -168,6 +182,32 @@ export default async function handler(
       });
     }
   }
+}
+
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  if (isInAppAgentKey !== true) {
+    return undefined;
+  }
+
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+
+  if (typeof headerValue !== "string") {
+    return { permissions: "read" };
+  }
+
+  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+    safeJsonParse(headerValue),
+  );
+
+  return parsedOverride.success
+    ? {
+        permissions: "single-tool-override",
+        allowedToolName: parsedOverride.data.toolName,
+      }
+    : { permissions: "read" };
 }
 
 /**

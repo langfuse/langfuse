@@ -1544,6 +1544,258 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+  /api/public/experiments:
+    get:
+      description: |-
+        List experiments with cursor-based pagination. Results are ordered by
+        latest experiment activity descending.
+      operationId: experiments_list
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `metadata`, `scores`. If omitted, `core` is returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: Number of experiments to return per page. Maximum 100, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment when `fields=scores` is
+            requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiments on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiments before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: id
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `id`, `name`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/experiment-items:
+    get:
+      description: |-
+        List experiment items with cursor-based pagination. Use this endpoint
+        to export experiment item inputs, outputs, expected outputs, metadata,
+        and optionally item/trace scores. Results are ordered by time
+        descending.
+      operationId: experiments_listItems
+      tags:
+        - Experiments
+      parameters:
+        - name: fields
+          in: query
+          description: |-
+            Comma-separated list of field groups to include. Available groups:
+            `core`, `dataset`, `io`, `metadata`, `itemMetadata`,
+            `experimentMetadata`, `scores`. If omitted, `core,dataset` is
+            returned.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: limit
+          in: query
+          description: >-
+            Number of experiment items to return per page. Maximum 100, default
+            50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: scoreLimit
+          in: query
+          description: >-
+            Number of scores to return per experiment item when `fields=scores`
+            is requested. Maximum 50, default 50.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: Versioned base64url cursor from the previous response page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromStartTime
+          in: query
+          description: Retrieve only experiment items started on or after this datetime.
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: toStartTime
+          in: query
+          description: Retrieve only experiment items started before this datetime.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: experimentId
+          in: query
+          description: Comma-separated list of experiment IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentName
+          in: query
+          description: Comma-separated list of experiment names.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentItemId
+          in: query
+          description: Comma-separated list of experiment item IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: datasetId
+          in: query
+          description: Comma-separated list of dataset IDs.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: filter
+          in: query
+          description: |-
+            JSON string containing an array of structured filter conditions.
+            Supported columns are `experimentId`, `experimentName`,
+            `experimentItemId`, and `datasetId`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExperimentItemsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/health:
     get:
       description: Check health of API and database
@@ -5642,7 +5894,19 @@ paths:
       security: *ref_0
   /api/public/sessions:
     get:
-      description: Get sessions
+      description: >-
+        Get sessions.
+
+
+        This legacy endpoint is not recommended for new data extraction
+        workflows.
+
+        Use the v2 observations endpoint with a bounded time range and group
+        rows by
+
+        `sessionId` instead:
+
+        `GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_list
       tags:
         - Sessions
@@ -5730,9 +5994,18 @@ paths:
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        Get a session. Please note that `traces` on this endpoint are not
-        paginated, if you plan to fetch large sessions, consider `GET
-        /api/public/traces?sessionId=<sessionId>`
+        Get a session.
+
+
+        Please note that `traces` on this endpoint are not paginated. For large
+
+        sessions or new data extraction workflows, use the v2 observations
+        endpoint
+
+        with a URL-encoded `sessionId` filter and a bounded time range:
+
+        `GET /api/public/v2/observations?filter=<sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_get
       tags:
         - Sessions
@@ -6015,7 +6288,7 @@ paths:
 
             [
               {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "booleanObject", "boolean", "null"
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
@@ -6026,10 +6299,11 @@ paths:
                                           // - number: "=", ">", "<", ">=", "<="
                                           // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
                                           // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - booleanObject: "=", "<>"
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
                 "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                "key": string             // Required only for stringObject, numberObject, booleanObject, and categoryOptions types when filtering on nested fields like metadata or score names
               }
             ]
 
@@ -6113,6 +6387,12 @@ paths:
             `scores`)
 
             - `score_categories` (categoryOptions) - Categorical score values
+
+            - `score_booleans` (booleanObject) - Boolean score values. Use `key`
+            for the score name and a boolean `value`, e.g. `{"type":
+            "booleanObject", "column": "score_booleans", "key": "is_correct",
+            "operator": "=", "value": true}`. The `<>` operator also matches
+            traces without a score of that name.
 
 
             ## Filter Examples
@@ -6253,6 +6533,865 @@ paths:
                   description: List of trace IDs to delete
               required:
                 - traceIds
+  /api/public/unstable/dashboard-widgets:
+    get:
+      description: |-
+        List dashboard widgets in the project, ordered by most recently
+        updated first.
+      operationId: unstable_dashboardWidgets_list
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidgetList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    post:
+      description: >-
+        Create a dashboard widget (a standalone chart definition you place on
+
+        any dashboard).
+
+
+        This endpoint creates the widget only; place it on a dashboard via
+
+        `POST /dashboards/{dashboardId}/placements`.
+
+
+        Supported views are `observations`, `scores-numeric`, and
+        `scores-categorical`.
+
+        The legacy `traces` view is not supported by this unstable API.
+
+        Widgets are created as v2 internally.
+
+
+        `chartConfig` is optional and defaults to the plain config for
+
+        `chartType`; when `chartConfig.type` is given it must match
+
+        `chartType`.
+
+
+        Unstable API note:
+
+        - This surface may evolve while dashboard/widget APIs are being
+        finalized.
+      operationId: unstable_dashboardWidgets_create
+      tags:
+        - UnstableDashboardWidgets
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardWidgetRequest'
+  /api/public/unstable/dashboard-widgets/{widgetId}:
+    get:
+      description: Get a dashboard widget by id.
+      operationId: unstable_dashboardWidgets_get
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    patch:
+      description: |-
+        Update a dashboard widget.
+
+        All fields are optional; at least one field is required.
+        Changing `chartType` without sending `chartConfig` resets the config
+        to the new chart type's defaults. When `chartConfig.type` is given
+        it must match the widget's (possibly updated) `chartType`.
+      operationId: unstable_dashboardWidgets_update
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardWidgetRequest'
+    delete:
+      description: |-
+        Delete a dashboard widget.
+
+        The API returns `409` while the widget is still placed on a dashboard.
+        Remove those placements first.
+      operationId: unstable_dashboardWidgets_delete
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardWidgetResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/dashboards:
+    get:
+      description: |-
+        List dashboards in the project, ordered by most recently updated
+        first.
+      operationId: unstable_dashboards_list
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    post:
+      description: Create a dashboard.
+      operationId: unstable_dashboards_create
+      tags:
+        - UnstableDashboards
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardRequest'
+  /api/public/unstable/dashboards/{dashboardId}:
+    get:
+      description: Get a dashboard by id.
+      operationId: unstable_dashboards_get
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    patch:
+      description: Update a dashboard's name, description, definition, or filters.
+      operationId: unstable_dashboards_update
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardRequest'
+    delete:
+      description: Delete a dashboard.
+      operationId: unstable_dashboards_delete
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/dashboards/{dashboardId}/placements:
+    post:
+      description: |-
+        Add a placement to a dashboard grid (see `DashboardPlacement` for
+        grid semantics).
+
+        `id` and the position fields are optional: when omitted, the
+        placement gets a server-generated id and is appended below all
+        existing tiles as a 6x6 tile. Returns the created placement.
+
+        The referenced widget must exist in the same project or be a
+        Langfuse-managed widget. The API returns `409` if a placement with
+        the same `id` already exists on the dashboard.
+      operationId: unstable_dashboards_addPlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardPlacement'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardPlacementRequest'
+  /api/public/unstable/dashboards/{dashboardId}/placements/{placementId}:
+    patch:
+      description: |-
+        Move or resize a placement. All fields are optional; at least one is
+        required. Omitted fields keep their current value. The placement's
+        content (widget/preset reference) and id cannot change — delete and
+        re-add the placement to swap content. Returns the updated placement.
+      operationId: unstable_dashboards_updatePlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: placementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardPlacement'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
+    delete:
+      description: >-
+        Remove a placement from a dashboard grid without deleting the referenced
+        widget.
+      operationId: unstable_dashboards_deletePlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: placementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardPlacementResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
@@ -7281,6 +8420,22 @@ components:
         - JSON
         - CSV
         - JSONL
+        - PARQUET
+      description: >-
+        File format for exported data. `PARQUET` is a columnar binary format
+        encoded and compressed by the storage engine; gzip compression does not
+        apply to it. Note that the model-price columns (`input_price`,
+        `output_price`, `total_price`) are not included in Parquet observation
+        exports.
+    BlobStorageIntegrationFileTypeResponse:
+      title: BlobStorageIntegrationFileTypeResponse
+      type: string
+      enum:
+        - JSON
+        - CSV
+        - JSONL
+        - PARQUET
+      description: File type reported for an existing integration.
     BlobStorageExportMode:
       title: BlobStorageExportMode
       type: string
@@ -7398,7 +8553,8 @@ components:
           nullable: true
           description: >-
             Custom start date for exports (required when exportMode is
-            FROM_CUSTOM_DATE)
+            FROM_CUSTOM_DATE). Must not be in the future (27 h tolerance for
+            timezone differences).
         compressed:
           type: boolean
           nullable: true
@@ -7485,7 +8641,7 @@ components:
         forcePathStyle:
           type: boolean
         fileType:
-          $ref: '#/components/schemas/BlobStorageIntegrationFileType'
+          $ref: '#/components/schemas/BlobStorageIntegrationFileTypeResponse'
         exportMode:
           $ref: '#/components/schemas/BlobStorageExportMode'
         exportStartDate:
@@ -7564,6 +8720,7 @@ components:
       type: string
       enum:
         - idle
+        - running
         - queued
         - up_to_date
         - disabled
@@ -7575,10 +8732,12 @@ components:
 
         - `error` — last export failed (see `lastError` for details)
 
-        - `idle` — enabled but has never exported yet
+        - `running` — an export job is currently being processed
 
         - `queued` — next export is overdue (`nextSyncAt` is in the past) and
         waiting to be picked up by the worker
+
+        - `idle` — enabled but has never exported yet and no export is queued
 
         - `up_to_date` — all available data has been exported; next export is
         scheduled for the future
@@ -8866,6 +10025,13 @@ components:
         updatedAt:
           type: string
           format: date-time
+        mediaReferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/DatasetItemMediaReference'
+          description: >-
+            Resolved Langfuse media references found in input, expectedOutput,
+            and metadata.
       required:
         - id
         - status
@@ -8878,6 +10044,64 @@ components:
         - datasetName
         - createdAt
         - updatedAt
+        - mediaReferences
+    DatasetItemMediaReference:
+      title: DatasetItemMediaReference
+      type: object
+      properties:
+        field:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceField'
+          description: The dataset item field containing the reference
+        referenceString:
+          type: string
+          description: >-
+            The Langfuse media reference string, e.g.
+            `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+        jsonPath:
+          type: string
+          description: >-
+            JSONPath of the string holding the reference within the field, e.g.
+            `$['image']`
+        media:
+          $ref: '#/components/schemas/DatasetItemMediaReferenceMedia'
+          description: The resolved media record.
+      required:
+        - field
+        - referenceString
+        - jsonPath
+        - media
+    DatasetItemMediaReferenceField:
+      title: DatasetItemMediaReferenceField
+      type: string
+      enum:
+        - input
+        - expectedOutput
+        - metadata
+    DatasetItemMediaReferenceMedia:
+      title: DatasetItemMediaReferenceMedia
+      type: object
+      properties:
+        mediaId:
+          type: string
+          description: The unique langfuse identifier of the media record
+        contentType:
+          type: string
+          description: The MIME type of the media record
+        contentLength:
+          type: integer
+          description: The size of the media record in bytes
+        url:
+          type: string
+          description: The signed download URL of the media record
+        urlExpiry:
+          type: string
+          description: The expiry date and time of the download URL
+      required:
+        - mediaId
+        - contentType
+        - contentLength
+        - url
+        - urlExpiry
     DatasetRunItem:
       title: DatasetRunItem
       type: object
@@ -9677,6 +10901,175 @@ components:
           type: string
       required:
         - message
+    ExperimentsResponse:
+      title: ExperimentsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Experiment'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentsResponseMeta:
+      title: ExperimentsResponseMeta
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            Versioned base64url cursor for retrieving the next page. Absent when
+            there are no more results.
+    Experiment:
+      title: Experiment
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startTime:
+          type: string
+          format: date-time
+          description: |-
+            Start of the experiment, i.e. the earliest event within the
+            requested time range. Clipped to `fromStartTime` when the
+            experiment started before the requested range.
+        endTime:
+          type: string
+          format: date-time
+          description: |-
+            End of the experiment, i.e. the latest event end within the
+            requested time range.
+        itemCount:
+          type: integer
+          description: Number of experiment items within the requested time range.
+        datasetId:
+          type: string
+          nullable: true
+          description: Null when the experiment is not associated with a dataset.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included only when `fields=metadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains scores
+            directly attached to the experiment.
+      required:
+        - id
+        - name
+        - description
+        - startTime
+        - endTime
+        - itemCount
+        - datasetId
+    ExperimentItemsResponse:
+      title: ExperimentItemsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExperimentItem'
+        meta:
+          $ref: '#/components/schemas/ExperimentsResponseMeta'
+      required:
+        - data
+        - meta
+    ExperimentItem:
+      title: ExperimentItem
+      type: object
+      properties:
+        id:
+          type: string
+        traceId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+          nullable: true
+        level:
+          $ref: '#/components/schemas/ObservationLevel'
+        environment:
+          type: string
+        experimentId:
+          type: string
+        experimentName:
+          type: string
+        experimentItemId:
+          type: string
+        experimentDatasetId:
+          type: string
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        experimentItemVersion:
+          type: string
+          format: date-time
+          nullable: true
+          description: Included when `fields=dataset` is requested.
+        input:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        output:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        expectedOutput:
+          nullable: true
+          description: Included when `fields=io` is requested.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=metadata` is requested.
+        experimentItemMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=itemMetadata` is requested.
+        experimentMetadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        experimentDescription:
+          type: string
+          nullable: true
+          description: Included when `fields=experimentMetadata` is requested.
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+          nullable: true
+          description: >-
+            Included only when `fields=scores` is requested. Contains item and
+            trace scores only; experiment-level scores are returned by the
+            experiments endpoint.
+      required:
+        - id
+        - traceId
+        - startTime
+        - endTime
+        - level
+        - environment
+        - experimentId
+        - experimentName
+        - experimentItemId
     HealthResponse:
       title: HealthResponse
       type: object
@@ -10718,16 +12111,35 @@ components:
     GetMediaUploadUrlRequest:
       title: GetMediaUploadUrlRequest
       type: object
+      description: >-
+        Request a presigned media upload URL. Provide exactly one context: a
+        trace (traceId, optionally observationId) or a dataset item (datasetId +
+        datasetItemId). field is required and must match the chosen context.
       properties:
         traceId:
           type: string
-          description: The trace ID associated with the media record
+          nullable: true
+          description: >-
+            The trace the media is associated with. Null for dataset item media
+            uploads.
         observationId:
           type: string
           nullable: true
           description: >-
             The observation ID associated with the media record. If the media
             record is associated directly with a trace, this will be null.
+        datasetId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset the media belongs to. Null for trace/observation media
+            uploads.
+        datasetItemId:
+          type: string
+          nullable: true
+          description: >-
+            The dataset item the media is associated with (need not exist yet).
+            Null for trace/observation media uploads.
         contentType:
           $ref: '#/components/schemas/MediaContentType'
         contentLength:
@@ -10739,10 +12151,9 @@ components:
         field:
           type: string
           description: >-
-            The trace / observation field the media record is associated with.
-            This can be one of `input`, `output`, `metadata`
+            The item field the media is in: `input`/`output`/`metadata` (trace)
+            or `input`/`expectedOutput`/`metadata` (dataset item).
       required:
-        - traceId
         - contentType
         - contentLength
         - sha256Hash
@@ -12584,7 +13995,7 @@ components:
 
         - `observation` evaluates live-ingested observations such as
         generations, spans, and events.
-          It supports mapping from `input`, `output`, and `metadata`.
+          It supports mapping from `input`, `output`, `metadata`, and `tool_calls`.
         - `experiment` evaluates live experiment executions and can additionally
         map `expected_output` and `experiment_item_metadata`.
           It currently supports filtering by `datasetId`.
@@ -12613,6 +14024,7 @@ components:
         - input
         - output
         - metadata
+        - tool_calls
         - expected_output
         - experiment_item_metadata
       description: >-
@@ -12624,10 +14036,11 @@ components:
 
         Target-specific rules:
 
-        - `target=observation` supports `input`, `output`, and `metadata`
+        - `target=observation` supports `input`, `output`, `metadata`, and
+        `tool_calls`
 
         - `target=experiment` supports `input`, `output`, `metadata`,
-        `expected_output`, and `experiment_item_metadata`
+        `tool_calls`, `expected_output`, and `experiment_item_metadata`
 
 
         Source semantics:
@@ -12638,6 +14051,11 @@ components:
 
         - `metadata`: the metadata object for the target. Combine with
         `jsonPath` when you need one nested field instead of the whole object.
+
+        - `tool_calls`: the tool calls recorded on the observation, as an array
+        of `{id, name, arguments, type, index}` objects in the order the model
+        emitted them. Combine with `jsonPath` (for example `$[*].name`) to
+        select parts of each call.
 
         - `expected_output`: the experiment item's expected output. Only valid
         for `target=experiment`.
@@ -13181,9 +14599,9 @@ components:
 
             Quick reference:
 
-            - `target=observation`: `input`, `output`, `metadata`
+            - `target=observation`: `input`, `output`, `metadata`, `tool_calls`
 
-            - `target=experiment`: `input`, `output`, `metadata`,
+            - `target=experiment`: `input`, `output`, `metadata`, `tool_calls`,
             `expected_output`, `experiment_item_metadata`
         jsonPath:
           type: string
@@ -13386,6 +14804,604 @@ components:
         - `invalid_filter_value` for `column=datasetId`: call `GET
         /api/public/v2/datasets`, then retry with dataset `id` values from that
         response.
+    unstableDashboardWidgetView:
+      title: unstableDashboardWidgetView
+      type: string
+      enum:
+        - observations
+        - scores-numeric
+        - scores-categorical
+    unstableDashboardWidgetChartType:
+      title: unstableDashboardWidgetChartType
+      type: string
+      enum:
+        - LINE_TIME_SERIES
+        - AREA_TIME_SERIES
+        - BAR_TIME_SERIES
+        - HORIZONTAL_BAR
+        - VERTICAL_BAR
+        - PIE
+        - NUMBER
+        - HISTOGRAM
+        - PIVOT_TABLE
+    unstableDashboardWidgetMetricAggregation:
+      title: unstableDashboardWidgetMetricAggregation
+      type: string
+      enum:
+        - sum
+        - avg
+        - count
+        - max
+        - min
+        - p50
+        - p75
+        - p90
+        - p95
+        - p99
+        - histogram
+        - uniq
+    unstableDashboardWidgetDimension:
+      title: unstableDashboardWidgetDimension
+      type: object
+      properties:
+        field:
+          type: string
+      required:
+        - field
+    unstableDashboardWidgetMetric:
+      title: unstableDashboardWidgetMetric
+      type: object
+      properties:
+        measure:
+          type: string
+        agg:
+          $ref: '#/components/schemas/unstableDashboardWidgetMetricAggregation'
+      required:
+        - measure
+        - agg
+    unstableDashboardWidgetFilter:
+      title: unstableDashboardWidgetFilter
+      type: object
+      description: >-
+        A filter in Langfuse filter-state shape. The `value` shape and the
+
+        allowed operators depend on `type`:
+
+
+        | `type` | `value` | operators |
+
+        |---|---|---|
+
+        | `string` | string | `=`, `contains`, `does not contain`, `starts
+        with`, `ends with` |
+
+        | `number` | number | `=`, `>`, `<`, `>=`, `<=` |
+
+        | `datetime` | ISO datetime string | `>`, `<`, `>=`, `<=` |
+
+        | `boolean` | boolean | `=`, `<>` |
+
+        | `null` | `""` | `is null`, `is not null` |
+
+        | `stringOptions` | list of strings | `any of`, `none of` |
+
+        | `arrayOptions` | list of strings | `any of`, `none of`, `all of` |
+
+        | `categoryOptions` | list of strings (requires `key`) | `any of`, `none
+        of` |
+
+        | `stringObject` | string (requires `key`, e.g. a metadata key) | same
+        as `string` |
+
+        | `numberObject` | number (requires `key`, e.g. a score name) | same as
+        `number` |
+
+        | `booleanObject` | boolean (requires `key`) | `=`, `<>` |
+      properties:
+        column:
+          type: string
+        operator:
+          type: string
+        type:
+          type: string
+        value:
+          nullable: true
+        key:
+          type: string
+          nullable: true
+      required:
+        - column
+        - operator
+        - type
+    unstableDashboardWidgetChartConfig:
+      title: unstableDashboardWidgetChartConfig
+      type: object
+      description: |-
+        Chart-specific widget configuration.
+
+        `type` must match the top-level `chartType`.
+        `row_limit` applies to total-value charts and pivot tables.
+        `bins` applies to histograms.
+        `defaultSort` applies to pivot tables.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+      required:
+        - type
+    unstableDashboardWidgetDefaultSort:
+      title: unstableDashboardWidgetDefaultSort
+      type: object
+      properties:
+        column:
+          type: string
+        order:
+          $ref: '#/components/schemas/unstableDashboardWidgetSortOrder'
+      required:
+        - column
+        - order
+    unstableDashboardWidgetSortOrder:
+      title: unstableDashboardWidgetSortOrder
+      type: string
+      enum:
+        - ASC
+        - DESC
+    unstableDashboardWidgetChartConfigInput:
+      title: unstableDashboardWidgetChartConfigInput
+      type: object
+      description: |-
+        Input-side chart config. `type` is optional and defaults to the
+        widget's `chartType`; when given it must match.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+          nullable: true
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
+    unstableCreateDashboardWidgetRequest:
+      title: unstableCreateDashboardWidgetRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+          description: Defaults to an empty string.
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
+          nullable: true
+          description: Defaults to the plain config for `chartType`.
+      required:
+        - name
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+    unstableUpdateDashboardWidgetRequest:
+      title: unstableUpdateDashboardWidgetRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+          nullable: true
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+          nullable: true
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+          nullable: true
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
+          nullable: true
+    unstableDashboardWidgetList:
+      title: unstableDashboardWidgetList
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidget'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableDeleteDashboardWidgetResponse:
+      title: unstableDeleteDashboardWidgetResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    unstableDashboardWidget:
+      title: unstableDashboardWidget
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+        - view
+        - dimensions
+        - metrics
+        - filters
+        - chartType
+        - chartConfig
+    unstableDashboardPlacement:
+      title: unstableDashboardPlacement
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - widget
+            - $ref: '#/components/schemas/unstableWidgetPlacement'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - preset
+            - $ref: '#/components/schemas/unstablePresetPlacement'
+          required:
+            - type
+      description: |-
+        A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
+        top-left cell (0-based; `y` grows downward), `width`/`height` its size
+        in cells. The UI default tile is 6x6 (half width). Overlapping tiles
+        are not rejected; prefer appending below existing tiles (or omit the
+        position on create to let the server do it).
+    unstableWidgetPlacement:
+      title: unstableWidgetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+        widgetId:
+          type: string
+        x:
+          type: integer
+        'y':
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+        - id
+        - widgetId
+        - x
+        - 'y'
+        - width
+        - height
+    unstablePresetPlacement:
+      title: unstablePresetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+        presetId:
+          type: string
+        x:
+          type: integer
+        'y':
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+        - id
+        - presetId
+        - x
+        - 'y'
+        - width
+        - height
+    unstableCreateDashboardPlacementRequest:
+      title: unstableCreateDashboardPlacementRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - widget
+            - $ref: '#/components/schemas/unstableCreateWidgetPlacement'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - preset
+            - $ref: '#/components/schemas/unstableCreatePresetPlacement'
+          required:
+            - type
+    unstableCreateWidgetPlacement:
+      title: unstableCreateWidgetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        widgetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - widgetId
+    unstableCreatePresetPlacement:
+      title: unstableCreatePresetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        presetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - presetId
+    unstableUpdateDashboardPlacementRequest:
+      title: unstableUpdateDashboardPlacementRequest
+      type: object
+      properties:
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid).
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows.
+    unstableDeleteDashboardPlacementResponse:
+      title: unstableDeleteDashboardPlacementResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    unstableDashboardDefinition:
+      title: unstableDashboardDefinition
+      type: object
+      properties:
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardPlacement'
+      required:
+        - widgets
+    unstableDashboard:
+      title: unstableDashboard
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          description: Dashboard-level filters applied to all widgets on the dashboard.
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+        - definition
+        - filters
+    unstableDashboardList:
+      title: unstableDashboardList
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboard'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableCreateDashboardRequest:
+      title: unstableCreateDashboardRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+      required:
+        - name
+    unstableUpdateDashboardRequest:
+      title: unstableUpdateDashboardRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+    unstableDeleteDashboardResponse:
+      title: unstableDeleteDashboardResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     unstablePublicApiErrorCode:
       title: unstablePublicApiErrorCode
       type: string

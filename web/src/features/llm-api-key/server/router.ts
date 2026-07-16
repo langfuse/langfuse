@@ -32,9 +32,10 @@ import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/eva
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
-  fetchLLMCompletion,
+  generateLLMText,
   LLMAdapter,
   logger,
+  mapLegacyLLMCompletionParams,
   decryptAndParseExtraHeaders,
   blockEvaluatorConfigsInTx,
   EvaluatorBlockSource,
@@ -144,21 +145,22 @@ async function testLLMConnection(
         : null;
     }
 
-    await fetchLLMCompletion({
-      modelParams: {
-        adapter: params.adapter,
-        provider: params.provider,
-        model,
-      },
-      llmConnection: {
-        secretKey: encrypt(params.secretKey),
-        extraHeaders:
-          params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
-        baseURL: params.baseURL || undefined,
-        config: parsedConfig,
-      },
-      messages: testMessages,
-      streaming: false,
+    await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        modelParams: {
+          adapter: params.adapter,
+          provider: params.provider,
+          model,
+        },
+        connection: {
+          secretKey: encrypt(params.secretKey),
+          extraHeaders:
+            params.extraHeaders && encrypt(JSON.stringify(params.extraHeaders)),
+          baseURL: params.baseURL || undefined,
+          config: parsedConfig,
+        },
+        messages: testMessages,
+      }),
       maxRetries: 1,
     });
 

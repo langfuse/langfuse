@@ -3,6 +3,25 @@ import { z } from "zod";
 type IngestionJsonValue = string | object | number | boolean | null | undefined;
 
 /**
+ * Parse input that might be a JSON string or already an object.
+ *
+ * Deliberately native JSON.parse, not the shared parseJsonIfString: this runs
+ * over full observation input/output for every ingested span, and the shared
+ * helper's lossless-json slow path triggers on any digit followed by e/E
+ * (most UUIDs) or 13+ consecutive digits (ms timestamps).
+ */
+function parseIfString(data: unknown): unknown {
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return data; // Return original if not valid JSON
+    }
+  }
+  return data;
+}
+
+/**
  * ClickHouse storage schema for tool definitions.
  *
  * Based on ToolDefinitionSchema from packages/shared/src/utils/IORepresentation/chatML/types.ts
@@ -91,7 +110,7 @@ function flattenToolCall(call: unknown): {
     typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs ?? {});
 
   return {
-    id: (c.id ?? c.toolCallId ?? c.call_id) as string | undefined,
+    id: (c.call_id ?? c.id ?? c.toolCallId) as string | undefined,
     name,
     arguments: args,
     type: (c.type ?? (func ? "function" : undefined)) as string | undefined,
@@ -307,6 +326,11 @@ function extractToolCallsFromRawOutput(
   if (typeof output !== "object") return;
   const obj = output as Record<string, unknown>;
 
+  if (isToolCallLike(obj) && !isMessageLike(obj)) {
+    addToolArgument(args, obj);
+    return;
+  }
+
   // Direct tool_calls at top level
   const directToolCalls =
     parseArrayIfString(obj.tool_calls) ?? parseArrayIfString(obj.toolCalls);
@@ -374,20 +398,6 @@ function extractToolCallsFromMessage(
       }
     }
   }
-}
-
-/**
- * Parse input that might be a JSON string or already an object.
- */
-function parseIfString(data: unknown): unknown {
-  if (typeof data === "string") {
-    try {
-      return JSON.parse(data);
-    } catch {
-      return data; // Return original if not valid JSON
-    }
-  }
-  return data;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

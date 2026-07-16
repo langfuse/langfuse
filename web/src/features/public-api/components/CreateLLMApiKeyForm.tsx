@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -417,9 +417,9 @@ export function CreateLLMApiKeyForm({
           </FormDescription>
           {currentAdapter === LLMAdapter.Azure && (
             <FormDescription className="text-dark-yellow">
-              {
-                "For Azure, the model name should be the same as the deployment name in Azure. For evals, choose a model with function calling capabilities."
-              }
+              For Azure, the model name should be the same as the deployment
+              name in Azure. For evals, choose a model with function calling
+              capabilities.
             </FormDescription>
           )}
 
@@ -667,7 +667,7 @@ export function CreateLLMApiKeyForm({
   return (
     <Form {...form}>
       <form
-        className={cn("flex flex-col gap-4 overflow-auto")}
+        className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
           form.handleSubmit(onSubmit)(e);
@@ -1034,7 +1034,7 @@ export function CreateLLMApiKeyForm({
                   {/* Vertex AI ADC option for self-hosted only, create mode only */}
                   {!isLangfuseCloud && mode === "create" && (
                     <FormItem>
-                      <span className="row flex">
+                      <span className="flex">
                         <span className="flex-1">
                           <FormLabel>
                             Use Application Default Credentials (ADC)
@@ -1311,7 +1311,7 @@ export function CreateLLMApiKeyForm({
                       name="openAIUseResponsesApi"
                       render={({ field }) => (
                         <FormItem>
-                          <span className="row flex">
+                          <span className="flex">
                             <span className="flex-1">
                               <FormLabel>Use Responses API</FormLabel>
                               <FormDescription>
@@ -1345,7 +1345,7 @@ export function CreateLLMApiKeyForm({
                     name="withDefaultModels"
                     render={({ field }) => (
                       <FormItem>
-                        <span className="row flex">
+                        <span className="flex">
                           <span className="flex-1">
                             <FormLabel>Enable default models</FormLabel>
                             <FormDescription>
@@ -1377,7 +1377,7 @@ export function CreateLLMApiKeyForm({
         </DialogBody>
 
         <DialogFooter>
-          <div className="flex flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4">
             {showOtherModelInfo ? (
               <Button
                 type="button"
@@ -1396,7 +1396,11 @@ export function CreateLLMApiKeyForm({
               </Button>
             )}
             {form.formState.errors.root && (
-              <FormMessage>{form.formState.errors.root.message}</FormMessage>
+              <div className="max-h-32 overflow-y-auto">
+                <FormMessage className="break-words wrap-anywhere">
+                  {form.formState.errors.root.message}
+                </FormMessage>
+              </div>
             )}
           </div>
         </DialogFooter>

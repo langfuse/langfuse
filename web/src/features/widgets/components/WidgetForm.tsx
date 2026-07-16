@@ -62,6 +62,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
+  type TimeFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
 } from "@langfuse/shared";
@@ -91,6 +92,7 @@ import {
   buildWidgetDescription,
   formatMetricName,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
   sanitizePivotTableDefaultSort,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
@@ -118,6 +120,17 @@ type ChartType = {
 };
 
 type ChartConfig = WidgetChartConfig;
+
+const getDateRangeFilter = (
+  column: "timestamp" | "startTime",
+  dateRange?: { from: Date; to: Date },
+): TimeFilter[] | undefined =>
+  dateRange
+    ? [
+        { column, type: "datetime", operator: ">=", value: dateRange.from },
+        { column, type: "datetime", operator: "<=", value: dateRange.to },
+      ]
+    : undefined;
 
 const chartTypes: ChartType[] = [
   {
@@ -427,9 +440,12 @@ export function WidgetForm({
     initialDefaultSort?.order ?? "DESC",
   );
 
-  // Filter state
+  // Filter state. The picker here is a transient PREVIEW control — the widget
+  // does not own a time range (the host dashboard supplies one at render time),
+  // so it must not write the user's shared cross-view default.
   const { timeRange, setTimeRange } = useDashboardDateRange({
     defaultRelativeAggregation: "last7Days",
+    persistAsDefault: false,
   });
 
   // Convert timeRange to absolute date range for compatibility
@@ -646,6 +662,7 @@ export function WidgetForm({
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter: getDateRangeFilter("timestamp", dateRange),
     },
     {
       trpc: {
@@ -664,6 +681,8 @@ export function WidgetForm({
   const generationsFilterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
+      observationType: "ALL",
     },
     {
       trpc: {
@@ -682,6 +701,7 @@ export function WidgetForm({
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
     },
     {
       trpc: {
@@ -736,6 +756,10 @@ export function WidgetForm({
     viewVersion === "v2"
       ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
       : normalizeSingleValueOptions(traceFilterOptions.data?.name);
+  const observationNameOptions =
+    viewVersion === "v2"
+      ? normalizeSingleValueOptions(eventsFilterOptions.data?.name)
+      : normalizeSingleValueOptions(generationsFilterOptions.data?.name);
   const tagsOptions =
     viewVersion === "v2"
       ? eventsFilterOptions.data?.traceTags || []
@@ -771,6 +795,7 @@ export function WidgetForm({
     viewVersion,
     environmentOptions,
     nameOptions,
+    observationNameOptions,
     tagsOptions,
     modelOptions,
     toolNamesOptions,
@@ -785,6 +810,7 @@ export function WidgetForm({
     viewVersion,
     environmentOptions,
     nameOptions,
+    observationNameOptions,
     tagsOptions,
     modelOptions,
     toolNamesOptions,
@@ -804,6 +830,7 @@ export function WidgetForm({
       viewVersion,
       environmentOptions,
       nameOptions,
+      observationNameOptions,
       tagsOptions,
       modelOptions,
       toolNamesOptions,
@@ -1149,27 +1176,63 @@ export function WidgetForm({
             // Include all original query fields for pivot table processing
             ...item,
           };
-        } else {
-          // Regular chart processing
-          const metricField = `${selectedAggregation}_${selectedMeasure}`;
-          const metric = item[metricField];
-          const dimensionField = selectedDimension;
+        }
+        // Regular chart processing
+        const metricField = `${selectedAggregation}_${selectedMeasure}`;
+        const metric = item[metricField];
+        const dimensionField = selectedDimension;
+        const dimensionValue = item[dimensionField];
+        const isTimeSeries = isTimeSeriesChart(
+          selectedChartType as DashboardWidgetChartType,
+        );
+
+        // A gap-filled empty bucket arrives as a row with no dimension and the
+        // metric column's type default: NULL for nullable aggregations
+        // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+        // as a pure bucket marker (holds the spot on the time axis) instead of
+        // inventing an "n/a" series. The 0 form is only treated as filler for
+        // additive metrics, where the marker is lossless (prepareDenseSeries
+        // re-derives the honest 0 for any series that exists); a real
+        // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+        const isFillerMetricValue =
+          metric == null ||
+          (getWidgetMissingBucketValue(selectedAggregation) === "zero" &&
+            Number(metric) === 0);
+        if (
+          isTimeSeries &&
+          dimensionField !== "none" &&
+          (dimensionValue === null || dimensionValue === "") &&
+          isFillerMetricValue
+        ) {
           return {
-            dimension:
-              item[dimensionField] !== undefined && dimensionField !== "none"
-                ? (() => {
-                    const val = item[dimensionField];
-                    if (typeof val === "string") return val;
-                    if (val === null || val === undefined || val === "")
-                      return "n/a";
-                    if (Array.isArray(val)) return val.join(", ");
-                    return String(val);
-                  })()
-                : formatMetricName(metricField),
-            metric: Array.isArray(metric) ? metric : Number(metric || 0),
+            dimension: undefined,
+            metric: null,
             time_dimension: item["time_dimension"],
           };
         }
+
+        return {
+          dimension:
+            dimensionValue !== undefined && dimensionField !== "none"
+              ? (() => {
+                  const val = dimensionValue;
+                  // Empty first: "" is a string, so the order matters. (LFE-10694)
+                  if (val === null || val === undefined || val === "")
+                    return "n/a";
+                  if (typeof val === "string") return val;
+                  if (Array.isArray(val)) return val.join(", ");
+                  return String(val);
+                })()
+              : formatMetricName(metricField),
+          metric: Array.isArray(metric)
+            ? metric
+            : // On a time series a missing value stays null — the chart renders
+              // it by the metric's missing-bucket semantics instead of a fake 0.
+              isTimeSeries && metric == null
+              ? null
+              : Number(metric || 0),
+          time_dimension: item["time_dimension"],
+        };
       }) ?? [],
     [
       queryResult.data,
@@ -2278,6 +2341,9 @@ export function WidgetForm({
                   onSortChange={undefined}
                   isLoading={queryResult.isPending}
                   metricFormatter={chartPresentation?.metricFormatter}
+                  missingValue={getWidgetMissingBucketValue(
+                    selectedAggregation,
+                  )}
                 />
                 <ChartLoadingState
                   isLoading={chartLoadingState.isLoading}

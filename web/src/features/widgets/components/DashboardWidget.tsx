@@ -20,18 +20,39 @@ import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
-  CopyIcon,
   GripVerticalIcon,
+  MoreVerticalIcon,
+  CopyIcon,
+  ClipboardPasteIcon,
+  CopyPlusIcon,
+  FileJsonIcon,
+  DownloadIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import {
+  buildWidgetExport,
+  downloadWidgetJson,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
+  getWidgetMissingBucketValue,
 } from "@/src/features/widgets/utils";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
@@ -40,6 +61,9 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -60,6 +84,10 @@ export function DashboardWidget({
   onDeleteWidget,
   dashboardOwner,
   schedulerId,
+  onLockedEditAttempt,
+  readOnly,
+  onPasteWidget,
+  onDuplicateWidget,
 }: {
   projectId: string;
   dashboardId: string;
@@ -69,9 +97,31 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
   schedulerId?: string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: edit affordances stay
+   * visible and any edit attempt routes here (clone-first flow) instead of
+   * mutating.
+   */
+  onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
+  /**
+   * Pastes the clipboard widget next to this tile. Passed only on editable
+   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
+   */
+  onPasteWidget?: (anchor: WidgetPlacement) => void;
+  /**
+   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * tile. Passed only on editable (non-locked) dashboards.
+   */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const widget = api.dashboardWidgets.get.useQuery(
     {
@@ -97,9 +147,17 @@ export function DashboardWidget({
       : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
         ? "v2"
         : "v1";
-  const hasCUDAccess =
-    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    dashboardOwner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
+  // Langfuse-managed dashboard, but the user could edit a clone: show the
+  // same edit affordances and route attempts through the clone-first flow.
+  const isLockedEditable =
+    hasRbacCUDAccess &&
+    dashboardOwner === "LANGFUSE" &&
+    Boolean(onLockedEditAttempt);
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -114,6 +172,18 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  // Gate "Paste to the right" on the clipboard actually holding a pasteable
+  // payload, where the browser lets us check silently.
+  const isPasteablePayload = useCallback(
+    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
+    [isBetaEnabled],
+  );
+  const clipboardProbe = useClipboardWidgetProbe(
+    isActionsMenuOpen && Boolean(onPasteWidget),
+    isPasteablePayload,
+  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -274,17 +344,45 @@ export function DashboardWidget({
       };
       const metricField = `${metric.agg}_${metric.measure}`;
       const metricValue = item[metricField];
+      const isTimeSeries = isTimeSeriesChart(widget.data.chartType);
 
       const dimensionField =
         widget.data.dimensions.slice().shift()?.field ?? "none";
+      const dimensionValue = item[dimensionField];
+
+      // A gap-filled empty bucket arrives as a row with no dimension and the
+      // metric column's type default: NULL for nullable aggregations
+      // (avg/percentiles), 0 for non-nullable ones (count/uniq/sum). Keep it
+      // as a pure bucket marker (holds the spot on the time axis) instead of
+      // inventing an "n/a" series. The 0 form is only treated as filler for
+      // additive metrics, where the marker is lossless (prepareDenseSeries
+      // re-derives the honest 0 for any series that exists); a real
+      // dimension-less avg/percentile 0 stays a visible data point. (LFE-10694)
+      const isFillerMetricValue =
+        metricValue == null ||
+        (getWidgetMissingBucketValue(metric.agg) === "zero" &&
+          Number(metricValue) === 0);
+      if (
+        isTimeSeries &&
+        (dimensionValue === null || dimensionValue === "") &&
+        isFillerMetricValue
+      ) {
+        return {
+          dimension: undefined,
+          metric: null,
+          time_dimension: item["time_dimension"],
+        };
+      }
+
       return {
         dimension:
-          item[dimensionField] !== undefined
+          dimensionValue !== undefined
             ? (() => {
-                const val = item[dimensionField];
-                if (typeof val === "string") return val;
+                const val = dimensionValue;
+                // Empty first: "" is a string, so the order matters. (LFE-10694)
                 if (val === null || val === undefined || val === "")
                   return "n/a";
+                if (typeof val === "string") return val;
                 if (Array.isArray(val)) return val.join(", ");
                 // Objects / numbers / booleans are stringified to avoid React key issues
                 return String(val);
@@ -292,7 +390,11 @@ export function DashboardWidget({
             : formatMetricName(metricField),
         metric: Array.isArray(metricValue)
           ? metricValue
-          : Number(metricValue || 0),
+          : // On a time series a missing value stays null — the chart renders
+            // it by the metric's missing-bucket semantics instead of a fake 0.
+            isTimeSeries && metricValue == null
+            ? null
+            : Number(metricValue || 0),
         time_dimension: item["time_dimension"],
       };
     });
@@ -319,6 +421,44 @@ export function DashboardWidget({
     });
   }, [metricsVersion, widget.data]);
 
+  // Memoize the Chart's config/chartConfig objects so the scheduler's page
+  // re-renders don't hand Chart fresh literals every tick (transformedData is
+  // already memoized) — letting Chart's React.memo bail. (LFE-10549)
+  const chartConfigForRender = useMemo(() => {
+    const data = widget.data;
+    if (!data) return undefined;
+    return {
+      ...data.chartConfig,
+      // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
+      ...(data.chartType === "PIVOT_TABLE" && {
+        dimensions: data.dimensions.map((dim) => dim.field),
+        metrics: data.metrics.map(
+          (metric) => `${metric.agg}_${metric.measure}`,
+        ),
+        units: data.metrics.map((metric) =>
+          getResultUnit(data.view, metric.measure, metric.agg, metricsVersion),
+        ),
+        defaultSort,
+      }),
+      ...(data.chartType !== "PIVOT_TABLE" && {
+        unit: getResultUnit(
+          data.view,
+          data.metrics[0]?.measure ?? "",
+          data.metrics[0]?.agg,
+          metricsVersion,
+        ),
+      }),
+    };
+  }, [widget.data, metricsVersion, defaultSort]);
+
+  const chartMetricConfig = useMemo(
+    () =>
+      chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+    [chartPresentation],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -327,6 +467,11 @@ export function DashboardWidget({
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
+      capture("dashboard:widget_copied_to_project", {
+        source_widget_id: placement.widgetId,
+        new_widget_id: data.widgetId,
+        dashboard_id: dashboardId,
+      });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
@@ -347,6 +492,11 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
+    if (isLockedEditable) {
+      // The clone-first dialog is the confirmation on locked dashboards.
+      onDeleteWidget(placement.id);
+      return;
+    }
     if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
@@ -354,9 +504,7 @@ export function DashboardWidget({
 
   if (widget.isPending) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
       </div>
     );
@@ -364,33 +512,99 @@ export function DashboardWidget({
 
   if (!widget.data) {
     return (
-      <div
-        className={`bg-background flex items-center justify-center rounded-lg border p-4`}
-      >
+      <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Widget not found</div>
       </div>
     );
   }
 
+  // Portable configuration of this widget, used by the copy / download /
+  // duplicate menu actions.
+  const widgetExportSource: WidgetExportSource = {
+    name: widget.data.name,
+    description: widget.data.description,
+    view: widget.data.view,
+    dimensions: widget.data.dimensions,
+    metrics: widget.data.metrics.map((metric) => ({
+      measure: metric.measure,
+      agg: metric.agg as z.infer<typeof metricAggregations>,
+    })),
+    filters: widget.data.filters,
+    chartType: widget.data.chartType,
+    chartConfig: widget.data.chartConfig,
+    minVersion: widget.data.minVersion,
+  };
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await copyTextToClipboard(
+        JSON.stringify(buildWidgetExport(widgetExportSource), null, 2),
+      );
+      capture("dashboard:widget_copied_to_clipboard", {
+        surface: "grid_menu",
+        kind: "widget",
+        widget_id: placement.widgetId,
+        dashboard_id: dashboardId,
+      });
+    } catch {
+      showErrorToast("Copy failed", "Could not write to the clipboard.");
+    }
+  };
+
+  const handleDownloadJson = () => {
+    downloadWidgetJson(widgetExportSource);
+    capture("dashboard:widget_json_downloaded", {
+      surface: "grid_menu",
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+    });
+  };
+
   return (
-    <div
-      className={`bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4`}
-    >
+    <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+      {isCopyDialogOpen && (
+        <CopyWidgetDialog
+          open={isCopyDialogOpen}
+          onOpenChange={setIsCopyDialogOpen}
+          widgetName={widget.data.name}
+          onConfirm={handleCopy}
+          isPending={copyMutation.isPending}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
-            ? " ( 🪢 )"
-            : null}
+        <span
+          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          title={widget.data.name}
+        >
+          <span className="truncate" title={widget.data.name}>
+            {widget.data.name}
+          </span>
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
         </span>
         <div className="flex space-x-2">
-          {hasCUDAccess && (
+          {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
+              {isLockedEditable ? (
+                <button
+                  onClick={onLockedEditAttempt}
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
@@ -400,11 +614,17 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={handleCopy}
+                  onClick={() => {
+                    capture("dashboard:widget_copy_first_open", {
+                      widget_id: placement.widgetId,
+                      dashboard_id: dashboardId,
+                    });
+                    setIsCopyDialogOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label="Edit widget"
                 >
-                  <CopyIcon size={16} />
+                  <PencilIcon size={16} />
                 </button>
               ) : null}
               <button
@@ -416,14 +636,56 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button is available once chart data has loaded */}
-          {!queryResult.isPending ? (
-            <DownloadButton
-              data={transformedData}
-              fileName={widget.data.name}
-              className="hidden group-hover:block"
-            />
-          ) : null}
+          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                aria-label="Widget actions"
+              >
+                <MoreVerticalIcon size={16} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleCopyToClipboard}>
+                <CopyIcon className="mr-2 h-4 w-4" />
+                Copy to clipboard
+              </DropdownMenuItem>
+              {onPasteWidget && (
+                <DropdownMenuItem
+                  disabled={clipboardProbe === "no-widget"}
+                  onClick={() => onPasteWidget(placement)}
+                >
+                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                  Paste to the right
+                </DropdownMenuItem>
+              )}
+              {onDuplicateWidget && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    onDuplicateWidget(placement, widgetExportSource)
+                  }
+                >
+                  <CopyPlusIcon className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDownloadJson}>
+                <FileJsonIcon className="mr-2 h-4 w-4" />
+                Download as JSON
+              </DropdownMenuItem>
+              {/* Chart data download needs the query result to have loaded */}
+              <DropdownMenuItem
+                disabled={queryResult.isPending}
+                onClick={() =>
+                  downloadChartDataCsv(transformedData, widget.data.name)
+                }
+              >
+                <DownloadIcon className="mr-2 h-4 w-4" />
+                Download data as CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div
@@ -449,15 +711,10 @@ export function DashboardWidget({
             <Chart
               chartType={widget.data.chartType}
               data={transformedData}
-              config={
-                chartPresentation
-                  ? {
-                      metric: {
-                        label: chartPresentation.label,
-                      },
-                    }
-                  : undefined
-              }
+              // Sync the hover crosshair across all time-series widgets on this
+              // dashboard (non-time-series chart types ignore it). (LFE-10549)
+              syncId={dashboardId}
+              config={chartMetricConfig}
               rowLimit={
                 widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
                 widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
@@ -465,33 +722,7 @@ export function DashboardWidget({
                   ? 100
                   : (widget.data.chartConfig.row_limit ?? 100)
               }
-              chartConfig={{
-                ...widget.data.chartConfig,
-                // For PIVOT_TABLE, enhance chartConfig with dimensions and metric field names
-                ...(widget.data.chartType === "PIVOT_TABLE" && {
-                  dimensions: widget.data.dimensions.map((dim) => dim.field),
-                  metrics: widget.data.metrics.map(
-                    (metric) => `${metric.agg}_${metric.measure}`,
-                  ),
-                  units: widget.data.metrics.map((metric) =>
-                    getResultUnit(
-                      widget.data.view,
-                      metric.measure,
-                      metric.agg,
-                      metricsVersion,
-                    ),
-                  ),
-                  defaultSort,
-                }),
-                ...(widget.data.chartType !== "PIVOT_TABLE" && {
-                  unit: getResultUnit(
-                    widget.data.view,
-                    widget.data.metrics[0]?.measure ?? "",
-                    widget.data.metrics[0]?.agg,
-                    metricsVersion,
-                  ),
-                }),
-              }}
+              chartConfig={chartConfigForRender}
               sortState={
                 widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
               }
@@ -500,6 +731,9 @@ export function DashboardWidget({
               }
               isLoading={queryResult.isPending}
               metricFormatter={chartPresentation?.metricFormatter}
+              missingValue={getWidgetMissingBucketValue(
+                widget.data.metrics[0]?.agg ?? "count",
+              )}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

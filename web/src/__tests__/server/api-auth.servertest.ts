@@ -683,6 +683,8 @@ describe("Authenticate API calls", () => {
         expiresAt: null,
         isIngestionSuspended: expect.anything(),
         isInAppAgentKey: false,
+        createdByUserId: null,
+        createdByApiKeyId: null,
         projectId: expect.any(String),
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",

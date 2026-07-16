@@ -72,10 +72,11 @@ Independent diff validation must run after the agent and before publishing:
 
 Use a two-phase architecture for agents that create PRs:
 
-- Phase 1: audit job. It checks out code with `persist-credentials: false`, runs the LLM with read-only permissions, validates the diff, commits locally with hooks disabled, and uploads a git bundle plus PR body artifact.
-- Phase 2: publish job. It downloads the bundle, imports it into a clean temporary repo, pushes the bot branch with a write-scoped bot secret, and creates or updates the PR.
+- Phase 1: audit job. It checks out code with `persist-credentials: false`, runs the LLM with read-only permissions, validates the diff, commits locally with hooks disabled, and uploads a `git format-patch` artifact plus PR body artifact.
+- Phase 2: publish job. It downloads the patch, fetches enough source-ref history to find the triggering commit, applies the patch to that exact commit in a clean temporary repo, pushes the bot branch with a write-scoped bot secret, and creates or updates the PR.
 - The publish job must not invoke the LLM.
 - The publish job should clear global/system git config where practical and disable hooks for any commit or push-adjacent git operation.
+- The publish job should re-check the applied commit's changed files against the same path allowlist before pushing.
 - Reviewer assignment should be non-fatal so a missing reviewer permission does not fail an otherwise valid maintenance PR.
 
 ## Self-Improvement
@@ -93,7 +94,7 @@ Self-improvement is allowed only when the workflow explicitly opts in.
 
 - Prefer summarized agent reports over full transcripts.
 - Do not upload full stdout/stderr if it may contain environment data or secrets.
-- Upload only the artifacts needed for publishing or review, such as a git bundle and PR body.
+- Upload only the artifacts needed for publishing or review, such as a patch file and PR body.
 - Set short artifact retention for bot handoff artifacts.
 - Summaries should include changed files, changed business objects, source URLs, unresolved findings, validation commands, and self-improvements.
 

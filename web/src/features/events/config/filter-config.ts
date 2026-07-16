@@ -121,6 +121,13 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: getEventsColumnName("name"),
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: getEventsColumnName("traceTags"),
+    },
+    {
       type: "categorical" as const,
       column: "level",
       label: getEventsColumnName("level"),
@@ -139,11 +146,6 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: getEventsColumnName("promptName"),
-    },
-    {
-      type: "categorical" as const,
-      column: "traceTags",
-      label: getEventsColumnName("traceTags"),
     },
     {
       type: "stringKeyValue" as const,
@@ -286,6 +288,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "keyValue" as const,
       column: "trace_score_categories",
       label: "Trace Categorical Scores",
@@ -294,6 +301,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "trace_scores_avg",
       label: "Trace Numeric Scores",
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "trace_score_booleans",
+      label: "Trace Boolean Scores",
     },
     {
       type: "numeric" as const,

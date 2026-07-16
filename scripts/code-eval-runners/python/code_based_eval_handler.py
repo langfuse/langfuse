@@ -1,8 +1,29 @@
 import asyncio
 import dataclasses
 import json
+import traceback
 from dataclasses import dataclass, field
 from typing import Any
+
+
+@dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+    @classmethod
+    def from_payload(cls, raw: Any):
+        entry = raw if isinstance(raw, dict) else {}
+        return cls(
+            id=entry.get("id") or "",
+            name=entry.get("name") or "",
+            arguments=entry.get("arguments"),
+            type=entry.get("type") or "",
+            index=entry.get("index") or 0,
+        )
 
 
 @dataclass
@@ -10,6 +31,7 @@ class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass
@@ -32,6 +54,10 @@ class EvaluationContext:
                 input=observation.get("input"),
                 output=observation.get("output"),
                 metadata=observation.get("metadata"),
+                tool_calls=[
+                    ToolCall.from_payload(call)
+                    for call in observation.get("toolCalls") or []
+                ],
             ),
             experiment=ExperimentContext(
                 item_expected_output=experiment.get("itemExpectedOutput"),
@@ -76,13 +102,14 @@ def handler(event, context):
         "EvaluationContext": EvaluationContext,
         "EvaluationResult": EvaluationResult,
         "Score": Score,
+        "ToolCall": ToolCall,
     }
 
     try:
         exec(event["code"]["source"], namespace)
     except Exception as error:
         return runner_error(
-            "INVALID_SOURCE", f"Failed to load evaluator source: {error}"
+            "INVALID_SOURCE", f"Failed to load evaluator source: {format_error(error)}"
         )
 
     evaluate = namespace.get("evaluate")
@@ -96,7 +123,7 @@ def handler(event, context):
         if asyncio.iscoroutine(result):
             result = asyncio.run(result)
     except Exception as error:
-        return runner_error("USER_CODE_ERROR", str(error))
+        return runner_error("USER_CODE_ERROR", format_error(error))
 
     return normalize_result(result)
 
@@ -141,6 +168,29 @@ def to_jsonable(value):
         return value
     except TypeError:
         return str(value)
+
+
+def format_error(error: BaseException) -> str:
+    # Bare str() is cryptic for common exceptions — str(KeyError("text")) is
+    # just "'text'" — so always lead with the exception type, Python style.
+    name = type(error).__name__
+    message = str(error)
+    formatted = f"{name}: {message}" if message else name
+
+    line = _user_code_line(error)
+    if line is not None:
+        formatted = f"{formatted} (line {line})"
+
+    return formatted
+
+
+def _user_code_line(error: BaseException) -> int | None:
+    # exec() compiles the evaluator source with filename "<string>", so the
+    # innermost such frame is where the user's own code raised.
+    for frame in reversed(traceback.extract_tb(error.__traceback__)):
+        if frame.filename == "<string>":
+            return frame.lineno
+    return None
 
 
 def runner_error(code: str, message: str):

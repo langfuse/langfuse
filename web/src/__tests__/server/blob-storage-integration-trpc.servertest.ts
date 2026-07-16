@@ -62,14 +62,18 @@ const prepare = async () => {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -77,6 +81,10 @@ const prepare = async () => {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -374,24 +382,32 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
     });
 
-    it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
-      "rejects %s endpoints that target blocked IP ranges when validation is enabled",
-      async (type) => {
-        sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+    it("rejects endpoints that target blocked IP ranges when validation is enabled", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
           "203.0.113.10",
         ];
-        const { caller, project } = await prepare();
 
         await expect(
-          caller.blobStorageIntegration.update({
-            projectId: project.id,
-            ...baseConfig,
-            type,
-            endpoint: "http://127.0.0.1:9000",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      },
-    );
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
 
     it("allows endpoints when their IP is whitelisted", async () => {
       const { env: validationEnv } =
@@ -417,6 +433,48 @@ describe("Blob Storage Integration tRPC Router", () => {
           originalValidationCloudRegion;
         validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
           originalValidationAllowedIps;
+      }
+    });
+
+    it("allows HTTP endpoints when Cloud region is DEV", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
+
+    it("rejects HTTP endpoints on Langfuse Cloud outside local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow(
+          "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+        );
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
       }
     });
   });
@@ -996,6 +1054,84 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+  });
+
+  describe("parquet fileType", () => {
+    it("persists PARQUET for any project", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+    });
+
+    it("saves edits alongside a persisted PARQUET fileType", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
+      // The router-level .optional() drops the base default so an omitted
+      // fileType preserves the persisted value instead of rewriting it.
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("defaults to PARQUET when fileType is omitted on CREATE", async () => {
+      const { caller, project } = await prepare();
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
     });
   });
 });

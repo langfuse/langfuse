@@ -23,11 +23,6 @@
       <a href="https://langfuse.com/roadmap"><strong>Roadmap</strong></a> ·
    </div>
    <br/>
-   <span>Langfuse uses <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>  for Support and Feature Requests.</span>
-   <br/>
-   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>Join us</strong></a> in product engineering and technical go-to-market roles.</span>
-   <br/>
-   <br/>
    <div>
    </div>
 </div>
@@ -68,6 +63,13 @@
 
 Langfuse is an **open source LLM engineering** platform. It helps teams collaboratively
 **develop, monitor, evaluate,** and **debug** AI applications. Langfuse can be **self-hosted in minutes** and is **battle-tested**. Proudly made with [ClickHouse open source database](https://github.com/ClickHouse/ClickHouse).
+
+> ### 🧑‍💻 We're hiring
+>
+> Langfuse is growing fast (we doubled the team in the last 6 months) - since January 2026 we're part of ClickHouse, we're hiring engineering hybrid across the EU.
+> We hire engineers who love open source and great developer experiences.
+> **[See open roles →](https://langfuse.com/careers?utm_source=github&utm_medium=readme&utm_campaign=hiring&utm_content=langfuse)**
+
 
 ## ✨ Core Features
 
@@ -378,4 +380,4 @@ The telemetry does not include raw traces, prompts, observations, scores, or dat
 For Langfuse OSS, you can opt out by setting `TELEMETRY_ENABLED=false`.
 
 <!-- Scarf pixel — cookie-free, privacy-friendly analytics for README views (no cookies, no IP/PII stored). https://docs.scarf.sh/web-traffic/ -->
-<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=51a1912d-b16d-43a0-80b7-c3d6ab43e1a7&page=README.md" />
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=5f9b700f-ee94-4940-b005-e72def008ffa&page=README.md" />
