@@ -139,4 +139,44 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
     expect(res._getStatusCode()).toBe(200);
     expect(mockNextAuth).toHaveBeenCalledTimes(1);
   });
+
+  it("passes through an empty callbackUrl query param (next-auth treats it as absent)", async () => {
+    const { res } = await callHandler({
+      query: { nextauth: ["callback", "email"], callbackUrl: "" },
+    });
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes through an empty callback-url cookie (next-auth treats it as absent)", async () => {
+    const { res } = await callHandler({
+      cookies: { "next-auth.callback-url": "" },
+    });
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes an invalid callbackUrl through on GET signin (next-auth redirects to its error page instead of 500ing)", async () => {
+    const { res } = await callHandler({
+      query: { nextauth: ["signin"], callbackUrl: "www.example.com/foo" },
+    });
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(mockNextAuth).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an invalid callbackUrl on POST signin with 400 (no HTML error-page carve-out for POST)", async () => {
+    const { res } = await callHandler({
+      method: "POST",
+      query: {
+        nextauth: ["signin", "email"],
+        callbackUrl: "www.example.com/foo",
+      },
+    });
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
 });

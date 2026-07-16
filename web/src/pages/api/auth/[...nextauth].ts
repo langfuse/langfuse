@@ -31,13 +31,25 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // next-auth rejects malformed callbackUrl values (query param or cookie)
   // with a hardcoded 500, so vulnerability scanners probing auth routes page
   // our server-error monitors. Malformed client input is a 4xx; reject it
-  // before next-auth sees it.
+  // before next-auth sees it. Two carve-outs keep parity with next-auth:
+  // falsy values are treated as absent (assertConfig checks truthiness), and
+  // GET requests to next-auth's HTML page actions are exempt — those never
+  // 500; next-auth redirects them to the configured error page.
+  const nextAuthAction = Array.isArray(req.query.nextauth)
+    ? req.query.nextauth[0]
+    : req.query.nextauth;
+  const rendersHtmlErrorPage =
+    req.method === "GET" &&
+    ["signin", "signout", "error", "verify-request"].includes(
+      nextAuthAction ?? "",
+    );
   const callbackUrlParam = req.query.callbackUrl;
   const callbackUrlCookie =
     req.cookies[getCookieName("next-auth.callback-url")];
   const invalidCallbackUrl =
-    (callbackUrlParam !== undefined && !isValidCallbackUrl(callbackUrlParam)) ||
-    (callbackUrlCookie !== undefined && !isValidCallbackUrl(callbackUrlCookie));
+    !rendersHtmlErrorPage &&
+    ((Boolean(callbackUrlParam) && !isValidCallbackUrl(callbackUrlParam)) ||
+      (Boolean(callbackUrlCookie) && !isValidCallbackUrl(callbackUrlCookie)));
   if (invalidCallbackUrl) {
     logger.warn("[NEXT_AUTH] Rejected invalid callback URL", {
       callbackUrlParam: String(callbackUrlParam).slice(0, 200),
