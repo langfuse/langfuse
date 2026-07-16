@@ -14,6 +14,13 @@ export const PostUnstableDashboardWidgetView = z.enum([
   "scores-categorical",
 ]);
 
+export const DashboardWidgetViewOutput = z.enum([
+  "observations",
+  "scores-numeric",
+  "scores-categorical",
+  "traces",
+]);
+
 const DashboardWidgetMetricSchema = MetricSchema.extend({
   measure: z.string().min(1),
   agg: metricAggregations,
@@ -55,7 +62,7 @@ export const PublicDashboardWidget = z
     updatedAt: z.coerce.date(),
     name: z.string(),
     description: z.string(),
-    view: PostUnstableDashboardWidgetView,
+    view: DashboardWidgetViewOutput,
     dimensions: z.array(DashboardWidgetDimensionSchema),
     metrics: z.array(DashboardWidgetMetricSchema),
     filters: z.array(singleFilter),
@@ -93,4 +100,7 @@ export const DeleteUnstableDashboardWidgetResponse = z.object({
 
 export type PostUnstableDashboardWidgetBodyType = z.infer<
   typeof PostUnstableDashboardWidgetBody
+>;
+export type DashboardWidgetViewOutputType = z.infer<
+  typeof DashboardWidgetViewOutput
 >;
