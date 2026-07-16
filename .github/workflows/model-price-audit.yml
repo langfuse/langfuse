@@ -169,7 +169,7 @@ jobs:
       - name: Run Claude price audit
         id: claude-audit
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
-        uses: anthropics/claude-code-action@4633baf5267540f3f8cb58b684f79901d564c280 # v1.0.160
+        uses: anthropics/claude-code-action@37b464ce72700f7b2c5ff8d2db7fa7b15df792f5 # v1.0.169
         env:
           API_TIMEOUT_MS: "900000"
           BASH_DEFAULT_TIMEOUT_MS: "120000"

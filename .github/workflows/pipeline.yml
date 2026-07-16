@@ -90,7 +90,7 @@ jobs:
           # merge-base is found within latest N commits
           fetch-depth: 20
           persist-credentials: false
-      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           filters: |
@@ -391,7 +391,7 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -491,7 +491,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -640,7 +640,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -732,7 +732,7 @@ jobs:
           version: 11.10.0
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -827,7 +827,7 @@ jobs:
           cache-dependency-path: "pnpm-lock.yaml"
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -934,7 +934,7 @@ jobs:
           persist-credentials: false
       - name: Login to Docker Hub
         if: github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
@@ -1110,13 +1110,13 @@ jobs:
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       - name: Log in to the GitHub Container registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1124,7 +1124,7 @@ jobs:
         uses: useblacksmith/setup-docker-builder@ab5c1da94f53f5cd75c1038092aa276dddfccbba # v1.9.0
       - name: Extract metadata (labels) for Docker
         id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: |
             ghcr.io/langfuse/${{ matrix.image_name }}
@@ -1204,13 +1204,13 @@ jobs:
 
     steps:
       - name: Log in to the GitHub Container registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log in to Docker Hub
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -1224,7 +1224,7 @@ jobs:
           path: ${{ runner.temp }}/digests
       - name: Extract metadata (tags) for GitHub Container Registry
         id: meta-ghcr
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/langfuse/${{ matrix.image_name }}
           flavor: |
@@ -1239,7 +1239,7 @@ jobs:
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v3') && !contains(github.ref, '-rc') }}
       - name: Extract metadata (tags) for Docker Hub
         id: meta-dockerhub
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: langfuse/${{ matrix.image_name }}
           flavor: |
