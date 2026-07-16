@@ -42,24 +42,42 @@ function cyrb53(str: string, seed = 0): number {
 }
 
 /**
- * Content-sensitive, allocation-free cache signature for one parse-input field.
+ * Content hash of an object/array, from its serialization. Guarded: a circular
+ * or otherwise unserializable value falls back to `x` (shape-only), which only
+ * loses content-sensitivity for that rare payload — the unique id in the
+ * queryKey still scopes it. This DOES serialize to hash, but callers memoize
+ * `cheapHash` on the raw reference, so it runs only when the field actually
+ * changes (a real change = when a re-parse is wanted), never per render.
+ */
+function contentHash(value: object): number | string {
+  try {
+    return cyrb53(JSON.stringify(value));
+  } catch {
+    return "x";
+  }
+}
+
+/**
+ * Content-sensitive cache signature for one parse-input field.
  *
  * Returns a compact descriptor that changes whenever the field's content
  * changes — never the payload itself: `s<len>:<hash>` for strings (length +
- * cyrb53, so same-length-different-content still differs — no cache collision
- * when a refetch swaps e.g. `"pending"` → `"running"`), `a<len>` for arrays,
- * `o<keys>` for objects, the literal for primitives, `∅` for null/undefined.
- * The type-tag prefix keeps namespaces distinct (a 5-char string never
- * collides with a 5-element array).
+ * cyrb53, so same-length-different-content still differs), `a<len>:<hash>` for
+ * arrays and `o<keys>:<hash>` for objects (size + content hash, so a
+ * same-shape value change such as `{"status":"pending"}` → `{"status":
+ * "running"}` still differs — no cache collision), the literal for primitives,
+ * `∅` for null/undefined. The type-tag prefix keeps namespaces distinct (a
+ * 5-char string never collides with a 5-element array).
  *
- * Arrays/objects fall back to a shape-only signature because the trace and
- * observation I/O fields that flow through here are `string | null` in
- * practice; the string branch is the operative one and is exact-content-safe.
+ * The trace/observation I/O fields that flow through here are `string | null`
+ * in practice, so the string branch is the operative one; the object/array
+ * branches exist for defensive correctness and consistency.
  */
 export function cheapHash(value: unknown): string {
   if (value === null || value === undefined) return "∅";
   if (typeof value === "string") return `s${value.length}:${cyrb53(value)}`;
-  if (Array.isArray(value)) return `a${value.length}`;
-  if (typeof value === "object") return `o${Object.keys(value).length}`;
+  if (Array.isArray(value)) return `a${value.length}:${contentHash(value)}`;
+  if (typeof value === "object")
+    return `o${Object.keys(value).length}:${contentHash(value)}`;
   return `p${String(value)}`;
 }
