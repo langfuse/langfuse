@@ -106,8 +106,8 @@ export default function SessionsTable({
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter),
-    [omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
+    [isBetaEnabled, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -271,8 +271,9 @@ export default function SessionsTable({
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      isV4: isBetaEnabled,
     }),
-    [isSidebarFilterLoading, projectId],
+    [isBetaEnabled, isSidebarFilterLoading, projectId],
   );
 
   const queryFilter = useSidebarFilterState(

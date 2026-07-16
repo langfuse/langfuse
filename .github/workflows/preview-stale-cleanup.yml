@@ -46,6 +46,10 @@ jobs:
       # (NOT issues), even though they go through the issues REST endpoints —
       # same pattern as preview-autolabel / preview-build. Also covers pulls.list.
       pull-requests: write
+      # Mark the reaped preview's GitHub deployments (environment pr-<n>,
+      # recorded by preview-build) inactive alongside the label removal, so the
+      # PR stops advertising an "Active" environment whose URL is gone.
+      deployments: write
     steps:
       - name: Reap stale previews
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -107,6 +111,25 @@ jobs:
                     body: `🧹 Preview environment torn down after **${staleDays} days** of inactivity `
                       + `(last update ${pr.updated_at}). Re-add the \`${label}\` label to redeploy.`,
                   });
+
+                  // Retire the PR's GitHub deployments along with the preview
+                  // itself, so the PR stops showing an "Active" environment.
+                  // Re-adding the label redeploys, and the next build records a
+                  // fresh deployment.
+                  const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                    owner,
+                    repo,
+                    environment: `pr-${pr.number}`,
+                    per_page: 100,
+                  });
+                  for (const deployment of deployments) {
+                    await github.rest.repos.createDeploymentStatus({
+                      owner,
+                      repo,
+                      deployment_id: deployment.id,
+                      state: "inactive",
+                    });
+                  }
                 }
               } catch (e) {
                 failures++;

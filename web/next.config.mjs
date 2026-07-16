@@ -82,6 +82,10 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
+    // The local-only dangerous-docker sandbox provider depends on dockerode,
+    // which pulls ssh2 assets that Turbopack cannot place into ESM chunks.
+    // Keep it external to the server bundle and load it only at runtime.
+    "dockerode",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,

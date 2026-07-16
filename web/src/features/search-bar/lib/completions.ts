@@ -103,6 +103,7 @@ export type CompletionPlan = {
 
 export const SECTION_SUGGESTIONS = "Suggestions";
 export const SECTION_FIELDS = "Fields";
+export const SECTION_MATCHING_FILTERS = "Matching filters";
 export const SECTION_VALUES = "Observed values";
 export const SECTION_OPERATORS = "Operators";
 export const SECTION_PATTERNS = "Patterns";
@@ -234,6 +235,32 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
   return opts;
 }
 
+/**
+ * Move the option for `fieldId` to the front of `options`. When it is absent
+ * (rank-filtering dropped it) and `pool` is given, prepend it from the pool
+ * instead — used to guarantee an exactly-named field is always offered.
+ */
+function hoistFieldOption(
+  options: CompletionOption[],
+  fieldId: string,
+  pool?: CompletionOption[],
+): CompletionOption[] {
+  const index = options.findIndex(
+    (o) => o.kind === "field" && o.fieldId === fieldId,
+  );
+  if (index !== -1) {
+    return [
+      options[index]!,
+      ...options.slice(0, index),
+      ...options.slice(index + 1),
+    ];
+  }
+  const fromPool = pool?.find(
+    (o) => o.kind === "field" && o.fieldId === fieldId,
+  );
+  return fromPool ? [fromPool, ...options] : options;
+}
+
 // Ready-to-run query suggestions for the empty state: the top observed value
 // of a few showcase fields, inserted as complete filters.
 const SUGGESTION_FIELDS = ["level", "type", "environment", "name"];
@@ -256,6 +283,78 @@ function querySuggestionOptions(
     });
   }
   return out;
+}
+
+// ---- contextual facet-value matches for a bare typed term ----
+//
+// Typing `mcp` should not ONLY offer full-text search: when an already-loaded
+// facet contains a matching value (say toolNames has `mcp`), the concrete
+// `toolNames:mcp` filter is almost always what the user is reaching for. This
+// scans the observed map — LOADED columns only, by design: suggestions mirror
+// what the facet sidebar can currently show, and typing must never fan out
+// on-demand option fetches (the lazy-column mechanism exists to avoid exactly
+// that) — and surfaces the best few as ready-to-run rewrites of the free-text
+// run, exactly parallel to the input:/output: scope switches.
+
+/** Fields whose observed values are meaningful bare-term match targets: the
+ *  option-backed columns plus textSearch fields that keep a value picker
+ *  (id/name). Booleans/numbers/datetimes never match here — their observed
+ *  lists are empty or non-enumerated. */
+const VALUE_MATCH_FIELDS: FieldDef[] = FIELDS.filter(
+  (f) =>
+    f.syncMode === "exactOption" ||
+    f.syncMode === "arrayOption" ||
+    f.suggestObservedValues === true,
+);
+
+/** A 1-char term matches half the dataset; require a real prefix. */
+const MIN_VALUE_MATCH_LENGTH = 2;
+/** Popover budget: the section competes with fields + full-text, keep it tight. */
+const MAX_VALUE_MATCHES = 3;
+
+/**
+ * Ready-to-run `field:value` rewrites of the free-text run, drawn from loaded
+ * observed values. Exact value matches rank above prefix matches above
+ * substring matches; ties prefer the higher observed count, then registry
+ * order (sort is stable). Replaces the WHOLE run via replaceSpan, like the
+ * scope switches — the suggestion converts the visual free-text block the user
+ * sees, not one word of it.
+ */
+function matchingFilterOptions(
+  typed: string,
+  observed: ObservedOptions | undefined,
+  span: { from: number; to: number },
+): CompletionOption[] {
+  if (observed === undefined || typed.length < MIN_VALUE_MATCH_LENGTH)
+    return [];
+  const q = typed.toLowerCase();
+  const ranked: Array<{
+    rank: number;
+    count: number;
+    option: CompletionOption;
+  }> = [];
+  for (const f of VALUE_MATCH_FIELDS) {
+    for (const o of observedValues(observed, f.id)) {
+      const v = o.value.toLowerCase();
+      const rank = v === q ? 0 : v.startsWith(q) ? 1 : v.includes(q) ? 2 : null;
+      if (rank === null) continue;
+      const insert = `${f.id}:${serializeValue(o.value)}`;
+      ranked.push({
+        rank,
+        count: o.count ?? 0,
+        option: {
+          id: `match:${insert}`,
+          kind: "pattern",
+          label: insert,
+          detail: f.description,
+          insert,
+          replaceSpan: span,
+        },
+      });
+    }
+  }
+  ranked.sort((a, b) => a.rank - b.rank || b.count - a.count);
+  return ranked.slice(0, MAX_VALUE_MATCHES).map((m) => m.option);
 }
 
 /**
@@ -1100,25 +1199,32 @@ export function planInputCompletions(
     const resolvedKey = colon === -1 ? null : resolveField(keyPart);
     // The COMPLETE key of an existing filter is a switcher (like a complete
     // value): offer every field, current one first, and leave Enter unarmed.
-    // A partial key prefix-filters and arms Enter-to-complete.
+    // A partial key prefix-filters and arms Enter-to-complete — and a bare word
+    // that EXACTLY names a field (id or alias) always surfaces that field
+    // first: an alias need not be a substring of its field id (`ttft` →
+    // timeToFirstToken, `model` → providedModelName), so label ranking alone
+    // can bury or drop the very field the user named while the exact match
+    // arms Enter — which must pick IT, not whatever happened to rank first.
     const allFields = fieldOptions();
     const fields =
       resolvedKey !== null
-        ? (() => {
-            const currentId =
-              resolvedKey.type === "field" ? resolvedKey.field.id : keyPart;
-            const index = allFields.findIndex(
-              (o) => o.kind === "field" && o.fieldId === currentId,
-            );
-            return index === -1
-              ? allFields
-              : [
-                  allFields[index]!,
-                  ...allFields.slice(0, index),
-                  ...allFields.slice(index + 1),
-                ];
-          })()
-        : rankFilter(allFields, keyPart);
+        ? hoistFieldOption(
+            allFields,
+            resolvedKey.type === "field" ? resolvedKey.field.id : keyPart,
+          )
+        : (() => {
+            const ranked = rankFilter(allFields, keyPart);
+            const exact = resolveField(keyPart);
+            const exactId =
+              exact?.type === "field"
+                ? exact.field.id
+                : exact?.type === "pseudo"
+                  ? exact.id
+                  : null;
+            return exactId === null
+              ? ranked
+              : hoistFieldOption(ranked, exactId, allFields);
+          })();
     const operators =
       colon === -1 ? rankFilter(OPERATOR_OPTIONS, tokenBody) : [];
     const patterns =
@@ -1152,10 +1258,21 @@ export function planInputCompletions(
             { keepCurrentFirst: true },
           )
         : [];
+    // Contextual facet matches share the run gate (and its span) with the scope
+    // switches: both rewrite the whole free-text block the user sees, and the
+    // gate already excludes negated terms and existing `key:` tokens.
+    const matchingFilters: CompletionOption[] =
+      run !== null
+        ? matchingFilterOptions(run.text, ctx.observed, {
+            from: run.from,
+            to: run.to,
+          })
+        : [];
     if (
       fields.length +
         operators.length +
         patterns.length +
+        matchingFilters.length +
         searchScopes.length ===
       0
     )
@@ -1177,7 +1294,12 @@ export function planInputCompletions(
           ? resolveField(keyPart) !== null
           : resolvedKey === null && fields.length > 0,
       sections: [
+        // Fields stay first: options[0] must remain the field so the
+        // exact-alias autoHighlight (Enter → `level:`) keeps picking it.
+        // Concrete facet matches beat the generic operator/pattern syntax help
+        // and the full-text fallback.
         ...section(SECTION_FIELDS, fields),
+        ...section(SECTION_MATCHING_FILTERS, matchingFilters),
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
         ...section(SECTION_SEARCH_IN, searchScopes),
