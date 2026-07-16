@@ -322,33 +322,18 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      let eventInputs:
-        | ReturnType<OtelIngestionProcessor["processToEvent"]>
-        | undefined;
-      let sdkInfo: ReturnType<typeof getSdkInfoFromResourceSpans> | undefined;
+      // This also records original OTEL span-size telemetry before media
+      // references replace any inline data.
+      const eventInputs = processor.processToEvent(parsedSpans);
       const mediaUploadEnabled =
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
 
       if (mediaUploadEnabled) {
-        // Generate the direct-write representation before media extraction so
-        // original OTEL span-size telemetry is recorded on unmodified input.
-        eventInputs = processor.processToEvent(parsedSpans);
-        sdkInfo =
-          parsedSpans.length > 0
-            ? getSdkInfoFromResourceSpans(parsedSpans[0])
-            : {
-                scopeName: null,
-                scopeVersion: null,
-                telemetrySdkLanguage: null,
-              };
         const mediaTargets = createOtelMediaTargets({
           ingestionEvents: events,
           eventInputs,
         });
 
-        // Media extraction only needs normalized fields. Drop the expanded raw
-        // OTEL tree before decoding or uploading potentially large payloads.
-        parsedSpans = [];
         await processOtelMediaIfEnabled({
           enabled: true,
           targets: mediaTargets,
@@ -437,17 +422,16 @@ export const otelIngestionQueueProcessorBuilder = (
           const body = o.body as { environment?: string };
           return body.environment === "sdk-experiment";
         });
-        const currentSdkInfo =
-          sdkInfo ??
-          (parsedSpans.length > 0
+        const sdkInfo =
+          parsedSpans.length > 0
             ? getSdkInfoFromResourceSpans(parsedSpans[0])
             : {
                 scopeName: null,
                 scopeVersion: null,
                 telemetrySdkLanguage: null,
-              });
+              };
         useDirectEventWrite = checkSdkVersionRequirements(
-          currentSdkInfo,
+          sdkInfo,
           hasExperimentEnvironment,
         );
       }
@@ -524,7 +508,6 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Both require enriched event records with trace-level attributes
       // (userId, sessionId, tags, release) that processToEvent provides.
-      eventInputs ??= processor.processToEvent(parsedSpans);
       if (eventInputs.length === 0) {
         return;
       }

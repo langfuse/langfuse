@@ -344,11 +344,20 @@ async function transformStructuredValue(
 }
 
 function setTraversalValue(node: TraversalNode, value: unknown): void {
-  if (Array.isArray(node.parent) && typeof node.key === "number") {
-    node.parent[node.key] = value;
-  } else if (!Array.isArray(node.parent) && typeof node.key === "string") {
-    node.parent[node.key] = value;
-  }
+  defineOwnValue(node.parent, node.key, value);
+}
+
+function defineOwnValue(
+  target: object,
+  property: PropertyKey,
+  value: unknown,
+): void {
+  Object.defineProperty(target, property, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  });
 }
 
 function matchStructuredMedia(
@@ -420,7 +429,7 @@ async function replaceStructuredMedia(
 
   const replacement = await params.processCandidate(candidate);
   if (replacement) {
-    media.target[media.property] = replacement;
+    defineOwnValue(media.target, media.property, replacement);
     return Math.max(
       0,
       Buffer.byteLength(media.content, "utf8") -

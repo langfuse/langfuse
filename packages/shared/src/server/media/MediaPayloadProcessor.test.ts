@@ -116,4 +116,54 @@ describe("transformMediaPayload", () => {
       Buffer.byteLength(PNG_BASE64, "utf8"),
     );
   });
+
+  it("replaces an own __proto__ field without invoking its setter", async () => {
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const value: Record<string, unknown> = {};
+    const originalPrototype = Object.getPrototypeOf(value);
+    Object.defineProperty(value, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      get: () => dataUri,
+      set: (replacement: unknown) => {
+        Object.setPrototypeOf(value, { polluted: replacement });
+      },
+    });
+
+    await transformMediaPayload(value, {
+      processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(Object.getPrototypeOf(value)).toBe(originalPrototype);
+    expect(Object.getOwnPropertyDescriptor(value, "__proto__")?.value).toBe(
+      MEDIA_REFERENCE,
+    );
+  });
+
+  it("replaces a structured media field without invoking its setter", async () => {
+    const setter = vi.fn();
+    const value: Record<string, unknown> = {
+      type: "base64",
+      media_type: "image/png",
+    };
+    Object.defineProperty(value, "data", {
+      configurable: true,
+      enumerable: true,
+      get: () => PNG_BASE64,
+      set: setter,
+    });
+
+    await transformMediaPayload(value, {
+      processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(setter).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(value, "data")?.value).toBe(
+      MEDIA_REFERENCE,
+    );
+  });
 });
