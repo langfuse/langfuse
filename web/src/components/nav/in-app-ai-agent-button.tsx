@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -12,8 +18,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { DialogController } from "@/src/components/ui/dialog-controller";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { Layer } from "@/src/components/ui/layer";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
 import {
   InAppAgentWindowShell,
@@ -23,6 +29,7 @@ import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InApp
 import type { InAppAgentWindowConversation } from "@/src/ee/features/in-app-agent/components/InAppAgentWindow";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
@@ -68,6 +75,7 @@ function DeleteConversationDialog({
 
 export const InAppAiAgentButton = () => {
   const { organization } = useQueryProjectOrOrganization();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const {
     deleteConversation,
     isAvailable,
@@ -77,6 +85,11 @@ export const InAppAiAgentButton = () => {
     setIsExpanded,
   } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const canUseAssistant =
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    isLangfuseCloud &&
+    Boolean(organization);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
@@ -120,36 +133,75 @@ export const InAppAiAgentButton = () => {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
 
-  if (!isAvailable || !hasInAppAgentEntitlement) {
-    return null;
-  }
-
-  const handleClick = () => {
+  const openAssistant = useCallback(() => {
     if (organization && !organization.aiFeaturesEnabled) {
       setEnableDialogOpen(true);
       return;
     }
 
-    const willOpen = !open;
-
-    if (willOpen) {
+    if (!open) {
       floatingPanelHandle.resetGeometry();
     }
 
-    setOpen((currentOpen) => !currentOpen);
+    setOpen(true);
+  }, [floatingPanelHandle, open, organization, setOpen]);
+
+  useEffect(() => {
+    if (!canUseAssistant) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "i" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      openAssistant();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [canUseAssistant, openAssistant]);
+
+  if (!canUseAssistant) {
+    return null;
+  }
+
+  const handleClick = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+
+    openAssistant();
   };
 
   return (
     <>
-      <SidebarMenuButton
+      <Button
         ref={buttonRef}
+        type="button"
+        variant={open ? "secondary" : "ghost"}
+        size="sm"
+        aria-label={open ? "Close assistant" : "Open assistant"}
+        aria-pressed={open}
         data-ignore-outside-interaction
-        isActive={open}
         onClick={handleClick}
+        className="gap-2"
       >
         <BotMessageSquare className="h-4 w-4" />
-        Assistant
-      </SidebarMenuButton>
+        <span className="hidden sm:inline">Assistant</span>
+        <KeyboardShortcut
+          className="hidden bg-transparent shadow-none md:inline-flex"
+          keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "I"]}
+        />
+      </Button>
       {open ? (
         <DialogController<InAppAgentWindowConversation>
           dialog={(close, conversation) => (
