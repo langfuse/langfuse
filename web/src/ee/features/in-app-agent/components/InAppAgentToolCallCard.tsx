@@ -9,11 +9,13 @@ import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/c
 export function InAppAgentToolCallCard({
   tool,
   isCompact = false,
+  isDisabled = false,
   onApproveToolCall,
   onRejectToolCall,
 }: {
   tool: InAppAgentToolCallContent;
   isCompact?: boolean;
+  isDisabled?: boolean;
   onApproveToolCall?: (approvalId: string) => Promise<void>;
   onRejectToolCall?: (approvalId: string) => Promise<void>;
 }) {
@@ -52,7 +54,9 @@ export function InAppAgentToolCallCard({
                 size="sm"
                 variant="outline-success"
                 className="h-7"
-                disabled={isApprovalSubmitting || !onApproveToolCall}
+                disabled={
+                  isDisabled || isApprovalSubmitting || !onApproveToolCall
+                }
                 onClick={() => {
                   if (isApprovalPending) {
                     onApproveToolCall?.(approval.id).catch(() => undefined);
@@ -71,7 +75,9 @@ export function InAppAgentToolCallCard({
                 size="sm"
                 variant="outline"
                 className="h-7"
-                disabled={isApprovalSubmitting || !onRejectToolCall}
+                disabled={
+                  isDisabled || isApprovalSubmitting || !onRejectToolCall
+                }
                 onClick={() => {
                   if (isApprovalPending) {
                     onRejectToolCall?.(approval.id).catch(() => undefined);

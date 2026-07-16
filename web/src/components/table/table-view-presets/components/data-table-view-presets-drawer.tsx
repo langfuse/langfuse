@@ -144,7 +144,13 @@ interface TableViewPresetsDrawerProps {
        * shared-link visit where the view is intentionally not applied). */
       appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      applyViewState: (viewData: TableViewPresetState) => void;
+      applyViewState: (
+        viewData: TableViewPresetState,
+        meta?: {
+          trigger: "select" | "permalink" | "default" | "system_preset";
+          viewId?: string | null;
+        },
+      ) => void;
     };
   };
   currentState: {
@@ -193,7 +199,7 @@ export function TableViewPresetsDrawer({
     updateNameMutation,
     deleteMutation,
     generatePermalinkMutation,
-  } = useViewMutations({ handleSetViewId });
+  } = useViewMutations({ handleSetViewId, applyViewState });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -267,7 +273,7 @@ export function TableViewPresetsDrawer({
     });
 
     handleSetViewId(view.id);
-    applyViewState(view);
+    applyViewState(view, { trigger: "select", viewId: view.id });
   };
 
   const handleSelectSystemFilterPreset = useCallback(
@@ -277,7 +283,10 @@ export function TableViewPresetsDrawer({
         presetId: preset.id,
       });
       handleSetViewId(preset.id);
-      applyViewState(buildSystemFilterPresetState(preset));
+      applyViewState(buildSystemFilterPresetState(preset), {
+        trigger: "system_preset",
+        viewId: preset.id,
+      });
     },
     [capture, tableName, handleSetViewId, applyViewState],
   );

@@ -18,7 +18,8 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { Download, ExternalLinkIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
@@ -213,6 +214,32 @@ const SessionScores = ({
     </div>
   );
 };
+const CopySessionIdButton: React.FC<{
+  sessionId: string;
+}> = ({ sessionId }) => {
+  const capture = usePostHogClientCapture();
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title="Copy session ID"
+      aria-label="Copy session ID"
+      onClick={async () => {
+        capture("session_detail:copy_session_id_click");
+        await copy(sessionId);
+      }}
+    >
+      {isCopied ? (
+        <CheckIcon className="text-muted-green h-4 w-4" />
+      ) : (
+        <CopyIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+};
+
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -382,6 +409,7 @@ export const SessionPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
@@ -674,8 +702,11 @@ const LoadedSessionEventsPage: React.FC<{
         basePath: `/project/${projectId}/traces`,
       },
       queryParams: ["observation", "display", "timestamp"],
+      // observationId: set by a card's "Open in trace view" on a truncated
+      // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -1089,6 +1120,7 @@ const LoadedSessionEventsPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
@@ -1183,6 +1215,10 @@ const LoadedSessionEventsPage: React.FC<{
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
               label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}

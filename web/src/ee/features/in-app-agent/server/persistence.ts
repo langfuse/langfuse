@@ -16,9 +16,10 @@ import type {
 
 import { env } from "@/src/env.mjs";
 import {
-  fetchLangfuseAICompletion,
+  generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import { truncate } from "@/src/utils/string";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -368,7 +369,7 @@ export async function maybeInferAndPersistConversationTitle(params: {
       return;
     }
 
-    const completion = await fetchLangfuseAICompletion({
+    const completion = await generateLangfuseAIText({
       messages: [
         {
           role: ChatMessageRole.System,
@@ -432,20 +433,21 @@ ${JSON.stringify(transcript, null, 2)}
             traceName: "in-app-agent-conversation-title",
             userId: params.userId,
             metadata: {
+              langfuse_project_url: new URL(
+                `project/${encodeURIComponent(params.projectId)}`,
+                getProductBaseUrl(),
+              ).toString(),
               conversation_id: params.conversationId,
             },
           })
         : undefined,
     });
 
-    const completionText =
-      typeof completion === "string" ? completion : completion.text;
-
-    if (!completionText) {
+    if (!completion) {
       return;
     }
 
-    const title = completionText.trim();
+    const title = completion.trim();
 
     if (!title) {
       return;

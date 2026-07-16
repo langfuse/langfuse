@@ -12,7 +12,7 @@ describe("toAnthropicBaseURL", () => {
     expect(toAnthropicBaseURL("")).toBeUndefined();
   });
 
-  it("appends /v1 to the origin-style URL LangChain expects", () => {
+  it("appends /v1 to an origin-style stored URL", () => {
     expect(toAnthropicBaseURL("https://api.anthropic.com")).toBe(
       "https://api.anthropic.com/v1",
     );

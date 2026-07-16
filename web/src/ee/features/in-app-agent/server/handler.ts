@@ -51,6 +51,7 @@ import {
 } from "@/src/features/public-api/server/RateLimitService";
 import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
@@ -263,13 +264,19 @@ export default async function handler(request: Request) {
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
       : undefined;
 
+    const approvedResumeApprovalRequest =
+      isResumeAgentInput(sanitizedInput) &&
+      sanitizedInput.forwardedProps.command.resume.approved
+        ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+        : undefined;
+
     return await withInAppAgentMcpApiKeyCleanup(
       {
         projectId,
         runId: sanitizedInput.runId,
         userId,
         toolName: getInAppAgentMcpRegistryToolName(
-          resumeApprovalRequest?.toolName,
+          approvedResumeApprovalRequest?.toolName,
         ),
       },
       async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
@@ -281,7 +288,7 @@ export default async function handler(request: Request) {
         const restorePendingToolApprovalIfRetryable = () => {
           if (
             !pendingToolApprovalConsumed ||
-            !resumeApprovalRequest ||
+            !approvedResumeApprovalRequest ||
             approvedToolResultPersisted
           ) {
             return;
@@ -290,7 +297,7 @@ export default async function handler(request: Request) {
           return storePendingToolApproval({
             projectId,
             conversationId: conversation.id,
-            approvalRequest: resumeApprovalRequest,
+            approvalRequest: approvedResumeApprovalRequest,
           });
         };
 
@@ -471,6 +478,10 @@ export default async function handler(request: Request) {
                     langfuse_ai_feature: "in-app-agent",
                     langfuse_user_id: userId,
                     langfuse_project_id: projectId,
+                    langfuse_project_url: new URL(
+                      `project/${encodeURIComponent(projectId)}`,
+                      getProductBaseUrl(),
+                    ).toString(),
                     conversation_id: conversation.id,
                     thread_id: sanitizedInput.threadId,
                     run_id: sanitizedInput.runId,
@@ -628,7 +639,12 @@ function createInAppAgentRateLimitResponse(rateLimitRes: RateLimitResult) {
   }
 
   return Response.json(
-    { error: "Rate limit exceeded" },
+    {
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1_000),
+      },
+    },
     { status: 429, headers },
   );
 }

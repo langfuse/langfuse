@@ -7,6 +7,10 @@ evaluating, and debugging AI applications.
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- If you are about to write a `useEffect` — or sync fetched data into state, or
+  wire form initial values from loaded data — read
+  `.agents/skills/frontend-large-feature-architecture/SKILL.md` first. Most
+  such effects should not exist.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
   bug. If the bug depends on a data shape, pause and ask: can
   `pnpm run seed` prefill that shape locally? If not, consider extending a
@@ -17,6 +21,10 @@ evaluating, and debugging AI applications.
   real browser before signoff. Prefill the data the flow needs with the seed
   CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
   never with ad-hoc scripts or raw ClickHouse inserts.
+- Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
+  `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
+  skill to use or debug one, e.g. read a preview's web/worker error logs with
+  `kubectl`.
 - For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
   tags; prefer Markdown images or width-only HTML so previews preserve aspect
   ratio.
