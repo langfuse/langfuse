@@ -25,16 +25,19 @@ export const getEventsStreamForEval = async (props: {
     rowLimit,
   } = props;
 
-  const { query, params: queryParams } = buildEventsStreamQuery({
+  const { queryBuilder } = buildEventsStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
     searchQuery,
     searchType,
     rowLimit,
-    configureQuery: (builder) =>
-      builder.selectFieldSet("eval").selectIO(false).selectFieldSet("metadata"),
   });
+  const { query, params: queryParams } = queryBuilder
+    .selectFieldSet("eval")
+    .selectIO(false)
+    .selectFieldSet("metadata")
+    .buildWithParams();
 
   type EvalEventRow = {
     id: string;

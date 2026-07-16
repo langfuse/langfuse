@@ -521,6 +521,7 @@ const meta = preview.meta({
     onExpandedChange: fn(),
     onSubmit: fn(),
     onSubmitFeedback: fn(),
+    screenContextDescription: { type: "page" as const },
     showCloseButton: true,
   },
   render: (args) => <StatefulInAppAgentWindow {...args} />,
@@ -528,6 +529,7 @@ const meta = preview.meta({
 
 export const ToolApprovalRequired = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     selectedConversationId: "conversation-1",
     messages: [
@@ -573,6 +575,7 @@ export const Empty = meta.story({
 export const Conversation = meta.story({
   args: {
     selectedConversationId: "conversation-1",
+    screenContextDescription: { type: "experimentRun" as const },
     messages: [
       {
         id: "user-1",
@@ -741,6 +744,7 @@ export const Conversation = meta.story({
 
 export const Streaming = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
@@ -749,6 +753,7 @@ export const Streaming = meta.story({
 
 export const LoadingResponse = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     messages: [
       {
         id: "user-1",
@@ -771,6 +776,7 @@ export const LoadingResponse = meta.story({
 
 export const LoadingAfterToolCall = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -936,6 +942,7 @@ export const FeedbackControlsShowAfterTurnEnd = meta.story({
 
 export const Connecting = meta.story({
   args: {
+    isAssistantTurnInProgress: true,
     isInputDisabled: true,
     messages: [
       {
@@ -981,7 +988,28 @@ export const RateLimited = meta.story({
   name: "(Test) Rate Limited",
   args: {
     error: null,
-    messages: [],
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
+    messages: [
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              args: JSON.stringify({ name: "regression-examples" }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
   },
   render: function Render(args) {
     const [retryAt] = useState(() => Date.now() + 12_000);
@@ -1009,14 +1037,15 @@ export const RateLimited = meta.story({
       canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
     ).toBeDisabled();
     await expect(
-      canvas.getByRole("button", { name: "Get started with Langfuse" }),
+      canvas.getByRole("button", { name: "Confirm" }),
     ).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeEnabled();
+    ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeEnabled();
+    ).toBeDisabled();
   },
 });
 
