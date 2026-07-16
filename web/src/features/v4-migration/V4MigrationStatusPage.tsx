@@ -21,6 +21,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -193,7 +194,13 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const handleRowClick = (row: { id: string; name: string }) => {
+  const handleRowClick = (row: {
+    id: string;
+    name: string;
+    isDummy: boolean;
+  }) => {
+    // Demo placeholder rows have no backing project to open a panel for.
+    if (row.isDummy) return;
     capture("v4_migration:status_row_clicked");
     setAiAgentOpen(false);
     setSupportDrawerOpen(false);
@@ -341,7 +348,7 @@ function OrgStatusSection({
               return (
                 <TableRow
                   key={row.id}
-                  className="group/row cursor-pointer"
+                  className={cn("group/row", !row.isDummy && "cursor-pointer")}
                   onClick={() => handleRowClick(row)}
                 >
                   <TableCell density="comfortable" className="max-w-48">
@@ -411,6 +418,13 @@ function OrgStatusSection({
 export default function V4MigrationStatusPage() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const { canToggleV4 } = useV4Beta();
+
+  // Same eligibility gate as every other v4-migration surface; the page is
+  // reachable by URL regardless of whether the nav entry is shown.
+  if (!canToggleV4) {
+    return null;
+  }
 
   const faqItems: { q: string; a: ReactNode }[] = [
     {

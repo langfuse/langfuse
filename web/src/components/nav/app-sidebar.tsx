@@ -26,6 +26,8 @@ import { LangfuseLogo } from "@/src/components/LangfuseLogo";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 type AppSidebarProps = {
   navItems: {
@@ -45,6 +47,8 @@ export function AppSidebar({
   userNavProps,
   ...props
 }: AppSidebarProps) {
+  const { canToggleV4 } = useV4Beta();
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
@@ -57,8 +61,9 @@ export function AppSidebar({
       <SidebarContent>
         <NavMain items={navItems} />
         <div className="flex-1" />
-        {/* <SidebarNotifications /> temporarily removed while the v4-migration
-            entry point ("Update your setup" nav item) is trialled. */}
+        {/* Hidden for v4-beta users only: the "Update" nav entry is trialled
+            in this slot. Everyone else keeps the notifications stack. */}
+        {!canToggleV4 && <SidebarNotifications />}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
