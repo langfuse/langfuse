@@ -392,6 +392,7 @@ export function DatasetItemsTable({
     <>
       <DataTableToolbar
         columns={columns}
+        tableName="dataset-items"
         filterColumnDefinition={datasetItemFilterColumns}
         filterState={filterState}
         setFilterState={setFilterStateWithDebounce}
@@ -417,7 +418,7 @@ export function DatasetItemsTable({
         }}
       />
       <DataTable
-        tableName={"datasetItems"}
+        tableName="datasetItems"
         columns={columns}
         data={
           items.isPending

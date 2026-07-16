@@ -5,8 +5,11 @@ import {
   calculateTimelineWidth,
   calculateStepSize,
   calculateTraceDuration,
+  computeSelectionScrollTarget,
   findEarliestStartTime,
   getPredefinedStepSizes,
+  REVEAL_LEFT_FRACTION,
+  REVEAL_MARGIN_PX,
   SCALE_WIDTH,
   PREDEFINED_STEP_SIZES,
 } from "./timeline-calculations";
@@ -170,12 +173,22 @@ describe("timeline-calculations", () => {
       expect(PREDEFINED_STEP_SIZES).toContain(stepSize);
     });
 
-    it("should return largest step size for very long traces", () => {
-      // 10000 second trace
-      const stepSize = calculateStepSize(10000);
-      expect(stepSize).toBe(
-        PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1],
-      );
+    it("should keep tick spacing readable for very long traces (LFE-10959)", () => {
+      // A ~2.8h trace (the reported deep-chain trace) previously clamped to
+      // the 500s max step -> ~21 ticks ~45px apart with overlapping labels.
+      // Ticks must never be denser than the STEP_SIZE (100px) design grid.
+      for (const duration of [
+        10_000, 10_061, 40_000, 86_400, 100_000, 500_000, 1_000_000,
+      ]) {
+        const stepSize = calculateStepSize(duration);
+        const tickSpacingPx = (stepSize / duration) * SCALE_WIDTH;
+        expect(tickSpacingPx).toBeGreaterThanOrEqual(100);
+      }
+    });
+
+    it("should pick time-nice steps for hour-scale traces", () => {
+      // ~2.8h trace: step lands on a clean 20m boundary, not a raw 500s clamp
+      expect(calculateStepSize(10_061)).toBe(1200);
     });
 
     it("should return smallest applicable step size", () => {
@@ -432,5 +445,98 @@ describe("timeline-calculations", () => {
       });
       expect(calculateTraceDuration([root], origin)).toBe(12);
     });
+  });
+});
+
+describe("computeSelectionScrollTarget", () => {
+  // A 10-row viewport (260px at 26px rows), 400px wide, scrolled to (0, 0).
+  const base = {
+    index: 0,
+    rowHeight: 26,
+    scrollTop: 0,
+    scrollLeft: 0,
+    clientHeight: 260,
+    clientWidth: 400,
+    barStart: null,
+    isInitial: false,
+  };
+
+  it("centers the row on initial load", () => {
+    const { top } = computeSelectionScrollTarget({
+      ...base,
+      index: 100,
+      isInitial: true,
+    });
+    // rowTop 2600, centered: 2600 - (260 - 26) / 2 = 2483
+    expect(top).toBe(2483);
+  });
+
+  it("clamps the initial center to 0 for rows near the top", () => {
+    const { top } = computeSelectionScrollTarget({
+      ...base,
+      index: 1,
+      isInitial: true,
+    });
+    expect(top).toBe(0);
+  });
+
+  it("aligns a row above the fold to the top", () => {
+    const { top } = computeSelectionScrollTarget({
+      ...base,
+      index: 2, // rowTop 52
+      scrollTop: 500,
+    });
+    expect(top).toBe(52);
+  });
+
+  it("aligns a row below the fold to the bottom", () => {
+    const { top } = computeSelectionScrollTarget({
+      ...base,
+      index: 50, // rowTop 1300, viewport [0, 260)
+    });
+    expect(top).toBe(1300 - 260 + 26);
+  });
+
+  it("keeps scrollTop for an already-visible row", () => {
+    const { top } = computeSelectionScrollTarget({
+      ...base,
+      index: 5, // rowTop 130, fully inside [0, 260)
+    });
+    expect(top).toBe(0);
+  });
+
+  it("keeps scrollLeft while the bar start sits inside the comfort band", () => {
+    const { left } = computeSelectionScrollTarget({
+      ...base,
+      scrollLeft: 100,
+      barStart: 100 + REVEAL_MARGIN_PX, // exactly at the band edge → visible
+    });
+    expect(left).toBe(100);
+  });
+
+  it("reveals an off-screen-right bar a fraction from the left edge", () => {
+    const { left } = computeSelectionScrollTarget({
+      ...base,
+      barStart: 900, // beyond viewRight 400
+    });
+    expect(left).toBe(900 - 400 * REVEAL_LEFT_FRACTION);
+  });
+
+  it("clamps an off-screen-left reveal at 0", () => {
+    const { left } = computeSelectionScrollTarget({
+      ...base,
+      scrollLeft: 600,
+      barStart: 10, // far left of the viewport
+    });
+    expect(left).toBe(0);
+  });
+
+  it("keeps scrollLeft when there is no bar (barStart null)", () => {
+    const { left } = computeSelectionScrollTarget({
+      ...base,
+      scrollLeft: 250,
+      barStart: null,
+    });
+    expect(left).toBe(250);
   });
 });

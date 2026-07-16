@@ -16,6 +16,27 @@ import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-en
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { MastraAgent } from "@ag-ui/mastra";
+import type { Langfuse } from "langfuse";
+import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+
+// Shape of the tool entries the mocked MCP client feeds into the Agent
+// constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
+// does not allow property access, so tests read it through this view.
+type MockedAgentTools = Record<
+  string,
+  | {
+      id?: string;
+      server?: string;
+      requireApproval?: boolean;
+      execute?: (...args: unknown[]) => Promise<unknown>;
+    }
+  | undefined
+>;
+
+const getAgentTools = (
+  agentConfig: { tools?: unknown } | undefined,
+): MockedAgentTools | undefined =>
+  agentConfig?.tools as MockedAgentTools | undefined;
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -33,6 +54,7 @@ const instrumentationMocks = vi.hoisted(() => {
     recordEvents: vi.fn(),
     recordAvailableTools: vi.fn(),
     recordToolCallApproval: vi.fn(),
+    recordStepFinish: vi.fn(),
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
@@ -47,7 +69,10 @@ const instrumentationMocks = vi.hoisted(() => {
 });
 
 const promptMocks = vi.hoisted(() => ({
-  compile: vi.fn(() => "Prompt-managed assistant instructions"),
+  compile: vi.fn(
+    (_variables: Record<string, unknown>) =>
+      "Prompt-managed assistant instructions",
+  ),
   getPrompt: vi.fn(),
 }));
 
@@ -170,7 +195,7 @@ const createPatchedChunkProcessor = () => {
   const onError = vi.fn();
   const flush = vi.fn();
   const adapter = {
-    createChunkProcessor: vi.fn(() => ({
+    createChunkProcessor: vi.fn((_options: { onError: unknown }) => ({
       handleChunk: (chunk: unknown) => {
         forwardedChunks.push(chunk);
         return false;
@@ -522,7 +547,7 @@ describe("createAgUiStream", () => {
     });
   });
 
-  it("serializes valid events including adapter message snapshots", async () => {
+  it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = {
@@ -565,7 +590,7 @@ describe("createAgUiStream", () => {
     const eventOrder: string[] = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -583,6 +608,20 @@ describe("createAgUiStream", () => {
             content: "hello",
           },
         ],
+      },
+      {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: "reasoning-message-1",
+        role: "reasoning",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: "reasoning-message-1",
+        delta: "Checking the current trace context.",
+      },
+      {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: "reasoning-message-1",
       },
       {
         type: EventType.TEXT_MESSAGE_START,
@@ -614,7 +653,9 @@ describe("createAgUiStream", () => {
           eventOrder.push(`persist:${event.type}`);
           await Promise.resolve();
         },
-        awsBedrock: { modelId: "test-model" },
+        awsBedrock: {
+          modelId: "eu.anthropic.claude-opus-4-8",
+        },
         langfuseMcp: {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
@@ -628,13 +669,7 @@ describe("createAgUiStream", () => {
         },
         langfuseClient,
         useLocalPrompt: false,
-        langfuseTracing: {
-          environment: "langfuse-in-app-agent",
-          metadata: { langfuse_project_id: "project-1" },
-          user: { id: "user-1" },
-          traceId: "0123456789abcdef0123456789abcdef",
-          targetProjectId: "project-1",
-        },
+        langfuseTracing: createTestTracingConfig(),
       },
     });
     const streamedText = await readStream(stream, (event) => {
@@ -642,6 +677,7 @@ describe("createAgUiStream", () => {
     });
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
+    expect(streamedText).toContain(EventType.REASONING_MESSAGE_CONTENT);
     expect(adapterEvents.inputs).toEqual([input]);
     const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
@@ -666,36 +702,47 @@ describe("createAgUiStream", () => {
             id: "langfuse_proposeRedirect",
           }),
         }),
+        skills: expect.arrayContaining([
+          expect.objectContaining({ name: "langfuse-error-analysis" }),
+          expect.objectContaining({ name: "langfuse-cli" }),
+        ]),
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    expect(agentConfig?.tools).not.toHaveProperty("langfuse_search");
-    expect(agentConfig?.tools?.langfuse_getHealth).not.toHaveProperty(
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      maxSteps: 10,
+      providerOptions: {
+        bedrock: {
+          additionalModelRequestFields: {
+            thinking: { type: "adaptive", display: "summarized" },
+          },
+        },
+      },
+    });
+    const agentTools = getAgentTools(agentConfig);
+    expect(agentTools).not.toHaveProperty("langfuse_search");
+    expect(agentTools?.langfuse_getHealth).not.toHaveProperty(
       "requireApproval",
     );
-    expect(agentConfig?.tools?.langfuseDocs_search).not.toHaveProperty(
+    expect(agentTools?.langfuseDocs_search).not.toHaveProperty(
       "requireApproval",
     );
-    expect(agentConfig?.tools?.langfuseDocs_fetch).not.toHaveProperty(
+    expect(agentTools?.langfuseDocs_fetch).not.toHaveProperty(
       "requireApproval",
     );
     expect(
-      agentConfig?.tools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
+      agentTools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
     ).not.toBe(true);
-    const docsSearchTool = agentConfig?.tools?.langfuseDocs_search;
+    const docsSearchTool = agentTools?.langfuseDocs_search;
     await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
       _meta: expect.objectContaining({
         choices: expect.any(Array),
       }),
     });
 
-    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+    const redirectTool = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0])?.[
       IN_APP_AGENT_REDIRECT_TOOL_NAME
-    ] as
-      | {
-          execute?: (input: unknown) => Promise<unknown>;
-        }
-      | undefined;
+    ];
 
     await expect(
       redirectTool?.execute?.({
@@ -707,6 +754,18 @@ describe("createAgUiStream", () => {
       type: "redirectAction",
       label: "Open trace",
       href: "/project/project-1/traces/trace-1",
+    });
+
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open widget",
+        destination: "dashboardWidget",
+        params: { widgetId: "widget-1" },
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open widget",
+      href: "/project/project-1/widgets/widget-1",
     });
 
     expect(promptMocks.getPrompt).toHaveBeenCalledWith(
@@ -744,6 +803,9 @@ describe("createAgUiStream", () => {
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.REASONING_MESSAGE_END,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
@@ -758,6 +820,12 @@ describe("createAgUiStream", () => {
       `stream:${EventType.RUN_STARTED}`,
       `persist:${EventType.MESSAGES_SNAPSHOT}`,
       `stream:${EventType.MESSAGES_SNAPSHOT}`,
+      `persist:${EventType.REASONING_MESSAGE_START}`,
+      `stream:${EventType.REASONING_MESSAGE_START}`,
+      `persist:${EventType.REASONING_MESSAGE_CONTENT}`,
+      `stream:${EventType.REASONING_MESSAGE_CONTENT}`,
+      `persist:${EventType.REASONING_MESSAGE_END}`,
+      `stream:${EventType.REASONING_MESSAGE_END}`,
       `persist:${EventType.TEXT_MESSAGE_START}`,
       `stream:${EventType.TEXT_MESSAGE_START}`,
       `persist:${EventType.TEXT_MESSAGE_CONTENT}`,
@@ -779,7 +847,18 @@ describe("createAgUiStream", () => {
           version: 2,
         },
       }),
+      model: "eu.anthropic.claude-opus-4-8",
     });
+    const onStepFinish = (
+      agentConfig?.defaultOptions as
+        | { onStepFinish?: (event: unknown) => void }
+        | undefined
+    )?.onStepFinish;
+    expect(onStepFinish).toEqual(expect.any(Function));
+    onStepFinish?.({ usage: { inputTokens: 10, outputTokens: 5 } });
+    expect(
+      instrumentationMocks.instrumentation.recordStepFinish,
+    ).toHaveBeenCalledWith({ usage: { inputTokens: 10, outputTokens: 5 } });
     expect(
       instrumentationMocks.instrumentation.recordEvents.mock.calls.flatMap(
         ([events]) => (events as AgUiEvent[]).map((event) => event.type),
@@ -787,6 +866,9 @@ describe("createAgUiStream", () => {
     ).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
+      EventType.REASONING_MESSAGE_START,
+      EventType.REASONING_MESSAGE_CONTENT,
+      EventType.REASONING_MESSAGE_END,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.TEXT_MESSAGE_END,
@@ -794,6 +876,78 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("does not enable Bedrock reasoning for non-Claude models", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "hello",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    } as unknown as Langfuse;
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: {
+          modelId: "meta.llama3-70b-instruct-v1:0",
+        },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream);
+
+    const { Agent } = await import("@mastra/core/agent");
+    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
+    expect(agentConfig?.defaultOptions).toMatchObject({
+      maxSteps: 10,
+    });
+    expect(agentConfig?.defaultOptions).not.toHaveProperty("providerOptions");
   });
 
   it("executes approved tools manually and continues with tool result history", async () => {
@@ -811,7 +965,7 @@ describe("createAgUiStream", () => {
     const persistedEvents: AgUiEvent[] = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -952,12 +1106,8 @@ describe("createAgUiStream", () => {
     });
 
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
-    const createScoreConfigTool = agentConfig?.tools
-      ?.langfuse_createScoreConfig as
-      | {
-          execute?: ReturnType<typeof vi.fn>;
-        }
-      | undefined;
+    const createScoreConfigTool =
+      getAgentTools(agentConfig)?.langfuse_createScoreConfig;
     expect(createScoreConfigTool?.execute).toHaveBeenCalledWith(
       {
         name: "readiness",
@@ -996,7 +1146,7 @@ describe("createAgUiStream", () => {
     const onError = vi.fn();
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1025,7 +1175,12 @@ describe("createAgUiStream", () => {
     await readStream(stream);
 
     expect(onError).not.toHaveBeenCalled();
-    const resumedMessages = adapterEvents.inputs[0]?.messages ?? [];
+    const resumedMessages =
+      (
+        adapterEvents.inputs[0] as {
+          messages?: { id: string; role: string; content?: unknown }[];
+        }
+      )?.messages ?? [];
     const retryGuidanceMessage = resumedMessages.find(
       (message) =>
         message.id === "tool-call-1-approval-tool-error-guidance" &&
@@ -1141,7 +1296,7 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1179,7 +1334,7 @@ describe("createAgUiStream", () => {
     );
   });
 
-  it("aborts rejected tools after streaming the rejected tool result", async () => {
+  it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
@@ -1190,10 +1345,29 @@ describe("createAgUiStream", () => {
         threadId: input.threadId,
         runId: input.runId,
       },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
     ];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
     const persistedEvents: AgUiEvent[] = [];
     const streamedEvents: AgUiEvent[] = [];
     const onComplete = vi.fn();
@@ -1212,7 +1386,6 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
           userAccess: defaultInAppAgentUserAccess,
-          runOverride: "run-override",
         },
         redirectAction: {
           projectId: "project-1",
@@ -1227,9 +1400,39 @@ describe("createAgUiStream", () => {
       streamedEvents.push(event);
     });
 
-    expect(adapterEvents.inputs).toEqual([]);
-    expect(vi.mocked(MCPClient)).not.toHaveBeenCalled();
-    expect(vi.mocked(Agent)).not.toHaveBeenCalled();
+    expect(adapterEvents.inputs).toEqual([
+      expect.objectContaining({
+        forwardedProps: {},
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-call",
+            role: "assistant",
+            toolCalls: [
+              expect.objectContaining({
+                id: "tool-call-1",
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-tool-result",
+            role: "tool",
+            toolCallId: "tool-call-1",
+            content: "Tool call was not approved by the user.",
+            error: "Tool call was not approved by the user.",
+          }),
+          expect.objectContaining({
+            id: "tool-call-1-approval-rejection-guidance",
+            role: "developer",
+            content: expect.stringContaining(
+              "ask the user how they would like to continue",
+            ),
+          }),
+        ]),
+      }),
+    ]);
+    expect(adapterEvents.createScoreConfigExecute).not.toHaveBeenCalled();
+    expect(vi.mocked(MCPClient)).toHaveBeenCalledOnce();
+    expect(vi.mocked(Agent)).toHaveBeenCalledOnce();
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,
@@ -1264,6 +1467,25 @@ describe("createAgUiStream", () => {
         role: "tool",
         error: "Tool call was not approved by the user.",
       },
+      {
+        type: EventType.TEXT_MESSAGE_START,
+        messageId: "assistant-message-1",
+        role: "assistant",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: "assistant-message-1",
+        delta: "The action was not completed. How would you like to continue?",
+      },
+      {
+        type: EventType.TEXT_MESSAGE_END,
+        messageId: "assistant-message-1",
+      },
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
     ]);
     expect(streamedEvents).toEqual(persistedEvents);
     expect(
@@ -1296,7 +1518,7 @@ describe("createAgUiStream", () => {
     adapterEvents.items = [];
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     const stream = await createAgUiStream({
       input,
@@ -1320,13 +1542,9 @@ describe("createAgUiStream", () => {
     });
     await readStream(stream);
 
-    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+    const redirectTool = getAgentTools(vi.mocked(Agent).mock.calls[0]?.[0])?.[
       IN_APP_AGENT_REDIRECT_TOOL_NAME
-    ] as
-      | {
-          execute?: (input: unknown) => Promise<unknown>;
-        }
-      | undefined;
+    ];
 
     const result = await redirectTool?.execute?.({
       label: "Open traces tagged checkout",
@@ -1380,7 +1598,7 @@ describe("createAgUiStream", () => {
     const runErrorMessage = "AWS credential provider failed: Token is expired.";
     const langfuseClient = {
       getPrompt: promptMocks.getPrompt,
-    };
+    } as unknown as Langfuse;
 
     adapterEvents.items = [
       {
@@ -1512,14 +1730,17 @@ function createToolApprovalResumeInput(approved: boolean) {
   };
 }
 
-function createTestTracingConfig() {
+function createTestTracingConfig(): InAppAgentTracingConfig {
+  // Intentionally keeps the historical fixture shape (traceId instead of
+  // runId, no user.isAdmin); instrumentation is mocked in these tests and the
+  // config is only spread through, so the runtime payload must stay as-is.
   return {
     environment: "langfuse-in-app-agent",
     metadata: { langfuse_project_id: "project-1" },
     user: { id: "user-1" },
     traceId: "0123456789abcdef0123456789abcdef",
     targetProjectId: "project-1",
-  };
+  } as unknown as InAppAgentTracingConfig;
 }
 
 function parseEvents(chunk: string) {

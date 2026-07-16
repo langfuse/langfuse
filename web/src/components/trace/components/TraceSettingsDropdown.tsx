@@ -30,6 +30,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 
 export interface TraceSettingsDropdownProps {
   isGraphViewAvailable: boolean;
@@ -71,6 +72,7 @@ export function TraceViewOptionsMenuItems({
   isGraphViewAvailable,
 }: TraceSettingsDropdownProps) {
   const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // Get all preferences directly from context
   const {
@@ -108,7 +110,13 @@ export function TraceViewOptionsMenuItems({
               <Switch
                 size="sm"
                 checked={showGraph}
-                onCheckedChange={setShowGraph}
+                onCheckedChange={(checked) => {
+                  capture("trace_detail:graph_view_toggle", {
+                    show: checked,
+                    ...analyticsDimensions,
+                  });
+                  setShowGraph(checked);
+                }}
               />
             </div>
           </DropdownMenuItem>
@@ -144,6 +152,7 @@ export function TraceViewOptionsMenuItems({
               onCheckedChange={(checked) => {
                 capture("trace_detail:observation_tree_toggle_scores", {
                   show: checked,
+                  ...analyticsDimensions,
                 });
                 setShowScores(checked);
               }}

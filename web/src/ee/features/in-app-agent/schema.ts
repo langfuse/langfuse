@@ -47,6 +47,13 @@ export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
 >;
 
+export const InAppAgentRateLimitErrorResponseSchema = z.object({
+  code: z.literal("rate_limited"),
+  details: z.object({
+    retryAfterSeconds: z.number().int().positive(),
+  }),
+});
+
 // Changes to this schema need to be backwards-compatible as messages with this are already persisted.
 export const InAppAgentRedirectActionToolResultSchema = z.object({
   type: z.literal("redirectAction"),
@@ -183,8 +190,8 @@ export type InAppAgentMessageSource = z.infer<
 const AgUiToolSchema = z.object({
   name: z.string(),
   description: z.string(),
-  parameters: z.any().optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
+  parameters: z.unknown().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const AgUiContextSchema = z.object({
@@ -196,11 +203,11 @@ export const AgUiRunAgentInputSchema = z.object({
   threadId: z.string(),
   runId: z.string(),
   parentRunId: z.string().optional(),
-  state: z.any().optional(),
+  state: z.unknown().optional(),
   messages: z.array(AgUiMessageSchema),
   tools: z.array(AgUiToolSchema),
   context: z.array(AgUiContextSchema),
-  forwardedProps: z.any().optional(),
+  forwardedProps: z.unknown().optional(),
 });
 
 export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;

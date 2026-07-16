@@ -37,6 +37,19 @@ export const organizationApiKeysRouter = createTRPCRouter({
           note: true,
           publicKey: true,
           displaySecretKey: true,
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          createdByApiKey: {
+            select: {
+              id: true,
+              publicKey: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -62,6 +75,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         entityId: input.orgId,
         note: input.note,
         scope: "ORGANIZATION",
+        createdByUserId: ctx.session.user.id,
       });
 
       await auditLog({

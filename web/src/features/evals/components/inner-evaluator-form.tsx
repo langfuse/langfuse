@@ -21,7 +21,6 @@ import {
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
-  type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
   validateEvaluatorFiltersForTarget,
@@ -30,10 +29,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
-import {
-  InlineFilterBuilder,
-  type ColumnDefinitionWithAlert,
-} from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
@@ -41,7 +37,7 @@ import {
   observationVariableMapping,
 } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { toast } from "sonner";
+import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -102,7 +98,6 @@ import {
   useEvaluatorTargetState,
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
 import {
-  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
@@ -118,45 +113,6 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-
-/**
- * Adds propagation warnings to columns that require OTEL SDK with span propagation
- */
-const addPropagationWarnings = (
-  columns: ColumnDefinition[],
-  allowPropagationFilters: boolean,
-): ColumnDefinitionWithAlert[] => {
-  return columns.map((col) => {
-    if (
-      !allowPropagationFilters &&
-      COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION.has(col.id)
-    ) {
-      return {
-        ...col,
-        alert: {
-          severity: "warning" as const,
-          content: (
-            <>
-              This filter requires JS SDK &ge; 4.0.0 or Python SDK &ge; 3.0.0
-              with attribute propagation enabled. Please{" "}
-              <a
-                href="https://langfuse.com/integrations/native/opentelemetry#propagating-attributes"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue hover:opacity-80"
-              >
-                follow our docs
-              </a>{" "}
-              to configure your instrumentation to use this filter.
-            </>
-          ),
-        },
-      };
-    }
-
-    return col;
-  });
-};
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -372,13 +328,9 @@ export const InnerEvaluatorForm = (props: {
   evalCapabilities: EvalCapabilities;
   defaultRunOnLive?: boolean;
   defaultTarget?: EvalTargetObject;
-  renderFooter?: (params: {
-    isLoading: boolean;
-    formError: string | null;
-  }) => React.ReactNode;
+  renderFooter?: (params: { isLoading: boolean }) => React.ReactNode;
   oldConfigId?: string;
 }) => {
-  const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
@@ -388,7 +340,7 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
 
   // Destructure eval capabilities passed from parent
-  const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
+  const { allowLegacy } = props.evalCapabilities;
 
   // Custom hooks for managing evaluator state
   const {
@@ -559,17 +511,13 @@ export const InnerEvaluatorForm = (props: {
   const utils = api.useUtils();
   const createJobMutation = api.evals.createJob.useMutation({
     onSuccess: () => utils.models.invalidate(),
-    onError: (error) => {
-      setFormError(error.message);
-      toast.error(error.message);
-    },
+    // Defining onError replaces the react-query default that shows the
+    // standard error toast, so trigger it explicitly.
+    onError: trpcErrorToast,
   });
   const updateJobMutation = api.evals.updateEvalJob.useMutation({
     onSuccess: () => utils.evals.invalidate(),
-    onError: (error) => {
-      setFormError(error.message);
-      toast.error(error.message);
-    },
+    onError: trpcErrorToast,
   });
   const [availableVariables, setAvailableVariables] = useState<
     typeof availableTraceEvalVariables | typeof availableDatasetEvalVariables
@@ -749,11 +697,10 @@ export const InnerEvaluatorForm = (props: {
         }
       })
       .catch((error) => {
-        if ("message" in error && typeof error.message === "string") {
-          setFormError(error.message as string);
-          return;
-        }
-        setFormError(JSON.stringify(error));
+        // Mutation failures are surfaced via the onError toast; this catch
+        // also swallows post-success errors (onFormSuccess, router.push),
+        // so keep a console trace for those.
+        console.error("Evaluator form submission failed", error);
       });
   }
 
@@ -1173,14 +1120,9 @@ export const InnerEvaluatorForm = (props: {
                     // Get appropriate columns based on target type
                     const getFilterColumns = () => {
                       if (isEventTarget(target)) {
-                        // Event evaluators - use observation columns with propagation warnings
-                        const baseColumns =
-                          observationEvalFilterColsWithOptions(
-                            observationEvalFilterOptions,
-                          );
-                        return addPropagationWarnings(
-                          baseColumns,
-                          allowPropagationFilters,
+                        // Event evaluators - use observation columns
+                        return observationEvalFilterColsWithOptions(
+                          observationEvalFilterOptions,
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(
@@ -1382,7 +1324,7 @@ export const InnerEvaluatorForm = (props: {
     createJobMutation.isPending || updateJobMutation.isPending;
 
   const formFooter = props.renderFooter ? (
-    props.renderFooter({ isLoading: mutationIsLoading, formError })
+    props.renderFooter({ isLoading: mutationIsLoading })
   ) : (
     <div className="flex w-full flex-col items-end gap-4">
       {!props.disabled ? (
@@ -1393,11 +1335,6 @@ export const InnerEvaluatorForm = (props: {
         >
           {props.mode === "edit" ? "Update" : "Execute"}
         </Button>
-      ) : null}
-      {formError ? (
-        <p className="w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
       ) : null}
     </div>
   );

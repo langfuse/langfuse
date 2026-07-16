@@ -5,11 +5,18 @@
  * Uses render prop pattern for node customization.
  */
 
-import { useRef, useLayoutEffect, useMemo, type ReactNode } from "react";
+import {
+  useRef,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { flattenTree } from "./tree-flattening";
 import { cn } from "@/src/utils/tailwind";
 import { type TreeNodeMetadata } from "./VirtualizedTreeNodeWrapper";
+import { computeMaxVisualDepth, TREE_VISUAL_DEPTH } from "./visual-depth";
 
 interface VirtualizedTreeProps<T extends { id: string; children: T[] }> {
   roots: T[];
@@ -48,6 +55,27 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
 }: VirtualizedTreeProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
+  // Cap indentation to the container width so extremely deep trees (a
+  // reported one chained ~1400 levels) never push row content off-viewport
+  // (LFE-10959). Stored as the derived cap (an integer), not the raw width,
+  // so resize only re-renders when the cap actually moves.
+  const [maxVisualDepth, setMaxVisualDepth] = useState(
+    TREE_VISUAL_DEPTH.maxDepth,
+  );
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const measure = () => {
+      setMaxVisualDepth(
+        computeMaxVisualDepth(el.clientWidth, TREE_VISUAL_DEPTH),
+      );
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const flattenedItems = useMemo(
     () => flattenTree(roots, collapsedNodes),
     [roots, collapsedNodes],
@@ -61,6 +89,16 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     estimateSize: estimateSize
       ? (index) => estimateSize(flattenedItems[index]!.node, index)
       : defaultEstimateSize,
+    // Key the measurement cache by node id, matching the React key on each row.
+    // Rows have dynamic, wildly-varying heights (a node's score badges wrap into
+    // several lines), and collapse/expand reorders the flattened list. Without
+    // this the cache is keyed by index: on a reorder React reuses a row's DOM
+    // element (same id) without resizing it, so the virtualizer never
+    // re-measures and keeps the PREVIOUS node's height at that index — the
+    // translateY offsets drift out of sync with the real heights and rows
+    // overlap (LFE-10591, worst right after "Collapse all"). Keying by id makes
+    // each measurement travel with its node, so offsets stay correct.
+    getItemKey: (index) => flattenedItems[index]!.node.id,
     overscan,
     measureElement:
       typeof window !== "undefined"
@@ -68,31 +106,36 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
         : undefined,
   });
 
-  // Auto-scroll to selected node on initial load (URL-based navigation only)
-  const initialNodeIdRef = useRef(selectedNodeId);
-  const hasScrolledRef = useRef(false);
+  // Scroll the selected node into view whenever the selection changes — so
+  // selecting a node elsewhere (e.g. clicking it in the graph view) brings the
+  // matching tree row into view. `align: "auto"` scrolls the minimum needed and
+  // is a no-op when the row is already visible, so clicking a visible row never
+  // jumps the list.
+  const prevSelectedIdRef = useRef<string | null | undefined>(undefined);
 
   useLayoutEffect(() => {
-    if (
-      selectedNodeId &&
-      !hasScrolledRef.current &&
-      selectedNodeId === initialNodeIdRef.current
-    ) {
-      const index = flattenedItems.findIndex(
-        (item) => item.node.id === selectedNodeId,
-      );
-
-      if (index !== -1) {
-        // Use behavior: "auto" for instant scroll on initial load to prevent
-        // visible scroll animation after page render. The synchronous scroll
-        // completes within useLayoutEffect, before browser paint.
-        rowVirtualizer.scrollToIndex(index, {
-          align: "center",
-          behavior: "auto",
-        });
-        hasScrolledRef.current = true;
-      }
+    if (!selectedNodeId || selectedNodeId === prevSelectedIdRef.current) {
+      prevSelectedIdRef.current = selectedNodeId;
+      return;
     }
+
+    const index = flattenedItems.findIndex(
+      (item) => item.node.id === selectedNodeId,
+    );
+    // Keep the scroll PENDING when the row is missing (collapsed subtree,
+    // level filter) — the ref stays un-advanced, so this retries when
+    // flattenedItems changes and the row appears.
+    if (index === -1) return;
+
+    const isInitial = prevSelectedIdRef.current === undefined;
+    prevSelectedIdRef.current = selectedNodeId;
+
+    // Initial load: center it instantly (no post-paint animation). Later
+    // selection changes: minimal, smooth scroll only if it's off-screen.
+    rowVirtualizer.scrollToIndex(index, {
+      align: isInitial ? "center" : "auto",
+      behavior: isInitial ? "auto" : "smooth",
+    });
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
   return (
@@ -128,6 +171,7 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
                   depth: item.depth,
                   treeLines: item.treeLines,
                   isLastSibling: item.isLastSibling,
+                  maxVisualDepth,
                 },
                 isSelected,
                 isCollapsed,

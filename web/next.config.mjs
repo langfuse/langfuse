@@ -73,7 +73,7 @@ const nextConfig = {
   // Agent/browser tooling often targets 127.0.0.1 instead of localhost in dev.
   allowedDevOrigins: ["127.0.0.1"],
   staticPageGenerationTimeout: 500, // default is 60. Required for build process for amd
-  transpilePackages: ["@langfuse/shared", "vis-network/standalone"],
+  transpilePackages: ["@langfuse/shared"],
   reactStrictMode: true,
   serverExternalPackages: [
     "dd-trace",
@@ -94,6 +94,12 @@ const nextConfig = {
     resolveAlias: {
       "@langfuse/shared": "./packages/shared/src",
     },
+    rules: {
+      "*.md": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
   },
   logging: {
     browserToTerminal: true,
@@ -113,6 +119,15 @@ const nextConfig = {
     defaultLocale: "en",
   },
   output: "standalone",
+
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/mcp.json",
+        destination: "/api/well-known/mcp.json",
+      },
+    ];
+  },
 
   async headers() {
     return [
@@ -219,6 +234,11 @@ const nextConfig = {
     // see: https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/dd_libraries/nodejs/#bundling-with-nextjs
     config.externals.push("@datadog/pprof", "dd-trace");
 
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
+
     // Setup in-source testing: https://vitest.dev/guide/in-source.html#other-bundlers
     config.plugins.push(
       new webpack.DefinePlugin({
@@ -248,11 +268,6 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Automatically annotate React components to show their full name in breadcrumbs and session replay
-  reactComponentAnnotation: {
-    enabled: true,
-  },
-
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
@@ -264,14 +279,23 @@ const sentryConfig = withSentryConfig(nextConfig, {
     disable: true,
   },
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
-
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: false,
-});
+
+  webpack: {
+    // Automatically annotate React components to show their full name in breadcrumbs and session replay.
+    reactComponentAnnotation: {
+      enabled: true,
+    },
+
+    // Automatically tree-shake Sentry logger statements to reduce bundle size.
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+  });
 
 export default sentryConfig;

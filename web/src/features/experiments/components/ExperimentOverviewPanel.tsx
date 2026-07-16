@@ -4,6 +4,12 @@ import { Button } from "@/src/components/ui/button";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import Link from "next/link";
+import { InfoIcon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
 import {
   ExperimentOverviewField,
@@ -93,7 +99,24 @@ export function ExperimentOverviewPanel({
 
         <div>
           <ExperimentOverviewSectionHeading>
-            Baseline
+            <span className="inline-flex items-center gap-1.5">
+              Baseline
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="What is a baseline experiment?"
+                    className="text-muted-foreground hover:text-primary"
+                  >
+                    <InfoIcon className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[280px]">
+                  The baseline is the reference experiment run used to compare
+                  all other selected runs.
+                </TooltipContent>
+              </Tooltip>
+            </span>
           </ExperimentOverviewSectionHeading>
           <ExperimentBaselineControls
             projectId={projectId}

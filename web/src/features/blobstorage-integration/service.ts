@@ -7,7 +7,7 @@ import {
   LEGACY_BLOB_EXPORT_SOURCES,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   isLegacyBlobExporter,
-  type BlobStorageIntegrationFileType,
+  BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -25,7 +25,9 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to PARQUET on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
@@ -156,6 +158,10 @@ export async function upsertBlobStorageIntegration(params: {
       create: {
         ...writeData,
         exportSource: createExportSource,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -173,6 +179,9 @@ export async function upsertBlobStorageIntegration(params: {
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
         runStartedAt: null,
       },
     });

@@ -73,6 +73,23 @@ export const env = createEnv({
           : [],
       ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Optional suffix appended to the auth cookie NAMES (e.g. ".pr-1234" ->
+    // "__Secure-next-auth.session-token.pr-1234"). Lets multiple Langfuse
+    // instances that share a parent cookie domain (preview/review environments)
+    // avoid reading each other's session cookie, which — encrypted with a
+    // different NEXTAUTH_SECRET — fails to decrypt and wedges login. It is the
+    // self-hosted-friendly equivalent of the per-region suffix Langfuse Cloud
+    // derives from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION, without enabling cloud mode.
+    // SAFETY: the cloud region ALWAYS takes precedence over this (see
+    // getCookieName), so it can never alter cookie names on a region deployment
+    // even if set by mistake; it only takes effect when no region is configured.
+    NEXTAUTH_COOKIE_NAME_SUFFIX: z
+      .string()
+      .regex(
+        /^[a-zA-Z0-9_-]+$/,
+        "NEXTAUTH_COOKIE_NAME_SUFFIX may only contain letters, numbers, hyphens, and underscores",
+      )
+      .optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
@@ -405,6 +422,7 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
 
     // Tracing for Langfuse AI Features
     LANGFUSE_AI_FEATURES_HOST: z.string().optional(),
@@ -527,6 +545,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILD_ID: process.env.NEXT_PUBLIC_BUILD_ID,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
+    NEXTAUTH_COOKIE_NAME_SUFFIX: process.env.NEXTAUTH_COOKIE_NAME_SUFFIX,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
@@ -849,6 +868,8 @@ export const env = createEnv({
 
     // AWS Bedrock for langfuse native AI feature such as natural language filters
     LANGFUSE_AWS_BEDROCK_MODEL: process.env.LANGFUSE_AWS_BEDROCK_MODEL,
+    LANGFUSE_AWS_BEDROCK_SMALL_MODEL:
+      process.env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL,
 
     // Langfuse Tracing AI Features
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,

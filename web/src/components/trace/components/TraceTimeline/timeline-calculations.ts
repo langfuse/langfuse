@@ -91,10 +91,15 @@ export function calculateTraceDuration(
   return Math.max(spanFromEnds, maxRootLatencySpan);
 }
 
-// Predefined step sizes for time axis (in seconds)
+// Predefined step sizes for time axis (in seconds). Above 500s the steps land
+// on time-nice boundaries (10m, 15m, 20m, 30m, 45m, 1h, 1.5h, 2h, 3h, 4h, 6h,
+// 12h, 24h) so hour-scale traces get clean tick labels — without the upper
+// entries, multi-hour traces clamped to 500s and rendered ~2× the intended
+// tick density with overlapping labels (LFE-10959).
 export const PREDEFINED_STEP_SIZES = [
   0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25,
-  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500,
+  35, 40, 45, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 900, 1200,
+  1800, 2700, 3600, 5400, 7200, 10800, 14400, 21600, 43200, 86400,
 ];
 
 /**
@@ -143,10 +148,18 @@ export function calculateStepSize(
   scaleWidth: number = SCALE_WIDTH,
 ): number {
   const calculatedStepSize = traceDuration / (scaleWidth / STEP_SIZE);
-  return (
-    PREDEFINED_STEP_SIZES.find((step) => step >= calculatedStepSize) ||
-    PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1]
+  const predefined = PREDEFINED_STEP_SIZES.find(
+    (step) => step >= calculatedStepSize,
   );
+  if (predefined !== undefined) return predefined;
+  if (!Number.isFinite(calculatedStepSize)) {
+    return PREDEFINED_STEP_SIZES[PREDEFINED_STEP_SIZES.length - 1];
+  }
+  // Beyond the largest predefined step (multi-day traces): whole days keep the
+  // marker count bounded (never clamp to a smaller step — that multiplies the
+  // tick count and the labels overlap, LFE-10959).
+  const DAY = 86_400;
+  return Math.ceil(calculatedStepSize / DAY) * DAY;
 }
 
 /**
@@ -156,4 +169,68 @@ export function calculateStepSize(
  */
 export function getPredefinedStepSizes(): number[] {
   return [...PREDEFINED_STEP_SIZES];
+}
+
+// Horizontal reveal on selection: a bar counts as visible only if it sits at
+// least this far inside the viewport; when revealed, it lands this fraction
+// from the left edge.
+export const REVEAL_MARGIN_PX = 16;
+export const REVEAL_LEFT_FRACTION = 0.2;
+
+/**
+ * Scroll target that brings a selected row fully into view on BOTH axes with a
+ * single scrollTo (two competing smooth animations on one element clobber each
+ * other — the vertical one re-fires as it settles and resets the horizontal).
+ *
+ * Vertical: initial load centers the row; later selections scroll the minimum
+ * (above the fold → align top, below → align bottom, visible → unchanged).
+ * Horizontal: no-op while the bar start sits comfortably in view, else land it
+ * REVEAL_LEFT_FRACTION from the left edge.
+ *
+ * Pure — see timeline-calculations.clienttest.ts.
+ */
+export function computeSelectionScrollTarget(args: {
+  index: number;
+  rowHeight: number;
+  scrollTop: number;
+  scrollLeft: number;
+  clientHeight: number;
+  clientWidth: number;
+  /** Bar start offset in content px; null = no horizontal component. */
+  barStart: number | null;
+  isInitial: boolean;
+}): { top: number; left: number } {
+  const {
+    index,
+    rowHeight,
+    scrollTop,
+    scrollLeft,
+    clientHeight,
+    clientWidth,
+    barStart,
+    isInitial,
+  } = args;
+
+  const rowTop = index * rowHeight;
+  let top = scrollTop;
+  if (isInitial) {
+    top = rowTop - (clientHeight - rowHeight) / 2; // center on load
+  } else if (rowTop < scrollTop) {
+    top = rowTop; // above the fold → align to top
+  } else if (rowTop + rowHeight > scrollTop + clientHeight) {
+    top = rowTop - clientHeight + rowHeight; // below → align to bottom
+  }
+
+  let left = scrollLeft;
+  if (barStart != null) {
+    const viewRight = scrollLeft + clientWidth;
+    if (
+      barStart < scrollLeft + REVEAL_MARGIN_PX ||
+      barStart > viewRight - REVEAL_MARGIN_PX
+    ) {
+      left = Math.max(0, barStart - clientWidth * REVEAL_LEFT_FRACTION);
+    }
+  }
+
+  return { top: Math.max(0, top), left };
 }

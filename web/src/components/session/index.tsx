@@ -18,7 +18,8 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { Download, ExternalLinkIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
@@ -68,11 +69,14 @@ import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
+  findSessionDetailViewByFilters,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
   asCommentCounts,
@@ -210,6 +214,32 @@ const SessionScores = ({
     </div>
   );
 };
+const CopySessionIdButton: React.FC<{
+  sessionId: string;
+}> = ({ sessionId }) => {
+  const capture = usePostHogClientCapture();
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title="Copy session ID"
+      aria-label="Copy session ID"
+      onClick={async () => {
+        capture("session_detail:copy_session_id_click");
+        await copy(sessionId);
+      }}
+    >
+      {isCopied ? (
+        <CheckIcon className="text-muted-green h-4 w-4" />
+      ) : (
+        <CopyIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+};
+
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -379,6 +409,7 @@ export const SessionPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
@@ -526,6 +557,7 @@ export const SessionEventsPage: React.FC<{
       projectId: projectId,
     },
     {
+      enabled: !!projectId && !!sessionId,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -670,8 +702,11 @@ const LoadedSessionEventsPage: React.FC<{
         basePath: `/project/${projectId}/traces`,
       },
       queryParams: ["observation", "display", "timestamp"],
+      // observationId: set by a card's "Open in trace view" on a truncated
+      // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -838,6 +873,25 @@ const LoadedSessionEventsPage: React.FC<{
           return keyOptions ? { ...column, keyOptions } : column;
         }
 
+        if (column.type === "booleanObject" && column.id === "score_booleans") {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
+        if (
+          column.type === "booleanObject" &&
+          column.id === "trace_score_booleans"
+        ) {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.trace_score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
         return column;
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);
@@ -916,33 +970,117 @@ const LoadedSessionEventsPage: React.FC<{
     currentExpandedFilters: queryFilter.expanded,
   });
 
+  // Auto-apply path only (the drawer's user-driven preset selection has its
+  // own handler). Writes with `replaceIn`: this is the page deciding its own
+  // default, not a user step — pushing would leave the pre-default URL as a
+  // history entry that Back lands on and that re-applies the default, making
+  // Back bounce forward (LFE-10715).
   const applySystemPreset = useCallback(
     (preset: SessionDetailSystemPreset) => {
-      viewControllers.handleSetViewId(preset.id);
-      queryFilter.setFilterState(preset.filters);
+      viewControllers.handleSetViewId(preset.id, { updateType: "replaceIn" });
+      queryFilter.setFilterState(preset.filters, { updateType: "replaceIn" });
     },
     [queryFilter, viewControllers],
   );
 
+  // The URL's viewId captured on first render, before the table view manager
+  // strips frontend system-preset ids — lets us restore a reloaded system view
+  // (incl. the empty-filter "All observations", otherwise indistinguishable
+  // from a fresh load) instead of silently replacing its FilterState. Read from
+  // window.location synchronously (not useQueryParam, which can lag a render on
+  // mount and miss the value before the strip).
+  const readUrlViewId = (): string | null =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("viewId");
+  const initialViewIdRef = useRef<string | null>(readUrlViewId());
+  // Navigating between sessions (DetailPageNav prev/next) can reuse this mounted
+  // component when the destination is already in the react-query cache — the
+  // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
+  // default-view effect on the new session. Re-read the URL during render (not
+  // an effect, which would race the view manager's strip on reload) whenever the
+  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  const initialViewIdSessionRef = useRef(sessionId);
+  if (initialViewIdSessionRef.current !== sessionId) {
+    initialViewIdSessionRef.current = sessionId;
+    initialViewIdRef.current = readUrlViewId();
+  }
+
+  const selectedViewId = viewControllers.selectedViewId;
+
+  // Which named view drives the empty-state notice. Derived from the applied
+  // FilterState (the single source of truth) so the label survives the manager
+  // stripping the viewId on reload, and drops to null the moment the filter is
+  // edited. Mirrors the drawer trigger's rule: only name a view when it also
+  // matches the selected view id — so a selected saved view, or a filter
+  // hand-edited into another preset's exact shape, doesn't make the notice and
+  // the drawer trigger disagree.
+  const filterMatchedView = findSessionDetailViewByFilters(visibleFilterState);
+  const matchedView =
+    filterMatchedView &&
+    (!selectedViewId || filterMatchedView.id === selectedViewId)
+      ? filterMatchedView
+      : null;
+  const viewLabel = matchedView?.name ?? null;
+
+  // Recover the system-preset viewId the view manager strips from the URL on
+  // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
+  // (no one-shot guard) so it runs *after* the async strip, not before. Recovers
+  // when the surviving filter matches a preset AND either that preset was the
+  // URL's provenance viewId (captured before the strip — covers the empty-filter
+  // "All observations", otherwise indistinguishable from a fresh load) or the
+  // filter is non-empty (unambiguous). The filter itself is never changed.
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (selectedViewId) return;
+    const filterMatchedView =
+      findSessionDetailViewByFilters(visibleFilterState);
+    if (!filterMatchedView) return;
+    const shouldRecover =
+      filterMatchedView.id === initialViewIdRef.current ||
+      visibleFilterState.length > 0;
+    // replaceIn: recovery is a programmatic correction of the current URL —
+    // pushing would mint a viewId-less history entry that Back re-triggers
+    // (the filter survives in sessionStorage, so this effect re-fires on any
+    // pop to a param-less URL — LFE-10715).
+    if (shouldRecover)
+      viewControllers.handleSetViewId(filterMatchedView.id, {
+        updateType: "replaceIn",
+      });
+  }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+
+  // Whether this arrival is a Back/Forward revisit of an existing history
+  // entry rather than a fresh navigation. Keyed to sessionId so in-place
+  // prev/next session navigation re-decides, mirroring initialViewIdRef.
+  const arrivedOnVisitedHistoryEntry = useHistoryEntryRevisit(sessionId);
+
+  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // reload/shared-link (a viewId was in the URL) so the recovery effect above,
+  // not the default, decides the view — otherwise "All observations" would be
+  // silently replaced by the default on every reload. Also skipped when the
+  // user arrived via Back/Forward: a revisited entry's param-less URL is a
+  // recorded "no view" state, not a fresh arrival, and re-applying the
+  // default would overwrite what the user deliberately left there
+  // (LFE-10715).
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
-
+    if (selectedViewId) return;
+    if (initialViewIdRef.current) return;
+    if (arrivedOnVisitedHistoryEntry) return;
     const presetToApply = getSessionDetailPresetToApply({
-      selectedViewId: viewControllers.selectedViewId,
-      hasFilters: queryFilter.filterState.length > 0,
+      selectedViewId: null,
+      hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-
     defaultPresetAppliedRef.current = true;
-    // Sessions intentionally default to the first generation in each trace
-    // when opened without explicit filters or a saved view.
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
-    queryFilter.filterState.length,
+    arrivedOnVisitedHistoryEntry,
     isViewLoading,
-    viewControllers.selectedViewId,
+    selectedViewId,
+    visibleFilterState,
   ]);
 
   const virtualizer = useVirtualizer({
@@ -982,6 +1120,7 @@ const LoadedSessionEventsPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
@@ -1064,14 +1203,22 @@ const LoadedSessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
-            {/* Filter Builder */}
+            {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
             <PopoverFilterBuilder
               columns={filterColumns}
               filterState={visibleFilterState}
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
+              label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}
@@ -1122,6 +1269,7 @@ const LoadedSessionEventsPage: React.FC<{
                       )}
                       index={virtualItem.index}
                       filterState={visibleFilterState}
+                      viewLabel={viewLabel}
                     />
                   </SessionVirtualizedRow>
                 );

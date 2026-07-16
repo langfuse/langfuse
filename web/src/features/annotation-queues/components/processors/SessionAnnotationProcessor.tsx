@@ -98,8 +98,16 @@ export const SessionAnnotationProcessor: React.FC<
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
-    (traceId: string) => {
-      window.open(`/project/${projectId}/traces/${traceId}`, "_blank");
+    (traceId: string, row?: { observationId?: string }) => {
+      // observationId: a truncated observation's "Open in trace view" deep-links
+      // to that observation (LFE-10958).
+      const observationParam = row?.observationId
+        ? `?observation=${encodeURIComponent(row.observationId)}`
+        : "";
+      window.open(
+        `/project/${projectId}/traces/${traceId}${observationParam}`,
+        "_blank",
+      );
     },
     [projectId],
   );
@@ -187,6 +195,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
+                  viewLabel={null}
                   hideTracePanel
                   index={index}
                 />
