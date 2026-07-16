@@ -17,7 +17,7 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { plexSans, plexMono } from "@/src/styles/fonts";
+import { appSans, appMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -155,7 +155,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
           globals.css maps --font-sans/--font-mono onto these. */}
       <style
         dangerouslySetInnerHTML={{
-          __html: `:root { --font-plex-sans: ${plexSans.style.fontFamily}; --font-plex-mono: ${plexMono.style.fontFamily}; }`,
+          __html: `:root { --font-app-sans: ${appSans.style.fontFamily}; --font-app-mono: ${appMono.style.fontFamily}; }`,
         }}
       />
       <TooltipProvider>

@@ -19,7 +19,10 @@ const buttonVariants = cva(
         "destructive-secondary":
           "bg-secondary text-secondary-foreground border border-destructive disabled:hover:bg-secondary disabled:hover:text-secondary-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          // border-contrast, not border-input: on dark surfaces the filled
+          // primary reads optically larger than an outlined twin of the same
+          // geometry — a brighter border lets the shape assert itself.
+          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
         "outline-success":
           "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
         secondary:

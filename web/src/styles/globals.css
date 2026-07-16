@@ -9,32 +9,32 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* IBM Plex via next/font (src/styles/fonts.ts; vars declared on <body> in
-   _document.tsx). Overrides Tailwind's font-sans/font-mono utilities AND the
-   preflight body default. System stacks remain as fallbacks. Deliberately a
-   plain @theme block (not `inline`): preflight reads var(--font-sans) at
-   runtime, and only non-inline themes emit the :root custom property. */
-/* `static`: emit the weight-role vars even before any font-emphasis/
-   font-strong utility exists in source — the theme-lab tool and inline
-   styles read them at runtime. */
+/* App fonts via next/font (src/styles/fonts.ts — currently IBM Plex Sans +
+   IBM Plex Mono; vars declared on :root in _app.tsx). Overrides Tailwind's
+   font-sans/font-mono utilities AND the preflight body default. System
+   stacks remain as fallbacks. Deliberately a plain @theme block (not
+   `inline`): preflight reads var(--font-sans) at runtime, and only
+   non-inline themes emit the :root custom property. `static`: emit the
+   weight-role vars even when unused in source — the theme-lab tool and
+   inline styles read them at runtime. */
 @theme static {
   --font-sans:
-    var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif,
+    var(--font-app-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
+    var(--font-app-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
-     Both are font-relative (IBM Plex reads bold at 400; a lighter face like
-     Inter would want 500–600), so components never hardcode numbers.
-     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
-     (700): the `font-bold` utility IS the bold role. font-medium /
-     font-semibold / raw numbers are drift — use font-bold or nothing.
-     Swapping the font = swap the families above and retune these two lines;
-     keep loaded weights in src/styles/fonts.ts in sync. */
+     Both are font-relative (IBM Plex reads bold at ~400; Inter wants more),
+     so components never hardcode numbers. `--font-weight-bold` deliberately
+     overrides Tailwind's built-in bold (700): the `font-bold` utility IS the
+     bold role. font-medium / font-semibold / raw numbers are drift — use
+     font-bold or nothing. Swapping the font = swap the families above and
+     retune these two lines; keep loaded weights in src/styles/fonts.ts in
+     sync. IBM Plex: regular 400 / bold 500. Inter would want bold 600. */
   --font-weight-regular: 400;
-  --font-weight-bold: 400;
+  --font-weight-bold: 500;
 }
 
 @theme inline {
@@ -47,9 +47,11 @@
   --color-neutral-*: initial;
   --color-stone-*: initial;
   --color-slate-*: initial;
+  --color-zinc-*: initial;
+  --color-indigo-*: initial;
 
   /* TODO: Disable the remaining default palettes: red, orange, amber, yellow,
-     green, emerald, teal, blue, indigo, violet, purple, pink, gray, zinc. */
+     green, emerald, teal, blue, violet, purple, pink, gray. */
 
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
@@ -136,10 +138,9 @@
   /* Text styles: each size token carries its canonical weight, so `text-*`
      alone yields a complete style (one weight per token — the design-system
      rule). Weights reference the font-relative weight roles above; heavier
-     text must opt in explicitly via `font-emphasis`/`font-strong` (which
-     still win over the token) — never a raw number. Treat every explicit
-     weight utility as either an intentional exception or drift to clean up
-     (the theme-lab tool samples drift per token). */
+     text opts in via `font-bold` (the bold role) — never a raw number.
+     Any other weight utility is drift (the theme-lab tool samples drift
+     per token). */
   --text-xs: 0.7rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
@@ -239,16 +240,16 @@
     --surface-code: 0 0% 98%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: var(--foreground);
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: var(--foreground);
 
     /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek).
        Light themes keep the alternating white model (Carbon: light layers
        alternate, dark layers step lighter), so this matches --background. */
     --modal: 0 0% 100%;
-    --modal-foreground: 222.2 84% 4.9%;
+    --modal-foreground: var(--foreground);
 
     --header: 210 40% 98%;
     --header-foreground: var(--foreground);
@@ -380,12 +381,12 @@
        plus hairline borders, not shadows. */
     /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
        cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
-       tiers: emphasis 91% > body 88% > meta 54% > faint 40%, with sidebar nav
+       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
     --background: 0 0% 6%;
-    --foreground: 0 0% 88%;
+    --foreground: 0 0% 70%;
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
@@ -393,13 +394,13 @@
     --surface-code: 0 0% 2.3%;
 
     --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 88%;
+    --popover-foreground: var(--foreground);
 
     --card: 0 0% 7.5%;
-    --card-foreground: 0 0% 88%;
+    --card-foreground: var(--foreground);
 
     --modal: 0 0% 9%;
-    --modal-foreground: 0 0% 88%;
+    --modal-foreground: var(--foreground);
 
     --header: 0 0% 2%;
     --header-foreground: var(--foreground);

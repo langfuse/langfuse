@@ -34,11 +34,11 @@ function HeaderTitle({
   level: "h3" | "h4" | "h5";
   title: string;
 }) {
-  // No font-* here: titles follow the text-* token weight (one weight per
-  // token); hierarchy is carried by size, not boldness.
+  // Top-level titles are bold (the font-relative role); sub-levels follow
+  // the text-* token weight — hierarchy below h3 is carried by size.
   switch (level) {
     case "h3":
-      return <h3 className="text-xl leading-7">{title}</h3>;
+      return <h3 className="text-xl leading-7 font-bold">{title}</h3>;
     case "h4":
       return <h4 className="text-lg leading-6">{title}</h4>;
     case "h5":
