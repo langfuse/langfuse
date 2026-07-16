@@ -118,7 +118,11 @@ export function ChartScores(props: {
       isLoading={props.isLoading || scores.isPending}
     >
       {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        <div className="min-h-80">
+        // The height is the flex basis (floor); grow lets the chart absorb
+        // extra tile height. On grid (lg) screens the floor is smaller so
+        // tiles fit narrow viewports — grow recovers the height above the
+        // grid's rowHeight floor. (LFE-10813)
+        <div className="h-80 w-full shrink-0 grow lg:h-56">
           <Chart
             chartType="LINE_TIME_SERIES"
             data={chartData}
@@ -132,7 +136,7 @@ export function ChartScores(props: {
           isLoading={props.isLoading || scores.isPending}
           description="Scores evaluate LLM quality and can be created manually or using the SDK."
           href="https://langfuse.com/docs/evaluation/overview"
-          className="h-full"
+          className="h-auto grow"
         />
       )}
     </DashboardCard>

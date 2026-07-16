@@ -360,6 +360,146 @@ describe("batch export test suite", () => {
     expect(mediumAccuracyRow?.accuracy).toEqual([0.75]);
   });
 
+  it("should export observations filtered by boolean scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "flagged",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "not-flagged",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "unscored",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[0].id,
+        name: "is_hallucination",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[1].id,
+        name: "is_hallucination",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+      }),
+    ]);
+
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "booleanObject",
+          column: "Scores (boolean)",
+          key: "is_hallucination",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe("flagged");
+  });
+
+  it("should export traces filtered by boolean scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({ project_id: projectId, id: randomUUID() }),
+      createTrace({ project_id: projectId, id: randomUUID() }),
+      createTrace({ project_id: projectId, id: randomUUID() }),
+    ];
+
+    await createTracesCh(traces);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        name: "is_valid",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+        observation_id: null,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        name: "is_valid",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+        observation_id: null,
+      }),
+    ]);
+
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "booleanObject",
+          column: "Scores (boolean)",
+          key: "is_valid",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(traces[0].id);
+  });
+
   it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

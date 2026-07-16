@@ -20,13 +20,33 @@ import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
-  CopyIcon,
   GripVerticalIcon,
+  MoreVerticalIcon,
+  CopyIcon,
+  ClipboardPasteIcon,
+  CopyPlusIcon,
+  FileJsonIcon,
+  DownloadIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import {
+  buildWidgetExport,
+  downloadWidgetJson,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
   shouldUseWidgetSSE,
@@ -41,6 +61,9 @@ import {
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -61,6 +84,10 @@ export function DashboardWidget({
   onDeleteWidget,
   dashboardOwner,
   schedulerId,
+  onLockedEditAttempt,
+  readOnly,
+  onPasteWidget,
+  onDuplicateWidget,
 }: {
   projectId: string;
   dashboardId: string;
@@ -70,9 +97,31 @@ export function DashboardWidget({
   onDeleteWidget: (tileId: string) => void;
   dashboardOwner: "LANGFUSE" | "PROJECT";
   schedulerId?: string;
+  /**
+   * Present on Langfuse-managed (read-only) dashboards: edit affordances stay
+   * visible and any edit attempt routes here (clone-first flow) instead of
+   * mutating.
+   */
+  onLockedEditAttempt?: () => void;
+  /** Pure viewing surface (e.g. Home): render no edit affordances. */
+  readOnly?: boolean;
+  /**
+   * Pastes the clipboard widget next to this tile. Passed only on editable
+   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
+   */
+  onPasteWidget?: (anchor: WidgetPlacement) => void;
+  /**
+   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * tile. Passed only on editable (non-locked) dashboards.
+   */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const { isBetaEnabled } = useV4Beta();
   const widget = api.dashboardWidgets.get.useQuery(
     {
@@ -98,9 +147,17 @@ export function DashboardWidget({
       : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
         ? "v2"
         : "v1";
-  const hasCUDAccess =
-    useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
-    dashboardOwner !== "LANGFUSE";
+  const hasRbacCUDAccess = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
+  const hasCUDAccess = hasRbacCUDAccess && dashboardOwner !== "LANGFUSE";
+  // Langfuse-managed dashboard, but the user could edit a clone: show the
+  // same edit affordances and route attempts through the clone-first flow.
+  const isLockedEditable =
+    hasRbacCUDAccess &&
+    dashboardOwner === "LANGFUSE" &&
+    Boolean(onLockedEditAttempt);
 
   // Initialize sort state for pivot tables
   const defaultSort =
@@ -115,6 +172,18 @@ export function DashboardWidget({
     return defaultSort || null;
   });
   const [retryCount, setRetryCount] = useState(0);
+  const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  // Gate "Paste to the right" on the clipboard actually holding a pasteable
+  // payload, where the browser lets us check silently.
+  const isPasteablePayload = useCallback(
+    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
+    [isBetaEnabled],
+  );
+  const clipboardProbe = useClipboardWidgetProbe(
+    isActionsMenuOpen && Boolean(onPasteWidget),
+    isPasteablePayload,
+  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -398,6 +467,11 @@ export function DashboardWidget({
 
   const copyMutation = api.dashboardWidgets.copyToProject.useMutation({
     onSuccess: (data) => {
+      capture("dashboard:widget_copied_to_project", {
+        source_widget_id: placement.widgetId,
+        new_widget_id: data.widgetId,
+        dashboard_id: dashboardId,
+      });
       utils.dashboard.getDashboard.invalidate().then(() => {
         router.push(
           `/project/${projectId}/widgets/${data.widgetId}?dashboardId=${dashboardId}`,
@@ -418,6 +492,11 @@ export function DashboardWidget({
   };
 
   const handleDelete = () => {
+    if (isLockedEditable) {
+      // The clone-first dialog is the confirmation on locked dashboards.
+      onDeleteWidget(placement.id);
+      return;
+    }
     if (onDeleteWidget && confirm("Please confirm deletion")) {
       onDeleteWidget(placement.id);
     }
@@ -439,23 +518,93 @@ export function DashboardWidget({
     );
   }
 
+  // Portable configuration of this widget, used by the copy / download /
+  // duplicate menu actions.
+  const widgetExportSource: WidgetExportSource = {
+    name: widget.data.name,
+    description: widget.data.description,
+    view: widget.data.view,
+    dimensions: widget.data.dimensions,
+    metrics: widget.data.metrics.map((metric) => ({
+      measure: metric.measure,
+      agg: metric.agg as z.infer<typeof metricAggregations>,
+    })),
+    filters: widget.data.filters,
+    chartType: widget.data.chartType,
+    chartConfig: widget.data.chartConfig,
+    minVersion: widget.data.minVersion,
+  };
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await copyTextToClipboard(
+        JSON.stringify(buildWidgetExport(widgetExportSource), null, 2),
+      );
+      capture("dashboard:widget_copied_to_clipboard", {
+        surface: "grid_menu",
+        kind: "widget",
+        widget_id: placement.widgetId,
+        dashboard_id: dashboardId,
+      });
+    } catch {
+      showErrorToast("Copy failed", "Could not write to the clipboard.");
+    }
+  };
+
+  const handleDownloadJson = () => {
+    downloadWidgetJson(widgetExportSource);
+    capture("dashboard:widget_json_downloaded", {
+      surface: "grid_menu",
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+    });
+  };
+
   return (
     <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
+      {isCopyDialogOpen && (
+        <CopyWidgetDialog
+          open={isCopyDialogOpen}
+          onOpenChange={setIsCopyDialogOpen}
+          widgetName={widget.data.name}
+          onConfirm={handleCopy}
+          isPending={copyMutation.isPending}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={widget.data.name}>
-          {widget.data.name}{" "}
-          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE"
-            ? " ( 🪢 )"
-            : null}
+        <span
+          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          title={widget.data.name}
+        >
+          <span className="truncate" title={widget.data.name}>
+            {widget.data.name}
+          </span>
+          {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
+            <Badge
+              variant="secondary"
+              className="shrink-0"
+              title="Maintained by Langfuse — editing creates your own copy"
+            >
+              Langfuse
+            </Badge>
+          )}
         </span>
         <div className="flex space-x-2">
-          {hasCUDAccess && (
+          {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
               <GripVerticalIcon
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
+              {isLockedEditable ? (
+                <button
+                  onClick={onLockedEditAttempt}
+                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                  aria-label="Edit widget"
+                >
+                  <PencilIcon size={16} />
+                </button>
+              ) : widget.data.owner === "PROJECT" ? (
                 <button
                   onClick={handleEdit}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
@@ -465,11 +614,17 @@ export function DashboardWidget({
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
-                  onClick={handleCopy}
+                  onClick={() => {
+                    capture("dashboard:widget_copy_first_open", {
+                      widget_id: placement.widgetId,
+                      dashboard_id: dashboardId,
+                    });
+                    setIsCopyDialogOpen(true);
+                  }}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
+                  aria-label="Edit widget"
                 >
-                  <CopyIcon size={16} />
+                  <PencilIcon size={16} />
                 </button>
               ) : null}
               <button
@@ -481,14 +636,56 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button is available once chart data has loaded */}
-          {!queryResult.isPending ? (
-            <DownloadButton
-              data={transformedData}
-              fileName={widget.data.name}
-              className="hidden group-hover:block"
-            />
-          ) : null}
+          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                aria-label="Widget actions"
+              >
+                <MoreVerticalIcon size={16} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleCopyToClipboard}>
+                <CopyIcon className="mr-2 h-4 w-4" />
+                Copy to clipboard
+              </DropdownMenuItem>
+              {onPasteWidget && (
+                <DropdownMenuItem
+                  disabled={clipboardProbe === "no-widget"}
+                  onClick={() => onPasteWidget(placement)}
+                >
+                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                  Paste to the right
+                </DropdownMenuItem>
+              )}
+              {onDuplicateWidget && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    onDuplicateWidget(placement, widgetExportSource)
+                  }
+                >
+                  <CopyPlusIcon className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDownloadJson}>
+                <FileJsonIcon className="mr-2 h-4 w-4" />
+                Download as JSON
+              </DropdownMenuItem>
+              {/* Chart data download needs the query result to have loaded */}
+              <DropdownMenuItem
+                disabled={queryResult.isPending}
+                onClick={() =>
+                  downloadChartDataCsv(transformedData, widget.data.name)
+                }
+              >
+                <DownloadIcon className="mr-2 h-4 w-4" />
+                Download data as CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div

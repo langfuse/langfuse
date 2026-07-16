@@ -1,9 +1,16 @@
 "use client";
 
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   BotMessageSquare,
   History,
+  Info,
   Maximize2,
   Minimize2,
   Minus,
@@ -26,13 +33,21 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
 import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
+import {
+  type InAppAgentError,
+  isInAppAgentRateLimited,
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
+import styles from "./InAppAgentWindow.module.css";
+import { assertUnreachable } from "@/src/utils/types";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -63,6 +78,64 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   });
 }
 
+function formatScreenContextNotice(
+  description: InAppAgentScreenContextDescription,
+) {
+  if (description.type === "page") {
+    return "The assistant is aware of your current page.";
+  }
+
+  if (description.type === "observation") {
+    return "The assistant is aware that you're viewing this observation.";
+  }
+
+  if (description.type === "trace") {
+    return "The assistant is aware that you're viewing this trace.";
+  }
+
+  if (description.type === "prompt") {
+    return "The assistant is aware that you're viewing this prompt.";
+  }
+
+  if (description.type === "session") {
+    return "The assistant is aware that you're viewing this session.";
+  }
+
+  if (description.type === "dataset") {
+    return "The assistant is aware that you're viewing this dataset.";
+  }
+
+  if (description.type === "datasetItem") {
+    return "The assistant is aware that you're viewing this dataset item.";
+  }
+
+  if (description.type === "experimentRun") {
+    return "The assistant is aware that you're viewing this experiment run.";
+  }
+
+  if (
+    description.type === "trace-list" ||
+    description.type === "observations-list" ||
+    description.type === "sessions-list" ||
+    description.type === "prompts-list" ||
+    description.type === "datasets-list"
+  ) {
+    const listLabel = {
+      "trace-list": "trace",
+      "observations-list": "observation",
+      "sessions-list": "session",
+      "prompts-list": "prompt",
+      "datasets-list": "dataset",
+    }[description.type];
+
+    return description.hasAppliedFilters
+      ? `The assistant is aware of this ${listLabel} view and its filters.`
+      : `The assistant is aware of this ${listLabel} view.`;
+  }
+
+  return assertUnreachable(description);
+}
+
 export type InAppAgentWindowMessage = {
   id: string;
   runId?: string;
@@ -88,8 +161,9 @@ type InAppAgentWindowCloseButtonProps =
 
 export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
-  error: string | null;
+  error: InAppAgentError | null;
   hasMoreConversations: boolean;
+  isAssistantTurnInProgress: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
@@ -110,17 +184,83 @@ export type InAppAgentWindowProps = {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
+  screenContextDescription: InAppAgentScreenContextDescription;
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
+
+function InAppAgentRateLimitError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "rate_limit" }>;
+  isExpanded: boolean;
+}) {
+  const [secondsRemaining, setSecondsRemaining] = useState(() =>
+    Math.ceil((error.retryAt - Date.now()) / 1_000),
+  );
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const secondsRemaining = Math.ceil((error.retryAt - Date.now()) / 1_000);
+      setSecondsRemaining(secondsRemaining);
+
+      if (secondsRemaining <= 1) {
+        window.clearInterval(interval);
+      }
+    }, 1_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [error.retryAt]);
+
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-border bg-muted/60 text-foreground w-full rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      <div className="space-y-0.5">
+        <p className="font-medium">
+          You&apos;ve reached the assistant request limit
+        </p>
+        <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
+      </div>
+    </div>
+  );
+}
+
+function InAppAgentGenericError({
+  error,
+  isExpanded,
+}: {
+  error: Extract<InAppAgentError, { type: "generic" }>;
+  isExpanded: boolean;
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
+        isExpanded ? "text-sm" : "text-xs",
+      )}
+    >
+      {error.message}
+    </div>
+  );
+}
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     conversations,
     error,
     hasMoreConversations,
+    isAssistantTurnInProgress,
     isHeaderDragHandleEnabled = false,
     isExpanded,
-    isInputDisabled,
+    isInputDisabled: baseIsInputDisabled,
     isLoadingMoreConversations,
     messages,
     onDeleteConversation,
@@ -133,8 +273,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    screenContextDescription,
     selectedConversationId,
   } = props;
+  const screenContextNotice = formatScreenContextNotice(
+    screenContextDescription,
+  );
+  const isRateLimited = isInAppAgentRateLimited(error);
+  const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
   const previousScrollTopRef = useRef(0);
@@ -212,16 +358,24 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     scrollViewportToBottom(viewportRef.current);
   }, [selectedConversationId]);
 
+  // Update after refs commit so setInputRef can compare the previous disabled state.
   useEffect(() => {
-    const wasInputDisabled = previousIsInputDisabledRef.current;
     previousIsInputDisabledRef.current = isInputDisabled;
-
-    if (!wasInputDisabled || isInputDisabled) {
-      return;
-    }
-
-    inputRef.current?.focus();
   }, [isInputDisabled]);
+
+  const setInputRef = useCallback(
+    (input: HTMLTextAreaElement | null) => {
+      inputRef.current = input;
+
+      const shouldRefocusInput =
+        previousIsInputDisabledRef.current && !isInputDisabled;
+
+      if (input && shouldRefocusInput) {
+        input.focus();
+      }
+    },
+    [isInputDisabled],
+  );
 
   useEffect(() => {
     const input = inputRef.current;
@@ -271,7 +425,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={isInputDisabled}
+                disabled={baseIsInputDisabled}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -297,7 +451,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={isInputDisabled}
+                    disabled={baseIsInputDisabled}
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -344,7 +498,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={isInputDisabled}
+                        disabled={baseIsInputDisabled}
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();
@@ -486,7 +640,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
-                  message.content.type === "redirectAction";
+                  message.content.type === "redirectAction" ||
+                  message.content.type === "reasoning";
 
                 const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
@@ -496,12 +651,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   nextUserMessageIndex === -1
                     ? visibleMessages.length
                     : nextUserMessageIndex;
+                const isCurrentTurnInProgress =
+                  isAssistantTurnInProgress && nextUserMessageIndex === -1;
                 const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
+                  !isCurrentTurnInProgress &&
                   isLastMessageOfTurn
                     ? message.runId
                     : undefined;
@@ -519,7 +677,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
-                      isFeedbackDisabled={isInputDisabled}
+                      isFeedbackDisabled={baseIsInputDisabled}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>
@@ -536,17 +694,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               })}
             </ol>
 
-            {error ? (
-              <div
-                role="alert"
-                className={cn(
-                  "border-destructive/40 dark:bg-destructive dark:border-destructive-foreground/20 bg-destructive/10 dark:text-destructive-foreground text-destructive rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
-                {error}
-              </div>
-            ) : null}
+            {error?.type === "generic" && (
+              <InAppAgentGenericError error={error} isExpanded={isExpanded} />
+            )}
           </div>
         </div>
         {pendingToolCalls.length > 0 ? (
@@ -567,10 +717,79 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}
+            </div>
+          </div>
+        ) : null}
+        <div
+          aria-hidden={isAssistantTurnInProgress}
+          className={cn(
+            "flex shrink-0 flex-col overflow-hidden transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none",
+            isAssistantTurnInProgress
+              ? "max-h-0 opacity-0"
+              : "max-h-40 opacity-100",
+          )}
+        >
+          <div className="p-2">
+            <div
+              className={cn(
+                "flex w-full flex-col gap-1.5",
+                isExpanded && "mx-auto max-w-3xl",
+              )}
+            >
+              <p
+                className={cn(
+                  "border-border bg-muted/60 text-foreground flex w-full items-center gap-1 rounded-lg border px-2 py-1",
+                  isExpanded ? "text-sm" : "text-xs",
+                )}
+              >
+                <Info aria-hidden="true" className="size-3 shrink-0" />
+                <span className="min-w-0 truncate" title={screenContextNotice}>
+                  {screenContextNotice}
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+        {error?.type === "rate_limit" && (
+          <div
+            className={cn(
+              "shrink-0 px-2 pb-2",
+              isAssistantTurnInProgress && "pt-2",
+            )}
+          >
+            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
+              <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
+            </div>
+          </div>
+        )}
+        {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
+          <div
+            className={cn(
+              "pointer-events-none relative h-px w-full shrink-0 select-none",
+              isExpanded && "mx-auto max-w-3xl",
+            )}
+          >
+            <div className="absolute top-0 h-4 w-full -translate-y-full overflow-hidden">
+              <div className="absolute top-0 h-12 w-full bg-radial from-(--color-3) to-transparent to-60% bg-center opacity-25" />
+            </div>
+            <div className="absolute bottom-0 left-0 h-px w-full overflow-hidden">
+              <div
+                aria-hidden="true"
+                className={cn("h-[4rem]", styles.loadingGradient)}
+              />
+              {isExpanded && (
+                <>
+                  {/* Gradient overlays for expanded state so that the edges fade out */}
+                  {/* Make sure this matches the color of the background */}
+                  <div className="from-header absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-header absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -599,7 +818,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           >
             <textarea
               autoFocus={!isExpanded}
-              ref={inputRef}
+              ref={setInputRef}
               value={input}
               onChange={(event) => {
                 setInput(event.target.value);
@@ -619,7 +838,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
-                "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
+                "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
                 isExpanded
                   ? "max-h-40 min-h-14 border-none ring-0"
                   : "border-input max-h-40 min-h-8 px-3 py-1",
@@ -631,6 +850,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="h-8 w-8 rounded-md border"
                 aria-label="Send message"
+                variant="outline"
                 disabled={isInputDisabled || !input.trim()}
               >
                 <SendHorizontal className="h-4 w-4" />

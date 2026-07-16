@@ -47,6 +47,8 @@ import {
 import { TracePanelNavigationButton } from "./TracePanelNavigationButton";
 import { PlaybackControls } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/shared/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -94,6 +96,8 @@ function TracePanelNavigationHeaderExpanded({
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isBetaEnabled } = useV4Beta();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -124,15 +128,26 @@ function TracePanelNavigationHeaderExpanded({
 
   const handleToggleTreeNodes = useCallback(() => {
     if (isEverythingCollapsed) {
+      capture("trace_detail:observation_tree_expand", analyticsDimensions);
       expandAll();
     } else {
+      capture("trace_detail:observation_tree_collapse", analyticsDimensions);
       const allIds = roots.flatMap((root) => getAllNodeIds(root));
       collapseAll(allIds);
     }
-  }, [isEverythingCollapsed, expandAll, collapseAll, getAllNodeIds, roots]);
+  }, [
+    isEverythingCollapsed,
+    expandAll,
+    collapseAll,
+    getAllNodeIds,
+    roots,
+    capture,
+    analyticsDimensions,
+  ]);
 
   const [handleDownload, isDownloading] =
     useWatchedPromiseCallback(async () => {
+      capture("trace_detail:download_button_click", analyticsDimensions);
       try {
         if (!isBetaEnabled) {
           downloadLegacyTraceAsJson({
@@ -159,7 +174,7 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace]);
+    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
 
   const isTimelineView = viewMode === "timeline";
 
@@ -282,7 +297,16 @@ function TracePanelNavigationHeaderExpanded({
               the panel is narrow — see @container/navheader). */}
           <ViewModeSwitch
             isTimelineView={isTimelineView}
-            onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
+            onSelect={(timeline) => {
+              // Clicking the already-active segment is a no-op — don't count it.
+              if (timeline !== isTimelineView) {
+                capture("trace_detail:view_mode_switch", {
+                  viewMode: timeline ? "timeline" : "tree",
+                  ...analyticsDimensions,
+                });
+              }
+              setViewMode(timeline ? "timeline" : null);
+            }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
               with a "Show detail panel" button on the right edge (DetailPanel in

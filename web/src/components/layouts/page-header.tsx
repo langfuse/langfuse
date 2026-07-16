@@ -40,6 +40,9 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
+  /** Rich title rendering (e.g. inline-editable); replaces the plain title
+   * span inside the heading. `title` stays the canonical string. */
+  titleContent?: ReactNode;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -57,6 +60,7 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
+  titleContent,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -139,7 +143,9 @@ const PageHeader = ({
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
-                    {titleTooltip ? (
+                    {titleContent ? (
+                      titleContent
+                    ) : titleTooltip ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -207,9 +213,9 @@ const PageHeader = ({
               >
                 {tabsProps.tabs.map((tab) => {
                   const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                     tab.value === tabsProps.activeTab
-                      ? "border-primary-accent bg-transparent shadow-none"
+                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
                       : "",
                     tab.disabled && "pointer-events-none opacity-50",
                     tab.className,

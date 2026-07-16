@@ -447,7 +447,6 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --destructive-foreground         | Destructive action color for text                                  |                                  |
 | --ring                           | Focus ring color                                                   | MultiSelect                      |
 | --primary-accent                 | Primary accent color used for branding                             | Layout                           |
-| --hover-primary-accent           | Primary accent color used for hover effects for links              | SignIn and AuthCloudRegionSwitch |
 | --muted-green                    | Muted green for Event label                                        | ObservationTree                  |
 | --muted-magenta                  | Muted magenta for Generation label                                 | ObservationTree                  |
 | --muted-blue                     | Muted blue for Span label                                          | ObservationTree                  |
@@ -527,4 +526,14 @@ Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [d
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 
-If the CLA check gets stuck after signing (a [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520)), comment `/check-cla` on your PR to retrigger it.
+### Troubleshoot CLA License Check
+
+If the CLA check still isn't passing after signing, it may be due to this [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520). Comment `/check-cla` on your PR to retrigger the license check.
+
+If it still isn't passing, the author header in your commits is likely missing your GitHub email address ([example patch](https://github.com/langfuse/langfuse/commit/f301bb528f5ca6944bd04afae3c1a87390f9b92e.patch)). To fix this, set your email address in your git config and rebase.
+
+```bash
+git config user.email "YOUR_GITHUB_EMAIL"
+git rebase --exec "git commit --amend --no-edit --reset-author" origin/main
+git push --force-with-lease
+```

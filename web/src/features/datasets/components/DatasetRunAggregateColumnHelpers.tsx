@@ -144,6 +144,10 @@ function RunAggregateHeader({
           onChange={(filters: FilterState) =>
             debouncedUpdateRunFilters(runId, filters)
           }
+          // Analytics (LFE-10781): per-run filtering in the dataset-run compare
+          // view — a v3/legacy surface (not the v4 events table).
+          tableName="dataset-runs-compare"
+          isV4={false}
         />
         <BaselineToggle runId={runId} />
       </div>

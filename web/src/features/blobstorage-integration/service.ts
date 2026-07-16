@@ -179,6 +179,9 @@ export async function upsertBlobStorageIntegration(params: {
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
         runStartedAt: null,
       },
     });
