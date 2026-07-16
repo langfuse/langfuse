@@ -24,9 +24,14 @@ import {
  *                   — removeUser  (type:"removeUser")  on member removal
  *
  * Every payload carries `isLangfuse: true` to distinguish Langfuse traffic.
- * Dates are sent as ISO-8601 UTC with seconds precision
- * (`YYYY-MM-DDThh:mm:ssZ`) — the format agreed with the Mulesoft side, which
- * falls back to `now` for absent date fields.
+ * Date formats follow the SFDC field types behind the Mulesoft mapping
+ * (which passes values through verbatim and falls back to `now` when a date
+ * field is absent):
+ *   - user `createdAt` — ISO-8601 UTC seconds precision
+ *     (`YYYY-MM-DDThh:mm:ssZ`); the Lead field accepts datetimes.
+ *   - org `createdAt` / `convertedToPaidAt` — date-only (`YYYY-MM-DD`); the
+ *     org fields are SFDC Date-typed and reject datetimes with
+ *     INVALID_TYPE_ON_FIELD_IN_RECORD.
  *
  * Contract for callers: every public method is fire-and-forget safe.
  * Methods NEVER throw/reject — missing emails, NONE roles, validation
@@ -87,9 +92,12 @@ export function toSfdcPlan(plan: Plan): SfdcPlan | null {
     : null;
 }
 
-/** Mulesoft date contract: ISO-8601 UTC, seconds precision, no millis. */
+/** Datetime-accepting SFDC fields: ISO-8601 UTC, seconds precision, no millis. */
 const toIsoUtcSeconds = (date: Date): string =>
   date.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/** SFDC Date-typed fields (the org dates) accept only `YYYY-MM-DD` (UTC). */
+const toIsoUtcDate = (date: Date): string => date.toISOString().slice(0, 10);
 
 const UpsertUserPayload = z.object({
   userId: z.string().min(1),
@@ -108,14 +116,16 @@ const SyncableRole = LangfuseRole.exclude(["NONE"]).transform(
 const UpsertOrgPayload = z.object({
   orgId: z.string().min(1),
   orgName: z.string().min(1),
-  // -> SFDC "Langfuse Created Date" (Langfuse_Created_Date__c)
-  createdAt: z.iso.datetime(),
+  // -> SFDC "Langfuse Created Date" (Langfuse_Created_Date__c), Date-typed:
+  // date-only strings, datetimes are rejected.
+  createdAt: z.iso.date(),
   // -> SFDC "Langfuse Tier" (Langfuse_Active_Plan__c)
   plan: z.enum(cloudConfigPlans),
-  // -> SFDC "Converted to Paid" (Converted_to_Paid_Date__c). Only sent when
-  // the org left Hobby at least once; omitted otherwise so SFDC keeps any
-  // previously written value (e.g. across a later downgrade push).
-  convertedToPaidAt: z.iso.datetime().optional(),
+  // -> SFDC "Converted to Paid" (Converted_to_Paid_Date__c), Date-typed.
+  // Only sent when the org left Hobby at least once; omitted otherwise so
+  // SFDC keeps any previously written value (e.g. across a later downgrade
+  // push).
+  convertedToPaidAt: z.iso.date().optional(),
 });
 
 const SetUserRolePayload = z.object({
@@ -250,10 +260,10 @@ export class SfdcService {
       const parsed = UpsertOrgPayload.safeParse({
         orgId: input.orgId,
         orgName: input.orgName,
-        createdAt: toIsoUtcSeconds(input.createdAt),
+        createdAt: toIsoUtcDate(input.createdAt),
         plan: input.plan,
         ...(input.convertedToPaidAt
-          ? { convertedToPaidAt: toIsoUtcSeconds(input.convertedToPaidAt) }
+          ? { convertedToPaidAt: toIsoUtcDate(input.convertedToPaidAt) }
           : {}),
       });
       if (!parsed.success) {
@@ -414,7 +424,9 @@ export class SfdcService {
    * Single POST helper. Returns the parsed response on 2xx, null otherwise.
    * Never throws — HTTP errors, timeouts, and malformed bodies are logged.
    * Every request leaves exactly one outcome log line (info on 2xx, warn
-   * otherwise) so each Mulesoft call is auditable in the log stream.
+   * otherwise) so each Mulesoft call is auditable in the log stream. At
+   * debug level, every call additionally logs its full request payload
+   * before send and the full raw response body once received.
    */
   private async post(args: {
     url: string;
@@ -431,6 +443,12 @@ export class SfdcService {
     );
     const startTime = Date.now();
 
+    logger.info("[SFDC] Mulesoft request payload", {
+      ...context,
+      url,
+      payload,
+    });
+
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -442,8 +460,15 @@ export class SfdcService {
         signal: controller.signal,
       });
 
+      const responseText = await response.text().catch(() => "");
+      logger.info("[SFDC] Mulesoft response body", {
+        ...context,
+        url,
+        status: response.status,
+        responseBody: responseText,
+      });
+
       if (!response.ok) {
-        const responseBody = await response.text().catch(() => "");
         traceException(new Error(`Mulesoft returned ${response.status}`));
         logger.error("[SFDC] Mulesoft returned non-2xx", {
           ...context,
@@ -451,7 +476,7 @@ export class SfdcService {
           status: response.status,
           statusText: response.statusText,
           durationMs: Date.now() - startTime,
-          responseBody: responseBody.slice(0, 500),
+          responseBody: responseText.slice(0, 500),
         });
         return null;
       }
@@ -464,7 +489,6 @@ export class SfdcService {
       });
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
-      const responseText = await response.text();
       if (!expectJsonResponse || !responseText) return null;
 
       let parsed: unknown;
