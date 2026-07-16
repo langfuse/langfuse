@@ -530,7 +530,11 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
-CREATE VIEW analytics_events_core AS
+-- IF NOT EXISTS keeps re-runs on an existing database from aborting the whole
+-- multiquery batch here (clickhouse client stops at the first error), which
+-- would silently skip every statement below — including the append-only
+-- redefinitions that are exactly the statements existing databases need.
+CREATE VIEW IF NOT EXISTS analytics_events_core AS
 SELECT
   project_id,
   toStartOfHour(start_time) AS hour,
@@ -728,41 +732,6 @@ FROM events_core
 WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
 GROUP BY project_id, hour;
 
-EOF
-
-# ---------------------------------------------------------------------------
-# analytics_public_api_usage — separate client call because the FROM clause
-# is environment-conditional (shell-interpolated), unlike the static DDL
-# above.
-#
-# Mirrors systemTableRef() in
-# packages/shared/src/server/clickhouse/queryTracking.ts: on cluster
-# deployments every node keeps its own system.query_log, so the view must
-# read clusterAllReplicas(<cluster>, system.query_log) to see the public-API
-# queries of all replicas; single-node deployments (dev, CI,
-# CLICKHOUSE_CLUSTER_ENABLED=false) read the local table directly.
-#
-# PROD ROLLOUT: like analytics_events_core above, this view is NOT
-# migration-managed: system.query_log is created lazily and can be disabled
-# entirely on self-hosted deployments, so a migration referencing it could
-# fail there. Apply it in every cloud region (eu, us, hipaa, jp) by running
-# this block with CLICKHOUSE_CLUSTER_ENABLED=true (or copying the statement
-# with the clusterAllReplicas FROM clause), and record it in the migrations
-# doc linked in the header. Otherwise the DWH S3 export cannot pick up the
-# entity.
-if [ "${CLICKHOUSE_CLUSTER_ENABLED:-false}" = "true" ]; then
-  QUERY_LOG_REF="clusterAllReplicas('${CLICKHOUSE_CLUSTER_NAME:-default}', system.query_log)"
-else
-  QUERY_LOG_REF="system.query_log"
-fi
-
-clickhouse client \
-  --host="${CLICKHOUSE_HOST}" \
-  --port="${CLICKHOUSE_PORT}" \
-  --user="${CLICKHOUSE_USER}" \
-  --password="${CLICKHOUSE_PASSWORD}" \
-  --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
 -- Public API usage per project per hour for the DWH analytics export,
 -- sourced from system.query_log via the log_comment tags that every
 -- ClickHouse query carries (packages/shared/src/server/clickhouse/queryTags.ts,
@@ -777,6 +746,17 @@ clickhouse client \
 -- several ClickHouse queries (e.g. list endpoints run count + data queries),
 -- and API calls that never touch ClickHouse (e.g. Postgres-only prompt
 -- reads) do not appear at all.
+--
+-- PROD ROLLOUT: like analytics_events_core above, this view is NOT
+-- migration-managed: system.query_log is created lazily and can be disabled
+-- entirely on self-hosted deployments, so a migration referencing it could
+-- fail there. On cluster deployments every node keeps its own
+-- system.query_log (mirroring systemTableRef() in
+-- packages/shared/src/server/clickhouse/queryTracking.ts), so apply it in
+-- every cloud region (eu, us, hipaa, jp) by copying this statement with
+--   FROM clusterAllReplicas('default', system.query_log)
+-- and record it in the migrations doc linked in the header. Otherwise the
+-- DWH S3 export cannot pick up the entity.
 
 -- system.query_log is created lazily on the first log flush; force it into
 -- existence so the CREATE VIEW below cannot race a fresh database (CI).
@@ -843,7 +823,7 @@ FROM (
       'unknown',
       concat(method, ' ', route_path)
     ) AS route
-  FROM ${QUERY_LOG_REF}
+  FROM system.query_log
   WHERE type = 'QueryFinish'
     AND JSONExtractString(log_comment, 'tag_schema_version') = '1'
     AND JSONExtractString(log_comment, 'surface') = 'publicapi'
