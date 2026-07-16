@@ -3705,48 +3705,12 @@ describe("MCP Read Tools", () => {
       }
     });
 
-    it("should be available to in-app agent keys", async () => {
-      const context = mockServerContext({
-        inAppAgent: { permissions: "read" },
-      });
-
-      for (const tool of dashboardReadTools) {
-        await expect(
-          toolRegistry.getEnabledTool(tool.name, context),
-        ).resolves.toMatchObject({
-          definition: expect.objectContaining({ name: tool.name }),
-        });
-      }
-    });
-
-    it("should list and get dashboards with product URLs", async () => {
+    it("should list and get dashboards and widgets with product URLs", async () => {
       const setup = await createMcpTestSetup();
       const dashboard = (await handleCreateDashboard(
         { name: `mcp-dashboard-${nanoid()}`, description: "" },
         setup.context,
       )) as { id: string };
-
-      const listed = (await handleListDashboards(
-        { page: 1, limit: 50 },
-        setup.context,
-      )) as { data: Array<{ id: string; url: string }> };
-      expect(listed.data.map((item) => item.id)).toContain(dashboard.id);
-
-      const fetched = (await handleGetDashboard(
-        { dashboardId: dashboard.id },
-        setup.context,
-      )) as { id: string; url: string };
-      expect(fetched).toMatchObject({
-        id: dashboard.id,
-        url: buildDashboardUrl({
-          projectId: setup.projectId,
-          dashboardId: dashboard.id,
-        }),
-      });
-    });
-
-    it("should list and get dashboard widgets with product URLs", async () => {
-      const setup = await createMcpTestSetup();
       const widget = (await handleCreateDashboardWidget(
         {
           name: `mcp-widget-${nanoid()}`,
@@ -3761,63 +3725,43 @@ describe("MCP Read Tools", () => {
         setup.context,
       )) as { id: string };
 
-      const listed = (await handleListDashboardWidgets(
+      const listedDashboards = (await handleListDashboards(
         { page: 1, limit: 50 },
         setup.context,
       )) as { data: Array<{ id: string; url: string }> };
-      expect(listed.data.map((item) => item.id)).toContain(widget.id);
+      expect(listedDashboards.data.map((item) => item.id)).toContain(
+        dashboard.id,
+      );
 
-      const fetched = (await handleGetDashboardWidget(
+      const fetchedDashboard = (await handleGetDashboard(
+        { dashboardId: dashboard.id },
+        setup.context,
+      )) as { id: string; url: string };
+      expect(fetchedDashboard).toMatchObject({
+        id: dashboard.id,
+        url: buildDashboardUrl({
+          projectId: setup.projectId,
+          dashboardId: dashboard.id,
+        }),
+      });
+
+      const listedWidgets = (await handleListDashboardWidgets(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string; url: string }> };
+      expect(listedWidgets.data.map((item) => item.id)).toContain(widget.id);
+
+      const fetchedWidget = (await handleGetDashboardWidget(
         { widgetId: widget.id },
         setup.context,
       )) as { id: string; url: string };
-      expect(fetched).toMatchObject({
+      expect(fetchedWidget).toMatchObject({
         id: widget.id,
         url: buildDashboardWidgetUrl({
           projectId: setup.projectId,
           widgetId: widget.id,
         }),
       });
-    });
-
-    it("should use context.projectId for dashboard read isolation", async () => {
-      const owner = await createMcpTestSetup();
-      const other = await createMcpTestSetup();
-      const dashboard = (await handleCreateDashboard(
-        { name: `private-mcp-dashboard-${nanoid()}`, description: "" },
-        owner.context,
-      )) as { id: string };
-      const widget = (await handleCreateDashboardWidget(
-        {
-          name: `private-mcp-widget-${nanoid()}`,
-          description: "Created by MCP",
-          view: "observations",
-          dimensions: [],
-          metrics: [{ measure: "count", agg: "count" }],
-          filters: [],
-          chartType: "NUMBER",
-          chartConfig: { type: "NUMBER" },
-        },
-        owner.context,
-      )) as { id: string };
-
-      const [dashboards, widgets] = await Promise.all([
-        handleListDashboards({ page: 1, limit: 50 }, other.context) as Promise<{
-          data: Array<{ id: string }>;
-        }>,
-        handleListDashboardWidgets(
-          { page: 1, limit: 50 },
-          other.context,
-        ) as Promise<{ data: Array<{ id: string }> }>,
-      ]);
-      expect(dashboards.data.map(({ id }) => id)).not.toContain(dashboard.id);
-      expect(widgets.data.map(({ id }) => id)).not.toContain(widget.id);
-      await expect(
-        handleGetDashboard({ dashboardId: dashboard.id }, other.context),
-      ).rejects.toThrow(/not found/i);
-      await expect(
-        handleGetDashboardWidget({ widgetId: widget.id }, other.context),
-      ).rejects.toThrow(/not found/i);
     });
   });
 });

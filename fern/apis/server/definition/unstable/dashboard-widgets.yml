@@ -32,13 +32,15 @@ service:
         - errors.InternalServerError
     create:
       docs: |
-        Create a reusable dashboard widget.
+        Create a dashboard widget (a standalone chart definition you place on
+        any dashboard).
 
         This endpoint creates the widget only; place it on a dashboard via
         `POST /dashboards/{dashboardId}/placements`.
 
         Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
         The legacy `traces` view is not supported by this unstable API.
+        Widgets are created as v2 internally.
 
         `chartConfig` is optional and defaults to the plain config for
         `chartType`; when `chartConfig.type` is given it must match

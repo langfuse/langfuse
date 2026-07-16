@@ -503,22 +503,18 @@ describe("MCP Write Tools", () => {
         setup.context,
       )) as { id: string };
 
-    it("updates a dashboard widget through the MCP input schema", async () => {
+    it("runs the dashboard and placement write lifecycle", async () => {
       const setup = await createMcpTestSetup();
       const created = await createWidgetForTest(setup);
       const newName = `mcp-widget-renamed-${nanoid()}`;
 
-      const result = (await handleUpdateDashboardWidget(
-        { widgetId: created.id, name: newName },
-        setup.context,
-      )) as { id: string; name: string };
+      await expect(
+        handleUpdateDashboardWidget(
+          { widgetId: created.id, name: newName },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ id: created.id, name: newName });
 
-      expect(result).toMatchObject({ id: created.id, name: newName });
-    });
-
-    it("runs the dashboard and placement write lifecycle", async () => {
-      const setup = await createMcpTestSetup();
-      const created = await createWidgetForTest(setup);
       const dashboard = (await handleCreateDashboard(
         { name: `mcp-dashboard-${nanoid()}`, description: "" },
         setup.context,

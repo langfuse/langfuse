@@ -149,7 +149,7 @@ const toPlacementCreate = (
 export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   defineTool({
     name: "listDashboardWidgets",
-    description: "List reusable dashboard widgets in the current project.",
+    description: "List dashboard widgets in the current project.",
     baseSchema: GetUnstableDashboardWidgetsQuery,
     inputSchema: GetUnstableDashboardWidgetsQuery,
     readOnlyHint: true,
@@ -177,7 +177,7 @@ export const [listDashboardWidgetsTool, handleListDashboardWidgets] =
   });
 export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
   name: "getDashboardWidget",
-  description: "Get a reusable dashboard widget by ID.",
+  description: "Get a dashboard widget by ID.",
   baseSchema: DashboardWidgetIdQuery,
   inputSchema: DashboardWidgetIdQuery,
   readOnlyHint: true,
@@ -200,7 +200,7 @@ export const [getDashboardWidgetTool, handleGetDashboardWidget] = defineTool({
 export const [updateDashboardWidgetTool, handleUpdateDashboardWidget] =
   defineTool({
     name: "updateDashboardWidget",
-    description: "Partially update a reusable dashboard widget.",
+    description: "Partially update a dashboard widget.",
     baseSchema: dashboardWidgetPatchBaseSchema,
     inputSchema: DashboardWidgetIdQuery.extend(
       PatchUnstableDashboardWidgetBody.shape,
@@ -223,7 +223,7 @@ export const [deleteDashboardWidgetTool, handleDeleteDashboardWidget] =
   defineTool({
     name: "deleteDashboardWidget",
     description:
-      "Delete a reusable dashboard widget. It must first be removed from every dashboard placement.",
+      "Delete a dashboard widget. It must first be removed from every dashboard placement.",
     baseSchema: DashboardWidgetIdQuery,
     inputSchema: DashboardWidgetIdQuery,
     destructiveHint: true,
@@ -366,7 +366,9 @@ export const [addDashboardPlacementTool, handleAddDashboardPlacement] =
       "appends the tile below existing ones at the default 6x6 size. Explicit " +
       "positions are not checked for overlap. After adding, call getDashboard " +
       "to verify the full grid arrangement; use updateDashboardPlacement to " +
-      "move or resize the new tile when needed. Returns the created placement.",
+      "move or resize the new tile when needed. Returns the created placement. " +
+      "If the user has the dashboard open, remind them to refresh the page to " +
+      "see the new widget.",
     baseSchema: DashboardIdQuery.extend(placementCreateBaseSchema.shape),
     inputSchema: DashboardIdQuery.extend(
       placementCreateBaseSchema.shape,
@@ -417,7 +419,7 @@ export const [deleteDashboardPlacementTool, handleDeleteDashboardPlacement] =
   defineTool({
     name: "deleteDashboardPlacement",
     description:
-      "Remove a placement from a dashboard without deleting its reusable widget.",
+      "Remove a placement from a dashboard without deleting the underlying widget.",
     baseSchema: placementQuery,
     inputSchema: placementQuery,
     destructiveHint: true,

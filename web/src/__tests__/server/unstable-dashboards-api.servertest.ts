@@ -166,6 +166,21 @@ describe("unstable dashboard API", () => {
       auth,
     );
 
+    const duplicatePlacement = await makeAPICall(
+      "POST",
+      `/api/public/unstable/dashboards/${createdDashboard.body.id}/placements`,
+      {
+        type: "widget",
+        id: "placement-1",
+        widgetId: createdWidget.body.id,
+      },
+      auth,
+    );
+    expect(duplicatePlacement.status).toBe(409);
+    expect(
+      UnstablePublicApiErrorResponse.parse(duplicatePlacement.body).code,
+    ).toBe("conflict");
+
     const blockedDelete = await makeAPICall(
       "DELETE",
       `/api/public/unstable/dashboard-widgets/${createdWidget.body.id}`,
@@ -553,46 +568,6 @@ describe("unstable dashboard API", () => {
       width: 6,
       height: 6,
     });
-  });
-
-  it("rejects duplicate placement ids with a conflict", async () => {
-    const { auth } = await createOrgProjectAndApiKey();
-    const createdWidget = await makeZodVerifiedAPICall(
-      PostUnstableDashboardWidgetResponse,
-      "POST",
-      "/api/public/unstable/dashboard-widgets",
-      widget,
-      auth,
-    );
-    const dashboard = await makeZodVerifiedAPICall(
-      PostUnstableDashboardResponse,
-      "POST",
-      "/api/public/unstable/dashboards",
-      { name: "Duplicate placement dashboard", description: "" },
-      auth,
-    );
-    const placement = {
-      type: "widget",
-      id: "placement-1",
-      widgetId: createdWidget.body.id,
-    };
-    await makeZodVerifiedAPICall(
-      PostDashboardPlacementResponse,
-      "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
-      placement,
-      auth,
-    );
-    const duplicate = await makeAPICall(
-      "POST",
-      `/api/public/unstable/dashboards/${dashboard.body.id}/placements`,
-      placement,
-      auth,
-    );
-    expect(duplicate.status).toBe(409);
-    expect(UnstablePublicApiErrorResponse.parse(duplicate.body).code).toBe(
-      "conflict",
-    );
   });
 
   it("does not expose or mutate dashboards and widgets across projects", async () => {

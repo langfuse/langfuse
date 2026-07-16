@@ -6603,7 +6603,9 @@ paths:
       security: *ref_0
     post:
       description: >-
-        Create a reusable dashboard widget.
+        Create a dashboard widget (a standalone chart definition you place on
+
+        any dashboard).
 
 
         This endpoint creates the widget only; place it on a dashboard via
@@ -6615,6 +6617,8 @@ paths:
         `scores-categorical`.
 
         The legacy `traces` view is not supported by this unstable API.
+
+        Widgets are created as v2 internally.
 
 
         `chartConfig` is optional and defaults to the plain config for
