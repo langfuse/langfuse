@@ -82,25 +82,26 @@ const COMMENT_COLUMNS = new Set(["commentCount", "commentContent"]);
 
 /** Reason shown when full-text search is active — not a `FilterState` column. */
 export const CHART_SEARCH_QUERY_REASON =
-  "Charts can't apply text search yet — it still narrows the table.";
+  "Charts can't apply text search at the moment — still narrows the table.";
 
 /**
  * The reason a filter on `column` is NOT applied to the chart, or `null` if it
- * is forwarded. User-facing hover copy: plain "not supported yet" framing (none
- * of these are impossible — they're just not built into the chart query), with
- * the reassurance that the filter still works on the table. No jargon.
+ * is forwarded. User-facing hover copy: plain "not at the moment" framing —
+ * present-tense and polite, without claiming a hard impossibility (none of these
+ * are) or promising a roadmap — plus the reassurance that the filter still works
+ * on the table. No "dimension"/"measure" jargon.
  */
 export function chartFilterExclusionReason(column: string): string | null {
   if (FORWARDABLE_CHART_FILTER_COLUMNS.has(column)) return null;
   if (MEASURE_COLUMNS.has(column))
-    return "Charts can't filter by latency, cost, or tokens yet — still filters the table.";
+    return "Charts can't filter by latency, cost, or tokens at the moment — still applies to the table.";
   if (SCORE_COLUMNS.has(column))
-    return "Charts can't filter by scores yet — still filters the table.";
+    return "Charts can't filter by scores at the moment — still applies to the table.";
   if (COMMENT_COLUMNS.has(column))
-    return "Charts can't filter by comments yet — still filters the table.";
+    return "Charts can't filter by comments at the moment — still applies to the table.";
   if (column === "metadata")
-    return "Charts can't filter by metadata yet — still filters the table.";
-  return "Charts can't filter by this field yet — still filters the table.";
+    return "Charts can't filter by metadata at the moment — still applies to the table.";
+  return "Charts can't filter by this field at the moment — still applies to the table.";
 }
 
 /**
