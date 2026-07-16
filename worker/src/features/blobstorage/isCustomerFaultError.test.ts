@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { OutboundUrlValidationError } from "@langfuse/shared/src/server";
-import { isCustomerFaultError } from "./isCustomerFaultError";
+import {
+  classifyCustomerFault,
+  isCustomerFaultError,
+} from "./isCustomerFaultError";
 
 // Builds the wrapper the handler actually sees: StorageService.handleStorageError
 // rethrows SDK errors as `new Error("Failed to ...", { cause: sdkError })`.
@@ -215,5 +218,75 @@ describe("isCustomerFaultError", () => {
       Object.assign(a, { cause: b });
       expect(isCustomerFaultError(a)).toBe(false);
     });
+  });
+});
+
+describe("classifyCustomerFault — disable reason buckets", () => {
+  it.each([
+    ["blocked-ip", "ssrf_blocked_endpoint"],
+    ["blocked-hostname", "ssrf_blocked_endpoint"],
+    ["invalid-syntax", "invalid_endpoint_url"],
+    ["invalid-encoding", "invalid_endpoint_url"],
+    ["https-required", "invalid_endpoint_url"],
+    ["protocol-not-allowed", "invalid_endpoint_url"],
+    ["url-credentials-not-allowed", "invalid_endpoint_url"],
+  ] as const)("maps outbound-url %s to %s", (code, reason) => {
+    const err = new OutboundUrlValidationError(code, "blocked");
+    expect(classifyCustomerFault(err)).toBe(reason);
+    expect(classifyCustomerFault(wrapped(err))).toBe(reason);
+  });
+
+  it.each(["InvalidAccessKeyId", "AccessDenied", "SignatureDoesNotMatch"])(
+    "maps S3 auth code %s to credentials",
+    (code) => {
+      expect(classifyCustomerFault(wrapped(s3Error(code, 403)))).toBe(
+        "credentials",
+      );
+    },
+  );
+
+  it.each(["AuthenticationFailed", "InsufficientAccountPermissions"])(
+    "maps Azure auth code %s to credentials",
+    (code) => {
+      expect(classifyCustomerFault(wrapped(azureError(code, 403)))).toBe(
+        "credentials",
+      );
+    },
+  );
+
+  it("maps a bare 401 and GCS forbidden to credentials", () => {
+    const unauthorized = new Error("Unauthorized");
+    Object.assign(unauthorized, { $metadata: { httpStatusCode: 401 } });
+    expect(classifyCustomerFault(wrapped(unauthorized))).toBe("credentials");
+    expect(classifyCustomerFault(wrapped(gcsError(403, "forbidden")))).toBe(
+      "credentials",
+    );
+  });
+
+  it.each([
+    ["NoSuchBucket", 404],
+    ["InvalidBucketName", 400],
+    ["ContainerNotFound", 404],
+    ["InvalidResourceName", 400],
+  ] as const)("maps %s to bucket_or_container", (code, status) => {
+    // extractErrorCodes reads .name/.Code/.code, so the code bucket is
+    // provider-agnostic here — the s3Error shape is enough to exercise it.
+    expect(classifyCustomerFault(wrapped(s3Error(code, status)))).toBe(
+      "bucket_or_container",
+    );
+  });
+
+  it("returns undefined for non-disabling errors (dns-lookup-failed, transient)", () => {
+    expect(
+      classifyCustomerFault(
+        new OutboundUrlValidationError(
+          "dns-lookup-failed",
+          "DNS lookup failed",
+        ),
+      ),
+    ).toBeUndefined();
+    const transient = new Error("network EAI_AGAIN");
+    Object.assign(transient, { code: "EAI_AGAIN" });
+    expect(classifyCustomerFault(wrapped(transient))).toBeUndefined();
   });
 });
