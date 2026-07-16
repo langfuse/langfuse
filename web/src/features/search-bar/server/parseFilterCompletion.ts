@@ -51,44 +51,101 @@ function isEventsContractCompatible(f: FilterState[number]): boolean {
 }
 
 /**
- * Extract a `FilterState` from the model's completion. Tries the whole string,
- * then the widest bracketed array (greedy, so it survives nested objects), and
- * tolerates a `{ "filters": [...] }` wrapper. Returns the structurally-valid
+ * Scan `text` for balanced, top-level `[...]` substrings. Tracks bracket depth
+ * while treating brackets inside JSON string literals as inert, so a `]` in a
+ * value (`"array[0]"`) never closes an array early. Nested arrays (a value
+ * array inside a filter object, depth > 1) are part of their enclosing
+ * top-level array, not returned on their own. Returned in document order.
+ */
+function extractTopLevelArrays(text: string): string[] {
+  const arrays: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      // Inside a string literal only `\` (escape) and an unescaped `"` (close)
+      // are meaningful; brackets here must not move the depth.
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "[") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "]" && depth > 0) {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        arrays.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  return arrays;
+}
+
+/**
+ * Extract a `FilterState` from the model's completion. Tries the whole string
+ * (a bare array or a `{ "filters": [...] }` wrapper) first, then every balanced
+ * top-level `[...]` in the prose, LAST-FIRST. Returns the structurally-valid
  * filters plus `rawCount` (how many elements the model actually emitted), so
  * the caller can count the malformed ones as dropped. `rawCount` is 0 when
  * nothing parses.
+ *
+ * Last-first matters: the model sometimes emits a DRAFT array, some prose, then
+ * a corrected SECOND array (self-correction). A single greedy `\[[\s\S]*\]`
+ * match spans from the first `[` to the last `]` — swallowing both arrays plus
+ * the prose between them, so `JSON.parse` fails and a correct answer is lost.
+ * Scanning balanced candidates and trying the LAST one first applies the
+ * model's self-correction instead of discarding it.
  */
 function parseFilterArray(completion: string): {
   filters: FilterState;
   rawCount: number;
 } {
-  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
-  const candidates = [completion, arrayMatch].filter((c): c is string =>
-    Boolean(c),
-  );
+  const candidates = [
+    completion,
+    ...extractTopLevelArrays(completion).reverse(),
+  ];
+  // A candidate that parses to an array but holds no structurally-valid filter
+  // (e.g. an all-malformed array, or a stray bracketed list in the prose) is
+  // remembered so `rawCount` still reflects what the model emitted, but it does
+  // NOT win over a later candidate that DOES contain a valid filter. This keeps
+  // a trailing non-filter array (`... use the [ERROR] level`) from shadowing
+  // the real filter array that preceded it.
+  let fallback: { filters: FilterState; rawCount: number } | null = null;
   for (const candidate of candidates) {
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(candidate);
-      const raw = Array.isArray(parsed) ? parsed : parsed.filters;
-      if (!Array.isArray(raw)) continue;
-      // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
-      // is all-or-nothing, so one off-spec element (wrong operator, missing
-      // key, value-as-string, unknown type — common on weaker models) would
-      // discard the valid siblings and surface a misleading "couldn't build
-      // filters". Keep the structurally-valid ones; the rejects show up in the
-      // dropped count below, mirroring the per-element keep/drop the two
-      // downstream guardrails already use.
-      const kept: FilterState = [];
-      for (const item of raw) {
-        const result = singleFilter.safeParse(item);
-        if (result.success) kept.push(result.data);
-      }
-      return { filters: kept, rawCount: raw.length };
+      parsed = JSON.parse(candidate);
     } catch {
-      // try the next candidate
+      continue;
     }
+    const raw = Array.isArray(parsed)
+      ? parsed
+      : (parsed as { filters?: unknown } | null)?.filters;
+    if (!Array.isArray(raw)) continue;
+    // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
+    // is all-or-nothing, so one off-spec element (wrong operator, missing
+    // key, value-as-string, unknown type — common on weaker models) would
+    // discard the valid siblings and surface a misleading "couldn't build
+    // filters". Keep the structurally-valid ones; the rejects show up in the
+    // dropped count below, mirroring the per-element keep/drop the two
+    // downstream guardrails already use.
+    const kept: FilterState = [];
+    for (const item of raw) {
+      const result = singleFilter.safeParse(item);
+      if (result.success) kept.push(result.data);
+    }
+    if (kept.length > 0) return { filters: kept, rawCount: raw.length };
+    if (fallback === null) fallback = { filters: [], rawCount: raw.length };
   }
-  return { filters: [], rawCount: 0 };
+  return fallback ?? { filters: [], rawCount: 0 };
 }
 
 // Which ObservedScoreNames set holds the real names for each score column —
@@ -99,8 +156,10 @@ const SCORE_NAME_SET_BY_COLUMN: Record<
 > = {
   [SCORE_COLUMNS.observation.numeric]: "numeric",
   [SCORE_COLUMNS.observation.categorical]: "categorical",
+  [SCORE_COLUMNS.observation.boolean]: "booleans",
   [SCORE_COLUMNS.trace.numeric]: "traceNumeric",
   [SCORE_COLUMNS.trace.categorical]: "traceCategorical",
+  [SCORE_COLUMNS.trace.boolean]: "traceBooleans",
 };
 
 // Case/separator-insensitive form for the confident-correction match:
@@ -145,7 +204,11 @@ function validateScoreNames(
   const kept: FilterState = [];
   const unknown: string[] = [];
   for (const filter of filters) {
-    if (filter.type !== "numberObject" && filter.type !== "categoryOptions") {
+    if (
+      filter.type !== "numberObject" &&
+      filter.type !== "categoryOptions" &&
+      filter.type !== "booleanObject"
+    ) {
       kept.push(filter);
       continue;
     }
