@@ -530,7 +530,7 @@ SELECT
     byteSize(*) AS total_size
 FROM traces;
 
-CREATE VIEW IF NOT EXISTS analytics_events_core AS
+CREATE VIEW analytics_events_core AS
 SELECT
   project_id,
   toStartOfHour(start_time) AS hour,
