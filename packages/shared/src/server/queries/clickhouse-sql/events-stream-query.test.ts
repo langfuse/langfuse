@@ -93,6 +93,36 @@ describe("buildEventsStreamQuery", () => {
     expect(params).toEqual({ projectId, limit: 7 });
   });
 
+  it("reads events_full when a metadata filter is present", () => {
+    const { queryBuilder } = buildEventsStreamQuery({
+      projectId,
+      filter: [
+        {
+          column: "metadata",
+          key: "payload",
+          operator: "contains",
+          value: "needle",
+          type: "stringObject",
+        },
+      ],
+      rowLimit: 7,
+    });
+    const { query } = queryBuilder.selectFieldSet("eval").buildWithParams();
+
+    expect(normalizeSql(query)).toContain("FROM events_full e");
+  });
+
+  it("reads events_core when neither search nor filters need full I/O", () => {
+    const { queryBuilder } = buildEventsStreamQuery({
+      projectId,
+      filter: [nativeFilter],
+      rowLimit: 7,
+    });
+    const { query } = queryBuilder.selectFieldSet("eval").buildWithParams();
+
+    expect(normalizeSql(query)).toContain("FROM events_core e");
+  });
+
   it("keeps the blob-export score projection and source together", () => {
     const { queryBuilder } = buildEventsBlobExportStreamQuery({
       projectId,
