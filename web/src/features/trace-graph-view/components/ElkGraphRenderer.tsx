@@ -38,6 +38,12 @@ type ElkGraphRendererProps = {
   activeNodeNames?: ReadonlySet<string> | null;
   /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
   layoutDirection?: GraphLayoutDirection;
+  /**
+   * Recovery action for the "too large to lay out" notice: switch to the
+   * budget-exempt expanded view, which can render the same trace. Omitted when
+   * no view switch is available (or the view is already expanded).
+   */
+  onShowExpanded?: (() => void) | null;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -85,6 +91,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   currentObservationIndices = {},
   activeNodeNames = null,
   layoutDirection = "DOWN",
+  onShowExpanded = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -363,7 +370,24 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
               : ""}
             .
           </span>
-          <span>Use the tree or timeline view to explore this trace.</span>
+          <span>
+            Try the{" "}
+            {onShowExpanded ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // don't treat as a canvas deselect
+                  onShowExpanded();
+                }}
+                className="text-primary underline underline-offset-2 hover:opacity-80"
+              >
+                expanded graph
+              </button>
+            ) : (
+              "expanded graph"
+            )}
+            , tree, or timeline view to explore this trace.
+          </span>
         </div>
       )}
 

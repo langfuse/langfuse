@@ -105,26 +105,39 @@ describe("dedupeEdges", () => {
 
 describe("computeGraphLayout layout budget", () => {
   // A dense cyclic aggregated graph freezes ELK (measured: 100 nodes/800 edges
-  // ≈ 177s on the main thread, a real trace fed 1,422 edges froze >110s). ELK
+  // ≈ 177s on the main thread, a real trace fed ~1,400 edges froze >110s). ELK
   // is synchronous, so the only safe fix is to refuse the layout up front.
-  const distinctEdges = (n: number): GraphCanvasData["edges"] => {
+
+  // `edgeCount` distinct directed edges among the first `nodeCount` node ids
+  // (no self-loops) — a dense graph, but edge endpoints stay within the nodes.
+  const denseEdges = (
+    nodeCount: number,
+    edgeCount: number,
+  ): GraphCanvasData["edges"] => {
     const edges: GraphCanvasData["edges"] = [];
-    let i = 0;
-    outer: for (let a = 0; a < n; a++) {
-      for (let b = 0; b < n; b++) {
-        if (a === b) continue;
-        edges.push({ from: `n${a}`, to: `n${b}` });
-        if (++i > n) break outer;
+    for (let a = 0; a < nodeCount && edges.length < edgeCount; a++) {
+      for (let b = 0; b < nodeCount && edges.length < edgeCount; b++) {
+        if (a !== b) edges.push({ from: `n${a}`, to: `n${b}` });
       }
     }
     return edges;
   };
 
-  it("refuses to lay out an over-budget aggregated (DOWN) graph without running ELK", async () => {
+  // A sparse acyclic chain of `edgeCount` edges over edgeCount+1 nodes — lays
+  // out in milliseconds even past the edge budget, so boundary/exempt cases
+  // stay fast.
+  const chain = (edgeCount: number): GraphCanvasData => ({
+    nodes: Array.from({ length: edgeCount + 1 }, (_, i) => node(`n${i}`)),
+    edges: Array.from({ length: edgeCount }, (_, i) => ({
+      from: `n${i}`,
+      to: `n${i + 1}`,
+    })),
+  });
+
+  it("refuses an over-budget aggregated (DOWN) graph without running ELK", async () => {
     const count = MAX_GRAPH_LAYOUT_EDGES + 10;
     const nodes = Array.from({ length: 60 }, (_, i) => node(`n${i}`));
-    const edges = distinctEdges(count).slice(0, count);
-    const graph: GraphCanvasData = { nodes, edges };
+    const graph: GraphCanvasData = { nodes, edges: denseEdges(60, count) };
 
     // If ELK actually ran on this dense graph the test would hang for minutes;
     // the budget must make it return near-instantly.
@@ -152,18 +165,52 @@ describe("computeGraphLayout layout budget", () => {
     expect(layout.nodeCount).toBe(MAX_GRAPH_LAYOUT_NODES + 1);
   });
 
-  it("still lays out an over-budget expanded (RIGHT) chain — exempt from the budget", async () => {
-    // Expanded graphs are acyclic and bounded upstream; a long thin chain of
-    // more than MAX_GRAPH_LAYOUT_EDGES edges lays out in milliseconds.
-    const n = MAX_GRAPH_LAYOUT_EDGES + 5;
-    const nodes = Array.from({ length: n + 1 }, (_, i) => node(`n${i}`));
-    const edges = Array.from({ length: n }, (_, i) => ({
+  it("lays out a DOWN graph exactly AT the edge budget (the > boundary)", async () => {
+    // The gate is strictly greater-than, so exactly MAX edges is allowed.
+    const layout = await computeGraphLayout(
+      chain(MAX_GRAPH_LAYOUT_EDGES),
+      {},
+      "DOWN",
+    );
+    expect(layout.tooLarge).toBeFalsy();
+    expect(layout.nodes.length).toBeGreaterThan(0);
+  });
+
+  it("lays out a DOWN graph exactly AT the node budget (the > boundary)", async () => {
+    const nodes = Array.from({ length: MAX_GRAPH_LAYOUT_NODES }, (_, i) =>
+      node(`n${i}`),
+    );
+    // Sparse (well under the edge budget) so ELK stays fast.
+    const edges = Array.from({ length: 20 }, (_, i) => ({
       from: `n${i}`,
       to: `n${i + 1}`,
     }));
-    const graph: GraphCanvasData = { nodes, edges };
+    const layout = await computeGraphLayout({ nodes, edges }, {}, "DOWN");
+    expect(layout.tooLarge).toBeFalsy();
+    expect(layout.nodes).toHaveLength(MAX_GRAPH_LAYOUT_NODES);
+  });
 
-    const layout = await computeGraphLayout(graph, {}, "RIGHT");
+  it("does not flag a small DOWN graph as too large", async () => {
+    const graph: GraphCanvasData = {
+      nodes: [node("a"), node("b"), node("c")],
+      edges: [
+        { from: "a", to: "b" },
+        { from: "b", to: "c" },
+      ],
+    };
+    const layout = await computeGraphLayout(graph, {}, "DOWN");
+    expect(layout.tooLarge).toBeFalsy();
+    expect(layout.nodes).toHaveLength(3);
+  });
+
+  it("still lays out an over-budget expanded (RIGHT) chain — exempt from the budget", async () => {
+    // Expanded graphs are acyclic and bounded upstream; a long thin chain of
+    // more than MAX_GRAPH_LAYOUT_EDGES edges lays out in milliseconds.
+    const layout = await computeGraphLayout(
+      chain(MAX_GRAPH_LAYOUT_EDGES + 5),
+      {},
+      "RIGHT",
+    );
     expect(layout.tooLarge).toBeFalsy();
     expect(layout.nodes.length).toBeGreaterThan(0);
   });
