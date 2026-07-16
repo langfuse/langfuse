@@ -43,11 +43,8 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import {
-  getUnsupportedViewFilters,
-  MetricsFilterBuilder,
-  supportedViewFilters,
-} from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,
@@ -450,8 +447,8 @@ export function WidgetForm({
   const [userFilterState, setUserFilterState] = useState<FilterState>(
     () => initialValues.filters ?? [],
   );
-  const unsupportedFilters = useMemo(
-    () => getUnsupportedViewFilters(selectedView, userFilterState),
+  const { mappedFilters: normalizedUserFilters, unsupportedFilters } = useMemo(
+    () => partitionWidgetUiTableFiltersToView(selectedView, userFilterState),
     [selectedView, userFilterState],
   );
   const unsupportedFilterColumns = useMemo(
@@ -460,10 +457,6 @@ export function WidgetForm({
         new Set(unsupportedFilters.map((filter) => filter.column)),
       ).join(", "),
     [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => supportedViewFilters(selectedView, userFilterState),
-    [selectedView, userFilterState],
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
@@ -1036,7 +1029,10 @@ export function WidgetForm({
     setSelectedDimension(snapshot.selectedDimension);
     setPivotDimensions(snapshot.pivotDimensions);
     setUserFilterState(
-      supportedViewFilters(snapshot.selectedView, snapshot.userFilterState),
+      partitionWidgetUiTableFiltersToView(
+        snapshot.selectedView,
+        snapshot.userFilterState,
+      ).mappedFilters,
     );
     setRowLimit(snapshot.rowLimit);
     setHistogramBins(snapshot.histogramBins);

@@ -58,25 +58,11 @@ export const MetricsFilterBuilder = ({
   return <MetricsFilterBuilderV2 {...props} />;
 };
 
-/** supportedViewFilters returns the canonical, query-ready rows for the view, stripping unsupported rows. */
-export const supportedViewFilters = (
-  view: z.infer<typeof views>,
-  filters: FilterState,
-): FilterState =>
-  partitionWidgetUiTableFiltersToView(view, filters).mappedFilters;
-
-/** getUnsupportedViewFilters lists rows whose column is known but not valid for the view, so forms can gate save/query on legacy rows. */
-export const getUnsupportedViewFilters = (
-  view: z.infer<typeof views>,
-  filters: FilterState,
-): FilterState =>
-  partitionWidgetUiTableFiltersToView(view, filters).unsupportedFilters;
-
 /** MetricsFilterDateRange is the preview/lookback window used to scope filter-value discovery. */
-export type MetricsFilterDateRange = { from: Date; to?: Date };
+type MetricsFilterDateRange = { from: Date; to?: Date };
 
 /** MetricsFilterFetcherProps is the version-agnostic contract shared by both fetchers. */
-export type MetricsFilterFetcherProps = {
+type MetricsFilterFetcherProps = {
   view: z.infer<typeof views>;
   projectId: string;
   dateRange?: MetricsFilterDateRange;
@@ -198,7 +184,7 @@ const MetricsFilterView = ({
   onChange: (filters: FilterState) => void;
 }) => {
   const editorFilters = viewFiltersToEditorFilters(view, filters);
-  const unsupported = getUnsupportedViewFilters(view, filters);
+  const unsupported = unsupportedViewFilters(view, filters);
   const unsupportedColumns = Array.from(
     new Set(unsupported.map((filter) => filter.column)),
   ).join(", ");
@@ -385,10 +371,17 @@ const editorFiltersToViewFilters = (
   return [...mappedFilters, ...unsupportedFilters];
 };
 
+/** unsupportedViewFilters lists rows whose column is known but not valid for the view. */
+const unsupportedViewFilters = (
+  view: z.infer<typeof views>,
+  filters: FilterState,
+): FilterState =>
+  partitionWidgetUiTableFiltersToView(view, filters).unsupportedFilters;
+
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
-  getUnsupportedViewFilters,
+  unsupportedViewFilters,
 };

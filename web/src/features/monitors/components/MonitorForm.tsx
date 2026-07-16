@@ -43,10 +43,8 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
-import {
-  MetricsFilterBuilder,
-  supportedViewFilters,
-} from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -210,10 +208,12 @@ export const MonitorForm = ({
     (values) => {
       const normalizedValues = {
         ...values,
-        filters: supportedViewFilters(
-          values.view as Parameters<typeof supportedViewFilters>[0],
+        filters: partitionWidgetUiTableFiltersToView(
+          values.view as Parameters<
+            typeof partitionWidgetUiTableFiltersToView
+          >[0],
           (values.filters ?? []) as FilterState,
-        ),
+        ).mappedFilters,
       } as typeof values;
 
       if (isEdit && monitor) {
@@ -296,12 +296,12 @@ export const MonitorForm = ({
   /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
     () =>
-      supportedViewFilters(
+      partitionWidgetUiTableFiltersToView(
         (watched.view ?? "observations") as Parameters<
-          typeof supportedViewFilters
+          typeof partitionWidgetUiTableFiltersToView
         >[0],
         (watched.filters ?? []) as FilterState,
-      ),
+      ).mappedFilters,
     [watched.view, watched.filters],
   );
 

@@ -13,7 +13,7 @@ const {
   buildV2FilterColumnsParams,
   viewFiltersToEditorFilters,
   editorFiltersToViewFilters,
-  getUnsupportedViewFilters,
+  unsupportedViewFilters,
 } = __test;
 
 const modelFilter = (column: string): FilterState[number] => ({
@@ -54,9 +54,9 @@ describe("editorFiltersToViewFilters", () => {
   });
 });
 
-describe("getUnsupportedViewFilters", () => {
+describe("unsupportedViewFilters", () => {
   it("invalid-for-view column: surfaced as unsupported, not silently dropped", () => {
-    const unsupported = getUnsupportedViewFilters("traces", [
+    const unsupported = unsupportedViewFilters("traces", [
       modelFilter("model"),
     ]);
     expect(unsupported.map((f) => f.column)).toContain("model");
@@ -64,7 +64,7 @@ describe("getUnsupportedViewFilters", () => {
 
   it("valid-for-view column: not flagged as unsupported", () => {
     expect(
-      getUnsupportedViewFilters("observations", [
+      unsupportedViewFilters("observations", [
         modelFilter("providedModelName"),
       ]),
     ).toEqual([]);
