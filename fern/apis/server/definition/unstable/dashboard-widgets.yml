@@ -10,7 +10,7 @@ service:
     list:
       docs: |
         List dashboard widgets in the project, ordered by most recently
-        updated first. Custom ordering is not yet supported.
+        updated first.
       method: GET
       path: /dashboard-widgets
       request:

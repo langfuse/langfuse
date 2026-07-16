@@ -11,7 +11,7 @@ service:
     list:
       docs: |
         List dashboards in the project, ordered by most recently updated
-        first. Custom ordering is not yet supported.
+        first.
       method: GET
       path: /dashboards
       request:

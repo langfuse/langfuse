@@ -6537,7 +6537,7 @@ paths:
     get:
       description: |-
         List dashboard widgets in the project, ordered by most recently
-        updated first. Custom ordering is not yet supported.
+        updated first.
       operationId: unstable_dashboardWidgets_list
       tags:
         - UnstableDashboardWidgets
@@ -6882,7 +6882,7 @@ paths:
     get:
       description: |-
         List dashboards in the project, ordered by most recently updated
-        first. Custom ordering is not yet supported.
+        first.
       operationId: unstable_dashboards_list
       tags:
         - UnstableDashboards
