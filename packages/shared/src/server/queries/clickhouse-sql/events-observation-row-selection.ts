@@ -1,10 +1,14 @@
 import { eventsTableCols } from "../../../eventsTable";
 import type { TracingSearchType } from "../../../interfaces/search";
+import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList, filtersRequireEventsFull } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
-import { createFilterFromFilterState } from "./factory";
+import {
+  createFilterFromFilterState,
+  resolveLegacyScoreFilterColumn,
+} from "./factory";
 import { extractTimeFilter } from "./filter-utils";
 import {
   eventsScoresAggregation,
@@ -88,10 +92,13 @@ const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFacto
   });
 
 const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
-  const columnDefinition = eventsTableUiColumnDefinitions.find(
-    (column) =>
-      column.uiTableName === filter.column ||
-      column.uiTableId === filter.column,
+  const filterColumn = resolveLegacyScoreFilterColumn(
+    filter,
+    eventsTableUiColumnDefinitions,
+  );
+  const columnDefinition = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    filterColumn,
   );
 
   if (columnDefinition?.clickhouseTableName === "comments") {
@@ -138,6 +145,7 @@ const buildEventsObservationRowSelectionInternal = (
   queryBuilder: EventsQueryBuilder;
   filterGroups: EventsObservationFilterGroups;
   search: ReturnType<typeof eventSearchCondition>;
+  startTimeFrom: string | null;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
 
@@ -149,16 +157,8 @@ const buildEventsObservationRowSelectionInternal = (
     ),
   );
   const startTimeFrom = extractTimeFilter(eventsFilter);
-  const hasObservationScoreFilter = eventsFilter.some(
-    (filterItem) =>
-      filterItem.clickhouseTable === "scores" &&
-      filterItem.field.startsWith("s."),
-  );
-  const hasTraceScoreFilter = eventsFilter.some(
-    (filterItem) =>
-      filterItem.clickhouseTable === "scores" &&
-      filterItem.field.startsWith("ts."),
-  );
+  const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
+  const hasTraceScoreFilter = filterGroups.traceScores.length > 0;
   const queryBuilder = new EventsQueryBuilder({ projectId });
   const observationScoreDependency =
     observationScoreDependencyFactory?.({ projectId, startTimeFrom }) ??
@@ -204,7 +204,7 @@ const buildEventsObservationRowSelectionInternal = (
 
   queryBuilder.applyFilters(eventsFilter).where(search);
 
-  return { queryBuilder, filterGroups, search };
+  return { queryBuilder, filterGroups, search, startTimeFrom };
 };
 
 export const buildEventsObservationRowSelection = (

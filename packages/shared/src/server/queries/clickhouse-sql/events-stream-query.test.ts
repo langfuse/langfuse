@@ -112,7 +112,7 @@ describe("buildEventsStreamQuery", () => {
   });
 
   it("shares one bounded score dependency between filtering and projection", () => {
-    const { queryBuilder } = buildEventsBlobExportStreamQuery({
+    const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
       projectId,
       filter: [
         {
@@ -131,8 +131,9 @@ describe("buildEventsStreamQuery", () => {
       ],
       rowLimit: 7,
     });
-    const { query } = queryBuilder.buildWithParams();
+    const { query, params } = queryBuilder.buildWithParams();
 
+    expect(startTimeFrom).toBe(params.startTimeFrom);
     expect(query.match(/\bscores_agg AS \(/g)).toHaveLength(1);
     expect(query).toContain("s.scores_avg as scores_avg");
     expect(query).toContain("s.score_categories as score_categories");
@@ -148,7 +149,7 @@ describe("buildEventsStreamQuery", () => {
   });
 
   it("applies score filters without exposing them as native event filters", () => {
-    const { queryBuilder, eventOnlyFilters } = buildEventsStreamQuery({
+    const { queryBuilder } = buildEventsStreamQuery({
       projectId,
       filter: [
         nativeFilter,
@@ -164,12 +165,11 @@ describe("buildEventsStreamQuery", () => {
     });
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
-    expect(eventOnlyFilters).toEqual([nativeFilter]);
     expect(Object.values(params)).toContain("quality");
   });
 
   it("keeps comment filters out of the legacy stream selection", () => {
-    const { queryBuilder, eventOnlyFilters } = buildEventsStreamQuery({
+    const { queryBuilder } = buildEventsStreamQuery({
       projectId,
       filter: [
         nativeFilter,
@@ -184,7 +184,6 @@ describe("buildEventsStreamQuery", () => {
     });
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
-    expect(eventOnlyFilters).toEqual([nativeFilter]);
     expect(Object.values(params)).not.toContain("comment-needle");
   });
 });
@@ -231,7 +230,7 @@ describe("buildEventsObservationRowSelection", () => {
   });
 
   it("does not invent score time bounds without an Events lower bound", () => {
-    const { query } = buildSelection({
+    const { query, startTimeFrom } = buildSelection({
       filter: [
         {
           type: "numberObject",
@@ -250,6 +249,7 @@ describe("buildEventsObservationRowSelection", () => {
       ],
     });
 
+    expect(startTimeFrom).toBeNull();
     expect(query).not.toContain("AND timestamp >=");
   });
 
@@ -257,6 +257,7 @@ describe("buildEventsObservationRowSelection", () => {
     ["scores_avg", "observationScores"],
     ["trace_scores_avg", "traceScores"],
     ["Scores", "observationScores"],
+    ["SCORES", "observationScores"],
     ["Scores (numeric)", "observationScores"],
     ["Trace Scores (numeric)", "traceScores"],
   ] as const)(

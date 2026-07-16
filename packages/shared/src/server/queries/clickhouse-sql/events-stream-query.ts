@@ -18,7 +18,10 @@ export type EventsStreamQueryInput = {
 
 export type EventsStreamQuery = {
   queryBuilder: EventsQueryBuilder;
-  eventOnlyFilters: FilterCondition[];
+};
+
+export type EventsBlobExportStreamQuery = EventsStreamQuery & {
+  startTimeFrom: string | null;
 };
 
 /**
@@ -41,7 +44,7 @@ const buildEventsStreamQueryInternal = (
     rowLimit,
   }: EventsStreamQueryInput,
   buildRowSelection: typeof buildEventsObservationRowSelection,
-): EventsStreamQuery => {
+): EventsBlobExportStreamQuery => {
   const originalFilterGroups = groupEventsObservationFilters(filter);
   const filterConditions: FilterCondition[] = [
     ...originalFilterGroups.events,
@@ -57,7 +60,7 @@ const buildEventsStreamQueryInternal = (
     });
   }
 
-  const { queryBuilder } = buildRowSelection({
+  const { queryBuilder, startTimeFrom } = buildRowSelection({
     projectId,
     filter: filterConditions,
     searchQuery,
@@ -72,7 +75,7 @@ const buildEventsStreamQueryInternal = (
 
   return {
     queryBuilder,
-    eventOnlyFilters: originalFilterGroups.events,
+    startTimeFrom,
   };
 };
 
@@ -87,7 +90,7 @@ export const buildEventsStreamQuery = (
  */
 export const buildEventsBlobExportStreamQuery = (
   input: EventsStreamQueryInput,
-): EventsStreamQuery => {
+): EventsBlobExportStreamQuery => {
   const result = buildEventsStreamQueryInternal(
     input,
     buildEventsObservationRowSelectionForBlobExport,

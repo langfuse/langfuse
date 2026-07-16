@@ -144,7 +144,7 @@ const createScoreSet = ({
 const scoreFilters: FilterCondition[] = [
   {
     type: "numberObject",
-    column: "scores_avg",
+    column: "SCORES",
     key: "observation-numeric",
     operator: ">",
     value: 0.5,
@@ -270,8 +270,8 @@ maybeDescribe("event stream score filters", () => {
       }),
     ]);
 
-    await createScoresCh(
-      variants.flatMap((variant) =>
+    await createScoresCh([
+      ...variants.flatMap((variant) =>
         createScoreSet({
           projectId,
           traceId: variant.traceId,
@@ -282,7 +282,16 @@ maybeDescribe("event stream score filters", () => {
           traceTimestamp: traceScoreTimestamp,
         }),
       ),
-    );
+      createTraceScore({
+        project_id: projectId,
+        trace_id: variants[0]!.traceId,
+        observation_id: variants[0]!.eventId,
+        name: "outside-score-lookback",
+        data_type: "NUMERIC",
+        value: 1,
+        timestamp: now - 61 * 60 * 1_000,
+      }),
+    ]);
 
     for (const { name, run } of streamAdapters) {
       const rows = await collectRows(
@@ -307,6 +316,7 @@ maybeDescribe("event stream score filters", () => {
         expect(rows[0]?.["observation-numeric"]).toEqual([0.9]);
         expect(rows[0]?.["observation:category"]).toEqual(["matching"]);
         expect(rows[0]).not.toHaveProperty("trace-numeric");
+        expect(rows[0]).not.toHaveProperty("outside-score-lookback");
       }
     }
   }, 30_000);
