@@ -221,7 +221,6 @@ export const ROUTES: Route[] = [
     pathname: "",
     menuNode: <CloudStatusMenu />,
   },
-  // The v4-migration "Action required" card renders in app-sidebar.tsx's
   // The Preview (fast) toggle is temporarily hidden while the v4-migration
   // entry point is trialled; restore by re-adding menuNode: <V4SidebarToggle />.
   {

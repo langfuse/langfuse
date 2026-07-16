@@ -448,7 +448,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   });
 };
 
-export const getLastTraceTimestampsByProjects = async ({
+export const getLastTraceTimestampsByProjectsFromTracesTable = async ({
   projectIds,
 }: {
   projectIds: string[];

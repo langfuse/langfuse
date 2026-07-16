@@ -23,6 +23,7 @@ import {
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
 import {
+  getLastTraceTimestampsByProjectsFromTracesTable,
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
   hasAnyTrace,
@@ -1137,6 +1138,58 @@ export const hasAnyTracingData = async (projectId: string) => {
     await persistProjectHasTracesFlag(projectId);
   }
   return result;
+};
+
+/**
+ * Last event start_time per project from the events table, capped to the last
+ * 30 days (matches the traces-table variant's window).
+ */
+export const getLastTraceTimestampsByProjectsFromEventsTable = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}) => {
+  if (projectIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      project_id,
+      max(start_time) as last_trace_at
+    FROM events_core
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND start_time >= now() - INTERVAL 30 DAY
+    AND is_deleted = 0
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{
+    project_id: string;
+    last_trace_at: string;
+  }>({
+    query,
+    params: { projectIds },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    lastTraceAt: parseClickhouseUTCDateTimeFormat(row.last_trace_at),
+  }));
+};
+
+/**
+ * Routing wrapper for "last trace timestamp per project" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ */
+export const getLastTraceTimestampsByProjects = async (
+  params: Parameters<typeof getLastTraceTimestampsByProjectsFromTracesTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getLastTraceTimestampsByProjectsFromTracesTable(params);
+  }
+  return getLastTraceTimestampsByProjectsFromEventsTable(params);
 };
 
 type PublicApiObservationsQuery = {

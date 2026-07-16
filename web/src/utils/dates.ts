@@ -86,8 +86,7 @@ export const formatCompactRelativeTime = (timestamp: Date): string => {
   if (hours < 24) return `${Math.floor(hours)}h ago`;
   const days = hours / 24;
   if (days < 30) return `${Math.floor(days)}d ago`;
-  const months = days / 30;
-  if (months < 12) return `${Math.floor(months)}mo ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
   return `${Math.floor(days / 365)}y ago`;
 };
 
