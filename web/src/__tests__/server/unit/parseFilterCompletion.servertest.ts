@@ -482,6 +482,26 @@ describe("parseGeneratedFilters — extraction robustness", () => {
     expect(droppedCount).toBe(0);
   });
 
+  it("honors an explicit `[]` retraction over an earlier drafted filter", () => {
+    // The prompt asks for `[]` when no filter applies. If the model drafts a
+    // filter, reconsiders in prose, then emits `[]` as its FINAL answer, we must
+    // honor the retraction — NOT apply the draft it explicitly walked back.
+    const completion =
+      "Attempt: " +
+      JSON.stringify([
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ]) +
+      " Actually that cannot be expressed here. No filter applies: []";
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(0);
+    expect(droppedCount).toBe(0);
+  });
+
   it("reports the LARGEST all-malformed array's size when nothing validates", () => {
     // Reversed candidate iteration visits the trailing stray array first. When
     // NO candidate yields a valid filter, `droppedCount` must reflect the

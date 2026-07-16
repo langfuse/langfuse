@@ -112,12 +112,12 @@ function parseFilterArray(completion: string): {
     completion,
     ...extractTopLevelArrays(completion).reverse(),
   ];
-  // A candidate that parses to an array but holds no structurally-valid filter
-  // (e.g. an all-malformed array, or a stray bracketed list in the prose) is
-  // remembered so `rawCount` still reflects what the model emitted, but it does
-  // NOT win over a later candidate that DOES contain a valid filter. This keeps
-  // a trailing non-filter array (`... use the [ERROR] level`) from shadowing
-  // the real filter array that preceded it.
+  // A candidate that parses to a NON-EMPTY array but holds no structurally-valid
+  // filter (e.g. an all-malformed array, or a stray bracketed list in the prose)
+  // is remembered so `rawCount` still reflects what the model emitted, but it
+  // does NOT win over a later candidate that DOES contain a valid filter. This
+  // keeps a trailing non-filter array (`... use the [ERROR] level`) from
+  // shadowing the real filter array that preceded it.
   let fallback: { filters: FilterState; rawCount: number } | null = null;
   for (const candidate of candidates) {
     let parsed: unknown;
@@ -130,6 +130,15 @@ function parseFilterArray(completion: string): {
       ? parsed
       : (parsed as { filters?: unknown } | null)?.filters;
     if (!Array.isArray(raw)) continue;
+    // An explicitly EMPTY array is the model's "no filter applies" answer (the
+    // prompt asks for `[]` in exactly that case). Honor it as a real answer that
+    // WINS: return immediately rather than falling through to an earlier draft
+    // the model reconsidered — otherwise we'd silently apply a filter it
+    // retracted. Distinct from a non-empty array that yields no VALID filter
+    // (below): that stays a fallback so a stray prose list can't shadow a real
+    // earlier filter array. Last-first order means a trailing `[]` is the
+    // model's FINAL word, so this is safe to treat as the intended retraction.
+    if (raw.length === 0) return { filters: [], rawCount: 0 };
     // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
     // is all-or-nothing, so one off-spec element (wrong operator, missing
     // key, value-as-string, unknown type — common on weaker models) would
@@ -143,7 +152,7 @@ function parseFilterArray(completion: string): {
       if (result.success) kept.push(result.data);
     }
     if (kept.length > 0) return { filters: kept, rawCount: raw.length };
-    // No valid filter here. Remember the LARGEST such array as the fallback:
+    // Had elements, none valid. Remember the LARGEST such array as the fallback:
     // when nothing validates, `droppedCount` should reflect the biggest array
     // the model emitted (the one it most plausibly intended as the answer), not
     // whichever candidate happened to be visited first. Reversed iteration
