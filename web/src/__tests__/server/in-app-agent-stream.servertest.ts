@@ -8,6 +8,7 @@ import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
 import {
@@ -1709,6 +1710,10 @@ describe("createAgUiStream", () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
+    const rejectionError = JSON.stringify({
+      code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+      message: "Tool call was not approved by the user.",
+    });
     adapterEvents.inputs = [];
     adapterEvents.items = [
       {
@@ -1789,7 +1794,7 @@ describe("createAgUiStream", () => {
             role: "tool",
             toolCallId: "tool-call-1",
             content: "Tool call was not approved by the user.",
-            error: "Tool call was not approved by the user.",
+            error: rejectionError,
           }),
           expect.objectContaining({
             id: "tool-call-1-approval-rejection-guidance",
@@ -1836,7 +1841,7 @@ describe("createAgUiStream", () => {
         toolCallId: "tool-call-1",
         content: "Tool call was not approved by the user.",
         role: "tool",
-        error: "Tool call was not approved by the user.",
+        error: rejectionError,
       },
       {
         type: EventType.TEXT_MESSAGE_START,
