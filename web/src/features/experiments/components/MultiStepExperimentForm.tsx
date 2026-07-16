@@ -330,6 +330,16 @@ export const MultiStepExperimentForm = ({
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
 
+  // Fields to validate before the "Next" button is allowed to advance past a given step.
+  // Steps not listed here (e.g. "evaluators") are optional and always allow navigation.
+  const stepFieldsToValidate: Partial<
+    Record<string, Array<keyof CreateExperiment>>
+  > = {
+    prompt: ["promptId", "modelConfig"],
+    dataset: ["datasetId"],
+    details: ["name"],
+  };
+
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
     switch (stepId) {
@@ -548,8 +558,17 @@ export const MultiStepExperimentForm = ({
                 {activeStep !== "review" ? (
                   <Button
                     type="button"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
+                      // Populate form.formState.errors for this step's fields so the step's
+                      // FormMessage can show *why* navigation is blocked.
+                      // isStepValid (single source of truth for "is this step complete")
+                      // is what actually gates the decision below.
+                      const fieldsToValidate = stepFieldsToValidate[activeStep];
+                      if (fieldsToValidate) {
+                        await form.trigger(fieldsToValidate);
+                      }
+                      if (!isStepValid(activeStep)) return;
                       const stepIds = steps.map((s) => s.id);
                       const currentIndex = stepIds.indexOf(activeStep);
                       if (currentIndex < steps.length - 1) {
@@ -563,11 +582,7 @@ export const MultiStepExperimentForm = ({
                 ) : (
                   <Button
                     type="submit"
-                    disabled={
-                      (Boolean(promptIdFromHook && datasetId) &&
-                        !validationResult.data?.isValid) ||
-                      !!form.formState.errors.name
-                    }
+                    disabled={!isStepValid("review")}
                     loading={form.formState.isSubmitting}
                   >
                     Run Experiment
