@@ -443,7 +443,7 @@ export class SfdcService {
     );
     const startTime = Date.now();
 
-    logger.info("[SFDC] Mulesoft request payload", {
+    logger.debug("[SFDC] Mulesoft request payload", {
       ...context,
       url,
       payload,
@@ -461,7 +461,7 @@ export class SfdcService {
       });
 
       const responseText = await response.text().catch(() => "");
-      logger.info("[SFDC] Mulesoft response body", {
+      logger.debug("[SFDC] Mulesoft response body", {
         ...context,
         url,
         status: response.status,
