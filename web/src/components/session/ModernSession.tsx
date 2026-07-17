@@ -58,7 +58,6 @@ const ModernSessionMinimapItem = React.memo(
     const [isExpanded, setIsExpanded] = useState(false);
     const observationCount = trace.observationCount ?? 0;
     const observationLabel = `${observationCount} observation${observationCount === 1 ? "" : "s"}`;
-    const toolDataCount = observationCount * 2;
 
     return (
       <div
@@ -143,7 +142,6 @@ const ModernSessionMinimapItem = React.memo(
                 )}
               />
               <span>Tool calls &amp; data</span>
-              <span>· {toolDataCount}</span>
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
