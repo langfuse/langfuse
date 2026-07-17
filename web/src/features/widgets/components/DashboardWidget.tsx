@@ -27,8 +27,10 @@ import {
   CopyPlusIcon,
   FileJsonIcon,
   DownloadIcon,
+  TableIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
+import { buildTableFilterHref } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
@@ -459,6 +461,37 @@ export function DashboardWidget({
     [chartPresentation],
   );
 
+  // "View as table" navigation: the widget's own filters (config + dashboard
+  // global) translated to the traces/observations table's applicable filters,
+  // plus the widget's time range. Filters the table can't express are dropped
+  // (surfaced as a hint), never errored. The widget-filter merge mirrors the
+  // query build above (widget.data.filters + dashboard filterState).
+  const tableView = useMemo(() => {
+    const view = widget.data?.view;
+    if (!view) return undefined;
+    const mergedFilters: FilterState = [
+      ...(widget.data?.filters ?? []),
+      ...filterState,
+    ];
+    return buildTableFilterHref(
+      projectId,
+      view as z.infer<typeof views>,
+      mergedFilters,
+      dateRange,
+    );
+  }, [projectId, widget.data, filterState, dateRange]);
+
+  const handleViewAsTable = () => {
+    if (!tableView) return;
+    capture("dashboard:widget_view_as_table", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+      view: widget.data?.view,
+      filters_not_applicable: tableView.notApplicable.size,
+    });
+    router.push(tableView.href);
+  };
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -646,6 +679,33 @@ export function DashboardWidget({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {tableView && (
+                <>
+                  <DropdownMenuItem
+                    onClick={handleViewAsTable}
+                    title={
+                      tableView.notApplicable.size > 0
+                        ? Array.from(tableView.notApplicable.values()).join(
+                            "\n",
+                          )
+                        : undefined
+                    }
+                  >
+                    <TableIcon className="mr-2 h-4 w-4" />
+                    <span className="flex flex-col">
+                      <span>View as table</span>
+                      {tableView.notApplicable.size > 0 && (
+                        <span className="text-muted-foreground text-xs">
+                          {tableView.notApplicable.size} filter
+                          {tableView.notApplicable.size === 1 ? "" : "s"} not
+                          applicable in the table
+                        </span>
+                      )}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
                 <CopyIcon className="mr-2 h-4 w-4" />
                 Copy to clipboard
