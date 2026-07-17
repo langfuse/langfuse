@@ -1,10 +1,12 @@
 import { createHash } from "crypto";
 
 import { percentile } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { AnnotationQueueObjectType, prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
   convertDateToClickhouseDateTime,
+  deleteAnnotationQueueItemsByObjectIds,
+  getExpiredAnnotationQueueTraceIds,
   logger,
   queryClickhouse,
   recordGauge,
@@ -204,12 +206,34 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
             },
           );
 
+          // Annotation queue items reference traces by objectId with no foreign
+          // key to ClickHouse. Resolve which referenced traces are expiring for
+          // each project BEFORE the bulk delete removes them, so we can clean up
+          // the now-orphaned queue items afterwards (only relevant for the traces
+          // table). See langfuse/langfuse#12852.
+          const expiredAnnotationTraceIds =
+            this.tableName === "traces"
+              ? await Promise.all(
+                  workloads.map(async (w) => ({
+                    projectId: w.projectId,
+                    traceIds: await getExpiredAnnotationQueueTraceIds(
+                      w.projectId,
+                      w.cutoffDate,
+                    ),
+                  })),
+                )
+              : [];
+
           await this.executeBatchDelete(timestampColumn, workloads);
 
           logger.info(`${this.instanceName}: Batch deletion completed`, {
             table: this.tableName,
             projectsProcessed: workloads.length,
           });
+
+          await this.cleanupOrphanedAnnotationQueueItems(
+            expiredAnnotationTraceIds,
+          );
         } else {
           logger.info(
             `${this.instanceName}: No projects with retention and data to delete`,
@@ -357,6 +381,32 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         oldestAgeSeconds: data?.oldestAgeSeconds ?? null,
       };
     });
+  }
+
+  /**
+   * Remove annotation queue items that referenced the traces we just deleted, so
+   * they don't become orphans that render "Trace not found" in the review UI.
+   * The expiring trace ids are resolved before the bulk delete (while the traces
+   * still exist); this runs after it, once the trace data is gone. Only TRACE-type
+   * items are handled — OBSERVATION- and SESSION-type items are a documented
+   * follow-up. See langfuse/langfuse#12852.
+   */
+  private async cleanupOrphanedAnnotationQueueItems(
+    expiredByProject: Array<{ projectId: string; traceIds: string[] }>,
+  ): Promise<void> {
+    for (const { projectId, traceIds } of expiredByProject) {
+      const deletedQueueItems = await deleteAnnotationQueueItemsByObjectIds({
+        projectId,
+        objectType: AnnotationQueueObjectType.TRACE,
+        objectIds: traceIds,
+      });
+      if (deletedQueueItems > 0) {
+        logger.info(
+          `${this.instanceName}: Deleted ${deletedQueueItems} annotation queue items referencing expired traces`,
+          { table: this.tableName, projectId },
+        );
+      }
+    }
   }
 
   /**
