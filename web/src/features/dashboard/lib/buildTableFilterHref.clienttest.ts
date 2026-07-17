@@ -3,7 +3,10 @@ import {
   observationsTableCols,
   tracesTableCols,
 } from "@langfuse/shared";
-import { buildTableFilterHref } from "./buildTableFilterHref";
+import {
+  buildTableFilterHref,
+  buildViewAsTableHint,
+} from "./buildTableFilterHref";
 import {
   decodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
@@ -199,5 +202,91 @@ describe("buildTableFilterHref", () => {
     // the small, high-value filter is retained
     const decoded = decodeHrefFilters(href);
     expect(decoded.map((f) => f.column)).toEqual(["userId"]);
+  });
+});
+
+describe("buildViewAsTableHint", () => {
+  it("returns null when nothing was dropped", () => {
+    const result = buildTableFilterHref(
+      "proj-1",
+      "traces",
+      [{ column: "user", type: "string", operator: "=", value: "u-1" }],
+      DATE_RANGE,
+    );
+    expect(result.notApplicable.size).toBe(0);
+    expect(result.droppedForLength).toBe(0);
+    expect(buildViewAsTableHint(result)).toBeNull();
+  });
+
+  it("counts not-applicable dimensions with their reasons in the tooltip", () => {
+    const result = buildTableFilterHref(
+      "proj-1",
+      "observations",
+      [{ column: "session", type: "string", operator: "=", value: "s-1" }],
+      DATE_RANGE,
+    );
+    const hint = buildViewAsTableHint(result);
+    expect(hint?.count).toBe(1);
+    expect(hint?.title).toMatch(/session/i);
+  });
+
+  // Regression: a filter dropped purely for URL length must still surface in
+  // the hint. A hint keyed only on notApplicable would be silently zero here,
+  // landing the user on a table quietly missing a filter they configured.
+  it("surfaces length-dropped filters even when notApplicable is empty", () => {
+    const huge = Array.from(
+      { length: 800 },
+      (_, i) => `value-${i}-${"x".repeat(20)}`,
+    );
+    const result = buildTableFilterHref(
+      "proj-1",
+      "traces",
+      [
+        { column: "user", type: "string", operator: "=", value: "keep-me" },
+        {
+          column: "traceTags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: huge,
+        },
+      ],
+      DATE_RANGE,
+    );
+
+    expect(result.notApplicable.size).toBe(0);
+    expect(result.droppedForLength).toBe(1);
+
+    const hint = buildViewAsTableHint(result);
+    expect(hint).not.toBeNull();
+    expect(hint?.count).toBe(1); // not silently zero
+    expect(hint?.title).toMatch(/dropped to keep the table URL/i);
+  });
+
+  it("sums not-applicable and length-dropped filters into one count", () => {
+    const huge = Array.from(
+      { length: 800 },
+      (_, i) => `value-${i}-${"x".repeat(20)}`,
+    );
+    const result = buildTableFilterHref(
+      "proj-1",
+      "observations",
+      [
+        // sessionId -> not-applicable on observations
+        { column: "session", type: "string", operator: "=", value: "s-1" },
+        { column: "user", type: "string", operator: "=", value: "keep-me" },
+        // huge applicable tags filter -> dropped for length
+        {
+          column: "traceTags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: huge,
+        },
+      ],
+      DATE_RANGE,
+    );
+
+    expect(result.notApplicable.size).toBe(1);
+    expect(result.droppedForLength).toBe(1);
+    expect(buildViewAsTableHint(result)?.count).toBe(2);
   });
 });

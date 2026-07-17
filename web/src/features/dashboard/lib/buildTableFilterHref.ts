@@ -117,3 +117,38 @@ export function buildTableFilterHref(
 
   return { href, notApplicable, droppedForLength };
 }
+
+export interface ViewAsTableHint {
+  /**
+   * Total widget filters not reflected in the table: dimensions the table
+   * can't express plus applicable filters dropped to fit the URL budget.
+   */
+  count: number;
+  /** Newline-joined reasons, suitable for a tooltip. */
+  title: string;
+}
+
+/**
+ * Build the "N filters not shown" hint for a View-as-table result. Combines
+ * the not-applicable dimensions with the filters dropped purely for URL length
+ * so a length-drop is never silent — landing on a table quietly missing a
+ * configured filter would break the "dropped with a hint, never mis-applied"
+ * guarantee. Returns null when nothing was dropped.
+ */
+export function buildViewAsTableHint(
+  result: TableFilterHrefResult,
+): ViewAsTableHint | null {
+  const count = result.notApplicable.size + result.droppedForLength;
+  if (count === 0) return null;
+
+  const reasons = Array.from(result.notApplicable.values());
+  if (result.droppedForLength > 0) {
+    reasons.push(
+      `${result.droppedForLength} filter${
+        result.droppedForLength === 1 ? "" : "s"
+      } dropped to keep the table URL within limits.`,
+    );
+  }
+
+  return { count, title: reasons.join("\n") };
+}

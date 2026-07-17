@@ -30,7 +30,10 @@ import {
   TableIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { buildTableFilterHref } from "@/src/features/dashboard/lib/buildTableFilterHref";
+import {
+  buildTableFilterHref,
+  buildViewAsTableHint,
+} from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
@@ -488,9 +491,18 @@ export function DashboardWidget({
       dashboard_id: dashboardId,
       view: widget.data?.view,
       filters_not_applicable: tableView.notApplicable.size,
+      filters_dropped_for_length: tableView.droppedForLength,
     });
     router.push(tableView.href);
   };
+
+  // Hint combines both reasons a widget filter can be missing from the table:
+  // dimensions the table can't express AND applicable filters dropped to keep
+  // the ?filter= URL within budget. A length-drop must never be silent.
+  const viewAsTableHint = useMemo(
+    () => (tableView ? buildViewAsTableHint(tableView) : null),
+    [tableView],
+  );
 
   const handleEdit = () => {
     router.push(
@@ -683,22 +695,16 @@ export function DashboardWidget({
                 <>
                   <DropdownMenuItem
                     onClick={handleViewAsTable}
-                    title={
-                      tableView.notApplicable.size > 0
-                        ? Array.from(tableView.notApplicable.values()).join(
-                            "\n",
-                          )
-                        : undefined
-                    }
+                    title={viewAsTableHint?.title}
                   >
                     <TableIcon className="mr-2 h-4 w-4" />
                     <span className="flex flex-col">
                       <span>View as table</span>
-                      {tableView.notApplicable.size > 0 && (
+                      {viewAsTableHint && (
                         <span className="text-muted-foreground text-xs">
-                          {tableView.notApplicable.size} filter
-                          {tableView.notApplicable.size === 1 ? "" : "s"} not
-                          applicable in the table
+                          {viewAsTableHint.count} filter
+                          {viewAsTableHint.count === 1 ? "" : "s"} not shown in
+                          the table
                         </span>
                       )}
                     </span>
