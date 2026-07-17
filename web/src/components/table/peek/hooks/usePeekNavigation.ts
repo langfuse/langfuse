@@ -199,7 +199,11 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       const params = new URLSearchParams(url.search);
       const pathParam = config?.expandConfig?.pathParam ?? PEEK_PARAM;
 
-      const pathname = `${config?.expandConfig?.basePath}/${params.get(pathParam)}`;
+      // Fall back to `peek` when the configured pathParam is absent: the trace
+      // reader's URLs carry the trace id in `traceId` (v4 dialect) or in
+      // `peek` (v3 dialect) — see resolvePeekTraceParams (LFE-11041).
+      const pathId = params.get(pathParam) ?? params.get(PEEK_PARAM);
+      const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
       const queryParams = config?.queryParams
         ?.map((param) => {
           const value = params.get(param);

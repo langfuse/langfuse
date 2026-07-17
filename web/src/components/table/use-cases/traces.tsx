@@ -1322,12 +1322,16 @@ export default function TracesTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // traceId is not written by this table but arrives on v4-dialect shared
+    // URLs (LFE-11041); listing it clears it on open/navigate/close so it
+    // cannot pin the peek to the originally shared trace.
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     extractParamsValuesFromRow: (row: TracesTableRow) => ({
       timestamp: row.timestamp?.toISOString() || "",
     }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
+      pathParam: "traceId",
     },
   });
 
