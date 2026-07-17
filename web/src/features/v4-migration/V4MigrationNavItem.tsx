@@ -38,7 +38,7 @@ export function V4MigrationNavItem() {
       <SidebarMenuButton
         onClick={handleClick}
         tooltip="Action required"
-        className="w-full gap-1.5 rounded-full border px-2"
+        className="border-input w-full gap-1.5 rounded-full border pr-2 pl-[9px]"
       >
         <span className="h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400" />
         <span className="truncate font-medium" title="Action required">
