@@ -29,7 +29,7 @@ export function InAppAgentToolCallCard({
   return (
     <div
       className={cn(
-        "bg-card text-foreground border-border rounded-2xl border shadow-xs",
+        "bg-muted text-foreground border-border rounded-2xl border shadow-xs",
         isCompact
           ? "rounded-xl px-2.5 py-2 text-[0.775rem]"
           : "px-3 py-2.5 text-sm",

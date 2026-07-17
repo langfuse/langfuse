@@ -217,7 +217,7 @@ const MessageCard = forwardRef<
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card text-foreground border-border border",
+          : "bg-muted text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (

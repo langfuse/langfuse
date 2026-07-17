@@ -497,14 +497,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
+      className="bg-modal flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
     >
       <header
         data-in-app-agent-window-drag-handle={
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          "bg-muted flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
           isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
         )}
       >
@@ -891,7 +891,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         <div
           className={cn(
             "p-1.5",
-            isExpanded ? "pt-0" : "bg-card",
+            isExpanded ? "pt-0" : "bg-muted",
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
