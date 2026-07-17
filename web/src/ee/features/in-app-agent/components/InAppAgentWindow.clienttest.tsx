@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ScanSearch } from "lucide-react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {
   InAppAgentWindow,
@@ -122,6 +123,7 @@ describe("InAppAgentWindow quick actions", () => {
             id: "analyze-this-trace",
             label: "Analyze this trace",
             description: "Run structured error analysis on this trace",
+            icon: ScanSearch,
             prompt: "Analyze this trace.",
           },
         ],

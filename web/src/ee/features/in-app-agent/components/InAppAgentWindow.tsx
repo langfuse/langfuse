@@ -10,19 +10,14 @@ import {
 import {
   ArrowRight,
   BotMessageSquare,
-  FileJson,
   History,
   Info,
-  LayoutDashboard,
-  Lightbulb,
-  ListTree,
   Maximize2,
   Minimize2,
   Minus,
   Plus,
   SendHorizontal,
   Trash2,
-  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -56,6 +51,7 @@ import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
   IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
   getInAppAgentQuickActions,
   isInAppAgentQuickActionContext,
@@ -79,16 +75,6 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   });
 }
 
-const QUICK_ACTION_CONTEXT_ICONS: Record<
-  InAppAgentQuickActionContext,
-  LucideIcon
-> = {
-  observability: ListTree,
-  dashboards: LayoutDashboard,
-  prompts: FileJson,
-  evaluation: Lightbulb,
-};
-
 function InAppAgentQuickActionPicker({
   focusedActions,
   initialContext,
@@ -109,7 +95,8 @@ function InAppAgentQuickActionPicker({
     selectedContext === initialContext && focusedActions
       ? focusedActions
       : getInAppAgentQuickActions(selectedContext);
-  const ActionIcon = QUICK_ACTION_CONTEXT_ICONS[selectedContext];
+  const contextFallbackIcon =
+    IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS[selectedContext];
 
   return (
     <>
@@ -145,37 +132,41 @@ function InAppAgentQuickActionPicker({
         </TabsList>
       </Tabs>
       <div className="mt-4 flex w-full max-w-sm flex-col gap-2.5">
-        {selectedActions.map((action, position) => (
-          <Button
-            key={action.id}
-            type="button"
-            variant="outline"
-            className="bg-card dark:bg-header hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
-            disabled={isDisabled}
-            onClick={() => {
-              onSelectAction(action, selectedContext, position);
-            }}
-          >
-            <span className="bg-muted text-primary-accent flex size-8 shrink-0 items-center justify-center rounded-md">
-              <ActionIcon aria-hidden="true" className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="text-foreground block text-sm leading-snug font-semibold">
-                {action.label}
+        {selectedActions.map((action, position) => {
+          const ActionIcon = action.icon ?? contextFallbackIcon;
+
+          return (
+            <Button
+              key={action.id}
+              type="button"
+              variant="outline"
+              className="bg-card dark:bg-header hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
+              disabled={isDisabled}
+              onClick={() => {
+                onSelectAction(action, selectedContext, position);
+              }}
+            >
+              <span className="bg-muted text-primary-accent flex size-8 shrink-0 items-center justify-center rounded-md">
+                <ActionIcon aria-hidden="true" className="size-4" />
               </span>
-              <span
-                className="text-muted-foreground mt-0.5 block truncate text-sm leading-snug font-normal"
-                title={action.description}
-              >
-                {action.description}
+              <span className="min-w-0 flex-1">
+                <span className="text-foreground block text-sm leading-snug font-semibold">
+                  {action.label}
+                </span>
+                <span
+                  className="text-muted-foreground mt-0.5 block truncate text-sm leading-snug font-normal"
+                  title={action.description}
+                >
+                  {action.description}
+                </span>
               </span>
-            </span>
-            <ArrowRight
-              aria-hidden="true"
-              className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
-            />
-          </Button>
-        ))}
+              <ArrowRight
+                aria-hidden="true"
+                className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+              />
+            </Button>
+          );
+        })}
       </div>
     </>
   );
