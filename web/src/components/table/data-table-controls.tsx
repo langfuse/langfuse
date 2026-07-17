@@ -516,13 +516,41 @@ export function DataTableControls({
         {activeFilterCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="secondary" className="mt-2 h-5 px-1.5 text-xs">
-                {activeFilterCount}
-              </Badge>
+              {/* The badge doubles as an expand affordance: the rail hides
+                  everything else about the filters, so the count is where
+                  people click to see them. */}
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                aria-label={`Show ${activeFilterCount} active ${
+                  activeFilterCount === 1 ? "filter" : "filters"
+                }`}
+                className="mt-2 cursor-pointer"
+              >
+                <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                  {activeFilterCount}
+                </Badge>
+              </button>
             </TooltipTrigger>
-            <TooltipContent side="right">
-              {activeFilterCount} active{" "}
-              {activeFilterCount === 1 ? "filter" : "filters"}
+            <TooltipContent side="right" className="max-w-64 text-xs">
+              <p className="font-medium">
+                {activeFilterCount} active{" "}
+                {activeFilterCount === 1 ? "filter" : "filters"}
+              </p>
+              {queryFilter.filters
+                .filter((filter) => filter.isActive)
+                .slice(0, 6)
+                .map((filter) => {
+                  const line = `${filter.label}: ${
+                    getFacetSummary(filter) ?? "filtered"
+                  }`;
+                  return (
+                    <p key={filter.column} className="truncate" title={line}>
+                      {line}
+                    </p>
+                  );
+                })}
+              {activeFilterCount > 6 && <p>+{activeFilterCount - 6} more</p>}
             </TooltipContent>
           </Tooltip>
         )}
@@ -1001,9 +1029,13 @@ export function FilterAccordionItem({
             </span>
           )}
           {summary && (
+            // Only useful while collapsed: the expanded facet shows the
+            // selection itself, so the chip hides (data-state on the
+            // trigger = the group/facet element).
             <span
               className={cn(
                 "max-w-full min-w-0 truncate text-[11px] leading-4",
+                "group-data-[state=open]/facet:hidden",
                 // bg-background pops the chip out of the tinted header band
                 // in both themes. No border/vertical padding: the chip's box
                 // must equal the label's line height so headers with and
@@ -1044,14 +1076,15 @@ export function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                // top-0.5 anchors the button to the label line — a 24px
-                // button in the 28px single-line header still reads centered,
-                // and on two-line headers it stays top-right instead of
-                // floating mid-height.
-                className="bg-background/95 text-muted-foreground hover:bg-accent hover:text-foreground absolute top-0.5 right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                // top-1 anchors the button to the label line — a 20px
+                // button in the 28px single-line header reads centered, and
+                // on two-line headers it stays top-right. bg-accent matches
+                // the hovered header band (the button is only visible while
+                // the band shows its hover color).
+                className="bg-accent text-muted-foreground hover:text-foreground absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
                 aria-label={`Clear ${label} filter`}
               >
-                <IconX className="h-3.5 w-3.5" />
+                <IconX className="h-3 w-3" />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
@@ -1353,9 +1386,31 @@ function CategoricalSelectContent({
               <TabsTrigger value="all of" className="h-5 px-1 text-xs">
                 All of
               </TabsTrigger>
-              <TabsTrigger value="none of" className="h-5 px-1 text-xs">
-                None of
-              </TabsTrigger>
+              {/* Without a persisted selection, switching to "none of" is a
+                  deliberate no-op in the state model (an empty exclusion
+                  would persist a vacuous filter — LFE-10717), which used to
+                  read as a broken button. Disable it and say why; it
+                  enables as soon as any selection exists, and NONE mode
+                  engages by itself when a value is unchecked. */}
+              <Tooltip delayDuration={80}>
+                <TooltipTrigger asChild>
+                  <span className="min-w-0">
+                    <TabsTrigger
+                      value="none of"
+                      disabled={operator === undefined}
+                      className="h-5 w-full px-1 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      None of
+                    </TabsTrigger>
+                  </span>
+                </TooltipTrigger>
+                {operator === undefined && (
+                  <TooltipContent className="max-w-64 text-xs">
+                    Nothing to exclude yet — uncheck a value to exclude it, or
+                    select values first.
+                  </TooltipContent>
+                )}
+              </Tooltip>
             </TabsList>
           </Tabs>
         </div>

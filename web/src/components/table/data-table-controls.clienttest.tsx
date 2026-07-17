@@ -273,6 +273,57 @@ describe("CategoricalFacet", () => {
     ).toBeTruthy();
   });
 
+  it("disables 'None of' with an explanation while it would be a no-op", () => {
+    // No persisted filter (operator undefined): switching to none-of is a
+    // deliberate no-op in the state model, so the tab must read disabled
+    // instead of silently doing nothing.
+    render(
+      <Accordion type="multiple" value={["tags"]}>
+        <CategoricalFacet
+          label="Tags"
+          filterKey="tags"
+          expanded
+          loading={false}
+          options={["a", "b"]}
+          counts={new Map()}
+          value={["a", "b"]}
+          onChange={() => {}}
+          operator={undefined}
+          onOperatorChange={() => {}}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+    expect(screen.getByRole("tab", { name: "None of" })).toBeDisabled();
+
+    // With a persisted selection the operator conversion is meaningful.
+    render(
+      <Accordion type="multiple" value={["tags2"]}>
+        <CategoricalFacet
+          label="Tags2"
+          filterKey="tags2"
+          expanded
+          loading={false}
+          options={["a", "b"]}
+          counts={new Map()}
+          value={["a"]}
+          onChange={() => {}}
+          operator="any of"
+          onOperatorChange={() => {}}
+          isActive
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+      { wrapper: TooltipProvider },
+    );
+    const tabs = screen.getAllByRole("tab", { name: "None of" });
+    expect(tabs[tabs.length - 1]).toBeEnabled();
+  });
+
   it("does not reorder short, fully-visible lists", () => {
     render(
       <Accordion type="multiple" value={["c"]}>
