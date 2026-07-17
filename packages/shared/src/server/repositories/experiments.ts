@@ -1079,6 +1079,9 @@ export const getExperimentItemsFromEvents = async (
   // own, so reading e.total_cost directly would just return 0. WHERE only
   // scopes to project/experiment/item; root-row selection happens in
   // ORDER BY/LIMIT BY below, so the window function still sees sibling rows.
+  // The partition includes trace_id so items with multiple repetitions
+  // (until we model them properly, LFE-8965) sum only the selected
+  // iteration's own subtree, not every repetition's cost combined.
   const queryBuilderData = eventsExperimentsForItems({
     projectId,
     experimentItemIds: itemIds,
@@ -1089,7 +1092,7 @@ export const getExperimentItemsFromEvents = async (
       "e.experiment_id as experiment_id",
       "e.level as level",
       "e.start_time as start_time",
-      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id) as total_cost",
+      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id, e.trace_id) as total_cost",
       "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",

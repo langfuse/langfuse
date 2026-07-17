@@ -1268,6 +1268,87 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       expect(experimentMetrics.totalCost).toBe(525);
       expect(summedItemCost).toBeCloseTo(experimentMetrics.totalCost!, 6);
     });
+
+    it("should scope cost to the selected (latest) iteration, not sum across an item's repetitions", async () => {
+      // GIVEN: one item run 3 times (repetitions/iterations aren't modeled
+      // yet - LFE-8965 - so each iteration is its own trace sharing the same
+      // experiment_item_id/experiment_id). Each iteration costs a different
+      // amount so a wrong (unscoped) sum is easy to distinguish from the
+      // correct, iteration-scoped one.
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const makeIteration = (cost: number, startOffsetMs: number) => {
+        const traceId = randomUUID();
+        const rootId = randomUUID();
+        const childId = randomUUID();
+
+        return {
+          traceId,
+          rootId,
+          events: [
+            createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: rootId,
+              parent_span_id: null,
+              experimentId: baselineExpId,
+              experimentName: "baseline-exp",
+              datasetId,
+              itemId,
+              experimentItemRootSpanId: rootId,
+              start_time: now + startOffsetMs * 1000,
+              cost_details: { input: 0, output: 0, total: 0 },
+              provided_cost_details: { input: 0, output: 0, total: 0 },
+            }),
+            createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: childId,
+              parent_span_id: rootId,
+              experimentId: baselineExpId,
+              experimentName: "baseline-exp",
+              datasetId,
+              itemId,
+              experimentItemRootSpanId: rootId,
+              start_time: now + startOffsetMs * 1000 + 500,
+              cost_details: { input: 0, output: 0, total: cost },
+              provided_cost_details: { input: 0, output: 0, total: cost },
+            }),
+          ],
+        };
+      };
+
+      const iteration1 = makeIteration(10, 0); // oldest
+      const iteration2 = makeIteration(20, 1000);
+      const iteration3 = makeIteration(30, 2000); // latest
+
+      await createEventsCh([
+        ...iteration1.events,
+        ...iteration2.events,
+        ...iteration3.events,
+      ]);
+
+      // WHEN
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [],
+        limit: 10,
+        offset: 0,
+      });
+
+      // THEN: still a single row (latest iteration), and its cost is that
+      // iteration's own (30), not the sum across all iterations (60).
+      expect(result).toHaveLength(1);
+      expect(result[0].experiments).toHaveLength(1);
+      expect(result[0].experiments[0].traceId).toBe(iteration3.traceId);
+      expect(result[0].experiments[0].observationId).toBe(iteration3.rootId);
+      expect(result[0].experiments[0].totalCost).toBe(30);
+    });
   });
 
   maybe("getExperimentItemsFromEvents - Item Visibility", () => {
