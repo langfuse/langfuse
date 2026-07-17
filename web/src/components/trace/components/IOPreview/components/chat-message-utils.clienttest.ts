@@ -7,6 +7,7 @@ import {
   isPlaceholderMessage,
   isOnlyJsonMessage,
   shouldRenderMessage,
+  shouldRenderMessageForContentMode,
   parseToolCallsFromMessage,
 } from "./chat-message-utils";
 
@@ -311,6 +312,59 @@ describe("chat-message-utils", () => {
           }),
         ),
       ).toEqual(directToolCalls);
+    });
+  });
+
+  describe("shouldRenderMessageForContentMode", () => {
+    const systemMessage = createMessage({
+      role: "system",
+      content: "Follow the support policy.",
+    });
+    const toolMessage = createMessage({
+      role: "tool",
+      content: "Order lookup complete.",
+    });
+    const systemDataMessage = createMessage({
+      role: "system",
+      name: "planner-instructions",
+      content: "",
+    });
+
+    it("controls system prompts independently from inline data", () => {
+      expect(
+        shouldRenderMessageForContentMode(
+          systemMessage,
+          "conversation",
+          false,
+        ),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "conversation", true),
+      ).toBe(true);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "all", false),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "all", true),
+      ).toBe(true);
+      expect(
+        shouldRenderMessageForContentMode(toolMessage, "conversation", true),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(toolMessage, "all", false),
+      ).toBe(true);
+    });
+
+    it("preserves the existing defaults outside Modern Session", () => {
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "conversation"),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "all"),
+      ).toBe(true);
+      expect(
+        shouldRenderMessageForContentMode(systemDataMessage, "data"),
+      ).toBe(true);
     });
   });
 });

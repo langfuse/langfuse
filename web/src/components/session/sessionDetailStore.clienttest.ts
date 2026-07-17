@@ -62,18 +62,34 @@ describe("createSessionDetailStore", () => {
     expect(store.getState().loadedTraceIds).toBe(loadedTraceIds);
   });
 
-  it("defaults inline tools to hidden when the session changes", () => {
+  it("keeps system prompts independent from inline tool calls", () => {
+    const store = createSessionDetailStore({
+      initialSessionId: "session-a",
+      initialShowCorrections: false,
+    });
+
+    store.getState().actions.setShowSystemPrompt(true);
+
+    expect(store.getState()).toMatchObject({
+      showInlineToolCalls: false,
+      showSystemPrompt: true,
+    });
+  });
+
+  it("defaults optional conversation content to hidden when the session changes", () => {
     const store = createSessionDetailStore({
       initialSessionId: "session-a",
       initialShowCorrections: false,
     });
 
     store.getState().actions.setShowInlineToolCalls(true);
+    store.getState().actions.setShowSystemPrompt(true);
     store.getState().actions.resetForSession("session-b");
 
     expect(store.getState()).toMatchObject({
       sessionId: "session-b",
       showInlineToolCalls: false,
+      showSystemPrompt: false,
     });
   });
 });

@@ -18,19 +18,19 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("enables the Trace Station preview, leaving other flags intact", async () => {
+  it("enables the Modern Session preview, leaving other flags intact", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "traceStation",
+      flag: "modernSession",
       enabled: true,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "traceStation",
+      flag: "modernSession",
       enabled: true,
     });
 
@@ -38,22 +38,22 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
       where: { id: userId },
       select: { featureFlags: true },
     });
-    expect(user.featureFlags).toEqual(["templateFlag", "traceStation"]);
+    expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
   it("disables a preview flag without touching the others", async () => {
     const { caller, userId } = await createCaller({
-      featureFlags: ["templateFlag", "traceStation"],
+      featureFlags: ["templateFlag", "modernSession"],
     });
 
     const result = await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "traceStation",
+      flag: "modernSession",
       enabled: false,
     });
 
     expect(result).toEqual({
       success: true,
-      flag: "traceStation",
+      flag: "modernSession",
       enabled: false,
     });
 
@@ -70,7 +70,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 
     await expect(
       caller.userAccount.setFeaturePreviewEnabled({
-        flag: "traceStation",
+        flag: "modernSession",
         enabled: true,
       }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -150,7 +150,7 @@ async function createCaller({
         },
       ],
       featureFlags: {
-        traceStation: featureFlags.includes("traceStation"),
+        modernSession: featureFlags.includes("modernSession"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
         excludeClickhouseRead: false,
