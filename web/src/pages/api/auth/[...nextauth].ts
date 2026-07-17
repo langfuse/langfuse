@@ -5,7 +5,7 @@ import { getCookieName } from "@/src/server/utils/cookies";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
-import NextAuth, { type NextAuthOptions } from "next-auth";
+import NextAuth from "next-auth";
 
 const maxAuthErrorLength = 1_000;
 
@@ -26,38 +26,6 @@ const encodeAuthError = (error: unknown) => {
   }
 };
 
-const isValidHttpCallbackUrl = (value: unknown) => {
-  if (typeof value !== "string") return false;
-
-  try {
-    validateHeaderValue("Location", value);
-    const url = new URL(
-      value,
-      value.startsWith("/") ? "http://localhost" : undefined,
-    );
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
-
-const hasInvalidCallbackUrl = (
-  req: NextApiRequest,
-  authOptions: NextAuthOptions,
-) => {
-  const callbackUrl = req.query.callbackUrl;
-  if (callbackUrl && !isValidHttpCallbackUrl(callbackUrl)) return true;
-
-  const callbackUrlCookieName =
-    authOptions.cookies?.callbackUrl?.name ??
-    `${authOptions.useSecureCookies ? "__Secure-" : ""}next-auth.callback-url`;
-  const callbackUrlCookie = req.cookies[callbackUrlCookieName];
-
-  return Boolean(
-    callbackUrlCookie && !isValidHttpCallbackUrl(callbackUrlCookie),
-  );
-};
-
 // Mirrors next-auth's assertConfig check (core/lib/assert.ts). Must never be
 // stricter than next-auth: relative URLs always pass (next-auth resolves them
 // against the deployment origin), absolute URLs must parse with an http(s)
@@ -65,6 +33,7 @@ const hasInvalidCallbackUrl = (
 const isValidCallbackUrl = (url: unknown): boolean => {
   if (typeof url !== "string") return false;
   try {
+    validateHeaderValue("Location", url);
     return /^https?:/.test(
       new URL(url, url.startsWith("/") ? "http://localhost" : undefined)
         .protocol,
@@ -150,13 +119,6 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   );
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
-
-  // NextAuth treats invalid callback URLs as configuration errors and returns
-  // a 500 before invoking the application's redirect callback. Classify
-  // malformed query and cookie input as a bad request at the HTTP boundary.
-  if (hasInvalidCallbackUrl(req, authOptions)) {
-    return res.status(400).json({ error: "Invalid callback URL" });
-  }
 
   // NextAuth interpolates unknown error values directly into a Location
   // header. Encode user-controlled text before it reaches that code path so

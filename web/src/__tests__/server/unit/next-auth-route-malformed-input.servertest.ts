@@ -13,8 +13,29 @@ vi.mock("@/src/server/auth", () => ({
   getAuthOptions: mockGetAuthOptions,
 }));
 
+vi.mock("@langfuse/shared/src/server", () => ({
+  redis: null,
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+  ClickHouseClientManager: {
+    getInstance: () => ({
+      closeAllConnections: vi.fn(async () => undefined),
+    }),
+  },
+}));
+
 vi.mock("@/src/env.mjs", () => ({
-  env: { NEXT_PUBLIC_BASE_PATH: "" },
+  env: {
+    NEXTAUTH_URL: "http://localhost:3000",
+    NEXT_PUBLIC_BASE_PATH: "",
+    NEXTAUTH_COOKIE_DOMAIN: undefined,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    NEXTAUTH_COOKIE_NAME_SUFFIX: undefined,
+  },
 }));
 
 import auth from "@/src/pages/api/auth/[...nextauth]";
@@ -82,7 +103,7 @@ function createRequest({
   return { req, res };
 }
 
-describe("NextAuth route malformed input handling", () => {
+describe("NextAuth error route malformed input handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetAuthOptions.mockResolvedValue(authOptions);
@@ -113,56 +134,6 @@ describe("NextAuth route malformed input handling", () => {
     expect(res.getHeader("Location")).toBe(
       "/auth/error?error=configuration%0D%0Ascanner-payload",
     );
-  });
-
-  it("does not return 500 for a malformed callbackUrl query parameter", async () => {
-    const { req, res } = createRequest({
-      nextauth: ["callback", "credentials"],
-      query: { callbackUrl: ".....///.....///etc/passwd" },
-    });
-
-    await auth(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
-  });
-
-  it("rejects a callbackUrl containing decoded control characters", async () => {
-    const { req, res } = createRequest({
-      nextauth: ["callback", "credentials"],
-      query: { callbackUrl: "/project/test\r\nscanner-payload" },
-    });
-
-    await auth(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
-  });
-
-  it("rejects an ambiguous array-valued callbackUrl", async () => {
-    const { req, res } = createRequest({
-      nextauth: ["callback", "credentials"],
-      query: { callbackUrl: ["/project/first", "/project/second"] },
-    });
-
-    await auth(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
-  });
-
-  it("does not return 500 for a malformed callbackUrl cookie", async () => {
-    const { req, res } = createRequest({
-      nextauth: ["callback", "credentials"],
-      cookies: {
-        "next-auth.callback-url": ".....///.....///etc/passwd",
-      },
-    });
-
-    await auth(req, res);
-
-    expect(res.statusCode).toBe(400);
-    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
   });
 
   it("uses a generic error for an ambiguous array-valued error", async () => {
