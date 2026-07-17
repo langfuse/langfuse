@@ -7,6 +7,9 @@ service:
   base-path: /api/public
   endpoints:
     list:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. It has no replacement."
       docs: |
         Get sessions.
 
@@ -37,6 +40,9 @@ service:
             docs: Optional filter for sessions where the environment is one of the provided values.
       response: PaginatedSessions
     get:
+      availability:
+        status: deprecated
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. It has no replacement."
       docs: |
         Get a session.
 
@@ -56,3 +62,4 @@ types:
     properties:
       data: list<commons.Session>
       meta: pagination.MetaResponse
+      _deprecation: optional<commons.Deprecation>

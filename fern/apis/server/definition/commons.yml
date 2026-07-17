@@ -1,4 +1,22 @@
 types:
+  # Migration signal attached as the top-level `_deprecation` key on responses
+  # from deprecated (legacy, pre-v4-data-model) endpoints. See LFE-10895.
+  Deprecation:
+    docs: Migration signal returned by deprecated endpoints. Optional fields are omitted when they have no value.
+    properties:
+      message:
+        type: string
+        docs: Human- and agent-readable summary of the deprecation and its replacement.
+      replacement:
+        type: optional<string>
+        docs: The replacement endpoint, e.g. "GET /api/public/v2/observations". Omitted when the endpoint is being removed without a direct replacement.
+      docsUrl:
+        type: optional<string>
+        docs: Link to the migration documentation (markdown), when available.
+      sunsetAt:
+        type: optional<string>
+        docs: ISO date after which the endpoint may stop working, when a removal date is committed.
+
   # Objects
   # Source: web/src/features/public-api/types/traces.ts - APITrace, APIExtendedTrace, GetTraceV1Response
   Trace:
@@ -78,6 +96,7 @@ types:
       scores:
         type: list<ScoreV1>
         docs: List of scores
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/sessions.ts - APISession
   Session:
     properties:
@@ -91,6 +110,7 @@ types:
     extends: Session
     properties:
       traces: list<Trace>
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/observations.ts - APIObservation
   Observation:
     properties:
@@ -194,6 +214,14 @@ types:
       timeToFirstToken:
         type: nullable<double>
         docs: The time to the first token in seconds
+
+  # Single-observation response (GET /observations/{observationId}); carries the
+  # deprecation signal without adding it to the shared ObservationsView (used as
+  # a list element and nested in TraceWithFullDetails).
+  ObservationsViewSingle:
+    extends: ObservationsView
+    properties:
+      _deprecation: optional<Deprecation>
 
   # Source: web/src/features/public-api/types/observations.ts - APIObservationV2
   ObservationV2:
@@ -556,6 +584,8 @@ types:
         docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
+    base-properties:
+      _deprecation: optional<Deprecation>
     union:
       NUMERIC:
         type: NumericScore
