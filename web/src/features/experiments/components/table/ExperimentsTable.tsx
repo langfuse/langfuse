@@ -597,7 +597,7 @@ export default function ExperimentsTable({
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("latencyAvg");
         if (value === undefined || value === null) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
+        return <span>Ø {numberFormatter(value / 1000, 4)}s</span>;
       },
     },
     {
