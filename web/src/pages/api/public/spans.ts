@@ -13,12 +13,14 @@ import {
   processEventBatch,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { LEGACY_INGESTION_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Span (Legacy)",
     bodySchema: PostSpansV1Body,
     responseSchema: PostSpansV1Response,
+    deprecation: LEGACY_INGESTION_DEPRECATION,
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
@@ -59,6 +61,7 @@ export default withMiddlewares({
     name: "Update Span (Legacy)",
     bodySchema: PatchSpansV1Body,
     responseSchema: PatchSpansV1Response,
+    deprecation: LEGACY_INGESTION_DEPRECATION,
     rejectInEventsOnlyMode: true,
     fn: async ({ body, auth, req, res }) => {
       const event = {
