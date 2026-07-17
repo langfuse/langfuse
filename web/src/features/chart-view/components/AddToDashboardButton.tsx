@@ -5,6 +5,7 @@ import { type FilterState } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { SelectDashboardDialog } from "@/src/features/dashboard/components/SelectDashboardDialog";
 import { type ChartViewConfig } from "../types";
 import { chartConfigToWidgetInput } from "../lib/chartConfigToWidget";
@@ -44,6 +45,10 @@ export const AddToDashboardButton = React.memo(function AddToDashboardButton({
               `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
             );
           },
+          // Surface failures instead of leaving the dialog open with no feedback;
+          // keep it open so the user can retry or pick another dashboard.
+          onError: (error) =>
+            showErrorToast("Failed to add chart to dashboard", error.message),
         },
       );
     },

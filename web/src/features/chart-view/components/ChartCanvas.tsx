@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { BarChart3 } from "lucide-react";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import { type ChartViewConfig } from "../types";
 import { getMetric, isTimeSeriesChartType } from "../vocab";
@@ -72,6 +73,10 @@ export const ChartCanvas = React.memo(function ChartCanvas({
       chartConfig={{ type: config.chartType, unit: metric.unit }}
       config={chartConfig}
       legendPosition={legendPosition}
+      // Match dashboard widgets: additive metrics (count/sum) fill an empty
+      // bucket with a 0 (continuous line), non-additive ones leave a gap — so a
+      // chart renders the same here as once saved to a dashboard.
+      missingValue={getWidgetMissingBucketValue(config.aggregation)}
     />
   );
 });

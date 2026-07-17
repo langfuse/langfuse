@@ -188,4 +188,30 @@ describe("rowsToDataPoints", () => {
     });
     expect(point.metric).toBe(0);
   });
+
+  it("maps a gap-filled bucket on a breakdown time series to a marker, not an n/a series", () => {
+    const config: ChartViewConfig = {
+      ...DEFAULT_CONFIG,
+      metric: "count",
+      aggregation: "count",
+      breakdown: "model",
+      chartType: "LINE_TIME_SERIES",
+    };
+    // count is additive → an empty bucket comes back as {dimension:null, 0}
+    const [filler] = rowsToDataPoints(
+      [{ time_dimension: "2026-06-25T10:00:00Z", providedModelName: null }],
+      config,
+    );
+    expect(filler).toEqual({
+      time_dimension: "2026-06-25T10:00:00Z",
+      dimension: undefined,
+      metric: null,
+    });
+    // a real breakdown value with an empty ("") cell still shows as n/a
+    const [real] = rowsToDataPoints(
+      [{ providedModelName: "gpt-4o", count_count: 5 }],
+      config,
+    );
+    expect(real.dimension).toBe("gpt-4o");
+  });
 });

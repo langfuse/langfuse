@@ -25,6 +25,7 @@ import {
   CHART_TYPES,
   DIMENSIONS,
   getMetric,
+  GRANULARITIES,
   METRICS,
 } from "../vocab";
 
@@ -111,8 +112,6 @@ export const BreakdownSelect = React.memo(function BreakdownSelect({
     </Select>
   );
 });
-
-const GRANULARITIES: TimeGranularity[] = ["minute", "hour", "day"];
 
 export const GranularitySelect = React.memo(function GranularitySelect({
   value,

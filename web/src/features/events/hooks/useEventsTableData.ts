@@ -112,7 +112,9 @@ export function useEventsTableData({
     rootRowCount: observations.data?.observations.length ?? 0,
   });
   const appRootFallbackQuery = api.events.all.useQuery(fallbackPayload, {
-    enabled: shouldRunAppRootFallback,
+    // Also gate on rowsEnabled (matches the primary + I/O queries): otherwise a
+    // stale-cached fallback condition could fire a real row fetch in chart mode.
+    enabled: rowsEnabled && shouldRunAppRootFallback,
     refetchOnWindowFocus: false,
     staleTime: Infinity,
     retry: false,

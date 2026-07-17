@@ -1,5 +1,6 @@
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { getWidgetMissingBucketValue } from "@/src/features/widgets/utils";
 import { type ChartViewConfig } from "../types";
 import { getDimension, getMetric, isTimeSeriesChartType } from "../vocab";
 
@@ -96,16 +97,32 @@ export function rowsToDataPoints(
 
   return rows.map((row) => {
     const time_dimension = row["time_dimension"] as string | undefined;
+    const value = row[field];
+
+    // A gap-filled empty bucket on a BREAKDOWN time series arrives with no
+    // dimension and a filler metric (null, or 0 for additive aggs). Keep it as a
+    // pure bucket marker holding the axis slot — NOT a spurious "n/a" series.
+    // Mirrors DashboardWidget's prep so the same rows render identically here and
+    // on a dashboard (LFE-10694).
+    if (isTimeSeries && hasBreakdown) {
+      const rawDim = row[dimension.field as string];
+      const isFiller =
+        value == null ||
+        (getWidgetMissingBucketValue(config.aggregation) === "zero" &&
+          Number(value) === 0);
+      if ((rawDim === null || rawDim === "") && isFiller) {
+        return { time_dimension, dimension: undefined, metric: null };
+      }
+    }
+
     const dim = hasBreakdown
       ? dimensionValue(row[dimension.field as string])
       : isNumber
         ? undefined
         : metric.label;
-    const value = row[field];
     // Preserve an explicit null on a time series as a GAP — never coerce it to
     // 0 (the DataPoint contract, chart-props.ts: "null means measured nothing").
-    // Mirrors DashboardWidget's prep so the same rows render identically here
-    // and on a dashboard. Categorical/number charts still floor a missing value.
+    // Categorical/number charts still floor a missing value.
     const metricValue = Array.isArray(value)
       ? value
       : isTimeSeries && value == null

@@ -150,7 +150,7 @@ export const isTimeSeriesChartType = (
   value: DashboardWidgetChartType,
 ): boolean => getChartType(value).isTimeSeries;
 
-const GRANULARITIES: TimeGranularity[] = ["minute", "hour", "day"];
+export const GRANULARITIES: TimeGranularity[] = ["minute", "hour", "day"];
 
 /**
  * Coerces a config to a valid, internally-consistent spec. Clamps every field
