@@ -27,6 +27,7 @@ describe("usePeekNavigation expandPeek", () => {
     expandConfig: {
       basePath: "/project/p1/traces",
       pathParam: "traceId",
+      reader: "trace" as const,
     },
   };
 
@@ -49,7 +50,26 @@ describe("usePeekNavigation expandPeek", () => {
     expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
   });
 
-  it("v3-dialect URL (no traceId param): falls back to peek for the path segment", () => {
+  it("v4-dialect URL: does not forward the observation startTime as the trace timestamp", () => {
+    // The timestamp on a v4-dialect URL is the observation's startTime; the
+    // standalone page would use it as the trace-timestamp lookup filter
+    // (day-equality) and observation-window anchor — 404s / truncated trees
+    // on long traces (LFE-10947 class).
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=obs-uuid&observation=obs-uuid&traceId=trace-1&timestamp=2026-07-14T19%3A47%3A57.703Z",
+    );
+
+    const { result } = renderHook(() => usePeekNavigation(config));
+    result.current.expandPeek(false);
+
+    const target = mockPush.mock.calls[0][0] as string;
+    expect(target).not.toContain("timestamp=");
+    expect(target).toContain("observation=obs-uuid");
+  });
+
+  it("v3-dialect URL (no traceId param): falls back to peek for the path segment and keeps the trace timestamp", () => {
     window.history.replaceState(
       {},
       "",
@@ -62,5 +82,29 @@ describe("usePeekNavigation expandPeek", () => {
     expect(mockPush).toHaveBeenCalledTimes(1);
     const target = mockPush.mock.calls[0][0] as string;
     expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
+    expect(target).toContain("timestamp=2026-07-14T19:47:57.703Z");
+  });
+
+  it("without a reader, expand forwards params verbatim (non-trace peeks unchanged)", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/project/p1/traces?peek=obs-uuid&traceId=trace-1&timestamp=2026-07-14T19%3A47%3A57.703Z",
+    );
+
+    const { result } = renderHook(() =>
+      usePeekNavigation({
+        ...config,
+        expandConfig: {
+          basePath: "/project/p1/traces",
+          pathParam: "traceId",
+        },
+      }),
+    );
+    result.current.expandPeek(false);
+
+    const target = mockPush.mock.calls[0][0] as string;
+    expect(target.startsWith("/project/p1/traces/trace-1?")).toBe(true);
+    expect(target).toContain("timestamp=");
   });
 });

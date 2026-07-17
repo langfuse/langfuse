@@ -329,6 +329,7 @@ export const SessionPage: React.FC<{
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
         pathParam: "traceId",
+        reader: "trace" as const,
       },
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).
@@ -758,6 +759,7 @@ const LoadedSessionEventsPage: React.FC<{
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
         pathParam: "traceId",
+        reader: "trace" as const,
       },
       // traceId: not written here, but cleared so a v4-dialect shared URL
       // cannot pin the trace peek (LFE-11041).

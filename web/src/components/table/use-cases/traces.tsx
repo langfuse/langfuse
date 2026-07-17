@@ -1332,6 +1332,7 @@ export default function TracesTable({
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       pathParam: "traceId",
+      reader: "trace",
     },
   });
 

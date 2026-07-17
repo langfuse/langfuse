@@ -3,6 +3,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
+import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
@@ -39,6 +40,12 @@ interface PeekConfigWithExpand extends BasePeekConfig {
     basePath: string;
     /** URL parameter to use for path param (defaults to "peek") */
     pathParam?: string;
+    /**
+     * Set for trace-detail peeks: routes the expand target's trace id and
+     * timestamp through resolvePeekTraceParams so the standalone page gets
+     * the same dialect handling as the peek pane (LFE-11041).
+     */
+    reader?: "trace" | "observation";
   };
 }
 
@@ -198,15 +205,36 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
       const pathParam = config?.expandConfig?.pathParam ?? PEEK_PARAM;
+      const reader = config?.expandConfig?.reader;
+
+      // Trace-detail expands resolve the id and timestamp through the shared
+      // dialect helper so the standalone page gets the same params as the
+      // pane (LFE-11041): a v4-dialect timestamp is an observation startTime
+      // and must not become the trace-timestamp lookup filter.
+      const resolved = reader
+        ? resolvePeekTraceParams({
+            reader,
+            peek: params.get(PEEK_PARAM) ?? undefined,
+            traceId: params.get("traceId") ?? undefined,
+            timestamp: params.get("timestamp") ?? undefined,
+          })
+        : undefined;
 
       // Fall back to `peek` when the configured pathParam is absent: the trace
       // reader's URLs carry the trace id in `traceId` (v4 dialect) or in
       // `peek` (v3 dialect) — see resolvePeekTraceParams (LFE-11041).
-      const pathId = params.get(pathParam) ?? params.get(PEEK_PARAM);
+      const pathId = resolved
+        ? resolved.traceId
+        : (params.get(pathParam) ?? params.get(PEEK_PARAM));
       const pathname = `${config?.expandConfig?.basePath}/${pathId}`;
       const queryParams = config?.queryParams
         ?.map((param) => {
-          const value = params.get(param);
+          // The resolved trace id is the path segment; don't repeat it.
+          if (resolved && param === "traceId") return null;
+          const value =
+            resolved && param === "timestamp"
+              ? (resolved.timestamp?.toISOString() ?? null)
+              : params.get(param);
           return value ? `${param}=${value}` : null;
         })
         .filter(Boolean)
