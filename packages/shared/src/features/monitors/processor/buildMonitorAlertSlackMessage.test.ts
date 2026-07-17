@@ -84,4 +84,54 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(inner.some((b: any) => b.type === "actions")).toBe(false);
     expect(inner.some((b: any) => b.type === "context")).toBe(true);
   });
+
+  it("adds a 'View observations' button to the windowed data table when dataPermalink is set (observations view)", () => {
+    const dataPermalink =
+      "https://cloud.langfuse.com/project/proj_01/observations?dateRange=1779450930000-1779451230000";
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      dataPermalink,
+    });
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(2);
+    // Config button kept.
+    expect(actions.elements[0]).toMatchObject({
+      text: { text: "View in Langfuse" },
+      url: mockMonitorAlert.permalink,
+    });
+    // Windowed data-table button added.
+    expect(actions.elements[1]).toMatchObject({
+      text: { text: "View observations" },
+      url: dataPermalink,
+    });
+  });
+
+  it("labels the data button 'View traces' for a scores view", () => {
+    const dataPermalink =
+      "https://cloud.langfuse.com/project/proj_01/traces?dateRange=1779450930000-1779451230000";
+    const { attachments } = buildMonitorAlertSlackMessage({
+      ...mockMonitorAlert,
+      view: "scores-numeric",
+      dataPermalink,
+    });
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(2);
+    expect(actions.elements[1]).toMatchObject({
+      text: { text: "View traces" },
+      url: dataPermalink,
+    });
+  });
+
+  it("keeps only the config button when dataPermalink is absent", () => {
+    const { attachments } = buildMonitorAlertSlackMessage(mockMonitorAlert);
+    const actions = attachments![0].blocks!.find(
+      (b: any) => b.type === "actions",
+    );
+    expect(actions.elements).toHaveLength(1);
+    expect(actions.elements[0].text.text).toBe("View in Langfuse");
+  });
 });

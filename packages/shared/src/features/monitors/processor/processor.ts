@@ -29,6 +29,7 @@ import {
   MonitorStatusSchema,
   type MonitorAlert,
   type MonitorWindow,
+  type MonitorView,
   type Monitor,
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
@@ -382,6 +383,12 @@ function buildAlert(args: {
     fromTimestamp,
     toTimestamp,
     permalink: buildPermalink(prev.projectId, prev.id),
+    dataPermalink: buildDataWindowPermalink(
+      prev.projectId,
+      prev.view,
+      fromTimestamp,
+      toTimestamp,
+    ),
     message: renderAlertMessage({ monitor: prev, completion: next }),
     view: prev.view,
     filters: prev.filters,
@@ -397,6 +404,29 @@ export function buildPermalink(
   if (!env.NEXTAUTH_URL) return undefined;
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   return `${base}/project/${projectId}/monitors/${monitorId}`;
+}
+
+/**
+ * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
+ * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
+ *
+ * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
+ * param (absolute epoch-ms range; the client date-range parser accepts custom
+ * ranges directly, bypassing the preset gating). An `observations` monitor
+ * links to the observations table; every other view (scores-*) links to the
+ * traces table, which is the row-level data users expect to inspect.
+ */
+export function buildDataWindowPermalink(
+  projectId: string,
+  view: MonitorView,
+  fromTimestamp: Date,
+  toTimestamp: Date,
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
+  const table = view === "observations" ? "observations" : "traces";
+  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
+  return `${base}/project/${projectId}/${table}?dateRange=${dateRange}`;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
