@@ -37,7 +37,7 @@ export const DashboardCard = ({
       <CardHeader className={cn("relative", headerClassName)}>
         <div className="flex justify-between">
           <div className="flex flex-col gap-1.5">
-            <CardTitle className="text-lg">{title}</CardTitle>
+            <CardTitle className="text-base">{title}</CardTitle>
             {description ? (
               <CardDescription>{description}</CardDescription>
             ) : undefined}
