@@ -6288,7 +6288,7 @@ paths:
 
             [
               {
-                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "boolean", "null"
+                "type": string,           // Required. One of: "datetime", "string", "number", "stringOptions", "categoryOptions", "arrayOptions", "stringObject", "numberObject", "booleanObject", "boolean", "null"
                 "column": string,         // Required. Column to filter on (see available columns below)
                 "operator": string,       // Required. Operator based on type:
                                           // - datetime: ">", "<", ">=", "<="
@@ -6299,10 +6299,11 @@ paths:
                                           // - number: "=", ">", "<", ">=", "<="
                                           // - stringObject: "=", "contains", "does not contain", "starts with", "ends with"
                                           // - numberObject: "=", ">", "<", ">=", "<="
+                                          // - booleanObject: "=", "<>"
                                           // - boolean: "=", "<>"
                                           // - null: "is null", "is not null"
                 "value": any,             // Required (except for null type). Value to compare against. Type depends on filter type
-                "key": string             // Required only for stringObject, numberObject, and categoryOptions types when filtering on nested fields like metadata
+                "key": string             // Required only for stringObject, numberObject, booleanObject, and categoryOptions types when filtering on nested fields like metadata or score names
               }
             ]
 
@@ -6386,6 +6387,12 @@ paths:
             `scores`)
 
             - `score_categories` (categoryOptions) - Categorical score values
+
+            - `score_booleans` (booleanObject) - Boolean score values. Use `key`
+            for the score name and a boolean `value`, e.g. `{"type":
+            "booleanObject", "column": "score_booleans", "key": "is_correct",
+            "operator": "=", "value": true}`. The `<>` operator also matches
+            traces without a score of that name.
 
 
             ## Filter Examples
@@ -6527,20 +6534,101 @@ paths:
               required:
                 - traceIds
   /api/public/unstable/dashboard-widgets:
+    get:
+      description: |-
+        List dashboard widgets in the project, ordered by most recently
+        updated first.
+
+        Responses may include legacy `traces` widgets created before this
+        API existed. New widgets cannot be created with `view: traces`.
+      operationId: unstable_dashboardWidgets_list
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidgetList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
     post:
       description: >-
-        Create a reusable dashboard widget.
+        Create a dashboard widget (a standalone chart definition you place on
+
+        any dashboard).
 
 
-        This endpoint creates the widget. It does not place the widget on a
-        dashboard grid, this has to be done in the UI.
+        This endpoint creates the widget only; place it on a dashboard via
+
+        `POST /dashboards/{dashboardId}/placements`.
 
 
         Supported views are `observations`, `scores-numeric`, and
         `scores-categorical`.
 
-        The legacy `traces` view is not supported by this unstable API,
-        `minVersion` defaults to `2`; values below `2` are rejected.
+        The legacy `traces` view is not supported by this unstable API.
+
+        Widgets are created as v2 internally.
+
+
+        `chartConfig` is optional and defaults to the plain config for
+
+        `chartType`; when `chartConfig.type` is given it must match
+
+        `chartType`.
 
 
         Unstable API note:
@@ -6602,6 +6690,717 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateDashboardWidgetRequest'
+  /api/public/unstable/dashboard-widgets/{widgetId}:
+    get:
+      description: |-
+        Get a dashboard widget by id.
+
+        The response may use `view: traces` for legacy widgets.
+      operationId: unstable_dashboardWidgets_get
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    patch:
+      description: |-
+        Update a dashboard widget.
+
+        All fields are optional; at least one field is required.
+        Changing `chartType` without sending `chartConfig` resets the config
+        to the new chart type's defaults. When `chartConfig.type` is given
+        it must match the widget's (possibly updated) `chartType`.
+
+        `view` cannot be changed to the legacy `traces` value. Existing
+        `traces` widgets may be updated on other fields.
+      operationId: unstable_dashboardWidgets_update
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardWidget'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardWidgetRequest'
+    delete:
+      description: |-
+        Delete a dashboard widget.
+
+        The API returns `409` while the widget is still placed on a dashboard.
+        Remove those placements first.
+      operationId: unstable_dashboardWidgets_delete
+      tags:
+        - UnstableDashboardWidgets
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardWidgetResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/dashboards:
+    get:
+      description: |-
+        List dashboards in the project, ordered by most recently updated
+        first.
+      operationId: unstable_dashboards_list
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: page
+          in: query
+          description: 1-based page number. Defaults to `1`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of items per page. Defaults to `50`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    post:
+      description: Create a dashboard.
+      operationId: unstable_dashboards_create
+      tags:
+        - UnstableDashboards
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardRequest'
+  /api/public/unstable/dashboards/{dashboardId}:
+    get:
+      description: Get a dashboard by id.
+      operationId: unstable_dashboards_get
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+    patch:
+      description: Update a dashboard's name, description, definition, or filters.
+      operationId: unstable_dashboards_update
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboard'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardRequest'
+    delete:
+      description: Delete a dashboard.
+      operationId: unstable_dashboards_delete
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+  /api/public/unstable/dashboards/{dashboardId}/placements:
+    post:
+      description: |-
+        Add a placement to a dashboard grid (see `DashboardPlacement` for
+        grid semantics).
+
+        `id` and the position fields are optional: when omitted, the
+        placement gets a server-generated id and is appended below all
+        existing tiles as a 6x6 tile. Returns the created placement.
+
+        The referenced widget must exist in the same project or be a
+        Langfuse-managed widget. The API returns `409` if a placement with
+        the same `id` already exists on the dashboard.
+      operationId: unstable_dashboards_addPlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardPlacement'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableCreateDashboardPlacementRequest'
+  /api/public/unstable/dashboards/{dashboardId}/placements/{placementId}:
+    patch:
+      description: |-
+        Move or resize a placement. All fields are optional; at least one is
+        required. Omitted fields keep their current value. The placement's
+        content (widget/preset reference) and id cannot change — delete and
+        re-add the placement to swap content. Returns the updated placement.
+      operationId: unstable_dashboards_updatePlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: placementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDashboardPlacement'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/unstableUpdateDashboardPlacementRequest'
+    delete:
+      description: >-
+        Remove a placement from a dashboard grid without deleting the referenced
+        widget.
+      operationId: unstable_dashboards_deletePlacement
+      tags:
+        - UnstableDashboards
+      parameters:
+        - name: dashboardId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: placementId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteDashboardPlacementResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
   /api/public/unstable/evaluation-rules:
     post:
       description: >-
@@ -14021,6 +14820,17 @@ components:
         - observations
         - scores-numeric
         - scores-categorical
+    unstableDashboardWidgetViewWithLegacy:
+      title: unstableDashboardWidgetViewWithLegacy
+      type: string
+      enum:
+        - observations
+        - scores-numeric
+        - scores-categorical
+        - traces
+      description: |-
+        Widget data view. Responses may include the legacy `traces` value for
+        widgets created before this API existed.
     unstableDashboardWidgetChartType:
       title: unstableDashboardWidgetChartType
       type: string
@@ -14073,13 +14883,40 @@ components:
       title: unstableDashboardWidgetFilter
       type: object
       description: >-
-        A dashboard widget filter in Langfuse filter-state shape.
+        A filter in Langfuse filter-state shape. The `value` shape and the
+
+        allowed operators depend on `type`:
 
 
-        Filter shapes depend on `type`, for example string filters use a string
-        `value`,
+        | `type` | `value` | operators |
 
-        option filters use a list of strings, and object filters include `key`.
+        |---|---|---|
+
+        | `string` | string | `=`, `contains`, `does not contain`, `starts
+        with`, `ends with` |
+
+        | `number` | number | `=`, `>`, `<`, `>=`, `<=` |
+
+        | `datetime` | ISO datetime string | `>`, `<`, `>=`, `<=` |
+
+        | `boolean` | boolean | `=`, `<>` |
+
+        | `null` | `""` | `is null`, `is not null` |
+
+        | `stringOptions` | list of strings | `any of`, `none of` |
+
+        | `arrayOptions` | list of strings | `any of`, `none of`, `all of` |
+
+        | `categoryOptions` | list of strings (requires `key`) | `any of`, `none
+        of` |
+
+        | `stringObject` | string (requires `key`, e.g. a metadata key) | same
+        as `string` |
+
+        | `numberObject` | number (requires `key`, e.g. a score name) | same as
+        `number` |
+
+        | `booleanObject` | boolean (requires `key`) | `=`, `<>` |
       properties:
         column:
           type: string
@@ -14140,6 +14977,28 @@ components:
       enum:
         - ASC
         - DESC
+    unstableDashboardWidgetChartConfigInput:
+      title: unstableDashboardWidgetChartConfigInput
+      type: object
+      description: |-
+        Input-side chart config. `type` is optional and defaults to the
+        widget's `chartType`; when given it must match.
+      properties:
+        type:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+          nullable: true
+        row_limit:
+          type: integer
+          nullable: true
+        show_value_labels:
+          type: boolean
+          nullable: true
+        bins:
+          type: integer
+          nullable: true
+        defaultSort:
+          $ref: '#/components/schemas/unstableDashboardWidgetDefaultSort'
+          nullable: true
     unstableCreateDashboardWidgetRequest:
       title: unstableCreateDashboardWidgetRequest
       type: object
@@ -14148,6 +15007,8 @@ components:
           type: string
         description:
           type: string
+          nullable: true
+          description: Defaults to an empty string.
         view:
           $ref: '#/components/schemas/unstableDashboardWidgetView'
         dimensions:
@@ -14165,19 +15026,71 @@ components:
         chartType:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
-          $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
-        minVersion:
-          type: integer
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
           nullable: true
+          description: Defaults to the plain config for `chartType`.
       required:
         - name
-        - description
         - view
         - dimensions
         - metrics
         - filters
         - chartType
-        - chartConfig
+    unstableUpdateDashboardWidgetRequest:
+      title: unstableUpdateDashboardWidgetRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        view:
+          $ref: '#/components/schemas/unstableDashboardWidgetView'
+          nullable: true
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetDimension'
+          nullable: true
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetMetric'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+        chartType:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartType'
+          nullable: true
+        chartConfig:
+          $ref: '#/components/schemas/unstableDashboardWidgetChartConfigInput'
+          nullable: true
+    unstableDashboardWidgetList:
+      title: unstableDashboardWidgetList
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidget'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableDeleteDashboardWidgetResponse:
+      title: unstableDeleteDashboardWidgetResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     unstableDashboardWidget:
       title: unstableDashboardWidget
       type: object
@@ -14195,7 +15108,7 @@ components:
         description:
           type: string
         view:
-          $ref: '#/components/schemas/unstableDashboardWidgetView'
+          $ref: '#/components/schemas/unstableDashboardWidgetViewWithLegacy'
         dimensions:
           type: array
           items:
@@ -14212,8 +15125,6 @@ components:
           $ref: '#/components/schemas/unstableDashboardWidgetChartType'
         chartConfig:
           $ref: '#/components/schemas/unstableDashboardWidgetChartConfig'
-        minVersion:
-          type: integer
       required:
         - id
         - createdAt
@@ -14226,7 +15137,291 @@ components:
         - filters
         - chartType
         - chartConfig
-        - minVersion
+    unstableDashboardPlacement:
+      title: unstableDashboardPlacement
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - widget
+            - $ref: '#/components/schemas/unstableWidgetPlacement'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - preset
+            - $ref: '#/components/schemas/unstablePresetPlacement'
+          required:
+            - type
+      description: |-
+        A tile on the dashboard's 12-column grid. `x`/`y` are the tile's
+        top-left cell (0-based; `y` grows downward), `width`/`height` its size
+        in cells. The UI default tile is 6x6 (half width). Overlapping tiles
+        are not rejected; prefer appending below existing tiles (or omit the
+        position on create to let the server do it).
+    unstableWidgetPlacement:
+      title: unstableWidgetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+        widgetId:
+          type: string
+        x:
+          type: integer
+        'y':
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+        - id
+        - widgetId
+        - x
+        - 'y'
+        - width
+        - height
+    unstablePresetPlacement:
+      title: unstablePresetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+        presetId:
+          type: string
+        x:
+          type: integer
+        'y':
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+      required:
+        - id
+        - presetId
+        - x
+        - 'y'
+        - width
+        - height
+    unstableCreateDashboardPlacementRequest:
+      title: unstableCreateDashboardPlacementRequest
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - widget
+            - $ref: '#/components/schemas/unstableCreateWidgetPlacement'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - preset
+            - $ref: '#/components/schemas/unstableCreatePresetPlacement'
+          required:
+            - type
+    unstableCreateWidgetPlacement:
+      title: unstableCreateWidgetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        widgetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - widgetId
+    unstableCreatePresetPlacement:
+      title: unstableCreatePresetPlacement
+      type: object
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: Server-generated when omitted.
+        presetId:
+          type: string
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid). Defaults to `0`.
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row. Defaults to the first row below all existing tiles.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns. Defaults to `6`.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows. Defaults to `6`.
+      required:
+        - presetId
+    unstableUpdateDashboardPlacementRequest:
+      title: unstableUpdateDashboardPlacementRequest
+      type: object
+      properties:
+        x:
+          type: integer
+          nullable: true
+          description: Grid column (12-column grid).
+        'y':
+          type: integer
+          nullable: true
+          description: Grid row.
+        width:
+          type: integer
+          nullable: true
+          description: Width in grid columns.
+        height:
+          type: integer
+          nullable: true
+          description: Height in grid rows.
+    unstableDeleteDashboardPlacementResponse:
+      title: unstableDeleteDashboardPlacementResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    unstableDashboardDefinition:
+      title: unstableDashboardDefinition
+      type: object
+      properties:
+        widgets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardPlacement'
+      required:
+        - widgets
+    unstableDashboard:
+      title: unstableDashboard
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        name:
+          type: string
+        description:
+          type: string
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          description: Dashboard-level filters applied to all widgets on the dashboard.
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - name
+        - description
+        - definition
+        - filters
+    unstableDashboardList:
+      title: unstableDashboardList
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboard'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    unstableCreateDashboardRequest:
+      title: unstableCreateDashboardRequest
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+      required:
+        - name
+    unstableUpdateDashboardRequest:
+      title: unstableUpdateDashboardRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        definition:
+          $ref: '#/components/schemas/unstableDashboardDefinition'
+          nullable: true
+        filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableDashboardWidgetFilter'
+          nullable: true
+    unstableDeleteDashboardResponse:
+      title: unstableDeleteDashboardResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     unstablePublicApiErrorCode:
       title: unstablePublicApiErrorCode
       type: string

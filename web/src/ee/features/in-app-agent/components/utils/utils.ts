@@ -3,7 +3,11 @@ import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
-import { stableJsonStringify } from "@/src/utils/json";
+import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+} from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
@@ -12,7 +16,6 @@ import {
   InAppAgentRedirectActionToolResultSchema,
   InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 export type InAppAgentError =
   | { type: "generic"; message: string }
@@ -28,6 +31,7 @@ export type InAppAgentToolCallContent = {
   type: "tool";
   name: string;
   args: string;
+  status: "running" | "succeeded" | "failed" | "denied";
   result?: string;
   error?: string;
   approval?: {
@@ -35,6 +39,23 @@ export type InAppAgentToolCallContent = {
     status: "pending" | "submitting";
   };
 };
+
+const InAppAgentToolRejectionErrorSchema = z.object({
+  code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),
+  message: z.string(),
+});
+
+// Rejections persisted before structured error codes must remain readable.
+const LEGACY_IN_APP_AGENT_TOOL_REJECTION_MESSAGE =
+  "Tool call was not approved by the user.";
+
+const TOOL_CALL_STATUS_BY_RESULT_STATE = {
+  rejected: "denied",
+  error: "failed",
+  result: "succeeded",
+  pending: "running",
+  incomplete: "failed",
+} as const satisfies Record<string, InAppAgentToolCallContent["status"]>;
 
 const InAppAgentTransportErrorSchema = z.object({
   message: z.string().optional(),
@@ -316,11 +337,38 @@ export function getDrawerMessages({
                 mappedPendingApprovalIds.add(pendingApproval.id);
               }
 
+              const rejectionError =
+                InAppAgentToolRejectionErrorSchema.safeParse(
+                  result?.error ? safeJsonParse(result.error) : undefined,
+                );
+              const isRejected =
+                rejectionError.success ||
+                result?.error === LEGACY_IN_APP_AGENT_TOOL_REJECTION_MESSAGE;
+              let toolError = result?.error;
+              if (rejectionError.success) {
+                toolError = rejectionError.data.message;
+              }
+
+              let resultState: keyof typeof TOOL_CALL_STATUS_BY_RESULT_STATE;
+              if (isRejected) {
+                resultState = "rejected";
+              } else if (toolError !== undefined) {
+                resultState = "error";
+              } else if (result?.content !== undefined) {
+                resultState = "result";
+              } else if (isRunning && !error) {
+                resultState = "pending";
+              } else {
+                resultState = "incomplete";
+              }
+              const status = TOOL_CALL_STATUS_BY_RESULT_STATE[resultState];
+
               return [
                 {
                   type: "tool",
                   name: toolCall.function.name,
                   args: toolCall.function.arguments,
+                  status,
                   ...(pendingApproval
                     ? {
                         approval: {
@@ -332,9 +380,7 @@ export function getDrawerMessages({
                   ...(result?.content !== undefined
                     ? { result: result.content }
                     : {}),
-                  ...(result?.error !== undefined
-                    ? { error: result.error }
-                    : {}),
+                  ...(toolError !== undefined ? { error: toolError } : {}),
                 },
               ];
             },
@@ -430,6 +476,7 @@ export function getDrawerMessages({
             type: "tool",
             name: approval.approvalRequest.toolName,
             args: stringifyToolArgs(approval.approvalRequest.args),
+            status: "running",
             approval: {
               id: approval.id,
               status: approval.status,

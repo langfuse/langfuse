@@ -127,12 +127,14 @@ describe("extractLangfuseDocsSources", () => {
           type: "tool",
           name: "langfuseDocs_search",
           args: "{}",
+          status: "succeeded",
           result,
         },
         {
           type: "tool",
           name: "langfuse_queryMetrics",
           args: "{}",
+          status: "succeeded",
           result,
         },
       ]),
@@ -186,6 +188,7 @@ describe("extractLangfuseDocsSources", () => {
           type: "tool",
           name: "langfuseDocs_search",
           args: "{}",
+          status: "succeeded",
           result,
         },
       ]),
@@ -194,6 +197,145 @@ describe("extractLangfuseDocsSources", () => {
 });
 
 describe("getDrawerMessages", () => {
+  it("maps tool results to explicit display statuses", () => {
+    const rejectionMessage = "Tool call was not approved by the user.";
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-running",
+              type: "function",
+              function: { name: "running-tool", arguments: "{}" },
+            },
+            {
+              id: "tool-call-succeeded",
+              type: "function",
+              function: { name: "succeeded-tool", arguments: "{}" },
+            },
+            {
+              id: "tool-call-failed",
+              type: "function",
+              function: { name: "failed-tool", arguments: "{}" },
+            },
+            {
+              id: "tool-call-denied",
+              type: "function",
+              function: { name: "denied-tool", arguments: "{}" },
+            },
+            {
+              id: "tool-call-legacy-denied",
+              type: "function",
+              function: { name: "legacy-denied-tool", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          id: "result-succeeded",
+          role: "tool",
+          toolCallId: "tool-call-succeeded",
+          content: JSON.stringify({ success: true }),
+        },
+        {
+          id: "result-failed",
+          role: "tool",
+          toolCallId: "tool-call-failed",
+          content: "Tool execution failed.",
+          error: "Tool execution failed.",
+        },
+        {
+          id: "result-denied",
+          role: "tool",
+          toolCallId: "tool-call-denied",
+          content: rejectionMessage,
+          error: JSON.stringify({
+            code: "tool_call_rejected",
+            message: rejectionMessage,
+          }),
+        },
+        {
+          id: "result-legacy-denied",
+          role: "tool",
+          toolCallId: "tool-call-legacy-denied",
+          content: rejectionMessage,
+          error: rejectionMessage,
+        },
+      ] satisfies AgUiMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        content: {
+          type: "toolGroup",
+          tools: [
+            { name: "running-tool", status: "running" },
+            { name: "succeeded-tool", status: "succeeded" },
+            {
+              name: "failed-tool",
+              status: "failed",
+              error: "Tool execution failed.",
+            },
+            {
+              name: "denied-tool",
+              status: "denied",
+              error: rejectionMessage,
+            },
+            {
+              name: "legacy-denied-tool",
+              status: "denied",
+              error: rejectionMessage,
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    { error: null, isRunning: false, scenario: "the run stops" },
+    {
+      error: "The run was interrupted before the tool returned.",
+      isRunning: true,
+      scenario: "the run errors",
+    },
+  ])(
+    "marks result-less tools failed when $scenario",
+    ({ error, isRunning }) => {
+      const mappedMessages = getDrawerMessages({
+        error,
+        isRunning,
+        messages: [
+          {
+            id: "assistant-1",
+            role: "assistant",
+            content: "",
+            toolCalls: [
+              {
+                id: "tool-call-1",
+                type: "function",
+                function: { name: "interrupted-tool", arguments: "{}" },
+              },
+            ],
+          },
+        ] satisfies AgUiMessage[],
+      });
+
+      expect(mappedMessages).toMatchObject([
+        {
+          content: {
+            type: "toolGroup",
+            tools: [{ name: "interrupted-tool", status: "failed" }],
+          },
+        },
+      ]);
+    },
+  );
+
   it("attaches docs sources to the answer after a search preamble", () => {
     const docsResult = JSON.stringify({
       _meta: {

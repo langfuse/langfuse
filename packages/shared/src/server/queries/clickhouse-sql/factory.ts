@@ -40,7 +40,7 @@ const LEGACY_SCORE_FILTER_COLUMNS: Partial<
   booleanObject: "score_booleans",
 };
 
-const resolveLegacyScoreFilterColumn = (
+export const resolveLegacyScoreFilterColumn = (
   filter: EventsTableFilterState[number],
   columnMapping: UiColumnMappings,
 ): string => {

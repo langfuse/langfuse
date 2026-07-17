@@ -8,7 +8,7 @@ import {
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
 
-export * from "./blob-export-gate";
+export * from "./export-source-policy";
 export * from "./blob-export-tuning";
 
 export const EXPORT_SOURCE_OPTIONS: Array<{
