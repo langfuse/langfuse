@@ -58,6 +58,9 @@ const resolveObservationCommentFilters = async ({
   projectId: string;
   filter: FilterCondition[];
 }): Promise<FilterCondition[]> => {
+  // Observation comments live in Postgres, while the event and legacy
+  // observation streams query ClickHouse. Resolve comment predicates to an
+  // observation ID predicate before constructing either stream.
   const { filterState, hasNoMatches } = await applyCommentFilters({
     filterState: filter,
     prisma,
@@ -65,6 +68,9 @@ const resolveObservationCommentFilters = async ({
     objectType: "OBSERVATION",
   });
 
+  // applyCommentFilters removes the resolved comment predicates. If none
+  // matched, passing filterState alone could leave the stream unconstrained,
+  // so encode an explicitly empty selection and let the batch action complete.
   return hasNoMatches
     ? [
         {
