@@ -146,7 +146,7 @@ const PageHeader = ({
                       text-sidebar-foreground (60% grey in dark) on the whole
                       app, so unstyled text here would inherit the dimmed
                       sidebar tint. */}
-                  <h2 className="text-foreground line-clamp-1 text-xl leading-7 font-bold">
+                  <h2 className="text-foreground line-clamp-1 text-lg leading-7 font-bold">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (
