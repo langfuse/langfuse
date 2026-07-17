@@ -4,43 +4,19 @@ import { InAppAiAgentButton } from "./in-app-ai-agent-button";
 
 const mocks = vi.hoisted(() => ({
   open: false,
-  resetGeometry: vi.fn(),
   setOpen: vi.fn(),
 }));
 
 vi.mock(
   "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
   () => ({
+    useCanUseInAppAgent: () => true,
     useInAppAiAgent: () => ({
-      deleteConversation: vi.fn(),
-      isAvailable: true,
-      isExpanded: false,
       open: mocks.open,
-      setIsExpanded: vi.fn(),
       setOpen: mocks.setOpen,
     }),
   }),
 );
-
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell",
-  () => ({
-    InAppAgentWindowShell: () => null,
-    useInAppAgentWindowShellPanelControl: () => ({
-      geometry: null,
-      initializeGeometry: vi.fn(),
-      resetGeometry: mocks.resetGeometry,
-    }),
-  }),
-);
-
-vi.mock("@/src/features/entitlements/hooks", () => ({
-  useHasEntitlement: () => true,
-}));
-
-vi.mock("@/src/features/organizations/hooks", () => ({
-  useLangfuseCloudRegion: () => ({ isLangfuseCloud: true }),
-}));
 
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
@@ -51,7 +27,6 @@ vi.mock("@/src/features/projects/hooks", () => ({
 describe("InAppAiAgentButton", () => {
   beforeEach(() => {
     mocks.open = false;
-    mocks.resetGeometry.mockReset();
     mocks.setOpen.mockReset();
   });
 
@@ -85,7 +60,6 @@ describe("InAppAiAgentButton", () => {
     fireEvent(document, openShortcut);
 
     expect(openShortcut.defaultPrevented).toBe(true);
-    expect(mocks.resetGeometry).toHaveBeenCalledOnce();
     expect(mocks.setOpen).toHaveBeenCalledWith(true);
 
     mocks.open = true;
@@ -100,7 +74,6 @@ describe("InAppAiAgentButton", () => {
     fireEvent(document, closeShortcut);
 
     expect(closeShortcut.defaultPrevented).toBe(true);
-    expect(mocks.resetGeometry).toHaveBeenCalledOnce();
     expect(mocks.setOpen).toHaveBeenCalledTimes(2);
     expect(mocks.setOpen).toHaveBeenNthCalledWith(1, true);
     expect(mocks.setOpen).toHaveBeenNthCalledWith(2, false);

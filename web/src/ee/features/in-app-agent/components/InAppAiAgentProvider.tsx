@@ -34,6 +34,8 @@ import {
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
   createInAppAgentScreenContext,
@@ -1230,4 +1232,20 @@ export function useInAppAiAgent() {
     return NOOP_CONTEXT;
   }
   return ctx;
+}
+
+/** Whether the current user/context may use the in-app assistant at all.
+ * Shared gate for the launcher button and the window host. */
+export function useCanUseInAppAgent() {
+  const { isAvailable } = useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return (
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    isLangfuseCloud &&
+    Boolean(organization)
+  );
 }
