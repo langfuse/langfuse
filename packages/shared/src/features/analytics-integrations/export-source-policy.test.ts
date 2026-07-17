@@ -20,6 +20,7 @@ const ROW_AT = LEGACY_BLOB_EXPORTER_CUTOFF;
 const ctx = (over: Partial<ExportSourceContext>): ExportSourceContext => ({
   isCloud: false,
   enrichedAvailable: true,
+  legacyWritesActive: true,
   ...over,
 });
 
@@ -102,6 +103,44 @@ describe("validateExportSource matrix", () => {
         "TRACES_OBSERVATIONS",
         ctx({ isCloud: true, projectCreatedAt: PROJECT_PRE }),
       ),
+    ).toBeUndefined();
+  });
+
+  it("legacy under events_only: blocked by capability, deployment-agnostic; EVENTS unaffected", () => {
+    const eventsOnly = ctx({ legacyWritesActive: false });
+    expect(reasonOf("TRACES_OBSERVATIONS", eventsOnly)).toBe(
+      "legacy-writes-disabled",
+    );
+    expect(reasonOf("TRACES_OBSERVATIONS_EVENTS", eventsOnly)).toBe(
+      "legacy-writes-disabled",
+    );
+    expect(reasonOf("EVENTS", eventsOnly)).toBeUndefined();
+    // Deployment-agnostic: applies on Cloud too, but the Cloud cutoff wins
+    // the reason so Cloud users never see env-var messaging.
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        ctx({ isCloud: true, legacyWritesActive: false }),
+      ),
+    ).toBe("legacy-writes-disabled");
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        ctx({
+          isCloud: true,
+          legacyWritesActive: false,
+          projectCreatedAt: PROJECT_POST,
+        }),
+      ),
+    ).toBe("cloud-cutoff");
+    // Operator-facing message names the env var.
+    const res = validateExportSource("TRACES_OBSERVATIONS", eventsOnly);
+    if (!res.ok) expect(res.message).toContain("events_only");
+  });
+
+  it("legacy on dual/legacy write modes: unaffected", () => {
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", ctx({ legacyWritesActive: true })),
     ).toBeUndefined();
   });
 

@@ -29,6 +29,7 @@ import {
   orderByToClickhouseSql,
   StringOptionsFilter,
   DateTimeFilter,
+  CTEQueryBuilder,
   NumberFilter,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
@@ -67,6 +68,7 @@ import {
   eventsTraceMetadata,
   eventsExperimentTraceIds,
   eventsExperiments,
+  promptEventsForMetrics,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import {
@@ -2025,6 +2027,137 @@ export const getAggregatedScoresForPrompts = async (
         : {}),
     },
     tags: { projectId },
+  });
+
+  return rows.map((row) => ({
+    ...convertScoreAggregation<ListableScoreDataType>(row),
+    promptId: row.prompt_id,
+    hasMetadata: !!row.has_metadata,
+  }));
+};
+
+export const buildAggregatedScoresForPromptsFromEventsQuery = (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const promptEvents = promptEventsForMetrics({
+    projectId,
+    promptIds,
+    ...(fromTimestamp
+      ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+      : {}),
+    ...(toTimestamp
+      ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+      : {}),
+  });
+
+  const scoreRows = {
+    query: `
+      SELECT
+        e.prompt_id AS prompt_id,
+        s.id AS id,
+        s.name AS name,
+        s.string_value AS string_value,
+        s.value AS value,
+        s.source AS source,
+        s.data_type AS data_type,
+        s.comment AS comment,
+        s.timestamp AS timestamp,
+        s.metadata AS metadata
+      FROM scores s FINAL
+      INNER JOIN prompt_events e
+        ON s.project_id = e.project_id
+        AND s.trace_id = e.trace_id
+        ${fetchScoreRelation === "observation" ? "AND s.observation_id = e.span_id" : ""}
+      WHERE s.project_id = {scoreProjectId: String}
+      AND e.is_deleted = 0
+      AND s.name IS NOT NULL
+      AND s.data_type IN ({dataTypes: Array(String)})
+      ${
+        fetchScoreRelation === "trace"
+          ? `AND s.observation_id IS NULL
+      AND s.trace_id IN (SELECT trace_id FROM prompt_events WHERE is_deleted = 0)`
+          : `AND s.observation_id IS NOT NULL
+      AND (s.trace_id, s.observation_id) IN (SELECT trace_id, span_id FROM prompt_events WHERE is_deleted = 0)`
+      }
+    `,
+    params: {
+      scoreProjectId: projectId,
+      dataTypes: LISTABLE_SCORE_TYPES,
+    },
+    schema: [
+      "prompt_id",
+      "id",
+      "name",
+      "string_value",
+      "value",
+      "source",
+      "data_type",
+      "comment",
+      "timestamp",
+      "metadata",
+    ],
+  };
+
+  return new CTEQueryBuilder()
+    .withCTE("prompt_events", promptEvents)
+    .withCTE("score_rows", scoreRows)
+    .from("score_rows", "s")
+    .select(
+      "s.prompt_id AS prompt_id",
+      "s.id AS id",
+      "s.name AS name",
+      "s.string_value AS string_value",
+      "s.value AS value",
+      "s.source AS source",
+      "s.data_type AS data_type",
+      "s.comment AS comment",
+      "s.timestamp AS timestamp",
+      "length(mapKeys(s.metadata)) > 0 AS has_metadata",
+    )
+    .groupBy(
+      "s.prompt_id",
+      "s.id",
+      "s.name",
+      "s.string_value",
+      "s.value",
+      "s.source",
+      "s.data_type",
+      "s.comment",
+      "s.timestamp",
+      "s.metadata",
+    )
+    .buildWithParams();
+};
+
+export const getAggregatedScoresForPromptsFromEvents = async (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+  timeWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const { query, params } = buildAggregatedScoresForPromptsFromEventsQuery(
+    projectId,
+    promptIds,
+    fetchScoreRelation,
+    timeWindow,
+  );
+
+  const rows = await queryClickhouse<
+    ScoreAggregation & {
+      prompt_id: string;
+      has_metadata: 0 | 1;
+    }
+  >({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({

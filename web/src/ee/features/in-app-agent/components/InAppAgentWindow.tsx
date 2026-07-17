@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  ArrowRight,
   BotMessageSquare,
   History,
   Info,
@@ -48,25 +49,21 @@ import {
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
+import {
+  IN_APP_AGENT_QUICK_ACTION_CONTEXTS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS,
+  IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS,
+  getInAppAgentQuickActions,
+  isInAppAgentQuickActionContext,
+  type InAppAgentQuickAction,
+  type InAppAgentQuickActionContext,
+  type InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
-const CONVERSATION_STARTERS = [
-  [
-    "Get started with Langfuse",
-    "Where should I start with setting up Langfuse?",
-  ],
-  ["Optimize my setup", "What should I improve in my Langfuse setup?"],
-  [
-    "Find problematic traces",
-    "Show me patterns in failed or low-scoring traces.",
-  ],
-  [
-    "Investigate unusual patterns",
-    "Are there unusual latency or cost patterns recently?",
-  ],
-] as const;
-
 function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   if (!viewport) {
     return;
@@ -76,6 +73,103 @@ function scrollViewportToBottom(viewport: HTMLDivElement | null) {
     top: viewport.scrollHeight,
     behavior: "auto",
   });
+}
+
+function InAppAgentQuickActionPicker({
+  focusedActions,
+  initialContext,
+  isDisabled,
+  onSelectAction,
+}: {
+  focusedActions?: readonly InAppAgentQuickAction[];
+  initialContext: InAppAgentQuickActionContext;
+  isDisabled: boolean;
+  onSelectAction: (
+    action: InAppAgentQuickAction,
+    context: InAppAgentQuickActionContext,
+    position: number,
+  ) => void;
+}) {
+  const [selectedContext, setSelectedContext] = useState(initialContext);
+  const selectedActions =
+    selectedContext === initialContext && focusedActions?.length
+      ? focusedActions
+      : getInAppAgentQuickActions(selectedContext);
+  const contextFallbackIcon =
+    IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS[selectedContext];
+
+  return (
+    <>
+      <p className="text-foreground mt-4 text-base font-medium">
+        Welcome to the Langfuse Assistant
+      </p>
+      <p className="text-muted-foreground mt-2 max-w-xs text-center text-sm leading-relaxed">
+        What do you want to do?
+      </p>
+      <Tabs
+        value={selectedContext}
+        className="mt-5 w-full max-w-md"
+        onValueChange={(value) => {
+          if (isInAppAgentQuickActionContext(value)) {
+            setSelectedContext(value);
+          }
+        }}
+      >
+        <TabsList
+          aria-label="Quick action category"
+          className="h-auto w-full justify-between rounded-none border-b bg-transparent p-0"
+        >
+          {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
+            <TabsTrigger
+              key={context}
+              value={context}
+              disabled={isDisabled}
+              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-8 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm tracking-[-0.04em] shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            >
+              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      <div className="mt-4 flex w-full max-w-sm flex-col gap-2.5">
+        {selectedActions.map((action, position) => {
+          const ActionIcon = action.icon ?? contextFallbackIcon;
+
+          return (
+            <Button
+              key={action.id}
+              type="button"
+              variant="outline"
+              className="bg-card hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
+              disabled={isDisabled}
+              onClick={() => {
+                onSelectAction(action, selectedContext, position);
+              }}
+            >
+              <span className="bg-muted text-primary-accent flex size-8 shrink-0 items-center justify-center rounded-md">
+                <ActionIcon aria-hidden="true" className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="text-foreground block text-sm leading-snug font-semibold">
+                  {action.label}
+                </span>
+                <span
+                  className="text-muted-foreground mt-0.5 block truncate text-sm leading-snug font-normal"
+                  title={action.description}
+                >
+                  {action.description}
+                </span>
+              </span>
+              <ArrowRight
+                aria-hidden="true"
+                className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+              />
+            </Button>
+          );
+        })}
+      </div>
+    </>
+  );
 }
 
 function formatScreenContextNotice(
@@ -178,7 +272,10 @@ export type InAppAgentWindowProps = {
   onRejectToolCall: (approvalId: string) => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
-  onSubmit: (input: string) => boolean | Promise<boolean>;
+  onSubmit: (
+    input: string,
+    options?: InAppAgentSubmitOptions,
+  ) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -186,6 +283,9 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   screenContextDescription: InAppAgentScreenContextDescription;
+  quickActionContext: InAppAgentQuickActionContext;
+  focusedQuickActions?: readonly InAppAgentQuickAction[];
+  quickActionResetKey: string;
   selectedConversationId: string | undefined;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -275,12 +375,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    focusedQuickActions,
+    quickActionContext,
+    quickActionResetKey,
     screenContextDescription,
     selectedConversationId,
   } = props;
   const screenContextNotice = formatScreenContextNotice(
     screenContextDescription,
   );
+  const capture = usePostHogClientCapture();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -321,14 +425,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     })
     .filter((message): message is InAppAgentWindowMessage => message !== null);
 
-  const submitInput = (content: string) => {
+  const submitInput = (content: string, options?: InAppAgentSubmitOptions) => {
     const trimmedContent = content.trim();
 
     if (!trimmedContent || isInputDisabled) {
       return;
     }
 
-    Promise.resolve(onSubmit(trimmedContent))
+    Promise.resolve(onSubmit(trimmedContent, options))
       .then((submitted) => {
         if (submitted) {
           isAutoScrollAttachedRef.current = true;
@@ -400,7 +504,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
           isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
         )}
       >
@@ -606,35 +710,25 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-8 w-8" />
                 </div>
-                <p className="text-muted-foreground mt-4 text-sm">
-                  Welcome to the Langfuse Assistant
-                </p>
-                <p className="text-muted-foreground/60 mt-2 max-w-xs text-center text-sm leading-relaxed">
-                  I can help you with any questions you have about Langfuse or
-                  assist you in exploring your data.
-                  <br />
-                  What do you want to do?
-                </p>
-                <div className="mt-6 flex max-w-sm flex-wrap items-center justify-center gap-2">
-                  {CONVERSATION_STARTERS.map(([label, message]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      className={cn(
-                        "bg-card dark:bg-header text-foreground border-border hover:bg-muted/60 border text-[0.775rem] leading-none shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                        isExpanded
-                          ? "rounded-2xl px-3 py-2"
-                          : "rounded-xl px-2 py-1.5",
-                      )}
-                      disabled={isInputDisabled}
-                      onClick={() => {
-                        submitInput(message);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <InAppAgentQuickActionPicker
+                  key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
+                  focusedActions={focusedQuickActions}
+                  initialContext={quickActionContext}
+                  isDisabled={isInputDisabled}
+                  onSelectAction={(action, context, position) => {
+                    capture("in_app_agent:quick_action_started", {
+                      quickActionKey: action.id,
+                      quickActionCategory: context,
+                      position,
+                    });
+                    submitInput(action.prompt, {
+                      quickAction: {
+                        key: action.id,
+                        category: context,
+                      },
+                    });
+                  }}
+                />
               </div>
             ) : null}
 
@@ -789,9 +883,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {isExpanded && (
                 <>
                   {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Make sure this matches the color of the background */}
-                  <div className="from-header absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-header absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
+                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
                 </>
               )}
             </div>
@@ -800,7 +894,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         <div
           className={cn(
             "p-1.5",
-            isExpanded ? "pt-0" : "bg-header",
+            isExpanded ? "pt-0" : "bg-card",
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
@@ -838,8 +932,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isInputDisabled}
-              aria-label="Ask the assistant a question"
-              placeholder="Ask the assistant a question..."
+              aria-label="Message the assistant"
+              placeholder="Let me know what I can do for you..."
               rows={1}
               className={cn(
                 "bg-background placeholder:text-foreground-tertiary w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
