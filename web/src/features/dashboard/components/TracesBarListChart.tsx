@@ -155,11 +155,13 @@ export const TracesBarListChart = ({
           description="Total traces tracked"
         />
         {transformedTraces.length > 0 ? (
-          // The chart fills the leftover tile height (flex-1). Collapsed, it
-          // shows exactly the bars that fit (h-full → the bars spread to use the
-          // whole area, so a sparse list has no dead gap and a full one has no
-          // scrollbar). Expanded, it grows to the bars' natural height and this
-          // viewport scrolls within the tile. (LFE-11035, revises LFE-10813)
+          // The chart fills the leftover tile height (flex-1) and never forces
+          // the card past its tile. Collapsed, it renders only the bars that fit
+          // the measured area and sizes the chart to that same measured height,
+          // so the bars spread to use it: a sparse list has no dead gap and a
+          // full one has no scrollbar. Expanded, it grows to the bars' natural
+          // height and this viewport scrolls within the tile. (LFE-11035,
+          // revises LFE-10813)
           <div
             ref={containerRef}
             className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"

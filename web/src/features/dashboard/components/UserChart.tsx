@@ -226,11 +226,12 @@ export const UserChart = ({
                       description={item.metricDescription}
                     />
                     {/* The chart fills the leftover tile height. Collapsed it
-                        shows exactly the bars that fit (h-full → they spread to
-                        use the whole area: no dead gap for a sparse list, no
-                        scrollbar for a full one). Expanded it grows to the bars'
-                        natural height and this viewport scrolls within the tile.
-                        Mirrors TracesBarListChart. (LFE-11035, revises LFE-10813) */}
+                        renders only the bars that fit the measured area and
+                        sizes the chart to that same height, so they spread to
+                        use it: no dead gap for a sparse list, no scrollbar for a
+                        full one. Expanded it grows to the bars' natural height
+                        and this viewport scrolls within the tile. Mirrors
+                        TracesBarListChart. (LFE-11035, revises LFE-10813) */}
                     <div
                       ref={containerRef}
                       className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
