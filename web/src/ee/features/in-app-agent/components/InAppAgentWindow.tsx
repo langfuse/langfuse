@@ -92,7 +92,7 @@ function InAppAgentQuickActionPicker({
 }) {
   const [selectedContext, setSelectedContext] = useState(initialContext);
   const selectedActions =
-    selectedContext === initialContext && focusedActions
+    selectedContext === initialContext && focusedActions?.length
       ? focusedActions
       : getInAppAgentQuickActions(selectedContext);
   const contextFallbackIcon =
