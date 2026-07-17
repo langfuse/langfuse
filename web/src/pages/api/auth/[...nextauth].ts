@@ -1,3 +1,5 @@
+import { validateHeaderValue } from "node:http";
+
 import { getAuthOptions } from "@/src/server/auth";
 import { env } from "@/src/env.mjs";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -26,6 +28,7 @@ const isValidHttpCallbackUrl = (value: unknown) => {
   if (typeof value !== "string") return false;
 
   try {
+    validateHeaderValue("Location", value);
     const url = new URL(
       value,
       value.startsWith("/") ? "http://localhost" : undefined,

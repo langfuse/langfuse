@@ -58,7 +58,7 @@ function createRequest({
   cookies = {},
 }: {
   nextauth: string[];
-  query?: Record<string, string>;
+  query?: Record<string, string | string[]>;
   cookies?: Record<string, string>;
 }) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
@@ -127,6 +127,30 @@ describe("NextAuth route malformed input handling", () => {
     expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
   });
 
+  it("rejects a callbackUrl containing decoded control characters", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["callback", "credentials"],
+      query: { callbackUrl: "/project/test\r\nscanner-payload" },
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
+  });
+
+  it("rejects an ambiguous array-valued callbackUrl", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["callback", "credentials"],
+      query: { callbackUrl: ["/project/first", "/project/second"] },
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
+  });
+
   it("does not return 500 for a malformed callbackUrl cookie", async () => {
     const { req, res } = createRequest({
       nextauth: ["callback", "credentials"],
@@ -139,5 +163,17 @@ describe("NextAuth route malformed input handling", () => {
 
     expect(res.statusCode).toBe(400);
     expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
+  });
+
+  it("uses a generic error for an ambiguous array-valued error", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["error"],
+      query: { error: ["OAuthCallback", "scanner-payload"] },
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.getHeader("Location")).toBe("/auth/error?error=Configuration");
   });
 });
