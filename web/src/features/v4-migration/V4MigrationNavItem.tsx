@@ -34,7 +34,7 @@ export function V4MigrationNavItem() {
   };
 
   return (
-    <div className="px-1 py-2">
+    <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
       <SidebarMenuButton
         onClick={handleClick}
         tooltip="Action required"
