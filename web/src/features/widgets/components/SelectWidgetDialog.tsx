@@ -26,6 +26,7 @@ import {
 } from "@langfuse/shared";
 import { HOME_PRESET_METADATA } from "@/src/features/dashboard/components/home-preset-registry";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
+import { InAppAgentWidgetComposer } from "@/src/ee/features/in-app-agent/components/InAppAgentWidgetComposer";
 
 export type WidgetItem = {
   id: string;
@@ -159,6 +160,9 @@ export function SelectWidgetDialog({
             </div>
           ) : (
             <div className="flex flex-col gap-3 p-1">
+              <InAppAgentWidgetComposer
+                onSubmitted={() => onOpenChange(false)}
+              />
               <button
                 type="button"
                 onClick={() => {

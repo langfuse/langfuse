@@ -434,6 +434,7 @@ export async function queryClickhouseExecRaw(
         ).exec({
           query: queryWithFormat,
           query_params: opts.params,
+          use_multipart_params_auto: opts.useMultipartParamsAuto,
           clickhouse_settings: {
             ...opts.clickhouseSettings,
             log_comment: JSON.stringify(normalizedTags),
@@ -550,6 +551,7 @@ function handleExceptionRow<T>(parsedRow: T): T {
 export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
@@ -588,6 +590,7 @@ function setSpanQueryAttributes(span: Span, query: string): void {
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
   tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
@@ -603,6 +606,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query: opts.query,
     format: opts.format,
     query_params: opts.params,
+    use_multipart_params_auto: opts.useMultipartParamsAuto,
     clickhouse_settings: {
       ...opts.clickhouseSettings,
       log_comment: JSON.stringify(normalizedTags),

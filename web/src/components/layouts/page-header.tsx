@@ -2,6 +2,7 @@ import { EnvLabel } from "@/src/components/EnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -121,6 +122,7 @@ const PageHeader = ({
                 Empty on pages that don't use it. */}
             <div className="flex flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
+              <InAppAiAgentButton />
             </div>
           </div>
         </div>
