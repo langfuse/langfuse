@@ -113,6 +113,7 @@ export default function BlobStorageIntegrationSettings() {
               isEnrichedExportAvailable={
                 state.data?.isEnrichedExportAvailable ?? false
               }
+              legacyWritesActive={state.data?.legacyWritesActive ?? true}
             />
           </Card>
         </>

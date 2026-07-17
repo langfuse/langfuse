@@ -11,15 +11,20 @@ export function extractTimeFilter(
   fieldName: "start_time" | "timestamp" = "start_time",
   prefix?: "e" | "t",
 ): string | null {
-  const timeFilter = filter.find(
-    (filterItem) =>
-      // For events tables, match any events_* prefix (events_proto, events_core, events_full)
+  const timeFilter = filter.find((filterItem) => {
+    // For events tables, match any events_* prefix (events_proto, events_core, events_full)
+    const normalizedField = filterItem.field.replaceAll('"', "");
+    const expectedField = prefix ? `${prefix}.${fieldName}` : fieldName;
+
+    return (
       (tableName === "events_proto"
         ? filterItem.clickhouseTable.startsWith("events_")
         : filterItem.clickhouseTable === tableName) &&
-      filterItem.field === (prefix ? `${prefix}.${fieldName}` : fieldName) &&
-      (filterItem.operator === ">=" || filterItem.operator === ">"),
-  );
+      (normalizedField === expectedField ||
+        (!prefix && normalizedField.endsWith(`.${fieldName}`))) &&
+      (filterItem.operator === ">=" || filterItem.operator === ">")
+    );
+  });
 
   return timeFilter
     ? convertDateToClickhouseDateTime((timeFilter as DateTimeFilter).value)

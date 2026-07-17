@@ -2096,28 +2096,56 @@ export const getScoreCountOfProjectsSinceCreationDate = async ({
   return Number(rows[0]?.count ?? 0);
 };
 
-export const getDistinctScoreNames = async (p: {
-  projectId: string;
-  cutoffCreatedAt: Date;
-  filter: FilterState;
-  isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter;
-  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-}) => {
-  const {
-    projectId,
-    cutoffCreatedAt,
-    filter,
-    isTimestampFilter,
-    clickhouseConfigs,
-  } = p;
-  const scoreTimestampFilter = filter?.find(isTimestampFilter);
+/**
+ * Reuses an already-planned ClickHouse lower bound when available. Callers
+ * without one can retain their view-specific timestamp-filter predicate.
+ */
+type DistinctScoreNamesTimestampSource =
+  | {
+      filter: FilterState;
+      isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter;
+      startTimeFrom?: never;
+    }
+  | {
+      startTimeFrom: string | null;
+      filter?: never;
+      isTimestampFilter?: never;
+    };
+
+const getDistinctScoreNamesStartTimeFrom = (
+  source: DistinctScoreNamesTimestampSource,
+): string | null => {
+  if ("startTimeFrom" in source) {
+    return source.startTimeFrom ?? null;
+  }
+
+  const scoreTimestampFilter = source.filter.find(
+    (filterItem): filterItem is TimeFilter =>
+      source.isTimestampFilter(filterItem) &&
+      (filterItem.operator === ">=" || filterItem.operator === ">"),
+  );
+
+  return scoreTimestampFilter
+    ? convertDateToClickhouseDateTime(scoreTimestampFilter.value)
+    : null;
+};
+
+export const getDistinctScoreNames = async (
+  p: {
+    projectId: string;
+    cutoffCreatedAt: Date;
+    clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+  } & DistinctScoreNamesTimestampSource,
+) => {
+  const { projectId, cutoffCreatedAt, clickhouseConfigs } = p;
+  const startTimeFrom = getDistinctScoreNamesStartTimeFrom(p);
 
   const query = `    SELECT DISTINCT
       name
     FROM scores s
     WHERE s.project_id = {projectId: String}
     AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
-    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
+    ${startTimeFrom ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
     AND s.data_type IN ({dataTypes: Array(String)})
   `;
 
@@ -2127,11 +2155,9 @@ export const getDistinctScoreNames = async (p: {
       projectId,
       cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
       dataTypes: LISTABLE_SCORE_TYPES,
-      ...(scoreTimestampFilter
+      ...(startTimeFrom
         ? {
-            filterTimestamp: convertDateToClickhouseDateTime(
-              scoreTimestampFilter.value,
-            ),
+            filterTimestamp: startTimeFrom,
           }
         : {}),
     },

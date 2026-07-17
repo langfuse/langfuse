@@ -1,14 +1,18 @@
 import { eventsTableCols } from "../../../eventsTable";
 import type { TracingSearchType } from "../../../interfaces/search";
+import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList, filtersRequireEventsFull } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
-import { createFilterFromFilterState } from "./factory";
+import {
+  createFilterFromFilterState,
+  resolveLegacyScoreFilterColumn,
+} from "./factory";
 import { extractTimeFilter } from "./filter-utils";
 import {
   eventsScoresAggregation,
-  eventsTracesScoresAggregation,
+  eventsTracesScoresAggregationFromObservationStart,
 } from "./query-fragments";
 import { clickhouseSearchCondition } from "./search";
 
@@ -49,10 +53,6 @@ export type EventsObservationRowSelectionInput = {
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
-  scoreFilterCapabilities: {
-    observation: boolean;
-    trace: boolean;
-  };
 };
 
 type ObservationScoreDependency = {
@@ -75,9 +75,10 @@ const buildObservationScoreFilterDependency: ObservationScoreDependencyFactory =
   });
 
 const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFactory =
-  ({ projectId }) => ({
+  ({ projectId, startTimeFrom }) => ({
     cte: eventsScoresAggregation({
       projectId,
+      startTimeFrom,
       includeTupleEncoding: true,
     }),
     joinTable: "scores_agg s",
@@ -91,10 +92,13 @@ const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFacto
   });
 
 const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
-  const columnDefinition = eventsTableUiColumnDefinitions.find(
-    (column) =>
-      column.uiTableName === filter.column ||
-      column.uiTableId === filter.column,
+  const filterColumn = resolveLegacyScoreFilterColumn(
+    filter,
+    eventsTableUiColumnDefinitions,
+  );
+  const columnDefinition = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    filterColumn,
   );
 
   if (columnDefinition?.clickhouseTableName === "comments") {
@@ -135,50 +139,26 @@ const buildEventsObservationRowSelectionInternal = (
     filter,
     searchQuery,
     searchType,
-    scoreFilterCapabilities,
   }: EventsObservationRowSelectionInput,
   observationScoreDependencyFactory?: ObservationScoreDependencyFactory,
 ): {
   queryBuilder: EventsQueryBuilder;
   filterGroups: EventsObservationFilterGroups;
   search: ReturnType<typeof eventSearchCondition>;
+  startTimeFrom: string | null;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
-  const classifiedFilters = (filter ?? []).map((filterItem) => ({
-    filter: filterItem,
-    group: classifyFilter(filterItem),
-  }));
-
-  const effectiveFilters = classifiedFilters.flatMap(({ filter, group }) => {
-    if (group === "observationScores" && !scoreFilterCapabilities.observation) {
-      return [];
-    }
-    if (group === "traceScores" && !scoreFilterCapabilities.trace) return [];
-    return [filter];
-  });
 
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
-      effectiveFilters,
+      filter ?? [],
       eventsTableUiColumnDefinitions,
       eventsTableCols,
     ),
   );
   const startTimeFrom = extractTimeFilter(eventsFilter);
-  const hasObservationScoreFilter =
-    scoreFilterCapabilities.observation &&
-    eventsFilter.some(
-      (filterItem) =>
-        filterItem.clickhouseTable === "scores" &&
-        filterItem.field.startsWith("s."),
-    );
-  const hasTraceScoreFilter =
-    scoreFilterCapabilities.trace &&
-    eventsFilter.some(
-      (filterItem) =>
-        filterItem.clickhouseTable === "scores" &&
-        filterItem.field.startsWith("ts."),
-    );
+  const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
+  const hasTraceScoreFilter = filterGroups.traceScores.length > 0;
   const queryBuilder = new EventsQueryBuilder({ projectId });
   const observationScoreDependency =
     observationScoreDependencyFactory?.({ projectId, startTimeFrom }) ??
@@ -204,7 +184,7 @@ const buildEventsObservationRowSelectionInternal = (
     .when(hasTraceScoreFilter, (builder) =>
       builder.withCTE(
         "trace_scores_agg",
-        eventsTracesScoresAggregation({
+        eventsTracesScoresAggregationFromObservationStart({
           projectId,
           startTimeFrom,
           hasScoreAggregationFilters: true,
@@ -224,7 +204,7 @@ const buildEventsObservationRowSelectionInternal = (
 
   queryBuilder.applyFilters(eventsFilter).where(search);
 
-  return { queryBuilder, filterGroups, search };
+  return { queryBuilder, filterGroups, search, startTimeFrom };
 };
 
 export const buildEventsObservationRowSelection = (
