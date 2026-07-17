@@ -332,11 +332,7 @@ describe("chat-message-utils", () => {
 
     it("controls system prompts independently from inline data", () => {
       expect(
-        shouldRenderMessageForContentMode(
-          systemMessage,
-          "conversation",
-          false,
-        ),
+        shouldRenderMessageForContentMode(systemMessage, "conversation", false),
       ).toBe(false);
       expect(
         shouldRenderMessageForContentMode(systemMessage, "conversation", true),
@@ -350,21 +346,21 @@ describe("chat-message-utils", () => {
       expect(
         shouldRenderMessageForContentMode(toolMessage, "conversation", true),
       ).toBe(false);
-      expect(
-        shouldRenderMessageForContentMode(toolMessage, "all", false),
-      ).toBe(true);
+      expect(shouldRenderMessageForContentMode(toolMessage, "all", false)).toBe(
+        true,
+      );
     });
 
     it("preserves the existing defaults outside Modern Session", () => {
       expect(
         shouldRenderMessageForContentMode(systemMessage, "conversation"),
       ).toBe(false);
-      expect(
-        shouldRenderMessageForContentMode(systemMessage, "all"),
-      ).toBe(true);
-      expect(
-        shouldRenderMessageForContentMode(systemDataMessage, "data"),
-      ).toBe(true);
+      expect(shouldRenderMessageForContentMode(systemMessage, "all")).toBe(
+        true,
+      );
+      expect(shouldRenderMessageForContentMode(systemDataMessage, "data")).toBe(
+        true,
+      );
     });
   });
 });
