@@ -1,7 +1,57 @@
 import { getAuthOptions } from "@/src/server/auth";
 import { env } from "@/src/env.mjs";
 import type { NextApiRequest, NextApiResponse } from "next";
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
+
+const maxAuthErrorLength = 1_000;
+
+const getAuthAction = (req: NextApiRequest) => {
+  const nextauth = req.query.nextauth;
+  return Array.isArray(nextauth) ? nextauth[0] : nextauth;
+};
+
+const encodeAuthError = (error: unknown) => {
+  if (typeof error !== "string" || error.length > maxAuthErrorLength) {
+    return "Configuration";
+  }
+
+  try {
+    return encodeURIComponent(error);
+  } catch {
+    return "Configuration";
+  }
+};
+
+const isValidHttpCallbackUrl = (value: unknown) => {
+  if (typeof value !== "string") return false;
+
+  try {
+    const url = new URL(
+      value,
+      value.startsWith("/") ? "http://localhost" : undefined,
+    );
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const hasInvalidCallbackUrl = (
+  req: NextApiRequest,
+  authOptions: NextAuthOptions,
+) => {
+  const callbackUrl = req.query.callbackUrl;
+  if (callbackUrl && !isValidHttpCallbackUrl(callbackUrl)) return true;
+
+  const callbackUrlCookieName =
+    authOptions.cookies?.callbackUrl?.name ??
+    `${authOptions.useSecureCookies ? "__Secure-" : ""}next-auth.callback-url`;
+  const callbackUrlCookie = req.cookies[callbackUrlCookieName];
+
+  return Boolean(
+    callbackUrlCookie && !isValidHttpCallbackUrl(callbackUrlCookie),
+  );
+};
 
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // Workaround for corporate email link checkers (e.g., Outlook SafeLink)
@@ -48,6 +98,20 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   );
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
+
+  // NextAuth treats invalid callback URLs as configuration errors and returns
+  // a 500 before invoking the application's redirect callback. Classify
+  // malformed query and cookie input as a bad request at the HTTP boundary.
+  if (hasInvalidCallbackUrl(req, authOptions)) {
+    return res.status(400).json({ error: "Invalid callback URL" });
+  }
+
+  // NextAuth interpolates unknown error values directly into a Location
+  // header. Encode user-controlled text before it reaches that code path so
+  // control characters cannot make Node throw ERR_INVALID_CHAR.
+  if (getAuthAction(req) === "error" && req.query.error !== undefined) {
+    req.query.error = encodeAuthError(req.query.error);
+  }
 
   return await NextAuth(req, res, authOptions);
 }
