@@ -179,7 +179,7 @@ export function SplashScreen({
                 )}
               >
                 <div className="mb-2 flex items-center gap-3">
-                  <h3 className="text-xl">{step.title}</h3>
+                  <h3 className="text-xl font-bold">{step.title}</h3>
                   {step.badge}
                 </div>
                 {step.description && (
