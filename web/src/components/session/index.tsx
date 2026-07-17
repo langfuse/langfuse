@@ -1393,7 +1393,6 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
-
           </div>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">

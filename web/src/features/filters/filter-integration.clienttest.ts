@@ -879,10 +879,7 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(
-        firstLlmCallPreset?.filters ?? [],
-        sessionEventColumns,
-      ),
+      validateFilters(firstLlmCallPreset?.filters ?? [], sessionEventColumns),
     ).toEqual(firstLlmCallPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
