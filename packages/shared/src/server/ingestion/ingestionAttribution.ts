@@ -19,6 +19,26 @@ export const LANGFUSE_SDK_LATEST_MAJOR = {
 
 export type IngestionSdkCanonicalName = keyof typeof LANGFUSE_SDK_LATEST_MAJOR;
 
+export const INGESTION_SDK_CANONICAL_NAME_ALIASES = {
+  python: ["python", "langfuse-python"],
+  javascript: [
+    "javascript",
+    "js",
+    "typescript",
+    "ts",
+    "langfuse-js",
+    "langfuse-ts",
+    "@langfuse/client",
+    "@langfuse/browser",
+    "@langfuse/core",
+    "@langfuse/langchain",
+    "@langfuse/otel",
+    "@langfuse/openai",
+    "@langfuse/tracing",
+    "@langfuse/vercel-ai-sdk",
+  ],
+} as const satisfies Record<IngestionSdkCanonicalName, readonly string[]>;
+
 export type IngestionSdkUpgradeStatus =
   | "current"
   | "outdated_major"
@@ -62,29 +82,12 @@ export const normalizeIngestionSdkName = (
     return null;
   }
 
-  if (normalized === "python" || normalized === "langfuse-python") {
-    return "python";
-  }
-
-  if (
-    [
-      "javascript",
-      "js",
-      "typescript",
-      "ts",
-      "langfuse-js",
-      "langfuse-ts",
-      "@langfuse/client",
-      "@langfuse/browser",
-      "@langfuse/core",
-      "@langfuse/langchain",
-      "@langfuse/otel",
-      "@langfuse/openai",
-      "@langfuse/tracing",
-      "@langfuse/vercel-ai-sdk",
-    ].includes(normalized)
-  ) {
-    return "javascript";
+  for (const [canonicalSdkName, aliases] of Object.entries(
+    INGESTION_SDK_CANONICAL_NAME_ALIASES,
+  ) as Array<[IngestionSdkCanonicalName, readonly string[]]>) {
+    if (aliases.includes(normalized)) {
+      return canonicalSdkName;
+    }
   }
 
   return null;

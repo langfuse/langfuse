@@ -75,6 +75,11 @@ import {
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
 import {
+  classifyIngestionSdkVersion,
+  INGESTION_SDK_CANONICAL_NAME_ALIASES,
+  type IngestionSdkCanonicalName,
+} from "../ingestion/ingestionAttribution";
+import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -3183,6 +3188,108 @@ export type SdkMetadata = {
   version?: string;
   language?: string;
 };
+
+const SDK_UPGRADE_TRACE_COUNT_LOOKBACK_HOURS = 24;
+const SDK_UPGRADE_STATUS_RESULT_LIMIT = 20;
+const SDK_UPGRADE_IGNORED_SOURCE_VALUES = [
+  "ingestion-api-backfill",
+  "otel-backfill",
+] as const;
+const SDK_UPGRADE_SUPPORTED_SDK_NAMES = Object.values(
+  INGESTION_SDK_CANONICAL_NAME_ALIASES,
+).flat();
+
+type SdkUpgradeCandidate = {
+  sdkName: string;
+  sdkVersion: string;
+  canonicalSdkName: IngestionSdkCanonicalName;
+  major: number;
+  count: number;
+};
+
+const toSdkUpgradeCandidate = (row: {
+  sdk_name: string;
+  sdk_version: string;
+  count: string | number;
+}): SdkUpgradeCandidate | null => {
+  const classification = classifyIngestionSdkVersion({
+    sdkName: row.sdk_name,
+    sdkVersion: row.sdk_version,
+  });
+
+  if (
+    classification.status !== "outdated_major" ||
+    !classification.canonicalSdkName ||
+    classification.major === null
+  ) {
+    return null;
+  }
+
+  return {
+    sdkName: row.sdk_name,
+    sdkVersion: row.sdk_version,
+    canonicalSdkName: classification.canonicalSdkName,
+    major: classification.major,
+    count: Number(row.count),
+  };
+};
+
+export async function getSdkUpgradeStatusFromEvents(params: {
+  projectId: string;
+}): Promise<{
+  sdkVersions: SdkUpgradeCandidate[];
+}> {
+  const { projectId } = params;
+  const lookbackStart = new Date(
+    Date.now() - SDK_UPGRADE_TRACE_COUNT_LOOKBACK_HOURS * 60 * 60 * 1000,
+  );
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn:
+      "lower(trim(e.ingestion_sdk_name)), lower(trim(e.ingestion_sdk_version))",
+    selectExpression: `
+      lower(trim(e.ingestion_sdk_name)) AS sdk_name,
+      lower(trim(e.ingestion_sdk_version)) AS sdk_version,
+      uniq(e.trace_id) AS count
+    `,
+  })
+    .whereRaw("e.start_time >= {lookbackStart: DateTime64(3)}", {
+      lookbackStart: convertDateToClickhouseDateTime(lookbackStart),
+    })
+    .whereRaw("e.is_deleted = 0")
+    .whereRaw(
+      "lower(e.source) NOT IN ({ignoredSdkUpgradeSources: Array(String)})",
+      { ignoredSdkUpgradeSources: [...SDK_UPGRADE_IGNORED_SOURCE_VALUES] },
+    )
+    .whereRaw(
+      "lower(trim(e.ingestion_sdk_name)) IN ({supportedSdkNames: Array(String)})",
+      { supportedSdkNames: SDK_UPGRADE_SUPPORTED_SDK_NAMES },
+    )
+    .orderBy("ORDER BY count DESC");
+
+  const { query, params: queryParams } = queryBuilder.buildWithParams();
+
+  const rows = await queryClickhouse<{
+    sdk_name: string;
+    sdk_version: string;
+    count: string | number;
+  }>({
+    query,
+    params: queryParams,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return {
+    sdkVersions: rows
+      .map(toSdkUpgradeCandidate)
+      .filter((candidate): candidate is SdkUpgradeCandidate =>
+        Boolean(candidate),
+      )
+      .slice(0, SDK_UPGRADE_STATUS_RESULT_LIMIT),
+  };
+}
 
 /**
  * Infers SDK details from the most recent OTel-compatible event in the past

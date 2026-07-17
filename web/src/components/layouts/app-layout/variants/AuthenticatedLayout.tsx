@@ -24,6 +24,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { SdkUpgradeModal } from "@/src/features/events/components/SdkUpgradeModal";
 
 const CommandMenu = dynamic(
   () =>
@@ -198,6 +199,7 @@ export function AuthenticatedLayout({
                 onOpenChange={setFeaturePreviewOpen}
               />
             ) : null}
+            <SdkUpgradeModal userId={user.id ?? user.email ?? "unknown"} />
           </div>
         </SidebarProvider>
       </TopBannerProvider>

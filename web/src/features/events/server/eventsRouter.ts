@@ -4,6 +4,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
   protectedGetTraceProcedure,
+  requireLangfuseCloud,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
@@ -33,6 +34,7 @@ import {
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
   getLatestSdkVersionInfoFromEvents,
+  getSdkUpgradeStatusFromEvents,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -398,6 +400,20 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           return getLatestSdkVersionInfoFromEvents({
             projectId: input.projectId,
+          });
+        },
+      );
+    }),
+  getSdkUpgradeStatus: protectedProjectProcedure
+    .use(requireLangfuseCloud)
+    .input(zodSchema.object({ projectId: zodSchema.string() }))
+    .query(async ({ ctx }) => {
+      return instrumentAsync(
+        { name: "get-sdk-upgrade-status-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", ctx.session.projectId);
+          return getSdkUpgradeStatusFromEvents({
+            projectId: ctx.session.projectId,
           });
         },
       );

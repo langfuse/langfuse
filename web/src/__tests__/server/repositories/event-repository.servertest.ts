@@ -12,6 +12,7 @@ import {
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
+  getSdkUpgradeStatusFromEvents,
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
@@ -3579,6 +3580,128 @@ describe("Clickhouse Events Repository Test", () => {
       expect(withToolCalls.length).toBe(1);
       expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
       expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
+  });
+
+  maybe("getSdkUpgradeStatusFromEvents", () => {
+    it("should return recent SDK attribution", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.0.0",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "python", sdkVersion: "4.0.0", source: "API", count: 1 },
+      ]);
+    });
+
+    it("should group recent SDK attribution by trace count", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+          start_time: Date.now() * 1000,
+        }),
+        createEvent({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "python", sdkVersion: "3.4.0", source: "API", count: 1 },
+      ]);
+    });
+
+    it("should return unknown SDK attribution", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sdkVersions).toEqual([
+        { sdkName: "unknown", sdkVersion: "unknown", source: "API", count: 1 },
+      ]);
+    });
+
+    it("should return backfill source for frontend fallback classification", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          source: "ingestion-api-backfill",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sdkVersions).toEqual([
+        {
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          source: "ingestion-api-backfill",
+          count: 1,
+        },
+      ]);
+    });
+
+    it("should ignore SDK attribution outside the 24 hour lookback window", async () => {
+      const uniqueProjectId = randomUUID();
+      const twentyFiveHoursAgoMicros =
+        (Date.now() - 25 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+          start_time: twentyFiveHoursAgoMicros,
+        }),
+      ]);
+
+      const result = await getSdkUpgradeStatusFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.sdkVersions).toEqual([]);
     });
   });
 

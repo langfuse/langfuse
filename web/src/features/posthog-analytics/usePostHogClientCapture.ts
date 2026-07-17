@@ -283,6 +283,11 @@ export const events = {
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  sdk_upgrade_modal: [
+    "remind_me_later_button_click",
+    "copy_ai_prompt_button_click",
+    "view_upgrade_guide_button_click",
+  ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
