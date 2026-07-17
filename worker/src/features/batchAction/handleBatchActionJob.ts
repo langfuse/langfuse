@@ -9,6 +9,7 @@ import {
   TQueueJobTypes,
   findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
+  applyCommentFilters,
 } from "@langfuse/shared/src/server";
 import {
   BatchActionType,
@@ -48,6 +49,38 @@ const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
   return filters.map((f: FilterCondition) =>
     f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
   );
+};
+
+const resolveObservationCommentFilters = async ({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter: FilterCondition[];
+}): Promise<FilterCondition[]> => {
+  // Observation comments live in Postgres, while the event and legacy
+  // observation streams query ClickHouse. Resolve comment predicates to an
+  // observation ID predicate before constructing either stream.
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: filter,
+    prisma,
+    projectId,
+    objectType: "OBSERVATION",
+  });
+
+  // applyCommentFilters removes the resolved comment predicates. If none
+  // matched, passing filterState alone could leave the stream unconstrained,
+  // so encode an explicitly empty selection and let the batch action complete.
+  return hasNoMatches
+    ? [
+        {
+          type: "stringOptions",
+          operator: "any of",
+          column: "id",
+          value: [],
+        },
+      ]
+    : filterState;
 };
 
 type HandleBatchActionJobDeps = {
@@ -184,10 +217,21 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter =
+      actionId === "observation-add-to-annotation-queue"
+        ? await resolveObservationCommentFilters({
+            projectId,
+            filter: convertedFilter,
+          })
+        : convertedFilter;
+
     const streamParams = {
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
@@ -369,10 +413,18 @@ export const handleBatchActionJob = async (
     const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
 
     // Get observation stream — use events table when tableName indicates it
+    const convertedFilter = convertDatesInFiltersFromStrings(
+      query.filter ?? [],
+    );
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertedFilter,
+    });
+
     const streamParams = {
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
@@ -476,10 +528,15 @@ export const handleBatchActionJob = async (
       return;
     }
 
+    const filter = await resolveObservationCommentFilters({
+      projectId,
+      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+    });
+
     const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
       rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,

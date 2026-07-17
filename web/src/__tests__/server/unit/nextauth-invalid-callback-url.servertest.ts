@@ -91,6 +91,18 @@ describe("[...nextauth] invalid callbackUrl handling", () => {
     expect(mockNextAuth).not.toHaveBeenCalled();
   });
 
+  it("rejects a callbackUrl containing decoded control characters", async () => {
+    const { res } = await callHandler({
+      query: {
+        nextauth: ["callback", "email"],
+        callbackUrl: "/project/test\r\nscanner-payload",
+      },
+    });
+
+    expect(res._getStatusCode()).toBe(400);
+    expect(mockNextAuth).not.toHaveBeenCalled();
+  });
+
   it("rejects an invalid callback-url cookie with 400", async () => {
     const { res } = await callHandler({
       cookies: { "next-auth.callback-url": "z`z'z\"${{%{{\\" },
