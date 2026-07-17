@@ -106,47 +106,6 @@ export function ChatMessage({
     );
   }
 
-  if (contentMode === "data") {
-    if (toolCalls.length > 0) {
-      return (
-        <div className="bg-muted/30 rounded-md border p-2">
-          <MarkdownJsonViewHeader
-            title={title}
-            handleOnValueChange={() => {}}
-            handleOnCopy={() => {
-              const rawText = JSON.stringify(message, null, 2);
-              copyTextToClipboard(rawText);
-            }}
-          />
-          <ToolCallInvocationsView
-            message={message}
-            toolCallNumbers={toolCallNumbers}
-          />
-        </div>
-      );
-    }
-
-    if (
-      message.role === "tool" ||
-      message.role === "function" ||
-      isOnlyJsonMessage(message) ||
-      hasPassthroughJson(message) ||
-      hasAdditionalData(message)
-    ) {
-      return (
-        <div className="bg-muted/30 rounded-md border">
-          <PrettyJsonView
-            title={title || (isOutputMessage ? "Output data" : "Input data")}
-            json={message.json ?? message.content ?? message}
-            currentView="pretty"
-          />
-        </div>
-      );
-    }
-
-    return null;
-  }
-
   // JSON-only message (non-ChatML object)
   if (isOnlyJsonMessage(message)) {
     return (

@@ -80,15 +80,6 @@ describe("ChatMessage content modes", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText("search_traces")).not.toBeInTheDocument();
   });
-
-  it("keeps tool details but removes assistant prose in data mode", () => {
-    renderChatMessage(assistantWithToolCall, { contentMode: "data" });
-
-    expect(screen.getByText("search_traces")).toBeInTheDocument();
-    expect(
-      screen.queryByText("I will check that for you."),
-    ).not.toBeInTheDocument();
-  });
 });
 
 // getByRole ignores elements hidden via display:none, so queries only see the

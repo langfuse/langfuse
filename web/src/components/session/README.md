@@ -6,14 +6,14 @@ feature-flagged choice between the existing card layout and Modern Session.
 ## Render boundaries
 
 - `TraceRow.tsx`: legacy trace card and lazy-load boundary.
-- `TraceEventsRow.tsx`: events-backed trace content with explicit card,
-  modern-session-feed, and compact-data surfaces.
+- `TraceEventsRow.tsx`: events-backed trace content for card and Modern Session
+  feed surfaces.
 - `ModernSession.tsx`: minimap, scroll-spy derivation, smooth navigation, and
   the continuous virtualized feed.
 - `SessionVirtualizedRow.tsx` + `useStableVirtualRowMeasurement.ts`: translated
   DOM-safe dynamic row measurement.
 - `SessionObservationIO.tsx`: bounded observation payload rendering and the
-  bridge into `IOPreview` conversation/data modes.
+  bridge into `IOPreview` full/conversation modes.
 
 Modern Session prepares each events-backed observation once inside its narrow
 row container and passes the parsed I/O plus ChatML result through `IOPreview`.
@@ -32,9 +32,3 @@ Server/query state remains in tRPC and React Query. Active Modern Session state
 is derived from TanStack Virtual's current scroll offset unless the user
 explicitly selects a minimap item that cannot reach the feed's top edge. User
 scrolling restores scroll-spy ownership; no effect mirrors either state.
-
-## Next extraction
-
-`LoadedSessionEventsPage` still owns filter/view-controller setup. The next
-coherent slice is moving that setup into an events-session controller while
-keeping the two layout components view-only.

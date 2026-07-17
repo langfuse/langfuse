@@ -16,7 +16,7 @@ import { type IOPreviewContentMode } from "@/src/components/trace/components/IOP
 import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import { isOnlyJsonMessage } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
 
-export type TraceEventsSurface = "card" | "modern" | "data";
+export type TraceEventsSurface = "card" | "modern";
 
 // Display copy for the per-card observation cap; the authoritative limit is
 // SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
@@ -375,11 +375,9 @@ export const TraceEventsRow = React.memo(
         className={
           surface === "card"
             ? "border-border shadow-none"
-            : surface === "modern"
-              ? isActive
-                ? "bg-background border-l-primary border-l-2"
-                : "bg-background border-l-2 border-l-transparent"
-              : "min-w-0"
+            : isActive
+              ? "bg-background border-l-primary border-l-2"
+              : "bg-background border-l-2 border-l-transparent"
         }
         data-modern-session-active={surface === "modern" && isActive}
       >
@@ -394,9 +392,7 @@ export const TraceEventsRow = React.memo(
             className={
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
-                : surface === "modern"
-                  ? "min-w-0 px-6 pb-10"
-                  : "min-w-0 overflow-hidden"
+                : "min-w-0 px-6 pb-10"
             }
           >
             {surface === "modern" ? (

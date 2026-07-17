@@ -16,7 +16,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
 
 export type { ViewMode };
-export type IOPreviewContentMode = "all" | "conversation" | "data";
+export type IOPreviewContentMode = "all" | "conversation";
 
 const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";

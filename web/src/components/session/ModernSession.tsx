@@ -9,6 +9,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { cn } from "@/src/utils/tailwind";
+import { usdFormatter } from "@/src/utils/numbers";
 
 const MODERN_SESSION_OVERSCAN = 5;
 
@@ -23,6 +24,7 @@ type ModernSessionProps = {
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
+  totalCost: number;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
 };
@@ -131,6 +133,7 @@ const ModernSessionMinimap = React.memo(
     traceCommentCounts,
     openPeek,
     onSelect,
+    totalCost,
   }: {
     traces: EventSessionTrace[];
     activeTraceId: string | undefined;
@@ -138,11 +141,15 @@ const ModernSessionMinimap = React.memo(
     traceCommentCounts: Map<string, number> | undefined;
     openPeek: OpenPeek;
     onSelect: (index: number) => void;
+    totalCost: number;
   }) => (
     <aside className="bg-muted/10 min-h-0 overflow-y-auto border-r">
-      <div className="bg-background sticky top-0 z-10 border-b px-3 py-2">
+      <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
         <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
           Traces · {traces.length}
+        </span>
+        <span className="text-muted-foreground text-xs font-medium">
+          Total cost · {usdFormatter(totalCost, 2)}
         </span>
       </div>
       {traces.map((trace, index) => (
@@ -171,6 +178,7 @@ export function ModernSession({
   filterState,
   filterMeasurementKey,
   viewLabel,
+  totalCost,
   showInlineToolCalls,
   showSystemPrompt,
 }: ModernSessionProps) {
@@ -227,6 +235,7 @@ export function ModernSession({
         traceCommentCounts={traceCommentCounts}
         openPeek={openPeek}
         onSelect={selectTrace}
+        totalCost={totalCost}
       />
       <div
         ref={feedRef}

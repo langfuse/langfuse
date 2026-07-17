@@ -80,29 +80,13 @@ export function shouldRenderMessageForContentMode(
 
   if (contentMode === "all") return shouldRenderMessage(message);
 
-  if (contentMode === "conversation") {
-    return (
-      (message.role === "user" ||
-        message.role === "assistant" ||
-        message.role === "system") &&
-      (hasRenderableContent(message) ||
-        hasThinkingContent(message) ||
-        hasRedactedThinkingContent(message))
-    );
-  }
-
-  const isToolResult = message.role === "tool" || message.role === "function";
-  const hasToolCalls = parseToolCallsFromMessage(message).length > 0;
-  const hasDataWithoutConversation =
-    !hasRenderableContent(message) && hasAdditionalData(message);
-
   return (
-    isToolResult ||
-    hasToolCalls ||
-    isOnlyJsonMessage(message) ||
-    hasPassthroughJson(message) ||
-    isPlaceholderMessage(message) ||
-    hasDataWithoutConversation
+    (message.role === "user" ||
+      message.role === "assistant" ||
+      message.role === "system") &&
+    (hasRenderableContent(message) ||
+      hasThinkingContent(message) ||
+      hasRedactedThinkingContent(message))
   );
 }
 

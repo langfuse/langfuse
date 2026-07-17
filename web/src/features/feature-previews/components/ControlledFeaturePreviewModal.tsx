@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -29,12 +28,8 @@ export function ControlledFeaturePreviewModal({
   const authSession = useSession();
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
-  const [pendingFlags, setPendingFlags] = useState<Set<PreviewFlag>>(new Set());
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
-      onMutate: (variables) => {
-        setPendingFlags((current) => new Set(current).add(variables.flag));
-      },
       onSuccess: async (_data, variables) => {
         await authSession.update();
         capture("user_settings:feature_preview_toggled", {
@@ -50,13 +45,6 @@ export function ControlledFeaturePreviewModal({
       },
       onError: (error) => {
         showErrorToast("Failed to update feature preview", error.message);
-      },
-      onSettled: (_data, _error, variables) => {
-        setPendingFlags((current) => {
-          const next = new Set(current);
-          next.delete(variables.flag);
-          return next;
-        });
       },
     });
 
@@ -77,7 +65,7 @@ export function ControlledFeaturePreviewModal({
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("modernSession"),
-      isToggling: pendingFlags.has("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
     },
     // The "Filter Search Bar" preview is retired — the bar is now generally
     // available on the v4 events tables for everyone (see useSearchBarEnabled),

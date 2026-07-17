@@ -27,7 +27,19 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/components/trace/components/IOPreview/IOPreview", () => ({
-  IOPreview: () => <div data-testid="io-preview" />,
+  IOPreview: ({
+    contentMode,
+    showSystemPrompt,
+  }: {
+    contentMode?: string;
+    showSystemPrompt?: boolean;
+  }) => (
+    <div
+      data-testid="io-preview"
+      data-content-mode={contentMode}
+      data-show-system-prompt={String(showSystemPrompt)}
+    />
+  ),
 }));
 
 vi.mock("@/src/components/session/actions/downloadSessionAsJson", () => ({
@@ -38,6 +50,8 @@ import {
   SessionObservationIO,
   type SessionTraceObservation,
 } from "./SessionObservationIO";
+import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 
 const baseObservation = {
   id: "obs-1",
@@ -56,6 +70,11 @@ const baseObservation = {
 const renderComponent = (
   observation: SessionTraceObservation,
   onOpenInTraceView = vi.fn(),
+  options?: {
+    contentMode?: IOPreviewContentMode;
+    showSystemPrompt?: boolean;
+    chatMLParserResult?: ChatMLParserResult;
+  },
 ) => {
   render(
     <SessionObservationIO
@@ -65,6 +84,7 @@ const renderComponent = (
       traceId="t1"
       showCorrections={false}
       onOpenInTraceView={onOpenInTraceView}
+      {...options}
     />,
   );
   return { onOpenInTraceView };
@@ -97,6 +117,49 @@ describe("SessionObservationIO", () => {
     // True size is surfaced so users know what they are dealing with.
     expect(screen.getByText(/2\.5M characters/i)).toBeInTheDocument();
   });
+
+  it.each([
+    ["conversation", false],
+    ["all", false],
+  ] satisfies Array<[IOPreviewContentMode, boolean]>)(
+    "keeps filtered ChatML rendering for truncated I/O in %s mode",
+    (contentMode, showSystemPrompt) => {
+      const chatMLParserResult: ChatMLParserResult = {
+        canDisplayAsChat: true,
+        allMessages: [],
+        additionalInput: undefined,
+        allTools: [],
+        toolCallCounts: new Map(),
+        toolCallsByName: new Map(),
+        messageToToolCallNumbers: new Map(),
+        toolNameToDefinitionNumber: new Map(),
+        inputMessageCount: 0,
+      };
+
+      renderComponent(
+        {
+          ...baseObservation,
+          outputTruncated: true,
+        } as SessionTraceObservation,
+        vi.fn(),
+        { contentMode, showSystemPrompt, chatMLParserResult },
+      );
+
+      expect(screen.getByTestId("io-preview")).toHaveAttribute(
+        "data-content-mode",
+        contentMode,
+      );
+      expect(screen.getByTestId("io-preview")).toHaveAttribute(
+        "data-show-system-prompt",
+        "false",
+      );
+      expect(screen.queryByText("Input")).not.toBeInTheDocument();
+      expect(screen.queryByText("Output")).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/too large to display in the session view/i),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("opens the trace view at the observation", () => {
     const { onOpenInTraceView } = renderComponent({

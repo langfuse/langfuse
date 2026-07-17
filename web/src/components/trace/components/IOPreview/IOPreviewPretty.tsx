@@ -264,7 +264,6 @@ export function IOPreviewPretty({
 
   // Determine if metadata should be shown
   const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
-  const showConversation = contentMode !== "data";
   const showData = contentMode !== "conversation";
   const shouldRenderMessages =
     canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
@@ -293,7 +292,7 @@ export function IOPreviewPretty({
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
           />
-          {showConversation && showCorrections && (
+          {showCorrections && (
             <CorrectedOutputField
               actualOutput={parsedOutput}
               existingCorrection={outputCorrection}
@@ -308,7 +307,7 @@ export function IOPreviewPretty({
         <>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-            {showConversation && showCorrections && (
+            {showCorrections && (
               <CorrectedOutputField
                 actualOutput={parsedOutput}
                 existingCorrection={outputCorrection}

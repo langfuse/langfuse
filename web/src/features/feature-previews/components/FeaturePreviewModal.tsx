@@ -61,7 +61,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     description:
       "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
     details:
-      "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, expand tool data only when needed, or temporarily interleave tool calls with the conversation.",
+      "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, or temporarily show inline tool calls and system prompts.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
     illustration: {
       light: modernSessionLightIllustration,

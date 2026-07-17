@@ -324,12 +324,6 @@ describe("chat-message-utils", () => {
       role: "tool",
       content: "Order lookup complete.",
     });
-    const systemDataMessage = createMessage({
-      role: "system",
-      name: "planner-instructions",
-      content: "",
-    });
-
     it("controls system prompts independently from inline data", () => {
       expect(
         shouldRenderMessageForContentMode(systemMessage, "conversation", false),
@@ -356,9 +350,6 @@ describe("chat-message-utils", () => {
         shouldRenderMessageForContentMode(systemMessage, "conversation"),
       ).toBe(false);
       expect(shouldRenderMessageForContentMode(systemMessage, "all")).toBe(
-        true,
-      );
-      expect(shouldRenderMessageForContentMode(systemDataMessage, "data")).toBe(
         true,
       );
     });

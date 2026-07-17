@@ -18,12 +18,19 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  CopyIcon,
+  Download,
+  ExternalLinkIcon,
+} from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -66,7 +73,6 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
-  SESSION_DETAIL_DRAWER_SYSTEM_PRESETS,
   SESSION_DETAIL_LLM_CALL_PRESETS,
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
@@ -1052,6 +1058,9 @@ const LoadedSessionEventsPage: React.FC<{
       ? filterMatchedView
       : null;
   const viewLabel = matchedView?.name ?? null;
+  const isLlmCallPresetActive = SESSION_DETAIL_LLM_CALL_PRESETS.some(
+    (preset) => matchedView?.id === preset.id,
+  );
 
   const applyLlmCallPreset = (preset: SessionDetailSystemPreset) => {
     capture("saved_views:system_preset_selected", {
@@ -1189,6 +1198,41 @@ const LoadedSessionEventsPage: React.FC<{
                 observationId={null}
                 sessionId={sessionId}
               />
+              {isModernSessionEnabled ? (
+                <div className="flex items-center gap-3 pr-2">
+                  <span className="text-muted-foreground text-xs">Show:</span>
+                  <label className="flex items-center gap-1.5">
+                    <Switch
+                      checked={showCorrections}
+                      onCheckedChange={setShowCorrectionsForSession}
+                      size="sm"
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      corrections
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <Switch
+                      checked={showInlineToolCalls}
+                      onCheckedChange={setInlineToolCallsForSession}
+                      size="sm"
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      tool calls
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <Switch
+                      checked={showSystemPrompt}
+                      onCheckedChange={setShowSystemPromptForSession}
+                      size="sm"
+                    />
+                    <span className="text-muted-foreground text-xs">
+                      system prompt
+                    </span>
+                  </label>
+                </div>
+              ) : null}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -1218,18 +1262,18 @@ const LoadedSessionEventsPage: React.FC<{
                   variant="outline"
                 />
               </div>
-              <div className="flex items-center">
-                <div className="mx-1">
+              {!isModernSessionEnabled ? (
+                <label className="flex items-center gap-1.5">
                   <Switch
                     checked={showCorrections}
                     onCheckedChange={setShowCorrectionsForSession}
                     size="sm"
                   />
-                </div>
-                <span className="text-muted-foreground text-xs">
-                  Show corrections
-                </span>
-              </div>
+                  <span className="text-muted-foreground text-xs">
+                    Show corrections
+                  </span>
+                </label>
+              ) : null}
             </>
           ),
         }}
@@ -1242,24 +1286,56 @@ const LoadedSessionEventsPage: React.FC<{
           }
         >
           <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
-            {isModernSessionEnabled
-              ? SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
-                  const isActive = matchedView?.id === preset.id;
-                  return (
-                    <Button
-                      key={preset.id}
-                      type="button"
-                      variant="outline"
-                      aria-pressed={isActive}
-                      title={preset.description}
-                      className={isActive ? "bg-primary/5" : undefined}
-                      onClick={() => applyLlmCallPreset(preset)}
-                    >
-                      {preset.name}
-                    </Button>
-                  );
-                })
-              : null}
+            {isModernSessionEnabled ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-pressed={isLlmCallPresetActive}
+                    className={
+                      isLlmCallPresetActive ? "bg-primary/5" : undefined
+                    }
+                  >
+                    LLM Calls per Trace
+                    <ChevronDown className="ml-1 h-4 w-4" aria-hidden />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-1">
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+                    LLM Calls per Trace
+                  </div>
+                  {SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
+                    const isActive = matchedView?.id === preset.id;
+                    return (
+                      <PopoverClose asChild key={preset.id}>
+                        <button
+                          type="button"
+                          aria-current={isActive ? "true" : undefined}
+                          className="hover:bg-accent flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                          onClick={() => applyLlmCallPreset(preset)}
+                        >
+                          <span className="flex flex-col">
+                            <span className="font-medium">{preset.name}</span>
+                            {preset.description ? (
+                              <span className="text-muted-foreground text-xs">
+                                {preset.description}
+                              </span>
+                            ) : null}
+                          </span>
+                          {isActive ? (
+                            <CheckIcon
+                              className="mt-0.5 h-4 w-4 shrink-0"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </button>
+                      </PopoverClose>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            ) : null}
 
             {/* Saved Views */}
             <TableViewPresetsDrawer
@@ -1275,11 +1351,7 @@ const LoadedSessionEventsPage: React.FC<{
                 columnVisibility,
                 searchQuery: "",
               }}
-              systemFilterPresets={
-                isModernSessionEnabled
-                  ? SESSION_DETAIL_DRAWER_SYSTEM_PRESETS
-                  : SESSION_DETAIL_SYSTEM_PRESETS
-              }
+              systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
               triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
@@ -1301,11 +1373,18 @@ const LoadedSessionEventsPage: React.FC<{
             {/* Separator */}
             <Separator orientation="vertical" className="h-6" />
 
-            {/* Stats */}
-            <Badge variant="outline">Total traces: {session.countTraces}</Badge>
-            <Badge variant="outline">
-              Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
-            </Badge>
+            {/* Stats stay in the toolbar for the existing card layout. Modern
+                Session shows trace count and cost in its minimap header. */}
+            {!isModernSessionEnabled ? (
+              <>
+                <Badge variant="outline">
+                  Total traces: {session.countTraces}
+                </Badge>
+                <Badge variant="outline">
+                  Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                </Badge>
+              </>
+            ) : null}
 
             {/* Users */}
             {session.users?.length ? (
@@ -1315,31 +1394,6 @@ const LoadedSessionEventsPage: React.FC<{
             {/* Scores */}
             <SessionScores scores={session.scores} />
 
-            {isModernSessionEnabled ? (
-              <div className="ml-auto flex items-center gap-3 pl-2">
-                <span className="text-muted-foreground text-xs">Show:</span>
-                <label className="flex items-center gap-1.5">
-                  <Switch
-                    checked={showInlineToolCalls}
-                    onCheckedChange={setInlineToolCallsForSession}
-                    size="sm"
-                  />
-                  <span className="text-muted-foreground text-xs">
-                    inline tool calls
-                  </span>
-                </label>
-                <label className="flex items-center gap-1.5">
-                  <Switch
-                    checked={showSystemPrompt}
-                    onCheckedChange={setShowSystemPromptForSession}
-                    size="sm"
-                  />
-                  <span className="text-muted-foreground text-xs">
-                    system prompt
-                  </span>
-                </label>
-              </div>
-            ) : null}
           </div>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
@@ -1390,6 +1444,7 @@ const LoadedSessionEventsPage: React.FC<{
               filterState={visibleFilterState}
               filterMeasurementKey={visibleFilterMeasurementKey}
               viewLabel={viewLabel}
+              totalCost={session.totalCost ?? 0}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
             />

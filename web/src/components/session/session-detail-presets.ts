@@ -96,11 +96,6 @@ export const SESSION_DETAIL_LLM_CALL_PRESETS =
     preset.filters.some((filter) => filter.type === "positionInTrace"),
   );
 
-export const SESSION_DETAIL_DRAWER_SYSTEM_PRESETS =
-  SESSION_DETAIL_SYSTEM_PRESETS.filter(
-    (preset) => !SESSION_DETAIL_LLM_CALL_PRESETS.includes(preset),
-  );
-
 /**
  * The default view: "All observations with I/O". Shows the real session out of
  * the box (chat looks like chat, an agent run shows its tool calls) without the

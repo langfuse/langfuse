@@ -158,9 +158,7 @@ export function ChatMessageList({
         )}
 
         {/* Media section */}
-        {contentMode !== "data" && remainingMedia.length > 0 && (
-          <SectionMedia media={remainingMedia} />
-        )}
+        {remainingMedia.length > 0 && <SectionMedia media={remainingMedia} />}
       </div>
     </div>
   );
