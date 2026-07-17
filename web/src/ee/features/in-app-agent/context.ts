@@ -222,8 +222,7 @@ export function getInAppAgentQuickActionAttribution(
     ?.value.trim();
   const quickActionCategory = context
     .find(
-      (item) =>
-        item.description === QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
+      (item) => item.description === QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
     )
     ?.value.trim();
 
