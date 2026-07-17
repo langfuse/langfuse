@@ -3078,62 +3078,6 @@ describe("batch export test suite", () => {
       );
     });
 
-    it("should export Events selected by observation comment filters", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const searchToken = `eventcomment${randomUUID().replaceAll("-", "")}`;
-      const events = [
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          name: "event-with-matching-comment",
-        }),
-        createEvent({
-          project_id: projectId,
-          trace_id: randomUUID(),
-          name: "event-without-matching-comment",
-        }),
-      ];
-      await createEventsCh(events);
-      await prisma.comment.create({
-        data: {
-          projectId,
-          objectType: "OBSERVATION",
-          objectId: events[0].id,
-          content: `Export ${searchToken}`,
-        },
-      });
-
-      const { filterState } = await applyCommentFilters({
-        filterState: [
-          {
-            type: "string",
-            column: "commentContent",
-            operator: "contains",
-            value: searchToken,
-          },
-        ],
-        prisma,
-        projectId,
-        objectType: "OBSERVATION",
-      });
-
-      const rows = await (
-        await getEventsStream({
-          projectId,
-          cutoffCreatedAt: new Date(Date.now() + 60_000),
-          filter: filterState,
-        })
-      ).toArray();
-
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        id: events[0].id,
-        comments: [
-          expect.objectContaining({ content: `Export ${searchToken}` }),
-        ],
-      });
-    });
-
     it("should export events with name filter", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

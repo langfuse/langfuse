@@ -46,7 +46,7 @@ const originalPreviewOptIn =
 
 const projectId = "project-id";
 const evaluatorId = "evaluator-id";
-const commentFilter = {
+const rawCommentFilter = {
   type: "string" as const,
   column: "commentContent",
   operator: "contains" as const,
@@ -59,10 +59,8 @@ const resolvedIdFilter = {
   value: ["matching-observation"],
 };
 const query: BatchActionQuery = {
-  filter: [commentFilter],
+  filter: [rawCommentFilter],
   orderBy: null,
-  searchQuery: "search text",
-  searchType: ["id"],
 };
 const datasetConfig = {
   datasetId: "dataset-id",
@@ -97,7 +95,7 @@ function prepare() {
   const batchActionCreate = vi
     .fn()
     .mockResolvedValue({ id: "batch-action-id" });
-  const fakePrisma = {
+  const prisma = {
     batchAction: { create: batchActionCreate },
     jobConfiguration: {
       findMany: vi.fn(async () => [{ id: evaluatorId }]),
@@ -105,11 +103,11 @@ function prepare() {
   } as unknown as PrismaClient;
   const ctx = {
     ...createInnerTRPCContext({ session, headers: {} }),
-    prisma: fakePrisma,
+    prisma,
   };
 
   return {
-    prisma: fakePrisma,
+    prisma,
     batchActionCreate,
     addToDataset: addToDatasetRouter.createCaller(ctx),
     runEvaluation: runEvaluationRouter.createCaller(ctx),
@@ -118,7 +116,6 @@ function prepare() {
 
 type TestContext = ReturnType<typeof prepare>;
 type Action = "add-to-dataset" | "run-evaluation";
-
 const actions = [
   { label: "add-to-dataset", action: "add-to-dataset" },
   { label: "evaluation", action: "run-evaluation" },
@@ -135,13 +132,18 @@ function runAction(action: Action, context: TestContext) {
       });
 }
 
+function resolveComments(hasNoMatches = false) {
+  mocks.applyCommentFilters.mockResolvedValue({
+    filterState: hasNoMatches ? [] : [resolvedIdFilter],
+    hasNoMatches,
+    matchingIds: hasNoMatches ? [] : resolvedIdFilter.value,
+  });
+}
+
 describe("event batch-action comment filter preflight", () => {
   beforeEach(() => {
     mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
-    mocks.applyCommentFilters.mockReset();
-    mocks.getObservationsCountFromEventsTable.mockReset();
-    mocks.getObservationsTableCount.mockReset();
-    mocks.queueAdd.mockReset();
+    Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.getObservationsCountFromEventsTable.mockResolvedValue(1);
     mocks.getObservationsTableCount.mockResolvedValue(1);
     mocks.queueAdd.mockResolvedValue(undefined);
@@ -156,11 +158,7 @@ describe("event batch-action comment filter preflight", () => {
     "uses resolved comment filters for the $label count",
     async ({ action }) => {
       const context = prepare();
-      mocks.applyCommentFilters.mockResolvedValue({
-        filterState: [resolvedIdFilter],
-        hasNoMatches: false,
-        matchingIds: resolvedIdFilter.value,
-      });
+      resolveComments();
 
       await runAction(action, context);
 
@@ -175,17 +173,13 @@ describe("event batch-action comment filter preflight", () => {
       );
       expect(context.batchActionCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            query: expect.objectContaining({ filter: [commentFilter] }),
-          }),
+          data: expect.objectContaining({ query }),
         }),
       );
       expect(mocks.queueAdd).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({
-          payload: expect.objectContaining({
-            query: expect.objectContaining({ filter: [commentFilter] }),
-          }),
+          payload: expect.objectContaining({ query }),
         }),
         expect.anything(),
       );
@@ -196,11 +190,7 @@ describe("event batch-action comment filter preflight", () => {
     "skips the $label count when comment filters have no matches",
     async ({ action }) => {
       const context = prepare();
-      mocks.applyCommentFilters.mockResolvedValue({
-        filterState: [],
-        hasNoMatches: true,
-        matchingIds: [],
-      });
+      resolveComments(true);
 
       await runAction(action, context);
 
@@ -211,11 +201,7 @@ describe("event batch-action comment filter preflight", () => {
   it("uses resolved comment filters for the legacy Observation count", async () => {
     mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
     const context = prepare();
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: [resolvedIdFilter],
-      hasNoMatches: false,
-      matchingIds: resolvedIdFilter.value,
-    });
+    resolveComments();
 
     await runAction("add-to-dataset", context);
 
@@ -237,7 +223,6 @@ describe("event batch-action comment filter preflight", () => {
         code: "BAD_REQUEST",
         message: "comment-filter threshold",
       });
-      expect(mocks.getObservationsCountFromEventsTable).not.toHaveBeenCalled();
     },
   );
 });

@@ -8,137 +8,160 @@ import {
   validateObjectIdCount,
 } from "./commentFilterService";
 
+const prisma = {} as PrismaClient;
 const commonArgs = {
   projectId: "comment-filter-project",
   objectType: "OBSERVATION" as const,
+  prisma,
 };
 
-const commentCountFilter = (operator: "=" | ">=" | "<=", value: number) => ({
+const count = (operator: "=" | ">=" | "<=", value: number) => ({
   type: "number" as const,
   column: "commentCount",
   operator,
   value,
 });
 
-const commentContentFilter = (value: string) => ({
+const content = (value: string) => ({
   type: "string" as const,
   column: "commentContent",
   operator: "contains" as const,
   value,
 });
 
-const objectIdFilter = (operator: "any of" | "none of", value: string[]) => ({
+const idFilter = (operator: "any of" | "none of", value: string[]) => ({
   type: "stringOptions" as const,
   column: "id",
   operator,
   value,
 });
 
-const createPrisma = (...queryResults: Array<Array<{ object_id: string }>>) => {
-  const queryRaw = vi.fn();
-  queryResults.forEach((result) => queryRaw.mockResolvedValueOnce(result));
-
-  return {
-    prisma: { $queryRaw: queryRaw } as unknown as PrismaClient,
-    queryRaw,
-  };
-};
-
-afterEach(() => {
-  vi.restoreAllMocks();
+const selection = (matchingIds: string[]) => ({
+  filterState: [idFilter("any of", matchingIds)],
+  hasNoMatches: false,
+  matchingIds,
 });
 
+const resolve = (
+  filterState: Parameters<typeof applyCommentFilters>[0]["filterState"],
+) => applyCommentFilters({ filterState, ...commonArgs });
+
+const mockResults = (
+  method: "getObjectIdsByCommentCount" | "getObjectIdsByCommentContent",
+  ...results: string[][]
+) => {
+  const mock = vi.spyOn(commentsRepository, method);
+  results.forEach((result) => mock.mockResolvedValueOnce(result));
+  return mock;
+};
+
+afterEach(() => vi.restoreAllMocks());
+
 describe("applyCommentFilters", () => {
-  it("removes an unbounded zero-inclusive count filter without excluding uncommented events", async () => {
-    const { prisma, queryRaw } = createPrisma();
+  it("treats an unbounded zero-inclusive count filter as a no-op", async () => {
+    const countLookup = mockResults("getObjectIdsByCommentCount");
 
-    const result = await applyCommentFilters({
-      filterState: [commentCountFilter(">=", 0)],
-      prisma,
-      ...commonArgs,
-    });
-
-    expect(result).toEqual({
+    await expect(resolve([count(">=", 0)])).resolves.toEqual({
       filterState: [],
       hasNoMatches: false,
       matchingIds: null,
     });
-    expect(queryRaw).not.toHaveBeenCalled();
+    expect(countLookup).not.toHaveBeenCalled();
   });
 
-  it("applies content filtering when an unbounded count filter includes zero", async () => {
-    const matchingIds = ["observation-with-matching-comment"];
-    const { prisma, queryRaw } = createPrisma(
-      matchingIds.map((object_id) => ({ object_id })),
-    );
+  it("still applies content when the count predicate is a no-op", async () => {
+    const matchingIds = ["matching-observation"];
+    mockResults("getObjectIdsByCommentContent", matchingIds);
 
-    const result = await applyCommentFilters({
-      filterState: [
-        commentCountFilter(">=", 0),
-        commentContentFilter("needs-review"),
-      ],
-      prisma,
-      ...commonArgs,
-    });
-
-    expect(result).toEqual({
-      filterState: [objectIdFilter("any of", matchingIds)],
-      hasNoMatches: false,
-      matchingIds,
-    });
-    expect(queryRaw).toHaveBeenCalledOnce();
+    await expect(
+      resolve([count(">=", 0), content("needs-review")]),
+    ).resolves.toEqual(selection(matchingIds));
   });
 
-  it.each([
-    { operator: "<=" as const, value: 1 },
-    { operator: "=" as const, value: 0 },
-  ])(
-    "expresses a zero-inclusive $operator $value count filter as an exclusion",
-    async ({ operator, value }) => {
-      const excludedIds = ["observation-outside-count-range"];
-      const { prisma } = createPrisma(
-        excludedIds.map((object_id) => ({ object_id })),
-      );
+  it("expresses an exact zero count as an exclusion", async () => {
+    const excludedIds = ["commented-observation"];
+    const countLookup = mockResults("getObjectIdsByCommentCount", excludedIds);
 
-      const result = await applyCommentFilters({
-        filterState: [commentCountFilter(operator, value)],
-        prisma,
-        ...commonArgs,
-      });
-
-      expect(result).toEqual({
-        filterState: [objectIdFilter("none of", excludedIds)],
-        hasNoMatches: false,
-        matchingIds: null,
-      });
-    },
-  );
-
-  it("uses the tightest of multiple zero-inclusive upper bounds", async () => {
-    const prisma = {} as PrismaClient;
-    const getObjectIdsByCommentCount = vi
-      .spyOn(commentsRepository, "getObjectIdsByCommentCount")
-      .mockResolvedValue(["observation-above-tightest-bound"]);
-
-    const result = await applyCommentFilters({
-      filterState: [commentCountFilter("<=", 10), commentCountFilter("<=", 3)],
-      prisma,
-      ...commonArgs,
-    });
-
-    expect(result).toEqual({
-      filterState: [
-        objectIdFilter("none of", ["observation-above-tightest-bound"]),
-      ],
+    await expect(resolve([count("=", 0)])).resolves.toEqual({
+      filterState: [idFilter("none of", excludedIds)],
       hasNoMatches: false,
       matchingIds: null,
     });
-    expect(getObjectIdsByCommentCount).toHaveBeenCalledExactlyOnceWith({
-      prisma,
+    expect(countLookup).toHaveBeenCalledExactlyOnceWith({
+      ...commonArgs,
+      operator: ">",
+      value: 0,
+    });
+  });
+
+  it("uses the tightest zero-inclusive upper bound", async () => {
+    const excludedIds = ["observation-above-tightest-bound"];
+    const countLookup = mockResults("getObjectIdsByCommentCount", excludedIds);
+
+    await resolve([count("<=", 10), count("<=", 3)]);
+
+    expect(countLookup).toHaveBeenCalledExactlyOnceWith({
       ...commonArgs,
       operator: ">",
       value: 3,
     });
+  });
+
+  it.each([
+    {
+      name: "treats non-zero equality as inclusion",
+      filters: [count("=", 1)],
+      countResults: [["matching-observation"]],
+      contentResults: [],
+    },
+    {
+      name: "intersects equality with content",
+      filters: [count("=", 1), content("needs-review")],
+      countResults: [["matching-observation", "count-only"]],
+      contentResults: [["matching-observation", "content-only"]],
+    },
+    {
+      name: "intersects every content predicate",
+      filters: [content("urgent"), content("customer")],
+      countResults: [],
+      contentResults: [
+        ["matching-observation", "first-only"],
+        ["matching-observation", "second-only"],
+      ],
+    },
+    {
+      name: "intersects every content predicate with a bounded count",
+      filters: [count("<=", 1), content("urgent"), content("customer")],
+      countResults: [["outside-count-range"]],
+      contentResults: [
+        ["matching-observation", "first-only", "outside-count-range"],
+        ["matching-observation", "second-only"],
+      ],
+    },
+    {
+      name: "applies every lower bound even if one includes zero",
+      filters: [count(">=", 0), count(">=", 1)],
+      countResults: [
+        ["matching-observation", "first-only"],
+        ["matching-observation"],
+      ],
+      contentResults: [],
+    },
+  ])("$name", async ({ filters, countResults, contentResults }) => {
+    const countLookup = mockResults(
+      "getObjectIdsByCommentCount",
+      ...countResults,
+    );
+    const contentLookup = mockResults(
+      "getObjectIdsByCommentContent",
+      ...contentResults,
+    );
+
+    await expect(resolve(filters)).resolves.toEqual(
+      selection(["matching-observation"]),
+    );
+    expect(countLookup).toHaveBeenCalledTimes(countResults.length);
+    expect(contentLookup).toHaveBeenCalledTimes(contentResults.length);
   });
 
   it("validates the final content-filter intersection", async () => {
@@ -147,123 +170,16 @@ describe("applyCommentFilters", () => {
       (_, index) => `observation-${index}`,
     );
     const matchingIds = [broadIds[0]!];
-    const prisma = {} as PrismaClient;
-    vi.spyOn(commentsRepository, "getObjectIdsByCommentContent")
-      .mockResolvedValueOnce(broadIds)
-      .mockResolvedValueOnce(matchingIds);
+    mockResults("getObjectIdsByCommentContent", broadIds, matchingIds);
 
-    const result = await applyCommentFilters({
-      filterState: [
-        commentContentFilter("broad"),
-        commentContentFilter("narrow"),
-      ],
-      prisma,
-      ...commonArgs,
-    });
-
-    expect(result).toEqual({
-      filterState: [objectIdFilter("any of", matchingIds)],
-      hasNoMatches: false,
-      matchingIds,
-    });
-  });
-
-  it.each([
-    {
-      name: "applies an equality count filter that excludes zero",
-      filters: [commentCountFilter("=", 1)],
-      queryResults: [[{ object_id: "observation-with-one-comment" }]],
-      matchingIds: ["observation-with-one-comment"],
-    },
-    {
-      name: "intersects an equality count filter with comment content",
-      filters: [
-        commentCountFilter("=", 1),
-        commentContentFilter("needs-review"),
-      ],
-      queryResults: [
-        [
-          { object_id: "matching-observation" },
-          { object_id: "count-only-observation" },
-        ],
-        [
-          { object_id: "matching-observation" },
-          { object_id: "content-only-observation" },
-        ],
-      ],
-      matchingIds: ["matching-observation"],
-    },
-    {
-      name: "intersects multiple comment content filters",
-      filters: [
-        commentContentFilter("urgent"),
-        commentContentFilter("customer"),
-      ],
-      queryResults: [
-        [
-          { object_id: "matching-observation" },
-          { object_id: "first-content-only" },
-        ],
-        [
-          { object_id: "matching-observation" },
-          { object_id: "second-content-only" },
-        ],
-      ],
-      matchingIds: ["matching-observation"],
-    },
-    {
-      name: "intersects multiple content filters with a bounded count filter",
-      filters: [
-        commentCountFilter("<=", 1),
-        commentContentFilter("urgent"),
-        commentContentFilter("customer"),
-      ],
-      queryResults: [
-        [{ object_id: "observation-outside-count-range" }],
-        [
-          { object_id: "matching-observation" },
-          { object_id: "first-content-only" },
-          { object_id: "observation-outside-count-range" },
-        ],
-        [
-          { object_id: "matching-observation" },
-          { object_id: "second-content-only" },
-        ],
-      ],
-      matchingIds: ["matching-observation"],
-    },
-    {
-      name: "applies all lower bounds when only some include zero",
-      filters: [commentCountFilter(">=", 0), commentCountFilter(">=", 1)],
-      queryResults: [
-        [
-          { object_id: "matching-observation" },
-          { object_id: "first-query-only" },
-        ],
-        [{ object_id: "matching-observation" }],
-      ],
-      matchingIds: ["matching-observation"],
-    },
-  ])("$name", async ({ filters, queryResults, matchingIds }) => {
-    const { prisma, queryRaw } = createPrisma(...queryResults);
-
-    const result = await applyCommentFilters({
-      filterState: filters,
-      prisma,
-      ...commonArgs,
-    });
-
-    expect(result).toEqual({
-      filterState: [objectIdFilter("any of", matchingIds)],
-      hasNoMatches: false,
-      matchingIds,
-    });
-    expect(queryRaw).toHaveBeenCalledTimes(queryResults.length);
+    await expect(
+      resolve([content("broad"), content("narrow")]),
+    ).resolves.toEqual(selection(matchingIds));
   });
 });
 
 describe("validateObjectIdCount", () => {
-  it("rejects matches above the 50,000-ID guard with a user-facing error", () => {
+  it("throws a user-facing InvalidRequestError above the 50,000-ID guard", () => {
     const validate = () =>
       validateObjectIdCount(
         Array<string>(COMMENT_FILTER_THRESHOLD + 1).fill("observation-id"),

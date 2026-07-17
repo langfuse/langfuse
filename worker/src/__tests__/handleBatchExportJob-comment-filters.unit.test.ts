@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 import {
   BatchExportFileFormat,
   BatchExportStatus,
@@ -38,15 +38,6 @@ vi.mock("../env", () => ({
 vi.mock("../features/database-read-stream/event-stream", () => ({
   getEventsStream: mocks.getEventsStream,
 }));
-vi.mock("../features/database-read-stream/getDatabaseReadStream", () => ({
-  getDatabaseReadStreamPaginated: vi.fn(),
-}));
-vi.mock("../features/database-read-stream/observation-stream", () => ({
-  getObservationStream: vi.fn(),
-}));
-vi.mock("../features/database-read-stream/trace-stream", () => ({
-  getTraceStream: vi.fn(),
-}));
 
 import { prisma } from "@langfuse/shared/src/db";
 import { handleBatchExportJob } from "../features/batchExport/handleBatchExportJob";
@@ -68,45 +59,39 @@ const resolvedCommentFilter: FilterCondition[] = [
   },
 ];
 
-describe("event batch-export comment filter wiring", () => {
+it("resolves Events comments as observation comments before exporting", async () => {
   const stopAfterStreamSelection = new Error("stop after stream selection");
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.getEventsStream.mockRejectedValue(stopAfterStreamSelection);
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: resolvedCommentFilter,
-      hasNoMatches: false,
-      matchingIds: ["observation-1"],
-    });
-    mocks.findBatchExport.mockResolvedValue({
-      createdAt: new Date(),
-      status: BatchExportStatus.QUEUED,
-      format: BatchExportFileFormat.JSONL,
-      query: {
-        tableName: BatchExportTableName.Events,
-        filter: rawCommentFilter,
-        orderBy: null,
-      },
-    });
+  mocks.getEventsStream.mockRejectedValue(stopAfterStreamSelection);
+  mocks.applyCommentFilters.mockResolvedValue({
+    filterState: resolvedCommentFilter,
+    hasNoMatches: false,
+    matchingIds: ["observation-1"],
+  });
+  mocks.findBatchExport.mockResolvedValue({
+    createdAt: new Date(),
+    status: BatchExportStatus.QUEUED,
+    format: BatchExportFileFormat.JSONL,
+    query: {
+      tableName: BatchExportTableName.Events,
+      filter: rawCommentFilter,
+      orderBy: null,
+    },
   });
 
-  it("resolves Events comments as observation comments before streaming", async () => {
-    await expect(
-      handleBatchExportJob({
-        projectId: "project-1",
-        batchExportId: "export-1",
-      }),
-    ).rejects.toBe(stopAfterStreamSelection);
-
-    expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
-      filterState: rawCommentFilter,
-      prisma,
+  await expect(
+    handleBatchExportJob({
       projectId: "project-1",
-      objectType: "OBSERVATION",
-    });
-    expect(mocks.getEventsStream).toHaveBeenCalledWith(
-      expect.objectContaining({ filter: resolvedCommentFilter }),
-    );
+      batchExportId: "export-1",
+    }),
+  ).rejects.toBe(stopAfterStreamSelection);
+
+  expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
+    filterState: rawCommentFilter,
+    prisma,
+    projectId: "project-1",
+    objectType: "OBSERVATION",
   });
+  expect(mocks.getEventsStream).toHaveBeenCalledWith(
+    expect.objectContaining({ filter: resolvedCommentFilter }),
+  );
 });

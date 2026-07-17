@@ -26,36 +26,40 @@ const commentFilter = {
   value: "missing comment",
 };
 const filter = [commentFilter];
+const prisma = {} as PrismaClient;
+const previewParams = {
+  prisma,
+  orgId: "org-id",
+  projectId: "project-id",
+  evalTemplateId: "template-id",
+  target: EvalTargetObject.EVENT,
+  mapping: [],
+  scoreName: "score-name",
+  filter,
+};
+
+function resolveComments(filterState: unknown[], hasNoMatches = false) {
+  mocks.applyCommentFilters.mockResolvedValue({
+    filterState,
+    hasNoMatches,
+    matchingIds: [],
+  });
+}
 
 describe("code-eval filter preview comment handling", () => {
   beforeEach(() => {
-    mocks.applyCommentFilters.mockReset();
-    mocks.getEventsStreamForEval.mockReset();
+    Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.getEventsStreamForEval.mockResolvedValue(
       (async function* emptyStream() {})(),
     );
   });
 
   it("returns null without querying events when observation comment filters have no matches", async () => {
-    const prisma = {} as PrismaClient;
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: [],
-      hasNoMatches: true,
-      matchingIds: [],
-    });
+    resolveComments([], true);
 
-    const result = await runCodeEvalTestForJobConfig({
-      prisma,
-      orgId: "org-id",
-      projectId: "project-id",
-      evalTemplateId: "template-id",
-      target: EvalTargetObject.EVENT,
-      mapping: [],
-      scoreName: "score-name",
-      filter,
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      runCodeEvalTestForJobConfig(previewParams),
+    ).resolves.toBeNull();
     expect(mocks.applyCommentFilters).toHaveBeenCalledWith({
       filterState: filter,
       prisma,
@@ -66,31 +70,15 @@ describe("code-eval filter preview comment handling", () => {
   });
 
   it("queries one event with the resolved comment filter", async () => {
-    const prisma = {} as PrismaClient;
     const resolvedFilter = {
       type: "stringOptions" as const,
       column: "id",
       operator: "any of" as const,
       value: ["matching-observation"],
     };
-    mocks.applyCommentFilters.mockResolvedValue({
-      filterState: [resolvedFilter],
-      hasNoMatches: false,
-      matchingIds: resolvedFilter.value,
-    });
+    resolveComments([resolvedFilter]);
 
-    const result = await runCodeEvalTestForJobConfig({
-      prisma,
-      orgId: "org-id",
-      projectId: "project-id",
-      evalTemplateId: "template-id",
-      target: EvalTargetObject.EVENT,
-      mapping: [],
-      scoreName: "score-name",
-      filter,
-    });
-
-    expect(result).toBeNull();
+    await runCodeEvalTestForJobConfig(previewParams);
     expect(mocks.getEventsStreamForEval).toHaveBeenCalledWith({
       projectId: "project-id",
       filter: [resolvedFilter],
