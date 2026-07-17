@@ -33,6 +33,7 @@ export const traceView: ViewDeclarationType = {
       alias: "tags",
       type: "string[]",
       description: "User-defined tags associated with the trace.",
+      explodeArray: true,
     },
     userId: {
       sql: "traces.user_id",
@@ -189,6 +190,7 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "User-defined tags associated with the trace.",
       aggregationFunction:
         "arrayDistinct(flatten(groupArray(events_traces.tags)))",
+      explodeArray: true,
     },
     userId: {
       sql: "nullIf(events_traces.user_id, '')",
@@ -390,6 +392,7 @@ export const observationsView: ViewDeclarationType = {
       type: "string[]",
       relationTable: "traces",
       description: "User-defined tags associated with the trace.",
+      explodeArray: true,
     },
     providedModelName: {
       sql: "observations.provided_model_name",
@@ -622,6 +625,7 @@ const scoreBaseDimensions: DimensionsDeclarationType = {
     type: "string[]",
     relationTable: "traces",
     description: "User-defined tags associated with the trace.",
+    explodeArray: true,
   },
   userId: {
     sql: "traces.user_id",
@@ -722,6 +726,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
     type: "string[]",
     relationTable: "events_traces",
     description: "User-defined tags.",
+    explodeArray: true,
   },
   traceRelease: {
     sql: "nullIf(events_traces.release, '')",
@@ -1090,6 +1095,7 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "tags",
       type: "string[]",
       description: "User-defined tags associated with the trace.",
+      explodeArray: true,
     },
     release: {
       sql: "nullIf(events_observations.release, '')",

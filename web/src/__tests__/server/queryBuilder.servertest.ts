@@ -546,7 +546,6 @@ describe("queryBuilder", () => {
         }
         await createTracesCh(traces);
 
-        // Define query with a filter for tags using "any of" operator
         const query: QueryType = {
           view: "traces",
           dimensions: [{ field: "tags" }],
@@ -566,9 +565,308 @@ describe("queryBuilder", () => {
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
-        expect(result.data).toHaveLength(4);
-        // Expect one entry for all so index order does not matter
-        expect(Number(result.data[0].count_count)).toBe(1);
+        // Tags explode per element: one bucket per tag, a trace with two tags
+        // counts once in each. Untagged traces have no bucket.
+        const counts = Object.fromEntries(
+          result.data.map((row: any) => [row.tags, Number(row.count_count)]),
+        );
+        expect(counts).toEqual({
+          "tag-a": 1,
+          "tag-b": 1,
+          "tag-c": 1,
+          "common-tag": 2,
+        });
+      });
+
+      it("should restrict tags breakdown to 'any of' filter values", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-both", tags: ["tag-a", "tag-b"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+        ];
+
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "any of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const result: { data: Array<any> } = { data: [] };
+        result.data = await executeQuery(projectId, query);
+
+        // Buckets are restricted to the filtered tags: co-occurring tags
+        // (common-tag) don't appear, and tag-c traces are excluded entirely.
+        const counts = Object.fromEntries(
+          result.data.map((row: any) => [row.tags, Number(row.count_count)]),
+        );
+        expect(counts).toEqual({
+          "tag-a": 2,
+          "tag-b": 2,
+        });
+      });
+
+      it("should restrict tags breakdown to 'all of' filter values", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-both", tags: ["tag-a", "tag-b", "common-tag"] },
+          { name: "trace-with-tag-a-only", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b-only", tags: ["tag-b", "common-tag"] },
+        ];
+
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "all of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const result: { data: Array<any> } = { data: [] };
+        result.data = await executeQuery(projectId, query);
+
+        const counts = Object.fromEntries(
+          result.data.map((row: any) => [row.tags, Number(row.count_count)]),
+        );
+        expect(counts).toEqual({
+          "tag-a": 1,
+          "tag-b": 1,
+        });
+      });
+
+      it("should not restrict tags breakdown for 'none of' filters", async () => {
+        // Setup
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+          { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+          { name: "trace-with-tag-c", tags: ["tag-c"] },
+          { name: "trace-with-no-tags", tags: [] },
+        ];
+
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              tags: data.tags,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [
+            {
+              column: "tags",
+              operator: "none of",
+              value: ["tag-a"],
+              type: "arrayOptions",
+            },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const result: { data: Array<any> } = { data: [] };
+        result.data = await executeQuery(projectId, query);
+
+        // "none of" excludes traces but keeps all tags of surviving traces.
+        const counts = Object.fromEntries(
+          result.data.map((row: any) => [row.tags, Number(row.count_count)]),
+        );
+        expect(counts).toEqual({
+          "tag-b": 1,
+          "tag-c": 1,
+          "common-tag": 1,
+        });
+      });
+
+      describe("exploded breakdown bucket cap", () => {
+        const seedTracesWithUniqueTags = async (
+          projectId: string,
+          tagCount: number,
+        ) => {
+          const traces = [];
+          for (let i = 0; i < tagCount; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `trace-${i}`,
+                tags: [`tag-${String(i).padStart(2, "0")}`],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          await createTracesCh(traces);
+        };
+
+        const capQuery = (
+          chartConfig: QueryType["chartConfig"],
+          timeDimension: QueryType["timeDimension"] = null,
+        ): QueryType => ({
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+          chartConfig,
+        });
+
+        it("caps a chart breakdown at 25 buckets when no row_limit is set", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "HORIZONTAL_BAR" }),
+          );
+
+          expect(result).toHaveLength(25);
+        });
+
+        it("clamps an explicit chart row_limit to 25", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "HORIZONTAL_BAR", row_limit: 100 }),
+          );
+
+          expect(result).toHaveLength(25);
+        });
+
+        it("keeps an explicit pivot table row_limit above 25", async () => {
+          const projectId = randomUUID();
+          await seedTracesWithUniqueTags(projectId, 30);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "PIVOT_TABLE", row_limit: 28 }),
+          );
+
+          expect(result).toHaveLength(28);
+        });
+
+        it("caps a timeseries breakdown to the top 25 series", async () => {
+          const projectId = randomUUID();
+          const traces = [];
+          // 26 single-trace tags + one "popular" tag on 3 traces = 27 tags
+          for (let i = 0; i < 26; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `bulk-trace-${i}`,
+                tags: [`bulk-${String(i).padStart(2, "0")}`],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          for (let i = 0; i < 3; i++) {
+            traces.push(
+              createTrace({
+                project_id: projectId,
+                name: `popular-trace-${i}`,
+                tags: ["popular"],
+                timestamp: new Date().getTime(),
+              }),
+            );
+          }
+          await createTracesCh(traces);
+
+          const result = await executeQuery(
+            projectId,
+            capQuery({ type: "LINE_TIME_SERIES" }, { granularity: "day" }),
+          );
+
+          // WITH FILL emits empty-dimension bucket markers; ignore them.
+          const seriesTags = new Set(
+            result
+              .map((row: any) => row.tags)
+              .filter((tag: unknown) => tag !== "" && tag != null),
+          );
+          expect(seriesTags.size).toBe(25);
+          // The highest-count series must survive the cap.
+          expect(seriesTags.has("popular")).toBe(true);
+        });
       });
 
       it("should filter traces by tags using 'any of' operator", async () => {

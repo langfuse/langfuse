@@ -22,8 +22,13 @@ import {
  * @param data - Data to be displayed. Expects an array of objects with dimension and metric properties.
  * @param config - Configuration object for the chart. Can include theme settings for light and dark modes.
  * @param accessibilityLayer - Boolean to enable or disable the accessibility layer. Default is true.
+ * @param trueTotal - Deduplicated total for the center label. Slices of an
+ *   exploded (array) breakdown overlap — an entity is counted once per
+ *   matching bucket — so summing them overstates the real entity count; the
+ *   caller supplies the honest total instead (Mixpanel-style independent
+ *   total). Falls back to the slice sum when omitted.
  */
-export const PieChart: React.FC<ChartProps> = ({
+export const PieChart: React.FC<ChartProps & { trueTotal?: number }> = ({
   data,
   config = {
     metric: {
@@ -36,14 +41,16 @@ export const PieChart: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  trueTotal,
 }) => {
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
-  // Calculate total metric value for center label
+  // Center label: honest caller-provided total, else the sum of slices.
   const totalValue = useMemo(() => {
+    if (trueTotal !== undefined) return trueTotal;
     return data.reduce((acc, curr) => acc + (curr.metric as number), 0);
-  }, [data]);
+  }, [data, trueTotal]);
 
   // Transform data for PieChart
   const chartData = useMemo(() => {

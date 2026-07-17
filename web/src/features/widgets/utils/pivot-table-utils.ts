@@ -65,6 +65,13 @@ export interface PivotTableRow {
   /** Whether this row represents the grand total */
   isTotal?: boolean;
 
+  /**
+   * The row's metric values aggregate across an exploded (array) dimension —
+   * entities counted once per element — so summing them would overstate the
+   * real entity count. The row stays as a group header; cells render a dash.
+   */
+  suppressedValues?: boolean;
+
   /** Original dimension values for this row (for data rows only) */
   dimensionValues?: Record<string, string>;
 }
@@ -87,6 +94,13 @@ export interface PivotTableConfig {
   rowLimit?: number;
 
   defaultSort?: OrderByState;
+
+  /**
+   * Dimension fields the query engine explodes per element (e.g. tags). A
+   * total/subtotal that aggregates ACROSS such a dimension double-counts
+   * entities and is suppressed; totals within one exploded bucket stay.
+   */
+  explodedDimensions?: string[];
 }
 
 /**
@@ -186,6 +200,7 @@ function processLevelRecursively(
   metrics: string[],
   totalDimensions: number,
   dimensionPath: string[],
+  explodedDimensions: string[] = [],
 ): PivotTableRow[] {
   const rows: PivotTableRow[] = [];
   const currentDimensionIndex = totalDimensions - remainingDimensions.length;
@@ -230,12 +245,22 @@ function processLevelRecursively(
     // Add subtotal row for this dimension group BEFORE processing child rows
     // Only if there are more dimensions to process (not the deepest level)
     if (nextDimensions.length > 0 && groupData.length > 0) {
-      const subtotalValues = calculateSubtotals(groupData, metrics);
-      const subtotalRow = createSubtotalRow(
-        dimensionValue,
-        subtotalValues,
-        currentDimensionIndex, // Subtotals at current dimension level
+      // A subtotal aggregates across the deeper dimensions; when one of them
+      // is exploded, the sum double-counts entities. Keep the row as a group
+      // header but suppress its values.
+      const crossesExploded = nextDimensions.some((dimension) =>
+        explodedDimensions.includes(dimension),
       );
+      const subtotalRow = crossesExploded
+        ? {
+            ...createSubtotalRow(dimensionValue, {}, currentDimensionIndex),
+            suppressedValues: true,
+          }
+        : createSubtotalRow(
+            dimensionValue,
+            calculateSubtotals(groupData, metrics),
+            currentDimensionIndex, // Subtotals at current dimension level
+          );
       rows.push(subtotalRow);
     }
 
@@ -246,6 +271,7 @@ function processLevelRecursively(
       metrics,
       totalDimensions,
       newDimensionPath,
+      explodedDimensions,
     );
 
     rows.push(...childRows);
@@ -304,7 +330,12 @@ export function transformToPivotTable(
   // Validate configuration
   validatePivotTableConfig(config);
 
-  const { dimensions, metrics, rowLimit = DEFAULT_ROW_LIMIT } = config;
+  const {
+    dimensions,
+    metrics,
+    rowLimit = DEFAULT_ROW_LIMIT,
+    explodedDimensions = [],
+  } = config;
 
   // Handle empty data
   if (data.length === 0) {
@@ -320,9 +351,11 @@ export function transformToPivotTable(
   // Apply row limit to data before processing
   const limitedData = data.slice(0, rowLimit);
 
-  // Add grand total row at the beginning
-  const grandTotalValues = calculateGrandTotals(limitedData, metrics);
-  const grandTotalRow = createGrandTotalRow(metrics, grandTotalValues);
+  // The grand total aggregates across every dimension; with an exploded
+  // dimension in play it double-counts entities, so it is dropped entirely.
+  const includeGrandTotal = !dimensions.some((dimension) =>
+    explodedDimensions.includes(dimension),
+  );
 
   // Process dimensions recursively
   const pivotRows = processLevelRecursively(
@@ -331,7 +364,16 @@ export function transformToPivotTable(
     metrics,
     dimensions.length, // total number of dimensions
     [], // dimension path for labeling
+    explodedDimensions,
   );
+
+  if (!includeGrandTotal) {
+    return pivotRows;
+  }
+
+  // Add grand total row at the beginning
+  const grandTotalValues = calculateGrandTotals(limitedData, metrics);
+  const grandTotalRow = createGrandTotalRow(metrics, grandTotalValues);
 
   return [grandTotalRow, ...pivotRows];
 }

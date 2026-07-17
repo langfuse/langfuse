@@ -2012,4 +2012,200 @@ describe("dashboard v1 vs v2 consistency", () => {
       },
     );
   });
+
+  // ─── tags breakdown explodes per tag (v2 traces view) ────────────────
+
+  maybe("v2 tags breakdown explodes per tag", () => {
+    let tagsProjectId: string;
+    let tagsFromTimestamp: string;
+    let tagsToTimestamp: string;
+
+    beforeAll(async () => {
+      const org = await createOrgProjectAndApiKey();
+      tagsProjectId = org.projectId;
+
+      const baseTime = new Date("2024-06-15T12:00:00Z").getTime();
+      // events_core uses DateTime64(6) — timestamps in microseconds
+      const baseTimeUs = baseTime * 1000;
+
+      const tracesData = [
+        { name: "trace-with-tag-a", tags: ["tag-a", "common-tag"] },
+        { name: "trace-with-tag-b", tags: ["tag-b", "common-tag"] },
+        { name: "trace-with-tag-c", tags: ["tag-c"] },
+        { name: "trace-with-no-tags", tags: [] },
+      ];
+
+      // Root + child event per trace, tags denormalized on both rows so the
+      // events_traces aggregation (arrayDistinct∘flatten∘groupArray) has to
+      // dedupe across rows.
+      const events = tracesData.flatMap((data, i) => {
+        const traceId = v4();
+        const rootId = `t-${traceId}`;
+        const childId = v4();
+        const startUs = baseTimeUs + i * 1_000_000;
+        const shared = {
+          trace_id: traceId,
+          project_id: tagsProjectId,
+          trace_name: data.name,
+          tags: data.tags,
+          environment: "default",
+          start_time: startUs,
+          end_time: startUs + 500_000,
+          created_at: startUs,
+          updated_at: startUs + 500_000,
+          event_ts: startUs,
+        };
+        return [
+          createEvent({
+            ...shared,
+            id: rootId,
+            span_id: rootId,
+            parent_span_id: "",
+            name: data.name,
+            type: "SPAN",
+          }),
+          createEvent({
+            ...shared,
+            id: childId,
+            span_id: childId,
+            parent_span_id: rootId,
+            name: `${data.name}-child`,
+            type: "GENERATION",
+          }),
+        ];
+      });
+
+      await createEventsCh(events);
+
+      tagsFromTimestamp = new Date(
+        baseTime - 24 * 60 * 60 * 1000,
+      ).toISOString();
+      tagsToTimestamp = new Date(baseTime + 60 * 60 * 1000).toISOString();
+    });
+
+    it("traces view: tags dimension yields one bucket per tag", async () => {
+      const result = await executeQuery(
+        tagsProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [],
+          orderBy: null,
+          fromTimestamp: tagsFromTimestamp,
+          toTimestamp: tagsToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const counts = Object.fromEntries(
+        result.map((r) => [r.tags as string, Number(r.count_count)]),
+      );
+      expect(counts).toEqual({
+        "tag-a": 1,
+        "tag-b": 1,
+        "tag-c": 1,
+        "common-tag": 2,
+      });
+    });
+
+    it("traces view: 'any of' filter restricts exploded buckets", async () => {
+      const result = await executeQuery(
+        tagsProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: null,
+          filters: [
+            {
+              column: "tags",
+              operator: "any of",
+              value: ["tag-a", "tag-b"],
+              type: "arrayOptions",
+            },
+          ],
+          orderBy: null,
+          fromTimestamp: tagsFromTimestamp,
+          toTimestamp: tagsToTimestamp,
+        },
+        "v2",
+        true,
+      );
+
+      const counts = Object.fromEntries(
+        result.map((r) => [r.tags as string, Number(r.count_count)]),
+      );
+      expect(counts).toEqual({
+        "tag-a": 1,
+        "tag-b": 1,
+      });
+    });
+
+    it("traces view: timeseries breakdown is capped to the top 25 series", async () => {
+      const org = await createOrgProjectAndApiKey();
+      const capProjectId = org.projectId;
+
+      const baseTime = new Date("2024-06-15T12:00:00Z").getTime();
+      const baseTimeUs = baseTime * 1000;
+
+      // 26 single-trace tags + one "popular" tag on 3 traces = 27 tags.
+      const mkRootEvent = (tag: string, i: number) => {
+        const traceId = v4();
+        const rootId = `t-${traceId}`;
+        const startUs = baseTimeUs + i * 1_000_000;
+        return createEvent({
+          id: rootId,
+          span_id: rootId,
+          trace_id: traceId,
+          project_id: capProjectId,
+          parent_span_id: "",
+          name: `cap-trace-${i}`,
+          type: "SPAN",
+          trace_name: `cap-trace-${i}`,
+          tags: [tag],
+          environment: "default",
+          start_time: startUs,
+          end_time: startUs + 500_000,
+          created_at: startUs,
+          updated_at: startUs + 500_000,
+          event_ts: startUs,
+        });
+      };
+
+      const events = [
+        ...Array.from({ length: 26 }, (_, i) =>
+          mkRootEvent(`bulk-${String(i).padStart(2, "0")}`, i),
+        ),
+        ...Array.from({ length: 3 }, (_, i) => mkRootEvent("popular", 26 + i)),
+      ];
+      await createEventsCh(events);
+
+      const result = await executeQuery(
+        capProjectId,
+        {
+          view: "traces",
+          dimensions: [{ field: "tags" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          timeDimension: { granularity: "day" },
+          filters: [],
+          orderBy: null,
+          fromTimestamp: new Date(baseTime - 24 * 60 * 60 * 1000).toISOString(),
+          toTimestamp: new Date(baseTime + 60 * 60 * 1000).toISOString(),
+          chartConfig: { type: "LINE_TIME_SERIES" },
+        },
+        "v2",
+        true,
+      );
+
+      // WITH FILL emits empty-dimension bucket markers; ignore them.
+      const seriesTags = new Set(
+        result.map((r) => r.tags).filter((tag) => tag !== "" && tag != null),
+      );
+      expect(seriesTags.size).toBe(25);
+      expect(seriesTags.has("popular")).toBe(true);
+    });
+  });
 });

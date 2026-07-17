@@ -15,6 +15,10 @@ import {
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import {
+  buildExplodedBreakdownNotice,
+  getExplodedDimensionFields,
+} from "@/src/features/widgets/utils/exploded-breakdown";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -291,6 +295,70 @@ export function DashboardWidget({
         !widget.isPending && Boolean(widget.data) && queryValidation.valid,
     },
   );
+
+  // Exploded (array) breakdowns count an entity once per matching bucket:
+  // bucket values are honest, but aggregates across buckets overstate the real
+  // entity count. Say so (notice), and give the pie an honest center total via
+  // a companion no-breakdown query (same shape as the Big Number query).
+  const explodedDimensionFields = useMemo(
+    () =>
+      getExplodedDimensionFields(
+        widgetQuery.view,
+        metricsVersion,
+        widgetQuery.dimensions.map((dimension) => dimension.field),
+      ),
+    [widgetQuery.view, widgetQuery.dimensions, metricsVersion],
+  );
+  const explodedNotice = buildExplodedBreakdownNotice(
+    widgetQuery.view,
+    explodedDimensionFields,
+  );
+  const needsTrueTotal =
+    widget.data?.chartType === "PIE" && explodedDimensionFields.length > 0;
+  const trueTotalQuery = useScheduledDashboardExecuteQuery(
+    {
+      projectId,
+      version: metricsVersion,
+      query: {
+        ...widgetQuery,
+        dimensions: [],
+        orderBy: null,
+        chartConfig: { type: "NUMBER" },
+      },
+    },
+    {
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:true-total`,
+      meta: {
+        silentHttpCodes: [422],
+      },
+      refreshKey: retryCount,
+      useSSE: shouldUseWidgetSSE({
+        isV4Enabled: isBetaEnabled,
+        version: metricsVersion,
+      }),
+      enabled:
+        !widget.isPending &&
+        Boolean(widget.data) &&
+        queryValidation.valid &&
+        needsTrueTotal,
+    },
+  );
+  const firstMetricField = widget.data?.metrics[0]
+    ? `${widget.data.metrics[0].agg}_${widget.data.metrics[0].measure}`
+    : undefined;
+  const trueTotalRaw =
+    needsTrueTotal && firstMetricField
+      ? trueTotalQuery.data?.[0]?.[firstMetricField]
+      : undefined;
+  const trueTotal =
+    trueTotalRaw !== undefined && trueTotalRaw !== null
+      ? Number(trueTotalRaw)
+      : undefined;
 
   const chartLoadingState = getChartLoadingStateProps({
     isPending: queryResult.isPending,
@@ -734,6 +802,9 @@ export function DashboardWidget({
               missingValue={getWidgetMissingBucketValue(
                 widget.data.metrics[0]?.agg ?? "count",
               )}
+              notice={explodedNotice}
+              explodedDimensions={explodedDimensionFields}
+              trueTotal={trueTotal}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

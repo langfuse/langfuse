@@ -34,9 +34,11 @@ type AppliedDimensionType = {
   table: string;
   sql: string;
   alias?: string;
+  field?: string;
   relationTable?: string;
   aggregationFunction?: string;
   explodeArray?: boolean;
+  explodeRestrictionParam?: string;
   pairExpand?: { valuesSql: string; valueAlias: string };
 };
 
@@ -56,6 +58,12 @@ type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
 };
+
+// Exploded array dimensions (tags, toolNames) have unbounded cardinality — a
+// project can carry thousands of distinct tags, and grouping by all of them is
+// both a perf hazard and unreadable in a chart. Chart queries are hard-capped
+// at this many buckets; pivot tables keep their explicit row_limit.
+const EXPLODED_DIMENSION_MAX_BUCKETS = 25;
 
 const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
   dimensionType === "string[]" || dimensionType === "arrayString";
@@ -117,13 +125,13 @@ type AppliedBucketingDimension =
     };
 
 export class QueryBuilder {
-  private chartConfig?: { bins?: number; row_limit?: number };
+  private chartConfig?: { type?: string; bins?: number; row_limit?: number };
   private version: ViewVersion;
   private rootEventConditionMaxWindowHours: number =
     env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
 
   constructor(
-    chartConfig?: { bins?: number; row_limit?: number },
+    chartConfig?: { type?: string; bins?: number; row_limit?: number },
     version: ViewVersion = "v1",
   ) {
     this.chartConfig = chartConfig;
@@ -281,10 +289,60 @@ export class QueryBuilder {
       return {
         ...dim,
         table: dim.relationTable || view.name,
+        field: dimension.field,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
       };
     });
+  }
+
+  /**
+   * Couples positive array filters to exploded array dimensions.
+   *
+   * Array filters keep whole entities: a trace matching `tags any of [a, b]`
+   * keeps ALL its tags, so a breakdown by the exploded dimension would still
+   * show co-occurring elements the user never selected. When the same column
+   * is both exploded and positively filtered ("any of" / "all of"), restrict
+   * the exploded elements to the union of the selected values so the breakdown
+   * shows exactly those. "none of" excludes entities and must not restrict the
+   * surviving entities' elements.
+   */
+  private applyExplodeRestrictions(
+    appliedDimensions: AppliedDimensionType[],
+    filters: z.infer<typeof queryModel>["filters"],
+    parameters: Record<string, unknown>,
+  ): void {
+    for (const dimension of appliedDimensions) {
+      if (!dimension.explodeArray || !dimension.field) continue;
+      const positiveValues = filters
+        .filter(
+          (filter) =>
+            filter.column === dimension.field &&
+            filter.type === "arrayOptions" &&
+            (filter.operator === "any of" || filter.operator === "all of") &&
+            Array.isArray(filter.value),
+        )
+        .flatMap((filter) => filter.value as string[]);
+      if (positiveValues.length === 0) continue;
+      const paramName = `explodeRestrict_${dimension.alias ?? dimension.field}`;
+      parameters[paramName] = Array.from(new Set(positiveValues));
+      dimension.explodeRestrictionParam = paramName;
+    }
+  }
+
+  /**
+   * SELECT part for an exploded array dimension: arrayJoin over the source
+   * expression, restricted to positively filtered values when coupled via
+   * applyExplodeRestrictions.
+   */
+  private buildExplodedSelectPart(
+    dimension: AppliedDimensionType,
+    source: string,
+  ): string {
+    const exploded = dimension.explodeRestrictionParam
+      ? `arrayJoin(arrayIntersect(${source}, {${dimension.explodeRestrictionParam}: Array(String)}))`
+      : `arrayJoin(${source})`;
+    return `${exploded} as ${dimension.alias ?? dimension.sql}`;
   }
 
   private mapMetrics(
@@ -1030,9 +1088,11 @@ export class QueryBuilder {
           if (dimension.pairExpand) {
             return `${dimension.alias} as ${dimension.alias ?? dimension.sql}`;
           }
-          // Explode array dimensions using arrayJoin
+          // Explode array dimensions using arrayJoin. Dimensions with an
+          // aggregationFunction were handled above: they aggregate to an array
+          // here and explode in the outer SELECT (buildOuterDimensionsPart).
           if (dimension.explodeArray) {
-            return `arrayJoin(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
+            return this.buildExplodedSelectPart(dimension, dimension.sql);
           }
           // Default: wrap in any()
           return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
@@ -1096,9 +1156,11 @@ export class QueryBuilder {
 
     // Build inner GROUP BY - include exploded array dimensions (they must be in GROUP BY after arrayJoin)
     // Also include pairExpand dimensions (their key column is in scope after ARRAY JOIN clause)
+    // aggregationFunction dimensions aggregate here and explode in the outer
+    // SELECT, so they must stay out of the inner GROUP BY.
     const groupByParts = [projectIdSql, idSql];
     for (const dim of appliedDimensions) {
-      if (dim.explodeArray || dim.pairExpand) {
+      if ((dim.explodeArray && !dim.aggregationFunction) || dim.pairExpand) {
         groupByParts.push(dim.alias ?? dim.sql);
       }
     }
@@ -1122,10 +1184,17 @@ export class QueryBuilder {
     // Add regular dimensions
     if (appliedDimensions.length > 0) {
       dimensions += `${appliedDimensions
-        .map(
-          (dimension) =>
-            `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`,
-        )
+        .map((dimension) => {
+          // aggregationFunction + explodeArray: the inner SELECT aggregated
+          // the arrays per entity; explode the aggregated array here.
+          if (dimension.explodeArray && dimension.aggregationFunction) {
+            return this.buildExplodedSelectPart(
+              dimension,
+              dimension.alias ?? dimension.sql,
+            );
+          }
+          return `${dimension.alias ?? dimension.sql} as ${dimension.alias || dimension.sql}`;
+        })
         .join(",\n")},`;
     }
 
@@ -1248,11 +1317,64 @@ export class QueryBuilder {
 
   /**
    * Builds a LIMIT clause for the query if row_limit is specified in chartConfig.
+   *
+   * Non-timeseries queries over an exploded array dimension always get a
+   * limit: charts are hard-capped at EXPLODED_DIMENSION_MAX_BUCKETS, pivot
+   * tables keep an explicit row_limit (tables scroll; the cap is a chart
+   * readability number). Timeseries queries are capped per-series instead
+   * (buildSeriesCapClause) — a row LIMIT would truncate the time axis.
    */
-  private buildLimitClause(): string {
-    const rowLimit = this.chartConfig?.row_limit;
+  private buildLimitClause(hasUncappedExplodedDimension = false): string {
+    let rowLimit = this.chartConfig?.row_limit;
+    if (hasUncappedExplodedDimension) {
+      rowLimit =
+        this.chartConfig?.type === "PIVOT_TABLE"
+          ? (rowLimit ?? EXPLODED_DIMENSION_MAX_BUCKETS)
+          : Math.min(
+              rowLimit ?? EXPLODED_DIMENSION_MAX_BUCKETS,
+              EXPLODED_DIMENSION_MAX_BUCKETS,
+            );
+    }
     if (!rowLimit) return "";
     return `LIMIT ${rowLimit}`;
+  }
+
+  /**
+   * Caps a timeseries breakdown over exploded array dimensions to the top
+   * EXPLODED_DIMENSION_MAX_BUCKETS series, ranked by the first metric
+   * aggregated over the whole window. Emitted as a HAVING clause on the outer
+   * SELECT (the exploded alias is a group key there in both the
+   * inner-exploded and the aggregationFunction outer-exploded shapes).
+   */
+  private buildSeriesCapClause(
+    explodedDimensions: AppliedDimensionType[],
+    innerQuery: string,
+    appliedMetrics: AppliedMetricType[],
+  ): string {
+    if (explodedDimensions.length === 0) return "";
+
+    const rankSql =
+      appliedMetrics.length > 0
+        ? this.translateAggregation(appliedMetrics[0])
+        : "count(*)";
+
+    const conditions = explodedDimensions.map((dimension) => {
+      const alias = dimension.alias ?? dimension.sql;
+      // Inner-exploded dimensions are already scalar in the inner rows;
+      // aggregationFunction dimensions carry the aggregated array and explode
+      // here with the same (restriction-aware) expression as the outer SELECT.
+      const selectPart = dimension.aggregationFunction
+        ? this.buildExplodedSelectPart(dimension, alias)
+        : `${alias} as ${alias}`;
+      return `${alias} IN (
+        SELECT ${selectPart}
+        FROM (${innerQuery})
+        GROUP BY ${alias}
+        ORDER BY ${rankSql} DESC
+        LIMIT ${EXPLODED_DIMENSION_MAX_BUCKETS})`;
+    });
+
+    return `HAVING ${conditions.join(" AND ")}`;
   }
 
   private buildOuterSelect(
@@ -1260,6 +1382,7 @@ export class QueryBuilder {
     outerMetricsPart: string,
     innerQuery: string,
     groupByClause: string,
+    havingClause: string,
     orderByClause: string,
     withFillClause: string,
     limitClause: string,
@@ -1270,6 +1393,7 @@ export class QueryBuilder {
         ${outerMetricsPart}
       FROM (${innerQuery})
       ${groupByClause}
+      ${havingClause}
       ${orderByClause}
       ${withFillClause}
       ${limitClause}`;
@@ -1319,7 +1443,7 @@ export class QueryBuilder {
               return `${d.alias} as ${d.alias ?? d.sql}`;
             }
             if (d.explodeArray) {
-              return `arrayJoin(${d.sql}) as ${d.alias ?? d.sql}`;
+              return this.buildExplodedSelectPart(d, d.sql);
             }
             return `${d.sql} as ${d.alias ?? d.sql}`;
           })
@@ -1571,6 +1695,10 @@ export class QueryBuilder {
       }
     }
 
+    // Couple positive array filters to exploded array dimensions (e.g. a
+    // "tags any of" filter restricts a tags breakdown to the selected tags).
+    this.applyExplodeRestrictions(appliedDimensions, query.filters, parameters);
+
     // Create filters: normal WHERE filters + raw WHERE parts (filterSql pruning + exact match)
     const { whereFilters, whereRawParts } = this.mapFilters(
       query.filters,
@@ -1661,10 +1789,19 @@ export class QueryBuilder {
       }
     }
 
+    // Exploded array dimensions have unbounded cardinality and always get a
+    // bucket cap: a series cap for timeseries (HAVING on the outer SELECT —
+    // requires the two-level shape), a row LIMIT otherwise.
+    const explodedDimensions = appliedDimensions.filter((d) => d.explodeArray);
+    const needsSeriesCap =
+      explodedDimensions.length > 0 &&
+      appliedBucketingDimension.type === "time";
+
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
     const canOptimize =
       enableSingleLevelOptimization &&
+      !needsSeriesCap &&
       this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
     // Build GROUP BY clause (used by both single-level and two-level queries)
@@ -1694,7 +1831,9 @@ export class QueryBuilder {
     );
 
     // Build LIMIT clause for row limiting
-    const limitClause = this.buildLimitClause();
+    const limitClause = this.buildLimitClause(
+      explodedDimensions.length > 0 && !needsSeriesCap,
+    );
 
     // Build final query - branch based on optimization
     let sql: string;
@@ -1737,11 +1876,20 @@ export class QueryBuilder {
       );
       const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
 
+      const havingClause = needsSeriesCap
+        ? this.buildSeriesCapClause(
+            explodedDimensions,
+            innerQuery,
+            appliedMetrics,
+          )
+        : "";
+
       sql = this.buildOuterSelect(
         outerDimensionsPart,
         outerMetricsPart,
         innerQuery,
         groupByClause,
+        havingClause,
         orderByClause,
         withFillClause,
         limitClause,
