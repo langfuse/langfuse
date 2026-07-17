@@ -57,8 +57,10 @@ const GenerateFilterInput = z.object({
     .object({
       numeric: scoreNameList.optional(),
       categorical: scoreNameList.optional(),
+      booleans: scoreNameList.optional(),
       traceNumeric: scoreNameList.optional(),
       traceCategorical: scoreNameList.optional(),
+      traceBooleans: scoreNameList.optional(),
     })
     .optional(),
 });
