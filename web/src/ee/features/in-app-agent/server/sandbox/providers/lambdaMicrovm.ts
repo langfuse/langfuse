@@ -61,6 +61,7 @@ type LambdaMicrovmInfo = {
 export function createLambdaMicrovmSandboxProvider(params: {
   imageIdentifier: string;
   executionRoleArn: string;
+  egressNetworkConnectorArn?: string;
   region: string;
 }): SandboxProvider {
   const client = new LambdaMicrovmsClient({
@@ -137,6 +138,9 @@ export function createLambdaMicrovmSandboxProvider(params: {
         new RunMicrovmCommand({
           imageIdentifier: params.imageIdentifier,
           executionRoleArn: params.executionRoleArn,
+          ...(params.egressNetworkConnectorArn
+            ? { egressNetworkConnectors: [params.egressNetworkConnectorArn] }
+            : {}),
           idlePolicy: {
             autoResumeEnabled: true,
             maxIdleDurationSeconds: DEFAULT_SUSPEND_AFTER_IDLE_SECONDS,

@@ -42,6 +42,8 @@ export async function createInAppAgentSandboxProvider(
       env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER;
     const microvmExecutionRoleArn =
       env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN;
+    const microvmEgressNetworkConnectorArn =
+      env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN;
     const microvmRegion =
       env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION;
 
@@ -54,6 +56,7 @@ export async function createInAppAgentSandboxProvider(
     return createLambdaMicrovmSandboxProvider({
       imageIdentifier: microvmImageIdentifier,
       executionRoleArn: microvmExecutionRoleArn,
+      egressNetworkConnectorArn: microvmEgressNetworkConnectorArn,
       region: microvmRegion,
     });
   }
