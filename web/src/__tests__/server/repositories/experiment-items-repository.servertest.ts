@@ -1167,10 +1167,16 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       // GIVEN: 3 items with different cost distributions across their trees -
       // cost only on a child (the common v4-events bug shape: wrapper/root
       // spans are cost-free, cost lives on nested generations), cost split
-      // root/child, and cost only on the root (no children).
+      // root/child, and cost only on the root (no children). Root/child start
+      // times straddle a clock-minute boundary so this also covers the
+      // orderByColumns() primary-key-prefix pitfall (a child starting in a
+      // later minute bucket than its root must not outrank the root).
       const expId = randomUUID();
       const datasetId = randomUUID();
-      const now = Date.now() * 1000;
+      const minuteBoundaryMs =
+        Math.ceil(Date.now() / 60_000) * 60_000 + 5 * 60_000; // a future, clean minute boundary
+      const now = (minuteBoundaryMs - 500) * 1000; // root: just before the boundary (microseconds)
+      const childOffsetMicros = 2_500_000; // child: 2.5s later, in the next minute bucket
 
       const makeItemEvents = (rootCost: number, childCost: number | null) => {
         const itemId = randomUUID();
@@ -1206,7 +1212,7 @@ describe("Clickhouse Experiment Items Repository Test", () => {
               datasetId,
               itemId,
               experimentItemRootSpanId: rootId,
-              start_time: now + 1000,
+              start_time: now + childOffsetMicros,
               cost_details: { input: 0, output: 0, total: childCost },
               provided_cost_details: { input: 0, output: 0, total: childCost },
             }),
@@ -1246,8 +1252,10 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       });
 
       // THEN: the bug-shape item's cost is the sum of root (0) + child (300),
-      // still returned as the root span's own identity; and the sum of all
-      // per-item costs equals the independently-computed experiment total.
+      // still returned as the root span's own identity (observationId,
+      // traceId) despite the child starting in a later minute bucket; and the
+      // sum of all per-item costs equals the independently-computed
+      // experiment total.
       expect(items).toHaveLength(3);
 
       const bugShapeResult = items.find(

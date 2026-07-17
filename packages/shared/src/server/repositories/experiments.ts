@@ -1097,14 +1097,15 @@ export const getExperimentItemsFromEvents = async (
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
     )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([
-      {
-        column: "(e.span_id = e.experiment_item_root_span_id)",
-        direction: "DESC",
-      },
-      { column: "e.start_time", direction: "DESC" },
-    ])
+    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965).
+    // Uses raw orderBy() rather than orderByColumns(), which auto-prepends a
+    // toStartOfMinute(start_time) primary-key-read-order prefix whenever a
+    // start_time entry is present - that prefix would outrank the root-flag
+    // tiebreak below whenever a child observation starts in a later minute
+    // bucket than its root, causing LIMIT BY to keep the child row instead.
+    .orderBy(
+      "ORDER BY (e.span_id = e.experiment_item_root_span_id) DESC, e.start_time DESC",
+    )
     .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query: dataQuery, params: dataParams } =
