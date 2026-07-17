@@ -203,6 +203,8 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  promptName?: string;
+  promptVersion?: number;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
   // External control props for embedded preview tables
@@ -249,6 +251,8 @@ const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  promptName,
+  promptVersion,
   omittedFilter = [],
   hideControls = false,
   externalFilterState,
@@ -633,12 +637,36 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  const promptNameFilter: FilterState = promptName
+    ? [
+        {
+          column: "promptName",
+          type: "string",
+          operator: "=",
+          value: promptName,
+        },
+      ]
+    : [];
+
+  const promptVersionFilter: FilterState = promptVersion
+    ? [
+        {
+          column: "promptVersion",
+          type: "number",
+          operator: "=",
+          value: promptVersion,
+        },
+      ]
+    : [];
+
   // The sidebar's effective filter state is the single source of truth in both
   // modes — the search bar syncs into it rather than replacing it.
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
-    .concat(sessionIdFilter);
+    .concat(sessionIdFilter)
+    .concat(promptNameFilter)
+    .concat(promptVersionFilter);
 
   // Use external filter state if provided, otherwise use combined filter
   // state. Even with an external filter, still apply the date-range bound so
