@@ -13,7 +13,12 @@ const CreateAnnotationQueueBaseSchema = z
   .object({
     name: z.string(),
     description: z.string().optional(),
-    scoreConfigIds: z.array(z.string()).min(1),
+    // Accept an empty (or omitted) `scoreConfigIds` array so an MCP-driven
+    // corrected-output queue can be created without first wiring score
+    // configs. Mirrors `CreateAnnotationQueueBody` in
+    // `web/src/features/public-api/types/annotation-queues.ts` — see
+    // langfuse/langfuse#15006.
+    scoreConfigIds: z.array(z.string()).default([]),
   })
   .strict();
 

@@ -210,12 +210,11 @@ export const CreateOrEditAnnotationQueueButton = ({
       values.map((value) => value.key),
     );
 
+    // Empty `scoreConfigIds` is now a valid corrected-output-only queue —
+    // clear any stale manual error so the form stays submittable. The
+    // previous "at least 1" guard is intentionally removed; see
+    // langfuse/langfuse#15006.
     if (values.length === 0) {
-      form.setError("scoreConfigIds", {
-        type: "manual",
-        message: "At least 1 score config must be selected",
-      });
-    } else {
       form.clearErrors("scoreConfigIds");
     }
   };
@@ -328,8 +327,9 @@ export const CreateOrEditAnnotationQueueButton = ({
                     <FormItem>
                       <FormLabel>Score Configs</FormLabel>
                       <FormDescription>
-                        Define which dimensions annotators should score for the
-                        given queue.
+                        Optional. Pick the dimensions annotators should score
+                        for this queue, or leave empty if this queue is only
+                        used for corrected-output workflows.
                       </FormDescription>
                       <FormControl>
                         <MultiSelectKeyValues
@@ -345,7 +345,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                               value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
                               isArchived: config.isArchived,
                             }))}
-                          values={field.value.map((configId) => {
+                          values={(field.value ?? []).map((configId) => {
                             const config = configs.find(
                               (config) => config.id === configId,
                             );

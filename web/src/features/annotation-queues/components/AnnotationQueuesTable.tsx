@@ -123,12 +123,17 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
               rowHeight === "s" && "leading-3",
             )}
           >
-            {scoreConfigs
-              .map(
-                (config) =>
-                  `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-              )
-              .join(", ")}
+            {scoreConfigs.length === 0
+              ? // Empty placeholder for corrected-output-only queues — the
+                // empty list is now a valid queue shape, so render an em-dash
+                // instead of a silently empty cell. See langfuse/langfuse#15006.
+                "—"
+              : scoreConfigs
+                  .map(
+                    (config) =>
+                      `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                  )
+                  .join(", ")}
           </span>
         );
       },

@@ -62,7 +62,13 @@ export const CreateAnnotationQueueBody = z
   .object({
     name: z.string(),
     description: z.string().nullish(),
-    scoreConfigIds: z.array(z.string()).min(1),
+    // Accept an empty (or omitted) `scoreConfigIds` so a queue can be created
+    // purely for the corrected-output workflow — i.e. assign reviewers, collect
+    // `CORRECTION` annotations, and skip score-config wiring entirely. The
+    // existing `scoreConfigIds`-aware annotation queue contract is preserved
+    // for every non-empty input (each id must still exist in the project);
+    // see langfuse/langfuse#15006.
+    scoreConfigIds: z.array(z.string()).default([]),
   })
   .strict();
 

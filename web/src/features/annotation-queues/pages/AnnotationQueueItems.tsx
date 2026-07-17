@@ -98,14 +98,27 @@ export default function QueueItems() {
                 )}
                 <div className="flex flex-col gap-2">
                   <SubHeaderLabel title="Score Configs" />
-                  <div className="flex flex-wrap gap-2">
-                    {queue.data?.scoreConfigs.map((scoreConfig) => (
-                      <Badge key={scoreConfig.id} variant="outline">
-                        {getScoreDataTypeIcon(scoreConfig.dataType)}
-                        <span className="ml-0.5">{scoreConfig.name}</span>
-                      </Badge>
-                    ))}
-                  </div>
+                  {queue.data?.scoreConfigs.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {queue.data.scoreConfigs.map((scoreConfig) => (
+                        <Badge key={scoreConfig.id} variant="outline">
+                          {getScoreDataTypeIcon(scoreConfig.dataType)}
+                          <span className="ml-0.5">{scoreConfig.name}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : queue.data ? (
+                    // Empty state for corrected-output-only queues — there is
+                    // no score config to display, so fall back to a short
+                    // explanatory line instead of an empty badge list. Gated
+                    // on `queue.data` so the same copy is not shown when the
+                    // query has not loaded yet, errored, or 404'd. See
+                    // langfuse/langfuse#15006.
+                    <CardDescription className="text-xs">
+                      No score configs. This queue is used only for the
+                      corrected-output workflow.
+                    </CardDescription>
+                  ) : null}
                 </div>
               </>
             )}
