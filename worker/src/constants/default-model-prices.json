@@ -4130,7 +4130,7 @@
     "modelName": "gpt-5.6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-17T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4148,19 +4148,61 @@
           "input": 5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
           "output": 30e-6,
           "output_reasoning_tokens": 30e-6,
-          "output_reasoning": 30e-6
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
+        }
+      },
+      {
+        "id": "8147e4ed-6faa-4ad4-bfa5-7d03076fc5d5",
+        "name": "Large Context with Implicit Cache Writes (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 12.5e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "output": 45e-6,
+          "output_reasoning_tokens": 45e-6,
+          "output_reasoning": 45e-6,
+          "reasoning_tokens": 45e-6
         }
       },
       {
         "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 2,
         "conditions": [
           {
-            "usageDetailPattern": "input",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -4170,9 +4212,45 @@
           "input": 10e-6,
           "input_cached_tokens": 1e-6,
           "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
           "output": 45e-6,
           "output_reasoning_tokens": 45e-6,
-          "output_reasoning": 45e-6
+          "output_reasoning": 45e-6,
+          "reasoning_tokens": 45e-6
+        }
+      },
+      {
+        "id": "892f5495-a65b-4284-8610-a642beeef8c0",
+        "name": "Standard with Implicit Cache Writes",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 6.25e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
         }
       }
     ]
@@ -4182,7 +4260,7 @@
     "modelName": "gpt-5.6-terra",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-terra)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-17T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4200,19 +4278,61 @@
           "input": 2.5e-6,
           "input_cached_tokens": 0.25e-6,
           "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 3.125e-6,
+          "cache_write_tokens": 3.125e-6,
           "output": 15e-6,
           "output_reasoning_tokens": 15e-6,
-          "output_reasoning": 15e-6
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
+        "id": "cf8d2875-06ac-4ee0-9c92-133261c127ec",
+        "name": "Large Context with Implicit Cache Writes (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 6.25e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
+          "output": 22.5e-6,
+          "output_reasoning_tokens": 22.5e-6,
+          "output_reasoning": 22.5e-6,
+          "reasoning_tokens": 22.5e-6
         }
       },
       {
         "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 2,
         "conditions": [
           {
-            "usageDetailPattern": "input",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -4222,9 +4342,45 @@
           "input": 5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
           "output": 22.5e-6,
           "output_reasoning_tokens": 22.5e-6,
-          "output_reasoning": 22.5e-6
+          "output_reasoning": 22.5e-6,
+          "reasoning_tokens": 22.5e-6
+        }
+      },
+      {
+        "id": "ffb38cf8-2a30-4b88-a505-c740a02d5398",
+        "name": "Standard with Implicit Cache Writes",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 3.125e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cache_creation": 3.125e-6,
+          "cache_write_tokens": 3.125e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
         }
       }
     ]
@@ -4234,7 +4390,7 @@
     "modelName": "gpt-5.6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-luna)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-07-09T00:00:00.000Z",
+    "updatedAt": "2026-07-17T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4252,19 +4408,61 @@
           "input": 1e-6,
           "input_cached_tokens": 0.1e-6,
           "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
           "output": 6e-6,
           "output_reasoning_tokens": 6e-6,
-          "output_reasoning": 6e-6
+          "output_reasoning": 6e-6,
+          "reasoning_tokens": 6e-6
+        }
+      },
+      {
+        "id": "2087f450-0e2d-496f-8f14-198117c371d2",
+        "name": "Large Context with Implicit Cache Writes (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6
         }
       },
       {
         "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 2,
         "conditions": [
           {
-            "usageDetailPattern": "input",
+            "usageDetailPattern": "(input|cache_write)",
             "operator": "gt",
             "value": 272000,
             "caseSensitive": false
@@ -4274,9 +4472,45 @@
           "input": 2e-6,
           "input_cached_tokens": 0.2e-6,
           "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
           "output": 9e-6,
           "output_reasoning_tokens": 9e-6,
-          "output_reasoning": 9e-6
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6
+        }
+      },
+      {
+        "id": "11817b16-8931-47b1-a091-e2ef5fde1e58",
+        "name": "Standard with Implicit Cache Writes",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "usageDetailPattern": "^(input_cached_tokens|input_cache_read|cache_read_input_tokens)$",
+            "operator": "gt",
+            "value": 0,
+            "caseSensitive": false
+          },
+          {
+            "usageDetailPattern": "^(input_cache_creation|cache_write_tokens)$",
+            "operator": "eq",
+            "value": 0,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "output": 6e-6,
+          "output_reasoning_tokens": 6e-6,
+          "output_reasoning": 6e-6,
+          "reasoning_tokens": 6e-6
         }
       }
     ]

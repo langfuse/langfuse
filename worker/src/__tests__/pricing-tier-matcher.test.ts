@@ -280,6 +280,107 @@ describe("default-model-prices.json", () => {
       }
     }
   });
+
+  it("should price GPT-5.6 usage aliases and cache writes", () => {
+    const gpt56Models = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
+
+    for (const modelName of gpt56Models) {
+      const model = defaultModelPrices.find((m) => m.modelName === modelName);
+      expect(model, modelName).toBeDefined();
+      const standardTier = model!.pricingTiers.find((tier) => tier.isDefault)!;
+      const largeContextTier = model!.pricingTiers.find(
+        (tier) => tier.name === "Large Context (>272K)",
+      )!;
+
+      for (const tier of model!.pricingTiers) {
+        const prices = tier.prices as Record<string, number>;
+        const baseInputPrice = tier.name.includes("Large Context")
+          ? largeContextTier.prices.input
+          : standardTier.prices.input;
+        const cacheWritePrice = baseInputPrice * 1.25;
+
+        expect(
+          prices.cache_read_input_tokens,
+          `${modelName}/${tier.name}`,
+        ).toBe(prices.input_cached_tokens);
+        expect(prices.reasoning_tokens, `${modelName}/${tier.name}`).toBe(
+          prices.output_reasoning_tokens,
+        );
+        expect(
+          prices.input_cache_creation,
+          `${modelName}/${tier.name}`,
+        ).toBeCloseTo(cacheWritePrice, 15);
+        expect(
+          prices.cache_write_tokens,
+          `${modelName}/${tier.name}`,
+        ).toBeCloseTo(cacheWritePrice, 15);
+        if (tier.name.includes("Implicit Cache Writes")) {
+          expect(prices.input, `${modelName}/${tier.name}`).toBeCloseTo(
+            cacheWritePrice,
+            15,
+          );
+        }
+      }
+    }
+
+    const solModel = defaultModelPrices.find(
+      (model) => model.modelName === "gpt-5.6-sol",
+    );
+    expect(solModel).toBeDefined();
+
+    const solTiers: PricingTierWithPrices[] = solModel!.pricingTiers.map(
+      (tier) => ({
+        id: tier.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+        prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      }),
+    );
+
+    const issueUsage = {
+      input: 786,
+      cache_read_input_tokens: 718398,
+      output: 242,
+      reasoning_tokens: 25,
+    };
+    const issueResult = matchPricingTier(solTiers, issueUsage);
+
+    expect(issueResult?.pricingTierName).toBe(
+      "Large Context with Implicit Cache Writes (>272K)",
+    );
+    expect(issueResult?.prices.input.toNumber()).toBe(12.5e-6);
+
+    const issueTotalCost = Object.entries(issueUsage).reduce(
+      (total, [usageType, units]) =>
+        total + (issueResult?.prices[usageType]?.toNumber() ?? 0) * units,
+      0,
+    );
+    expect(issueTotalCost).toBeCloseTo(0.740238, 12);
+
+    const explicitCacheWriteResult = matchPricingTier(solTiers, {
+      input: 100,
+      cache_read_input_tokens: 1000,
+      cache_write_tokens: 20,
+    });
+    expect(explicitCacheWriteResult?.pricingTierName).toBe("Standard");
+    expect(explicitCacheWriteResult?.prices.input.toNumber()).toBe(5e-6);
+    expect(explicitCacheWriteResult?.prices.cache_write_tokens.toNumber()).toBe(
+      6.25e-6,
+    );
+
+    const rawCacheWriteLargeContextResult = matchPricingTier(solTiers, {
+      input: 100,
+      cache_write_tokens: 272000,
+    });
+    expect(rawCacheWriteLargeContextResult?.pricingTierName).toBe(
+      "Large Context (>272K)",
+    );
+  });
 });
 
 describe("validateRegexPattern", () => {
