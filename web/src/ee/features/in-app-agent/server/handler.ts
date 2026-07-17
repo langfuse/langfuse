@@ -8,6 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import {
+  getInAppAgentMessageEntryPointTraceMetadata,
   getInAppAgentQuickActionTraceMetadata,
   sanitizeInAppAgentContext,
 } from "@/src/ee/features/in-app-agent/context";
@@ -551,6 +552,9 @@ export default async function handler(request: Request) {
                         ? "existing"
                         : "new",
                     ...getInAppAgentQuickActionTraceMetadata(input.context),
+                    ...getInAppAgentMessageEntryPointTraceMetadata(
+                      input.context,
+                    ),
                   },
                 });
 

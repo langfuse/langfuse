@@ -1,3 +1,4 @@
+import type { InAppAgentMessageEntryPoint } from "@/src/ee/features/in-app-agent/context";
 import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
 import {
   Activity,
@@ -73,6 +74,9 @@ export type InAppAgentSubmitOptions = {
   quickAction?: InAppAgentQuickActionAttribution;
   /** Force a fresh conversation instead of appending to the selected one. */
   newConversation?: boolean;
+  /** Which surface sent the message; telemetry only (PostHog + trace
+   * metadata), never shown to the agent. Defaults to "chat". */
+  entryPoint?: InAppAgentMessageEntryPoint;
 };
 
 // Version 1 starter sets. Idea is that periodic curation replaces sets when usage

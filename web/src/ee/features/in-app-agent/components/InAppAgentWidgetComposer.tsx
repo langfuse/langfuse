@@ -35,6 +35,7 @@ export function InAppAgentWidgetComposer({
 
     const started = await submit(getWidgetCreationPrompt(trimmedRequest), {
       newConversation: true,
+      entryPoint: "add-widget-modal",
     });
 
     if (started) {

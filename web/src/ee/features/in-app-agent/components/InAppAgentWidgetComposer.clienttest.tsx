@@ -35,7 +35,7 @@ describe("InAppAgentWidgetComposer", () => {
     await waitFor(() => {
       expect(submit).toHaveBeenCalledWith(
         "Create a dashboard widget for this request and add it to the current dashboard:\n\nShow p95 latency by model\n\nChoose an appropriate data view, metrics, dimensions, filters, and chart type. Briefly explain the plan, then create the widget.",
-        { newConversation: true },
+        { newConversation: true, entryPoint: "add-widget-modal" },
       );
     });
     expect(openAssistant).toHaveBeenCalledWith("dashboard_widget");

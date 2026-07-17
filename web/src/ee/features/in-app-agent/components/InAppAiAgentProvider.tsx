@@ -38,9 +38,11 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentMessageEntryPointContext,
   createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
+  type InAppAgentMessageEntryPoint,
 } from "@/src/ee/features/in-app-agent/context";
 import type {
   InAppAgentQuickActionAttribution,
@@ -649,6 +651,7 @@ function InAppAiAgentProviderInner({
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
       quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
       clearLoadingEvents();
       setIsRunning(true);
@@ -670,6 +673,9 @@ function InAppAiAgentProviderInner({
               ? createInAppAgentQuickActionAttributionContext(
                   quickActionAttribution,
                 )
+              : [],
+            messageEntryPoint
+              ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
               : [],
           ),
         })
@@ -859,12 +865,19 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started");
+          capture("in_app_agent:new_chat_started", { entryPoint });
         }
-        capture("in_app_agent:new_chat_turn");
+        capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        runAgent(agent, conversationId, undefined, options?.quickAction);
+        runAgent(
+          agent,
+          conversationId,
+          undefined,
+          options?.quickAction,
+          entryPoint,
+        );
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
