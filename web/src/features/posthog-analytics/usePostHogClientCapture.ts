@@ -175,6 +175,7 @@ export const events = {
     "widget_copied_to_project",
     "widget_json_downloaded",
     "widget_copied_to_clipboard",
+    "widget_view_as_table",
     "widget_pasted",
     "widget_paste_rejected",
     "widget_duplicated",
