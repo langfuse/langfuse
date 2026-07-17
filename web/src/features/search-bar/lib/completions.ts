@@ -211,6 +211,10 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         detail: "metadata key path, e.g. metadata.region:eu",
         fieldId: "metadata.",
       },
+      // `scores.` is level-agnostic (LFE-10596): one entry point for every
+      // score. The legacy `traceScores.` namespace still parses and lowers
+      // (saved queries/URLs keep working) but is no longer offered — two
+      // score entry points confused users.
       {
         id: "field:scores.",
         kind: "field",
@@ -218,13 +222,6 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         detail:
           "score by name, e.g. scores.accuracy:>0.8 or scores.feedback:positive",
         fieldId: "scores.",
-      },
-      {
-        id: "field:traceScores.",
-        kind: "field",
-        label: "traceScores.",
-        detail: "trace-level score by name, e.g. traceScores.nps:>8",
-        fieldId: "traceScores.",
       },
       {
         id: "field:has",

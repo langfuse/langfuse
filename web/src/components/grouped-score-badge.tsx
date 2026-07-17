@@ -62,8 +62,9 @@ const ScoreGroupBadge = <
 }) => {
   const projectId = useProjectIdFromURL();
 
-  // Score-level color coding (LFE-10596): one compact dot per distinct level
-  // in the group (a name can exist at both trace and observation level).
+  // Score-level color coding (LFE-10596): one full tag per distinct level in
+  // the group (a name can exist at both trace and observation level). Full
+  // pill, not the compact dot — the level must be readable without hovering.
   const levels = Array.from(
     new Set(scores.map((score) => scoreLevelFromScore(score))),
   );
@@ -75,7 +76,7 @@ const ScoreGroupBadge = <
       className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
     >
       {levels.map((level) => (
-        <ScoreTag key={level} level={level} compact />
+        <ScoreTag key={level} level={level} />
       ))}
       <div
         className={`w-fit max-w-20 shrink-0 truncate ${compact ? "leading-tight" : ""}`}
