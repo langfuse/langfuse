@@ -400,7 +400,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
           isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
         )}
       >
@@ -621,7 +621,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       key={label}
                       type="button"
                       className={cn(
-                        "bg-card dark:bg-header text-foreground border-border hover:bg-muted/60 border text-[0.775rem] leading-none shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        "bg-card text-foreground border-border hover:bg-muted/60 border text-[0.775rem] leading-none shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                         isExpanded
                           ? "rounded-2xl px-3 py-2"
                           : "rounded-xl px-2 py-1.5",
@@ -800,7 +800,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         <div
           className={cn(
             "p-1.5",
-            isExpanded ? "pt-0" : "bg-header",
+            isExpanded ? "pt-0" : "bg-card",
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
