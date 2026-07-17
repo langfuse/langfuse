@@ -1,24 +1,16 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronRight } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
-import { TraceEventsRow } from "@/src/components/session/TraceEventsRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { cn } from "@/src/utils/tailwind";
 
 const MODERN_SESSION_OVERSCAN = 5;
-const EMPTY_FILTER_STATE: FilterState = [];
 
 type OpenPeek = (id: string, row: any) => void;
 
@@ -41,7 +33,6 @@ const ModernSessionMinimapItem = React.memo(
     index,
     isActive,
     projectId,
-    sessionId,
     traceCommentCounts,
     openPeek,
     onSelect,
@@ -50,12 +41,10 @@ const ModernSessionMinimapItem = React.memo(
     index: number;
     isActive: boolean;
     projectId: string;
-    sessionId: string;
     traceCommentCounts: Map<string, number> | undefined;
     openPeek: OpenPeek;
     onSelect: (index: number) => void;
   }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
     const observationCount = trace.observationCount ?? 0;
     const observationLabel = `${observationCount} observation${observationCount === 1 ? "" : "s"}`;
 
@@ -128,40 +117,6 @@ const ModernSessionMinimapItem = React.memo(
             />
           </div>
         ) : null}
-
-        <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground flex w-full items-center gap-1 px-3 py-2 text-left text-xs"
-            >
-              <ChevronRight
-                className={cn(
-                  "h-3 w-3 transition-transform",
-                  isExpanded && "rotate-90",
-                )}
-              />
-              <span>Tool calls &amp; data</span>
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="bg-muted/20 max-h-80 overflow-y-auto border-t px-3 py-3">
-              <TraceEventsRow
-                trace={trace}
-                projectId={projectId}
-                sessionId={sessionId}
-                openPeek={openPeek}
-                traceCommentCounts={undefined}
-                showCorrections={false}
-                filterState={EMPTY_FILTER_STATE}
-                viewLabel={null}
-                hideTracePanel
-                surface="data"
-                contentMode="data"
-              />
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
       </div>
     );
   },
@@ -173,7 +128,6 @@ const ModernSessionMinimap = React.memo(
     traces,
     activeTraceId,
     projectId,
-    sessionId,
     traceCommentCounts,
     openPeek,
     onSelect,
@@ -181,7 +135,6 @@ const ModernSessionMinimap = React.memo(
     traces: EventSessionTrace[];
     activeTraceId: string | undefined;
     projectId: string;
-    sessionId: string;
     traceCommentCounts: Map<string, number> | undefined;
     openPeek: OpenPeek;
     onSelect: (index: number) => void;
@@ -199,7 +152,6 @@ const ModernSessionMinimap = React.memo(
           index={index}
           isActive={trace.id === activeTraceId}
           projectId={projectId}
-          sessionId={sessionId}
           traceCommentCounts={traceCommentCounts}
           openPeek={openPeek}
           onSelect={onSelect}
@@ -272,7 +224,6 @@ export function ModernSession({
         traces={traces}
         activeTraceId={activeTraceId}
         projectId={projectId}
-        sessionId={sessionId}
         traceCommentCounts={traceCommentCounts}
         openPeek={openPeek}
         onSelect={selectTrace}

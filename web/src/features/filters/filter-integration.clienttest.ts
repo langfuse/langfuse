@@ -825,7 +825,7 @@ describe("Saved view validation", () => {
     ];
     // LFE-10520: the default view is "All observations with I/O", expressed as
     // a real, renderable boolean filter (not a hidden flag). Selecting a
-    // generation preset still applies its positionInTrace filters.
+    // LLM-call preset still applies its positionInTrace filters.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: false,
@@ -852,19 +852,19 @@ describe("Saved view validation", () => {
       validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
     ).toEqual(defaultPreset?.filters ?? []);
 
-    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "First Generation in Trace",
+    const firstLlmCallPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First LLM Call per Trace",
     );
-    const appliedFirstGeneration = getSessionDetailPresetToApply({
-      selectedViewId: firstGenerationPreset?.id ?? null,
+    const appliedFirstLlmCall = getSessionDetailPresetToApply({
+      selectedViewId: firstLlmCallPreset?.id ?? null,
       hasFilters: false,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "Last Generation in Trace",
+      (preset) => preset.name === "Last LLM Call per Trace",
     );
 
-    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
-    expect(firstGenerationPreset?.filters).toEqual([
+    expect(appliedFirstLlmCall).toEqual(firstLlmCallPreset);
+    expect(firstLlmCallPreset?.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -880,10 +880,10 @@ describe("Saved view validation", () => {
     ]);
     expect(
       validateFilters(
-        firstGenerationPreset?.filters ?? [],
+        firstLlmCallPreset?.filters ?? [],
         sessionEventColumns,
       ),
-    ).toEqual(firstGenerationPreset?.filters ?? []);
+    ).toEqual(firstLlmCallPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",

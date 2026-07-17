@@ -66,6 +66,8 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
+  SESSION_DETAIL_DRAWER_SYSTEM_PRESETS,
+  SESSION_DETAIL_LLM_CALL_PRESETS,
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
@@ -1051,6 +1053,24 @@ const LoadedSessionEventsPage: React.FC<{
       : null;
   const viewLabel = matchedView?.name ?? null;
 
+  const applyLlmCallPreset = (preset: SessionDetailSystemPreset) => {
+    capture("saved_views:system_preset_selected", {
+      tableName: TableViewPresetTableName.SessionDetail,
+      presetId: preset.id,
+    });
+    viewControllers.handleSetViewId(preset.id);
+    viewControllers.applyViewState(
+      {
+        filters: preset.filters,
+        columnOrder: [],
+        columnVisibility: {},
+        orderBy: null,
+        searchQuery: "",
+      },
+      { trigger: "system_preset", viewId: preset.id },
+    );
+  };
+
   // Recover the system-preset viewId the view manager strips from the URL on
   // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
   // (no one-shot guard) so it runs *after* the async strip, not before. Recovers
@@ -1222,6 +1242,25 @@ const LoadedSessionEventsPage: React.FC<{
           }
         >
           <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
+            {isModernSessionEnabled
+              ? SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
+                  const isActive = matchedView?.id === preset.id;
+                  return (
+                    <Button
+                      key={preset.id}
+                      type="button"
+                      variant="outline"
+                      aria-pressed={isActive}
+                      title={preset.description}
+                      className={isActive ? "bg-primary/5" : undefined}
+                      onClick={() => applyLlmCallPreset(preset)}
+                    >
+                      {preset.name}
+                    </Button>
+                  );
+                })
+              : null}
+
             {/* Saved Views */}
             <TableViewPresetsDrawer
               viewConfig={{
@@ -1236,7 +1275,11 @@ const LoadedSessionEventsPage: React.FC<{
                 columnVisibility,
                 searchQuery: "",
               }}
-              systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              systemFilterPresets={
+                isModernSessionEnabled
+                  ? SESSION_DETAIL_DRAWER_SYSTEM_PRESETS
+                  : SESSION_DETAIL_SYSTEM_PRESETS
+              }
               triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
