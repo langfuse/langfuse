@@ -24,6 +24,7 @@ const integrationHooks = vi.hoisted(() => ({
   failExactEnrichmentForProjectId: null as string | null,
   failCandidateStreamAfterFirstRow: false,
   activeCandidateStreams: 0,
+  candidateHttpTimeouts: [] as Array<{ send: number; receive: number }>,
   gaugeCalls: [] as Array<[stat: string, value: number | undefined]>,
   incrementCalls: [] as Array<[stat: string, value: number | undefined]>,
 }));
@@ -51,6 +52,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     queryClickhouseStream: async function* <T>(
       opts: Parameters<typeof actual.queryClickhouseStream>[0],
     ): AsyncGenerator<T> {
+      if (opts.query.includes("SELECT DISTINCT project_id")) {
+        integrationHooks.candidateHttpTimeouts.push({
+          send: Number(
+            opts.clickhouseConfigs?.clickhouse_settings?.http_send_timeout,
+          ),
+          receive: Number(
+            opts.clickhouseConfigs?.clickhouse_settings?.http_receive_timeout,
+          ),
+        });
+      }
       integrationHooks.activeCandidateStreams += 1;
       try {
         for await (const row of actual.queryClickhouseStream<T>(opts)) {
@@ -458,6 +469,7 @@ describe("BatchDataRetentionCleaner", () => {
       integrationHooks.failExactEnrichmentForProjectId = null;
       integrationHooks.failCandidateStreamAfterFirstRow = false;
       integrationHooks.activeCandidateStreams = 0;
+      integrationHooks.candidateHttpTimeouts = [];
       integrationHooks.gaugeCalls = [];
       integrationHooks.incrementCalls = [];
       await createRetentionTestTable(tableName);
@@ -490,6 +502,17 @@ describe("BatchDataRetentionCleaner", () => {
         "langfuse.batch_data_retention_cleaner.rows_matched_before_delete",
         3,
       ]);
+      expect(integrationHooks.candidateHttpTimeouts.length).toBeGreaterThan(0);
+      for (const timeouts of integrationHooks.candidateHttpTimeouts) {
+        const expectedTimeoutSeconds = Math.ceil(
+          env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS /
+            1000,
+        );
+        expect(timeouts).toEqual({
+          send: expectedTimeoutSeconds,
+          receive: expectedTimeoutSeconds,
+        });
+      }
       expect(
         integrationHooks.gaugeCalls.findLast(
           ([stat]) =>

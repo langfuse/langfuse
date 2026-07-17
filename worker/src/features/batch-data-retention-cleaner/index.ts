@@ -199,7 +199,9 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       onUnavailable: "fail",
     });
     this.tableName = tableName;
-    this.candidateQueryHttpTimeoutSeconds = lockTtlSeconds;
+    this.candidateQueryHttpTimeoutSeconds = Math.ceil(
+      candidateQueryTimeoutMs / 1000,
+    );
     this.lockExtensionMinIntervalMs = Math.floor((lockTtlSeconds * 1000) / 3);
   }
 
