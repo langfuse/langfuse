@@ -35,6 +35,7 @@ import {
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -124,6 +125,7 @@ import {
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
+import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
@@ -221,6 +223,11 @@ export type EventsTableProps = {
   showControlsInPageHeader?: boolean;
   /** Explicit signal from the Fast Preview/v4 page routes. */
   enableAppRootDefault?: boolean;
+  /**
+   * Keep an embedded table's filters, search, and saved views independent from
+   * the project-wide observations page. The project date range remains shared.
+   */
+  isolateTableState?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -261,6 +268,7 @@ export default function ObservationsEventsTable({
   sessionId,
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
+  isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -272,8 +280,31 @@ export default function ObservationsEventsTable({
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
+  const urlSearch = useFullTextSearch();
+  const [isolatedSearchQuery, setIsolatedSearchQuery] = useState<string | null>(
+    null,
+  );
+  const [isolatedSearchType, setIsolatedSearchType] = useState<
+    TracingSearchType[]
+  >(["id"]);
+  const tableStatePolicy = getEventsTableStatePolicy({
+    hideControls,
+    isolateTableState,
+  });
+  const searchQuery = tableStatePolicy.useIsolatedSearch
+    ? isolatedSearchQuery
+    : urlSearch.searchQuery;
+  const searchType = tableStatePolicy.useIsolatedSearch
+    ? isolatedSearchType
+    : urlSearch.searchType;
+  const setSearchQuery: (query: string | null) => void =
+    tableStatePolicy.useIsolatedSearch
+      ? setIsolatedSearchQuery
+      : urlSearch.setSearchQuery;
+  const setSearchType: (type: TracingSearchType[]) => void =
+    tableStatePolicy.useIsolatedSearch
+      ? setIsolatedSearchType
+      : urlSearch.setSearchType;
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -432,7 +463,7 @@ export default function ObservationsEventsTable({
   // Facet options are scoped only by the time window (the facet hook reads just
   // the start-time filters); use the tick-decoupled range so the auto refresh
   // leaves them alone.
-  const oldFilterState = inputFilterState.concat(
+  const oldFilterState = (isolateTableState ? [] : inputFilterState).concat(
     toStartTimeFilterState(filterOptionsDateRange),
   );
 
@@ -475,7 +506,7 @@ export default function ObservationsEventsTable({
       };
     }
 
-    if (hideControls) {
+    if (tableStatePolicy.filterStateLocation === "memory") {
       return {
         ...baseOptions,
         stateLocation: "memory",
@@ -488,7 +519,7 @@ export default function ObservationsEventsTable({
       sessionFilterContextId: projectId,
     };
   }, [
-    hideControls,
+    tableStatePolicy.filterStateLocation,
     isFilterOptionsPending,
     loadingColumns,
     peekContext,
@@ -524,6 +555,7 @@ export default function ObservationsEventsTable({
     !hideControls &&
     !externalFilterState &&
     !peekContext &&
+    tableStatePolicy.allowGrammarSearch &&
     // Embedded user/session-detail tables are page-scoped (a userId/sessionId
     // filter is AND-combined into the query); the bar reads the full FIELDS
     // registry and would let e.g. `userId:other` fight that scope. Keep it to
@@ -1633,7 +1665,7 @@ export default function ObservationsEventsTable({
       appRootDefault.isAutoManaged,
     ),
     currentExpandedFilters: queryFilter.expanded,
-    disabled: hideControls,
+    disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
   });
 
@@ -1897,32 +1929,34 @@ export default function ObservationsEventsTable({
               // left-aligned, so they sit on the same line as the right-aligned
               // Columns/Export controls.
               leadingControls={
-                <div className="flex flex-wrap items-center gap-2">
-                  <CategoryPresetChips
-                    projectId={projectId}
-                    activeViewId={
-                      viewControllers.appliedViewId ??
-                      viewControllers.selectedViewId
-                    }
-                    onApplyView={viewControllers.handleSetViewId}
-                    applyViewState={viewControllers.applyViewState}
-                    onPreviewView={previewViewInSearchBar}
-                  />
-                  <TableViewPresetsDrawer
-                    viewConfig={{
-                      tableName: TableViewPresetTableName.ObservationsEvents,
-                      projectId,
-                      controllers: viewControllers,
-                    }}
-                    currentState={{
-                      orderBy: orderByState ?? null,
-                      filters: queryFilter.explicitFilterState ?? [],
-                      columnOrder,
-                      columnVisibility,
-                      searchQuery: searchQuery ?? "",
-                    }}
-                  />
-                </div>
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CategoryPresetChips
+                      projectId={projectId}
+                      activeViewId={
+                        viewControllers.appliedViewId ??
+                        viewControllers.selectedViewId
+                      }
+                      onApplyView={viewControllers.handleSetViewId}
+                      applyViewState={viewControllers.applyViewState}
+                      onPreviewView={previewViewInSearchBar}
+                    />
+                    <TableViewPresetsDrawer
+                      viewConfig={{
+                        tableName: TableViewPresetTableName.ObservationsEvents,
+                        projectId,
+                        controllers: viewControllers,
+                      }}
+                      currentState={{
+                        orderBy: orderByState ?? null,
+                        filters: queryFilter.explicitFilterState ?? [],
+                        columnOrder,
+                        columnVisibility,
+                        searchQuery: searchQuery ?? "",
+                      }}
+                    />
+                  </div>
+                )
               }
             />
           </div>
