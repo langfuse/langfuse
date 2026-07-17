@@ -30,6 +30,7 @@ import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   FoldVertical,
   MoreVertical,
@@ -707,7 +708,7 @@ export function DataTableControls({
                   nodes.push(
                     <div
                       key="promoted-separator"
-                      className="border-border/60 mx-3 my-3 border-t"
+                      className="h-2"
                       aria-hidden
                     />,
                   );
@@ -863,20 +864,20 @@ const FilterAccordionTrigger = ({
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
   // top-0: the panel header row sits outside the scroll container
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
-  // No expand/collapse chevron: the whole row toggles (hover background +
-  // aria-expanded signal the affordance), and the clear button overlays on
-  // hover without reserving layout space.
+  // The expand chevron leads the row (> closed, v open); the clear button
+  // overlays on hover without reserving layout space.
   <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
         // nowrap chip's full text width, so long chips push the row past the
         // panel edge (clipped) instead of ellipsing.
-        "group/facet relative flex min-w-0 flex-1 items-center text-left font-medium hover:underline",
+        "group/facet relative flex min-w-0 flex-1 items-center gap-1.5 text-left font-medium hover:underline [&[data-state=open]>svg:first-child]:rotate-90",
         className,
       )}
       {...props}
     >
+      <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform" />
       {children}
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
@@ -929,13 +930,13 @@ export function FilterAccordionItem({
   return (
     <FilterAccordionItemPrimitive
       value={filterKey}
-      className="border-none"
+      className="py-0.5"
       // Anchor for the follow-scroll after a re-sort moves this facet.
       data-facet-column={filterKey}
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground hover:bg-accent/50 px-3 py-1 text-sm font-normal transition-colors hover:no-underline",
+          "text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-accent/60 px-3 py-1 text-[13px] font-normal transition-colors hover:no-underline",
           isActive && "text-foreground",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
@@ -1016,8 +1017,10 @@ export function FilterAccordionItem({
             <span
               className={cn(
                 "max-w-full min-w-0 truncate text-[11px] leading-4",
+                // bg-background pops the chip out of the tinted header band
+                // in both themes (the band is bg-muted over background).
                 isActive
-                  ? "bg-accent text-accent-foreground rounded px-1 py-px font-medium"
+                  ? "bg-background text-foreground border-border/50 rounded border px-1 py-px font-medium"
                   : "text-muted-foreground/60 font-normal",
               )}
               title={summary}
@@ -1373,10 +1376,10 @@ function CategoricalSelectContent({
         <>
           {[1, 2].map((i) => (
             <div key={i} className="relative flex items-center px-2">
-              <div className="group/checkbox flex items-center rounded-sm p-1">
-                <Skeleton className="h-4 w-4 rounded-sm" />
+              <div className="group/checkbox flex items-center rounded-sm p-0.5">
+                <Skeleton className="h-3.5 w-3.5 rounded-sm" />
               </div>
-              <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+              <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-0.5">
                 <Skeleton className="h-3 w-24" />
                 <Skeleton className="ml-auto h-3 w-8" />
               </div>
@@ -1971,7 +1974,9 @@ interface FilterModeTabsProps {
 
 function FilterModeTabs({ mode, onModeChange }: FilterModeTabsProps) {
   return (
-    <div className="mb-2 px-4">
+    // mt-1 evens the rhythm: content opens with pt-1, so the tabs sit 8px
+    // from the header band and 8px (mb-2) from the list below.
+    <div className="mt-1 mb-2 px-4">
       <Tabs
         value={mode}
         onValueChange={(newMode) => onModeChange(newMode as "select" | "text")}
@@ -2133,20 +2138,20 @@ export function FilterValueCheckbox({
       )}
     >
       {/* Checkbox hover area */}
-      <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-1 transition-colors">
+      <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-0.5 transition-colors">
         <Checkbox
           id={id}
           checked={checked}
           onCheckedChange={onCheckedChange}
           disabled={disabled}
-          className="pointer-events-auto"
+          className="pointer-events-auto h-3.5 w-3.5"
         />
       </div>
 
       {/* Label hover area */}
       <div
         className={cn(
-          "group/label hover:bg-accent flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-1 transition-colors",
+          "group/label hover:bg-accent flex min-w-0 flex-1 cursor-pointer items-center rounded-sm px-1 py-0.5 transition-colors",
           disabled && "pointer-events-none",
         )}
         onClick={onLabelClick}
