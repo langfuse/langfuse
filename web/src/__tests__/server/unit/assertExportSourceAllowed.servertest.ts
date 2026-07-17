@@ -15,6 +15,7 @@ const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
 const cloudPostCutoff: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
+  legacyWritesActive: true,
   projectCreatedAt: POST_CUTOFF,
 };
 
@@ -53,14 +54,29 @@ describe("assertExportSourceAllowed", () => {
     ).not.toThrow();
   });
 
-  it("omitted source: rejects a persisted value the deployment cannot export (capability reason)", () => {
+  it("omitted source: rejects a persisted value the deployment cannot export (capability reasons)", () => {
     expect(() =>
       assertExportSourceAllowed({
         nextExportSource: undefined,
         persistedExportSource: "EVENTS",
-        ctx: { isCloud: false, enrichedAvailable: false },
+        ctx: {
+          isCloud: false,
+          enrichedAvailable: false,
+          legacyWritesActive: true,
+        },
       }),
     ).toThrow(/Enriched blob export is not available/);
+    expect(() =>
+      assertExportSourceAllowed({
+        nextExportSource: undefined,
+        persistedExportSource: "TRACES_OBSERVATIONS",
+        ctx: {
+          isCloud: false,
+          enrichedAvailable: true,
+          legacyWritesActive: false,
+        },
+      }),
+    ).toThrow(/events_only/);
   });
 
   it("omitted source without a persisted row is a no-op", () => {
