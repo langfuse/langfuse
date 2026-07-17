@@ -326,10 +326,12 @@ export const NewDatasetItemForm = (props: {
           return;
         }
 
+        // The user already sees the validation errors via setFormError above;
+        // a bare console.error(object) would only add an opaque, non-actionable
+        // Sentry capture (captureConsoleIntegration), so we omit it here.
         setFormError(
           `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
         );
-        console.error(result.validationErrors);
       })
       .catch((error) => {
         console.error(error);
