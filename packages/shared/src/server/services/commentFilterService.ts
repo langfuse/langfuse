@@ -158,8 +158,6 @@ export async function applyCommentFilters({
         operator: commentContentFilter.operator as CommentContentOperator,
       });
 
-      validateObjectIdCount(filterObjectIds, objectType);
-
       if (matchingIds === null) {
         matchingIds = filterObjectIds;
       } else {
@@ -168,7 +166,9 @@ export async function applyCommentFilters({
       }
     }
 
-    return matchingIds ?? [];
+    const resolvedIds = matchingIds ?? [];
+    validateObjectIdCount(resolvedIds, objectType);
+    return resolvedIds;
   };
 
   // Handle comment count filters (may be multiple for ranges like >= 1 AND <= 100)

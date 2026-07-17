@@ -141,6 +141,33 @@ describe("applyCommentFilters", () => {
     });
   });
 
+  it("validates the final content-filter intersection", async () => {
+    const broadIds = Array.from(
+      { length: COMMENT_FILTER_THRESHOLD + 1 },
+      (_, index) => `observation-${index}`,
+    );
+    const matchingIds = [broadIds[0]!];
+    const prisma = {} as PrismaClient;
+    vi.spyOn(commentsRepository, "getObjectIdsByCommentContent")
+      .mockResolvedValueOnce(broadIds)
+      .mockResolvedValueOnce(matchingIds);
+
+    const result = await applyCommentFilters({
+      filterState: [
+        commentContentFilter("broad"),
+        commentContentFilter("narrow"),
+      ],
+      prisma,
+      ...commonArgs,
+    });
+
+    expect(result).toEqual({
+      filterState: [objectIdFilter("any of", matchingIds)],
+      hasNoMatches: false,
+      matchingIds,
+    });
+  });
+
   it.each([
     {
       name: "applies an equality count filter that excludes zero",
