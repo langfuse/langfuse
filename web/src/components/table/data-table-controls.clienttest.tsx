@@ -117,8 +117,10 @@ describe("CategoricalFacet", () => {
     ).toBeTruthy();
   });
 
-  it("collapses an expanded list back to the cap via 'Show fewer values'", () => {
-    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+  it("reveals values in portions — 'more' means more, not all — and collapses back", () => {
+    // 80 options: one "Show more" click must reveal the next chunk (+50),
+    // not the entire list.
+    const options = Array.from({ length: 80 }, (_, i) => `opt-${i}`);
     render(
       <Accordion type="multiple" value={["c"]}>
         <CategoricalFacet
@@ -139,17 +141,24 @@ describe("CategoricalFacet", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Show more values" }));
-    // Expanded: the deep value renders and the toggle flips…
-    expect(screen.getByText("opt-19")).toBeInTheDocument();
-    const collapse = screen.getByRole("button", {
-      name: "Show fewer values",
-    });
-    // …and clicking it re-applies the cap.
-    fireEvent.click(collapse);
-    expect(screen.queryByText("opt-19")).not.toBeInTheDocument();
+    // One portion revealed (12 + 50 = 62 values)…
+    expect(screen.getByText("opt-61")).toBeInTheDocument();
+    // …but NOT the whole list…
+    expect(screen.queryByText("opt-62")).not.toBeInTheDocument();
+    // …and both continue and collapse affordances are offered.
     expect(
       screen.getByRole("button", { name: "Show more values" }),
     ).toBeInTheDocument();
+    const collapse = screen.getByRole("button", {
+      name: "Show fewer values",
+    });
+    // Collapsing re-applies the cap.
+    fireEvent.click(collapse);
+    expect(screen.queryByText("opt-61")).not.toBeInTheDocument();
+    expect(screen.queryByText("opt-12")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Show fewer values" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the 'Show more' cap when every option is reported selected (no-filter default)", () => {

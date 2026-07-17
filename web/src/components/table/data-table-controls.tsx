@@ -326,7 +326,15 @@ export function DataTableControls({
           // while the user is scroll-reading the list.
           onWheelCapture={freezeFacetOrder}
         >
-          <div className="pt-1 pb-10">
+          {/* w-0 + min-w-full pins the content to the viewport width: the
+              Radix viewport wraps children in an inline-styled
+              `display: table; min-width: 100%` div that otherwise grows to
+              CONTENT width — long value labels would stop truncating and
+              hover-revealed affordances would widen the whole list. width: 0
+              zeroes the content's intrinsic contribution (the table stays at
+              min-width: 100%), then min-w-full stretches this wrapper back to
+              the now-fixed table width. */}
+          <div className="w-0 min-w-full pt-1 pb-10">
             <Accordion
               type="multiple"
               className="w-full"
@@ -888,6 +896,11 @@ export function CategoricalFacet({
   );
 }
 
+// Values shown per facet before "Show more values" gates the rest.
+const MAX_VISIBLE_OPTIONS = 12;
+// Each "Show more values" click reveals this many additional values.
+const SHOW_MORE_INCREMENT = 50;
+
 // Select-mode body of a categorical facet. A separate stateful child so its
 // transient list UI state (value search, "show more") lives inside the
 // accordion content and unmounts — and therefore resets — when the facet is
@@ -919,11 +932,12 @@ function CategoricalSelectContent({
   | "operator"
   | "onOperatorChange"
 >) {
-  const [showAll, setShowAll] = useState(false);
+  // "Show more values" reveals the next PORTION (it does what it says — not
+  // expand-everything: value lists can run to 1000+ user IDs); "Show fewer
+  // values" collapses back to the cap. Resets by unmounting on collapse.
+  const [visibleCount, setVisibleCount] = useState(MAX_VISIBLE_OPTIONS);
   const [searchQuery, setSearchQuery] = useState("");
   const { tableName = "data" } = useContext(ControlsContext) ?? {};
-
-  const MAX_VISIBLE_OPTIONS = 12;
   const visibleOptionValues = Array.from(
     new Set([...options, ...value.filter((option) => option.length > 0)]),
   );
@@ -974,10 +988,9 @@ function CategoricalSelectContent({
       ]
     : filteredOptions;
 
-  const hasMoreFilteredOptions = orderedOptions.length > MAX_VISIBLE_OPTIONS;
-  const visibleOptions = showAll
-    ? orderedOptions
-    : orderedOptions.slice(0, MAX_VISIBLE_OPTIONS);
+  const visibleOptions = orderedOptions.slice(0, visibleCount);
+  const canShowMore = orderedOptions.length > visibleCount;
+  const canShowFewer = visibleCount > MAX_VISIBLE_OPTIONS;
 
   // Split the visible slice so a separator can mark where the pinned rows
   // end. When not pinning, everything renders in natural order (no divider).
@@ -1151,19 +1164,37 @@ function CategoricalSelectContent({
                   />
                 )}
 
-              {/* Remaining options, capped; the toggle collapses an expanded
-                  list back to the cap without having to close the facet. */}
+              {/* Remaining options, capped */}
               {visibleRemainingOptions.map(renderOption)}
-              {hasMoreFilteredOptions && (
-                <div className="px-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowAll((current) => !current)}
-                    className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
-                  >
-                    {showAll ? "Show fewer values" : "Show more values"}
-                  </Button>
+              {(canShowMore || canShowFewer) && (
+                <div className="flex gap-1 px-2">
+                  {canShowMore && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setVisibleCount(
+                          (current) => current + SHOW_MORE_INCREMENT,
+                        )
+                      }
+                      className="mt-1 h-auto justify-start py-1 pl-7 text-xs"
+                    >
+                      Show more values
+                    </Button>
+                  )}
+                  {canShowFewer && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
+                      className={cn(
+                        "mt-1 h-auto justify-start py-1 text-xs",
+                        !canShowMore && "pl-7",
+                      )}
+                    >
+                      Show fewer values
+                    </Button>
+                  )}
                 </div>
               )}
             </>
@@ -1838,15 +1869,17 @@ export function FilterValueCheckbox({
           {displayLabel}
         </span>
 
-        {/* "Only" or "All" indicator when hovering label */}
+        {/* "Only" or "All" indicator when hovering label. shrink-0 +
+            whitespace-nowrap: appearing may only re-truncate the label —
+            never widen the row. */}
         {onLabelClick && !disabled && (
-          <span className="text-muted-foreground hidden pl-1 text-xs group-hover/label:block">
+          <span className="text-muted-foreground hidden shrink-0 pl-1 text-xs whitespace-nowrap group-hover/label:block">
             {labelText}
           </span>
         )}
 
         {count > 0 ? (
-          <span className="text-muted-foreground ml-auto w-7 pl-1 text-right text-xs">
+          <span className="text-muted-foreground ml-auto w-7 shrink-0 pl-1 text-right text-xs">
             {compactNumberFormatter(count, 0)}
           </span>
         ) : null}
