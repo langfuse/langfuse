@@ -3,9 +3,9 @@ import {
   getPublicEvaluator,
 } from "@/src/features/evals/server/unstable-public-api";
 import {
-  createUnstablePublicEvalsRoute,
-  withUnstablePublicEvalsMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+  createUnstablePublicApiRoute,
+  withUnstablePublicApiMiddlewares,
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   DeleteUnstableEvaluatorQuery,
   DeleteUnstableEvaluatorResponse,
@@ -13,8 +13,8 @@ import {
   GetUnstableEvaluatorResponse,
 } from "@/src/features/public-api/types/unstable-evaluators";
 
-export default withUnstablePublicEvalsMiddlewares({
-  GET: createUnstablePublicEvalsRoute({
+export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
     name: "Get Unstable Evaluator",
     querySchema: GetUnstableEvaluatorQuery,
     responseSchema: GetUnstableEvaluatorResponse,
@@ -24,7 +24,7 @@ export default withUnstablePublicEvalsMiddlewares({
         evaluatorId: query.evaluatorId,
       }),
   }),
-  DELETE: createUnstablePublicEvalsRoute({
+  DELETE: createUnstablePublicApiRoute({
     name: "Delete Unstable Evaluator",
     querySchema: DeleteUnstableEvaluatorQuery,
     responseSchema: DeleteUnstableEvaluatorResponse,

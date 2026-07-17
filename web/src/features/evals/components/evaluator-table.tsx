@@ -483,7 +483,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable
-              tableName={"evalConfigs"}
+              tableName="evalConfigs"
               columns={columns}
               peekView={peekConfig}
               data={

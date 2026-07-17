@@ -213,6 +213,168 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       expect(result[0].itemId).toBe(item1Id);
     });
 
+    it("should filter items by trace-level boolean scores", async () => {
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const item1Id = randomUUID();
+      const item2Id = randomUUID();
+      const item1TraceId = randomUUID();
+      const item2TraceId = randomUUID();
+      const item1RootId = randomUUID();
+      const item2RootId = randomUUID();
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: item1TraceId,
+          span_id: item1RootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: item1Id,
+          experimentItemRootSpanId: item1RootId,
+          start_time: Date.now() * 1000,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: item2TraceId,
+          span_id: item2RootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: item2Id,
+          experimentItemRootSpanId: item2RootId,
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: item1TraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: item2TraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [
+          {
+            experimentId: baselineExpId,
+            filters: [
+              {
+                column: "trace_score_booleans",
+                type: "booleanObject",
+                key: "passes_guardrail",
+                operator: "=",
+                value: true,
+              } as FilterCondition,
+            ],
+          },
+        ],
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].itemId).toBe(item1Id);
+    });
+
+    it("should filter items by root observation boolean scores", async () => {
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const item1Id = randomUUID();
+      const item2Id = randomUUID();
+      const item1TraceId = randomUUID();
+      const item2TraceId = randomUUID();
+      const item1RootId = randomUUID();
+      const item2RootId = randomUUID();
+
+      await createEventsCh([
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: item1TraceId,
+          span_id: item1RootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: item1Id,
+          experimentItemRootSpanId: item1RootId,
+          start_time: Date.now() * 1000,
+        }),
+        createExperimentEvent({
+          project_id: projectId,
+          trace_id: item2TraceId,
+          span_id: item2RootId,
+          experimentId: baselineExpId,
+          experimentName: "baseline-exp",
+          datasetId,
+          itemId: item2Id,
+          experimentItemRootSpanId: item2RootId,
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createRootObservationScore({
+          projectId,
+          traceId: item1TraceId,
+          rootObservationId: item1RootId,
+          scoreName: "root_passes_guardrail",
+          value: 1,
+          stringValue: "True",
+          dataType: "BOOLEAN",
+        }),
+        createRootObservationScore({
+          projectId,
+          traceId: item2TraceId,
+          rootObservationId: item2RootId,
+          scoreName: "root_passes_guardrail",
+          value: 0,
+          stringValue: "False",
+          dataType: "BOOLEAN",
+        }),
+      ]);
+
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [
+          {
+            experimentId: baselineExpId,
+            filters: [
+              {
+                column: "obs_score_booleans",
+                type: "booleanObject",
+                key: "root_passes_guardrail",
+                operator: "=",
+                value: true,
+              } as FilterCondition,
+            ],
+          },
+        ],
+        limit: 10,
+        offset: 0,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].itemId).toBe(item1Id);
+    });
+
     it("should NOT include non-root observation scores in filtering", async () => {
       // GIVEN: Item with child observation score (not root)
       const baselineExpId = randomUUID();

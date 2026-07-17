@@ -22,7 +22,7 @@ export CLICKHOUSE_PASSWORD=
 
 cd worker/src/scripts/verifyClickhouseRecords
 
-npx ts-node index.ts
+npx tsx index.ts
 ```
 
 The script writes the objects and deltas into the `output` folder within the current working directory.

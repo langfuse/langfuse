@@ -41,8 +41,10 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
   "calledToolNames",
   "scores_avg",
   "score_categories",
+  "score_booleans",
   "trace_scores_avg",
   "trace_score_categories",
+  "trace_score_booleans",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 // Columns loaded eagerly on mount in lazy mode: the sidebar's default-expanded
@@ -50,7 +52,7 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
 // suggestion fields (level/type/environment/name). The high-cardinality facets
 // (userId/sessionId, model/prompt/experiment/tool) load only when opened or typed.
 //
-// The four score-NAME columns are eager too. They are cheap (just the distinct
+// The six score-NAME columns are eager too. They are cheap (just the distinct
 // score names + their categorical buckets, not per-row data) and drive the
 // grammar's score-type routing: `scoreTypeContextFromObserved` must be populated
 // before the bar lowers a `scores.<name>:5` token, or a categorical numeric-label
@@ -64,8 +66,10 @@ const EAGER_EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "scores_avg",
   "score_categories",
+  "score_booleans",
   "trace_scores_avg",
   "trace_score_categories",
+  "trace_score_booleans",
 ] as const satisfies readonly EventFilterOptionColumn[];
 
 const EAGER_COLUMN_SET: ReadonlySet<string> = new Set(
@@ -292,8 +296,10 @@ export function useEventsFilterOptions({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: rawData.score_booleans ?? undefined,
       trace_score_categories: traceScoreCategories,
       trace_scores_avg: traceScoresNumeric,
+      trace_score_booleans: rawData.trace_score_booleans ?? undefined,
     };
   }, [rawData]);
 

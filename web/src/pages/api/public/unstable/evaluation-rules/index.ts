@@ -3,9 +3,9 @@ import {
   listPublicEvaluationRules,
 } from "@/src/features/evals/server/unstable-public-api";
 import {
-  createUnstablePublicEvalsRoute,
-  withUnstablePublicEvalsMiddlewares,
-} from "@/src/features/public-api/server/unstable-public-evals-route";
+  createUnstablePublicApiRoute,
+  withUnstablePublicApiMiddlewares,
+} from "@/src/features/public-api/server/unstable-public-api-route";
 import {
   GetUnstableEvaluationRulesQuery,
   GetUnstableEvaluationRulesResponse,
@@ -13,8 +13,8 @@ import {
   PostUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 
-export default withUnstablePublicEvalsMiddlewares({
-  GET: createUnstablePublicEvalsRoute({
+export default withUnstablePublicApiMiddlewares({
+  GET: createUnstablePublicApiRoute({
     name: "List Unstable Evaluation Rules",
     querySchema: GetUnstableEvaluationRulesQuery,
     responseSchema: GetUnstableEvaluationRulesResponse,
@@ -25,7 +25,7 @@ export default withUnstablePublicEvalsMiddlewares({
         limit: query.limit,
       }),
   }),
-  POST: createUnstablePublicEvalsRoute({
+  POST: createUnstablePublicApiRoute({
     name: "Create Unstable Evaluation Rule",
     bodySchema: PostUnstableEvaluationRuleBody,
     responseSchema: PostUnstableEvaluationRuleResponse,

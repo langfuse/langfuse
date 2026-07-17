@@ -94,7 +94,7 @@ export type ColumnDefinition =
   | {
       name: string;
       id: string;
-      type: "stringObject" | "numberObject";
+      type: "stringObject" | "numberObject" | "booleanObject";
       internal: string;
       keyOptions?: Array<string>;
       nullable?: boolean;

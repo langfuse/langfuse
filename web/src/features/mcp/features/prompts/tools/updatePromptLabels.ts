@@ -64,6 +64,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "- Specified labels are added to the version (preserving others not mentioned)",
     "- Labels are unique across versions - setting a label on one version automatically removes it from others",
     "- 'latest' label is auto-managed and cannot be set manually",
+    "- Only add the 'production' label when the user explicitly asks to promote this prompt version to production",
     "- Cannot modify prompt content, type, or tags - use createTextPrompt or createChatPrompt for new versions",
     "",
     "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",

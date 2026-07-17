@@ -23,7 +23,9 @@ import {
   type CodeEvalScoreWithName,
   type DispatchResult,
 } from "./codeEvalDispatcherTypes";
+import { z } from "zod";
 import type { ExtractedVariable } from "./extractObservationVariables";
+import { toolCallForEvalSchema } from "../../features/evals/observationForEval";
 
 const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
@@ -109,11 +111,28 @@ function buildCodeEvalPayload(params: {
   const byName = new Map(
     params.extractedVariables.map((v) => [v.var, v.value]),
   );
+  // Extraction zips tool calls into named objects (extractObservationVariables).
+  // Configs saved before "toolCalls" entered the code eval mapping extract
+  // nothing for it, so those evaluators see empty arrays. Parse rather than
+  // cast: a mapping row with a jsonSelector on toolCalls (or a corrupted row)
+  // would otherwise ship wrong-shaped elements into user evaluator code.
+  const rawToolCalls = byName.get("toolCalls");
+  const parsedToolCalls = z
+    .array(toolCallForEvalSchema)
+    .safeParse(rawToolCalls ?? []);
+  if (!parsedToolCalls.success) {
+    logger.warn(
+      "Extracted toolCalls variable is not ToolCallForEval[]; evaluator receives an empty array",
+      { error: parsedToolCalls.error.message },
+    );
+  }
+  const toolCalls = parsedToolCalls.success ? parsedToolCalls.data : [];
   const payload: CodeEvalPayload = {
     observation: {
       input: byName.get("input") ?? null,
       output: byName.get("output") ?? null,
       metadata: byName.get("metadata") ?? null,
+      toolCalls,
     },
   };
 

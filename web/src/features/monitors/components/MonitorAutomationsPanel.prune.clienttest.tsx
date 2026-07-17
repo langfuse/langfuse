@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 const automationRow = {
   id: "auto-1",
@@ -25,9 +25,9 @@ vi.mock("next/router", () => ({
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 
-describe("MonitorAutomationsPanel auto-prune", () => {
-  it("does not prune while the query is loading", () => {
-    useQueryMock.mockReturnValue({ data: undefined, isSuccess: false });
+describe("MonitorAutomationsPanel stale-id pruning", () => {
+  it("does not write back while the query is loading", () => {
+    useQueryMock.mockReturnValue({ data: undefined, isPending: true });
     const onTriggerIdsChange = vi.fn();
     render(
       <MonitorAutomationsPanel
@@ -39,8 +39,8 @@ describe("MonitorAutomationsPanel auto-prune", () => {
     expect(onTriggerIdsChange).not.toHaveBeenCalled();
   });
 
-  it("prunes a stale ID once loaded, calling onChange once with the pruned array", () => {
-    useQueryMock.mockReturnValue({ data: [automationRow], isSuccess: true });
+  it("hides a stale ID on load without writing back", () => {
+    useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();
     render(
       <MonitorAutomationsPanel
@@ -49,20 +49,21 @@ describe("MonitorAutomationsPanel auto-prune", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />,
     );
-    expect(onTriggerIdsChange).toHaveBeenCalledTimes(1);
-    expect(onTriggerIdsChange).toHaveBeenCalledWith(["trig-1"]);
+    expect(onTriggerIdsChange).not.toHaveBeenCalled();
   });
 
-  it("does not write back when the selection already matches the live set", () => {
-    useQueryMock.mockReturnValue({ data: [automationRow], isSuccess: true });
+  it("drops the stale ID when the user toggles a row", () => {
+    useQueryMock.mockReturnValue({ data: [automationRow], isPending: false });
     const onTriggerIdsChange = vi.fn();
     render(
       <MonitorAutomationsPanel
         projectId="p1"
-        triggerIds={["trig-1"]}
+        triggerIds={["trig-1", "trig-stale"]}
         onTriggerIdsChange={onTriggerIdsChange}
       />,
     );
-    expect(onTriggerIdsChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /ping webhook/i }));
+    expect(onTriggerIdsChange).toHaveBeenCalledTimes(1);
+    expect(onTriggerIdsChange).toHaveBeenCalledWith([]);
   });
 });

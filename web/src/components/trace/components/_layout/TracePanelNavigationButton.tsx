@@ -2,6 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
 
 interface TracePanelNavigationButtonProps {
   isPanelCollapsed: boolean;
@@ -15,6 +16,7 @@ export function TracePanelNavigationButton({
   shouldPulseToggle = false,
 }: TracePanelNavigationButtonProps) {
   const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   return (
     <div className="relative">
       <Button
@@ -22,6 +24,7 @@ export function TracePanelNavigationButton({
           onTogglePanel();
           capture("trace_detail:tree_panel_toggle", {
             collapsed: !isPanelCollapsed,
+            ...analyticsDimensions,
           });
         }}
         variant="ghost"

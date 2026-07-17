@@ -28,10 +28,8 @@ import {
   type PublicEvaluatorOutputDefinitionType,
   type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type {
   ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,
@@ -80,6 +78,7 @@ const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   input: "input",
   output: "output",
   metadata: "metadata",
+  tool_calls: "toolCalls",
   expected_output: "experimentItemExpectedOutput",
   experiment_item_metadata: "experimentItemMetadata",
 };
@@ -91,6 +90,11 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   input: "input",
   output: "output",
   metadata: "metadata",
+  // Only camelCase for tool calls: the column id is new with tool-call
+  // support, so unlike expected_output no legacy snake_case rows exist. An
+  // accidental "tool_calls" write should surface at the corrupted-mapping
+  // error boundary, not be absorbed here.
+  toolCalls: "tool_calls",
   expected_output: "expected_output",
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",

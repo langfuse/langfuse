@@ -50,6 +50,7 @@ import {
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 type PlaygroundContextType = {
   windowId: string;
@@ -74,6 +75,17 @@ type PlaygroundContextType = {
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
+
+  // Scroll-into-view for a freshly appended message (LFE-6864). ChatMessages
+  // owns the row/editor registry and registers its scroll helper here; append
+  // sites outside AddMessageButton (e.g. GenerationOutput's "Add to messages")
+  // call scrollToMessage so the new row lands in view rather than below the
+  // fold. Pass focus=false to scroll without stealing focus into the new
+  // editor (the default true keeps the Add-message button focusing behavior).
+  scrollToMessage: (id: string, focus?: boolean) => void;
+  registerScrollToMessage: (
+    fn: ((id: string, focus?: boolean) => void) | null,
+  ) => void;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -137,6 +149,22 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
     providerModelCombinations,
   } = useModelParams(windowId);
   const { registerWindow, unregisterWindow } = useWindowCoordination();
+
+  // ChatMessages registers its scroll-into-view helper here so sibling append
+  // sites (e.g. GenerationOutput) can scroll a newly added message into view
+  // (LFE-6864).
+  const scrollToMessageRef = useRef<
+    ((id: string, focus?: boolean) => void) | null
+  >(null);
+  const registerScrollToMessage = useCallback(
+    (fn: ((id: string, focus?: boolean) => void) | null) => {
+      scrollToMessageRef.current = fn;
+    },
+    [],
+  );
+  const scrollToMessage = useCallback((id: string, focus = true) => {
+    scrollToMessageRef.current?.(id, focus);
+  }, []);
 
   const toolCallIds = messages.reduce((acc, m) => {
     if (m.type === ChatMessageType.AssistantToolCall) {
@@ -269,7 +297,12 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
           ...toolResultMessages,
         ]);
 
-        return toolCallMessage;
+        // Return the last appended row so callers scroll to the newest content:
+        // for a tool-call add we append the tool-call row plus one ToolResult
+        // placeholder per tool call, and the final placeholder is what should
+        // land in view (LFE-6864). Falls back to the tool-call row when there
+        // are no tool calls.
+        return toolResultMessages.at(-1) ?? toolCallMessage;
       } else if (message.type === ChatMessageType.Placeholder) {
         const placeholderMessage = {
           ...message,
@@ -601,7 +634,9 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
             // malformed localStorage value — fall back to default
           }
 
-          handleSubmit(streaming).catch((err) => console.error(err));
+          handleSubmit(streaming).catch((err) =>
+            captureUnknownError("playground.run", err),
+          );
         }
         // If no content, skip silently
       }
@@ -712,6 +747,8 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         outputToolCalls,
         handleSubmit,
         isStreaming,
+        scrollToMessage,
+        registerScrollToMessage,
 
         availableProviders,
         availableModels,

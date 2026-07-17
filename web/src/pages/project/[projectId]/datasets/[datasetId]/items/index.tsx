@@ -67,7 +67,11 @@ function DatasetItemsView() {
     setIsVersionPanelOpen(open);
   };
 
-  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page

@@ -243,7 +243,7 @@ export function DatasetRunItemsByItemTable(props: {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"datasetRunItems"}
+        tableName="datasetRunItems"
         columns={columns}
         data={
           runItems.isLoading

@@ -15,6 +15,7 @@ export const COMPATIBLE_FILTER_TYPES: Partial<
   boolean: ["boolean"],
   stringObject: ["stringObject"],
   numberObject: ["numberObject"],
+  booleanObject: ["booleanObject"],
   categoryOptions: ["categoryOptions", "stringOptions"],
 };
 

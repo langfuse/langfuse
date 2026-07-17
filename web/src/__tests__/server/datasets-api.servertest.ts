@@ -454,7 +454,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
-  it("should return 404 when trying to update dataset item that exists in different dataset of the same project", async () => {
+  it("should return 409 when trying to update dataset item that exists in different dataset of the same project", async () => {
     const dataset = await prisma.dataset.create({
       data: {
         name: "dataset-name-1",
@@ -491,7 +491,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       auth,
     );
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(response.body)).toContain(
+      `Dataset item id ${datasetItemId} already exists in another dataset (id ${dataset.id})`,
+    );
   });
 
   it("GET datasets (v1 & v2)", async () => {
@@ -1325,23 +1328,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRunAfterDelete).toBeNull();
 
-    // Verify run items are also deleted. Deletion propagates asynchronously
-    // through the worker queue and a ClickHouse mutation, which can take well
-    // over 30s on a loaded CI runner.
-    await waitForExpect(async () => {
-      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
-        projectId: dataset.body.projectId,
-        datasetId: dataset.body.id,
-        filter: [],
-        orderBy: {
-          column: "createdAt",
-          order: "DESC",
-        },
-        limit: 10,
-      });
-      expect(dbRunItems).toHaveLength(0);
-    }, 90000);
-  }, 120000);
+    // ClickHouse run-item deletion propagates asynchronously via the worker
+    // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(

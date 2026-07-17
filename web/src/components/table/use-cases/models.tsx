@@ -334,7 +334,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       />
       <SettingsTableCard className="max-h-[75dvh]">
         <DataTable
-          tableName={"models"}
+          tableName="models"
           columns={columns}
           data={
             models.isPending

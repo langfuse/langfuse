@@ -9,6 +9,7 @@ import {
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import {
   InternalServerError,
   LangfuseNotFoundError,
@@ -525,6 +526,20 @@ export type ObservationTableQuery = {
   offset?: number;
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
+  /**
+   * Per-field I/O size cap (events table only): fields whose full length is
+   * within `inlineChars` come back whole, larger fields come back as a
+   * `previewChars` head plus true lengths and truncation flags. Takes
+   * precedence over `renderingProps.truncated` for the I/O select.
+   */
+  ioSizeCap?: { inlineChars: number; previewChars: number };
+  /**
+   * Events table only: collapse un-merged ReplacingMergeTree row versions to
+   * one row per span (`ORDER BY ..., event_ts DESC` + `LIMIT 1 BY span_id`),
+   * so row counts equal distinct observations and the newest version wins.
+   * Required by callers whose limits/paging count observations.
+   */
+  dedupeBySpanId?: boolean;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -759,7 +774,8 @@ const getObservationsTableInternal = async <T>(
       groupArrayIf(
         concat(name, ':', string_value),
         data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         trace_id,
@@ -1619,7 +1635,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
       end: convertDateToClickhouseDateTime(end),
     },
     clickhouseConfigs: {
-      request_timeout: 120000, // 2 minutes timeout
+      request_timeout: 300000, // 5 minutes timeout
     },
   });
 

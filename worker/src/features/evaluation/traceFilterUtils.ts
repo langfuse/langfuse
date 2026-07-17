@@ -100,6 +100,26 @@ export function mapTraceFilterColumn(
 }
 
 /**
+ * Whether in-memory evaluation of this trace filter reads the metadata field.
+ * False when the filter never runs in memory (it requires a database lookup)
+ * or references no metadata column. Unknown columns report true so the cached
+ * trace fetch never drops a column a filter might need.
+ */
+export function inMemoryFilterRequiresMetadata(filter: FilterState): boolean {
+  try {
+    if (requiresDatabaseLookup(filter)) {
+      return false;
+    }
+    return filter.some(
+      (condition) =>
+        getInMemoryTraceFilterColumn(condition.column) === "metadata",
+    );
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Determines if a filter requires a database lookup.
  * We make the decision based on whether the filter only selects for allow-listed columns
  */

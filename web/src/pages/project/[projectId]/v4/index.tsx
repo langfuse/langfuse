@@ -87,6 +87,23 @@ export default function V4Page() {
       },
     );
 
+  const sdkUsage = api.v4Transition.sdkUsageTimeSeries.useQuery(
+    {
+      projectId: projectId ?? "",
+      fromTimestamp: absoluteTimeRange.from,
+      toTimestamp: absoluteTimeRange.to,
+      granularity: "auto",
+    },
+    {
+      enabled: Boolean(projectId),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+
   return (
     <Page
       withPadding
@@ -113,16 +130,19 @@ export default function V4Page() {
           traceLevelEvalCount={traceLevelEvalSummary.data?.traceLevelEvalCount}
           legacyApiUsage={legacyApiUsage.data}
           traceLevelEvalExecutions={traceLevelEvalExecutions.data}
+          sdkUsage={sdkUsage.data}
           isLegacyIntegrationSummaryLoading={summary.isPending}
           isTraceLevelEvalSummaryLoading={traceLevelEvalSummary.isPending}
           isLegacyApiUsageLoading={legacyApiUsage.isPending}
           isTraceLevelEvalExecutionsLoading={traceLevelEvalExecutions.isPending}
+          isSdkUsageLoading={sdkUsage.isPending}
           hasLegacyIntegrationSummaryError={Boolean(summary.error)}
           hasTraceLevelEvalSummaryError={Boolean(traceLevelEvalSummary.error)}
           hasLegacyApiUsageError={Boolean(legacyApiUsage.error)}
           hasTraceLevelEvalExecutionsError={Boolean(
             traceLevelEvalExecutions.error,
           )}
+          hasSdkUsageError={Boolean(sdkUsage.error)}
         />
       </div>
     </Page>

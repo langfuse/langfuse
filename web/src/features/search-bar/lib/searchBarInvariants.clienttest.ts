@@ -41,6 +41,17 @@ const eventsView: RegistryUnderTest = {
       traceNumericScoreNames: new Set(["nps"]),
       traceCategoricalScoreNames: new Set(),
     },
+    // Boolean-observed scores: boolean literals route to booleanObject while
+    // numeric shapes keep the legacy scores_avg lowering (old URLs/saved
+    // views), so both must hold the invariants under the same context.
+    {
+      numericScoreNames: new Set(),
+      categoricalScoreNames: new Set(),
+      booleanScoreNames: new Set(["accuracy"]),
+      traceNumericScoreNames: new Set(),
+      traceCategoricalScoreNames: new Set(),
+      traceBooleanScoreNames: new Set(["nps"]),
+    },
   ],
   fieldValues: ["x", "ERROR", "5", "0.8", "2026-06-01", "true", "a b", "gpt-4"],
   // Adversarial free text — the tokens the parser reserves/quotes. The bare

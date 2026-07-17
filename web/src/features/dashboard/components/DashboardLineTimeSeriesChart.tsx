@@ -2,7 +2,10 @@ import React, { useMemo } from "react";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { type TimeSeriesChartDataPoint } from "@/src/features/dashboard/components/hooks";
-import { type LegendSummaryMode } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type LegendSummaryMode,
+  type MissingBucketValue,
+} from "@/src/features/widgets/chart-library/chart-props";
 
 /**
  * Memoized LINE_TIME_SERIES card shared by the dashboard time-series panels.
@@ -23,6 +26,7 @@ export const DashboardLineTimeSeriesChart = React.memo(
     legendSummary,
     syncId,
     subtleFill,
+    missingValue,
   }: {
     data: TimeSeriesChartDataPoint[];
     label?: string;
@@ -30,6 +34,8 @@ export const DashboardLineTimeSeriesChart = React.memo(
     legendSummary?: LegendSummaryMode;
     syncId?: string;
     subtleFill?: boolean;
+    /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
+    missingValue?: MissingBucketValue;
   }) {
     const points = useMemo(() => timeSeriesToDataPoints(data), [data]);
     const config = useMemo(
@@ -53,9 +59,9 @@ export const DashboardLineTimeSeriesChart = React.memo(
         config={config}
         rowLimit={100}
         chartConfig={chartConfig}
-        legendPosition="above"
         legendSummary={legendSummary}
         syncId={syncId}
+        missingValue={missingValue}
       />
     );
   },

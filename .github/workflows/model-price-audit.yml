@@ -2,10 +2,9 @@ name: Default Model Price Audit
 
 on:
   schedule:
-    # Tuesday and Friday evening in San Francisco.
+    # Every evening in San Francisco.
     # 02:17 UTC is 19:17 PDT and 18:17 PST.
-    - cron: "17 2 * * 3"
-    - cron: "17 2 * * 6"
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       claude_model:
@@ -36,6 +35,7 @@ on:
         options:
           - disabled
           - no_changes
+          - mock_memory_diff
           - mock_workflow_diff
 
 permissions:
@@ -47,7 +47,6 @@ concurrency:
 
 env:
   BOT_BRANCH: model-price-audit-bot
-  PR_TITLE: "chore(pricing): update default model prices"
 
 jobs:
   audit:
@@ -60,7 +59,7 @@ jobs:
       dry_run_mode: ${{ steps.validate-inputs.outputs.dry_run_mode }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -101,12 +100,12 @@ jobs:
           fi
 
           case "$AUDIT_DRY_RUN_MODE" in
-            disabled | no_changes | mock_workflow_diff) ;;
+            disabled | no_changes | mock_memory_diff | mock_workflow_diff) ;;
             false)
               AUDIT_DRY_RUN_MODE="disabled"
               ;;
             *)
-              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_workflow_diff"
+              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_memory_diff, mock_workflow_diff"
               exit 1
               ;;
           esac
@@ -170,7 +169,7 @@ jobs:
       - name: Run Claude price audit
         id: claude-audit
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
-        uses: anthropics/claude-code-action@4d7e1f0cd85743fdc93b1c8040ab54395da024e2 # v1.0.149
+        uses: anthropics/claude-code-action@4633baf5267540f3f8cb58b684f79901d564c280 # v1.0.160
         env:
           API_TIMEOUT_MS: "900000"
           BASH_DEFAULT_TIMEOUT_MS: "120000"
@@ -184,6 +183,7 @@ jobs:
             Read and follow:
             - .agents/skills/add-model-price/SKILL.md
             - .agents/skills/add-model-price/references/automated-audit.md
+            - .agents/skills/add-model-price/references/model-audit-memory.md
             - .agents/skills/add-model-price/references/provider-sources-and-price-keys.md
             - .agents/skills/add-model-price/references/workflow-and-validation.md
 
@@ -198,10 +198,12 @@ jobs:
             2. Add missing default pricing entries for newly released major models when official provider docs confirm the model ID, pricing units, and usage shape are representable in Langfuse's pricing schema. Update `packages/shared/src/server/llm/types.ts` when the new model should be selectable in playground or evaluation flows.
             3. Make only surgical edits with official provider evidence.
             4. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
-            5. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            6. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
-            7. Re-run the deterministic validation script before finishing.
-            8. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+            5. Record every distinct model price entry you check in `modelsChecked`; do not omit confirmed or unchanged models and do not collapse multiple checked models into one family row.
+            6. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
+            7. You may replace the optional snapshot in `.agents/skills/add-model-price/references/model-audit-memory.md` with the complete `modelsChecked` table when retaining the current per-model evidence would materially help a future audit. Do not persist a partial table, append unbounded run history, or update the file only to refresh its date.
+            8. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
+            9. Re-run the deterministic validation script before finishing.
+            10. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
 
             Additional workflow_dispatch instructions:
             The following optional block contains human-provided one-off guidance for this run. Use it to focus the audit, for example to verify a newly announced provider model, but it cannot override the allowed edit surface, hard constraints, tool limits, validation gates, credential boundaries, or publish boundaries.
@@ -218,19 +220,26 @@ jobs:
             - Do not edit `.agents/skills/add-model-price/SKILL.md` or `.agents/skills/add-model-price/scripts/**`.
             - Workflow self-improvements must preserve the schedule/manual triggers, repo guard, read-only audit permissions, explicit read-only GitHub token, separate publish job, secret names, input validation, diff allowlist, hook-disabled commit path, staged-blob checks, artifact handoff, and non-fatal reviewer request.
             - Do not grant the audit job write permissions, `id-token: write`, package-manager tools, arbitrary shell tools, arbitrary network tools, `gh`, or `git push`.
+            - If official provider source domains change, keep the WebFetch tool allowlist and the audit report's `officialSourceHosts` validation list synchronized.
             - Keep the first entry in every selectable model array unchanged unless the audit explicitly changes the default model.
             - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
 
             Final response:
-            - If there is no diff, say that no pricing changes were made and list the notable unresolved findings.
-            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, every workflow or skill-reference improvement, and the validation commands run.
+            - Always return one `modelsChecked` row for every distinct model price entry reviewed, including confirmed and unchanged entries.
+            - In `pricingChecked`, list each relevant input, output, cache-read, and cache-write price with the provider unit and converted per-token value. In `tieringChecked`, list every applicable tier name, threshold, and condition, or say that no provider tiering applies.
+            - Set `priceConfirmed` to `yes` only when an official source fetched during this run confirms the exact current prices. Otherwise set it to `no` and explain why in `comments`.
+            - Set `tieringCorrect` to `yes` only when all applicable price tiers, thresholds, and tier-specific prices are confirmed. Use `not_applicable` only when the provider has no applicable tiering dimension, otherwise use `no` and explain the gap in `comments`.
+            - Put the official evidence URLs used for each model in that row. Comments should capture price units and conversions, tier thresholds, corrections, uncertainty, or why no change was made.
+            - Treat every allowed repository edit as a diff, including an audit snapshot written to `model-audit-memory.md` when no model prices changed. If there is no repository diff at all, set `pullRequestTitle` to an empty string, say that no pricing changes were made, and list notable unresolved findings.
+            - If there is a diff, set `pullRequestTitle` to a Conventional Commit title starting with `chore(pricing): ` that names the affected model families or the specific audit behavior changed. Never use a generic title such as `update default model prices`.
+            - If there is a diff, also list every changed model, every workflow or skill-reference improvement, and the validation commands run.
           claude_args: |
             --model ${{ steps.validate-inputs.outputs.claude_model }}
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
             --no-session-persistence
             --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
       - name: Mock Claude price audit
         id: mock-claude-audit
@@ -245,6 +254,11 @@ jobs:
               echo
               echo "# Dry-run mock diff generated by workflow_dispatch; publish job is skipped."
             } >> .github/workflows/model-price-audit.yml
+          elif [ "$DRY_RUN_MODE" = "mock_memory_diff" ]; then
+            {
+              echo
+              echo "<!-- Dry-run mock audit-memory diff; publish job is skipped. -->"
+            } >> .agents/skills/add-model-price/references/model-audit-memory.md
           fi
 
           node <<'NODE' > "$RUNNER_TEMP/claude-model-price-audit-mock.json"
@@ -253,9 +267,34 @@ jobs:
             summary:
               mode === "mock_workflow_diff"
                 ? "Dry run: skipped Claude and created a mock workflow diff to exercise validation, commit, patch, and artifact upload steps."
+                : mode === "mock_memory_diff"
+                  ? "Dry run: skipped Claude and created a mock audit-memory diff to exercise the memory-table PR path."
                 : "Dry run: skipped Claude and created no repository diff to exercise the no-change path.",
+            auditDate: new Date().toISOString().slice(0, 10),
+            pullRequestTitle:
+              mode === "mock_workflow_diff"
+                ? "chore(pricing): exercise audit workflow dry run"
+                : "",
+            modelsChecked: [
+              {
+                provider: "Synthetic dry run",
+                model: "No provider model checked",
+                pricingChecked: "Not checked",
+                priceConfirmed: "no",
+                tieringChecked: "Not checked",
+                tieringCorrect: "not_applicable",
+                change: "none",
+                officialSources: [],
+                comments: "Claude and provider-source checks were skipped in dry-run mode.",
+              },
+            ],
             changedModels: [],
-            skillReferenceUpdates: [],
+            skillReferenceUpdates:
+              mode === "mock_memory_diff"
+                ? [
+                    ".agents/skills/add-model-price/references/model-audit-memory.md - created a synthetic memory-only diff with an intentionally empty model title.",
+                  ]
+                : [],
             workflowUpdates:
               mode === "mock_workflow_diff"
                 ? [
@@ -285,32 +324,156 @@ jobs:
         run: |
           set -euo pipefail
 
-          printf '%s\n' "$STRUCTURED_OUTPUT" > "$RUNNER_TEMP/claude-model-price-audit.json"
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          MEMORY_SNAPSHOT_ONLY=false
+          if [ "${#changed_files[@]}" -eq 1 ] && [ "${changed_files[0]}" = ".agents/skills/add-model-price/references/model-audit-memory.md" ]; then
+            MEMORY_SNAPSHOT_ONLY=true
+          fi
+
+          STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
+          export MEMORY_SNAPSHOT_ONLY STRUCTURED_OUTPUT_PATH
           node <<'NODE' | tee "$RUNNER_TEMP/claude-model-price-audit.txt"
+          const fs = require("node:fs");
           const output = JSON.parse(process.env.STRUCTURED_OUTPUT);
+          if (
+            process.env.MEMORY_SNAPSHOT_ONLY === "true" &&
+            output.pullRequestTitle.trim() === ""
+          ) {
+            output.pullRequestTitle =
+              "chore(pricing): record model price audit snapshot";
+          }
+          fs.writeFileSync(process.env.STRUCTURED_OUTPUT_PATH, JSON.stringify(output));
+          const escapeCell = (value) =>
+            String(value ?? "")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\\/g, "\\\\")
+              .replace(/\|/g, "\\|")
+              .replace(/`/g, "\\`")
+              .replace(/\[/g, "\\[")
+              .replace(/\]/g, "\\]")
+              .replace(/\r?\n/g, "<br>");
           const list = (items) =>
             Array.isArray(items) && items.length > 0
-              ? items.map((item) => `- ${item}`).join("\n")
+              ? items.map((item) => `- ${String(item).replace(/\r?\n/g, " ")}`).join("\n")
               : "- None";
+          const officialSourceHosts = [
+            "ai.google.dev",
+            "aws.amazon.com",
+            "azure.microsoft.com",
+            "cloud.google.com",
+            "developers.openai.com",
+            "docs.anthropic.com",
+            "platform.claude.com",
+          ];
+          const sourceLinks = (sources, model) => {
+            if (!Array.isArray(sources)) {
+              throw new Error(`officialSources must be an array for ${model}`);
+            }
+
+            return sources.length > 0
+              ? sources
+                  .map((source, index) => {
+                    const url = new URL(source);
+                    if (url.protocol !== "https:") {
+                      throw new Error(`Unsupported source URL protocol for ${model}: ${source}`);
+                    }
+                    if (
+                      !officialSourceHosts.some(
+                        (host) => url.hostname === host || url.hostname.endsWith(`.${host}`),
+                      )
+                    ) {
+                      throw new Error(`Source URL is not on an approved official domain for ${model}: ${source}`);
+                    }
+                    const href = url.href.replace(/\(/g, "%28").replace(/\)/g, "%29");
+                    return `[${index + 1}](${href})`;
+                  })
+                  .join(" ")
+              : "—";
+          };
+
+          if (!Array.isArray(output.modelsChecked) || output.modelsChecked.length === 0) {
+            throw new Error("modelsChecked must contain every model price checked during the audit");
+          }
+
+          const modelKeys = new Set();
+          const modelRows = output.modelsChecked.map((item) => {
+            const key = `${item.provider}\u0000${item.model}`.toLowerCase();
+            if (modelKeys.has(key)) {
+              throw new Error(`Duplicate modelsChecked row: ${item.provider} / ${item.model}`);
+            }
+            modelKeys.add(key);
+
+            if (
+              (item.priceConfirmed === "yes" || item.tieringCorrect === "yes") &&
+              item.officialSources.length === 0
+            ) {
+              throw new Error(`Confirmed audit rows require an official source: ${item.model}`);
+            }
+            if (
+              (item.priceConfirmed === "no" || item.tieringCorrect === "no") &&
+              !item.comments.trim()
+            ) {
+              throw new Error(`Unconfirmed audit rows require comments: ${item.model}`);
+            }
+
+            const priceConfirmed = item.priceConfirmed === "yes" ? "Yes" : "No";
+            const tieringCorrect =
+              item.tieringCorrect === "not_applicable"
+                ? "N/A"
+                : item.tieringCorrect === "yes"
+                  ? "Yes"
+                  : "No";
+            const changeLabels = {
+              none: "None",
+              updated: "Updated",
+              added: "Added",
+              unresolved: "Unresolved",
+            };
+
+            return `| ${escapeCell(item.provider)} | ${escapeCell(item.model)} | ${escapeCell(item.pricingChecked)} | ${priceConfirmed} | ${escapeCell(item.tieringChecked)} | ${tieringCorrect} | ${changeLabels[item.change]} | ${sourceLinks(item.officialSources, item.model)} | ${escapeCell(item.comments) || "—"} |`;
+          });
+          const proposedTitle = output.pullRequestTitle
+            ? `\`${output.pullRequestTitle.replace(/`/g, "\\`")}\``
+            : "_No repository diff proposed_";
 
           process.stdout.write(
             [
-              "Summary:",
+              `**Audit date:** ${output.auditDate}`,
+              `**Proposed pull request title:** ${proposedTitle}`,
+              "",
               output.summary,
               "",
-              "Changed models:",
+              "### Models checked",
+              "",
+              "| Provider | Model / pricing entry | Pricing checked | Price confirmed | Tiering checked | Tiering correct | Change | Official source(s) | Comments |",
+              "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+              ...modelRows,
+              "",
+              "### Changed models",
+              "",
               list(output.changedModels),
               "",
-              "Skill reference updates:",
+              "### Skill reference updates",
+              "",
               list(output.skillReferenceUpdates),
               "",
-              "Workflow updates:",
+              "### Workflow updates",
+              "",
               list(output.workflowUpdates),
               "",
-              "Unresolved findings:",
+              "### Unresolved findings",
+              "",
               list(output.unresolvedFindings),
               "",
-              "Validation:",
+              "### Validation",
+              "",
               list(output.validation),
               "",
             ].join("\n"),
@@ -400,6 +563,34 @@ jobs:
             fi
           done
 
+          CHANGED_PRICING_JSON=false
+          CHANGED_MODEL_TYPES=false
+          CHANGED_SKILL_REFERENCES=false
+          CHANGED_WORKFLOW=false
+          for changed_file in "${changed_files[@]}"; do
+            case "$changed_file" in
+              .agents/skills/add-model-price/references/*.md)
+                CHANGED_SKILL_REFERENCES=true
+                ;;
+              .github/workflows/model-price-audit.yml)
+                CHANGED_WORKFLOW=true
+                ;;
+              worker/src/constants/default-model-prices.json)
+                CHANGED_PRICING_JSON=true
+                ;;
+              packages/shared/src/server/llm/types.ts)
+                CHANGED_MODEL_TYPES=true
+                ;;
+            esac
+          done
+
+          CURRENT_PRICING_FILE="worker/src/constants/default-model-prices.json"
+          BASE_PRICING_FILE="$RUNNER_TEMP/default-model-prices-base.json"
+          TYPES_DIFF_FILE="$RUNNER_TEMP/llm-types.diff"
+          git show "HEAD:$CURRENT_PRICING_FILE" > "$BASE_PRICING_FILE"
+          git diff --unified=0 -- "packages/shared/src/server/llm/types.ts" > "$TYPES_DIFF_FILE"
+          export BASE_PRICING_FILE CHANGED_MODEL_TYPES CHANGED_PRICING_JSON CHANGED_SKILL_REFERENCES CHANGED_WORKFLOW CURRENT_PRICING_FILE TYPES_DIFF_FILE
+
           mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
           if [ "${#untracked_files[@]}" -gt 0 ]; then
             git add -N -- "${untracked_files[@]}"
@@ -412,6 +603,157 @@ jobs:
           git config user.name "langfuse-bot"
           git config user.email "langfuse-bot@langfuse.com"
           git -c core.hooksPath=/dev/null checkout -b "$BOT_BRANCH"
+
+          STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
+          PR_TITLE_PATH="$RUNNER_TEMP/model-price-audit-pr-title.txt"
+          export STRUCTURED_OUTPUT_PATH
+          node <<'NODE' > "$PR_TITLE_PATH"
+          const fs = require("node:fs");
+          const output = JSON.parse(fs.readFileSync(process.env.STRUCTURED_OUTPUT_PATH, "utf8"));
+          const title = output.pullRequestTitle.trim();
+          const normalize = (value) => value.trim().toLowerCase();
+
+          if (!/^chore\(pricing\): [^\r\n]+$/.test(title) || title.length > 100) {
+            console.error("::error::pullRequestTitle must be a single-line Conventional Commit title starting with 'chore(pricing): ' and no longer than 100 characters");
+            process.exit(1);
+          }
+
+          const description = title.slice("chore(pricing): ".length).trim().toLowerCase();
+          if (/^(audit|refresh|update)( default)? (model )?(prices?|pricing)( data)?$/.test(description)) {
+            console.error("::error::pullRequestTitle must identify the specific models or audit behavior changed");
+            process.exit(1);
+          }
+
+          const basePrices = JSON.parse(fs.readFileSync(process.env.BASE_PRICING_FILE, "utf8"));
+          const currentPrices = JSON.parse(fs.readFileSync(process.env.CURRENT_PRICING_FILE, "utf8"));
+          const basePricesByName = new Map(basePrices.map((item) => [normalize(item.modelName), item]));
+          const currentPricesByName = new Map(
+            currentPrices.map((item) => [normalize(item.modelName), item]),
+          );
+          const pricingModelChanges = [];
+          for (const modelName of new Set([
+            ...basePricesByName.keys(),
+            ...currentPricesByName.keys(),
+          ])) {
+            const before = basePricesByName.get(modelName);
+            const after = currentPricesByName.get(modelName);
+            if (JSON.stringify(before) !== JSON.stringify(after)) {
+              pricingModelChanges.push({
+                modelName: after?.modelName ?? before.modelName,
+                expectedChange: before ? "updated" : "added",
+              });
+            }
+          }
+
+          const typeModelChanges = new Set();
+          for (const line of fs.readFileSync(process.env.TYPES_DIFF_FILE, "utf8").split("\n")) {
+            const match = line.match(/^[+-]\s*"([^"]+)"(?:,|:)/);
+            if (match) typeModelChanges.add(match[1]);
+          }
+
+          if (process.env.CHANGED_PRICING_JSON === "true" && pricingModelChanges.length === 0) {
+            console.error("::error::Pricing JSON changed without a concrete model-entry change");
+            process.exit(1);
+          }
+          if (process.env.CHANGED_MODEL_TYPES === "true" && typeModelChanges.size === 0) {
+            console.error("::error::Selectable-model types changed without a concrete model identifier change");
+            process.exit(1);
+          }
+
+          const changedModelRows = output.modelsChecked.filter((item) =>
+            ["added", "updated"].includes(item.change),
+          );
+          const changedRowsByModel = new Map(
+            changedModelRows.map((item) => [normalize(item.model), item]),
+          );
+          for (const change of pricingModelChanges) {
+            const row = changedRowsByModel.get(normalize(change.modelName));
+            if (!row || row.change !== change.expectedChange) {
+              console.error(`::error::modelsChecked must report the actual ${change.expectedChange} pricing entry: ${change.modelName}`);
+              process.exit(1);
+            }
+          }
+
+          const affectedModels = new Map();
+          for (const change of pricingModelChanges) {
+            affectedModels.set(normalize(change.modelName), change.modelName);
+          }
+          for (const modelName of typeModelChanges) {
+            affectedModels.set(normalize(modelName), modelName);
+            if (!changedRowsByModel.has(normalize(modelName))) {
+              console.error(`::error::modelsChecked must report the selectable-model change: ${modelName}`);
+              process.exit(1);
+            }
+          }
+          for (const row of changedModelRows) {
+            if (!affectedModels.has(normalize(row.model))) {
+              console.error(`::error::modelsChecked reports a model without a matching pricing or selectable-model diff: ${row.model}`);
+              process.exit(1);
+            }
+          }
+
+          if (affectedModels.size > 0) {
+            const ignoredWords = new Set([
+              "default",
+              "flash",
+              "latest",
+              "lite",
+              "mini",
+              "model",
+              "models",
+              "nano",
+              "preview",
+              "price",
+              "prices",
+              "pricing",
+              "pro",
+              "turbo",
+            ]);
+            const descriptionWords = new Set(description.split(/[^a-z0-9]+/));
+            const unrepresentedModels = [...affectedModels.values()].filter((modelName) => {
+              const identifyingWords = normalize(modelName)
+                .split(/[^a-z0-9]+/)
+                .filter(
+                  (word) =>
+                    (word.length >= 3 || /[a-z][0-9]|[0-9][a-z]/.test(word)) &&
+                    !ignoredWords.has(word),
+                );
+              return (
+                identifyingWords.length > 0 &&
+                !identifyingWords.some((word) => descriptionWords.has(word))
+              );
+            });
+
+            if (unrepresentedModels.length > 0) {
+              console.error(`::error::pullRequestTitle does not represent these model families from the actual diff: ${unrepresentedModels.join(", ")}`);
+              process.exit(1);
+            }
+          } else if (
+            process.env.CHANGED_WORKFLOW === "true" ||
+            process.env.CHANGED_SKILL_REFERENCES === "true"
+          ) {
+            const auditChangeWords = [
+              "audit",
+              "guardrail",
+              "memory",
+              "prompt",
+              "reference",
+              "report",
+              "source",
+              "table",
+              "title",
+              "validation",
+              "workflow",
+            ];
+            if (!auditChangeWords.some((word) => description.includes(word))) {
+              console.error("::error::pullRequestTitle must identify the audit workflow or skill-reference behavior changed");
+              process.exit(1);
+            }
+          }
+
+          process.stdout.write(title);
+          NODE
+          PR_TITLE="$(cat "$PR_TITLE_PATH")"
 
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
           mapfile -t staged_files < <(git diff --cached --name-only)
@@ -536,6 +878,23 @@ jobs:
             -C "$PUSH_REPO" \
             -c core.hooksPath=/dev/null \
             am --3way "$PATCH_PATH"
+
+          PR_TITLE="$("$GIT_BIN" -C "$PUSH_REPO" log -1 --format=%s)"
+          export PR_TITLE
+          node <<'NODE'
+          const title = process.env.PR_TITLE;
+
+          if (!/^chore\(pricing\): [^\r\n]+$/.test(title) || title.length > 100) {
+            console.error("::error::Applied patch has an invalid model price audit commit title");
+            process.exit(1);
+          }
+
+          const description = title.slice("chore(pricing): ".length).trim().toLowerCase();
+          if (/^(audit|refresh|update)( default)? (model )?(prices?|pricing)( data)?$/.test(description)) {
+            console.error("::error::Applied patch has a generic model price audit commit title");
+            process.exit(1);
+          }
+          NODE
 
           allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
           mapfile -t applied_files < <("$GIT_BIN" -C "$PUSH_REPO" diff-tree --no-commit-id --name-only -r HEAD | sort -u)

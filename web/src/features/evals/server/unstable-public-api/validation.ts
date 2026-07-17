@@ -4,10 +4,12 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { JSONPath } from "jsonpath-plus";
-import type {
-  PublicEvaluationRuleFilterType,
-  PublicEvaluationRuleMappingType,
-  PublicEvaluationRuleTargetType,
+import {
+  ExperimentEvaluationRuleMappingSource,
+  ObservationEvaluationRuleMappingSource,
+  type PublicEvaluationRuleFilterType,
+  type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleTargetType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
@@ -71,15 +73,12 @@ const SUPPORTED_FILTER_COLUMNS_BY_TARGET = {
   ),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
+// Derived from the per-target request schemas so this runtime check (which
+// also guards paths that parse the target-agnostic mapping union) can never
+// drift from the documented contract.
 const SUPPORTED_MAPPING_SOURCES_BY_TARGET = {
-  observation: new Set(["input", "output", "metadata"]),
-  experiment: new Set([
-    "input",
-    "output",
-    "metadata",
-    "expected_output",
-    "experiment_item_metadata",
-  ]),
+  observation: new Set<string>(ObservationEvaluationRuleMappingSource.options),
+  experiment: new Set<string>(ExperimentEvaluationRuleMappingSource.options),
 } as const satisfies Record<PublicEvaluationRuleTargetType, Set<string>>;
 
 export function validateEvaluationRuleFilters(params: {

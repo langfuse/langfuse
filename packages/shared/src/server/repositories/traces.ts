@@ -12,6 +12,7 @@ import {
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -313,22 +314,54 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
-export const hasAnyTrace = async (projectId: string) => {
-  // Check PostgreSQL flag first — once set, it's never reverted
+/**
+ * Read-through shortcut on the project's `hasTraces` flag — once set, the flag
+ * is never reverted, so a true value can skip ClickHouse entirely.
+ */
+export const readProjectHasTracesFlag = async (
+  projectId: string,
+): Promise<boolean> => {
   try {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: { hasTraces: true },
     });
-    if (project?.hasTraces) {
-      return true;
-    }
+    return project?.hasTraces === true;
   } catch (error) {
     traceException(error);
     logger.error("Failed to read hasTraces flag from PostgreSQL", {
       projectId,
       error,
     });
+    return false;
+  }
+};
+
+/**
+ * Persist a positive tracing-data detection on the project's `hasTraces` flag.
+ * Only updates if not already set to avoid unnecessary writes.
+ */
+export const persistProjectHasTracesFlag = async (
+  projectId: string,
+): Promise<void> => {
+  try {
+    await prisma.project.updateMany({
+      where: { id: projectId, hasTraces: false },
+      data: { hasTraces: true },
+    });
+  } catch (error) {
+    traceException(error);
+    logger.error("Failed to persist hasTraces flag to PostgreSQL", {
+      projectId,
+      error,
+    });
+  }
+};
+
+export const hasAnyTrace = async (projectId: string) => {
+  // Check PostgreSQL flag first — once set, it's never reverted
+  if (await readProjectHasTracesFlag(projectId)) {
+    return true;
   }
 
   const result = await measureAndReturn({
@@ -362,20 +395,8 @@ export const hasAnyTrace = async (projectId: string) => {
   });
 
   // Persist positive result in PostgreSQL — once a project has traces, it stays true
-  // Only update if not already set to avoid unnecessary writes
   if (result) {
-    try {
-      await prisma.project.updateMany({
-        where: { id: projectId, hasTraces: false },
-        data: { hasTraces: true },
-      });
-    } catch (error) {
-      traceException(error);
-      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
-        projectId,
-        error,
-      });
-    }
+    await persistProjectHasTracesFlag(projectId);
   }
 
   return result;
@@ -414,7 +435,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
           query,
           params: input.params,
           clickhouseConfigs: {
-            request_timeout: 120000, // 2 minutes timeout
+            request_timeout: 300000, // 5 minutes timeout
           },
         },
       );
@@ -520,7 +541,9 @@ export const getTraceByIdFromTracesTable = async ({
         : renderingProps.truncated
           ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
           : "output";
-      const metadataColumn = excludeMetadata ? "'{}'" : "metadata";
+      // map() (not a '{}' string literal) so the excluded column keeps the
+      // Map type and converts to an empty object in the domain model.
+      const metadataColumn = excludeMetadata ? "map()" : "metadata";
 
       const query = `
         SELECT
@@ -1711,7 +1734,10 @@ async function buildTracesBaseQuery(
   const filtersNeedScores = filter.some((f) => f.clickhouseTable === "scores");
 
   const hasScoreAggregationFilters = filter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   const ctes = [];
@@ -1761,7 +1787,8 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories,
+        ${scoreBooleansAggregation()} AS score_booleans
       FROM (
         SELECT
           project_id,

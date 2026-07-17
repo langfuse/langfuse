@@ -87,7 +87,7 @@ const SyncedDashboardDemo = ({
           <LineChartTimeSeries
             data={panel.data}
             syncId={syncId}
-            legendPosition="above"
+            legendPosition="below"
             legendSummary="none"
             showDataPointDots={false}
             metricFormatter={panel.formatter}
@@ -124,7 +124,7 @@ export const Spaghetti = meta.story({
       <div className="h-[330px] w-full">
         <LineChartTimeSeries
           data={spaghettiData}
-          legendPosition="above"
+          legendPosition="below"
           legendSummary="none"
           showDataPointDots={false}
           metricFormatter={msFormatter}

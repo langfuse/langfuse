@@ -1,4 +1,10 @@
 import type { Session } from "next-auth";
+
+// Session fixture sub-object types; casts keep the runtime fixtures unchanged
+// while satisfying newer required fields on the session user type.
+type SessionUser = NonNullable<Session["user"]>;
+type SessionProjects = SessionUser["organizations"][number]["projects"];
+type SessionFeatureFlags = SessionUser["featureFlags"];
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
@@ -55,13 +61,13 @@ const createAdminSession = (
           retentionDays: 30,
           deletedAt: null,
           name: project.name ?? "Project",
-        })),
-      },
+        })) as SessionProjects,
+      } as SessionUser["organizations"][number],
     ],
     featureFlags: {
       excludeClickhouseRead: false,
       templateFlag: true,
-    },
+    } as SessionFeatureFlags,
     admin: true,
   },
   environment: {} as any,

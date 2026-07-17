@@ -13,7 +13,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const capture = usePostHogClientCapture();
   return (
-    <div>
+    // Grows inside the card's flex column so tab content (charts) can absorb
+    // extra tile height on dashboards. (LFE-10813)
+    <div className="flex grow flex-col">
       <div className="sm:hidden">
         <label htmlFor="tabs" className="sr-only">
           Select a tab
@@ -41,8 +43,8 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 key={tab.tabTitle}
                 className={cn(
                   index === selectedIndex
-                    ? "border-primary-accent text-primary-accent"
-                    : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
+                    ? "border-primary-accent text-foreground"
+                    : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
                   "cursor-pointer border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
@@ -59,7 +61,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           </nav>
         </div>
       </div>
-      <div className="mt-4 flex flex-col">{tabs[selectedIndex]?.content}</div>
+      <div className="mt-4 flex grow flex-col">
+        {tabs[selectedIndex]?.content}
+      </div>
     </div>
   );
 };

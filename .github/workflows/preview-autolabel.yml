@@ -1,0 +1,52 @@
+name: AWS preview auto-label
+
+# Auto-apply the `preview` label to same-repo PRs on open, so the Argo CD
+# ApplicationSet (in the infrastructure repo) picks them up and builds a
+# preview. Anyone with write access can also apply the label by hand.
+#
+# Trust boundary is WRITE access, not a per-author allowlist: opening a
+# same-repo PR requires push access, so labeling every same-repo PR is exactly
+# "auto-preview for write-access members." Fork PRs are short-circuited — they
+# can't mint an OIDC token to build anyway.
+#
+# Uses the plain `pull_request` trigger (NOT pull_request_target): no cloud
+# credentials, no checkout, no PR-code execution — only issues.addLabels — so it
+# stays off zizmor's dangerous-triggers list.
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  autolabel:
+    name: Auto-label same-repo PRs
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the feature flag: unset => preview system
+    # off, so don't label.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Label same-repo PRs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const { owner, repo } = context.repo;
+
+            // Same-repo only: opening a same-repo PR requires push (write)
+            // access, so this is "auto-preview for write-access members." Fork
+            // PRs can't mint an OIDC token to build, so skip them.
+            if (pr.head.repo.full_name !== `${owner}/${repo}`) {
+              core.info("Fork PR; auto-label is limited to same-repo branches.");
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pr.number,
+              labels: ["preview"],
+            });
+            core.info(`Applied 'preview' label to PR #${pr.number}.`);

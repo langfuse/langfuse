@@ -56,6 +56,9 @@ export function ChatMessage({
   const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
+  // Collapse from the raw role: the title is the message `name` when present,
+  // so name-bearing system prompts would otherwise never collapse.
+  const isSystemPrompt = message.role === "system";
 
   // Toggle button for passthrough JSON
   const passthroughToggleButton = hasPassthroughJson(message) ? (
@@ -84,7 +87,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderClassName="bg-primary-foreground"
+            customCodeHeaderClassName="bg-card"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -184,11 +187,12 @@ export function ChatMessage({
             content={message.content || ""}
             customCodeHeaderClassName={cn(
               message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-primary-foreground",
+              message.role === "system" && "bg-card",
             )}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
+            isSystemPrompt={isSystemPrompt}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">
@@ -208,6 +212,7 @@ export function ChatMessage({
             currentView={currentView}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
+            isSystemPrompt={isSystemPrompt}
           />
           {toolCalls.length > 0 && (
             <div className="mt-2">

@@ -11,11 +11,15 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
 import { type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+
+// Display copy for the per-card observation cap; the authoritative limit is
+// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
+const SESSION_CARD_OBSERVATIONS_NOTICE_COUNT = 50;
 
 const hasContent = (value: unknown): boolean =>
   value !== null &&
@@ -153,28 +157,87 @@ export const TraceEventsRow = React.memo(
     // trace-level I/O that no observation shows (a v3-migrated trace can set
     // trace I/O apart from any observation; dropping it would lose content and
     // blind the annotation queue, which hides the trace panel).
-    const observations = observationsQuery.data;
-    const visibleObservations = React.useMemo(() => {
-      if (!observations) return undefined;
+    // `observationsForTraceFromEvents` returns a BARE ARRAY of observations.
+    // #15124 briefly wrapped it as `{ observations, hasMoreObservations }`,
+    // which crashed in-flight old clients that call `.find` on the response
+    // directly during a rollout (LFE-10958 regression). Read it defensively so
+    // BOTH shapes are safe: this new client can also briefly hit a not-yet-
+    // updated server that still returns the envelope, so an Array method must
+    // never run on a non-array value.
+    type ObservationsResponse =
+      RouterOutputs["sessions"]["observationsForTraceFromEvents"];
+    const observationsData = observationsQuery.data as
+      | ObservationsResponse
+      | { observations?: ObservationsResponse }
+      | undefined;
+    const observations = Array.isArray(observationsData)
+      ? observationsData
+      : (observationsData?.observations ?? undefined);
+
+    // Opens the trace peek AT the observation (the session page's peek config
+    // mirrors row.observationId into the ?observation= param; the annotation
+    // queue's openPeek opens the trace page in a new tab instead).
+    const openObservationInTraceView = React.useCallback(
+      (observationId: string) => {
+        openPeek(trace.id, { ...trace, observationId });
+      },
+      [openPeek, trace],
+    );
+    const { visibleObservations, hasMoreObservations } = React.useMemo(() => {
+      const all = observations;
+      if (!all)
+        return {
+          visibleObservations: undefined,
+          hasMoreObservations: false,
+        };
       const syntheticTraceRowId = `t-${trace.id}`;
-      const syntheticRow = observations.find(
+      // The server returns up to SESSION_CARD_OBSERVATIONS_NOTICE_COUNT + 1
+      // real observations; the extra (+1) row is the "more exist" sentinel.
+      // Show only the first NOTICE_COUNT real observations, keeping the
+      // synthetic trace-level row wherever it sits (it never consumes a slot).
+      let realCount = 0;
+      let realShown = 0;
+      const page: typeof all = [];
+      for (const observation of all) {
+        if (observation.id === syntheticTraceRowId) {
+          page.push(observation);
+          continue;
+        }
+        realCount++;
+        if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) continue;
+        page.push(observation);
+        realShown++;
+      }
+      const hasMoreObservations =
+        realCount > SESSION_CARD_OBSERVATIONS_NOTICE_COUNT;
+
+      const syntheticRow = page.find(
         (observation) => observation.id === syntheticTraceRowId,
       );
-      const realObservations = observations.filter(
+      const realObservations = page.filter(
         (observation) => observation.id !== syntheticTraceRowId,
       );
+      // I/O can be server-truncated to a preview head (LFE-10958), so equal
+      // heads alone don't prove equal payloads — the true lengths must match
+      // too (equal head + equal full length ≈ identical content).
       const syntheticRowIsRedundant =
         !syntheticRow ||
         !observationHasIO(syntheticRow) ||
         realObservations.some(
           (observation) =>
             (hasContent(syntheticRow.input) &&
-              isEqual(observation.input, syntheticRow.input)) ||
+              isEqual(observation.input, syntheticRow.input) &&
+              observation.inputLength === syntheticRow.inputLength) ||
             (hasContent(syntheticRow.output) &&
-              isEqual(observation.output, syntheticRow.output)),
+              isEqual(observation.output, syntheticRow.output) &&
+              observation.outputLength === syntheticRow.outputLength),
         );
-      if (!syntheticRowIsRedundant) return observations;
-      return realObservations.length > 0 ? realObservations : observations;
+      const visibleObservations = !syntheticRowIsRedundant
+        ? page
+        : realObservations.length > 0
+          ? realObservations
+          : page;
+      return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
     return (
@@ -198,7 +261,11 @@ export const TraceEventsRow = React.memo(
                 {visibleObservations.map((observation) => (
                   <div key={observation.id} className="flex flex-col gap-2">
                     <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                      <span>{observation.name ?? "Observation"}</span>
+                      {/* min-w-0 + wrap-break-word: unbroken long names must
+                          wrap inside the card, not escape it */}
+                      <span className="min-w-0 wrap-break-word">
+                        {observation.name ?? "Observation"}
+                      </span>
                       <span className="-mr-1">•</span>
                       <span className="inline-flex items-center gap-1">
                         <ItemBadge
@@ -215,24 +282,35 @@ export const TraceEventsRow = React.memo(
                       <span>•</span>
                       <span>{observation.startTime.toLocaleString()}</span>
                     </div>
-                    <IOPreview
-                      input={observation.input ?? undefined}
-                      output={observation.output ?? undefined}
-                      metadata={observation.metadata ?? undefined}
-                      observationName={observation.name ?? undefined}
-                      hideIfNull
+                    <SessionObservationIO
+                      observation={observation}
                       projectId={projectId}
+                      sessionId={sessionId}
                       traceId={trace.id}
-                      observationId={observation.id}
                       environment={
                         observation.environment ??
                         trace.environment ??
                         undefined
                       }
                       showCorrections={showCorrections}
+                      onOpenInTraceView={openObservationInTraceView}
                     />
                   </div>
                 ))}
+                {hasMoreObservations && (
+                  <p className="text-muted-foreground text-xs">
+                    Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
+                    observations are shown here.{" "}
+                    <button
+                      type="button"
+                      onClick={() => openPeek(trace.id, trace)}
+                      className="text-primary underline underline-offset-2 hover:no-underline"
+                    >
+                      Open the trace
+                    </button>{" "}
+                    to see all of them.
+                  </p>
+                )}
               </div>
             ) : observations &&
               observations.length === 0 &&
@@ -263,8 +341,10 @@ export const TraceEventsRow = React.memo(
                     }}
                   >
                     <ItemBadge type="TRACE" isSmall />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium">
+                    {/* min-w-0 + wrap-break-word: an unbroken long trace
+                        name must wrap inside the panel, not escape the card */}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-xs font-medium wrap-break-word">
                         {trace.name ?? "Trace"} ({trace.id})&nbsp;↗
                       </span>
                       <span className="text-muted-foreground text-xs">

@@ -148,6 +148,11 @@ export const traceFilterConfig: FilterConfig = {
       column: "scores_avg",
       label: "Numeric Scores",
     },
+    {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
   ],
 };
 

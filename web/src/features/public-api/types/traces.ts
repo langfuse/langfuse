@@ -4,9 +4,9 @@ import {
   commaSeparatedEnumArray,
   paginationMetaResponseZod,
   orderBy,
+  optionalJsonParam,
   publicApiPaginationZod,
   singleFilter,
-  InvalidRequestError,
 } from "@langfuse/shared";
 import {
   stringDateTime,
@@ -84,20 +84,7 @@ export const GetTracesV1Query = z.object({
     unknownValues: "filter",
   }).transform((fields) => (fields && fields.length > 0 ? fields : null)),
   useEventsTable: useEventsTableSchema,
-  filter: z
-    .string()
-    .optional()
-    .transform((str) => {
-      if (!str) return undefined;
-      try {
-        const parsed = JSON.parse(str);
-        return parsed;
-      } catch (e) {
-        if (e instanceof InvalidRequestError) throw e;
-        throw new InvalidRequestError("Invalid JSON in filter parameter");
-      }
-    })
-    .pipe(z.array(singleFilter).optional()),
+  filter: optionalJsonParam(z.array(singleFilter), "filter"),
 });
 export const GetTracesV1Response = z
   .object({

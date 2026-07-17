@@ -15,6 +15,10 @@ export const V4_TIME_RANGE_PRESETS = [
 ] as const;
 
 export const MAX_V4_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+export const V4_MIGRATION_DEADLINE_LABEL = "November 30, 2026";
+export const V4_MIGRATION_DEADLINE_SHORT_LABEL = "Due Nov 30, 2026";
+export const V4_LEGACY_EXPORT_AUTO_SWITCH_COPY =
+  "After November 30, 2026, Langfuse will auto-switch legacy exports to the new exports. Switch earlier to validate downstream schemas.";
 
 export const getV4MigrationStatus = (migrationItemCount: number) =>
   migrationItemCount > 0
@@ -42,6 +46,38 @@ export const countLegacyApiEntrypoints = (
 
   return entrypoints.size;
 };
+
+export const getV4ProjectRequiredActionCount = ({
+  traceLevelEvalCount,
+  legacyIntegrationCount,
+  legacyApiEntrypointCount,
+  outdatedSdkUsageSeriesCount,
+}: {
+  traceLevelEvalCount: number;
+  legacyIntegrationCount: number;
+  legacyApiEntrypointCount: number;
+  outdatedSdkUsageSeriesCount: number;
+}): number =>
+  traceLevelEvalCount +
+  legacyIntegrationCount +
+  legacyApiEntrypointCount +
+  outdatedSdkUsageSeriesCount;
+
+export const splitV4ProjectsByRequiredChanges = <
+  T extends { requiredActionCount: number },
+>(
+  projects: T[],
+): {
+  projectsWithRequiredChanges: T[];
+  projectsWithoutRequiredChanges: T[];
+} => ({
+  projectsWithRequiredChanges: projects.filter(
+    (project) => project.requiredActionCount > 0,
+  ),
+  projectsWithoutRequiredChanges: projects.filter(
+    (project) => project.requiredActionCount === 0,
+  ),
+});
 
 export const getCappedAbsoluteTimeRange = (
   timeRange: TimeRange,

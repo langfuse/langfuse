@@ -33,6 +33,15 @@ import {
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
 
+/**
+ * Emitted when a top-level OR between conditions can't collapse to a same-field
+ * any-of (the PARKED cross-field-OR feature, LFE-10421). Exported so the
+ * analytics error classifier can match this exact cause without brittle string
+ * fragments (LFE-10781 `filters:search_error` → reason `unsupported_or`).
+ */
+export const OR_NOT_SUPPORTED_MESSAGE =
+  "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
+
 export type SingleEventsFilter = FilterState[number];
 
 export type AstToFilterStateResult = {
@@ -58,15 +67,17 @@ export type AstToFilterStateResult = {
 export type ScoreTypeContext = {
   numericScoreNames?: ReadonlySet<string>;
   categoricalScoreNames?: ReadonlySet<string>;
+  booleanScoreNames?: ReadonlySet<string>;
   traceNumericScoreNames?: ReadonlySet<string>;
   traceCategoricalScoreNames?: ReadonlySet<string>;
+  traceBooleanScoreNames?: ReadonlySet<string>;
 };
 
 export function resolveScoreType(
   ctx: ScoreTypeContext | undefined,
   level: "observation" | "trace",
   name: string,
-): "numeric" | "categorical" | "both" | "unknown" {
+): "numeric" | "categorical" | "boolean" | "both" | "unknown" {
   if (ctx === undefined) return "unknown";
   const numeric =
     level === "trace" ? ctx.traceNumericScoreNames : ctx.numericScoreNames;
@@ -74,12 +85,27 @@ export function resolveScoreType(
     level === "trace"
       ? ctx.traceCategoricalScoreNames
       : ctx.categoricalScoreNames;
+  const boolean =
+    level === "trace" ? ctx.traceBooleanScoreNames : ctx.booleanScoreNames;
   const isNum = numeric?.has(name) ?? false;
   const isCat = categorical?.has(name) ?? false;
-  if (isNum && isCat) return "both";
+  const isBool = boolean?.has(name) ?? false;
+  const typeCount = Number(isNum) + Number(isCat) + Number(isBool);
+  if (typeCount > 1) return "both";
   if (isNum) return "numeric";
   if (isCat) return "categorical";
+  if (isBool) return "boolean";
   return "unknown";
+}
+
+function isObservedBooleanScore(
+  ctx: ScoreTypeContext | undefined,
+  level: "observation" | "trace",
+  name: string,
+): boolean {
+  const boolean =
+    level === "trace" ? ctx?.traceBooleanScoreNames : ctx?.booleanScoreNames;
+  return boolean?.has(name) ?? false;
 }
 
 /**
@@ -190,9 +216,7 @@ function lowerTopLevel(
         lowerFilterNode(collapsed, negated, ctx);
         return;
       }
-      ctx.errors.push(
-        "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values",
-      );
+      ctx.errors.push(OR_NOT_SUPPORTED_MESSAGE);
       return;
     }
     case "filter":
@@ -669,10 +693,67 @@ function lowerScores(
     });
   };
 
+  const lowerBooleanScore = (): void => {
+    if (isComparison(node.op)) {
+      errors.push(
+        `${path} is boolean — comparison operators only apply to numeric scores`,
+      );
+      return;
+    }
+    if (node.values.length > 1) {
+      errors.push(
+        `${path} expects a single boolean value — grouped boolean values are not supported`,
+      );
+      return;
+    }
+    const raw = node.values[0]?.toLowerCase();
+    if (raw !== "true" && raw !== "false") {
+      errors.push(`${path} is boolean — use true or false`);
+      return;
+    }
+    out.push({
+      type: "booleanObject",
+      column: columns.boolean,
+      key,
+      operator: negated ? "<>" : "=",
+      value: raw === "true",
+    });
+  };
+
   // Route by observed score TYPE when we know it — a categorical score with
   // numeric labels (e.g. a 1–5 rating) must hit the categorical column, not
   // scores_avg, or it silently targets a column with no data.
   const scoreType = resolveScoreType(scoreTypes, level, key);
+  const allBooleanLiterals = node.values.every((v) => {
+    const raw = v.toLowerCase();
+    return raw === "true" || raw === "false";
+  });
+  if (
+    isObservedBooleanScore(scoreTypes, level, key) &&
+    allBooleanLiterals &&
+    !isComparison(node.op)
+  ) {
+    lowerBooleanScore();
+    return;
+  }
+  if (scoreType === "boolean") {
+    // Legacy-read compat: boolean scores also aggregate numerically (0/1)
+    // into scores_avg, and pre-boolean-filter URLs/saved views still carry
+    // numberObject filters on them. Numeric-shaped input keeps lowering
+    // numerically so that state stays renderable/editable; everything else
+    // gets the boolean diagnostic (never the categorical fallback — a boolean
+    // name has no data in score_categories).
+    const allNumericValues = node.values.every((v) =>
+      Number.isFinite(Number(v)),
+    );
+    if (isComparison(node.op) || node.op === "exact" || allNumericValues) {
+      lowerNumeric();
+      return;
+    }
+    lowerBooleanScore();
+    return;
+  }
+
   if (scoreType === "categorical") {
     // Comparisons (> < >= <=) are meaningless on a category. But exact (`:=x`)
     // and the bare `=` form are both just an exact category match, so they
@@ -694,7 +775,11 @@ function lowerScores(
   }
 
   // '=' default: numeric when known-numeric, else value-syntax fallback
-  // (all-numeric → numeric) for unknown/both.
+  // (all-numeric → numeric) for unknown/both. Known context-miss caveat: a
+  // booleanObject filter whose score name is not in the observed sets (time
+  // range, name-limit cap, saved view) renders as `scores.X:true` and
+  // re-lowers here to categoryOptions — the same context dependence the
+  // categorical kind has always had; eager score-name loading keeps this rare.
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
   if (scoreType === "numeric" || allNumeric) {
     lowerNumeric();

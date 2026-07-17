@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -28,10 +28,11 @@ jobs:
           node-version: 18
 
       - name: Install license-checker
-        run: npm install -g license-checker
+        # Deliberate ad-hoc install: the license-check tooling is not part of the workspace lockfile.
+        run: npm install -g license-checker # zizmor: ignore[adhoc-packages]
 
       - name: Install yui-lint
-        run: npm install yui-lint
+        run: npm install yui-lint # zizmor: ignore[adhoc-packages]
 
       - name: Generate license-checker CSV file
         run: license-checker --production --csv > npm-license-checker.csv

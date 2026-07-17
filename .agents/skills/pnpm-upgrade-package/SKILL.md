@@ -48,6 +48,11 @@ Use this skill for interactive dependency bumps in Langfuse.
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
   current `minimumReleaseAge` window.
+- Before generating lockfile changes, run
+  `pnpm install --dry-run --ignore-scripts` to catch resolver and policy
+  failures without writing `pnpm-lock.yaml` or `node_modules`.
+- Inspect any dry-run "would make changes" output as baseline resolver drift
+  before deciding which write command is safe.
 - Ask before adding `minimumReleaseAgeExclude` entries for the target package,
   exact dependency companions from `dependencies` or `optionalDependencies`, or
   locally installed exact peer dependencies.
@@ -66,6 +71,8 @@ Use this skill for interactive dependency bumps in Langfuse.
   `pnpm why -r <package>`
 - Inspect a current parent manifest on the registry:
   `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
+- Preflight resolver/policy check:
+  `pnpm install --dry-run --ignore-scripts`
 - Optional lockfile cleanup:
   `pnpm dedupe`
 - Bump in the root workspace:

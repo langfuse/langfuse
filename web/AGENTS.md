@@ -62,18 +62,28 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
-- Large frontend feature, virtualized-list, and local state architecture:
+- Large frontend feature, virtualized-list, local state, and React
+  effect-free data-flow architecture:
   [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
+- Avoidable React effect audits, refactors, and module migrations:
+  [`../.agents/skills/refactor-react-effects/SKILL.md`](../.agents/skills/refactor-react-effects/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+- PostHog product analytics — when and how to instrument user actions:
+  [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, virtualized lists, local feature stores, bundle size,
 React/Next.js performance patterns, or browser-based signoff of user-visible
-changes.
+changes. If you are about to write a `useEffect` or wire form initial values
+from loaded data, read the frontend-large-feature-architecture skill first —
+most effects that derive or sync state should not exist. When adding a
+meaningful user action (button, handler, form, mutation, feature surface),
+read the PostHog instrumentation skill and decide explicitly whether the
+action should emit an analytics event.
 
 ## Web Conventions
 
@@ -92,6 +102,18 @@ changes.
   must be installed, ask the user before doing so.
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- Do not add `useEffect` by default. Use it only when a component must
+  synchronize with a concrete system outside React, such as a subscription,
+  browser event listener, observer, timer, or imperative third-party API.
+  Before writing an effect, name that external system and its setup/cleanup
+  lifecycle. If there is no external system, do not use an effect. In
+  particular, do not use effects to derive render state, mirror props or query
+  data into local state, react to user actions, or reset state when an ID
+  changes. Derive during render, run work in the initiating event handler, use
+  query APIs for server state, or mount a keyed child once required data is
+  available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
+  hook, an ESLint suppression, or disabled dependency checks. Use
+  `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -125,8 +147,10 @@ changes.
   z-index.** The app renders inside `#__next`, isolated into one stacking
   context (`globals.css`), so its z-indexes can't escape; overlays go in layers
   that sit outside it and always win. `LAYER_ORDER` is
-  `["agent", "modal", "popover", "tooltip", "toast"]` — containers declared in
-  `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
+  `modal` is for true blocking Dialog and AlertDialog surfaces.
   **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
@@ -206,7 +230,10 @@ changes.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP
+4. For meaningful user actions (buttons, form submits, mode switches), decide
+   explicitly whether to instrument them with PostHog. Use
+   `../.agents/skills/posthog-instrumentation/SKILL.md`.
+5. Review the affected user flow in a real browser with the Playwright MCP
    server before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 

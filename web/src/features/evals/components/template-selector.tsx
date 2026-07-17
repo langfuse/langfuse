@@ -25,7 +25,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useExperimentEvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { useTemplatesValidation } from "@/src/features/evals/hooks/useTemplatesValidation";
@@ -40,18 +40,15 @@ import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-to
 import { env } from "@/src/env.mjs";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { getEvalTemplateFamilyKey } from "@/src/features/evals/utils/eval-template-family";
 
 type TemplateSelectorProps = {
   projectId: string;
   datasetId: string;
   evalTemplates: EvalTemplate[];
   disabled?: boolean;
-  activeTemplateIds?: string[];
-  inactiveTemplateIds?: string[];
-  evaluatorTargetObjects?: Record<string, string>;
   onConfigureTemplate?: (templateId: string) => void;
   onSelectEvaluator?: (templateId: string) => void;
-  onEvaluatorToggled?: () => void;
   className?: string;
 };
 
@@ -59,12 +56,8 @@ export const TemplateSelector = ({
   projectId,
   datasetId,
   evalTemplates,
-  activeTemplateIds,
-  inactiveTemplateIds,
-  evaluatorTargetObjects,
   onConfigureTemplate,
   onSelectEvaluator,
-  onEvaluatorToggled,
   className,
   disabled = false,
 }: TemplateSelectorProps) => {
@@ -75,60 +68,63 @@ export const TemplateSelector = ({
     shouldShowEvalTemplate(template, codeEvalCapabilities),
   );
   const {
-    activeTemplates,
+    existingEvaluators,
     isTemplateActive,
     isTemplateInactive,
     handleRowClick,
   } = useExperimentEvaluatorSelection({
     projectId: projectId,
     datasetId: datasetId,
-    initialActiveTemplateIds: activeTemplateIds,
-    initialInactiveTemplateIds: inactiveTemplateIds,
     onSelectEvaluator,
-    onEvaluatorToggled,
   });
+  const activeEvaluators = Object.values(existingEvaluators).filter(
+    (evaluator) => evaluator.isActive,
+  );
 
   // Validation for templates requiring default model
   const { isTemplateValid, hasDefaultModel } = useTemplatesValidation({
     projectId: projectId,
-    selectedTemplateIds: activeTemplates,
+    selectedTemplateIds: activeEvaluators.map(
+      (evaluator) => evaluator.evalTemplateId,
+    ),
   });
 
-  // Group templates by name and whether they are managed by Langfuse
+  // latestTemplates already returns one row per evaluator family.
   const groupedTemplates = visibleEvalTemplates.reduce(
     (acc, template) => {
       const group = template.projectId ? "custom" : "langfuse";
-      if (!acc[group][template.name]) {
-        acc[group][template.name] = [];
-      }
-      acc[group][template.name].push(template);
+      acc[group][getEvalTemplateFamilyKey(template)] = template;
       return acc;
     },
     {
-      langfuse: {} as Record<string, EvalTemplate[]>,
-      custom: {} as Record<string, EvalTemplate[]>,
+      langfuse: {} as Record<string, EvalTemplate>,
+      custom: {} as Record<string, EvalTemplate>,
     },
   );
 
   // Filter templates based on search
   const filteredTemplates = {
     langfuse: Object.entries(groupedTemplates.langfuse)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([nameA, templatesA], [nameB, templatesB]) => {
+      .filter(([, template]) =>
+        template.name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .sort(([, templateA], [, templateB]) => {
         // Get partners
-        const partnerA = templatesA[0]?.partner;
-        const partnerB = templatesB[0]?.partner;
+        const partnerA = templateA.partner;
+        const partnerB = templateB.partner;
 
         // No partner comes before partner
         if (!partnerA && partnerB) return -1;
         if (partnerA && !partnerB) return 1;
 
         // Sort by name within each group
-        return nameA.localeCompare(nameB);
+        return templateA.name.localeCompare(templateB.name);
       }),
     custom: Object.entries(groupedTemplates.custom)
-      .filter(([name]) => name.toLowerCase().includes(search.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b)),
+      .filter(([, template]) =>
+        template.name.toLowerCase().includes(search.toLowerCase()),
+      )
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name)),
   };
 
   const hasResults =
@@ -136,7 +132,7 @@ export const TemplateSelector = ({
     filteredTemplates.custom.length > 0;
 
   // Handle cog button click - configure template
-  const handleConfigureTemplate = (e: React.MouseEvent, templateId: string) => {
+  const handleConfigureTemplate = (e: MouseEvent, templateId: string) => {
     e.stopPropagation();
 
     // Check if this template requires a default model
@@ -155,8 +151,8 @@ export const TemplateSelector = ({
   });
 
   const triggerLabel =
-    activeTemplates.length > 0
-      ? `${activeTemplates.length} active evaluators`
+    activeEvaluators.length > 0
+      ? `${activeEvaluators.length} active evaluators`
       : "Select evaluators";
 
   return (
@@ -206,23 +202,19 @@ export const TemplateSelector = ({
                       heading="Custom evaluators"
                       className="max-h-full"
                     >
-                      {filteredTemplates.custom.map(([name, templateData]) => {
-                        const latestTemplate =
-                          templateData[templateData.length - 1];
-                        const isActive = isTemplateActive(latestTemplate.id);
-                        const isInactive = isTemplateInactive(
-                          latestTemplate.id,
-                        );
-                        const isInvalid = isTemplateInvalid(latestTemplate);
+                      {filteredTemplates.custom.map(([familyKey, template]) => {
+                        const isActive = isTemplateActive(familyKey);
+                        const isInactive = isTemplateInactive(familyKey);
+                        const isInvalid = isTemplateInvalid(template);
                         const isLegacy =
-                          evaluatorTargetObjects?.[latestTemplate.id] ===
+                          existingEvaluators[familyKey]?.targetObject ===
                           "dataset";
 
                         return (
                           <InputCommandItem
-                            key={`custom-${name}`}
+                            key={`custom-${familyKey}`}
                             onSelect={() => {
-                              handleRowClick(latestTemplate.id);
+                              handleRowClick(template.id, familyKey);
                             }}
                             disabled={isInvalid || disabled}
                           >
@@ -231,7 +223,7 @@ export const TemplateSelector = ({
                             ) : (
                               <div className="mr-2 h-4 w-4" />
                             )}
-                            {name}
+                            {template.name}
                             {isLegacy && (
                               <Badge variant="outline" className="ml-2 text-xs">
                                 legacy
@@ -269,7 +261,11 @@ export const TemplateSelector = ({
                                 variant="ghost"
                                 size="icon-xs"
                                 onClick={(e) =>
-                                  handleConfigureTemplate(e, latestTemplate.id)
+                                  handleConfigureTemplate(
+                                    e,
+                                    existingEvaluators[familyKey]
+                                      ?.evalTemplateId ?? template.id,
+                                  )
                                 }
                                 className="ml-auto"
                                 title={
@@ -297,21 +293,19 @@ export const TemplateSelector = ({
                     heading="Langfuse managed evaluators"
                     className="max-h-full min-h-0"
                   >
-                    {filteredTemplates.langfuse.map(([name, templateData]) => {
-                      const latestTemplate =
-                        templateData[templateData.length - 1];
-                      const isActive = isTemplateActive(latestTemplate.id);
-                      const isInactive = isTemplateInactive(latestTemplate.id);
-                      const isInvalid = isTemplateInvalid(latestTemplate);
+                    {filteredTemplates.langfuse.map(([familyKey, template]) => {
+                      const isActive = isTemplateActive(familyKey);
+                      const isInactive = isTemplateInactive(familyKey);
+                      const isInvalid = isTemplateInvalid(template);
                       const isLegacy =
-                        evaluatorTargetObjects?.[latestTemplate.id] ===
+                        existingEvaluators[familyKey]?.targetObject ===
                         "dataset";
 
                       return (
                         <InputCommandItem
-                          key={`langfuse-${name}`}
+                          key={`langfuse-${familyKey}`}
                           onSelect={() => {
-                            handleRowClick(latestTemplate.id);
+                            handleRowClick(template.id, familyKey);
                           }}
                           disabled={isInvalid || disabled}
                         >
@@ -320,9 +314,9 @@ export const TemplateSelector = ({
                           ) : (
                             <div className="mr-2 h-4 w-4" />
                           )}
-                          <div className="mr-1">{name}</div>
+                          <div className="mr-1">{template.name}</div>
                           <MaintainerTooltip
-                            maintainer={getMaintainer(latestTemplate)}
+                            maintainer={getMaintainer(template)}
                           />
                           {isLegacy && (
                             <Badge variant="outline" className="ml-2 text-xs">
@@ -362,7 +356,11 @@ export const TemplateSelector = ({
                               size="icon-xs"
                               className="ml-auto"
                               onClick={(e) =>
-                                handleConfigureTemplate(e, latestTemplate.id)
+                                handleConfigureTemplate(
+                                  e,
+                                  existingEvaluators[familyKey]
+                                    ?.evalTemplateId ?? template.id,
+                                )
                               }
                               title={
                                 isInvalid

@@ -2,7 +2,7 @@ import {
   createObservation,
   createTrace,
   createTracesCh,
-  createEvent,
+  createEvent as createEventBase,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
@@ -16,6 +16,15 @@ import {
 import { GetObservationsV1Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+
+// The events tables carry metadata as flattened `metadata_names` /
+// `metadata_values` arrays. The fixture below also passes the nested object
+// form for readability; it is not a column and is ignored by the insert.
+const createEvent = (
+  event: Parameters<typeof createEventBase>[0] & {
+    metadata?: Record<string, unknown>;
+  },
+) => createEventBase(event);
 
 // Helper type for creating observation data
 type ObservationData = {
@@ -709,7 +718,7 @@ describe("/api/public/observations API Endpoint", () => {
               undefined,
               auth,
             );
-            fail("Should have thrown an error");
+            throw new Error("Should have thrown an error");
           } catch (error) {
             expect(error).toBeDefined();
           }

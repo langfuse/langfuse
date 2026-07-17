@@ -1,0 +1,25 @@
+{
+  "name": "@repo/in-app-agent-sandbox-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:docker-image": "docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
+    "start": "node ./dist/server.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^24.3.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.7.2"
+  }
+}

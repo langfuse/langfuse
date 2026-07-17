@@ -60,6 +60,13 @@ const getScoreIngestionAttribution = async (
   return rows[0];
 };
 
+// GetScoreResponseV1 is a union whose TEXT variant carries no `value`; the
+// scores asserted below are NUMERIC, so narrow to the value-carrying variants.
+type APIScoreV1WithValue = Extract<
+  z.infer<typeof GetScoreResponseV1>,
+  { value: number }
+>;
+
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
     it("should GET a score", async () => {
@@ -263,7 +270,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -319,7 +326,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(200.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(200.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -381,7 +388,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100);
       expect(fetchedScore.body?.configId).toBe(configId);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
@@ -472,7 +479,9 @@ describe("/api/public/scores API Endpoint", () => {
             dataType: "NUMERIC",
           });
           expect(score.name).toMatch(/^score-\d+$/);
-          expect(score.value).toBe(parseInt(score.name.split("-")[1]));
+          expect((score as APIScoreV1WithValue).value).toBe(
+            parseInt(score.name.split("-")[1]),
+          );
         }
 
         // Check if we need to fetch more pages

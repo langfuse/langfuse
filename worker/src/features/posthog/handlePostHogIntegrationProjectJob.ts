@@ -20,6 +20,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { assertLegacyExportSourceWritable } from "../exportWriteModeGuard";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -364,6 +365,13 @@ export const handlePostHogIntegrationProjectJob = async (
   };
 
   try {
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148); the catch below logs and BullMQ retries.
+    assertLegacyExportSourceWritable(
+      postHogIntegration.exportSource,
+      "Select the enriched observations export source in the PostHog integration settings.",
+    );
+
     const processPromises: Promise<void>[] = [];
 
     // Always include scores

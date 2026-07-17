@@ -146,7 +146,7 @@ export const ScoresTable = ({
 
   if (!zeroValueScores || !oneValueScores) {
     return (
-      <DashboardCard title={"Scores"} isLoading={false}>
+      <DashboardCard title="Scores" isLoading={false}>
         <NoDataOrLoading isLoading={false} />
       </DashboardCard>
     );

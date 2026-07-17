@@ -1,4 +1,4 @@
-// Per-mount search-bar store — DRAFT ONLY.
+// Per-mount search-bar store — DRAFT ONLY (plus an ephemeral preview overlay).
 //
 // Data direction is deliberately dumb and one-way: the table's URL filter
 // state (FilterState + searchQuery/searchType) is the single source of truth.
@@ -8,6 +8,12 @@
 // and nothing here ever writes back to the filter state (that happens in the
 // container's commit workflow). This removes the reconciliation/loop-guard the
 // old two-source design needed.
+//
+// `previewText` is a display-only overlay on top of that model (a hovered
+// preset row shows the query it would apply). It is rendered instead of the
+// draft while active but is not an edit buffer: it never merges into the
+// draft, never commits, and any real draft write clears it — so previews are
+// non-destructive by construction, not by careful restore logic.
 
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -44,6 +50,14 @@ export function draftsSemanticallyEqual(
 export type SearchBarStoreState = {
   /** Live editing buffer. */
   draft: string;
+  /**
+   * Ephemeral preview overlay (a preset row being hovered/focused shows the
+   * query it would apply). Rendered INSTEAD of the draft while non-null; it
+   * never merges into the draft, so ending a preview cannot lose in-progress
+   * typing — the draft was simply never touched. Any real draft write clears
+   * it (an edit always ends a preview).
+   */
+  previewText: string | null;
   /** Pure derivations of `draft`, cached on write to avoid re-parsing. */
   draftDiagnostics: Diagnostic[];
   draftValid: boolean;
@@ -73,6 +87,10 @@ export type SearchBarStoreState = {
      * after the draft was typed, so `draftValid` doesn't stay stale.
      */
     revalidate: () => void;
+    /** Show `text` in the bar as a non-destructive preview overlay. */
+    setPreview: (text: string) => void;
+    /** End the preview; the untouched draft shows again. Safe to call twice. */
+    clearPreview: () => void;
   };
 };
 
@@ -102,6 +120,9 @@ export function createSearchBarStore(
       const res = validateQuery(next, scoreTypes);
       set({
         draft: next,
+        // A real edit always ends a preview — the overlay must never sit over
+        // a draft that changed underneath it.
+        previewText: null,
         draftDiagnostics: res.diagnostics,
         draftValid: res.valid,
         invalidRevealDraft: null,
@@ -110,6 +131,7 @@ export function createSearchBarStore(
 
     return {
       draft: "",
+      previewText: null,
       draftDiagnostics: [],
       draftValid: true,
       invalidRevealDraft: null,
@@ -143,6 +165,14 @@ export function createSearchBarStore(
           return next;
         },
         revealInvalid: () => set({ invalidRevealDraft: get().draft }),
+        setPreview: (text) => {
+          if (get().previewText === text) return;
+          set({ previewText: text });
+        },
+        clearPreview: () => {
+          if (get().previewText === null) return;
+          set({ previewText: null });
+        },
         revalidate: () => {
           const scoreTypes = resolveScoreTypes?.();
           // Nothing to refresh: the draft was already validated against an

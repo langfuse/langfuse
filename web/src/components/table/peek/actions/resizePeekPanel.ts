@@ -36,6 +36,9 @@ export function beginPeekResize(
   // does (otherwise starting a drag while expanded snaps to the widget width
   // on pointer-down, a visible jump).
   startExpanded = false,
+  // Notified once per drag gesture that commits a widget width (not on
+  // expand-commits or cancelled drags) — the hook's analytics seam.
+  onWidthCommit?: (fraction: number) => void,
 ): () => void {
   // Only primary-button drags; the keyboard path handles the rest.
   if (event.button !== 0) return () => {};
@@ -71,6 +74,7 @@ export function beginPeekResize(
       // Released on a widget width → persist it and ensure we're collapsed.
       actions.commitWidth(draftFraction);
       commitExpanded(false);
+      onWidthCommit?.(draftFraction);
     }
     // The hook holds the committed expanded value (pendingExpanded) until the
     // URL catches up, so clearing the drag state here can't flash the old width.

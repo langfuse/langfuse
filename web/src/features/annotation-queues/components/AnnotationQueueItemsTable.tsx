@@ -446,7 +446,7 @@ export function AnnotationQueueItemsTable({
         ]}
       />
       <DataTable
-        tableName={"annotationQueueItems"}
+        tableName="annotationQueueItems"
         columns={columns}
         data={
           items.isLoading

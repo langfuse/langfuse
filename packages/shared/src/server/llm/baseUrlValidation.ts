@@ -1,6 +1,7 @@
 import { env } from "../../env";
 import {
   type OutboundUrlValidationWhitelist,
+  OutboundUrlValidationError,
   parseOutboundUrl,
   validateOutboundUrlHost,
 } from "../outbound-url";
@@ -38,7 +39,10 @@ export async function validateLlmConnectionBaseURL(
   const url = parseOutboundUrl(urlString);
 
   if (!["https:", "http:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS protocols are allowed");
+    throw new OutboundUrlValidationError(
+      "protocol-not-allowed",
+      "Only HTTP and HTTPS protocols are allowed",
+    );
   }
 
   await validateOutboundUrlHost({
@@ -51,6 +55,9 @@ export async function validateLlmConnectionBaseURL(
   });
 
   if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
-    throw new Error("Only HTTPS base URLs are allowed on Langfuse Cloud");
+    throw new OutboundUrlValidationError(
+      "https-required",
+      "Only HTTPS base URLs are allowed on Langfuse Cloud",
+    );
   }
 }

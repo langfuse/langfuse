@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
-import { type User } from "next-auth";
+import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -62,9 +62,12 @@ export type Route = {
   entitlements?: Entitlement[]; // entitlements required, array treated as OR
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
-    organization: User["organizations"][number] | undefined;
+    organization:
+      | NonNullable<Session["user"]>["organizations"][number]
+      | undefined;
     projectId: string | undefined;
     isLangfuseCloud: boolean;
+    v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -132,10 +135,9 @@ export const ROUTES: Route[] = [
     pathname: "/project/[projectId]/monitors",
     icon: BellRing,
     projectRbacScopes: ["monitors:read"],
-    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
     title: "Prompts",

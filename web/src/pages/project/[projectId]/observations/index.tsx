@@ -67,9 +67,13 @@ export default function Generations() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+          enableAppRootDefault
+        />
       ) : (
-        <ObservationsTable projectId={projectId} />
+        <ObservationsTable projectId={projectId} showControlsInPageHeader />
       )}
     </Page>
   );

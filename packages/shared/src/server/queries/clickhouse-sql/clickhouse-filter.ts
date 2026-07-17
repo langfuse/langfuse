@@ -10,6 +10,7 @@ import {
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
   isFtsMetadataField,
+  isFtsTextField,
   isFtsTextTarget,
 } from "./fts";
 
@@ -580,6 +581,54 @@ export class NumberObjectFilter implements Filter {
   }
 }
 
+/**
+ * Encodes one boolean-score entry the way the `score_booleans` ClickHouse
+ * aggregation stores it (`scoreBooleansAggregation` in query-fragments.ts:
+ * `concat(name, ':', lowerUTF8(string_value))`). BooleanObjectFilter and
+ * InMemoryFilterService must build lookup targets through this helper so the
+ * two filter paths and the SQL producer cannot drift apart.
+ */
+export const encodeBooleanScoreEntry = (key: string, value: boolean): string =>
+  `${key}:${value ? "true" : "false"}`;
+
+export class BooleanObjectFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: boolean;
+  public operator: (typeof filterOperators)["booleanObject"][number];
+  public tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["booleanObject"][number];
+    key: string;
+    value: boolean;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `booleanObjectFilter${uid}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const value = encodeBooleanScoreEntry(this.key, this.value);
+    const predicate = `has(${column}, {${varName}: String})`;
+
+    return {
+      query: this.operator === "<>" ? `NOT ${predicate}` : predicate,
+      params: { [varName]: value },
+    };
+  }
+}
+
 export class BooleanFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -668,3 +717,13 @@ export class FilterList {
     };
   }
 }
+
+// events_core stores input/output/metadata_values truncated to 200 chars
+// (events_core_mv); filters on these fields must run against events_full or
+// matches beyond the truncation point are silently dropped.
+export const filtersRequireEventsFull = (filters: FilterList): boolean =>
+  filters.some(
+    (f) =>
+      isFtsEventsTable(f.clickhouseTable) &&
+      (isFtsTextField(f.field) || isFtsMetadataField(f.field)),
+  );

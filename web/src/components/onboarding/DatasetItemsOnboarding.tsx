@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
-import DocPopup from "@/src/components/layouts/doc-popup";
 import Link from "next/link";
 import {
   Dialog,
@@ -22,11 +21,6 @@ interface DatasetItemEntryPointRowProps {
   description: string;
   onClick?: () => void;
   hasAccess?: boolean;
-  comingSoon?: boolean;
-  docPopup?: {
-    description: string;
-    href: string;
-  };
 }
 
 const DatasetItemEntryPointRow = ({
@@ -35,10 +29,8 @@ const DatasetItemEntryPointRow = ({
   description,
   onClick,
   hasAccess = true,
-  comingSoon = false,
-  docPopup,
 }: DatasetItemEntryPointRowProps) => {
-  const disabled = !hasAccess || comingSoon;
+  const disabled = !hasAccess;
   return (
     <div
       role="button"
@@ -70,12 +62,7 @@ const DatasetItemEntryPointRow = ({
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
         <h3 className="font-semibold">{title}</h3>
-        <div className="flex items-center gap-1">
-          <p className="text-muted-foreground text-sm">{description}</p>
-          {docPopup && (
-            <DocPopup description={docPopup.description} href={docPopup.href} />
-          )}
-        </div>
+        <p className="text-muted-foreground text-sm">{description}</p>
       </div>
     </div>
   );
@@ -165,17 +152,16 @@ export const DatasetItemsOnboarding = ({
           />
         </Link>
 
-        <DatasetItemEntryPointRow
-          icon={<ListTree className="h-5 w-5" />}
-          title="Select Traces"
-          description="Coming soon!"
-          comingSoon
-          docPopup={{
-            description:
-              "Creating items from production data is supported on single trace level. Click to view docs for more details.",
-            href: "https://langfuse.com/docs/evaluation/experiments/datasets#create-items-from-production-data",
-          }}
-        />
+        <Link href={`/project/${projectId}/observations`}>
+          <DatasetItemEntryPointRow
+            icon={<ListTree className="h-5 w-5" />}
+            title="Select Observations"
+            description="Select observations in the observations table and use a batch action to add them to your dataset"
+            onClick={() => {
+              capture("dataset_item:select_observations_button_click");
+            }}
+          />
+        </Link>
       </div>
     </SplashScreen>
   );

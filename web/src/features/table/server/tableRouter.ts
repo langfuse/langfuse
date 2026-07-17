@@ -3,11 +3,20 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { GetIsBatchActionInProgressSchema } from "@langfuse/shared";
+import {
+  ActionId,
+  BatchActionStatus,
+  GetIsBatchActionInProgressSchema,
+} from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import { BatchActionQueue, logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 const WAITING_JOBS = ["waiting", "delayed", "active"];
+const ACTIVE_BATCH_ACTION_STATUSES = [
+  BatchActionStatus.Queued,
+  BatchActionStatus.Processing,
+];
 
 export const tableRouter = createTRPCRouter({
   getIsBatchActionInProgress: protectedProjectProcedure
@@ -19,10 +28,27 @@ export const tableRouter = createTRPCRouter({
         actionId,
         tableName,
       );
+      const batchAction = await prisma.batchAction.findUnique({
+        where: { id: batchActionId },
+        select: { status: true },
+      });
+
+      if (
+        batchAction &&
+        ACTIVE_BATCH_ACTION_STATUSES.includes(
+          batchAction.status as BatchActionStatus,
+        )
+      ) {
+        return true;
+      }
 
       const batchActionQueue = BatchActionQueue.getInstance();
 
       if (!batchActionQueue) {
+        if (actionId === ActionId.TraceDelete) {
+          return false;
+        }
+
         logger.warn(`BatchActionQueue not initialized`);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

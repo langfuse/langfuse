@@ -253,6 +253,13 @@ const eventsTableColsDefinition = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Trace Scores (numeric)",
     id: "trace_scores_avg",
     type: "numberObject",
@@ -264,6 +271,13 @@ const eventsTableColsDefinition = [
     type: "categoryOptions",
     internal: "trace_score_categories",
     options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
     nullable: true,
   },
   {

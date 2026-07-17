@@ -302,6 +302,150 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("routes known boolean scores to booleanObject filters", () => {
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+    const lowerWith = (text: string) =>
+      astToFilterState(parse(text).ast, scoreTypes);
+
+    expect(lowerWith("scores.flag:true").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    expect(lowerWith("-traceScores.traceFlag:false").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ]);
+    // Comparisons fall back to the legacy numeric column — see the
+    // "keeps legacy numeric filters" test below.
+    expect(lowerWith("scores.flag:>0").errors).toEqual([]);
+    expect(
+      lowerWith("scores.flag:(true OR false)").errors.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("routes boolean literals to booleanObject when legacy numeric options also include the score", () => {
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["flag"]),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(["traceFlag"]),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+
+    expect(
+      astToFilterState(parse("scores.flag:true").ast, scoreTypes).filters,
+    ).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    expect(
+      astToFilterState(parse("-traceScores.traceFlag:false").ast, scoreTypes)
+        .filters,
+    ).toEqual([
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ]);
+    expect(
+      astToFilterState(parse("scores.flag:1").ast, scoreTypes).filters,
+    ).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: "=",
+        value: 1,
+      },
+    ]);
+  });
+
+  it("keeps legacy numeric filters working on boolean-observed scores", () => {
+    // Boolean scores also aggregate numerically (0/1) into scores_avg. The
+    // sidebar's numeric facet and pre-boolean-filter URLs/saved views still
+    // produce numberObject filters on them; those must keep lowering
+    // numerically — rejecting them would lock the bar red on state a
+    // first-party surface created.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      booleanScoreNames: new Set<string>(["flag"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+      traceBooleanScoreNames: new Set<string>(["traceFlag"]),
+    };
+    const lowerWith = (text: string) =>
+      astToFilterState(parse(text).ast, scoreTypes);
+
+    const comparison = lowerWith("scores.flag:>=0.5");
+    expect(comparison.errors).toEqual([]);
+    expect(comparison.filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: ">=",
+        value: 0.5,
+      },
+    ]);
+    expect(lowerWith("scores.flag:1").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "flag",
+        operator: "=",
+        value: 1,
+      },
+    ]);
+    expect(lowerWith("traceScores.traceFlag:<1").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "traceFlag",
+        operator: "<",
+        value: 1,
+      },
+    ]);
+    // Boolean literals still prefer the boolean column…
+    expect(lowerWith("scores.flag:true").filters).toEqual([
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "flag",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    // …and anything neither numeric nor boolean keeps the boolean diagnostic.
+    expect(lowerWith("scores.flag:positive").errors.length).toBeGreaterThan(0);
+  });
+
   it("treats := (exact) on a categorical score as a category match", () => {
     // `:=positive` must behave like the bare `:positive` (any-of category),
     // not be rejected as a comparison.
@@ -721,6 +865,40 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(validateQuery(catResult.text).ast).filters).toEqual(
       categorical,
     );
+  });
+
+  it("reverse-renders booleanObject score filters without rewriting legacy numeric filters", () => {
+    const booleanFilter: FilterState = [
+      {
+        type: "booleanObject",
+        column: "score_booleans",
+        key: "Boolean Flag",
+        operator: "=",
+        value: true,
+      },
+      {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        key: "traceFlag",
+        operator: "<>",
+        value: false,
+      },
+    ];
+    expect(filterStateToQueryText(booleanFilter).text).toBe(
+      'scores."Boolean Flag":true -traceScores.traceFlag:false',
+    );
+
+    expect(
+      filterStateToQueryText([
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "Boolean Flag",
+          operator: "=",
+          value: 1,
+        },
+      ]).text,
+    ).toBe('scores."Boolean Flag":1');
   });
 
   it("serializes metadata equality as the bare form, not :=value", () => {

@@ -33,7 +33,7 @@ export const BillingActionButtons = () => {
           Change plan (via support)
         </Button>
         <Button variant="secondary" asChild>
-          <Link href={"https://langfuse.com/pricing"} target="_blank">
+          <Link href="https://langfuse.com/pricing" target="_blank">
             Compare plans
           </Link>
         </Button>
@@ -61,7 +61,7 @@ export const BillingActionButtons = () => {
           </>
         )}
         <Button variant="secondary" asChild>
-          <Link href={"https://langfuse.com/pricing"} target="_blank">
+          <Link href="https://langfuse.com/pricing" target="_blank">
             Compare plans
           </Link>
         </Button>

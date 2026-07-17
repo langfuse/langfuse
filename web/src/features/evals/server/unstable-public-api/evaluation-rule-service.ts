@@ -42,7 +42,7 @@ import {
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { assertUnreachable } from "@/src/utils/types";
 
-const MAX_ACTIVE_EVALUATION_RULES = 50;
+const MAX_ACTIVE_EVALUATION_RULES = 500;
 
 async function assertEvaluationRuleCanRunForPublicApi(params: {
   orgId: string;

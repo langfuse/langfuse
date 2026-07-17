@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   useQueryParams,
   withDefault,
@@ -91,6 +92,17 @@ export function useExperimentResultsState() {
 
   const resolveBaselineOrFirstComparison = () => baselineId ?? comparisonIds[0];
 
+  // All experiment IDs in order: effective baseline first, then comparisons
+  // Uses fallback to first comparison if no explicit baseline is set
+  const allExperimentIds = useMemo(() => {
+    const effectiveBaseline = baselineId ?? comparisonIds[0];
+    if (!effectiveBaseline) return [];
+    return [
+      effectiveBaseline,
+      ...comparisonIds.filter((id) => id !== effectiveBaseline),
+    ];
+  }, [baselineId, comparisonIds]);
+
   return {
     // Baseline
     baselineId,
@@ -106,6 +118,9 @@ export function useExperimentResultsState() {
     removeComparisonId,
     maxComparisons: MAX_COMPARISONS,
     canAddMore: comparisonIds.length < MAX_COMPARISONS,
+
+    // All experiments (ordered: effective baseline first, then comparisons)
+    allExperimentIds,
 
     // Layout
     layout,

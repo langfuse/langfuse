@@ -10,6 +10,10 @@
   "tasks": {
     "build": {
       "dependsOn": ["db:generate", "^build"],
+      // NEXT_IGNORE_BUILD_ERRORS toggles the Next.js type check, so builds
+      // with and without it must not share a cache entry — a cached
+      // unchecked build would otherwise replay as a "type-checked" one.
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -85,6 +89,7 @@
     },
     "build:check": {
       "dependsOn": ["db:generate", "^build"],
+      "env": ["NEXT_IGNORE_BUILD_ERRORS"],
       "outputs": [".next-check/**", "!.next-check/cache/**"],
       "cache": true,
       "outputLogs": "errors-only"
@@ -96,6 +101,13 @@
     "@repo/eslint-plugin#build": {
       "dependsOn": [],
       "outputs": ["dist/**"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
+      "dependsOn": ["build"],
+      "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
+      "outputs": [".local-image-built"],
       "cache": true,
       "outputLogs": "errors-only"
     },

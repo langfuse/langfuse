@@ -3,6 +3,8 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 const PEEK_PARAM = "peek";
 // View-mode param shared with the peek component (cleared whenever the peek closes).
@@ -67,19 +69,38 @@ export function usePeekNavigation(
 export function usePeekNavigation(config?: PeekConfig): PeekNavigation;
 export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isBetaEnabled: isV4 } = useV4Beta();
+  // Every peek is opened/closed through this hook, so open/close/new-tab
+  // analytics live here once instead of in each consuming table. Props are
+  // metadata-only: `routePattern` is the Next.js route PATTERN
+  // (`/project/[projectId]/traces`), never a concrete URL with ids.
+  const routePattern = router.pathname;
 
   const openPeek = useCallback(
     (id?: string, row?: any) => {
       const pathname = getPathnameWithoutBasePath();
       const url = new URL(window.location.href);
       const params = new URLSearchParams(url.search);
+      const currentPeekId = params.get(PEEK_PARAM);
 
       if (!id) {
         // Close peek view - clear all peek-related params
+        if (currentPeekId !== null) {
+          capture("peek:closed", { routePattern, isV4 });
+        }
         params.delete(PEEK_PARAM);
         params.delete(PEEK_VIEW_PARAM);
         config?.queryParams?.forEach((param) => params.delete(param));
       } else {
+        // Re-clicking the already-peeked row is a no-op open — don't count it.
+        if (id !== currentPeekId) {
+          capture("peek:opened", {
+            routePattern,
+            wasOpen: currentPeekId !== null,
+            isV4,
+          });
+        }
         // Clear all query params that are set in the config
         config?.queryParams?.forEach((param) => params.delete(param));
 
@@ -109,13 +130,18 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
         { shallow: true },
       );
     },
-    [router, config],
+    [router, config, capture, routePattern, isV4],
   );
 
   const closePeek = useCallback(() => {
     const pathname = getPathnameWithoutBasePath();
     const url = new URL(window.location.href);
     const params = new URLSearchParams(url.search);
+
+    // Guarded so programmatic cleanup with no peek open emits nothing.
+    if (params.get(PEEK_PARAM) !== null) {
+      capture("peek:closed", { routePattern, isV4 });
+    }
 
     // Close peek view - clear all peek-related params
     params.delete(PEEK_PARAM);
@@ -130,7 +156,7 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       undefined,
       { shallow: true },
     );
-  }, [router, config]);
+  }, [router, config, capture, routePattern, isV4]);
 
   const resolveDetailNavigationPath = useCallback(
     (entry: ListEntry) => {
@@ -184,13 +210,14 @@ export function usePeekNavigation(config?: PeekConfig | PeekConfigWithExpand) {
       const pathnameWithQuery = `${pathname}?${queryParams}`;
 
       if (openInNewTab) {
+        capture("peek:open_in_new_tab", { routePattern, isV4 });
         const pathnameWithBasePath = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${pathnameWithQuery}`;
         window.open(pathnameWithBasePath, "_blank");
       } else {
         router.push(pathnameWithQuery);
       }
     },
-    [router, config],
+    [router, config, capture, routePattern, isV4],
   );
 
   const baseNavigation = {

@@ -1,0 +1,74 @@
+name: AWS preview deactivate
+
+# Mark the PR's GitHub deployments (environment pr-<n>, recorded by
+# preview-build's "Record GitHub deployment" step) inactive when the PR closes.
+# Closing/merging is what tears the preview down — the Argo CD ApplicationSet
+# only generates Applications for OPEN labeled PRs — so without this the PR and
+# the repo's Deployments page keep advertising an "Active" environment whose
+# URL is gone.
+#
+# Deactivation only: GITHUB_TOKEN cannot delete environments (that needs repo
+# administration permission), and inactive deployments are the standard way
+# GitHub renders retired preview environments.
+#
+# Safe trigger: plain `pull_request: closed` with no checkout, no PR-code
+# execution, no cloud credentials — only deployment-status mutations — so it
+# stays off zizmor's dangerous-triggers list.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  deactivate:
+    name: Mark preview deployments inactive
+    runs-on: ubuntu-latest
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN is the preview-system feature flag (same
+    # gate as preview-build / preview-autolabel): unset => system off, no
+    # deployments were ever recorded.
+    if: vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != ''
+    permissions:
+      deployments: write
+    steps:
+      - name: Deactivate pr-<n> deployments
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const environment = process.env.PREVIEW_ENVIRONMENT;
+
+            const deployments = await github.paginate(github.rest.repos.listDeployments, {
+              owner,
+              repo,
+              environment,
+              per_page: 100,
+            });
+            if (deployments.length === 0) {
+              core.info(`No deployments recorded for ${environment}; nothing to deactivate.`);
+              return;
+            }
+
+            // Isolate failures per deployment (same pattern as the stale-cleanup
+            // sweep): one transient 5xx must not skip the rest, and partial
+            // failure should surface as a failed run rather than silent green.
+            let failures = 0;
+            for (const deployment of deployments) {
+              try {
+                await github.rest.repos.createDeploymentStatus({
+                  owner,
+                  repo,
+                  deployment_id: deployment.id,
+                  state: "inactive",
+                });
+              } catch (e) {
+                failures++;
+                core.warning(`Deployment ${deployment.id}: ${e.message} — continuing`);
+              }
+            }
+            core.info(`Marked ${deployments.length - failures} of ${deployments.length} deployment(s) for ${environment} inactive.`);
+            if (failures) {
+              core.setFailed(`${failures} of ${deployments.length} deployment(s) could not be deactivated.`);
+            }

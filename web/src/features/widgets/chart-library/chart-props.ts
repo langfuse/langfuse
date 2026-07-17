@@ -4,10 +4,42 @@ import type tailwindColors from "tailwindcss/colors";
 export interface DataPoint {
   time_dimension: string | undefined;
   dimension: string | undefined;
-  metric: number | Array<Array<number>>;
+  /**
+   * `null` means "measured nothing here": the bucket exists but the metric has
+   * no honest value (e.g. an average over zero events). Time-series charts
+   * render it as a gap; it is never coerced to `0`. A point with `null` metric
+   * AND no dimension is a pure bucket marker — it keeps the bucket on the time
+   * axis without contributing a series. (LFE-10694)
+   */
+  metric: number | null | Array<Array<number>>;
 }
 
-export type LegendPosition = "above" | "none";
+/**
+ * What a time-series chart shows for a (bucket, series) cell that has no data
+ * point:
+ * - `"zero"`: additive metrics (counts, sums) — zero events happened, so the
+ *   honest value is a real `0` and the line stays continuous.
+ * - `"gap"`: non-additive metrics (avg/min/max/percentiles) — no honest value
+ *   exists, so the cell becomes `null` and the line breaks instead of
+ *   fabricating a trend across the gap.
+ *
+ * The choice is a property of the metric's aggregation and is decided by the
+ * caller (who knows it), not the chart. Defaults to `"gap"` — never invent a
+ * number. (LFE-10694, manifesto V2)
+ */
+export type MissingBucketValue = "zero" | "gap";
+
+/**
+ * Whether a time-series chart shows its legend (always rendered below the
+ * plot):
+ * - `"auto"` (default): only when the chart draws more than one series — a
+ *   multi-series chart is unreadable without one, while a single-series legend
+ *   just echoes the card title.
+ * - `"below"`: always.
+ * - `"none"`: never.
+ * (LFE-10576)
+ */
+export type LegendPosition = "auto" | "below" | "none";
 
 /**
  * Whether a chart legend shows a per-series summary across its time buckets:
@@ -101,4 +133,21 @@ export interface ChartProps {
   showDataPointDots?: boolean;
   subtleFill?: boolean;
   thresholds?: ChartThreshold[];
+  /** See {@link MissingBucketValue}. Defaults to `"gap"`. */
+  missingValue?: MissingBucketValue;
+  /**
+   * Whether a line/area bridges `null` cells instead of breaking. Defaults to
+   * `false`: drawing across a no-data bucket fabricates values that were never
+   * measured. Opt in only when the series semantically continues across the
+   * gap. (LFE-10694, manifesto V2)
+   */
+  connectNulls?: boolean;
+  /**
+   * Hide the x-axis tick labels on a categorical (entity-name) axis, keeping the
+   * full name in the hover tooltip. Off by default. Opt in for the experiments /
+   * dataset-compare charts, whose long entity names clutter the axis with little
+   * value. Forwarded to `prepareTimeAxis` as `hideCategoryTickLabels`, so it only
+   * affects a categorical axis — a temporal axis keeps its timestamp labels.
+   */
+  hideXAxisLabels?: boolean;
 }

@@ -292,17 +292,86 @@ export const ToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify({ view: "observations" }),
           result: JSON.stringify({ data: [{ count_count: 0 }] }),
         },
         {
           type: "tool",
           name: "langfuse_getTraces",
+          status: "succeeded",
           args: JSON.stringify({ limit: 10 }),
           result: JSON.stringify({ data: [] }),
         },
       ],
     },
+  },
+});
+
+export const MixedToolCallStatuses = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          status: "succeeded",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 42 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          status: "failed",
+          args: JSON.stringify({ limit: 10 }),
+          error: "Failed to load traces: missing project access.",
+        },
+        {
+          type: "tool",
+          name: "langfuse_upsertDataset",
+          status: "denied",
+          args: JSON.stringify({ name: "regression-examples" }),
+          result: "Tool call was not approved by the user.",
+          error: "Tool call was not approved by the user.",
+        },
+      ],
+    },
+  },
+});
+
+export const CompactMixedToolCallStatuses = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          status: "succeeded",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 42 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          status: "failed",
+          args: JSON.stringify({ limit: 10 }),
+          error: "Failed to load traces: missing project access.",
+        },
+        {
+          type: "tool",
+          name: "langfuse_upsertDataset",
+          status: "denied",
+          args: JSON.stringify({ name: "regression-examples" }),
+          result: "Tool call was not approved by the user.",
+          error: "Tool call was not approved by the user.",
+        },
+      ],
+    },
+    isCompact: true,
   },
 });
 
@@ -315,6 +384,7 @@ export const SingleToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify(
             {
               view: "observations",
@@ -373,15 +443,71 @@ export const LoadingToolCallGroup = meta.story({
         {
           type: "tool",
           name: "langfuse_queryMetrics",
+          status: "succeeded",
           args: JSON.stringify({ view: "observations" }),
           result: JSON.stringify({ data: [{ count_count: 0 }] }),
         },
         {
           type: "tool",
           name: "langfuse_getTraces",
+          status: "running",
           args: JSON.stringify({ limit: 10 }),
         },
       ],
+    },
+  },
+});
+
+const longReasoningText = [
+  "Reading the current trace context and the visible filters.",
+  "Checking whether the user is asking about latency, quality, or cost first.",
+  "Comparing recent observations with error levels and score names.",
+  "Looking for a small query that can answer the next step without changing project state.",
+  "Keeping this text long enough to span several lines so the block visibly grows with its content.",
+  "The last line should be visible after mount and after streamed updates.",
+].join("\n");
+
+export const Reasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: "Checking recent traces before querying metrics.",
+      isStreaming: false,
+    },
+  },
+});
+
+export const CompletedReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: false,
+    },
+  },
+});
+
+export const StreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
+    },
+  },
+});
+
+export const CompactStreamingReasoning = meta.story({
+  args: {
+    role: "assistant",
+    isCompact: true,
+    content: {
+      type: "reasoning",
+      text: longReasoningText,
+      isStreaming: true,
     },
   },
 });

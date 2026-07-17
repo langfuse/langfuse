@@ -222,6 +222,7 @@ export class TableViewService {
         name: preset.name,
         description: preset.description,
         isSystem: true,
+        category: preset.category,
         tableName: preset.tableName,
         createdBy: null,
         createdByUser: null,
@@ -258,7 +259,13 @@ export class TableViewService {
           // Non-system presets should take precedence over system presets
           (!preset.isSystem && existingPreset.isSystem)
         ) {
-          presetsByName.set(preset.name, preset);
+          presetsByName.set(preset.name, {
+            ...preset,
+            // A user view displacing a same-named system preset inherits its
+            // category, so the category chip keeps the entry (now applying
+            // the user's customized version) instead of silently dropping it.
+            category: preset.category ?? existingPreset?.category,
+          });
         }
       }
 

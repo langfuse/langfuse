@@ -22,6 +22,8 @@ import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
 import { type TreeNode } from "../lib/types";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
 
 /**
  * Feature-scoped row container: subscribes to the row's OWN playback-active
@@ -89,10 +91,18 @@ export function TraceTree() {
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
   const { handleHover } = useHandlePrefetchObservation();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
   // Optional (null on mobile): reopen the detail panel on select, including
   // re-selecting the already-selected node.
   const layout = useDesktopLayoutContextOptional();
   const handleSelectNode = (id: string | null) => {
+    if (id) {
+      capture("trace_detail:node_selected", {
+        source: "tree",
+        ...analyticsDimensions,
+      });
+    }
     setSelectedNodeId(id);
     layout?.expandDetailPanel();
   };

@@ -11,7 +11,7 @@ RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@11.4.0 --activate
+RUN corepack prepare pnpm@11.10.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
@@ -51,6 +51,13 @@ COPY --from=pruner /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=pruner /app/out/json/ .
 
 RUN pnpm install --frozen-lockfile
+
+# pnpm 11 defaults verify-deps-before-run to "install", so every `pnpm run`
+# spawned by turbo re-checks node_modules via file mtimes. Cached install
+# layers make those mtimes look stale, and the concurrent auto-installs race
+# in the hoisting step (ENOENT unlink in node_modules/.pnpm/node_modules).
+# The frozen-lockfile install above is authoritative; skip the check.
+ENV pnpm_config_verify_deps_before_run=false
 
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true

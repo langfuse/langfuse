@@ -27,6 +27,7 @@ import { cn } from "@/src/utils/tailwind";
 import type {
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
+  BooleanKeyValueFilterEntry,
   StringKeyValueFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 
@@ -44,6 +45,13 @@ type KeyValueFilterBuilderProps =
       keyOptions?: string[];
       activeFilters: NumericKeyValueFilterEntry[];
       onChange: (filters: NumericKeyValueFilterEntry[]) => void;
+      keyPlaceholder?: string;
+    }
+  | {
+      mode: "boolean";
+      keyOptions?: string[];
+      activeFilters: BooleanKeyValueFilterEntry[];
+      onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
     }
   | {
@@ -69,6 +77,11 @@ const STRING_OPERATOR_LABELS = {
   "does not contain": "does not contain",
 } as const;
 
+const BOOLEAN_OPERATOR_LABELS = {
+  "=": "equals",
+  "<>": "does not equal",
+} as const;
+
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const {
     mode,
@@ -88,6 +101,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const [localFilters, setLocalFilters] = useState<
     | KeyValueFilterEntry[]
     | NumericKeyValueFilterEntry[]
+    | BooleanKeyValueFilterEntry[]
     | StringKeyValueFilterEntry[]
   >(() => (activeFilters.length > 0 ? activeFilters : []));
 
@@ -96,6 +110,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     updates:
       | Partial<KeyValueFilterEntry>
       | Partial<NumericKeyValueFilterEntry>
+      | Partial<BooleanKeyValueFilterEntry>
       | Partial<StringKeyValueFilterEntry>,
   ) => {
     // TypeScript can't narrow the union array type automatically, so we narrow explicitly based on mode
@@ -117,6 +132,15 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       } as NumericKeyValueFilterEntry;
       setLocalFilters(newFilters);
       (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
+    } else if (mode === "boolean") {
+      const filters = localFilters as BooleanKeyValueFilterEntry[];
+      const newFilters = [...filters];
+      newFilters[index] = {
+        ...newFilters[index],
+        ...updates,
+      } as BooleanKeyValueFilterEntry;
+      setLocalFilters(newFilters);
+      (onChange as (filters: BooleanKeyValueFilterEntry[]) => void)(newFilters);
     } else {
       const filters = localFilters as StringKeyValueFilterEntry[];
       const newFilters = [...filters];
@@ -148,6 +172,15 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       const filters = localFilters as NumericKeyValueFilterEntry[];
       const newFilters = [...filters, newFilter];
       setLocalFilters(newFilters);
+    } else if (mode === "boolean") {
+      const newFilter: BooleanKeyValueFilterEntry = {
+        key: "",
+        operator: "=" as const,
+        value: "",
+      };
+      const filters = localFilters as BooleanKeyValueFilterEntry[];
+      const newFilters = [...filters, newFilter];
+      setLocalFilters(newFilters);
     } else {
       const newFilter: StringKeyValueFilterEntry = {
         key: "",
@@ -171,6 +204,11 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
       const newFilters = filters.filter((_, i) => i !== index);
       setLocalFilters(newFilters);
       (onChange as (filters: NumericKeyValueFilterEntry[]) => void)(newFilters);
+    } else if (mode === "boolean") {
+      const filters = localFilters as BooleanKeyValueFilterEntry[];
+      const newFilters = filters.filter((_, i) => i !== index);
+      setLocalFilters(newFilters);
+      (onChange as (filters: BooleanKeyValueFilterEntry[]) => void)(newFilters);
     } else {
       const filters = localFilters as StringKeyValueFilterEntry[];
       const newFilters = filters.filter((_, i) => i !== index);
@@ -348,7 +386,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 <Input
                   type="number"
                   placeholder="Value"
-                  value={filter.value}
+                  value={(filter as NumericKeyValueFilterEntry).value}
                   onChange={(e) =>
                     handleFilterChange(index, {
                       value:
@@ -357,6 +395,52 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   }
                   disabled={!filter.key}
                 />
+              </>
+            ) : mode === "boolean" ? (
+              <>
+                <Select
+                  value={filter.operator}
+                  onValueChange={(value) =>
+                    handleFilterChange(index, {
+                      operator: value as "=" | "<>",
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(BOOLEAN_OPERATOR_LABELS).map(
+                      ([op, label]) => (
+                        <SelectItem key={op} value={op}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={
+                    typeof filter.value === "boolean"
+                      ? String(filter.value)
+                      : undefined
+                  }
+                  onValueChange={(value) =>
+                    handleFilterChange(index, {
+                      value: value === "true",
+                    })
+                  }
+                  disabled={!filter.key}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Value" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">true</SelectItem>
+                    <SelectItem value="false">false</SelectItem>
+                  </SelectContent>
+                </Select>
               </>
             ) : (
               <>

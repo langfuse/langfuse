@@ -3,20 +3,35 @@ import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
 import type { InAppAgentMessageContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
-import { stableJsonStringify } from "@/src/utils/json";
+import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
+import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+} from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
+  InAppAgentRateLimitErrorResponseSchema,
   type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
   InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+
+export type InAppAgentError =
+  | { type: "generic"; message: string }
+  | { type: "rate_limit"; retryAt: number };
+
+const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
+  z.object({ isLoading: z.boolean().optional() }),
+);
+
+export type InAppAiAgentMessage = z.infer<typeof InAppAiAgentMessageSchema>;
 
 export type InAppAgentToolCallContent = {
   type: "tool";
   name: string;
   args: string;
+  status: "running" | "succeeded" | "failed" | "denied";
   result?: string;
   error?: string;
   approval?: {
@@ -24,6 +39,32 @@ export type InAppAgentToolCallContent = {
     status: "pending" | "submitting";
   };
 };
+
+const InAppAgentToolRejectionErrorSchema = z.object({
+  code: z.literal(IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE),
+  message: z.string(),
+});
+
+// Rejections persisted before structured error codes must remain readable.
+const LEGACY_IN_APP_AGENT_TOOL_REJECTION_MESSAGE =
+  "Tool call was not approved by the user.";
+
+const TOOL_CALL_STATUS_BY_RESULT_STATE = {
+  rejected: "denied",
+  error: "failed",
+  result: "succeeded",
+  pending: "running",
+  incomplete: "failed",
+} as const satisfies Record<string, InAppAgentToolCallContent["status"]>;
+
+const InAppAgentTransportErrorSchema = z.object({
+  message: z.string().optional(),
+  payload: z.unknown().optional(),
+});
+
+const InAppAgentLegacyErrorPayloadSchema = z.object({
+  error: z.string(),
+});
 
 const LangfuseDocsDocumentSchema = z.object({
   type: z.literal("document"),
@@ -76,6 +117,82 @@ const InkeepChoiceResultSchema = z.object({
   }),
 });
 
+export function getInAppAgentError(
+  error: unknown,
+  now = Date.now(),
+): InAppAgentError {
+  const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
+  const payload = parsedError.success ? parsedError.data.payload : undefined;
+  const message = getErrorMessage(error);
+  const rateLimitError =
+    parseRateLimitError(payload) ??
+    parseRateLimitError(error) ??
+    parseEmbeddedRateLimitError(message);
+
+  if (rateLimitError) {
+    return {
+      type: "rate_limit",
+      retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
+    };
+  }
+
+  return { type: "generic", message };
+}
+
+function parseRateLimitError(value: unknown) {
+  const parsed = InAppAgentRateLimitErrorResponseSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function isInAppAgentRateLimited(
+  error: InAppAgentError | null,
+  now = Date.now(),
+) {
+  return error?.type === "rate_limit" && error.retryAt > now;
+}
+
+function parseEmbeddedRateLimitError(message: string) {
+  const endIndex = message.lastIndexOf("}");
+  let startIndex = message.indexOf("{");
+
+  while (startIndex !== -1 && startIndex < endIndex) {
+    try {
+      const parsed = JSON.parse(
+        message.slice(startIndex, endIndex + 1),
+      ) as unknown;
+      const rateLimitError = parseRateLimitError(parsed);
+
+      if (rateLimitError) {
+        return rateLimitError;
+      }
+    } catch {
+      // The transport prefixes JSON with error context, so try the next object.
+    }
+
+    startIndex = message.indexOf("{", startIndex + 1);
+  }
+
+  return null;
+}
+
+function getErrorMessage(error: unknown) {
+  const parsedError = InAppAgentTransportErrorSchema.safeParse(error);
+  if (!parsedError.success) {
+    return "Assistant request failed. Please try again.";
+  }
+
+  const legacyPayload = InAppAgentLegacyErrorPayloadSchema.safeParse(
+    parsedError.data.payload,
+  );
+  if (legacyPayload.success) {
+    return legacyPayload.data.error;
+  }
+
+  return (
+    parsedError.data.message ?? "Assistant request failed. Please try again."
+  );
+}
+
 export function getDrawerMessages({
   error,
   isRunning,
@@ -87,7 +204,7 @@ export function getDrawerMessages({
   messages: unknown;
   pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
 }): InAppAgentWindowMessage[] {
-  const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
+  const parsedMessages = z.array(InAppAiAgentMessageSchema).parse(messages);
   const toolResults = getToolResultsByToolCallId(parsedMessages);
   const resolvedToolCallIds = new Set(toolResults.keys());
   const pendingApprovalsByToolCallId = new Map(
@@ -98,6 +215,7 @@ export function getDrawerMessages({
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
   let pendingToolGroupId: string | null = null;
+  let pendingToolGroupIsLoading = false;
   let pendingSources: InAppAgentMessageSource[] = [];
   const flushPendingTools = () => {
     if (pendingTools.length === 0) {
@@ -107,10 +225,15 @@ export function getDrawerMessages({
     mappedMessages.push({
       id: pendingToolGroupId ?? "tools-pending",
       role: "assistant",
-      content: { type: "toolGroup", tools: pendingTools },
+      content: {
+        type: "toolGroup",
+        tools: pendingTools,
+        isLoading: pendingToolGroupIsLoading,
+      },
     });
     pendingTools = [];
     pendingToolGroupId = null;
+    pendingToolGroupIsLoading = false;
   };
 
   parsedMessages.forEach((message, index) => {
@@ -158,24 +281,27 @@ export function getDrawerMessages({
     }
 
     const role = message.role === "user" ? "user" : "assistant";
-    const isLoading = message.role === "reasoning";
 
-    if (isLoading) {
+    if (message.role === "reasoning") {
       flushPendingTools();
 
-      const hasLaterAssistantMessage = parsedMessages.some(
-        (message, messageIndex) =>
-          messageIndex > index && message.role === "assistant",
-      );
+      const isStreaming = isRunning && !error && message.isLoading === true;
 
-      if (!isRunning || hasLaterAssistantMessage) {
+      // Adaptive thinking can emit a reasoning start/end pair without any
+      // content; a completed empty block has nothing to disclose, so only a
+      // still-streaming one is rendered (as its "Thinking..." placeholder).
+      if (!message.content.trim() && !isStreaming) {
         return;
       }
 
       mappedMessages.push({
         id: message.id,
         role,
-        content: { type: "loading" },
+        content: {
+          type: "reasoning",
+          text: message.content,
+          isStreaming,
+        },
       });
       return;
     }
@@ -211,11 +337,38 @@ export function getDrawerMessages({
                 mappedPendingApprovalIds.add(pendingApproval.id);
               }
 
+              const rejectionError =
+                InAppAgentToolRejectionErrorSchema.safeParse(
+                  result?.error ? safeJsonParse(result.error) : undefined,
+                );
+              const isRejected =
+                rejectionError.success ||
+                result?.error === LEGACY_IN_APP_AGENT_TOOL_REJECTION_MESSAGE;
+              let toolError = result?.error;
+              if (rejectionError.success) {
+                toolError = rejectionError.data.message;
+              }
+
+              let resultState: keyof typeof TOOL_CALL_STATUS_BY_RESULT_STATE;
+              if (isRejected) {
+                resultState = "rejected";
+              } else if (toolError !== undefined) {
+                resultState = "error";
+              } else if (result?.content !== undefined) {
+                resultState = "result";
+              } else if (isRunning && !error) {
+                resultState = "pending";
+              } else {
+                resultState = "incomplete";
+              }
+              const status = TOOL_CALL_STATUS_BY_RESULT_STATE[resultState];
+
               return [
                 {
                   type: "tool",
                   name: toolCall.function.name,
                   args: toolCall.function.arguments,
+                  status,
                   ...(pendingApproval
                     ? {
                         approval: {
@@ -227,15 +380,18 @@ export function getDrawerMessages({
                   ...(result?.content !== undefined
                     ? { result: result.content }
                     : {}),
-                  ...(result?.error !== undefined
-                    ? { error: result.error }
-                    : {}),
+                  ...(toolError !== undefined ? { error: toolError } : {}),
                 },
               ];
             },
           ) ?? [])
         : [];
     const docsSources = extractLangfuseDocsSources(toolContent);
+    const isToolGroupLoading =
+      isRunning &&
+      !error &&
+      message.role === "assistant" &&
+      message.isLoading === true;
 
     if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
       if (docsSources.length > 0) {
@@ -244,6 +400,7 @@ export function getDrawerMessages({
 
       pendingToolGroupId ??= `tools-${message.id}`;
       pendingTools.push(...toolContent);
+      pendingToolGroupIsLoading ||= isToolGroupLoading;
       return;
     }
 
@@ -289,7 +446,11 @@ export function getDrawerMessages({
       mappedMessages.push({
         id: `${message.id}-tools`,
         role,
-        content: { type: "toolGroup", tools: toolContent },
+        content: {
+          type: "toolGroup",
+          tools: toolContent,
+          isLoading: isToolGroupLoading,
+        },
       });
     }
   });
@@ -315,6 +476,7 @@ export function getDrawerMessages({
             type: "tool",
             name: approval.approvalRequest.toolName,
             args: stringifyToolArgs(approval.approvalRequest.args),
+            status: "running",
             approval: {
               id: approval.id,
               status: approval.status,
@@ -341,17 +503,11 @@ export function getDrawerMessages({
     latestUserMessageIndex >= 0 &&
     latestAssistantMessage?.content.type !== "text" &&
     latestAssistantMessage?.content.type !== "loading" &&
+    latestAssistantMessage?.content.type !== "reasoning" &&
     latestAssistantMessage?.content.type !== "redirectAction"
   ) {
     if (latestAssistantMessage?.content.type === "toolGroup") {
-      return mappedMessages.map((message, index) =>
-        index === latestAssistantMessageIndex
-          ? {
-              ...message,
-              content: { ...latestAssistantMessage.content, isLoading: true },
-            }
-          : message,
-      );
+      return mappedMessages;
     }
 
     const hasAssistantAnswer = mappedMessages.some(

@@ -40,6 +40,9 @@ audit from the linked source rows.
   production Datadog query shapes and environment/site routing.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
   explicitly approves a Linear write-back.
+- Use [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) to check
+  each Datadog alert cluster against the per-monitor knowledge base and, only
+  after explicit human approval, record newly root-caused clusters there.
 
 ## Workflow
 
@@ -69,7 +72,11 @@ audit from the linked source rows.
    Group repeated firings by monitor/page title or ID, environment, service/team,
    and trigger reason.
 6. For every Datadog alert/page cluster, perform the deep dive before writing the
-   final row. Do not stop at the monitor title or count. Inspect matching APM
+   final row. Do not stop at the monitor title or count. Check the monitor's
+   `incident-alert` ticket first (see
+   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md)); a
+   documented cause section may explain the cluster — cite the ticket in the
+   `incident.io / Linear Link` column. Inspect matching APM
    spans, representative traces, related logs, error records, exception details,
    failed job logs, dependency spans, queue backlog/delay context, and monitor
    time windows. Put the relevant trace/span evidence and relevant logs/errors
@@ -116,7 +123,8 @@ relationships instead of synthesizing a separate cross-source table.
 
 Use Linear as the source of truth for deduplication across weeks and workflows.
 Before reporting a bug, security finding, cost concern, or alert as new, search
-Linear for matching issue keys, titles, source URLs, and comments. If an
+Linear for matching issue keys, titles, source URLs, and comments — covering
+both the `bug` label set and the `incident-alert` label set. If an
 existing issue covers it, link to that issue and mark the row as already
 tracked instead of reporting it again as fresh work.
 

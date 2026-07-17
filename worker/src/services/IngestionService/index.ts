@@ -2,6 +2,8 @@ import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
 import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
   Model,
   ObservationLevel,
   PrismaClient,
@@ -238,6 +240,14 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+
+    // Runs outside the modelName gate below so model-less events with provided
+    // usage are still checked.
+    this.warnOnUsageTotalMismatch(
+      eventData.providedUsageDetails ?? {},
+      { id: eventData.spanId, project_id: eventData.projectId },
+      "events",
+    );
 
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
@@ -534,6 +544,7 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
+    const unexpectedScoreValidationErrors: unknown[] = [];
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -587,6 +598,13 @@ export class IngestionService {
             };
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
+            if (
+              !(error instanceof InvalidRequestError) &&
+              !(error instanceof LangfuseNotFoundError)
+            ) {
+              unexpectedScoreValidationErrors.push(error);
+            }
+
             logger.info(
               `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
               error,
@@ -605,6 +623,31 @@ export class IngestionService {
       recordIncrement("langfuse.ingestion.lookup.hit", 1, {
         store: "clickhouse",
         object: "score",
+      });
+    }
+
+    if (unexpectedScoreValidationErrors.length > 0) {
+      throw new AggregateError(
+        unexpectedScoreValidationErrors,
+        `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
+      );
+    }
+
+    if (scoreRecords.length === 0 && !clickhouseScoreRecord) {
+      logger.warn(
+        `No valid score records found for project: ${projectId} and score: ${entityId}`,
+      );
+      return;
+    }
+
+    // Update = merging new events with a pre-existing record, found either in
+    // ClickHouse or as earlier event-log files for the same score id.
+    if (
+      scoreRecords.length > 0 &&
+      (clickhouseScoreRecord || scoreRecords.length > 1)
+    ) {
+      recordIncrement("langfuse.ingestion.score_update", 1, {
+        store: clickhouseScoreRecord ? "clickhouse" : "event_log",
       });
     }
 
@@ -873,6 +916,20 @@ export class IngestionService {
     if (normalizedTools.toolCalls.length > 0) {
       mergedObservationRecord.tool_calls = normalizedTools.toolCalls;
       mergedObservationRecord.tool_call_names = normalizedTools.toolCallNames;
+    }
+
+    // Only check when the incoming events carry usage themselves — partial
+    // updates merge stale usage back in from ClickHouse and must not re-fire.
+    if (
+      observationRecords.some(
+        (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+      )
+    ) {
+      this.warnOnUsageTotalMismatch(
+        mergedObservationRecord.provided_usage_details ?? {},
+        mergedObservationRecord,
+        "legacy",
+      );
     }
 
     const generationUsage = await this.getGenerationUsage({
@@ -1191,19 +1248,9 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
-    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
-    const providedUsageDetails: Record<string, number> = {};
-    for (const [key, value] of Object.entries(
+    const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
-    )) {
-      if (value != null) {
-        const numValue = Number(value);
-        if (!isNaN(numValue) && numValue >= 0) {
-          providedUsageDetails[key] = numValue;
-        }
-      }
-    }
+    );
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1315,6 +1362,83 @@ export class IngestionService {
       usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
+  }
+
+  // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+  // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+  private static normalizeProvidedUsageDetails(
+    providedUsageDetails: Record<string, unknown>,
+  ): Record<string, number> {
+    const normalized: Record<string, number> = {};
+    for (const [key, value] of Object.entries(providedUsageDetails)) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          normalized[key] = numValue;
+        }
+      }
+    }
+    return normalized;
+  }
+
+  private static lastUsageTotalMismatchLogAt = 0;
+  private static readonly USAGE_TOTAL_MISMATCH_TOLERANCE = 0.01;
+  private static readonly USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS = 60_000;
+
+  /**
+   * Detects the double-count class from
+   * https://github.com/langfuse/langfuse/issues/10592: instrumentors that send
+   * an inclusive `input` alongside cache buckets while providing a smaller
+   * `total`. Warn only — buckets can be genuinely additive (e.g. Bedrock cache
+   * writes), so auto-correcting could corrupt valid payloads.
+   *
+   * Called once per write path (`legacy` merge path, `events` direct path);
+   * dual-write mode fires both, so the metric carries a write_path tag to keep
+   * the counts reconcilable.
+   */
+  private warnOnUsageTotalMismatch(
+    rawProvidedUsageDetails: Record<string, unknown>,
+    observationRecord: Pick<ObservationRecordInsertType, "id" | "project_id">,
+    writePath: "legacy" | "events",
+  ): void {
+    const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
+      rawProvidedUsageDetails,
+    );
+    const providedTotal = providedUsageDetails.total;
+    if (providedTotal == null) return;
+
+    const bucketSum = Object.entries(providedUsageDetails)
+      .filter(([key]) => key !== "total")
+      .reduce((sum, [, value]) => sum + value, 0);
+    const tolerance = Math.max(
+      1,
+      providedTotal * IngestionService.USAGE_TOTAL_MISMATCH_TOLERANCE,
+    );
+    if (bucketSum <= providedTotal + tolerance) return;
+
+    recordIncrement("langfuse.ingestion.usage_details.total_mismatch", 1, {
+      write_path: writePath,
+    });
+
+    const now = Date.now();
+    if (
+      now - IngestionService.lastUsageTotalMismatchLogAt <
+      IngestionService.USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS
+    ) {
+      return;
+    }
+    IngestionService.lastUsageTotalMismatchLogAt = now;
+    logger.warn(
+      "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
+      {
+        projectId: observationRecord.project_id,
+        observationId: observationRecord.id,
+        providedTotal,
+        bucketSum,
+        providedUsageDetails,
+        writePath,
+      },
+    );
   }
 
   static calculateUsageCosts(

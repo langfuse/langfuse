@@ -3,8 +3,8 @@ import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockFetchLLMCompletion, mockRecordIncrement } = vi.hoisted(() => ({
-  mockFetchLLMCompletion: vi.fn(),
+const { mockGenerateLLMText, mockRecordIncrement } = vi.hoisted(() => ({
+  mockGenerateLLMText: vi.fn(),
   mockRecordIncrement: vi.fn(),
 }));
 
@@ -13,7 +13,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
     ...original,
-    fetchLLMCompletion: mockFetchLLMCompletion,
+    generateLLMText: mockGenerateLLMText,
     recordIncrement: mockRecordIncrement,
   };
 });
@@ -32,7 +32,7 @@ vi.mock("../../../env", async (importOriginal) => {
 describe("createProductionEvalExecutionDeps", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchLLMCompletion.mockResolvedValue({ completion: "ok" });
+    mockGenerateLLMText.mockResolvedValue({ output: { completion: "ok" } });
   });
 
   it("enables internal direct event write for llm-as-a-judge traces", async () => {
@@ -68,9 +68,9 @@ describe("createProductionEvalExecutionDeps", () => {
       },
     });
 
-    expect(mockFetchLLMCompletion).toHaveBeenCalledWith(
+    expect(mockGenerateLLMText).toHaveBeenCalledWith(
       expect.objectContaining({
-        traceSinkParams: expect.objectContaining({
+        trace: expect.objectContaining({
           traceId: "trace-123",
           environment: "langfuse-llm-as-a-judge",
           eventsWriter: expect.objectContaining({

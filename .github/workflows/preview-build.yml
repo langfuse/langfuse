@@ -1,0 +1,368 @@
+name: AWS preview build
+
+# Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
+# The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
+# tag exists for a labeled PR; this workflow only builds and pushes, then posts
+# the preview URL on the PR — as the marker-tagged status comment and as a
+# native GitHub deployment (the "View deployment" button), so the URL is
+# findable without scrolling the timeline.
+#
+# The two images are independent artifacts pushed to two independent ECR repos
+# under the same tag, with no ordering dependency between them. They therefore
+# build in PARALLEL: a `meta` job resolves the tags and posts the "building"
+# comment once, a matrix `build` job builds web and worker concurrently on
+# separate runners (so each gets a full runner's CPU/memory rather than sharing
+# one — their heavy stages, turbo prune/pnpm install/turbo build, are
+# scope-specific and share no layer cache anyway, so serializing them bought
+# nothing), and a `notify` job posts the single success/failure comment once
+# both builds finish. Wall-clock is now ~max(web, worker) instead of the sum.
+#
+# Builds every SAME-REPO PR on open/update (write access is the gate — opening a
+# same-repo PR requires push access). It deliberately does NOT trigger on the
+# `preview` label: the auto-labeler applies that label with the default
+# GITHUB_TOKEN, and GitHub does not start workflow runs from GITHUB_TOKEN-applied
+# events (anti-recursion), so a `labeled` trigger would never fire for
+# auto-labeled PRs. The label is only the Argo *deploy* filter (infra repo), and
+# the deploy allowlist lives in the ApplicationSet — not here. Fork PRs are
+# excluded (the head.repo check below) and can't mint an OIDC token anyway
+# (public repo, read-only token); the ECR-push role's trust is scoped to
+# sub=repo:langfuse/langfuse:pull_request AND ref=refs/pull/* (GitHub OIDC has no
+# event_name claim), so pull_request_target / review — which carry the base
+# branch ref — cannot assume it either.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: preview-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Resolve the image tags + preview metadata once, and post the single "building"
+  # comment. Downstream jobs consume these outputs so the tag is computed in one
+  # place. Lightweight: no build context, only the base-branch composite action.
+  meta:
+    name: Resolve tags and mark building
+    # Any SAME-REPO PR (= write access) builds on open/update. No label gate here:
+    # the auto-labeler's GITHUB_TOKEN-applied label can't trigger this workflow,
+    # and the label is the Argo deploy filter, not the build trigger. Fork PRs are
+    # excluded (head.repo check) and can't mint OIDC anyway.
+    # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => no-op.
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
+      web_image: ${{ steps.meta.outputs.web_image }}
+      worker_image: ${{ steps.meta.outputs.worker_image }}
+      preview_host: ${{ steps.meta.outputs.preview_host }}
+      namespace: ${{ steps.meta.outputs.namespace }}
+      login_email: ${{ steps.meta.outputs.login_email }}
+      login_password: ${{ steps.meta.outputs.login_password }}
+      public_key: ${{ steps.meta.outputs.public_key }}
+      secret_key: ${{ steps.meta.outputs.secret_key }}
+    steps:
+      # Resolve the local composite action (./.github/actions/preview-comment)
+      # from the BASE branch, which always has it. A local `uses: ./...`
+      # resolves against the workspace, and a PR branched before the preview
+      # system landed on main has NO such action on its head. This job never
+      # touches the build context, so the base checkout at the workspace root is
+      # all it needs.
+      - name: Checkout base local actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/actions
+
+      - name: Resolve image tags and preview metadata
+        id: meta
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The PR head SHA straight from the event.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
+          WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
+          DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
+        run: |
+          set -euo pipefail
+          commit_sha="${HEAD_SHA}"
+          # The ApplicationSet deploys pr-<n>-{{.head_sha}} — Argo's FULL 40-char
+          # SHA — so the pushed tag MUST use the full SHA or the deployed image
+          # never resolves (permanent ImagePullBackOff).
+          image_tag="pr-${PR_NUMBER}-${commit_sha}"
+          {
+            echo "commit_sha=${commit_sha}"
+            echo "web_image=${WEB_REPO}:${image_tag}"
+            echo "worker_image=${WORKER_REPO}:${image_tag}"
+            echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
+            # k8s namespace/release for this PR (web+worker deploys are
+            # <namespace>-web / <namespace>-worker) — used for the log commands
+            # in the "ready" comment below.
+            echo "namespace=langfuse-pr-${PR_NUMBER}"
+            # Shared, intentionally-public demo login + API keys (synthetic data
+            # only) — the standard demo identities created by the seed script
+            # (packages/shared/scripts/seeder/seed-postgres.ts), which the preview
+            # chart's seeder Job runs post-sync, same as a freshly seeded local
+            # dev instance. Each preview is its own isolated DB, so a shared
+            # seed identity is fine. The real crypto secrets (ENCRYPTION_KEY/
+            # SALT/NEXTAUTH, DB passwords) are generated randomly in-cluster by
+            # the chart's pre-sync hook and never leave the namespace.
+            echo "login_email=demo@langfuse.com"
+            echo "login_password=password"
+            echo "public_key=pk-lf-1234567890"
+            echo "secret_key=sk-lf-1234567890"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mark preview building
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### 🟡 AWS preview building
+
+            Building images for `${{ steps.meta.outputs.commit_sha }}` (~5 min).
+            Argo CD deploys the preview once both images finish pushing; it may
+            briefly show `ImagePullBackOff` until they propagate.
+
+  # web and worker build concurrently, each on its own runner. fail-fast: false
+  # so one failing build does not cancel the other — the notify job below reports
+  # the aggregate result.
+  build:
+    name: Build and push ${{ matrix.target }}
+    needs: meta
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: web
+            image: ${{ needs.meta.outputs.web_image }}
+            dockerfile: web/Dockerfile
+            # web disables sign-up on previews; worker has no such arg.
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true
+          - target: worker
+            image: ${{ needs.meta.outputs.worker_image }}
+            dockerfile: worker/Dockerfile
+            extra_build_args: ""
+    steps:
+      # The PR head is the Docker build context — the exact commit the image tag
+      # pins to. This job posts no comments, so it needs no base checkout and can
+      # take the build context at the workspace root.
+      - name: Checkout PR head (build context)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: ${{ vars.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
+
+      - name: Login to AWS ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Build and push ${{ matrix.target }} image
+        env:
+          COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
+          IMAGE: ${{ matrix.image }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          # Static, workflow-defined literal (per-target flags) — no user input.
+          EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
+        run: |
+          set -euo pipefail
+
+          # The preview ECR repos are tag-IMMUTABLE, so re-pushing an existing
+          # tag fails. Tags embed the commit SHA, so an existing tag is byte-for-
+          # byte the same image — skip build+push if it is already there (this
+          # makes workflow re-runs on an unchanged commit idempotent).
+          #
+          # Only a definitive ImageNotFoundException counts as "absent -> build".
+          # A present image -> skip. ANY OTHER describe failure (throttling, a
+          # transient network blip, a missing ecr:DescribeImages grant) is
+          # inconclusive, so fail loudly here rather than falling through to a
+          # push that would hard-fail on the immutable tag with a confusing
+          # ImageAlreadyExistsException.
+          repo="${IMAGE%:*}"; repo="${repo#*/}"   # strip only the registry host; keep any namespace
+          tag="${IMAGE##*:}"
+
+          if describe_out="$(aws ecr describe-images --repository-name "${repo}" \
+                --image-ids imageTag="${tag}" 2>&1)"; then
+            echo "${IMAGE} already present — skipping."
+            exit 0
+          fi
+          if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
+            echo "::error::Cannot confirm ${IMAGE} in ECR — describe-images failed" \
+                 "for a reason other than ImageNotFound; refusing to build+push" \
+                 "against the tag-immutable repo. ${describe_out}"
+            exit 1
+          fi
+
+          echo "${IMAGE} not found — building and pushing."
+          # EXTRA_BUILD_ARGS is a trusted workflow literal and must word-split
+          # into separate flags, so it is intentionally left unquoted.
+          # shellcheck disable=SC2086
+          docker build \
+            --build-arg NEXT_PUBLIC_BUILD_ID="${COMMIT_SHA}" \
+            ${EXTRA_BUILD_ARGS} \
+            -f "${DOCKERFILE}" \
+            -t "${IMAGE}" \
+            .
+          docker push "${IMAGE}"
+
+  # Single authoritative status comment once both builds settle, updating the
+  # same marker-tagged comment the meta job posted. Runs on always() so it still
+  # reports after a failure, but each step keys on a definite success/failure
+  # result (see the per-step guards) so a cancelled run — e.g. superseded by a
+  # newer push — posts nothing and leaves the incoming run's "building" comment
+  # to take over.
+  notify:
+    name: Report preview result
+    needs: [meta, build]
+    if: >-
+      always() &&
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      # createDeployment/createDeploymentStatus for the native "View deployment"
+      # button on the PR (see "Record GitHub deployment" below).
+      deployments: write
+    steps:
+      - name: Checkout base local actions
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/actions
+
+      - name: Mark preview image pushed
+        if: needs.build.result == 'success'
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### 🟢 AWS preview image pushed
+
+            Argo CD is rolling it out — the environment is usually ready within a
+            few minutes of this comment.
+
+            **URL:** https://${{ needs.meta.outputs.preview_host }}
+            **Login:** `${{ needs.meta.outputs.login_email }}` / `${{ needs.meta.outputs.login_password }}`
+            **API keys:** `${{ needs.meta.outputs.public_key }}` / `${{ needs.meta.outputs.secret_key }}`
+            **Commit:** ${{ needs.meta.outputs.commit_sha }}
+
+            **URL not loading / 404?** Full debug guide — deploy allowlist,
+            sleeping preview, pod status, ClickHouse:
+            https://github.com/langfuse/langfuse/blob/main/.agents/skills/langfuse-previews/SKILL.md#debug-a-preview
+
+            **Logs** (needs preview-cluster `kubectl` access):
+            ```sh
+            kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
+            kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
+            ```
+            Add `--previous` for a crashed container, `--tail=200` to limit, or
+            `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
+
+            Synthetic preview data only. Never add production data to public accounts.
+
+      # Record a native GitHub deployment for the preview, so the PR shows
+      # "deployed to pr-<n>" with a "View deployment" button in the timeline /
+      # merge box, and the environment appears on the repo's Deployments page.
+      # Inline step (not the base-checkout composite action): it needs no shared
+      # logic, and inline steps run from the PR's own workflow file.
+      #
+      # `state: success` mirrors the 🟢 comment's semantics — images pushed,
+      # Argo CD rolling out; the URL is usually live minutes later. Like the
+      # comment, it cannot see the infra-repo deploy allowlist, so for a
+      # non-allowlisted author the deployment records but the URL 404s (same
+      # caveat as the comment's debug-guide link). `auto_inactive` retires the
+      # previous SHA's deployment on every new push; the preview-deactivate
+      # workflow retires the last one when the PR closes.
+      - name: Record GitHub deployment
+        if: needs.build.result == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PREVIEW_SHA: ${{ needs.meta.outputs.commit_sha }}
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+          PREVIEW_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const environment = process.env.PREVIEW_ENVIRONMENT;
+
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner,
+              repo,
+              ref: process.env.PREVIEW_SHA,
+              environment,
+              // The images are the deployable; don't gate on commit statuses
+              // (this very workflow is one of them) and never let GitHub
+              // auto-merge base into the ref.
+              required_contexts: [],
+              auto_merge: false,
+              transient_environment: true,
+              description: `Langfuse PR preview at https://${process.env.PREVIEW_HOST}`,
+            });
+            // required_contexts: [] makes a non-201 unrepresentable in practice,
+            // but createDeployment's 202 "merged deployment" response has no id
+            // — fail loudly rather than posting a status against undefined.
+            if (!deployment?.id) {
+              core.setFailed(`createDeployment did not return a deployment id: ${JSON.stringify(deployment)}`);
+              return;
+            }
+
+            await github.rest.repos.createDeploymentStatus({
+              owner,
+              repo,
+              deployment_id: deployment.id,
+              state: "success",
+              environment_url: `https://${process.env.PREVIEW_HOST}`,
+              log_url: `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+              auto_inactive: true,
+            });
+            core.info(`Recorded deployment ${deployment.id} for ${environment}.`);
+
+      # Two distinct failure paths, each keyed on `== 'failure'` (NOT
+      # `!= 'success'`): that keeps them from firing on `cancelled` (a
+      # superseding push cancels the run via cancel-in-progress, and always()
+      # still runs this job — a `!= 'success'` guard would post a spurious
+      # "failed" comment on every new commit) or on `skipped`. meta-failure and
+      # build-failure are mutually exclusive: if meta fails, build is skipped
+      # (not failure), so at most one comment posts, pointing at the job that
+      # actually broke.
+      - name: Report setup failure
+        if: needs.meta.result == 'failure'
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### ⚠️ AWS preview build failed
+
+            Preview setup failed during tag resolution — no image was built: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Report build failure
+        if: needs.build.result == 'failure'
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### ⚠️ AWS preview build failed
+
+            The image build/push failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

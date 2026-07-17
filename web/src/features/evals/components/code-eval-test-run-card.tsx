@@ -247,6 +247,8 @@ function CodeEvalTestRunInputCards({
   previewData: CodeEvalInputPreviewData;
   includeExperimentVariables: boolean;
 }) {
+  // Mirrors the payload shape buildCodeEvalPayload hands to the evaluator,
+  // so the preview shows exactly what the code receives.
   const inputPreviewJson = useMemo(() => {
     const data = previewData.data;
 
@@ -255,6 +257,10 @@ function CodeEvalTestRunInputCards({
         input: deepParseJson(data.input),
         output: deepParseJson(data.output),
         metadata: deepParseJson(data.metadata),
+        // No deepParseJson, matching variable extraction: the zipped calls are
+        // fully parsed already, and it would coerce id/name/type strings that
+        // are JSON literals ("true"/"null") into primitives.
+        toolCalls: data.toolCalls,
       },
       ...(includeExperimentVariables
         ? {

@@ -7,7 +7,10 @@ import {
   type ViewVersion,
 } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
-import { type MetricFormatterFunction } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type MetricFormatterFunction,
+  type MissingBucketValue,
+} from "@/src/features/widgets/chart-library/chart-props";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -215,6 +218,17 @@ const widgetUnitLabels: Record<string, string> = {
   tools: "Tools",
   calls: "Calls",
 };
+
+/**
+ * Decides what a widget's time-series chart shows for a bucket its metric has
+ * no data point in, from the metric's aggregation: counting and additive
+ * aggregations (count, uniq, sum) have an honest `0` — nothing happened —
+ * while avg/min/max/percentiles have no honest value and must render a gap
+ * instead of a fabricated number. (LFE-10694)
+ */
+export function getWidgetMissingBucketValue(agg: string): MissingBucketValue {
+  return agg === "count" || agg === "uniq" || agg === "sum" ? "zero" : "gap";
+}
 
 export function getWidgetMetricPresentation(params: {
   metric: { measure: string; agg: string };

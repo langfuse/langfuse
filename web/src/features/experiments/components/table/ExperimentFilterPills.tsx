@@ -30,9 +30,11 @@ function operatorToText(operator: FilterCondition["operator"]): string {
 function formatFilterForPill(filter: FilterCondition): string {
   const { column, operator, value } = filter;
 
-  // Handle object filters (numberObject, stringObject) with key
+  // Handle object filters with key
   if (
-    (filter.type === "numberObject" || filter.type === "stringObject") &&
+    (filter.type === "numberObject" ||
+      filter.type === "stringObject" ||
+      filter.type === "booleanObject") &&
     "key" in filter
   ) {
     const valueStr = Array.isArray(value) ? value.join(", ") : String(value);

@@ -11,6 +11,7 @@ type GetWidgetFilterColumnsParams = {
   viewVersion: ViewVersion;
   environmentOptions: SingleValueOption[];
   nameOptions: SingleValueOption[];
+  observationNameOptions: SingleValueOption[];
   tagsOptions: SingleValueOption[];
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
@@ -31,6 +32,7 @@ const getWidgetFilterColumnSpecs = ({
   viewVersion,
   environmentOptions,
   nameOptions,
+  observationNameOptions,
   tagsOptions,
   modelOptions,
   toolNamesOptions,
@@ -129,9 +131,11 @@ const getWidgetFilterColumnSpecs = ({
       column: {
         name: "Observation Name",
         id: "observationName",
-        type: "string",
+        type: "stringOptions",
+        options: observationNameOptions,
         internal: "internalValue",
       },
+      customSelect: true,
     });
   }
 
@@ -152,9 +156,11 @@ const getWidgetFilterColumnSpecs = ({
         column: {
           name: "Observation Name",
           id: "observationName",
-          type: "string",
+          type: "stringOptions",
+          options: observationNameOptions,
           internal: "internalValue",
         },
+        customSelect: true,
       },
     );
   }

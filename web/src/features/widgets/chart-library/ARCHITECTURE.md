@@ -129,21 +129,26 @@ different — and sometimes wrong — dates. One source of truth per decision.)
 ## Where we are / where we're going
 
 - **Now:** the visualiser is a set of recharts components behind one `Chart`
-  dispatcher. Two preparer seams are in place: the **time axis**
+  dispatcher. Three preparer seams are in place: the **time axis**
   (`prepareTimeAxis` — raw timestamps in, granularity-adaptive labels out, one
-  formatter for every chart) and the **series cap** (`prepareVisibleSeries` —
+  formatter for every chart), the **series cap** (`prepareVisibleSeries` —
   ranks a breakdown by magnitude and keeps the top‑N so a high-cardinality
   group-by of hundreds of series stays both legible and fast, with an honest
-  "top N of M" note rather than a silent truncation; see principle 5).
+  "top N of M" note rather than a silent truncation; see principle 5), and
+  **missing-cell semantics** (`prepareDenseSeries` — makes every
+  (bucket, series) cell explicit: a real `0` for additive metrics, `null` — a
+  visible gap — for non-additive ones, with `connectNulls` off by default so a
+  line never draws across a no-data bucket; V2 made real, LFE-10694).
   The interaction direction (V4/V5) is largely in place: a synced vertical
   crosshair, a tooltip that opens only on the hovered chart, and a vertical
   proximity highlight.
-- **Known visual debts** (drawn but not yet matching the direction above): lines
-  currently smooth (`type="monotone"`) rather than draw straight (V1), and series
-  color is assigned by index and cycles every 8 rather than being a stable
-  identity (V6). Both are visualiser defaults to migrate into the preparer.
+- **Known visual debts** (drawn but not yet matching the direction above):
+  series color is assigned by index and cycles every 8 rather than being a
+  stable identity (V6) — a visualiser default to migrate into the preparer.
+  (V1's smooth-by-default debt is paid: lines and areas draw straight
+  (`type="linear"`) since LFE-10694.)
 - **Next:** move the remaining decisions — series colors (V6), curve/interpolation
-  (V1), legend summaries, units, axis type & scale — out of the components and
+  opt-ins (V1), legend summaries, units, axis type & scale — out of the components and
   into the preparer, until the visualiser is purely presentational and the
   preparer is the single, tested place where "what should this look like" is
   answered.

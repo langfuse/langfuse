@@ -4,6 +4,7 @@ import {
   type ScoreAggregate,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const mockConfigs: ScoreConfigDomain[] = [
   {
@@ -34,7 +35,7 @@ const mockConfigs: ScoreConfigDomain[] = [
 
 describe("transformToAnnotationScores - flat scores", () => {
   it("should transform flat annotation scores correctly", () => {
-    const flatScores: ScoreDomain[] = [
+    const flatScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -56,7 +57,8 @@ describe("transformToAnnotationScores - flat scores", () => {
         queueId: null,
         datasetRunId: null,
         executionTraceId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
       },
       {
         id: "score-2",
@@ -79,7 +81,8 @@ describe("transformToAnnotationScores - flat scores", () => {
         queueId: null,
         datasetRunId: null,
         executionTraceId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
       },
     ];
 
@@ -117,7 +120,7 @@ describe("transformToAnnotationScores - flat scores", () => {
   });
 
   it("should filter out non-ANNOTATION scores", () => {
-    const flatScores: ScoreDomain[] = [
+    const flatScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "quality",
@@ -139,7 +142,8 @@ describe("transformToAnnotationScores - flat scores", () => {
         queueId: null,
         datasetRunId: null,
         executionTraceId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
       },
       {
         id: "score-2",
@@ -162,7 +166,8 @@ describe("transformToAnnotationScores - flat scores", () => {
         queueId: null,
         datasetRunId: null,
         executionTraceId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
       },
     ];
 
@@ -174,7 +179,7 @@ describe("transformToAnnotationScores - flat scores", () => {
   });
 
   it("should filter out scores without matching config", () => {
-    const flatScores: ScoreDomain[] = [
+    const flatScores: WithStringifiedMetadata<ScoreDomain>[] = [
       {
         id: "score-1",
         name: "unknown",
@@ -196,7 +201,8 @@ describe("transformToAnnotationScores - flat scores", () => {
         queueId: null,
         datasetRunId: null,
         executionTraceId: null,
-        metadata: {},
+        metadata: null,
+        longStringValue: "",
       },
     ];
 

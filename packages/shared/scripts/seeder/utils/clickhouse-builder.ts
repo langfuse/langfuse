@@ -370,7 +370,10 @@ export class ClickHouseQueryBuilder {
         now() AS event_ts,
         0 AS is_deleted,
         NULL AS execution_trace_id,
-        '' AS long_string_value
+        '' AS long_string_value,
+        arrayElement(['pk-lf-seed-${idSuffix}-python','pk-lf-seed-${idSuffix}-javascript','pk-lf-seed-${idSuffix}-raw-api'], 1 + (h1 % 3)) AS ingestion_api_key,
+        arrayElement(['python','javascript','unknown'], 1 + (h1 % 3)) AS ingestion_sdk_name,
+        arrayElement(['4.2.1','5.1.3','unknown'], 1 + (h1 % 3)) AS ingestion_sdk_version
       FROM
       (
         SELECT

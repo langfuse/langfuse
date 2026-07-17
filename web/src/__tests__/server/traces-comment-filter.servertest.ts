@@ -30,6 +30,9 @@ describe("Traces Comment Filtering", () => {
             role: "OWNER",
             plan: "cloud:hobby",
             cloudConfig: undefined,
+            metadata: {},
+            aiFeaturesEnabled: false,
+            aiTelemetryEnabled: false,
             projects: [
               {
                 id: projectId,
@@ -37,6 +40,9 @@ describe("Traces Comment Filtering", () => {
                 retentionDays: 30,
                 deletedAt: null,
                 name: "Test Project",
+                hasTraces: true,
+                metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -44,13 +50,17 @@ describe("Traces Comment Filtering", () => {
         featureFlags: {
           excludeClickhouseRead: false,
           templateFlag: true,
+          searchBar: false,
+          v4BetaToggleVisible: false,
+          observationEvals: false,
+          experimentsV4Enabled: false,
         },
         admin: true,
       },
       environment: {} as any,
     };
 
-    const ctx = createInnerTRPCContext({ session });
+    const ctx = createInnerTRPCContext({ session, headers: {} });
     caller = appRouter.createCaller({ ...ctx, prisma });
   });
 

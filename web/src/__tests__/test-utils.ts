@@ -179,7 +179,12 @@ export async function makeZodVerifiedAPICall<T extends z.ZodType>(
   auth?: string,
   statusCode = 200,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
   if (status !== statusCode) {
     throw new Error(
       `API call did not return ${statusCode}, returned status ${status}, body ${JSON.stringify(resBody)}`,
@@ -202,7 +207,12 @@ export async function makeZodVerifiedAPICallSilent<T extends z.ZodType>(
   body?: unknown,
   auth?: string,
 ): Promise<{ body: z.infer<T>; status: number }> {
-  const { body: resBody, status } = await makeAPICall(method, url, body, auth);
+  const { body: resBody, status } = await makeAPICall<z.infer<T>>(
+    method,
+    url,
+    body,
+    auth,
+  );
 
   if (status === 200) {
     const typeCheckResult = responseZodSchema.safeParse(resBody);

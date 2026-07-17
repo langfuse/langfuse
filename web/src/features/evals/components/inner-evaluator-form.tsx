@@ -21,7 +21,6 @@ import {
   datasetFormFilterColsWithOptions,
   observationEvalFilterColsWithOptions,
   experimentEvalFilterColsWithOptions,
-  type ColumnDefinition,
   type availableDatasetEvalVariables,
   JobConfigState,
   validateEvaluatorFiltersForTarget,
@@ -30,10 +29,7 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo } from "react";
 import { api } from "@/src/utils/api";
-import {
-  InlineFilterBuilder,
-  type ColumnDefinitionWithAlert,
-} from "@/src/features/filters/components/filter-builder";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
   type EvalTemplate,
   EvalTemplateSourceCodeLanguage,
@@ -102,7 +98,6 @@ import {
   useEvaluatorTargetState,
 } from "@/src/features/evals/hooks/useEvaluatorTarget";
 import {
-  COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION,
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_TRACE_FILTER,
 } from "@/src/features/evals/utils/evaluator-constants";
@@ -118,45 +113,6 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-
-/**
- * Adds propagation warnings to columns that require OTEL SDK with span propagation
- */
-const addPropagationWarnings = (
-  columns: ColumnDefinition[],
-  allowPropagationFilters: boolean,
-): ColumnDefinitionWithAlert[] => {
-  return columns.map((col) => {
-    if (
-      !allowPropagationFilters &&
-      COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION.has(col.id)
-    ) {
-      return {
-        ...col,
-        alert: {
-          severity: "warning" as const,
-          content: (
-            <>
-              This filter requires JS SDK &ge; 4.0.0 or Python SDK &ge; 3.0.0
-              with attribute propagation enabled. Please{" "}
-              <a
-                href="https://langfuse.com/integrations/native/opentelemetry#propagating-attributes"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue hover:opacity-80"
-              >
-                follow our docs
-              </a>{" "}
-              to configure your instrumentation to use this filter.
-            </>
-          ),
-        },
-      };
-    }
-
-    return col;
-  });
-};
 
 // Lazy load tables
 const TracesTable = lazy(
@@ -384,7 +340,7 @@ export const InnerEvaluatorForm = (props: {
     isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
 
   // Destructure eval capabilities passed from parent
-  const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
+  const { allowLegacy } = props.evalCapabilities;
 
   // Custom hooks for managing evaluator state
   const {
@@ -1164,14 +1120,9 @@ export const InnerEvaluatorForm = (props: {
                     // Get appropriate columns based on target type
                     const getFilterColumns = () => {
                       if (isEventTarget(target)) {
-                        // Event evaluators - use observation columns with propagation warnings
-                        const baseColumns =
-                          observationEvalFilterColsWithOptions(
-                            observationEvalFilterOptions,
-                          );
-                        return addPropagationWarnings(
-                          baseColumns,
-                          allowPropagationFilters,
+                        // Event evaluators - use observation columns
+                        return observationEvalFilterColsWithOptions(
+                          observationEvalFilterOptions,
                         );
                       } else if (isTraceTarget(target)) {
                         return tracesTableColsWithOptions(

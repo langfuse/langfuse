@@ -8,7 +8,7 @@ if ! command -v corepack >/dev/null 2>&1; then
 fi
 
 corepack enable
-corepack prepare pnpm@11.4.0 --activate
+corepack prepare pnpm@11.10.0 --activate
 
 pnpm install --frozen-lockfile
 

@@ -39,12 +39,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createW3CTraceId: mocks.createW3CTraceId,
     runCodeBasedEvaluationDispatch,
     resolveConfiguredCodeEvalDispatcher: vi.fn(() => mocks.dispatcher),
+    writeInternalTraceViaOtelIngestion: mocks.writeInternalTrace,
   };
 });
-
-vi.mock("../../internal-tracing/createInternalEventsWriter", () => ({
-  createInternalEventsWriter: () => ({ write: mocks.writeInternalTrace }),
-}));
 
 import { executeCodeBasedEvaluation } from "./executeCodeBasedEvaluation";
 
@@ -95,6 +92,20 @@ describe("executeCodeBasedEvaluation", () => {
         { var: "input", value: { question: "2+2" } },
         { var: "output", value: "4" },
         { var: "experimentItemExpectedOutput", value: "4" },
+        // Zipped shape produced by extractObservationVariables for the
+        // "toolCalls" entry of the code eval mapping.
+        {
+          var: "toolCalls",
+          value: [
+            {
+              id: "call_1",
+              name: "search",
+              arguments: { query: "weather" },
+              type: "function",
+              index: 0,
+            },
+          ],
+        },
       ],
       hasExperimentContext: true,
       executionMetadata: { job_execution_id: "job-1" },
@@ -115,6 +126,15 @@ describe("executeCodeBasedEvaluation", () => {
         input: { question: "2+2" },
         output: "4",
         metadata: null,
+        toolCalls: [
+          {
+            id: "call_1",
+            name: "search",
+            arguments: { query: "weather" },
+            type: "function",
+            index: 0,
+          },
+        ],
       },
       experiment: {
         itemExpectedOutput: "4",
@@ -188,7 +208,12 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
         },
       }),
     );
@@ -227,7 +252,12 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
           experiment: {
             itemExpectedOutput: null,
             itemMetadata: null,
@@ -270,7 +300,12 @@ describe("executeCodeBasedEvaluation", () => {
     expect(mocks.dispatcher.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: {
-          observation: { input: null, output: null, metadata: null },
+          observation: {
+            input: null,
+            output: null,
+            metadata: null,
+            toolCalls: [],
+          },
         },
       }),
     );
@@ -317,6 +352,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: "true",
             metadata: "42",
+            toolCalls: [],
           },
           experiment: {
             itemExpectedOutput: "null",
@@ -369,6 +405,7 @@ describe("executeCodeBasedEvaluation", () => {
             input: null,
             output: null,
             metadata: null,
+            toolCalls: [],
           },
           experiment: {
             itemExpectedOutput: null,
@@ -464,7 +501,12 @@ describe("executeCodeBasedEvaluation", () => {
             level: "ERROR",
             statusMessage: "Code eval execution failed: runner exploded",
             input: JSON.stringify({
-              observation: { input: "prompt", output: null, metadata: null },
+              observation: {
+                input: "prompt",
+                output: null,
+                metadata: null,
+                toolCalls: [],
+              },
             }),
             output: expect.stringContaining("runner exploded"),
             metadata: expect.objectContaining({

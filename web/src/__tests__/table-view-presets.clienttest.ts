@@ -75,6 +75,35 @@ describe("table view presets validation functions", () => {
       const orderBy: OrderByState = { column: "age", order: "ASC" };
       expect(validateOrderBy(orderBy, mockColumns)).toBeNull();
     });
+
+    it("should find a sortable column nested inside a column group", () => {
+      // e.g. the events table nests totalTokens under a "Usage" group def; a
+      // flat lookup dropped the saved orderBy of any view sorting by it.
+      const groupedColumns = [
+        { id: "name", enableSorting: true, accessorKey: "name" },
+        {
+          id: "usage",
+          accessorKey: "usage",
+          columns: [
+            {
+              id: "totalTokens",
+              enableSorting: true,
+              accessorKey: "totalTokens",
+            },
+            { id: "inputTokens", enableSorting: false, accessorKey: "input" },
+          ],
+        },
+      ];
+      const orderBy: OrderByState = { column: "totalTokens", order: "DESC" };
+      expect(validateOrderBy(orderBy, groupedColumns)).toEqual(orderBy);
+      // A nested column that opts out of sorting still returns null.
+      expect(
+        validateOrderBy(
+          { column: "inputTokens", order: "DESC" },
+          groupedColumns,
+        ),
+      ).toBeNull();
+    });
   });
 
   describe("validateFilters", () => {

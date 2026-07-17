@@ -26,6 +26,7 @@ export function usePrefetchObservation({
       utils.events.batchIO.prefetch(
         {
           projectId,
+          traceId, // Must match useLogViewObservationIO for cache hit
           observations: [{ id: observationId, traceId }],
           minStartTime: startTime,
           maxStartTime: startTime,

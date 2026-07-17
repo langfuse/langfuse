@@ -95,6 +95,7 @@ export default async function handler(
           res,
           projectId,
           authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
         );
       default:
         res.status(405).json({ message: "Method Not Allowed" });

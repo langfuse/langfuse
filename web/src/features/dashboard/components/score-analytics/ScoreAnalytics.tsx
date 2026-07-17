@@ -69,7 +69,7 @@ export function ScoreAnalytics(props: {
       title="Scores Analytics"
       description="Aggregate scores and averages over time"
       isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName={"grid grid-cols-[1fr_auto_auto] items-center"}
+      headerClassName="grid grid-cols-[1fr_auto_auto] items-center"
       headerChildren={
         !scoreKeysAndProps.isPending &&
         !props.isLoading &&

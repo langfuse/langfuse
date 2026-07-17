@@ -22,6 +22,7 @@ import { useSession } from "next-auth/react";
 
 export default function RenameOrganization() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const hasAccess = useHasOrganizationAccess({
@@ -41,6 +42,9 @@ export default function RenameOrganization() {
   const renameOrganization = api.organizations.update.useMutation({
     onSuccess: () => {
       updateSession();
+      // Admins resolve org/project context from these queries, not the session
+      utils.organizations.byId.invalidate();
+      utils.projects.byId.invalidate();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });

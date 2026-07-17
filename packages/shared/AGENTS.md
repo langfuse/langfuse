@@ -47,7 +47,8 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,
-  LLM execution helpers, and server test utilities.
+  AI SDK-native LLM execution helpers (`generateLLMText` and
+  `streamLLMText`), and server test utilities.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.
@@ -100,6 +101,10 @@ the same PR.
 ### ClickHouse schema change
 
 1. Add migration under `clickhouse/migrations/*`.
+   - Redefining views or materialized views follows strict patterns (no
+     `CREATE OR REPLACE VIEW`; MV SELECT changes via
+     `ALTER TABLE … MODIFY QUERY`) — apply the "Langfuse-Specific Rules" in
+     `.agents/skills/clickhouse-best-practices/SKILL.md` for any new ClickHouse migration.
 2. Update ClickHouse query/mapping logic in `src/server/clickhouse/*` and
    related repositories.
 3. Validate ingestion/read path impact in both `web` and `worker`.

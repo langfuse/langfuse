@@ -286,7 +286,7 @@ export function BillingInvoiceTable() {
       </div>
       <DataTableToolbar columns={columns} />
       <DataTable
-        tableName={"invoices"}
+        tableName="invoices"
         columns={columns}
         data={data}
         pagination={{

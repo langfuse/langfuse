@@ -9,10 +9,10 @@ A good threshold is something that takes more than 5 minutes to run or is not an
 You can execute a background migration locally using
 ```bash
 $ cd worker
-$ dotenv -e ../.env -- npx ts-node src/backgroundMigrations/<script-name>.ts
+$ dotenv -e ../.env -- npx tsx src/backgroundMigrations/<script-name>.ts
 
 # Example
-$ dotenv -e ../.env -- npx ts-node src/backgroundMigrations/addGenerationsCostBackfill.ts
+$ dotenv -e ../.env -- npx tsx src/backgroundMigrations/addGenerationsCostBackfill.ts
 ```
 
 ## Requirements

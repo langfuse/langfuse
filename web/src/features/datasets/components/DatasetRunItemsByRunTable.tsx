@@ -279,6 +279,7 @@ export function DatasetRunItemsByRunTable(props: {
     <>
       <DataTableToolbar
         columns={columns}
+        tableName="dataset-run-items"
         filterColumnDefinition={transformedFilterOptions}
         filterState={userFilterState}
         setFilterState={setFilterState}
@@ -290,7 +291,7 @@ export function DatasetRunItemsByRunTable(props: {
         setRowHeight={setRowHeight}
       />
       <DataTable
-        tableName={"datasetRunItems"}
+        tableName="datasetRunItems"
         columns={columns}
         data={
           runItems.isLoading

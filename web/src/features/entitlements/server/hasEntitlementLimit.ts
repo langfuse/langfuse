@@ -4,11 +4,11 @@ import {
 } from "@/src/features/entitlements/constants/entitlements";
 import { type Plan } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { type User } from "next-auth";
+import { type Session } from "next-auth";
 
 type HasEntitlementLimitParams = {
   entitlementLimit: EntitlementLimit;
-  sessionUser: User;
+  sessionUser: NonNullable<Session["user"]>;
 } & ({ projectId: string } | { orgId: string });
 
 /**

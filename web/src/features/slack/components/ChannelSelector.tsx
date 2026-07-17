@@ -17,6 +17,7 @@ import {
 } from "@/src/components/ui/command";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { api } from "@/src/utils/api";
+import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 
 export type { SlackChannel };
@@ -404,7 +405,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
               className="font-medium underline"
               onClick={() =>
                 window.open(
-                  `/api/public/slack/install?projectId=${projectId}`,
+                  `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,
                   "slack-reauth",
                   "width=600,height=700",
                 )

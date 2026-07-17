@@ -7,10 +7,31 @@ from typing import Any
 
 
 @dataclass
+class ToolCall:
+    id: str = ""
+    name: str = ""
+    arguments: Any = None
+    type: str = ""
+    index: int = 0
+
+    @classmethod
+    def from_payload(cls, raw: Any):
+        entry = raw if isinstance(raw, dict) else {}
+        return cls(
+            id=entry.get("id") or "",
+            name=entry.get("name") or "",
+            arguments=entry.get("arguments"),
+            type=entry.get("type") or "",
+            index=entry.get("index") or 0,
+        )
+
+
+@dataclass
 class ObservationContext:
     input: Any = None
     output: Any = None
     metadata: Any = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 @dataclass
@@ -33,6 +54,10 @@ class EvaluationContext:
                 input=observation.get("input"),
                 output=observation.get("output"),
                 metadata=observation.get("metadata"),
+                tool_calls=[
+                    ToolCall.from_payload(call)
+                    for call in observation.get("toolCalls") or []
+                ],
             ),
             experiment=ExperimentContext(
                 item_expected_output=experiment.get("itemExpectedOutput"),
@@ -77,6 +102,7 @@ def handler(event, context):
         "EvaluationContext": EvaluationContext,
         "EvaluationResult": EvaluationResult,
         "Score": Score,
+        "ToolCall": ToolCall,
     }
 
     try:

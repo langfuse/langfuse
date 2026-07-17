@@ -61,7 +61,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
         {isError && (
           <Button
             variant="errorNotification"
-            size={"sm"}
+            size="sm"
             onClick={() => {
               capture("toast:report_issue", {
                 toast_type: type,

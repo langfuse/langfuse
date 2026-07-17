@@ -66,6 +66,7 @@ export function TruncatedLabels({
             key={label}
             className={cn("break-all sm:break-normal", badgeClassName)}
             isLive={label === PRODUCTION_LABEL}
+            preserveCase
           />
         ),
       )}
@@ -104,6 +105,7 @@ export function TruncatedLabels({
                         badgeClassName,
                       )}
                       isLive={label === PRODUCTION_LABEL}
+                      preserveCase
                     />
                   ),
                 )}

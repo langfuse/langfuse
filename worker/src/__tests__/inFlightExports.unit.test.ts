@@ -84,7 +84,6 @@ describe("inFlightExports", () => {
         outcome: "aborted",
         abortReason: "shutdown",
         table: "observations_v2",
-        projectId: "p-1",
       },
     );
     expect(mockRecordIncrement).toHaveBeenCalledWith(
@@ -94,7 +93,6 @@ describe("inFlightExports", () => {
         outcome: "aborted",
         abortReason: "shutdown",
         table: "scores",
-        projectId: "p-1",
       },
     );
 

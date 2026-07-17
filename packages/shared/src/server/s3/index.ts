@@ -4,6 +4,8 @@ import {
   StorageServiceFactory,
 } from "../services/StorageService";
 
+export { S3_DELETE_OBJECTS_CHUNK_SIZE } from "../services/StorageService";
+
 let s3MediaStorageClient: StorageService;
 let s3EventStorageClient: StorageService;
 

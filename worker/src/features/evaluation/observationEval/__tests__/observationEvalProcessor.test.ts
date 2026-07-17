@@ -810,4 +810,79 @@ describe("processObservationEval", () => {
       ).rejects.toThrow();
     });
   });
+
+  describe("internal target loop safeguard", () => {
+    const setupExecutableJob = (environment: string) => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+        jobInputTraceId: "trace-abc",
+        jobInputObservationId: "obs-xyz",
+      });
+      const template = createMockEvalTemplate({
+        id: "template-456",
+        projectId,
+        prompt: "Evaluate: {{output}}",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        evalTemplateId: "template-456",
+        variableMapping: [
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+        evalTemplate: template,
+      });
+      const observation = createTestObservation({
+        span_id: "obs-xyz",
+        project_id: projectId,
+        trace_id: "trace-abc",
+        environment,
+        output: '{"response": "test output"}',
+      });
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+
+      return createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+      });
+    };
+
+    it("cancels jobs targeting internal observations instead of executing (eval-on-eval loop guard)", async () => {
+      const deps = setupExecutableJob("langfuse-llm-as-a-judge");
+
+      await processObservationEval({
+        event: baseEvent,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(runLLMAsJudgeEvaluation).not.toHaveBeenCalled();
+      expect(executeCodeBasedEvaluation).not.toHaveBeenCalled();
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: JobExecutionStatus.CANCELLED,
+          }),
+        }),
+      );
+    });
+
+    it("executes evals on sanctioned prompt-experiment targets", async () => {
+      const deps = setupExecutableJob("langfuse-prompt-experiment");
+
+      await processObservationEval({
+        event: baseEvent,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledTimes(1);
+    });
+  });
 });

@@ -2,12 +2,16 @@ import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
+  createBasicAuthHeader,
   getObservationById,
   getObservationByIdFromEventsTable,
+  getS3EventStorageClient,
   getTraceById,
 } from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
+import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const eventsTableAvailable =
@@ -640,4 +644,139 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     },
     30_000,
   );
+
+  it("should stage protobuf int64 fields as OTLP/JSON decimal strings", async () => {
+    const ExportTraceServiceRequest =
+      $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
+
+    const traceId = randomBytes(16);
+    const spanId = randomBytes(8);
+    const spanName = `otel-proto-int64-${spanId.toString("hex")}`;
+    // Nanosecond timestamps exceed Number.MAX_SAFE_INTEGER, so they only
+    // survive the round trip losslessly as decimal strings (the OTLP/JSON
+    // encoding for int64).
+    const startTimeUnixNano = "1746026930686364157";
+    const endTimeUnixNano = "1746026930686764157";
+
+    const requestBody = ExportTraceServiceRequest.encode(
+      ExportTraceServiceRequest.fromObject({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId,
+                    spanId,
+                    name: spanName,
+                    kind: 1,
+                    startTimeUnixNano,
+                    endTimeUnixNano,
+                    attributes: [
+                      {
+                        // Generation type so the extracted usage details are
+                        // kept on the ingestion event (spans drop them).
+                        key: "langfuse.observation.type",
+                        value: { stringValue: "generation" },
+                      },
+                      {
+                        key: "gen_ai.usage.input_tokens",
+                        value: { intValue: 42 },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).finish();
+
+    // The staging key is `<prefix>otel/<projectId>/yyyy/mm/dd/hh/mm/<uuid>.json`;
+    // capture the minute prefix on both sides of the request so a minute
+    // rollover during the call cannot hide the file.
+    const minutePrefix = () => {
+      const now = new Date();
+      return `${sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}otel/${projectId}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}/${String(now.getHours()).padStart(2, "0")}/${String(now.getMinutes()).padStart(2, "0")}/`;
+    };
+    const listPrefixes = new Set([minutePrefix()]);
+
+    // makeAPICall JSON-stringifies its body, so send the binary payload
+    // with a plain fetch instead.
+    const response = await fetch(
+      "http://localhost:3000/api/public/otel/v1/traces",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-protobuf",
+          Authorization: createBasicAuthHeader(
+            "pk-lf-1234567890",
+            "sk-lf-1234567890",
+          ),
+        },
+        body: requestBody,
+      },
+    );
+    listPrefixes.add(minutePrefix());
+    expect(response.status).toBe(200);
+
+    // The endpoint stages the decoded payload to S3 before responding, and
+    // that file is what the ingestion worker and the ingestion masking
+    // callback consume — so its int64 encoding is the contract under test.
+    // protobufjs >= 7.5 serializes int64 fields as Long internals
+    // ({ low, high, unsigned }) unless toObject receives a `longs` option.
+    const storageClient = getS3EventStorageClient(
+      sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+    );
+    const files = (
+      await Promise.all(
+        [...listPrefixes].map((prefix) => storageClient.listFiles(prefix)),
+      )
+    ).flat();
+
+    let stagedSpan: any;
+    for (const { file } of files) {
+      const resourceSpans = JSON.parse(await storageClient.download(file));
+      const span = resourceSpans
+        .flatMap((rs: any) => rs.scopeSpans ?? [])
+        .flatMap((ss: any) => ss.spans ?? [])
+        .find((s: any) => s.name === spanName);
+      if (span) {
+        stagedSpan = span;
+        break;
+      }
+    }
+
+    expect(stagedSpan).toBeDefined();
+    expect(stagedSpan.startTimeUnixNano).toBe(startTimeUnixNano);
+    expect(stagedSpan.endTimeUnixNano).toBe(endTimeUnixNano);
+    expect(
+      stagedSpan.attributes.find(
+        (attr: any) => attr.key === "gen_ai.usage.input_tokens",
+      )?.value.intValue,
+    ).toBe("42");
+    expect(JSON.stringify(stagedSpan)).not.toContain('"low"');
+
+    // Validate that the string-encoded int64 fields also survive the rest of
+    // the pipeline (S3 -> worker -> OtelIngestionProcessor -> ClickHouse).
+    // The processor truncates ns -> ms with BigInt division, so assert the
+    // same truncation rather than expecting sub-ms precision back.
+    await waitForExpect(async () => {
+      const observation = await getObservationById({
+        projectId,
+        id: spanId.toString("hex"),
+      });
+      expect(observation).toBeDefined();
+      expect(observation!.startTime.toISOString()).toBe(
+        new Date(Number(BigInt(startTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      expect(observation!.endTime?.toISOString()).toBe(
+        new Date(Number(BigInt(endTimeUnixNano) / 1_000_000n)).toISOString(),
+      );
+      // gen_ai.usage.input_tokens travelled as intValue "42"; this pins the
+      // string -> number conversion in convertOtelIntValue end to end.
+      expect(observation!.usageDetails.input).toBe(42);
+    }, 25_000);
+  }, 30_000);
 });

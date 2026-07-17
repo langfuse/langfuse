@@ -324,7 +324,12 @@ describe("queryBuilder", () => {
             trace_id: data.traceId,
             observation_id: data.observationId,
             name: data.name,
-            value: data.dataType === "NUMERIC" ? data.value || 0 : null,
+            // Non-numeric scores store NULL in the Nullable(Float64) value
+            // column; the insert schema types value as number, hence the cast.
+            value:
+              data.dataType === "NUMERIC"
+                ? data.value || 0
+                : (null as unknown as number),
             string_value: ["CATEGORICAL", "BOOLEAN", "TEXT"].includes(
               data.dataType,
             )
@@ -3146,7 +3151,7 @@ describe("queryBuilder", () => {
 
         // Create traces with observations that have different costs
         const traces = [];
-        const observations = [];
+        const observations: ReturnType<typeof createObservation>[] = [];
 
         // Create trace for cost distribution test
         const trace = createTrace({

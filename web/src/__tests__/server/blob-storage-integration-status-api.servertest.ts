@@ -406,7 +406,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       200,
     );
 
-    expect(new Date(response.body.lastErrorAt).getTime()).toBe(
+    expect(new Date(response.body.lastErrorAt!).getTime()).toBe(
       errorDate.getTime(),
     );
   });

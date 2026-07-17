@@ -39,11 +39,27 @@ export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  const pad = (num: number) => `00${num}`.slice(2);
+  const pad = (num: number) => String(num).padStart(2, "0");
 
   if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
   if (mins > 0) return `${mins}m ${pad(secs)}s`;
   return `${seconds.toFixed(scale)}s`;
+};
+
+export const formatApproximateDuration = (secondsRemaining: number) => {
+  const seconds = Math.max(1, secondsRemaining);
+
+  if (seconds < 60) {
+    return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  }
+
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  const hours = Math.ceil(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
 };
 
 export const getShortLocalTimezone = () => {

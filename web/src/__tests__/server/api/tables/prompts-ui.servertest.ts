@@ -1,12 +1,23 @@
 import {
+  createEvent,
+  createEventsCh,
   createObservation,
   createObservationsCh,
+  createScoresCh,
+  createTraceScore,
 } from "@langfuse/shared/src/server";
 import {
+  getAggregatedScoresForPromptsFromEvents,
+  buildAggregatedScoresForPromptsFromEventsQuery,
   getObservationMetricsForPrompts,
+  getObservationMetricsForPromptsFromEvents,
   getObservationsWithPromptName,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
+
+const itIfEventsTable =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
 
 describe("UI Prompts Table", () => {
   it("should count the observations which belong to a prompt", async () => {
@@ -312,6 +323,177 @@ describe("UI Prompts Table", () => {
           promptVersion: 1,
         },
       ]),
+    );
+  });
+
+  itIfEventsTable(
+    "should correctly calculate prompt metrics from events",
+    async () => {
+      const projectId = v4();
+      const promptId = v4();
+      const startTime = Date.parse("2026-07-16T13:42:33.028Z") * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: v4(),
+          span_id: v4(),
+          type: "GENERATION",
+          prompt_id: promptId,
+          prompt_name: "folder/test-prompt",
+          prompt_version: 7,
+          start_time: startTime,
+          end_time: startTime + 2_000_000,
+          usage_details: { input: 100, output: 200, total: 300 },
+          cost_details: { input: 1, output: 2, total: 3 },
+        }),
+      ]);
+
+      const result = await getObservationMetricsForPromptsFromEvents(
+        projectId,
+        [promptId],
+      );
+
+      expect(result).toEqual([
+        {
+          count: 1,
+          firstObservation: new Date("2026-07-16T13:42:33.028Z"),
+          lastObservation: new Date("2026-07-16T13:42:33.028Z"),
+          medianInputUsage: 100,
+          medianLatencyMs: 2000,
+          medianOutputUsage: 200,
+          medianTotalCost: 3,
+          promptId,
+          promptVersion: 7,
+        },
+      ]);
+    },
+  );
+
+  itIfEventsTable(
+    "should aggregate only the latest event version for prompt metrics",
+    async () => {
+      const projectId = v4();
+      const promptId = v4();
+      const traceId = v4();
+      const spanId = v4();
+      const startTime = Date.parse("2026-07-16T13:42:33.028Z") * 1000;
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        span_id: spanId,
+        type: "GENERATION",
+        prompt_id: promptId,
+        prompt_name: "folder/test-prompt",
+        prompt_version: 7,
+        start_time: startTime,
+        end_time: startTime + 1_000_000,
+        event_ts: startTime,
+        usage_details: { input: 100, output: 200, total: 300 },
+        cost_details: { input: 1, output: 2, total: 3 },
+      });
+
+      await createEventsCh([event]);
+      await createEventsCh([
+        {
+          ...event,
+          end_time: startTime + 4_000_000,
+          event_ts: startTime + 1_000_000,
+          usage_details: { input: 400, output: 500, total: 900 },
+          cost_details: { input: 4, output: 5, total: 9 },
+        },
+      ]);
+
+      const result = await getObservationMetricsForPromptsFromEvents(
+        projectId,
+        [promptId],
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          count: 1,
+          medianInputUsage: 400,
+          medianLatencyMs: 4000,
+          medianOutputUsage: 500,
+          medianTotalCost: 9,
+        }),
+      ]);
+    },
+  );
+
+  itIfEventsTable("should fetch prompt scores from events", async () => {
+    const projectId = v4();
+    const promptId = v4();
+    const traceId = v4();
+    const spanId = v4();
+
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: spanId,
+          type: "GENERATION",
+          prompt_id: promptId,
+          prompt_name: "folder/test-prompt",
+          prompt_version: 7,
+        }),
+      ]),
+      createScoresCh([
+        createTraceScore({
+          id: v4(),
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "observation-score",
+          value: 1,
+        }),
+        createTraceScore({
+          id: v4(),
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "trace-score",
+          value: 2,
+        }),
+      ]),
+    ]);
+
+    const [observationScores, traceScores] = await Promise.all([
+      getAggregatedScoresForPromptsFromEvents(
+        projectId,
+        [promptId],
+        "observation",
+      ),
+      getAggregatedScoresForPromptsFromEvents(projectId, [promptId], "trace"),
+    ]);
+
+    expect(observationScores).toEqual([
+      expect.objectContaining({
+        promptId,
+        name: "observation-score",
+        value: 1,
+      }),
+    ]);
+    expect(traceScores).toEqual([
+      expect.objectContaining({
+        promptId,
+        name: "trace-score",
+        value: 2,
+      }),
+    ]);
+  });
+
+  it("should prefilter scores by prompt event identifiers before joining", () => {
+    const { query } = buildAggregatedScoresForPromptsFromEventsQuery(
+      v4(),
+      [v4()],
+      "observation",
+    );
+
+    expect(query).toContain("INNER JOIN prompt_events");
+    expect(query).toContain(
+      "(s.trace_id, s.observation_id) IN (SELECT trace_id, span_id FROM prompt_events",
     );
   });
 

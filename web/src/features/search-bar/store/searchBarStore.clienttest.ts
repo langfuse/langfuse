@@ -162,6 +162,51 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draft).toBe("level:ERROR refund");
   });
 
+  it("preview overlays without touching the draft and clears on end", () => {
+    // The preview lane is display-only state: while a preset row is hovered
+    // the bar shows previewText, but the draft — including in-progress typing
+    // that was never committed — must survive untouched.
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("level:ERROR name:foo");
+    store.getState().actions.setPreview("latency:>10 ");
+    expect(store.getState().previewText).toBe("latency:>10 ");
+    expect(store.getState().draft).toBe("level:ERROR name:foo");
+    store.getState().actions.clearPreview();
+    expect(store.getState().previewText).toBeNull();
+    expect(store.getState().draft).toBe("level:ERROR name:foo");
+  });
+
+  it("clearPreview is a no-op when no preview is active (no churn re-render)", () => {
+    // Row leave/blur and the popover's close handler can all end the same
+    // preview; the extra calls must not notify subscribers.
+    const store = createSearchBarStore();
+    let notified = 0;
+    const unsub = store.subscribe(() => notified++);
+    store.getState().actions.clearPreview();
+    expect(notified).toBe(0);
+    store.getState().actions.setPreview("level:ERROR ");
+    store.getState().actions.setPreview("level:ERROR ");
+    expect(notified).toBe(1);
+    unsub();
+  });
+
+  it("a draft write ends the preview (edit always wins over overlay)", () => {
+    const store = createSearchBarStore();
+    store.getState().actions.setPreview("latency:>10 ");
+    store.getState().actions.setDraft("env:prod");
+    expect(store.getState().previewText).toBeNull();
+
+    store.getState().actions.setPreview("latency:>10 ");
+    store.getState().actions.resetTo("level:ERROR");
+    expect(store.getState().previewText).toBeNull();
+
+    const chip = createSearchBarStore();
+    chip.getState().actions.setDraft("level:ERROR env:dev");
+    chip.getState().actions.setPreview("latency:>10 ");
+    chip.getState().actions.removeChipSpan(0, 11);
+    expect(chip.getState().previewText).toBeNull();
+  });
+
   it("revealInvalid marks the current draft; setDraft clears it", () => {
     const store = createSearchBarStore();
     store.getState().actions.setDraft("level:ERROR OR env:dev");

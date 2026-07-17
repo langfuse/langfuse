@@ -10,11 +10,11 @@ const isMidnight = (date: Date) =>
 
 const getIconForPeriod = (period: Period) => {
   const icons = {
-    PM: <Sun className={"size-5"} />,
-    AM: <Moon className={"size-5"} />,
+    PM: <Sun className="size-5" />,
+    AM: <Moon className="size-5" />,
   };
 
-  return icons[period] || <Clock className={"size-5"} />;
+  return icons[period] || <Clock className="size-5" />;
 };
 
 export const TimeIcon: React.FC<{ time: Date | Period }> = ({ time }) => {

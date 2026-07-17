@@ -188,6 +188,12 @@ export const tracesTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.score_categories",
   },
   {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_booleans",
+  },
+  {
     uiTableName: "Latency (s)",
     uiTableId: "latency",
     clickhouseTableName: "observations",

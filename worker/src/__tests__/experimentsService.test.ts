@@ -7,6 +7,7 @@ import { createExperimentJobClickhouse } from "../features/experiments/experimen
 import {
   createDatasetItem,
   createOrgProjectAndApiKey,
+  generateLLMText,
   logger,
 } from "@langfuse/shared/src/server";
 
@@ -15,7 +16,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi.fn().mockResolvedValue({ id: "test-id" }),
+    generateLLMText: vi.fn().mockResolvedValue({ text: "test output" }),
     logger: {
       info: vi.fn(),
       error: vi.fn(),
@@ -573,5 +574,161 @@ describe("experiment processing integration", () => {
     //     }),
     //   }),
     // );
+  });
+});
+
+describe("experiment prompt tool config", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(generateLLMText).mockResolvedValue({
+      text: "test output",
+    } as any);
+  });
+
+  const setupExperimentWithPromptConfig = async (
+    promptConfig: unknown,
+    runMetadata: Record<string, unknown> = {},
+  ) => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const datasetId = randomUUID();
+    const runId = randomUUID();
+    const promptId = randomUUID();
+
+    await prisma.prompt.create({
+      data: {
+        id: promptId,
+        projectId,
+        name: "Test Prompt",
+        prompt: "Hello {{name}}",
+        config: promptConfig as any,
+        type: "text",
+        version: 1,
+        createdBy: "test-user",
+      },
+    });
+    await prisma.dataset.create({
+      data: { id: datasetId, projectId, name: "Test Dataset" },
+    });
+    await prisma.datasetRuns.create({
+      data: {
+        id: runId,
+        name: "Test Run",
+        projectId,
+        datasetId,
+        metadata: {
+          prompt_id: promptId,
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          model_params: { temperature: 0 },
+          ...runMetadata,
+        },
+      },
+    });
+    await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { name: "World" },
+    });
+    await prisma.llmApiKeys.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        displaySecretKey: "test-key",
+        secretKey: encrypt("test-key"),
+      },
+    });
+
+    return { projectId, datasetId, runId };
+  };
+
+  test("passes valid prompt config tools to the LLM call", async () => {
+    const { projectId, datasetId, runId } =
+      await setupExperimentWithPromptConfig({
+        tools: [
+          {
+            name: "get_weather",
+            parameters: {
+              type: "object",
+              properties: { location: { type: "string" } },
+              required: ["location"],
+            },
+          },
+          // OpenAI-wrapped shape must be accepted as well
+          {
+            type: "function",
+            function: {
+              name: "get_time",
+              description: "Get the current time",
+            },
+          },
+        ],
+      });
+
+    const result = await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(generateLLMText)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.objectContaining({
+          get_weather: expect.anything(),
+          get_time: expect.anything(),
+        }),
+      }),
+    );
+  });
+
+  test("ignores invalid prompt config tools and runs without tools", async () => {
+    const { projectId, datasetId, runId } =
+      await setupExperimentWithPromptConfig({
+        tools: [{ name: "broken_tool", parameters: "invalid" }],
+      });
+
+    const result = await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(generateLLMText)).toHaveBeenCalledTimes(1);
+    const callArgs = vi.mocked(generateLLMText).mock.calls[0][0];
+    expect(callArgs.tools).toBeUndefined();
+  });
+
+  test("rejects combining prompt config tools with structured output", async () => {
+    const { projectId, datasetId, runId } =
+      await setupExperimentWithPromptConfig(
+        {
+          tools: [
+            {
+              name: "get_weather",
+              description: "Get the weather for a location",
+              parameters: { type: "object", properties: {} },
+            },
+          ],
+        },
+        {
+          structured_output_schema: {
+            type: "object",
+            properties: { answer: { type: "string" } },
+          },
+        },
+      );
+
+    const result = await createExperimentJobClickhouse({
+      event: { projectId, datasetId, runId },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(generateLLMText)).not.toHaveBeenCalled();
+    expect(vi.mocked(logger).error).toHaveBeenCalledWith(
+      "Failed to validate and setup experiment",
+      expect.objectContaining({
+        message:
+          "Your prompt contains tool definitions - tool calls are not compatible with structured output",
+      }),
+    );
   });
 });

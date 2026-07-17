@@ -50,6 +50,7 @@ const getCommaArrayParam = (table: TableName) => ({
           const stringified = `${columnId};${f.type};${
             f.type === "numberObject" ||
             f.type === "stringObject" ||
+            f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
               ? f.key
@@ -105,7 +106,7 @@ const getCommaArrayParam = (table: TableName) => ({
                     ? splitOnUnescapedPipe(decodedValue).map(
                         unescapePipeInValue,
                       )
-                    : type === "boolean"
+                    : type === "boolean" || type === "booleanObject"
                       ? decodedValue === "true"
                       : decodedValue;
 

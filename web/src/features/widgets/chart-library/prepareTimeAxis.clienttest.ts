@@ -20,6 +20,17 @@ describe("prepareTimeAxis", () => {
     expect(MONTH_DAY.test(label)).toBe(false); // never a date on a time-scale tick
   });
 
+  it("temporal axes opt into vertical grid lines; categorical axes stay clean", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const temporal = Array.from({ length: 24 }, (_, h) =>
+      iso(start + h * HOUR),
+    );
+    expect(prepareTimeAxis(temporal, 6).showVerticalGrid).toBe(true);
+
+    const categorical = ["run-alpha", "run-beta", "run-gamma"];
+    expect(prepareTimeAxis(categorical, 6).showVerticalGrid).toBe(false);
+  });
+
   it("span >24h uses date mode (no hour-only ticks repeating across midnight)", () => {
     // 36 hourly buckets ≈ 35h span — must NOT be time mode (would duplicate hours).
     const start = Date.UTC(2026, 5, 28, 0);
@@ -185,6 +196,36 @@ describe("prepareTimeAxis", () => {
     const timeAxis = prepareTimeAxis(timeVals, 6);
     expect(timeAxis.tickProps).toEqual({});
     expect(typeof timeAxis.interval).toBe("number");
+  });
+
+  it("hideCategoryTickLabels blanks the entity axis but keeps the full name in the tooltip", () => {
+    // Opt-in for the experiments / dataset-compare charts: long entity names are
+    // hidden from the axis and surfaced only on hover.
+    const runs = [
+      "demo-dataset-run-0-demo-english-transcription-dataset",
+      "demo-dataset-run-1-demo-english-transcription-dataset",
+    ];
+    const axis = prepareTimeAxis(runs, 6, { hideCategoryTickLabels: true });
+    expect(axis.mode).toBe("category");
+    // Every tick drawn (interval 0), but the label is blank…
+    expect(axis.interval).toBe(0);
+    expect(axis.formatTick(runs[0])).toBe("");
+    // …no angle needed, just a slim axis…
+    expect(axis.tickProps.angle).toBeUndefined();
+    expect(axis.tickProps.height).toBeGreaterThan(0);
+    // …and the full name is still available for the tooltip.
+    expect(axis.formatTooltip(runs[0])).toBe(runs[0]);
+  });
+
+  it("hideCategoryTickLabels leaves a temporal axis untouched (timestamp labels stay)", () => {
+    const start = Date.UTC(2026, 5, 28, 0);
+    const timeVals = Array.from({ length: 24 }, (_, h) =>
+      iso(start + h * HOUR),
+    );
+    const axis = prepareTimeAxis(timeVals, 6, { hideCategoryTickLabels: true });
+    expect(axis.mode).toBe("time");
+    // The flag only affects the categorical branch — time ticks still render.
+    expect(axis.formatTick(timeVals[0]).length).toBeGreaterThan(0);
   });
 
   it("does not coerce bare numeric strings into epoch dates", () => {

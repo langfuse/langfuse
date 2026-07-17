@@ -139,17 +139,19 @@ maybeEventsTable("FTS filter rewrites", () => {
   it.each(
     Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
       Array.from(FTS_TEXT_FIELDS).flatMap((field) =>
-        [
-          { operator: "=", value: "alpha" },
-          { operator: "=", value: "ALPHA" },
-          { operator: "=", value: "привет" },
-          { operator: "=", value: "東京" },
-          { operator: "=", value: "user@host.com" },
-          { operator: "=", value: "!!!" },
-          { operator: "contains", value: "alpha" },
-          { operator: "starts with", value: "alpha" },
-          { operator: "ends with", value: "alpha" },
-        ].map((testCase) => ({
+        (
+          [
+            { operator: "=", value: "alpha" },
+            { operator: "=", value: "ALPHA" },
+            { operator: "=", value: "привет" },
+            { operator: "=", value: "東京" },
+            { operator: "=", value: "user@host.com" },
+            { operator: "=", value: "!!!" },
+            { operator: "contains", value: "alpha" },
+            { operator: "starts with", value: "alpha" },
+            { operator: "ends with", value: "alpha" },
+          ] as const
+        ).map((testCase) => ({
           table,
           field,
           ...testCase,
@@ -184,13 +186,15 @@ maybeEventsTable("FTS filter rewrites", () => {
 
   it.each(
     Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
-      [
-        { operator: "=", value: "alpha" },
-        { operator: "contains", value: "alpha" },
-        { operator: "starts with", value: "alpha" },
-        { operator: "ends with", value: "alpha" },
-        { operator: "does not contain", value: "alpha" },
-      ].map((testCase) => ({
+      (
+        [
+          { operator: "=", value: "alpha" },
+          { operator: "contains", value: "alpha" },
+          { operator: "starts with", value: "alpha" },
+          { operator: "ends with", value: "alpha" },
+          { operator: "does not contain", value: "alpha" },
+        ] as const
+      ).map((testCase) => ({
         table,
         ...testCase,
       })),

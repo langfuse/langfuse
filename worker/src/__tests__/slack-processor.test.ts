@@ -452,6 +452,66 @@ describe("Slack Processor", () => {
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
 
+    it("project-notification Slack: records ERROR rows on failure but never disables the trigger", async () => {
+      mockSlackService.sendMessage.mockRejectedValue(
+        new Error("Slack API error"),
+      );
+
+      const buildInput = (): WebhookInput => {
+        const executionId = v4();
+        return {
+          projectId,
+          automationId,
+          executionId,
+          payload: {
+            id: executionId,
+            timestamp: new Date(),
+            type: "project-notification",
+            apiVersion: "v1",
+            event: {
+              eventType: "blob-export-failed",
+              severity: "ALERT",
+              projectId,
+              projectName: "Test Project",
+              resourceId: projectId,
+              resourceName: "test-bucket",
+              message: "Blob storage export failed.",
+            },
+          },
+        };
+      };
+
+      // Fail many times over — well past any historical threshold.
+      for (let i = 0; i < 8; i++) {
+        const input = buildInput();
+        await prisma.automationExecution.create({
+          data: {
+            id: input.executionId,
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: projectId,
+            input: {},
+          },
+        });
+        await executeWebhook(input, { skipValidation: true });
+
+        // Each failure is recorded as an ERROR row for visibility.
+        const execution = await prisma.automationExecution.findUnique({
+          where: { id: input.executionId },
+        });
+        expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      }
+
+      // Project-notification channels never auto-disable.
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.ACTIVE);
+    });
+
     it("monitor-alert with a JSON-round-tripped (string) timestamp builds the full message, not the fallback", async () => {
       // Reconfigure the action as a monitor-alert SLACK action.
       await prisma.action.update({

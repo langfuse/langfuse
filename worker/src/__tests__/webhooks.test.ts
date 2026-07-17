@@ -707,6 +707,127 @@ describe("Webhook Integration Tests", () => {
       expect(await redis!.get(failureKey)).toBeNull();
     });
 
+    it("delivers a project notification envelope verbatim and completes the execution row", async () => {
+      const event = {
+        eventType: "blob-export-failed" as const,
+        severity: "ALERT" as const,
+        projectId,
+        projectName: "Test Project",
+        resourceId: projectId,
+        resourceName: "test-export-bucket",
+        message: "Blob storage export failed.",
+        url: `https://cloud.langfuse.com/project/${projectId}/settings`,
+      };
+      const executionId = v4();
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date(),
+          type: "project-notification",
+          apiVersion: "v1",
+          event,
+        },
+      };
+
+      // dispatchProjectNotification creates a PENDING row per enqueued job.
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          automationId,
+          triggerId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: event.resourceId,
+          input: event,
+        },
+      });
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      const body = JSON.parse(requests[0].body);
+      expect(body.type).toBe("project-notification");
+      expect(body.apiVersion).toBe("v1");
+      expect(body.id).toBe(executionId);
+      expect(body.event).toEqual(event);
+      // like the prompt-version path, the execution row is resolved to COMPLETED
+      const execution = await prisma.automationExecution.findUnique({
+        where: { id: executionId },
+      });
+      expect(execution?.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("project-notification webhook: records ERROR rows on failure but never disables the trigger", async () => {
+      // Point the webhook action at the always-500 endpoint.
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) throw new Error("Action not found");
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+
+      // Fail more times than the (prompt/monitor) disable threshold of 5.
+      for (let i = 0; i < 6; i++) {
+        const executionId = v4();
+        await prisma.automationExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            automationId,
+            triggerId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: projectId,
+            input: {},
+          },
+        });
+        const webhookInput: WebhookInput = {
+          projectId,
+          automationId,
+          executionId,
+          payload: {
+            id: executionId,
+            timestamp: new Date(),
+            type: "project-notification",
+            apiVersion: "v1",
+            event: {
+              eventType: "blob-export-failed",
+              severity: "ALERT",
+              projectId,
+              projectName: "Test Project",
+              resourceId: projectId,
+              resourceName: "test-export-bucket",
+              message: "Blob storage export failed.",
+            },
+          },
+        };
+        await executeWebhook(webhookInput, { skipValidation: true });
+
+        const execution = await prisma.automationExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
+      }
+
+      // Project-notification channels never auto-disable.
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.ACTIVE);
+    });
+
     it("auto-disables despite a redis.del failure on the failure-side reset", async () => {
       const action = await prisma.action.findUnique({
         where: { id: actionId },

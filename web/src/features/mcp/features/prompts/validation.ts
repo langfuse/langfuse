@@ -13,6 +13,8 @@ import {
   PROMPT_LABEL_REGEX_ERROR,
   COMMIT_MESSAGE_MAX_LENGTH,
   LATEST_PROMPT_LABEL,
+  PRODUCTION_LABEL,
+  PromptLabelSchema,
 } from "@langfuse/shared";
 
 /**
@@ -68,6 +70,20 @@ export const ParamCommitMessage = z
   .max(COMMIT_MESSAGE_MAX_LENGTH)
   .optional()
   .describe("Optional commit message describing the changes");
+
+/**
+ * Labels allowed while creating a new prompt version.
+ */
+export const ParamCreatePromptLabels = z
+  .array(PromptLabelSchema)
+  .refine((labels) => !labels.includes(PRODUCTION_LABEL), {
+    message:
+      "The 'production' label cannot be assigned when creating prompts through MCP. Create the prompt first, then use updatePromptLabels only when the user explicitly requests promotion to production.",
+  })
+  .optional()
+  .describe(
+    "Optional labels to assign. The 'production' label cannot be assigned during creation and the 'latest' label is auto-managed.",
+  );
 
 /**
  * New labels array for updating prompt labels

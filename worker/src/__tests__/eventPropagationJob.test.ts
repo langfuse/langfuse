@@ -19,36 +19,21 @@ import {
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
 import { TableName } from "../services/ClickhouseWriter";
+import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
 
 let previousLastProcessedPartition: string | null = null;
 
-async function clickhouseTableExists(table: string): Promise<boolean> {
-  const rows = await queryClickhouse<{ count: number | string }>({
-    query: `
-      SELECT count() AS count
-      FROM system.tables
-      WHERE database = currentDatabase()
-        AND name = {table: String}
-    `,
-    params: { table },
-  });
-
-  return Number(rows[0]?.count ?? 0) > 0;
-}
-
 async function skipUnlessEventPropagationTablesExist(
   ctx: TestContext,
 ): Promise<void> {
-  const eventPropagationTablesExist =
-    (await clickhouseTableExists(TableName.ObservationsBatchStaging)) &&
-    (await clickhouseTableExists(TableName.EventsFull));
-
-  if (!eventPropagationTablesExist) {
-    ctx.skip("event propagation ClickHouse tables are not enabled");
-  }
+  await skipUnlessClickhouseTablesExist(
+    ctx,
+    [TableName.ObservationsBatchStaging, TableName.EventsFull],
+    "event propagation ClickHouse tables are not enabled",
+  );
 }
 
 function formatClickHouseDateTime(date: Date): string {

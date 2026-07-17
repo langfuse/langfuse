@@ -271,6 +271,11 @@ export interface StorageService {
   deleteFiles(paths: string[]): Promise<void>;
 }
 
+// Keys per S3 DeleteObjects request. The API hard limit is 1000; 900 leaves a
+// margin. Exported so callers that batch their own deletes can size a batch to
+// exactly one request instead of duplicating the number.
+export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
+
 export class StorageServiceFactory {
   /**
    * Get an instance of the StorageService
@@ -925,7 +930,7 @@ class S3StorageService implements StorageService {
   }
 
   async deleteFilesNonRetrying(paths: string[]): Promise<void> {
-    const chunkSize = 900;
+    const chunkSize = S3_DELETE_OBJECTS_CHUNK_SIZE;
     const chunks = [];
 
     for (let i = 0; i < paths.length; i += chunkSize) {
@@ -936,6 +941,11 @@ class S3StorageService implements StorageService {
       for (const chunk of chunks) {
         const command = new DeleteObjectsCommand({
           Bucket: this.bucketName,
+          // Unset keeps the SDK default (CRC32). Some S3-compatible stores
+          // reject CRC32 with 400 MissingContentMD5 and need "MD5", which the
+          // SDK sends as the legacy Content-MD5 header, e.g. MinIO before
+          // RELEASE.2025-02-03 (langfuse/langfuse-k8s#356).
+          ChecksumAlgorithm: env.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM,
           Delete: {
             Objects: chunk.map((path) => ({ Key: path })),
             Quiet: true,
