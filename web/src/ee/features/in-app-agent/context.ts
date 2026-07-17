@@ -31,6 +31,7 @@ export type InAppAgentScreenContextDescription =
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
 const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
 const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION = "quick_action_category";
+const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
@@ -249,6 +250,44 @@ export function getInAppAgentQuickActionTraceMetadata(
         quick_action_key: attribution.key,
         quick_action_category: attribution.category,
       }
+    : {};
+}
+
+export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
+  "chat",
+  "add-widget-modal",
+] as const;
+
+export type InAppAgentMessageEntryPoint =
+  (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
+
+export function createInAppAgentMessageEntryPointContext(
+  entryPoint: InAppAgentMessageEntryPoint,
+): InAppAgentContext {
+  return [
+    {
+      description: MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
+      value: entryPoint,
+    },
+  ];
+}
+
+// Telemetry only, like quick-action attribution: read for trace metadata but
+// never forwarded into the model-visible sanitized context.
+export function getInAppAgentMessageEntryPointTraceMetadata(
+  context: InAppAgentContext,
+): Record<string, string> {
+  const entryPoint = context
+    .find(
+      (item) => item.description === MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
+    )
+    ?.value.trim();
+
+  return entryPoint &&
+    (IN_APP_AGENT_MESSAGE_ENTRY_POINTS as readonly string[]).includes(
+      entryPoint,
+    )
+    ? { message_entry_point: entryPoint }
     : {};
 }
 
