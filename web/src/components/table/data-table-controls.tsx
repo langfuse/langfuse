@@ -116,11 +116,19 @@ export interface QueryFilter {
 interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
+  /**
+   * Given a filter column, the reason an active filter on it is NOT applied on
+   * the current surface (e.g. the chart view can't filter on it), or null. When
+   * it returns a reason, that active facet renders deactivated (dimmed + the
+   * reason on hover); Clearing still works. Undefined leaves every filter live.
+   */
+  deactivatedColumnReason?: (column: string) => string | null;
 }
 
 export function DataTableControls({
   queryFilter,
   filterWithAI,
+  deactivatedColumnReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen } = useDataTableControls();
@@ -257,6 +265,13 @@ export function DataTableControls({
             onValueChange={queryFilter.onExpandedChange}
           >
             {queryFilter.filters.map((filter) => {
+              // "Not applied on this surface" (e.g. the chart can't filter on
+              // this column). Only an ACTIVE filter deactivates — an empty facet
+              // stays usable. Overrides isDisabled/disabledReason below so the
+              // facet dims + explains on hover while Clear still works.
+              const deactivatedReason = filter.isActive
+                ? (deactivatedColumnReason?.(filter.column) ?? null)
+                : null;
               if (filter.type === "categorical") {
                 return (
                   <CategoricalFacet
@@ -281,8 +296,8 @@ export function DataTableControls({
                     textFilters={filter.textFilters}
                     onTextFilterAdd={filter.onTextFilterAdd}
                     onTextFilterRemove={filter.onTextFilterRemove}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -304,8 +319,8 @@ export function DataTableControls({
                     unit={filter.unit}
                     isActive={filter.isActive}
                     onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -324,8 +339,8 @@ export function DataTableControls({
                     onChange={filter.onChange}
                     isActive={filter.isActive}
                     onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -347,8 +362,8 @@ export function DataTableControls({
                     isActive={filter.isActive}
                     onReset={filter.onReset}
                     keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -369,8 +384,8 @@ export function DataTableControls({
                     isActive={filter.isActive}
                     onReset={filter.onReset}
                     keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -391,8 +406,8 @@ export function DataTableControls({
                     isActive={filter.isActive}
                     onReset={filter.onReset}
                     keyPlaceholder="Name"
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
@@ -412,8 +427,8 @@ export function DataTableControls({
                     onChange={filter.onChange}
                     isActive={filter.isActive}
                     onReset={filter.onReset}
-                    isDisabled={filter.isDisabled}
-                    disabledReason={filter.disabledReason}
+                    isDisabled={filter.isDisabled || deactivatedReason !== null}
+                    disabledReason={deactivatedReason ?? filter.disabledReason}
                   />
                 );
               }
