@@ -84,7 +84,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
       description: "Run structured error analysis on failed traces",
       icon: ScanSearch,
       prompt:
-        "Run a structured error analysis on failed or low-scoring traces in the current view (taking active filters into account): sample representative traces (as many as needed), open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
+        "Run a structured error analysis on failed traces in the current view (taking active filters into account): sample representative traces (as many as needed), open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.",
     },
     {
       id: "review-recent-activity",
@@ -107,7 +107,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "monitor-production-health",
       label: "Monitor production health",
-      description: "Track error rate, latency, and throughput",
+      description: "Widget for error rate, latency, throughput",
       icon: Activity,
       prompt:
         "Help me build widgets that keep an eye on production health — error rate, P95/P99 latency, throughput, and how different models or tools are performing. First ask whether to scope this to a specific use case, model, or trace name or keep it project-wide, and fit the widgets to whatever is already on my current dashboard.",
@@ -115,7 +115,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "track-cost-and-usage",
       label: "Track cost and usage",
-      description: "See spend by model, user, and feature",
+      description: "Widget for spend by model and feature",
       icon: Coins,
       prompt:
         "Help me build widgets to track token usage and cost — how spend is trending, which users drive it (if available), and how models compare. First check whether to focus on a particular model, feature, or user segment or look across the whole project, and fit them to whatever is already on my current dashboard.",
@@ -123,7 +123,7 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
     {
       id: "track-quality-and-feedback",
       label: "Track quality and feedback",
-      description: "Watch score trends and user feedback",
+      description: "Widget for score trends and feedback",
       icon: SquarePercent,
       prompt:
         "Help me build widgets to track quality — score trends over time, score distribution, and user feedback like thumbs up/down. First ask which score or use case matters most or whether I want an overall view, take my current dashboard into account, and call out any scores that are slipping.",

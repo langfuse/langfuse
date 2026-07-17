@@ -3,6 +3,7 @@
 **Source of truth:** [`quickActions.ts`](./quickActions.ts)
 
 Keep this file aligned with `quickActions.ts`. When you change a quick action's `id`, `label`, `description`, or `prompt` there, update the matching entry here in the same PR. Descriptions do not end with a period.
+This file is added as its easier to review the quick actions and prompts in markdown that it is in .ts
 
 ---
 
@@ -18,7 +19,7 @@ Shown in the quick-action picker based on the current project section (traces, d
 
 **Prompt:**
 
-> Run a structured error analysis on failed or low-scoring traces in the current view (taking active filters into account): sample representative traces (as many as needed), open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.
+> Run a structured error analysis on failed traces the current view (taking active filters into account): sample representative traces (as many as needed), open-code and cluster recurring failure modes into a taxonomy, recommend what to fix first, and offer to set up an annotation queue or evaluator to track the top failure modes.
 
 #### `review-recent-activity` — Review recent activity
 
@@ -36,11 +37,13 @@ Shown in the quick-action picker based on the current project section (traces, d
 
 > Review the current filtered view for unusual latency, cost, or quality patterns, explain likely causes, and suggest what to investigate next.
 
-### Dashboard
+### Dashboard widgets
+
+Each action adds a widget to the current dashboard (or creates one that fits what's already there).
 
 #### `monitor-production-health` — Monitor production health
 
-**Description:** Track error rate, latency, and throughput
+**Description:** Widget for error rate, latency, throughput
 
 **Prompt:**
 
@@ -48,7 +51,7 @@ Shown in the quick-action picker based on the current project section (traces, d
 
 #### `track-cost-and-usage` — Track cost and usage
 
-**Description:** See spend by model, user, and feature
+**Description:** Widget for spend by model and feature
 
 **Prompt:**
 
@@ -56,7 +59,7 @@ Shown in the quick-action picker based on the current project section (traces, d
 
 #### `track-quality-and-feedback` — Track quality and feedback
 
-**Description:** Watch score trends and user feedback
+**Description:** Widget for score trends and feedback
 
 **Prompt:**
 
