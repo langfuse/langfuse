@@ -65,8 +65,8 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
 };
 
 export type InAppAgentQuickActionAttribution = {
-  actionId: string;
-  context: InAppAgentQuickActionContext;
+  key: string;
+  category: InAppAgentQuickActionContext;
 };
 
 export type InAppAgentSubmitOptions = {

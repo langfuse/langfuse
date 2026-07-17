@@ -102,17 +102,18 @@ describe("InAppAgentWindow quick actions", () => {
         "Help me create a new prompt in Langfuse prompt management, including choosing between a text and chat prompt, defining its variables, and setting a label.",
         {
           quickAction: {
-            actionId: "create-prompt",
-            context: "prompts",
+            key: "create-prompt",
+            category: "prompts",
           },
         },
       );
     });
     expect(capture).toHaveBeenCalledWith("in_app_agent:quick_action_started", {
-      actionId: "create-prompt",
-      quickActionContext: "prompts",
+      quickActionKey: "create-prompt",
+      quickActionCategory: "prompts",
       position: 0,
     });
+    expect(capture).toHaveBeenCalledTimes(1);
   });
 
   it("shows focused actions on the initial tab and coarse actions elsewhere", () => {

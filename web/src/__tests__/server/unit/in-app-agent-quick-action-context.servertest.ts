@@ -7,18 +7,18 @@ describe("in-app agent quick-action attribution", () => {
   it("exposes trace metadata for well-formed attribution and keeps it out of the model-visible context", () => {
     const context = [
       {
-        description: "assistant_quick_action_id",
+        description: "quick_action_key",
         value: "analyze-failure-patterns",
       },
       {
-        description: "assistant_quick_action_context",
+        description: "quick_action_category",
         value: "observability",
       },
     ];
 
     expect(getInAppAgentQuickActionTraceMetadata(context)).toEqual({
-      assistant_quick_action_id: "analyze-failure-patterns",
-      assistant_quick_action_context: "observability",
+      quick_action_key: "analyze-failure-patterns",
+      quick_action_category: "observability",
     });
     expect(sanitizeInAppAgentContext(context, "project-1")).toEqual([]);
   });
@@ -30,13 +30,13 @@ describe("in-app agent quick-action attribution", () => {
       ["analyze-failure-patterns", "unknown-context"],
     ] as const;
 
-    for (const [actionId, quickActionContext] of invalidPairs) {
+    for (const [quickActionKey, quickActionCategory] of invalidPairs) {
       expect(
         getInAppAgentQuickActionTraceMetadata([
-          { description: "assistant_quick_action_id", value: actionId },
+          { description: "quick_action_key", value: quickActionKey },
           {
-            description: "assistant_quick_action_context",
-            value: quickActionContext,
+            description: "quick_action_category",
+            value: quickActionCategory,
           },
         ]),
       ).toEqual({});
@@ -45,7 +45,7 @@ describe("in-app agent quick-action attribution", () => {
     expect(
       getInAppAgentQuickActionTraceMetadata([
         {
-          description: "assistant_quick_action_id",
+          description: "quick_action_key",
           value: "analyze-failure-patterns",
         },
       ]),

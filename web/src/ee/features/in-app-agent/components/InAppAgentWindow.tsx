@@ -717,14 +717,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   isDisabled={isInputDisabled}
                   onSelectAction={(action, context, position) => {
                     capture("in_app_agent:quick_action_started", {
-                      actionId: action.id,
-                      quickActionContext: context,
+                      quickActionKey: action.id,
+                      quickActionCategory: context,
                       position,
                     });
                     submitInput(action.prompt, {
                       quickAction: {
-                        actionId: action.id,
-                        context,
+                        key: action.id,
+                        category: context,
                       },
                     });
                   }}
