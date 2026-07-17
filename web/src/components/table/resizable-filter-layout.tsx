@@ -9,7 +9,10 @@ import { useDataTableControls } from "./data-table-controls";
 // of hiding, the sidebar collapses to a thin rail carrying a re-open button
 // (rendered by DataTableControls). Dragging below the min snaps to the rail.
 const FILTER_PANEL_COLLAPSED_PX = 40;
-const FILTER_PANEL_MIN_PX = 200;
+// The floor is where the layout genuinely stops working (the three-way
+// operator tabs start clipping), not where it merely gets cozy — compact
+// headers ellipse/wrap fine well below the comfortable default.
+const FILTER_PANEL_MIN_PX = 160;
 // Comfortable default width. The panel API takes percentages, so this is
 // converted against the window width at mount — computing the percentage
 // ourselves keeps the default deterministic, unlike a px defaultSize, which
