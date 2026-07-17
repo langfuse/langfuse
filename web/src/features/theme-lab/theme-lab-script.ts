@@ -60,6 +60,8 @@ interface LadderRowEls {
 
 interface SurfaceRowEls extends LadderRowEls {
   swatch: Swatch;
+  label: HTMLSpanElement;
+  readout: HTMLSpanElement;
 }
 
 interface TypoRowEls extends LadderRowEls {
@@ -73,6 +75,7 @@ interface TextRowEls extends LadderRowEls {
   label: HTMLSpanElement;
   ratio: HTMLSpanElement;
   swatch: Swatch;
+  readout: HTMLSpanElement;
 }
 
 interface AccentTier {
@@ -96,6 +99,7 @@ interface AccentRowEls {
   label: HTMLSpanElement;
   ratio: HTMLSpanElement;
   swatch: Swatch;
+  readout: HTMLSpanElement;
 }
 
 interface PersistedTypo {
@@ -478,6 +482,18 @@ function makeSwatch(
   };
 }
 
+// Muted second-line readout showing the row's current raw triplet exactly
+// as Copy CSS would emit it (paste-ready for globals.css).
+function makeReadout(): HTMLSpanElement {
+  const r = document.createElement("span");
+  r.title = "current applied value (globals.css format)";
+  r.style.cssText =
+    "display:block;margin:-2px 0 2px;padding-left:26px;font-family:" +
+    MONO +
+    ";font-size:9px;line-height:1.2;color:rgb(125,125,133);";
+  return r;
+}
+
 /**
  * Mounts the Theme Lab panel. Idempotent: if the panel already exists, it is
  * re-shown and flashed instead of duplicated. Persisted overrides in
@@ -630,9 +646,12 @@ export function mountThemeLab(): void {
     return contrastRatio(fg, bg);
   }
 
-  function accentTripletStr(t: AccentTier): string {
-    const a = accentState[t.key];
+  function hslTripletStr(a: Hsl): string {
     return fmtNum(a.h) + " " + fmtNum(a.s) + "% " + fmtNum(a.l) + "%";
+  }
+
+  function accentTripletStr(t: AccentTier): string {
+    return hslTripletStr(accentState[t.key]);
   }
 
   function applyAccent(t: AccentTier): void {
@@ -1127,6 +1146,8 @@ export function mountThemeLab(): void {
       },
     );
 
+    const readout = makeReadout();
+
     function commit(v: number): void {
       if (!isFinite(v)) return;
       v = Math.min(30, Math.max(0, v));
@@ -1134,8 +1155,7 @@ export function mountThemeLab(): void {
       applyTier(t);
       save();
       updateGaps();
-      const b = baselineHsl(t.props[0]);
-      swatch.setFill(hslToHex(b.h, b.s, v));
+      refreshMeta(t);
     }
     slider.addEventListener("input", () => {
       const v = parseFloat(slider.value);
@@ -1157,8 +1177,26 @@ export function mountThemeLab(): void {
     row.appendChild(label);
     row.appendChild(slider);
     row.appendChild(num);
-    inputs[t.key] = { slider, num, swatch };
-    return row;
+    inputs[t.key] = { slider, num, swatch, label, readout };
+    const wrap = document.createElement("div");
+    wrap.appendChild(row);
+    wrap.appendChild(readout);
+    return wrap;
+  }
+
+  // Swatch fill, raw-triplet readout, and code-baseline tooltip for a ladder
+  // row; called from both commit (live) and refresh (preset/reset/load).
+  function refreshMeta(t: Tier): void {
+    const el = inputs[t.key];
+    if (!el) return;
+    const b = baselineHsl(t.props[0]);
+    el.swatch.setFill(hslToHex(b.h, b.s, state[t.key]));
+    el.readout.textContent = tripletFor(t.props[0], state[t.key]);
+    el.label.title =
+      t.props.join(", ") +
+      (isChanged(t)
+        ? "\ncode: " + tripletFor(t.props[0], baseline[t.props[0]].l)
+        : "");
   }
 
   function refresh(t: Tier): void {
@@ -1166,8 +1204,7 @@ export function mountThemeLab(): void {
     if (!el) return;
     el.slider.value = String(state[t.key]);
     el.num.value = fmtNum(state[t.key]);
-    const b = baselineHsl(t.props[0]);
-    el.swatch.setFill(hslToHex(b.h, b.s, state[t.key]));
+    refreshMeta(t);
   }
 
   // ---------- ladder section (expanded by default) ----------
@@ -1503,13 +1540,31 @@ export function mountThemeLab(): void {
     });
   }
 
+  function textTitle(t: TextTier): string {
+    return (
+      t.prop + " vs " + t.vs + ", sampled in " + MODE + " mode (" + MODE + ")"
+    );
+  }
+
+  function refreshTextMeta(t: TextTier): void {
+    const el = textInputs[t.key];
+    if (!el) return;
+    const b = baselineHsl(t.prop);
+    el.swatch.setFill(hslToHex(b.h, b.s, textState[t.key]));
+    el.readout.textContent = tripletFor(t.prop, textState[t.key]);
+    el.label.title =
+      textTitle(t) +
+      (isTextChanged(t)
+        ? "\ncode: " + tripletFor(t.prop, baseline[t.prop].l)
+        : "");
+  }
+
   function refreshText(t: TextTier): void {
     const el = textInputs[t.key];
     if (!el) return;
     el.slider.value = String(textState[t.key]);
     el.num.value = fmtNum(textState[t.key]);
-    const b = baselineHsl(t.prop);
-    el.swatch.setFill(hslToHex(b.h, b.s, textState[t.key]));
+    refreshTextMeta(t);
   }
 
   function makeTextRow(t: TextTier): HTMLDivElement {
@@ -1518,8 +1573,7 @@ export function mountThemeLab(): void {
 
     const label = document.createElement("span");
     label.textContent = t.label;
-    label.title =
-      t.prop + " vs " + t.vs + ", sampled in " + MODE + " mode (" + MODE + ")";
+    label.title = textTitle(t);
     label.style.cssText =
       "width:68px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;font-size:11px;";
@@ -1568,6 +1622,8 @@ export function mountThemeLab(): void {
       },
     );
 
+    const readout = makeReadout();
+
     function commit(v: number): void {
       if (!isFinite(v)) return;
       v = Math.min(100, Math.max(0, v));
@@ -1575,8 +1631,7 @@ export function mountThemeLab(): void {
       applyTextTier(t);
       save();
       updateTextContrast();
-      const b = baselineHsl(t.prop);
-      swatch.setFill(hslToHex(b.h, b.s, v));
+      refreshTextMeta(t);
     }
     slider.addEventListener("input", () => {
       const v = parseFloat(slider.value);
@@ -1599,8 +1654,11 @@ export function mountThemeLab(): void {
     row.appendChild(slider);
     row.appendChild(num);
     row.appendChild(ratio);
-    textInputs[t.key] = { slider, num, label, ratio, swatch };
-    return row;
+    textInputs[t.key] = { slider, num, label, ratio, swatch, readout };
+    const wrap = document.createElement("div");
+    wrap.appendChild(row);
+    wrap.appendChild(readout);
+    return wrap;
   }
 
   TEXT_TIERS.forEach((t) => {
@@ -1623,6 +1681,32 @@ export function mountThemeLab(): void {
     });
   }
 
+  function accentTitle(t: AccentTier): string {
+    return (
+      t.prop +
+      (t.vsProp ? " vs " + t.vsProp : " (fill)") +
+      ", sampled in " +
+      MODE +
+      " mode (" +
+      MODE +
+      ")"
+    );
+  }
+
+  function refreshAccentMeta(t: AccentTier): void {
+    const el = accentInputs[t.key];
+    if (!el) return;
+    const a = accentState[t.key];
+    el.slider.style.background = accentSliderBg(a);
+    el.swatch.setFill(hslToHex(a.h, a.s, a.l));
+    el.readout.textContent = hslTripletStr(a);
+    el.label.title =
+      accentTitle(t) +
+      (isAccentChanged(t)
+        ? "\ncode: " + hslTripletStr(baselineHsl(t.prop))
+        : "");
+  }
+
   function refreshAccent(t: AccentTier): void {
     const el = accentInputs[t.key];
     if (!el) return;
@@ -1631,8 +1715,7 @@ export function mountThemeLab(): void {
     el.s.value = fmtNum(a.s);
     el.l.value = fmtNum(a.l);
     el.slider.value = String(a.l);
-    el.slider.style.background = accentSliderBg(a);
-    el.swatch.setFill(hslToHex(a.h, a.s, a.l));
+    refreshAccentMeta(t);
   }
 
   function makeAccentRow(t: AccentTier): HTMLDivElement {
@@ -1641,14 +1724,7 @@ export function mountThemeLab(): void {
 
     const label = document.createElement("span");
     label.textContent = t.label;
-    label.title =
-      t.prop +
-      (t.vsProp ? " vs " + t.vsProp : " (fill)") +
-      ", sampled in " +
-      MODE +
-      " mode (" +
-      MODE +
-      ")";
+    label.title = accentTitle(t);
     label.style.cssText =
       "width:52px;flex:none;color:rgb(198,198,205);white-space:nowrap;" +
       "overflow:hidden;text-overflow:ellipsis;font-size:10px;";
@@ -1715,6 +1791,8 @@ export function mountThemeLab(): void {
       },
     );
 
+    const readout = makeReadout();
+
     function commitPart(
       part: "h" | "s" | "l",
       v: number,
@@ -1726,9 +1804,7 @@ export function mountThemeLab(): void {
       applyAccent(t);
       save();
       updateAccentContrast();
-      const a = accentState[t.key];
-      slider.style.background = accentSliderBg(a);
-      swatch.setFill(hslToHex(a.h, a.s, a.l));
+      refreshAccentMeta(t);
     }
     slider.addEventListener("input", () => {
       const v = parseFloat(slider.value);
@@ -1769,8 +1845,12 @@ export function mountThemeLab(): void {
       label,
       ratio,
       swatch,
+      readout,
     };
-    return row;
+    const wrap = document.createElement("div");
+    wrap.appendChild(row);
+    wrap.appendChild(readout);
+    return wrap;
   }
 
   ACCENT_TIERS.forEach((t) => {
@@ -1962,19 +2042,7 @@ export function mountThemeLab(): void {
       } else {
         textState[t.key] = baseline[t.prop].l;
       }
-      const el = textInputs[t.key];
-      if (el) {
-        el.label.title =
-          t.prop +
-          " vs " +
-          t.vs +
-          ", sampled in " +
-          MODE +
-          " mode (" +
-          MODE +
-          ")";
-      }
-      refreshText(t);
+      refreshText(t); // also refreshes title/readout via refreshTextMeta
     });
     ACCENT_TIERS.forEach((t) => {
       captureBaseline(t.prop);
@@ -1985,18 +2053,7 @@ export function mountThemeLab(): void {
       } else {
         accentState[t.key] = baselineHsl(t.prop);
       }
-      const el = accentInputs[t.key];
-      if (el) {
-        el.label.title =
-          t.prop +
-          (t.vsProp ? " vs " + t.vsProp : " (fill)") +
-          ", sampled in " +
-          MODE +
-          " mode (" +
-          MODE +
-          ")";
-      }
-      refreshAccent(t);
+      refreshAccent(t); // also refreshes title/readout via refreshAccentMeta
     });
     updateTextContrast();
     updateAccentContrast();
