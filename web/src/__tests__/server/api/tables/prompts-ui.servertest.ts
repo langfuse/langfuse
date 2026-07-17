@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getAggregatedScoresForPromptsFromEvents,
+  buildAggregatedScoresForPromptsFromEventsQuery,
   getObservationMetricsForPrompts,
   getObservationMetricsForPromptsFromEvents,
   getObservationsWithPromptName,
@@ -361,6 +362,53 @@ describe("UI Prompts Table", () => {
     ]);
   });
 
+  it("should aggregate only the latest event version for prompt metrics", async () => {
+    const projectId = v4();
+    const promptId = v4();
+    const traceId = v4();
+    const spanId = v4();
+    const startTime = Date.parse("2026-07-16T13:42:33.028Z") * 1000;
+    const event = createEvent({
+      project_id: projectId,
+      trace_id: traceId,
+      span_id: spanId,
+      type: "GENERATION",
+      prompt_id: promptId,
+      prompt_name: "folder/test-prompt",
+      prompt_version: 7,
+      start_time: startTime,
+      end_time: startTime + 1_000_000,
+      event_ts: startTime,
+      usage_details: { input: 100, output: 200, total: 300 },
+      cost_details: { input: 1, output: 2, total: 3 },
+    });
+
+    await createEventsCh([event]);
+    await createEventsCh([
+      {
+        ...event,
+        end_time: startTime + 4_000_000,
+        event_ts: startTime + 1_000_000,
+        usage_details: { input: 400, output: 500, total: 900 },
+        cost_details: { input: 4, output: 5, total: 9 },
+      },
+    ]);
+
+    const result = await getObservationMetricsForPromptsFromEvents(projectId, [
+      promptId,
+    ]);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        count: 1,
+        medianInputUsage: 400,
+        medianLatencyMs: 4000,
+        medianOutputUsage: 500,
+        medianTotalCost: 9,
+      }),
+    ]);
+  });
+
   it("should fetch prompt scores from events", async () => {
     const projectId = v4();
     const promptId = v4();
@@ -422,6 +470,19 @@ describe("UI Prompts Table", () => {
         value: 2,
       }),
     ]);
+  });
+
+  it("should prefilter scores by prompt event identifiers before joining", () => {
+    const { query } = buildAggregatedScoresForPromptsFromEventsQuery(
+      v4(),
+      [v4()],
+      "observation",
+    );
+
+    expect(query).toContain("INNER JOIN prompt_events");
+    expect(query).toContain(
+      "(s.trace_id, s.observation_id) IN (SELECT trace_id, span_id FROM prompt_events",
+    );
   });
 
   it("should filter prompt metrics by date range", async () => {
