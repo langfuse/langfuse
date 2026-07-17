@@ -938,11 +938,28 @@ export function useSidebarFilterState(
       capture("filters:cleared", {
         surface: "sidebar",
         tableName: config.tableName,
+        scope: "all",
         clearedCount,
         isV4: isV4Surface,
       });
     }
   };
+
+  // One facet's clear affordance (the header ✕ / reset paths). Metadata
+  // only: the column id and how many filter rows were removed.
+  const emitFacetCleared = useCallback(
+    (column: string, clearedCount: number) => {
+      capture("filters:cleared", {
+        surface: "sidebar",
+        tableName: config.tableName,
+        scope: "facet",
+        column,
+        clearedCount,
+        isV4: isV4Surface,
+      });
+    },
+    [capture, config.tableName, isV4Surface],
+  );
 
   const updateFilter: UpdateFilter = useCallback(
     (column, values, operator?: "any of" | "none of" | "all of") => {
@@ -1040,9 +1057,11 @@ export function useSidebarFilterState(
       // null clears the column — a reset, not an apply.
       if (value !== null) {
         emitFilterApplied("sidebar", column, next);
+      } else if (next.length < filterState.length) {
+        emitFacetCleared(column, filterState.length - next.length);
       }
     },
-    [filterState, setFilterState, emitFilterApplied],
+    [filterState, setFilterState, emitFilterApplied, emitFacetCleared],
   );
 
   const updateStringFilter = useCallback(
@@ -1052,9 +1071,11 @@ export function useSidebarFilterState(
       // Blank input clears the column — a reset, not an apply.
       if (value.trim() !== "") {
         emitFilterApplied("sidebar", column, next);
+      } else if (next.length < filterState.length) {
+        emitFacetCleared(column, filterState.length - next.length);
       }
     },
-    [filterState, setFilterState, emitFilterApplied],
+    [filterState, setFilterState, emitFilterApplied, emitFacetCleared],
   );
 
   // Text filter management for categorical filters
@@ -1079,11 +1100,18 @@ export function useSidebarFilterState(
       operator: "contains" | "does not contain",
       value: string,
     ) => {
-      setFilterState(
-        removeTextFilterEntry(filterState, column, operator, value),
-      );
+      const next = removeTextFilterEntry(filterState, column, operator, value);
+      setFilterState(next);
+      // Removing the LAST row on the column is a facet clear; removing one
+      // of several is an edit and stays silent.
+      if (
+        next.length < filterState.length &&
+        !next.some((f) => f.column === column)
+      ) {
+        emitFacetCleared(column, 1);
+      }
     },
-    [filterState, setFilterState],
+    [filterState, setFilterState, emitFacetCleared],
   );
 
   // Keyed facets (metadata, categorical/numeric/boolean/string scores) share
@@ -1104,9 +1132,13 @@ export function useSidebarFilterState(
 
   const resetKeyedFilter = useCallback(
     (column: string, kind: KeyedFilterKind) => {
-      setFilterState(removeColumnFiltersOfType(filterState, column, kind));
+      const next = removeColumnFiltersOfType(filterState, column, kind);
+      setFilterState(next);
+      if (next.length < filterState.length) {
+        emitFacetCleared(column, filterState.length - next.length);
+      }
     },
-    [filterState, setFilterState],
+    [filterState, setFilterState, emitFacetCleared],
   );
 
   const filters: UIFilter[] = useMemo((): UIFilter[] => {
@@ -1707,9 +1739,14 @@ export function useSidebarFilterState(
               updateFilterOnly(facet.column, value);
             }
           },
-          onReset: () =>
+          onReset: () => {
             // Reset both checkboxes AND text filters
-            setFilterState(clearCategoricalColumn(filterState, facet.column)),
+            const next = clearCategoricalColumn(filterState, facet.column);
+            setFilterState(next);
+            if (next.length < filterState.length) {
+              emitFacetCleared(facet.column, filterState.length - next.length);
+            }
+          },
           // The operator is exposed for every checkbox facet so the "none of"
           // display logic (pinning excluded rows) works on stringOptions too;
           // the SOME/ALL/NONE toggle itself is gated on onOperatorChange below.
@@ -1753,6 +1790,7 @@ export function useSidebarFilterState(
     removeTextFilter,
     updateKeyedFilter,
     resetKeyedFilter,
+    emitFacetCleared,
     expandedState,
     setFilterState,
     managedEnvironmentColumn,

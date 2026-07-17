@@ -25,21 +25,21 @@ export default function DocPopup({
   // never opens on touch by itself, and the old click-to-navigate behavior
   // is gone — docs open only via the explicit link inside the card.
   const [open, setOpen] = useState(false);
+  // Single open-change path: Radix only calls onOpenChange from its own
+  // hover/focus handling, so the click handler must route through here too
+  // or tap-opens (the only way in on touch) would never be captured.
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      capture("help_popup:opened", {
+        hfref: href,
+        description: description,
+      });
+    }
+  };
 
   return (
-    <HoverCard
-      openDelay={200}
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (nextOpen) {
-          capture("help_popup:opened", {
-            hfref: href,
-            description: description,
-          });
-        }
-      }}
-    >
+    <HoverCard openDelay={200} open={open} onOpenChange={handleOpenChange}>
       {/* The ⓘ itself never navigates; a click toggles the card (touch
           support) and must not bubble into whatever the icon sits on —
           e.g. a filter facet's accordion trigger. */}
@@ -49,7 +49,7 @@ export default function DocPopup({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            setOpen((current) => !current);
+            handleOpenChange(!open);
           }}
         >
           <Info className="h-3 w-3" />

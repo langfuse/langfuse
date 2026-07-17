@@ -288,10 +288,29 @@ export function DataTableControls({
     });
   };
 
+  // Sidebar open/collapse adoption — the headline question for the whole
+  // surface. `trigger` = which affordance; metadata only.
+  const emitSidebarToggled = (open: boolean, trigger: string) => {
+    capture("filters:sidebar_toggled", {
+      tableName,
+      open,
+      trigger,
+      isV4: queryFilter.isV4 ?? false,
+    });
+  };
+
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
       // Apply filters
       queryFilter.setFilterState(filters);
+      // The v3 wand previously emitted nothing at its only intent seam
+      // (metadata only: count of generated conditions, never their values).
+      capture("filters:ai_generate_applied", {
+        surface: "sidebar_wand",
+        tableName,
+        generatedCount: filters.length,
+        isV4: queryFilter.isV4 ?? false,
+      });
 
       // Extract unique column names from filters
       const columnsToExpand = [...new Set(filters.map((f) => f.column))];
@@ -306,7 +325,7 @@ export function DataTableControls({
       // Close popover
       setAiPopoverOpen(false);
     },
-    [queryFilter],
+    [queryFilter, capture, tableName],
   );
 
   const promotedFacetCount = displayedFilters.filter(isPromoted).length;
@@ -327,6 +346,7 @@ export function DataTableControls({
               ? filter.renderIcon?.(summaryValue)
               : undefined
           }
+          isV4={queryFilter.isV4 ?? false}
           expanded={filter.expanded}
           options={filter.options}
           counts={filter.counts}
@@ -503,7 +523,10 @@ export function DataTableControls({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                  setOpen(true);
+                  emitSidebarToggled(true, "rail");
+                }}
                 aria-label="Show filters"
                 className="h-6 w-6"
               >
@@ -521,7 +544,10 @@ export function DataTableControls({
                   people click to see them. */}
               <button
                 type="button"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                  setOpen(true);
+                  emitSidebarToggled(true, "rail_badge");
+                }}
                 aria-label={`Show ${activeFilterCount} active ${
                   activeFilterCount === 1 ? "filter" : "filters"
                 }`}
@@ -568,7 +594,10 @@ export function DataTableControls({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setOpen(false);
+                    emitSidebarToggled(false, "header");
+                  }}
                   aria-label="Hide filters"
                   className="-ml-1 h-6 w-6"
                 >
@@ -697,7 +726,10 @@ export function DataTableControls({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={() => setOpen(false)}
+                  onClick={() => {
+                    setOpen(false);
+                    emitSidebarToggled(false, "menu");
+                  }}
                   className="cursor-pointer"
                 >
                   Collapse sidebar
@@ -829,6 +861,8 @@ interface BaseFacetProps {
 interface CategoricalFacetProps extends BaseFacetProps {
   /** Color-coded icon of the single value the summary names (renderIcon). */
   summaryIcon?: React.ReactNode;
+  /** v3-vs-v4 analytics dimension of the surface (Rule 4). */
+  isV4?: boolean;
   options: string[];
   counts: Map<string, number>;
   displayByValue?: Map<string, string>;
@@ -971,7 +1005,7 @@ export function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
+          "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
           isActive && "text-foreground font-semibold",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
@@ -988,7 +1022,7 @@ export function FilterAccordionItem({
           {isDisabled && disabledReason ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
-                <span className="flex min-w-0 grow items-center gap-1">
+                <span className="flex min-w-0 items-center gap-1">
                   <span className="min-w-0 truncate" title={label}>
                     {label}
                   </span>
@@ -999,7 +1033,7 @@ export function FilterAccordionItem({
               </TooltipContent>
             </Tooltip>
           ) : help ? (
-            <div className="flex min-w-0 grow items-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 truncate" title={label}>
                 {label}
               </span>
@@ -1008,7 +1042,7 @@ export function FilterAccordionItem({
           ) : tooltip ? (
             // The tooltip triggers on the ⓘ icon only — hovering the label
             // itself must not pop explanatory text.
-            <span className="flex min-w-0 grow items-center gap-1">
+            <span className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 truncate" title={label}>
                 {label}
               </span>
@@ -1022,7 +1056,7 @@ export function FilterAccordionItem({
               </Tooltip>
             </span>
           ) : (
-            <span className="flex min-w-0 grow items-center gap-1">
+            <span className="flex min-w-0 items-center gap-1">
               <span className="min-w-0 truncate" title={label}>
                 {label}
               </span>
@@ -1034,7 +1068,10 @@ export function FilterAccordionItem({
             // trigger = the group/facet element).
             <span
               className={cn(
-                "max-w-full min-w-0 truncate text-[11px] leading-4",
+                // explicit h-4: the chip box must exactly equal the label line so the
+                // header height cannot jitter between open (chip hidden) and
+                // closed states.
+                "h-4 max-w-full min-w-0 truncate text-[11px] leading-4",
                 "group-data-[state=open]/facet:hidden",
                 // bg-background pops the chip out of the tinted header band
                 // in both themes. No border/vertical padding: the chip's box
@@ -1081,7 +1118,7 @@ export function FilterAccordionItem({
                 // on two-line headers it stays top-right. bg-accent matches
                 // the hovered header band (the button is only visible while
                 // the band shows its hover color).
-                className="bg-accent text-muted-foreground hover:text-foreground absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                className="bg-accent text-muted-foreground hover:text-foreground absolute top-0.5 right-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
                 aria-label={`Clear ${label} filter`}
               >
                 <IconX className="h-3 w-3" />
@@ -1114,6 +1151,7 @@ export function CategoricalFacet({
   help,
   summary,
   summaryIcon,
+  isV4,
   filterKey,
   expanded: _expanded,
   loading,
@@ -1134,6 +1172,8 @@ export function CategoricalFacet({
   onTextFilterAdd,
   onTextFilterRemove,
 }: CategoricalFacetProps) {
+  const capture = usePostHogClientCapture();
+  const { tableName } = useContext(ControlsContext) ?? {};
   // Which input mode the facet is in (checkbox select vs contains/does-not-
   // contain text). Seeded from the applied filters so a deep link carrying
   // text filters opens in text mode instead of hiding them behind the tab.
@@ -1157,8 +1197,18 @@ export function CategoricalFacet({
   // enforces select/text mutual exclusivity at apply time (updateFilter drops
   // the column's text filters, addTextFilter drops its checkbox filters).
   // Clearing on the tab click itself deleted a shared link's filters one
-  // exploratory click after opening it, with no undo.
-  const handleModeChange = setFilterMode;
+  // exploratory click after opening it, with no undo. Captured here at the
+  // user-intent seam (Tabs only fires on actual change); the render-time
+  // text-mode adoption above deliberately bypasses this and emits nothing.
+  const handleModeChange = (newMode: "select" | "text") => {
+    setFilterMode(newMode);
+    capture("filters:facet_mode_switched", {
+      tableName,
+      column: filterKey,
+      mode: newMode,
+      isV4: isV4 ?? false,
+    });
+  };
 
   return (
     <FilterAccordionItem

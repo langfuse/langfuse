@@ -11,6 +11,13 @@ import type {
   UIFilter,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 
+// Spy on the posthog client so capture calls (event name + payload) can be
+// asserted at the wrapper seam.
+const captureSpy = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureSpy }),
+}));
+
 // Radix ScrollArea (wrapping the facet list) needs ResizeObserver, which
 // jsdom does not implement.
 beforeAll(() => {
@@ -374,6 +381,9 @@ describe("DataTableControls facet ordering", () => {
     options: ["x", "y"],
     counts: new Map(),
     onChange: () => {},
+    // enables the Select/Text mode tabs in tests that need them
+    onTextFilterAdd: () => {},
+    onTextFilterRemove: () => {},
   });
 
   const queryFilter = (filters: UIFilter[]): QueryFilter => ({
@@ -448,6 +458,53 @@ describe("DataTableControls facet ordering", () => {
       </TooltipProvider>,
     );
     expect(labelOrder("Alpha", "Beta")).toBe(true);
+  });
+
+  it("captures sidebar_toggled and facet_mode_switched with their dimensions", () => {
+    captureSpy.mockClear();
+    render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={{
+            ...queryFilter([categoricalFilter("alpha", "Alpha", true)]),
+            // facet expanded so the Select/Text mode tabs render
+            expanded: ["alpha"],
+            isV4: true,
+          }}
+        />
+      </TooltipProvider>,
+    );
+
+    // Header hide button -> one sidebar_toggled with trigger + dimension.
+    fireEvent.click(screen.getByRole("button", { name: "Hide filters" }));
+    const toggled = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:sidebar_toggled",
+    );
+    expect(toggled).toHaveLength(1);
+    expect(toggled[0][1]).toMatchObject({
+      open: false,
+      trigger: "header",
+      isV4: true,
+    });
+
+    // Facet mode tab -> one facet_mode_switched carrying the column.
+    // (Radix Tabs activate on mousedown, not click.)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Text" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Text" }));
+    const switched = captureSpy.mock.calls.filter(
+      ([event]) => event === "filters:facet_mode_switched",
+    );
+    expect(switched).toHaveLength(1);
+    expect(switched[0][1]).toMatchObject({
+      column: "alpha",
+      mode: "text",
+      isV4: true,
+    });
+
+    // Privacy: no payload of any captured event carries a filter value.
+    for (const [, payload] of captureSpy.mock.calls) {
+      expect(JSON.stringify(payload ?? {})).not.toContain('"x"');
+    }
   });
 
   it("expands and collapses all facets from the header toggle", () => {
