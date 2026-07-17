@@ -499,6 +499,7 @@ export const PromptDetail = ({
                     promptName={prompt.name}
                     promptVersion={prompt.version}
                     omittedFilter={["promptName"]}
+                    isolateTableState
                   />
                 ) : (
                   <LegacyGenerations
