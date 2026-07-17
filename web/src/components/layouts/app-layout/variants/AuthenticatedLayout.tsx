@@ -24,6 +24,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { InAppAgentWindowHost } from "@/src/ee/features/in-app-agent/components/InAppAgentWindowHost";
 
 const CommandMenu = dynamic(
   () =>
@@ -190,6 +191,10 @@ export function AuthenticatedLayout({
                   <Toaster visibleToasts={1} />
                 </Layer>
                 <CommandMenu mainNavigation={navigation.navigation} />
+                {/* Assistant window host lives here (not in PageHeader with
+                    its launcher button) so the open window and its geometry
+                    survive route changes. */}
+                <InAppAgentWindowHost />
               </SidebarInset>
             </div>
             {hasFeaturePreviews ? (
