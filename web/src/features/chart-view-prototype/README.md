@@ -24,13 +24,11 @@ Run the stories: `pnpm --filter web run storybook` → **Charts / Chart View Pro
 | `types.ts`                          | The config spec (`ChartViewConfig`) + the mock event row (`PrototypeEvent`).                                                                                       |
 | `vocab.ts`                          | Metric / dimension / aggregation / chart-type vocabulary (a faithful subset of the real widget vocabulary), value extractors, and config coercion. Pure, no React. |
 | `lib/aggregate.ts`                  | **The data layer.** Pure `aggregateEvents(events, config) → DataPoint[]` — mirrors the shape the future v4 aggregate endpoint must return.                         |
-| `lib/parseAskAi.ts`                 | Pure NL → `ChartViewConfig` keyword matcher — the stand-in for phase 2's LLM completion.                                                                           |
 | `lib/fixtures.ts`                   | Deterministic (seeded) mock event generator + named scenarios.                                                                                                     |
 | `components/ChartViewPrototype.tsx` | Root: owns the `mode` + `config` state, renders one of the two takes. Everything below is view-only.                                                               |
 | `components/ChartCanvas.tsx`        | `React.memo` chart render boundary (derives data, renders `chart-library`).                                                                                        |
 | `components/ConfigControls.tsx`     | The shared, view-only pickers (metric/agg/breakdown/granularity/chart-type).                                                                                       |
 | `components/MockEventsTable.tsx`    | Representative "table" side of the toggle.                                                                                                                         |
-| `components/AskAiChartBar.tsx`      | Mocked Ask-AI input + suggestions.                                                                                                                                 |
 | `components/ViewModeToggle.tsx`     | The table↔chart toggle.                                                                                                                                            |
 | `ChartViewPrototype.stories.tsx`    | The stories (the actual deliverable).                                                                                                                              |
 
@@ -49,5 +47,3 @@ Run the stories: `pnpm --filter web run storybook` → **Charts / Chart View Pro
    call returning the same `DataPoint[]`; move `mode` + `config` into URL state
    (reversible toggle); mount inside `features/events/components/EventsTable.tsx`, gated
    to the v4 read path.
-2. **Phase 2:** replace `lib/parseAskAi.ts` with a `naturalLanguageFilters`-style chart
-   completion (cloud-only / `aiFeaturesEnabled`).

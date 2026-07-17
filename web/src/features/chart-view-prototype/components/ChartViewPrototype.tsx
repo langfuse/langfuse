@@ -32,7 +32,6 @@ import {
 } from "../types";
 import { aggregateEvents } from "../lib/aggregate";
 import { MockEventsTable } from "./MockEventsTable";
-import { AskAiChartBar } from "./AskAiChartBar";
 
 export type ChartViewAffordance = "inline" | "panel";
 
@@ -42,7 +41,6 @@ export interface ChartViewPrototypeProps {
   affordance?: ChartViewAffordance;
   initialMode?: ViewMode;
   initialConfig?: Partial<ChartViewConfig>;
-  showAskAi?: boolean;
 }
 
 /**
@@ -57,7 +55,6 @@ export function ChartViewPrototype({
   affordance = "inline",
   initialMode = "chart",
   initialConfig,
-  showAskAi = true,
 }: ChartViewPrototypeProps) {
   const [mode, setMode] = useState<ViewMode>(initialMode);
   const [config, setConfig] = useState<ChartViewConfig>(() =>
@@ -69,10 +66,6 @@ export function ChartViewPrototype({
       setConfig((prev) => coerceConfig({ ...prev, ...patch })),
     [],
   );
-  const applyAiConfig = useCallback((next: ChartViewConfig) => {
-    setConfig(coerceConfig(next));
-    setMode("chart");
-  }, []);
 
   const data = useMemo(() => aggregateEvents(events, config), [events, config]);
   const isTimeSeries = isTimeSeriesChartType(config.chartType);
@@ -97,20 +90,13 @@ export function ChartViewPrototype({
           data={data}
           config={config}
           isTimeSeries={isTimeSeries}
-          showAskAi={showAskAi}
           patchConfig={patchConfig}
-          applyAiConfig={applyAiConfig}
         />
       ) : (
         <ChartViewPanel
           config={config}
           onConfigChange={patchConfig}
           data={data}
-          aiSlot={
-            showAskAi ? (
-              <AskAiChartBar onApply={applyAiConfig} variant="panel" />
-            ) : undefined
-          }
           granularitySlot={
             <GranularitySelect
               value={config.timeGranularity}
@@ -144,16 +130,12 @@ function InlineTake({
   data,
   config,
   isTimeSeries,
-  showAskAi,
   patchConfig,
-  applyAiConfig,
 }: {
   data: ReturnType<typeof aggregateEvents>;
   config: ChartViewConfig;
   isTimeSeries: boolean;
-  showAskAi: boolean;
   patchConfig: (patch: Partial<ChartViewConfig>) => void;
-  applyAiConfig: (config: ChartViewConfig) => void;
 }) {
   const onMetric = useCallback(
     (metric: MetricKey) => patchConfig({ metric }),
@@ -178,11 +160,6 @@ function InlineTake({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {showAskAi ? (
-        <div className="border-b px-3 py-2">
-          <AskAiChartBar onApply={applyAiConfig} variant="bar" />
-        </div>
-      ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
         <ChartTypePicker value={config.chartType} onChange={onChartType} />
         <Separator orientation="vertical" className="h-5" />

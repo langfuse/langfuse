@@ -209,12 +209,3 @@ export const describeConfig = (config: ChartViewConfig): string => {
   const timePart = isTimeSeriesChartType(config.chartType) ? " over time" : "";
   return `${metricPart}${byPart}${timePart}`;
 };
-
-/** One-tap example prompts for the Ask-AI bar. */
-export const ASK_AI_SUGGESTIONS: string[] = [
-  "p95 latency by model over time",
-  "total cost by model",
-  "request volume over time",
-  "errors over time by level",
-  "tokens by environment",
-];

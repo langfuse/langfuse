@@ -1,14 +1,10 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ChartViewConfig } from "./types";
 import { buildChartQuery, rowsToDataPoints } from "./lib/buildChartQuery";
 import { toChartFilters } from "./lib/chartFilterCompatibility";
 import { ChartViewPanel } from "./components/ChartViewPanel";
-import { AskAiChartBar } from "./components/AskAiChartBar";
 import { AddToDashboardButton } from "./components/AddToDashboardButton";
 
 /**
@@ -66,21 +62,6 @@ export function EventsChartView({
         "Couldn't build a chart for the current view.")
       : null;
 
-  // Mirror the search-bar "Ask AI" gate (Cloud + org AI features) AND the
-  // server's RBAC scope (`prompts:CUD`), so a VIEWER who can't call the endpoint
-  // never sees a dead affordance. The server enforces all of this too.
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { organization } = useQueryProject();
-  const hasAiAccess = useHasProjectAccess({ projectId, scope: "prompts:CUD" });
-  const aiAvailable =
-    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled) && hasAiAccess;
-
-  // Ask-AI emits a full spec — apply it as a complete replacement (coerced).
-  const applyAiConfig = useCallback(
-    (next: ChartViewConfig) => onConfigChange(next),
-    [onConfigChange],
-  );
-
   return (
     <ChartViewPanel
       config={config}
@@ -94,11 +75,6 @@ export function EventsChartView({
           config={config}
           filters={filters}
         />
-      }
-      aiSlot={
-        aiAvailable ? (
-          <AskAiChartBar projectId={projectId} onApply={applyAiConfig} />
-        ) : undefined
       }
     />
   );

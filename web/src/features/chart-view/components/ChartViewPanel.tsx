@@ -23,8 +23,8 @@ import {
  * chart canvas with the visualization config docked in a collapsible right-hand
  * panel. View-only — `data` and the loading/error state are supplied by the
  * caller (the server query in production, the mock aggregator in Storybook).
- * Optional `aiSlot` / `granularitySlot` let each caller add the Ask-AI bar or a
- * granularity control without forking the layout.
+ * Optional `granularitySlot` lets a caller add a granularity control without
+ * forking the layout.
  */
 export const ChartViewPanel = React.memo(function ChartViewPanel({
   config,
@@ -33,7 +33,6 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   isLoading = false,
   error = null,
   emptyMessage,
-  aiSlot,
   granularitySlot,
   chartActions,
 }: {
@@ -43,7 +42,6 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
   isLoading?: boolean;
   error?: string | null;
   emptyMessage?: string;
-  aiSlot?: React.ReactNode;
   granularitySlot?: React.ReactNode;
   /** Right-aligned actions next to the chart subtitle (e.g. "Add to dashboard"). */
   chartActions?: React.ReactNode;
@@ -111,7 +109,6 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          {aiSlot}
           <PanelField label="Chart type">
             <ChartTypePicker
               value={config.chartType}

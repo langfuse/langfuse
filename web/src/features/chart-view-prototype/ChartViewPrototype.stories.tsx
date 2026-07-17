@@ -21,7 +21,6 @@ const meta = preview.meta({
     events: SCENARIOS.default,
     affordance: "inline",
     initialMode: "chart",
-    showAskAi: true,
   },
   argTypes: {
     affordance: {
@@ -32,7 +31,6 @@ const meta = preview.meta({
       control: "inline-radio",
       options: ["table", "chart"],
     },
-    showAskAi: { control: "boolean" },
   },
   decorators: [
     // A definite-height frame so the (h-full) prototype and its charts size
