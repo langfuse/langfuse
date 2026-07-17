@@ -18,7 +18,7 @@ type ControlledFeaturePreviewModalProps = {
 };
 
 const PREVIEW_LABEL: Record<PreviewFlag, string> = {
-  traceStation: "Compact Session View",
+  modernSession: "Compact Session View",
   searchBar: "Filter Search Bar",
 };
 
@@ -64,9 +64,9 @@ export function ControlledFeaturePreviewModal({
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    traceStation: {
+    modernSession: {
       enabled:
-        authSession.data?.user?.featureFlags.traceStation === true ||
+        authSession.data?.user?.featureFlags.modernSession === true ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       disabled:
         !isBetaEnabled ||
@@ -76,8 +76,8 @@ export function ControlledFeaturePreviewModal({
         : authSession.data?.environment.enableExperimentalFeatures === true
           ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
-      onToggle: onToggle("traceStation"),
-      isToggling: pendingFlags.has("traceStation"),
+      onToggle: onToggle("modernSession"),
+      isToggling: pendingFlags.has("modernSession"),
     },
     // The "Filter Search Bar" preview is retired — the bar is now generally
     // available on the v4 events tables for everyone (see useSearchBarEnabled),

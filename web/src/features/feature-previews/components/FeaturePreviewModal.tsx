@@ -15,15 +15,15 @@ import { cn } from "@/src/utils/tailwind";
 
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
-import traceStationDarkIllustration from "../assets/trace-station-dark.svg";
-import traceStationLightIllustration from "../assets/trace-station-light.svg";
+import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
+import modernSessionLightIllustration from "../assets/modern-session-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts.
  *  `searchBar` is retired and no longer renders a tile — see
  *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
  *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
-export type PreviewFlag = "traceStation" | "searchBar";
+export type PreviewFlag = "modernSession" | "searchBar";
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -55,7 +55,7 @@ export type PreviewState = {
 // preview ships separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
-    flag: "traceStation",
+    flag: "modernSession",
     title: "Compact Session View",
     sidebarLabel: "Compact Session View",
     description:
@@ -64,8 +64,8 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, expand tool data only when needed, or temporarily interleave tool calls with the conversation.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions",
     illustration: {
-      light: traceStationLightIllustration,
-      dark: traceStationDarkIllustration,
+      light: modernSessionLightIllustration,
+      dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
     },
   },

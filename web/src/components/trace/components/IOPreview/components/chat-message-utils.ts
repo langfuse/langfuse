@@ -71,12 +71,20 @@ export function shouldRenderMessage(message: ChatMlMessage): boolean {
 export function shouldRenderMessageForContentMode(
   message: ChatMlMessage,
   contentMode: IOPreviewContentMode,
+  showSystemPrompt?: boolean,
 ): boolean {
+  const shouldShowSystemPrompt =
+    showSystemPrompt ?? contentMode !== "conversation";
+
+  if (message.role === "system" && !shouldShowSystemPrompt) return false;
+
   if (contentMode === "all") return shouldRenderMessage(message);
 
   if (contentMode === "conversation") {
     return (
-      (message.role === "user" || message.role === "assistant") &&
+      (message.role === "user" ||
+        message.role === "assistant" ||
+        message.role === "system") &&
       (hasRenderableContent(message) ||
         hasThinkingContent(message) ||
         hasRedactedThinkingContent(message))

@@ -118,6 +118,7 @@ export const events = {
     "truncated_observation_open_trace_click",
     "truncated_observation_download_click",
     "inline_tools_toggled",
+    "system_prompt_toggled",
   ],
   eval_config: [
     "new_form_submit",

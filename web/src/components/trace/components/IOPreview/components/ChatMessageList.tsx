@@ -9,7 +9,6 @@ import { ChatMessage, type ViewMode } from "./ChatMessage";
 import { SectionMedia } from "./SectionMedia";
 import {
   type ChatMlMessage,
-  shouldRenderMessage,
   shouldRenderMessageForContentMode,
 } from "./chat-message-utils";
 import { type MediaReturnType } from "@/src/features/media/validation";
@@ -28,6 +27,7 @@ export interface ChatMessageListProps {
   collapseLongHistory?: boolean;
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
 }
 
 /**
@@ -49,6 +49,7 @@ export function ChatMessageList({
   collapseLongHistory = true,
   inputMessageCount,
   contentMode = "all",
+  showSystemPrompt,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -56,11 +57,13 @@ export function ChatMessageList({
       messages
         .map((message, originalIndex) => ({ message, originalIndex }))
         .filter(({ message }) =>
-          contentMode === "all"
-            ? shouldRenderMessage(message)
-            : shouldRenderMessageForContentMode(message, contentMode),
+          shouldRenderMessageForContentMode(
+            message,
+            contentMode,
+            showSystemPrompt,
+          ),
         ),
-    [contentMode, messages],
+    [contentMode, messages, showSystemPrompt],
   );
 
   // Initialize collapsed state based on message count

@@ -16,7 +16,7 @@ import { type IOPreviewContentMode } from "@/src/components/trace/components/IOP
 import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import { isOnlyJsonMessage } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
 
-export type TraceEventsSurface = "card" | "station" | "data";
+export type TraceEventsSurface = "card" | "modern" | "data";
 
 // Display copy for the per-card observation cap; the authoritative limit is
 // SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
@@ -35,7 +35,7 @@ const observationHasIO = (observation: {
 type SessionObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
 
-const TraceStationObservation = ({
+const ModernSessionObservation = ({
   observation,
   projectId,
   sessionId,
@@ -43,6 +43,7 @@ const TraceStationObservation = ({
   environment,
   showCorrections,
   contentMode,
+  showSystemPrompt,
   onOpenInTraceView,
 }: {
   observation: SessionObservation;
@@ -52,6 +53,7 @@ const TraceStationObservation = ({
   environment?: string;
   showCorrections: boolean;
   contentMode: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
 }) => {
   const parsed = React.useMemo(
@@ -102,6 +104,7 @@ const TraceStationObservation = ({
         showCorrections={showCorrections}
         onOpenInTraceView={onOpenInTraceView}
         contentMode={isConversation ? contentMode : "all"}
+        showSystemPrompt={showSystemPrompt}
         currentView={isConversation ? "pretty" : undefined}
         parsedInput={parsed.input}
         parsedOutput={parsed.output}
@@ -200,6 +203,7 @@ type LazyTraceEventsRowProps = {
   hideTracePanel?: boolean;
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
   isActive?: boolean;
 };
 
@@ -219,6 +223,7 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.hideTracePanel === next.hideTracePanel &&
   previous.surface === next.surface &&
   previous.contentMode === next.contentMode &&
+  previous.showSystemPrompt === next.showSystemPrompt &&
   previous.isActive === next.isActive;
 
 export const TraceEventsRow = React.memo(
@@ -234,6 +239,7 @@ export const TraceEventsRow = React.memo(
     hideTracePanel = false,
     surface = "card",
     contentMode = "all",
+    showSystemPrompt,
     isActive = false,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
@@ -247,6 +253,7 @@ export const TraceEventsRow = React.memo(
     hideTracePanel?: boolean;
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
+    showSystemPrompt?: boolean;
     isActive?: boolean;
   }) => {
     const observationsQuery =
@@ -368,13 +375,13 @@ export const TraceEventsRow = React.memo(
         className={
           surface === "card"
             ? "border-border shadow-none"
-            : surface === "station"
+            : surface === "modern"
               ? isActive
                 ? "bg-background border-l-primary border-l-2"
                 : "bg-background border-l-2 border-l-transparent"
               : "min-w-0"
         }
-        data-trace-station-active={surface === "station" && isActive}
+        data-modern-session-active={surface === "modern" && isActive}
       >
         <div
           className={
@@ -387,12 +394,12 @@ export const TraceEventsRow = React.memo(
             className={
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
-                : surface === "station"
+                : surface === "modern"
                   ? "min-w-0 px-6 pb-10"
                   : "min-w-0 overflow-hidden"
             }
           >
-            {surface === "station" ? (
+            {surface === "modern" ? (
               <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
                 <button
                   type="button"
@@ -428,9 +435,9 @@ export const TraceEventsRow = React.memo(
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {visibleObservations.map((observation) => {
-                  if (surface === "station") {
+                  if (surface === "modern") {
                     return (
-                      <TraceStationObservation
+                      <ModernSessionObservation
                         key={observation.id}
                         observation={observation}
                         projectId={projectId}
@@ -443,6 +450,7 @@ export const TraceEventsRow = React.memo(
                         }
                         showCorrections={showCorrections}
                         contentMode={contentMode}
+                        showSystemPrompt={showSystemPrompt}
                         onOpenInTraceView={openObservationInTraceView}
                       />
                     );
@@ -464,6 +472,7 @@ export const TraceEventsRow = React.memo(
                         showCorrections={showCorrections}
                         onOpenInTraceView={openObservationInTraceView}
                         contentMode={contentMode}
+                        showSystemPrompt={showSystemPrompt}
                       />
                     </div>
                   );

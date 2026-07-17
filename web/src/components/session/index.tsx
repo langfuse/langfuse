@@ -76,7 +76,7 @@ import { downloadSessionAsJson } from "@/src/components/session/actions/download
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
-import { TraceStation } from "@/src/components/session/TraceStation";
+import { ModernSession } from "@/src/components/session/ModernSession";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
@@ -645,7 +645,7 @@ const LoadedSessionEventsPage: React.FC<{
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
-  const isTraceStationEnabled = useIsFeatureEnabled("traceStation", {
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
   });
   const parentRef = useRef<HTMLDivElement>(null);
@@ -670,6 +670,10 @@ const LoadedSessionEventsPage: React.FC<{
     sessionDetailStore,
     (state) => state.showInlineToolCalls,
   );
+  const showSystemPrompt = useStore(
+    sessionDetailStore,
+    (state) => state.showSystemPrompt,
+  );
 
   useEffect(() => {
     sessionDetailStore.getState().actions.resetForSession(sessionId);
@@ -692,6 +696,14 @@ const LoadedSessionEventsPage: React.FC<{
   const setInlineToolCallsForSession = (isEnabled: boolean) => {
     capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
     sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
+
+  const setShowSystemPromptForSession = (isEnabled: boolean) => {
+    capture("session_detail:system_prompt_toggled", {
+      isEnabled,
+      isV4: true,
+    });
+    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
   };
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
@@ -1204,7 +1216,7 @@ const LoadedSessionEventsPage: React.FC<{
       >
         <div
           className={
-            isTraceStationEnabled
+            isModernSessionEnabled
               ? "flex h-full min-h-0 flex-col overflow-hidden"
               : "flex h-full flex-col overflow-auto"
           }
@@ -1260,20 +1272,33 @@ const LoadedSessionEventsPage: React.FC<{
             {/* Scores */}
             <SessionScores scores={session.scores} />
 
-            {isTraceStationEnabled ? (
-              <label className="ml-auto flex items-center gap-2 pl-2">
-                <Switch
-                  checked={showInlineToolCalls}
-                  onCheckedChange={setInlineToolCallsForSession}
-                  size="sm"
-                />
-                <span className="text-muted-foreground text-xs">
-                  Show inline tool calls
-                </span>
-              </label>
+            {isModernSessionEnabled ? (
+              <div className="ml-auto flex items-center gap-3 pl-2">
+                <span className="text-muted-foreground text-xs">Show:</span>
+                <label className="flex items-center gap-1.5">
+                  <Switch
+                    checked={showInlineToolCalls}
+                    onCheckedChange={setInlineToolCallsForSession}
+                    size="sm"
+                  />
+                  <span className="text-muted-foreground text-xs">
+                    inline tool calls
+                  </span>
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <Switch
+                    checked={showSystemPrompt}
+                    onCheckedChange={setShowSystemPromptForSession}
+                    size="sm"
+                  />
+                  <span className="text-muted-foreground text-xs">
+                    system prompt
+                  </span>
+                </label>
+              </div>
             ) : null}
           </div>
-          {!isTraceStationEnabled ? (
+          {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
               <div
                 style={{
@@ -1313,7 +1338,7 @@ const LoadedSessionEventsPage: React.FC<{
               </div>
             </div>
           ) : (
-            <TraceStation
+            <ModernSession
               traces={traces ?? []}
               projectId={projectId}
               sessionId={sessionId}
@@ -1323,6 +1348,7 @@ const LoadedSessionEventsPage: React.FC<{
               filterMeasurementKey={visibleFilterMeasurementKey}
               viewLabel={viewLabel}
               showInlineToolCalls={showInlineToolCalls}
+              showSystemPrompt={showSystemPrompt}
             />
           )}
         </div>

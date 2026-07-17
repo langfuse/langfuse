@@ -80,6 +80,7 @@ export const SessionObservationIO = ({
   showCorrections,
   onOpenInTraceView,
   contentMode = "all",
+  showSystemPrompt,
   currentView,
   parsedInput,
   parsedOutput,
@@ -94,6 +95,7 @@ export const SessionObservationIO = ({
   showCorrections: boolean;
   onOpenInTraceView: (observationId: string) => void;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
   currentView?: ViewMode;
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -164,6 +166,7 @@ export const SessionObservationIO = ({
           environment={environment}
           showCorrections={showCorrections}
           contentMode={contentMode}
+          showSystemPrompt={showSystemPrompt}
           currentView={currentView}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}

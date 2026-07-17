@@ -108,6 +108,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   environment?: string;
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
 }
 
 /**
@@ -151,6 +152,7 @@ export function IOPreviewPretty({
   environment = "default",
   showCorrections = true,
   contentMode = "all",
+  showSystemPrompt,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -289,6 +291,7 @@ export function IOPreviewPretty({
             messageToToolCallNumbers={messageToToolCallNumbers}
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
+            showSystemPrompt={showSystemPrompt}
           />
           {showConversation && showCorrections && (
             <CorrectedOutputField

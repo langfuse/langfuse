@@ -21,6 +21,7 @@ type LazySessionTraceEventsRowProps = {
   hideTracePanel?: boolean;
   surface?: TraceEventsSurface;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
   isActive?: boolean;
 };
 
@@ -48,17 +49,17 @@ const LazySessionTraceEventsRowInner = (
     internalRef.current = node;
   }, []);
 
-  const isStation = props.surface === "station";
+  const isModern = props.surface === "modern";
 
   return (
     <div
       ref={setRowRef}
-      className={isStation ? undefined : "pb-3"}
+      className={isModern ? undefined : "pb-3"}
       data-session-row-index={index}
     >
       {shouldLoad ? (
         <TraceEventsRow {...rowProps} showCorrections={showCorrections} />
-      ) : isStation ? (
+      ) : isModern ? (
         <div className="flex h-80 items-center justify-center px-6 py-8">
           <TraceEventsSkeleton />
         </div>

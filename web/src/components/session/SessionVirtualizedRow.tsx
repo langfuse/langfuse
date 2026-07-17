@@ -13,7 +13,7 @@ export function SessionVirtualizedRow({
   children: ReactNode;
   itemKey: string | number;
   measurementKey?: string | number;
-  source: "legacy" | "events" | "station";
+  source: "legacy" | "events" | "modern";
   virtualItem: VirtualItem;
   virtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {
@@ -32,11 +32,11 @@ export function SessionVirtualizedRow({
       style={{
         position: "absolute",
         // Transforms offset sticky descendants from their actual row position.
-        top: source === "station" ? virtualItem.start : 0,
+        top: source === "modern" ? virtualItem.start : 0,
         left: 0,
         width: "100%",
         transform:
-          source === "station"
+          source === "modern"
             ? undefined
             : `translateY(${virtualItem.start}px)`,
       }}

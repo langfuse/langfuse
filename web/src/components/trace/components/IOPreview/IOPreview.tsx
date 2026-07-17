@@ -69,6 +69,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideInput?: boolean;
   currentView?: ViewMode;
   contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
   setIsPrettyViewAvailable?: (value: boolean) => void;
   // Inline comment props (JSON Beta view only)
   enableInlineComments?: boolean;
@@ -118,6 +119,7 @@ export function IOPreview({
   media,
   currentView,
   contentMode = "all",
+  showSystemPrompt,
   inputExpansionState,
   outputExpansionState,
   metadataExpansionState,
@@ -291,6 +293,7 @@ export function IOPreview({
           observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}
+          showSystemPrompt={showSystemPrompt}
         />
       )}
 

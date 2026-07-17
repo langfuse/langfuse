@@ -56,7 +56,7 @@ const meta = preview.meta({
     open: true,
     onOpenChange: fn(),
     state: {
-      traceStation: { enabled: false, onToggle: fn(), isToggling: false },
+      modernSession: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -67,7 +67,7 @@ export const Default = meta.story({});
 export const Warning = meta.story({
   args: {
     state: {
-      traceStation: {
+      modernSession: {
         enabled: false,
         warningReason:
           "This preview is enabled globally, so a per-user opt-out does not disable it.",
@@ -80,7 +80,7 @@ export const Warning = meta.story({
 export const Loading = meta.story({
   args: {
     state: {
-      traceStation: { enabled: false, onToggle: fn(), isToggling: true },
+      modernSession: { enabled: false, onToggle: fn(), isToggling: true },
     },
   },
 });
