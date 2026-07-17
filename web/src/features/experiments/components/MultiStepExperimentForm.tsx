@@ -28,6 +28,7 @@ import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvalua
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
+import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -49,7 +50,11 @@ import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
 // Import step prop types
-import { PromptType } from "@langfuse/shared";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  PromptType,
+} from "@langfuse/shared";
 
 export const MultiStepExperimentForm = ({
   projectId,
@@ -148,7 +153,7 @@ export const MultiStepExperimentForm = ({
     },
   );
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
     {
       enabled: hasEvalReadAccess,
@@ -158,9 +163,6 @@ export const MultiStepExperimentForm = ({
   const { createDefaultEvaluator } = useEvaluatorDefaults();
 
   const {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     selectedEvaluatorData,
     showEvaluatorForm,
     handleConfigureEvaluator,
@@ -180,6 +182,7 @@ export const MultiStepExperimentForm = ({
     promptsByName,
     expectedColumns,
     selectedPromptModelConfig,
+    selectedPromptToolConfig,
   } = useExperimentPromptData({
     projectId,
     form,
@@ -271,6 +274,19 @@ export const MultiStepExperimentForm = ({
   };
 
   const onSubmit = async (data: CreateExperiment) => {
+    if (
+      hasPromptToolStructuredOutputConflict(
+        selectedPromptToolConfig,
+        Boolean(data.structuredOutputSchema),
+      )
+    ) {
+      showErrorToast(
+        PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+        "Disable structured output or choose a prompt without tools.",
+      );
+      return;
+    }
+
     capture("dataset_run:new_form_submit");
     const experiment = {
       ...data,
@@ -323,13 +339,18 @@ export const MultiStepExperimentForm = ({
   }, [experimentName, form]);
 
   // Get evaluator names for review step
-  const activeEvaluatorNames =
-    evalTemplates.data?.templates
-      .filter((t) => activeEvaluators.includes(t.id))
-      .map((t) => t.name) ?? [];
+  const activeEvaluatorNames = Object.values(
+    getExistingEvaluators(evaluators.data, datasetId),
+  )
+    .filter((evaluator) => evaluator.isActive)
+    .map((evaluator) => evaluator.templateName);
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
 
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
@@ -339,6 +360,7 @@ export const MultiStepExperimentForm = ({
           form.getValues("promptId") &&
           modelParams.provider.value &&
           modelParams.model.value &&
+          !hasToolStructuredOutputConflict &&
           !form.formState.errors.promptId &&
           !form.formState.errors.modelConfig
         );
@@ -380,6 +402,7 @@ export const MultiStepExperimentForm = ({
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
+    selectedPromptToolConfig,
   };
   const modelState = {
     modelParams,
@@ -408,9 +431,6 @@ export const MultiStepExperimentForm = ({
     },
   };
   const evaluatorState = {
-    activeEvaluators,
-    pausedEvaluators,
-    evaluatorTargetObjects,
     evalTemplates: evalTemplates.data?.templates ?? [],
     activeEvaluatorNames,
     selectedEvaluatorData,
@@ -419,7 +439,6 @@ export const MultiStepExperimentForm = ({
     handleCloseEvaluatorForm,
     handleEvaluatorSuccess,
     handleSelectEvaluator,
-    handleEvaluatorToggled: () => evaluators.refetch(),
     preprocessFormValues,
   };
   const permissions = { hasEvalReadAccess, hasEvalWriteAccess };
@@ -571,6 +590,7 @@ export const MultiStepExperimentForm = ({
                     disabled={
                       (Boolean(promptIdFromHook && datasetId) &&
                         !validationResult.data?.isValid) ||
+                      hasToolStructuredOutputConflict ||
                       !!form.formState.errors.name
                     }
                     loading={form.formState.isSubmitting}

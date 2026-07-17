@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import * as z from "zod";
-import { v4 as uuidv4 } from "uuid";
+import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Control, useForm, useWatch } from "react-hook-form";
 import {
@@ -158,9 +158,7 @@ export const NewDatasetItemForm = (props: {
   const getDatasetItemId = useCallback((datasetId: string) => {
     const existing = itemIdByDataset.current.get(datasetId);
     if (existing) return existing;
-    // uuid's v4() falls back to crypto.getRandomValues, so it works on
-    // non-secure (HTTP) origins where crypto.randomUUID is unavailable.
-    const id = uuidv4();
+    const id = safeRandomUUID();
     itemIdByDataset.current.set(datasetId, id);
     return id;
   }, []);
@@ -328,10 +326,12 @@ export const NewDatasetItemForm = (props: {
           return;
         }
 
+        // The user already sees the validation errors via setFormError above;
+        // a bare console.error(object) would only add an opaque, non-actionable
+        // Sentry capture (captureConsoleIntegration), so we omit it here.
         setFormError(
           `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
         );
-        console.error(result.validationErrors);
       })
       .catch((error) => {
         console.error(error);

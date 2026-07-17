@@ -82,6 +82,10 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
+    // The local-only dangerous-docker sandbox provider depends on dockerode,
+    // which pulls ssh2 assets that Turbopack cannot place into ESM chunks.
+    // Keep it external to the server bundle and load it only at runtime.
+    "dockerode",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
@@ -268,11 +272,6 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Automatically annotate React components to show their full name in breadcrumbs and session replay
-  reactComponentAnnotation: {
-    enabled: true,
-  },
-
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
   // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
@@ -284,14 +283,23 @@ const sentryConfig = withSentryConfig(nextConfig, {
     disable: true,
   },
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
-
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
   // See the following for more information:
   // https://docs.sentry.io/product/crons/
   // https://vercel.com/docs/cron-jobs
   automaticVercelMonitors: false,
-});
+
+  webpack: {
+    // Automatically annotate React components to show their full name in breadcrumbs and session replay.
+    reactComponentAnnotation: {
+      enabled: true,
+    },
+
+    // Automatically tree-shake Sentry logger statements to reduce bundle size.
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+  });
 
 export default sentryConfig;

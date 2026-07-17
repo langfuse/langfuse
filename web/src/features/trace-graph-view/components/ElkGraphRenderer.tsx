@@ -17,7 +17,11 @@ import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
-import { computeGraphLayout, type GraphLayout } from "../layout/elkLayout";
+import {
+  computeGraphLayout,
+  type GraphLayout,
+  type GraphLayoutDirection,
+} from "../layout/elkLayout";
 import { GraphNode } from "./GraphNode";
 
 type ElkGraphRendererProps = {
@@ -32,6 +36,14 @@ type ElkGraphRendererProps = {
    * (resting state stays fully visible — no dimming).
    */
   activeNodeNames?: ReadonlySet<string> | null;
+  /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
+  layoutDirection?: GraphLayoutDirection;
+  /**
+   * Recovery action for the "too large to lay out" notice: switch to the
+   * budget-exempt expanded view, which can render the same trace. Omitted when
+   * no view switch is available (or the view is already expanded).
+   */
+  onShowExpanded?: (() => void) | null;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -43,9 +55,6 @@ const MAX_FIT_SCALE = 1.2;
 const ZOOM_STEP = 1.4;
 // Below this scale labels are unreadable noise — show only node shape + icon.
 const LABEL_HIDE_SCALE = 0.5;
-// One consistent scale to reveal a selection from a zoomed-out overview, so
-// navigating between nodes pans rather than re-zooms (no "zoom jumping").
-const SELECTION_REVEAL_SCALE = 0.9;
 const CLICK_MOVE_THRESHOLD = 4; // px; beyond this a pointerup is a drag, not a click
 
 function toPath(points: { x: number; y: number }[]): string {
@@ -81,6 +90,8 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   nodeToObservationsMap = {},
   currentObservationIndices = {},
   activeNodeNames = null,
+  layoutDirection = "DOWN",
+  onShowExpanded = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -92,14 +103,15 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     null,
     undefined
   > | null>(null);
-  // Once the user pans/zooms, stop auto-fitting on resize.
-  const userControlledRef = useRef(false);
-  // The node id (or null for an empty click) of the last in-canvas selection, so
-  // the focus effect re-frames only for selections from the tree/timeline.
-  const lastCanvasClickRef = useRef<string | null | undefined>(undefined);
-  // The selection last reflected by the focus effect, so a resize (which also
-  // re-fires that effect) doesn't re-frame a still-selected node.
-  const prevSelectedRef = useRef<string | null>(null);
+  // THE deterministic viewport model: the rendered transform is always
+  //   overrideRef.current ?? fit(layout, size)
+  // The user's last explicit viewport (drag/wheel/pinch/toolbar zoom) is the
+  // ONLY real state; everything else derives. No override → the fit re-applies
+  // on every layout/size change (peek panels settling, divider drags, window
+  // resizes can never leave a stale frame). Selection does NOT move the
+  // viewport — it's a ring/glow, and under fit the node is always visible.
+  // Fit button and a graph change clear the override.
+  const overrideRef = useRef<Transform | null>(null);
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
   const [layout, setLayout] = useState<GraphLayout | null>(null);
@@ -143,12 +155,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
-    userControlledRef.current = false;
-    // Also clear cross-graph view state so a graph change re-focuses the
-    // selected node on the new instance and drops stale hover highlighting.
-    prevSelectedRef.current = null;
+    // A new graph gets a fresh fit; stale hover highlighting drops too.
+    overrideRef.current = null;
     setHoveredId(null);
-    computeGraphLayout(graph, nodeToObservationsMap)
+    computeGraphLayout(graph, nodeToObservationsMap, layoutDirection)
       .then((result) => {
         if (!cancelled) setLayout(result);
       })
@@ -160,7 +170,7 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [graph, nodeToObservationsMap, layoutAttempt]);
+  }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
 
   // Track container size.
   useEffect(() => {
@@ -183,8 +193,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const zoomBehavior = createZoom<HTMLDivElement, unknown>()
       .scaleExtent([SCALE_MIN, SCALE_MAX])
       .on("zoom", (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
-        if (event.sourceEvent) userControlledRef.current = true;
         const { x, y, k } = event.transform;
+        // sourceEvent is set only for real gestures (drag/wheel/pinch) — they
+        // become the override; programmatic fits keep deriving.
+        if (event.sourceEvent) overrideRef.current = { x, y, k };
         transformRef.current = { x, y, k };
         const world = worldRef.current;
         if (world) {
@@ -258,59 +270,19 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     };
   }, [layout, size]);
 
-  // Auto-fit on layout/size until the user takes control.
+  // THE framing effect — the whole model. The viewport derives from data:
+  // no override → fit(layout, size), re-applied on every layout/size change
+  // (deterministic; a peek panel settling late or a divider drag can never
+  // strand a stale frame). With an override (user gesture) the view is the
+  // user's — untouched until Fit or a graph change clears it.
   useEffect(() => {
-    if (userControlledRef.current) return;
+    if (overrideRef.current) return;
     const fit = computeFit();
     if (fit) applyTransform(fit);
   }, [computeFit, applyTransform]);
 
-  // Reflect external selection (tree/timeline): bring the node into view at the
-  // current zoom (or one reveal scale when zoomed out). In-canvas clicks don't
-  // move the view; selecting the root/empty returns to the full-graph overview.
-  useEffect(() => {
-    const cameFromClick = lastCanvasClickRef.current === selectedNodeName;
-    lastCanvasClickRef.current = undefined;
-    // Only react to an actual selection change. This effect also depends on
-    // `size`/`computeFit`, so without this guard a resize / panel-drag would
-    // re-frame (and yank) a still-selected node.
-    if (prevSelectedRef.current === selectedNodeName) return;
-    // Wait for layout/size before acting — and don't mark the selection as
-    // reflected yet, so we retry once they're ready (e.g. a deep link with a
-    // preselected observation that arrives before the graph lays out).
-    if (!layout || size.width === 0) return;
-    prevSelectedRef.current = selectedNodeName;
-    // In-canvas clicks already selected the node; don't move the view.
-    if (cameFromClick) return;
-
-    if (!selectedNodeName) {
-      userControlledRef.current = false;
-      const fit = computeFit();
-      if (fit) applyTransform(fit);
-      return;
-    }
-
-    const node = layout.nodes.find((n) => n.id === selectedNodeName);
-    if (!node) return;
-    userControlledRef.current = true;
-    // Read d3-zoom's synchronously-updated scale (set by applyTransform before
-    // React re-renders), not a state mirror that's stale in the same commit.
-    const current = containerRef.current
-      ? zoomTransform(containerRef.current).k
-      : 1;
-    const k = current >= LABEL_HIDE_SCALE ? current : SELECTION_REVEAL_SCALE;
-    const cx = node.x + node.width / 2;
-    const cy = node.y + node.height / 2;
-    applyTransform({
-      k,
-      x: size.width / 2 - cx * k,
-      y: size.height / 2 - cy * k,
-    });
-  }, [selectedNodeName, layout, size, computeFit, applyTransform]);
-
   const handleSelect = useCallback(
     (id: string) => {
-      lastCanvasClickRef.current = id;
       onCanvasNodeNameChange?.(id);
     },
     [onCanvasNodeNameChange],
@@ -326,7 +298,6 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     ) {
       return;
     }
-    lastCanvasClickRef.current = null;
     onCanvasNodeNameChange?.(null);
   };
 
@@ -334,12 +305,17 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     const selection = selectionRef.current;
     const zoomBehavior = zoomRef.current;
     if (!selection || !zoomBehavior) return;
-    userControlledRef.current = true;
     zoomBehavior.scaleBy(selection, factor);
+    // Toolbar zoom is a user decision — it becomes the override (scaleBy goes
+    // through d3 without a sourceEvent, so record it explicitly).
+    if (containerRef.current) {
+      const { x, y, k } = zoomTransform(containerRef.current);
+      overrideRef.current = { x, y, k };
+    }
   };
 
   const handleFit = () => {
-    userControlledRef.current = false;
+    overrideRef.current = null;
     const fit = computeFit();
     if (fit) applyTransform(fit);
   };
@@ -383,8 +359,39 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </Button>
         </div>
       )}
+      {layout?.tooLarge && (
+        // Budget exceeded: ELK was skipped rather than freeze the tab. No retry
+        // — it would just wedge again. Point the user at the tree/timeline.
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>
+            This graph is too large to lay out
+            {layout.nodeCount != null && layout.edgeCount != null
+              ? ` (${layout.nodeCount.toLocaleString()} nodes, ${layout.edgeCount.toLocaleString()} connections)`
+              : ""}
+            .
+          </span>
+          <span>
+            Try the{" "}
+            {onShowExpanded ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // don't treat as a canvas deselect
+                  onShowExpanded();
+                }}
+                className="text-primary underline underline-offset-2 hover:opacity-80"
+              >
+                expanded graph
+              </button>
+            ) : (
+              "expanded graph"
+            )}
+            , tree, or timeline view to explore this trace.
+          </span>
+        </div>
+      )}
 
-      {layout && (
+      {layout && !layout.tooLarge && (
         <div
           ref={worldRef}
           className="absolute top-0 left-0 origin-top-left"

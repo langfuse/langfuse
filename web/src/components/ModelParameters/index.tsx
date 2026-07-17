@@ -302,6 +302,11 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           {customHeader ? customHeader : <p className="font-semibold">Model</p>}
           {SettingsButton}
         </div>
+      ) : customHeader ? (
+        <div className="mb-2 flex items-center justify-between">
+          {customHeader}
+          {SettingsButton}
+        </div>
       ) : (
         <div className="mb-2 flex justify-end">{SettingsButton}</div>
       )}
@@ -578,7 +583,7 @@ const ProviderOptionsInput = ({
         <div className="flex flex-row space-x-3">
           {setModelParamEnabled ? (
             <Switch
-              title={`Control sending the additional options parameter`}
+              title="Control sending the additional options parameter"
               disabled={formDisabled}
               checked={enabled}
               onCheckedChange={(checked) => {

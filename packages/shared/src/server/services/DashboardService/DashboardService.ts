@@ -1,4 +1,4 @@
-import { prisma } from "../../../db";
+import { prisma, Prisma } from "../../../db";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -26,17 +26,27 @@ export class DashboardService {
     limit?: number;
     page?: number;
     orderBy?: OrderByState;
+    /** Include Langfuse-managed dashboards (projectId null). Defaults to true. */
+    includeLangfuseOwned?: boolean;
   }): Promise<DashboardListResponse> {
-    const { projectId, limit, page, orderBy } = props;
+    const {
+      projectId,
+      limit,
+      page,
+      orderBy,
+      includeLangfuseOwned = true,
+    } = props;
 
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
 
+    const where = includeLangfuseOwned
+      ? { OR: [{ projectId }, { projectId: null }] }
+      : { projectId };
+
     const [dashboards, totalCount] = await Promise.all([
       prisma.dashboard.findMany({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
         orderBy: orderBy
           ? [{ [orderBy.column]: orderBy.order.toLowerCase() }]
           : [{ updatedAt: "desc" }],
@@ -44,9 +54,7 @@ export class DashboardService {
         take,
       }),
       prisma.dashboard.count({
-        where: {
-          OR: [{ projectId }, { projectId: null }],
-        },
+        where,
       }),
     ]);
 
@@ -74,6 +82,7 @@ export class DashboardService {
     initialDefinition: z.infer<typeof DashboardDefinitionSchema> = {
       widgets: [],
     },
+    filters?: z.infer<typeof singleFilter>[],
   ): Promise<DashboardDomain> {
     const newDashboard = await prisma.dashboard.create({
       data: {
@@ -83,6 +92,7 @@ export class DashboardService {
         createdBy: userId,
         updatedBy: userId,
         definition: initialDefinition,
+        ...(filters !== undefined && { filters }),
       },
     });
 
@@ -109,15 +119,9 @@ export class DashboardService {
       data: {
         updatedBy: userId,
         definition: {
-          widgets: definition.widgets.map((widget) => ({
-            type: "widget",
-            id: widget.id,
-            widgetId: widget.widgetId,
-            x: widget.x,
-            y: widget.y,
-            x_size: widget.x_size,
-            y_size: widget.y_size,
-          })),
+          // Already sanitized: the input is parsed against
+          // DashboardDefinitionSchema, which strips unknown keys.
+          widgets: definition.widgets,
         },
       },
     });
@@ -213,12 +217,26 @@ export class DashboardService {
     dashboardId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.dashboard.delete({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-    });
+    try {
+      await prisma.dashboard.delete({
+        where: {
+          id: dashboardId,
+          projectId,
+        },
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the dashboard exists in another project.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**

@@ -55,7 +55,10 @@ export default function Events() {
       {showOnboarding ? (
         <TracesOnboarding projectId={projectId} />
       ) : (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          showControlsInPageHeader
+        />
       )}
     </Page>
   );

@@ -25,6 +25,8 @@ import type {
   ParseRequest,
   ParseResponse,
 } from "@/src/workers/json-parser.worker";
+import { cheapHash } from "@/src/hooks/parsedIoCacheKey";
+import { reportParserWorkerError } from "@/src/hooks/parserWorkerError";
 
 type ObservationWithStringifiedIO = ObservationReturnTypeWithMetadata & {
   input: string | null;
@@ -85,8 +87,8 @@ function getOrCreateWorker(): Worker | null {
         }
       };
 
-      workerInstance.onerror = (error) => {
-        console.error("[useParsedObservation] Worker error:", error);
+      workerInstance.onerror = (event) => {
+        reportParserWorkerError("useParsedObservation", event);
       };
     } catch (error) {
       console.error("[useParsedObservation] Failed to create worker:", error);
@@ -225,6 +227,7 @@ export function useParsedObservation({
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
+      traceId,
       observations: [{ id: observationId, traceId }],
       minStartTime: startTime ?? new Date(0),
       maxStartTime: startTime ?? new Date(),
@@ -271,15 +274,33 @@ export function useParsedObservation({
     ? eventsQuery.isLoading
     : observationQuery.isLoading;
 
+  // Per-field cache signatures: content-sensitive but never a whole-payload
+  // stringify. Memoized on the raw reference (react-query structural sharing
+  // keeps it referentially stable between renders), so each O(n) hash runs
+  // only when that field actually changes — the exact moment a re-parse is
+  // wanted — instead of the multi-MB re-serialization the old raw-value key
+  // forced on every render.
+  const inputSig = useMemo(
+    () => cheapHash(mergedObservation?.input),
+    [mergedObservation?.input],
+  );
+  const outputSig = useMemo(
+    () => cheapHash(mergedObservation?.output),
+    [mergedObservation?.output],
+  );
+  const metadataSig = useMemo(
+    () => cheapHash(mergedObservation?.metadata),
+    [mergedObservation?.metadata],
+  );
+
   // Step 2: Parse the data in Web Worker (React Query caches THIS too!)
   const parseQuery = useQuery({
     queryKey: [
       "parsed-observation",
       observationId,
-      // Include data hash to detect changes
-      mergedObservation?.input,
-      mergedObservation?.output,
-      mergedObservation?.metadata,
+      inputSig,
+      outputSig,
+      metadataSig,
     ],
     queryFn: async () => {
       if (!mergedObservation) {

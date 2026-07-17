@@ -5,6 +5,7 @@ import {
   createDatasetItemFilterState,
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getDatasetItems,
   getEventsGroupedByExperimentDatasetId,
   getExperimentsCountFromEvents,
@@ -47,6 +48,10 @@ import {
   timeFilter,
   AGGREGATABLE_SCORE_TYPES,
   filterAndValidateDbScoreList,
+  hasPromptToolStructuredOutputConflict,
+  InvalidRequestError,
+  parsePromptToolConfig,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
@@ -229,6 +234,19 @@ export const experimentsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "promptExperiments:CUD",
       });
+
+      if (input.structuredOutputSchema) {
+        const prompt = await ctx.prisma.prompt.findUnique({
+          where: { id: input.promptId, projectId: input.projectId },
+          select: { config: true },
+        });
+        const toolConfig = parsePromptToolConfig(prompt?.config);
+        if (hasPromptToolStructuredOutputConflict(toolConfig, true)) {
+          throw new InvalidRequestError(
+            PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+          );
+        }
+      }
 
       if (!redis) {
         throw new UnauthorizedError("Experiment creation failed");
@@ -455,21 +473,29 @@ export const experimentsRouter = createTRPCRouter({
             }))
           : [];
 
-      const [numericScoreNames, categoricalScoreNames, experimentDatasetIds] =
-        await Promise.all([
-          getNumericScoresGroupedByName(
-            input.projectId,
-            traceTimestampFilters ?? [],
-          ),
-          getCategoricalScoresGroupedByName(
-            input.projectId,
-            traceTimestampFilters ?? [],
-          ),
-          getEventsGroupedByExperimentDatasetId(
-            input.projectId,
-            input.startTimeFilter ?? [],
-          ),
-        ]);
+      const [
+        numericScoreNames,
+        categoricalScoreNames,
+        booleanScoreNames,
+        experimentDatasetIds,
+      ] = await Promise.all([
+        getNumericScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getCategoricalScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getBooleanScoresGroupedByName(
+          input.projectId,
+          traceTimestampFilters ?? [],
+        ),
+        getEventsGroupedByExperimentDatasetId(
+          input.projectId,
+          input.startTimeFilter ?? [],
+        ),
+      ]);
 
       const experimentDatasetIdSet = new Set<string>();
       for (const { experimentDatasetId } of experimentDatasetIds) {
@@ -481,14 +507,17 @@ export const experimentsRouter = createTRPCRouter({
       // Return score options for both observation-level and trace-level filters
       // The same score names are available at both levels
       const numericScoreOptions = numericScoreNames.map((score) => score.name);
+      const booleanScoreOptions = booleanScoreNames.map((score) => score.name);
 
       return {
         // Observation-level score options (eos.*)
         obs_scores_avg: numericScoreOptions,
         obs_score_categories: categoricalScoreNames,
+        obs_score_booleans: booleanScoreOptions,
         // Trace-level score options (ets.*)
         trace_scores_avg: numericScoreOptions,
         trace_score_categories: categoricalScoreNames,
+        trace_score_booleans: booleanScoreOptions,
         experimentDatasetIds: Array.from(experimentDatasetIdSet),
       };
     }),

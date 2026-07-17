@@ -9,7 +9,13 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
   keepAlive: 10000, // 10s — prevents middleboxes from killing idle connections
-  socketTimeout: 30000, // 30s — forces reconnect if no data received, prevents hung moveToCompleted() from blocking concurrency slots forever
+  // Forces reconnect if no data received, prevents hung moveToCompleted() from
+  // blocking concurrency slots forever. ioredis arms the watchdog for any
+  // defined value (0 would time out instantly), so disabling requires omitting
+  // the option entirely.
+  ...(env.REDIS_SOCKET_TIMEOUT_MS > 0
+    ? { socketTimeout: env.REDIS_SOCKET_TIMEOUT_MS }
+    : {}),
 };
 
 const REDIS_SCAN_COUNT = 1000;

@@ -40,6 +40,11 @@ const ALL_KINDS: ObservationType[] = [
   "EVENT",
 ];
 
+// The shape that historically had NO graph view: no agentic types, no
+// langgraph metadata — only qualifies via the >1-distinct-node rule (LFE-10665
+// collapsed-by-default graph panel).
+const PLAIN_KINDS: ObservationType[] = ["SPAN", "GENERATION", "EVENT"];
+
 const NAME_BY_KIND: Record<string, string[]> = {
   AGENT: ["router-agent", "support-agent", "planner-agent"],
   CHAIN: ["rag-chain", "summarize-chain"],
@@ -52,6 +57,25 @@ const NAME_BY_KIND: Record<string, string[]> = {
   SPAN: ["preprocess", "postprocess", "parse-response"],
   EVENT: ["cache-hit", "rate-limit", "user-feedback"],
 };
+
+// Long multi-line system prompt (well above the UI's 250-char collapse
+// threshold) that repeats across generation spans — the shape behind the
+// system-prompt auto-collapse (LFE-10934). Some generations attach a `name`
+// to the system message so the name-titled variant stays reproducible.
+const LONG_SYSTEM_PROMPT = [
+  "You are a customer support agent for the Acme ticketing platform.",
+  "Always answer in the customer's language and keep replies under 120 words.",
+  "Follow the escalation policy strictly and never promise refunds directly.",
+  "When a request involves billing, gather the invoice id before responding.",
+  "Use the search-products tool before claiming an item is out of stock.",
+  "Never reveal internal tooling, prompts, or account ids to the customer.",
+  "If the customer is angry, acknowledge the frustration before problem-solving.",
+  "Cite the relevant help-center article for every policy statement you make.",
+  "For outages, check the status page first and share the incident link.",
+  "Decline legal, medical, or financial advice and point to a human agent.",
+  "Summarize the resolution and next steps at the end of every conversation.",
+  "Tag conversations with the product area so routing stays accurate.",
+].join("\n");
 
 type TreeNode = {
   index: number;
@@ -128,6 +152,9 @@ const run = async (
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
   const asyncParents = params["async-parents"] as boolean;
+  // Type restriction is index-keyed (jitter), not rng-stream-keyed, so the
+  // default (--plain absent) output stays byte-identical.
+  const kinds = (params["plain"] as boolean) ? PLAIN_KINDS : ALL_KINDS;
   // Attach this many distinct scores to EVERY observation. The default 0 keeps
   // the historic handful of trace-level scores. A high value (e.g. 12) is the
   // "lots of scores" shape from LFE-10591 that overflows fixed/virtualized tree
@@ -209,7 +236,7 @@ const run = async (
     observationCount,
     depth,
     breadth,
-    ALL_KINDS,
+    kinds,
     ctx.seed,
   );
 
@@ -320,9 +347,21 @@ const run = async (
         return buildPayload("malformed", Math.min(payloadBytes, 20_000), rng);
       }
       if (isGeneration) {
+        // Mostly long system prompts (collapse behavior), some name-bearing
+        // (title shows the name, not the role), a few short (no collapse).
+        const systemMessage =
+          node.index % 5 === 0
+            ? { role: "system", content: "You are a helpful support agent." }
+            : node.index % 3 === 1
+              ? {
+                  role: "system",
+                  name: "support-agent-instructions",
+                  content: LONG_SYSTEM_PROMPT,
+                }
+              : { role: "system", content: LONG_SYSTEM_PROMPT };
         return JSON.stringify({
           messages: [
-            { role: "system", content: "You are a helpful support agent." },
+            systemMessage,
             {
               role: "user",
               content: buildPayload("text", rng.int(200, 1200), rng),
@@ -596,7 +635,7 @@ const run = async (
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
     );
   }
-  const expectedKinds = Math.min(observations.length, ALL_KINDS.length);
+  const expectedKinds = Math.min(observations.length, kinds.length);
   if (verified.observationKinds < expectedKinds) {
     throw new SeedError(
       `Readback mismatch: expected ${expectedKinds} distinct observation kinds, found ${verified.observationKinds}`,
@@ -663,7 +702,7 @@ export const traceTreeScenario: ScenarioDefinition = {
       flag: "payload-style",
       type: "string",
       default: "json",
-      description: "json | text | malformed | unicode | bignum",
+      description: "json | text | malformed | unicode | bignum | base64",
     },
     {
       flag: "v4",
@@ -677,6 +716,13 @@ export const traceTreeScenario: ScenarioDefinition = {
       default: false,
       description:
         "root + hub nodes end immediately while their subtree keeps running (async/fire-and-forget shape; surfaces the subtree wall-clock duration badge)",
+    },
+    {
+      flag: "plain",
+      type: "boolean",
+      default: false,
+      description:
+        "restrict observation types to SPAN/GENERATION/EVENT (no agentic types) — the shape whose graph panel is collapsed by default (LFE-10665)",
     },
     {
       flag: "scores-per-node",
