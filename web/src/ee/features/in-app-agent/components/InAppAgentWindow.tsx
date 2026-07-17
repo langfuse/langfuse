@@ -117,14 +117,14 @@ function InAppAgentQuickActionPicker({
       >
         <TabsList
           aria-label="Quick action category"
-          className="grid h-auto w-full grid-cols-4 rounded-none border-b bg-transparent p-0"
+          className="flex h-auto w-full rounded-none border-b bg-transparent p-0"
         >
           {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
             <TabsTrigger
               key={context}
               value={context}
               disabled={isDisabled}
-              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>
