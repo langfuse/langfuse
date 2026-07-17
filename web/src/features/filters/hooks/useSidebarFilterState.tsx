@@ -215,10 +215,6 @@ export interface CategoricalUIFilter extends BaseUIFilter {
     operator: "contains" | "does not contain",
     value: string,
   ) => void;
-  // True if any text filters are active for this column
-  hasTextFilters?: boolean;
-  // True if any checkboxes are selected (excluding "all selected" state)
-  hasCheckboxSelections?: boolean;
 }
 
 export interface NumericUIFilter extends BaseUIFilter {
@@ -911,7 +907,7 @@ export function useSidebarFilterState(
       const colFilters = next.filter((f) => f.column === column);
       if (colFilters.length === 0) return;
       const identity = (f: FilterState[number]): string =>
-        `${"key" in f ? f.key : ""} ${f.operator} ${JSON.stringify(
+        `${"key" in f ? f.key : ""}\u0000${f.operator}\u0000${JSON.stringify(
           "value" in f ? f.value : null,
         )}`;
       const prevIdentities = new Set(
@@ -1738,9 +1734,6 @@ export function useSidebarFilterState(
             !isArrayOptions && !textFilterDisabled
               ? (op, val) => removeTextFilter(facet.column, op, val)
               : undefined,
-          hasTextFilters:
-            !isArrayOptions && !textFilterDisabled ? hasTextFilters : undefined,
-          hasCheckboxSelections,
         };
       })
       .filter((f): f is UIFilter => f !== null);

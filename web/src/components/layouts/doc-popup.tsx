@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   HoverCard,
   HoverCardContent,
@@ -20,12 +21,18 @@ export default function DocPopup({
   className,
 }: DocPopupProps) {
   const capture = usePostHogClientCapture();
+  // Controlled so a CLICK/TAP on the icon also opens the card: HoverCard
+  // never opens on touch by itself, and the old click-to-navigate behavior
+  // is gone — docs open only via the explicit link inside the card.
+  const [open, setOpen] = useState(false);
 
   return (
     <HoverCard
       openDelay={200}
-      onOpenChange={(open) => {
-        if (open) {
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
           capture("help_popup:opened", {
             hfref: href,
             description: description,
@@ -33,11 +40,18 @@ export default function DocPopup({
         }
       }}
     >
-      {/* The ⓘ itself never navigates — docs open only via the explicit
-          link inside the card, so a stray click on the icon can't yank the
-          user into a new tab. */}
+      {/* The ⓘ itself never navigates; a click toggles the card (touch
+          support) and must not bubble into whatever the icon sits on —
+          e.g. a filter facet's accordion trigger. */}
       <HoverCardTrigger className="mx-1 cursor-help" asChild>
-        <div className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0">
+        <div
+          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((current) => !current);
+          }}
+        >
           <Info className="h-3 w-3" />
         </div>
       </HoverCardTrigger>

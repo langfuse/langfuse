@@ -628,7 +628,11 @@ export function DataTableControls({
               </Tooltip>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  disabled={!queryFilter.isFiltered}
+                  // Enabled also when only value-less added facets exist —
+                  // Clear all is the affordance that demotes them.
+                  disabled={
+                    !queryFilter.isFiltered && revealedColumns.length === 0
+                  }
                   onClick={() => {
                     // Explicit adds are part of "everything" too: without
                     // this, a value-less added facet stays pinned after
@@ -786,7 +790,6 @@ interface BaseFacetProps {
   /** One-line "what is selected?" header summary; see getFacetSummary. */
   summary?: string | null;
   filterKey: string;
-  filterKeyShort?: string | null;
   expanded?: boolean;
   loading?: boolean;
   isActive?: boolean;
@@ -911,7 +914,6 @@ interface FilterAccordionItemProps {
   /** Color-coded icon of the single value the summary names. */
   summaryIcon?: React.ReactNode;
   filterKey: string;
-  filterKeyShort?: string | null;
   children: React.ReactNode;
   isActive?: boolean;
   isDisabled?: boolean;
@@ -926,7 +928,6 @@ export function FilterAccordionItem({
   summary,
   summaryIcon,
   filterKey,
-  filterKeyShort,
   children,
   isActive,
   isDisabled,
@@ -963,11 +964,6 @@ export function FilterAccordionItem({
                   <span className="min-w-0 truncate" title={label}>
                     {label}
                   </span>
-                  {filterKeyShort && (
-                    <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                      {filterKeyShort}
-                    </code>
-                  )}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-80 text-xs">
@@ -980,11 +976,6 @@ export function FilterAccordionItem({
                 {label}
               </span>
               <DocPopup description={help.description} href={help.href} />
-              {filterKeyShort && (
-                <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                  {filterKeyShort}
-                </code>
-              )}
             </div>
           ) : tooltip ? (
             // The tooltip triggers on the ⓘ icon only — hovering the label
@@ -1001,22 +992,12 @@ export function FilterAccordionItem({
                   {tooltip}
                 </TooltipContent>
               </Tooltip>
-              {filterKeyShort && (
-                <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                  {filterKeyShort}
-                </code>
-              )}
             </span>
           ) : (
             <span className="flex min-w-0 grow items-center gap-1">
               <span className="min-w-0 truncate" title={label}>
                 {label}
               </span>
-              {filterKeyShort && (
-                <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                  {filterKeyShort}
-                </code>
-              )}
             </span>
           )}
           {summary && (
@@ -1024,9 +1005,11 @@ export function FilterAccordionItem({
               className={cn(
                 "max-w-full min-w-0 truncate text-[11px] leading-4",
                 // bg-background pops the chip out of the tinted header band
-                // in both themes (the band is bg-muted over background).
+                // in both themes. No border/vertical padding: the chip's box
+                // must equal the label's line height so headers with and
+                // without a value render at the same height.
                 isActive
-                  ? "bg-background text-foreground border-border/50 rounded border px-1 py-px font-medium"
+                  ? "bg-background text-foreground rounded px-1 font-medium"
                   : "text-muted-foreground/60 font-normal",
               )}
               title={summary}
@@ -1099,7 +1082,6 @@ export function CategoricalFacet({
   summary,
   summaryIcon,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   options,
@@ -1127,7 +1109,7 @@ export function CategoricalFacet({
     hasTextFilters ? "text" : "select",
   );
   // Adopt DURING render as well: on a hard reload the Pages Router delivers
-  // `?filter=` a few renders after mount (see the frozenOrder comment), so
+  // `?filter=` a few renders after mount (LFE-10164 in the state hook), so
   // the mount seed alone would leave a text-filter deep link on the Select
   // tab. Only the 0→n transition switches — removing the last text filter
   // or picking a tab by hand is never overridden.
@@ -1153,7 +1135,6 @@ export function CategoricalFacet({
       summary={summary}
       summaryIcon={summaryIcon}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1278,7 +1259,10 @@ function CategoricalSelectContent({
           visibleOptionValues.filter((option) => !selectedSet.has(option)),
         )
       : selectedSet;
+  // While searching, rankFacetOptions owns the order (prefix matches first);
+  // pinning checked rows above better matches would fight it.
   const pinApplied =
+    !searchQuery &&
     hasMoreOptions &&
     value.length > 0 &&
     value.length < visibleOptionValues.length;
@@ -1471,6 +1455,17 @@ function CategoricalSelectContent({
               {visibleRemainingOptions.map(renderOption)}
               {(canShowMore || canShowFewer) && (
                 <div className="flex flex-col px-2">
+                  {canShowFewer && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
+                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                    >
+                      <ChevronUp className="mr-1 h-3 w-3" />
+                      Show fewer values
+                    </Button>
+                  )}
                   {canShowMore && (
                     <Button
                       variant="ghost"
@@ -1480,21 +1475,10 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
                       <ChevronDown className="mr-1 h-3 w-3" />
                       Show more values
-                    </Button>
-                  )}
-                  {canShowFewer && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
-                    >
-                      <ChevronUp className="mr-1 h-3 w-3" />
-                      Show fewer values
                     </Button>
                   )}
                 </div>
@@ -1528,7 +1512,6 @@ export function NumericFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   min,
@@ -1618,7 +1601,6 @@ export function NumericFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1701,7 +1683,6 @@ export function StringFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   value,
@@ -1754,7 +1735,6 @@ export function StringFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1784,7 +1764,6 @@ export function KeyValueFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   keyOptions,
@@ -1804,7 +1783,6 @@ export function KeyValueFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1834,7 +1812,6 @@ export function NumericKeyValueFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   keyOptions,
@@ -1853,7 +1830,6 @@ export function NumericKeyValueFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1882,7 +1858,6 @@ export function BooleanKeyValueFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   keyOptions,
@@ -1901,7 +1876,6 @@ export function BooleanKeyValueFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -1930,7 +1904,6 @@ export function StringKeyValueFacet({
   help,
   summary,
   filterKey,
-  filterKeyShort,
   expanded: _expanded,
   loading,
   keyOptions,
@@ -1949,7 +1922,6 @@ export function StringKeyValueFacet({
       help={help}
       summary={summary}
       filterKey={filterKey}
-      filterKeyShort={filterKeyShort}
       isActive={isActive}
       isDisabled={isDisabled}
       disabledReason={disabledReason}
@@ -2081,7 +2053,7 @@ function TextFilterSection({
               key={idx}
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
-              <span className="text-muted-foreground shrink-0 text-[10px] font-medium">
+              <span className="text-muted-foreground shrink-0 text-[11px] font-medium">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
               <span
@@ -2150,7 +2122,7 @@ export function FilterValueCheckbox({
           checked={checked}
           onCheckedChange={onCheckedChange}
           disabled={disabled}
-          className="pointer-events-auto h-3.5 w-3.5"
+          className="pointer-events-auto h-3.5 w-3.5 [&_svg]:h-3 [&_svg]:w-3"
         />
       </div>
 
