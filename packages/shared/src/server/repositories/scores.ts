@@ -29,6 +29,7 @@ import {
   orderByToClickhouseSql,
   StringOptionsFilter,
   DateTimeFilter,
+  EventsAggQueryBuilder,
   NumberFilter,
 } from "../queries";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
@@ -2025,6 +2026,115 @@ export const getAggregatedScoresForPrompts = async (
         : {}),
     },
     tags: { projectId },
+  });
+
+  return rows.map((row) => ({
+    ...convertScoreAggregation<ListableScoreDataType>(row),
+    promptId: row.prompt_id,
+    hasMetadata: !!row.has_metadata,
+  }));
+};
+
+export const getAggregatedScoresForPromptsFromEvents = async (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const scoreRows = {
+    query: `
+      SELECT
+        project_id,
+        trace_id,
+        observation_id,
+        id,
+        name,
+        string_value,
+        value,
+        source,
+        data_type,
+        comment,
+        timestamp,
+        metadata
+      FROM scores FINAL
+      WHERE project_id = {scoreProjectId: String}
+      AND name IS NOT NULL
+      AND data_type IN ({dataTypes: Array(String)})
+      ${fetchScoreRelation === "trace" ? "AND observation_id IS NULL" : "AND observation_id IS NOT NULL"}
+    `,
+    params: {
+      scoreProjectId: projectId,
+      dataTypes: LISTABLE_SCORE_TYPES,
+    },
+  };
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: `
+      e.prompt_id,
+      s.id,
+      s.name,
+      s.string_value,
+      s.value,
+      s.source,
+      s.data_type,
+      s.comment,
+      s.timestamp,
+      s.metadata
+    `,
+    selectExpression: `
+      e.prompt_id AS prompt_id,
+      s.id AS id,
+      s.name AS name,
+      s.string_value AS string_value,
+      s.value AS value,
+      s.source AS source,
+      s.data_type AS data_type,
+      s.comment AS comment,
+      s.timestamp AS timestamp,
+      length(mapKeys(s.metadata)) > 0 AS has_metadata
+    `,
+  })
+    .withCTE("score_rows", scoreRows)
+    .innerJoin(
+      "score_rows s",
+      fetchScoreRelation === "observation"
+        ? "ON s.project_id = e.project_id AND s.trace_id = e.trace_id AND s.observation_id = e.span_id"
+        : "ON s.project_id = e.project_id AND s.trace_id = e.trace_id",
+    )
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("e.prompt_id IN ({promptIds: Array(String)})", { promptIds })
+    .when(Boolean(fromTimestamp), (builder) =>
+      builder.whereRaw(
+        "e.start_time >= {fromTimestamp: DateTime64(6)}",
+        fromTimestamp
+          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+          : undefined,
+      ),
+    )
+    .when(Boolean(toTimestamp), (builder) =>
+      builder.whereRaw(
+        "e.start_time <= {toTimestamp: DateTime64(6)}",
+        toTimestamp
+          ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+          : undefined,
+      ),
+    );
+
+  const { query, params } = queryBuilder.buildWithParams();
+  const rows = await queryClickhouse<
+    ScoreAggregation & {
+      prompt_id: string;
+      has_metadata: 0 | 1;
+    }
+  >({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
