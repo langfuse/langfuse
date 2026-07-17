@@ -152,12 +152,14 @@ interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
   /**
-   * Given a filter column, the reason an active filter on it is NOT applied on
-   * the current surface (e.g. the chart view can't filter on it), or null. When
-   * it returns a reason, that active facet renders deactivated (dimmed + the
-   * reason on hover); Clearing still works. Undefined leaves every filter live.
+   * Given a filter column, the reason a filter on it is blocked on the current
+   * surface (active or not) — e.g. the chart view can't filter on it (#15187 /
+   * #15049), and later an OR/bracket a surface can't honour — or null. When it
+   * returns a reason, that facet renders blocked (dimmed + the reason on hover)
+   * whether or not it holds a value; Clearing still works. Undefined leaves
+   * every filter live.
    */
-  deactivatedColumnReason?: (column: string) => string | null;
+  blockedColumnReason?: (column: string) => string | null;
 }
 
 // Module-stable initial value: a fresh {} per render would re-subscribe
@@ -167,7 +169,7 @@ const EMPTY_RECENCY: Record<string, number> = {};
 export function DataTableControls({
   queryFilter,
   filterWithAI,
-  deactivatedColumnReason,
+  blockedColumnReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen, tableName } = useDataTableControls();
@@ -339,15 +341,16 @@ export function DataTableControls({
   const promotedFacetCount = displayedFilters.filter(isPromoted).length;
 
   const renderFacet = (filter: UIFilter) => {
-    // "Not applied on this surface" (e.g. the chart can't filter on this
-    // column — #15187). Only an ACTIVE filter deactivates — an empty facet
-    // stays usable. Overrides isDisabled/disabledReason so the facet dims
-    // and explains on hover while Clear still works.
-    const deactivatedReason = filter.isActive
-      ? (deactivatedColumnReason?.(filter.column) ?? null)
-      : null;
-    const facetDisabled = filter.isDisabled || deactivatedReason !== null;
-    const facetDisabledReason = deactivatedReason ?? filter.disabledReason;
+    // A column the current surface can't honour blocks the facet whether or
+    // not it holds a value: the chart view can't filter on it (#15187 /
+    // #15049), and later an OR/bracket a surface can't apply. (An empty facet
+    // used to stay usable; blocking it regardless is the point of LFE-11040 —
+    // adding a value it can't honour would only mislead.) Overrides
+    // isDisabled/disabledReason so the facet dims and explains on hover while
+    // Clear still works.
+    const blockedReason = blockedColumnReason?.(filter.column) ?? null;
+    const facetDisabled = filter.isDisabled || blockedReason !== null;
+    const facetDisabledReason = blockedReason ?? filter.disabledReason;
     if (filter.type === "categorical") {
       const summaryValue = getFacetSummaryValue(filter);
       return (
@@ -837,15 +840,25 @@ export function DataTableControls({
                     align="start"
                     className="max-h-72 w-56 overflow-y-auto"
                   >
-                    {addableFilters.map((filter) => (
-                      <DropdownMenuItem
-                        key={filter.column}
-                        onClick={() => handleAddFilter(filter.column)}
-                        className="cursor-pointer"
-                      >
-                        {filter.label}
-                      </DropdownMenuItem>
-                    ))}
+                    {addableFilters.map((filter) => {
+                      // A column the surface can't honour stays visible but is
+                      // not addable — adding it would only land a facet that
+                      // immediately reads blocked (chart view — #15187 /
+                      // #15049). Same reason on hover.
+                      const reason =
+                        blockedColumnReason?.(filter.column) ?? null;
+                      return (
+                        <DropdownMenuItem
+                          key={filter.column}
+                          disabled={!!reason}
+                          title={reason ?? undefined}
+                          onClick={() => handleAddFilter(filter.column)}
+                          className="cursor-pointer"
+                        >
+                          {filter.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
