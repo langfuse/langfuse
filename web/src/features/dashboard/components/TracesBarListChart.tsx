@@ -114,7 +114,7 @@ export const TracesBarListChart = ({
     : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
 
   // Height scales with bar count so each bar keeps the same height when expanding, otherwise recharts chart would resize to fit into the container.
-  const BAR_ROW_HEIGHT = 36;
+  const BAR_ROW_HEIGHT = 32;
   const CHART_AXIS_PADDING = 32;
 
   return (
@@ -134,15 +134,16 @@ export const TracesBarListChart = ({
           description="Total traces tracked"
         />
         {adjustedData.length > 0 ? (
-          // The computed height is the flex basis (floor); grow lets the chart
-          // absorb extra tile height on dashboards — bar thickness stays
-          // capped, only the spacing stretches. (LFE-10813)
+          // Size the chart to exactly the bars it draws and DON'T grow: bars
+          // stay grouped at the top at a fixed row height instead of stretching
+          // to fill a tall tile (which spread thin, maxBarSize-capped bars into
+          // large gaps). Extra tile height stays as clean space below rather
+          // than as inter-bar gaps. (LFE-11035, revises LFE-10813)
           <div
-            className="mt-4 w-full shrink-0 grow"
+            className="mt-4 w-full shrink-0"
             style={{
-              minHeight: 200,
               height: Math.max(
-                200,
+                96,
                 adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING,
               ),
             }}
@@ -163,7 +164,6 @@ export const TracesBarListChart = ({
                 type: "HORIZONTAL_BAR",
                 row_limit: maxNumberOfEntries.expanded,
                 unit: "traces",
-                subtle_fill: true,
                 show_value_labels: true,
               }}
             />

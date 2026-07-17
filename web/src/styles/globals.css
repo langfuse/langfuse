@@ -299,7 +299,10 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
+    /* Primary series blue. A cleaner, more saturated blue (tailwind blue-500)
+       reads more legibly than the old muddy indigo on white; the dark theme
+       lifts it further (see .dark). (LFE-11035) */
+    --chart-1: 217 91% 60%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
     --chart-4: 271 91% 65%;
@@ -447,7 +450,9 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
-    --chart-1: 239 84% 58%;
+    /* Lighter, brighter blue (tailwind blue-400) so the primary series pops
+       against the near-black canvas instead of reading as a dark indigo. (LFE-11035) */
+    --chart-1: 213 94% 68%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
     --chart-4: 271 91% 65%;
