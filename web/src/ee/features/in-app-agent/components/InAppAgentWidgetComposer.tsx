@@ -1,9 +1,4 @@
-import {
-  type KeyboardEvent,
-  type SyntheticEvent,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -34,7 +29,6 @@ export function InAppAgentWidgetComposer({
   const { isAvailable, isRunning, isSubmitting, openAssistant, submit } =
     useInAppAiAgent();
   const [request, setRequest] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!isAvailable) {
     return null;
@@ -59,7 +53,6 @@ export function InAppAgentWidgetComposer({
 
     if (started) {
       setRequest("");
-      resizeTextarea(textareaRef.current);
       onSubmitted();
     }
   };
@@ -90,7 +83,6 @@ export function InAppAgentWidgetComposer({
       </p>
       <div className="flex items-end gap-2">
         <Textarea
-          ref={textareaRef}
           aria-label="Describe the widget you want"
           autoComplete="off"
           maxLength={2000}
@@ -109,7 +101,7 @@ export function InAppAgentWidgetComposer({
           size="icon"
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
-          aria-label="Create with Assistant"
+          aria-label="Add with Langfuse Assistant"
           disabled={!request.trim() || isRunning || isSubmitting}
         >
           <SendHorizontal className="h-4 w-4" />
