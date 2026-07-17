@@ -1,7 +1,11 @@
 import React from "react";
 import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import {
+  IOPreview,
+  type IOPreviewContentMode,
+  type ViewMode,
+} from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/components/session/actions/downloadSessionAsJson";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -74,6 +78,8 @@ export const SessionObservationIO = ({
   environment,
   showCorrections,
   onOpenInTraceView,
+  contentMode = "all",
+  currentView,
 }: {
   observation: SessionTraceObservation;
   projectId: string;
@@ -82,6 +88,8 @@ export const SessionObservationIO = ({
   environment?: string;
   showCorrections: boolean;
   onOpenInTraceView: (observationId: string) => void;
+  contentMode?: IOPreviewContentMode;
+  currentView?: ViewMode;
 }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -146,6 +154,8 @@ export const SessionObservationIO = ({
           observationId={observation.id}
           environment={environment}
           showCorrections={showCorrections}
+          contentMode={contentMode}
+          currentView={currentView}
         />
         {observation.metadataTruncated && (
           <p className="text-muted-foreground text-xs">

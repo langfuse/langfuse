@@ -76,6 +76,9 @@ import { downloadSessionAsJson } from "@/src/components/session/actions/download
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { TraceStation } from "@/src/components/session/TraceStation";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
@@ -641,6 +644,8 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
+  const capture = usePostHogClientCapture();
+  const isTraceStationEnabled = useIsFeatureEnabled("traceStation");
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -658,6 +663,10 @@ const LoadedSessionEventsPage: React.FC<{
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
     }),
+  );
+  const showInlineToolCalls = useStore(
+    sessionDetailStore,
+    (state) => state.showInlineToolCalls,
   );
 
   useEffect(() => {
@@ -677,6 +686,11 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
+
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -1186,7 +1200,13 @@ const LoadedSessionEventsPage: React.FC<{
           ),
         }}
       >
-        <div className="flex h-full flex-col overflow-auto">
+        <div
+          className={
+            isTraceStationEnabled
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
+              : "flex h-full flex-col overflow-auto"
+          }
+        >
           <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
             {/* Saved Views */}
             <TableViewPresetsDrawer
@@ -1237,45 +1257,72 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
-          </div>
-          <div ref={parentRef} className="flex-1 overflow-auto p-4">
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualItems.map((virtualItem) => {
-                const trace = traces?.[virtualItem.index];
-                if (!trace) return null;
 
-                return (
-                  <SessionVirtualizedRow
-                    key={virtualItem.key}
-                    itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                    source="events"
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                  >
-                    <LazySessionTraceEventsRow
-                      trace={trace}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={asCommentCounts(
-                        traceCommentCounts.data,
-                      )}
-                      index={virtualItem.index}
-                      filterState={visibleFilterState}
-                      viewLabel={viewLabel}
-                    />
-                  </SessionVirtualizedRow>
-                );
-              })}
-            </div>
+            {isTraceStationEnabled ? (
+              <label className="ml-auto flex items-center gap-2 pl-2">
+                <Switch
+                  checked={showInlineToolCalls}
+                  onCheckedChange={setInlineToolCallsForSession}
+                  size="sm"
+                />
+                <span className="text-muted-foreground text-xs">
+                  Show inline tool calls
+                </span>
+              </label>
+            ) : null}
           </div>
+          {!isTraceStationEnabled ? (
+            <div ref={parentRef} className="flex-1 overflow-auto p-4">
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const trace = traces?.[virtualItem.index];
+                  if (!trace) return null;
+
+                  return (
+                    <SessionVirtualizedRow
+                      key={virtualItem.key}
+                      itemKey={String(virtualItem.key)}
+                      measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                      source="events"
+                      virtualItem={virtualItem}
+                      virtualizer={virtualizer}
+                    >
+                      <LazySessionTraceEventsRow
+                        trace={trace}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        openPeek={openPeek}
+                        traceCommentCounts={asCommentCounts(
+                          traceCommentCounts.data,
+                        )}
+                        index={virtualItem.index}
+                        filterState={visibleFilterState}
+                        viewLabel={viewLabel}
+                      />
+                    </SessionVirtualizedRow>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <TraceStation
+              traces={traces ?? []}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
+              filterState={visibleFilterState}
+              filterMeasurementKey={visibleFilterMeasurementKey}
+              viewLabel={viewLabel}
+              showInlineToolCalls={showInlineToolCalls}
+            />
+          )}
         </div>
         <TablePeekViewTraceDetail
           itemType="TRACE"

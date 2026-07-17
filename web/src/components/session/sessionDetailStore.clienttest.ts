@@ -44,4 +44,36 @@ describe("createSessionDetailStore", () => {
     expect(store.getState().showCorrections).toBe(true);
     expect(store.getState().loadedTraceIds).toBe(loadedTraceIds);
   });
+
+  it("keeps the inline-tool preference independent from loaded rows", () => {
+    const store = createSessionDetailStore({
+      initialSessionId: "session-a",
+      initialShowCorrections: false,
+    });
+
+    store.getState().actions.markTraceLoaded("trace-1");
+    const loadedTraceIds = store.getState().loadedTraceIds;
+
+    store.getState().actions.setShowInlineToolCalls(true);
+
+    expect(store.getState()).toMatchObject({
+      showInlineToolCalls: true,
+    });
+    expect(store.getState().loadedTraceIds).toBe(loadedTraceIds);
+  });
+
+  it("defaults inline tools to hidden when the session changes", () => {
+    const store = createSessionDetailStore({
+      initialSessionId: "session-a",
+      initialShowCorrections: false,
+    });
+
+    store.getState().actions.setShowInlineToolCalls(true);
+    store.getState().actions.resetForSession("session-b");
+
+    expect(store.getState()).toMatchObject({
+      sessionId: "session-b",
+      showInlineToolCalls: false,
+    });
+  });
 });

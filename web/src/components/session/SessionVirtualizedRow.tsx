@@ -13,7 +13,7 @@ export function SessionVirtualizedRow({
   children: ReactNode;
   itemKey: string | number;
   measurementKey?: string | number;
-  source: "legacy" | "events";
+  source: "legacy" | "events" | "station";
   virtualItem: VirtualItem;
   virtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {

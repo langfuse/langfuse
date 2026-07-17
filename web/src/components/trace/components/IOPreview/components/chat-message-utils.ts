@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
+import type { IOPreviewContentMode } from "../IOPreview";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
@@ -64,6 +65,36 @@ export function shouldRenderMessage(message: ChatMlMessage): boolean {
     hasRenderableContent(message) ||
     hasAdditionalData(message) ||
     isPlaceholderMessage(message)
+  );
+}
+
+export function shouldRenderMessageForContentMode(
+  message: ChatMlMessage,
+  contentMode: IOPreviewContentMode,
+): boolean {
+  if (contentMode === "all") return shouldRenderMessage(message);
+
+  if (contentMode === "conversation") {
+    return (
+      (message.role === "user" || message.role === "assistant") &&
+      (hasRenderableContent(message) ||
+        hasThinkingContent(message) ||
+        hasRedactedThinkingContent(message))
+    );
+  }
+
+  const isToolResult = message.role === "tool" || message.role === "function";
+  const hasToolCalls = parseToolCallsFromMessage(message).length > 0;
+  const hasDataWithoutConversation =
+    !hasRenderableContent(message) && hasAdditionalData(message);
+
+  return (
+    isToolResult ||
+    hasToolCalls ||
+    isOnlyJsonMessage(message) ||
+    hasPassthroughJson(message) ||
+    isPlaceholderMessage(message) ||
+    hasDataWithoutConversation
   );
 }
 

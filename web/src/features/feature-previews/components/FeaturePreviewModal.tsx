@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   Dialog,
@@ -15,14 +15,15 @@ import { cn } from "@/src/utils/tailwind";
 
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
+import traceStationDarkIllustration from "../assets/trace-station-dark.svg";
+import traceStationLightIllustration from "../assets/trace-station-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts.
- *  NOTE: the current flag is retired and no longer renders a tile — see
- *  ControlledFeaturePreviewModal. It is kept in the type + registry below only
- *  as dead code for a safe rollback.
- *  TODO(remove ~2026-06-19): drop "searchBar" here once GA is confirmed. */
-export type PreviewFlag = "searchBar";
+ *  `searchBar` is retired and no longer renders a tile — see
+ *  ControlledFeaturePreviewModal. It remains as rollback plumbing.
+ *  TODO(remove ~2026-06-19): drop "searchBar" once GA is confirmed. */
+export type PreviewFlag = "traceStation" | "searchBar";
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -52,6 +53,21 @@ export type PreviewState = {
 // Static registry — one entry per preview. Order = sidebar order; each
 // preview ships separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
+  {
+    flag: "traceStation",
+    title: "Compact Session View",
+    sidebarLabel: "Compact Session View",
+    description:
+      "Navigate every trace in a session from one continuous conversation feed, with tools and structured data available on demand.",
+    details:
+      "Compact Session View replaces separate trace cards with a compact minimap and a virtualized feed. Jump between traces, keep the active trace in view, expand tool data only when needed, or temporarily interleave tool calls with the conversation.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+    illustration: {
+      light: traceStationLightIllustration,
+      dark: traceStationDarkIllustration,
+      alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
+    },
+  },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
   // events tables and no longer surfaced in the dialog (no state entry in
   // ControlledFeaturePreviewModal), so this is filtered out and never renders.
@@ -93,13 +109,7 @@ export function FeaturePreviewModal({
   const [selectedFlag, setSelectedFlag] = useState<PreviewFlag | null>(
     items[0]?.flag ?? null,
   );
-  // Keep the selection valid if the available previews change.
-  useEffect(() => {
-    if (items.length > 0 && !items.some((i) => i.flag === selectedFlag)) {
-      setSelectedFlag(items[0]!.flag);
-    }
-  }, [items, selectedFlag]);
-
+  // A removed preview falls back without synchronizing derived props into state.
   const selected = items.find((i) => i.flag === selectedFlag) ?? items[0];
   const selectedState = selected ? state[selected.flag] : undefined;
 

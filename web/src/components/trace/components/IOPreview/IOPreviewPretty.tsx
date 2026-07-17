@@ -7,8 +7,12 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { useChatMLParser } from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
-import { type ExpansionStateProps } from "./IOPreview";
+import {
+  type ExpansionStateProps,
+  type IOPreviewContentMode,
+} from "./IOPreview";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import { isOnlyJsonMessage } from "./components/chat-message-utils";
 
 interface JsonInputOutputViewProps {
   parsedInput: unknown;
@@ -99,6 +103,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   traceId: string;
   environment?: string;
   showCorrections?: boolean;
+  contentMode?: IOPreviewContentMode;
 }
 
 /**
@@ -140,6 +145,7 @@ export function IOPreviewPretty({
   traceId,
   environment = "default",
   showCorrections = true,
+  contentMode = "all",
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -250,17 +256,23 @@ export function IOPreviewPretty({
 
   // Determine if metadata should be shown
   const shouldShowMetadata = showMetadata && parsedMetadata !== undefined;
+  const showConversation = contentMode !== "data";
+  const showData = contentMode !== "conversation";
+  const shouldRenderMessages =
+    canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
 
   return (
     <div>
-      <SectionToolDefinitions
-        tools={allTools}
-        toolCallCounts={toolCallCounts}
-        toolCallsByName={toolCallsByName}
-        toolNameToDefinitionNumber={toolNameToDefinitionNumber}
-      />
+      {showData ? (
+        <SectionToolDefinitions
+          tools={allTools}
+          toolCallCounts={toolCallCounts}
+          toolCallsByName={toolCallsByName}
+          toolNameToDefinitionNumber={toolNameToDefinitionNumber}
+        />
+      ) : null}
 
-      {canDisplayAsChat ? (
+      {shouldRenderMessages ? (
         <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           <ChatMessageList
             messages={allMessages}
@@ -270,8 +282,9 @@ export function IOPreviewPretty({
             currentView="pretty"
             messageToToolCallNumbers={messageToToolCallNumbers}
             inputMessageCount={inputMessageCount}
+            contentMode={contentMode}
           />
-          {showCorrections && (
+          {showConversation && showCorrections && (
             <CorrectedOutputField
               actualOutput={parsedOutput}
               existingCorrection={outputCorrection}
@@ -282,11 +295,11 @@ export function IOPreviewPretty({
             />
           )}
         </div>
-      ) : (
+      ) : showData ? (
         <>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-            {showCorrections && (
+            {showConversation && showCorrections && (
               <CorrectedOutputField
                 actualOutput={parsedOutput}
                 existingCorrection={outputCorrection}
@@ -298,10 +311,10 @@ export function IOPreviewPretty({
             )}
           </div>
         </>
-      )}
+      ) : null}
 
       {/* Metadata Section */}
-      {shouldShowMetadata && (
+      {showData && shouldShowMetadata && (
         <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
           <PrettyJsonView
             title="Metadata"

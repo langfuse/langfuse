@@ -2,20 +2,21 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
 import { type RouterOutputs } from "@/src/utils/api";
-import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import React from "react";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { type FilterState } from "@langfuse/shared";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
+import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
+import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { parseChatML } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import { isOnlyJsonMessage } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
+
+export type TraceEventsSurface = "card" | "station" | "data";
 
 // Display copy for the per-card observation cap; the authoritative limit is
 // SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
@@ -90,6 +91,9 @@ type LazyTraceEventsRowProps = {
   /** Selected view's display name, for the empty-state notice (null = custom). */
   viewLabel: string | null;
   hideTracePanel?: boolean;
+  surface?: TraceEventsSurface;
+  contentMode?: IOPreviewContentMode;
+  isActive?: boolean;
 };
 
 const areLazyTraceEventsRowPropsEqual = (
@@ -105,7 +109,10 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.showCorrections === next.showCorrections &&
   previous.filterState === next.filterState &&
   previous.viewLabel === next.viewLabel &&
-  previous.hideTracePanel === next.hideTracePanel;
+  previous.hideTracePanel === next.hideTracePanel &&
+  previous.surface === next.surface &&
+  previous.contentMode === next.contentMode &&
+  previous.isActive === next.isActive;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -118,6 +125,9 @@ export const TraceEventsRow = React.memo(
     filterState,
     viewLabel,
     hideTracePanel = false,
+    surface = "card",
+    contentMode = "all",
+    isActive = false,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -128,6 +138,9 @@ export const TraceEventsRow = React.memo(
     filterState: FilterState;
     viewLabel: string | null;
     hideTracePanel?: boolean;
+    surface?: TraceEventsSurface;
+    contentMode?: IOPreviewContentMode;
+    isActive?: boolean;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -240,16 +253,92 @@ export const TraceEventsRow = React.memo(
       return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
+    const chatMLObservationIds = React.useMemo(() => {
+      const ids = new Set<string>();
+      if (surface !== "station") return ids;
+
+      for (const observation of visibleObservations ?? []) {
+        const { canDisplayAsChat, allMessages } = parseChatML(
+          deepParseJson(observation.input, {
+            maxSize: 300_000,
+            maxDepth: 2,
+          }),
+          deepParseJson(observation.output, {
+            maxSize: 300_000,
+            maxDepth: 2,
+          }),
+          deepParseJson(observation.metadata, {
+            maxSize: 100_000,
+            maxDepth: 2,
+          }),
+          observation.name ?? undefined,
+        );
+        if (canDisplayAsChat && !allMessages.every(isOnlyJsonMessage)) {
+          ids.add(observation.id);
+        }
+      }
+      return ids;
+    }, [surface, visibleObservations]);
+
+    const Frame = surface === "card" ? Card : "div";
+    const showTracePanel = surface === "card" && !hideTracePanel;
+
     return (
-      <Card className="border-border shadow-none">
+      <Frame
+        className={
+          surface === "card"
+            ? "border-border shadow-none"
+            : surface === "station"
+              ? isActive
+                ? "bg-background border-primary border-l-2"
+                : "bg-background border-l-2 border-l-transparent"
+              : "min-w-0"
+        }
+        data-trace-station-active={surface === "station" && isActive}
+      >
         <div
           className={
-            hideTracePanel
-              ? "grid"
+            !showTracePanel
+              ? "grid min-w-0"
               : "grid md:grid-cols-[1fr_1px_358px] lg:grid-cols-[1fr_1px_30rem]"
           }
         >
-          <div className="overflow-hidden py-4 pr-4 pl-4">
+          <div
+            className={
+              surface === "card"
+                ? "overflow-hidden py-4 pr-4 pl-4"
+                : surface === "station"
+                  ? "min-w-0 overflow-hidden px-6 pb-10"
+                  : "min-w-0 overflow-hidden"
+            }
+          >
+            {surface === "station" ? (
+              <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
+                <button
+                  type="button"
+                  aria-label={`Open trace ${trace.name ?? "Trace"} (${trace.id})`}
+                  className="group focus-visible:ring-ring flex min-w-0 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  onClick={() => openPeek(trace.id, trace)}
+                >
+                  <ItemBadge type="TRACE" isSmall />
+                  <span
+                    className="truncate text-sm font-semibold"
+                    title={trace.name ?? "Trace"}
+                  >
+                    {trace.name ?? "Trace"}
+                  </span>
+                  <span
+                    className="text-muted-foreground max-w-52 shrink-0 truncate font-mono text-xs group-hover:underline"
+                    title={trace.id}
+                  >
+                    {trace.id}
+                  </span>
+                </button>
+                <time className="text-muted-foreground shrink-0 text-xs">
+                  {trace.timestamp.toLocaleString()}
+                </time>
+              </div>
+            ) : null}
             {observationsQuery.isLoading ? (
               <JsonSkeleton className="h-full w-full" numRows={8} />
             ) : observationsQuery.isError ? (
@@ -258,45 +347,71 @@ export const TraceEventsRow = React.memo(
               </div>
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
-                {visibleObservations.map((observation) => (
-                  <div key={observation.id} className="flex flex-col gap-2">
-                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                      {/* min-w-0 + wrap-break-word: unbroken long names must
-                          wrap inside the card, not escape it */}
-                      <span className="min-w-0 wrap-break-word">
-                        {observation.name ?? "Observation"}
-                      </span>
-                      <span className="-mr-1">•</span>
-                      <span className="inline-flex items-center gap-1">
-                        <ItemBadge
-                          type={observation.type ?? "EVENT"}
-                          isSmall
-                          className="h-3 w-3"
-                        />
-                        <span>
-                          {String(observation.type ?? "EVENT")
-                            .toLowerCase()
-                            .replace(/_/g, " ")}
-                        </span>
-                      </span>
-                      <span>•</span>
-                      <span>{observation.startTime.toLocaleString()}</span>
-                    </div>
-                    <SessionObservationIO
-                      observation={observation}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      traceId={trace.id}
-                      environment={
-                        observation.environment ??
-                        trace.environment ??
-                        undefined
+                {visibleObservations.map((observation) => {
+                  const isConversationObservation = chatMLObservationIds.has(
+                    observation.id,
+                  );
+                  const isInlineDataObservation =
+                    surface === "station" && !isConversationObservation;
+                  const observationContentMode = isInlineDataObservation
+                    ? "all"
+                    : contentMode;
+
+                  return (
+                    <div
+                      key={observation.id}
+                      className={
+                        isInlineDataObservation
+                          ? "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
+                          : "flex flex-col gap-2"
                       }
-                      showCorrections={showCorrections}
-                      onOpenInTraceView={openObservationInTraceView}
-                    />
-                  </div>
-                ))}
+                    >
+                      {surface !== "station" || isInlineDataObservation ? (
+                        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                          {/* min-w-0 + wrap-break-word: unbroken long names must
+                            wrap inside the card, not escape it */}
+                          <span className="min-w-0 wrap-break-word">
+                            {observation.name ?? "Observation"}
+                          </span>
+                          <span className="-mr-1">•</span>
+                          <span className="inline-flex items-center gap-1">
+                            <ItemBadge
+                              type={observation.type ?? "EVENT"}
+                              isSmall
+                              className="h-3 w-3"
+                            />
+                            <span>
+                              {String(observation.type ?? "EVENT")
+                                .toLowerCase()
+                                .replace(/_/g, " ")}
+                            </span>
+                          </span>
+                          <span>•</span>
+                          <span>{observation.startTime.toLocaleString()}</span>
+                        </div>
+                      ) : null}
+                      <SessionObservationIO
+                        observation={observation}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        traceId={trace.id}
+                        environment={
+                          observation.environment ??
+                          trace.environment ??
+                          undefined
+                        }
+                        showCorrections={showCorrections}
+                        onOpenInTraceView={openObservationInTraceView}
+                        contentMode={observationContentMode}
+                        currentView={
+                          surface === "card" || isInlineDataObservation
+                            ? undefined
+                            : "pretty"
+                        }
+                      />
+                    </div>
+                  );
+                })}
                 {hasMoreObservations && (
                   <p className="text-muted-foreground text-xs">
                     Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
@@ -325,7 +440,7 @@ export const TraceEventsRow = React.memo(
               <ViewMismatchNotice viewLabel={viewLabel} />
             )}
           </div>
-          {!hideTracePanel && (
+          {showTracePanel && (
             <>
               <div className="bg-border hidden md:block"></div>
               <div className="flex flex-col border-t py-4 pr-4 pl-4 md:border-0">
@@ -352,47 +467,14 @@ export const TraceEventsRow = React.memo(
                       </span>
                     </div>
                   </Link>
-                  <div className="flex flex-wrap gap-2">
-                    <NewDatasetItemFromTraceId
-                      projectId={projectId}
-                      traceId={trace.id}
-                      timestamp={new Date(trace.timestamp)}
-                      buttonVariant="outline"
-                    />
-                    <div className="flex items-start">
-                      <AnnotateDrawer
-                        key={"annotation-drawer" + trace.id}
-                        projectId={projectId}
-                        scoreTarget={{
-                          type: "trace",
-                          traceId: trace.id,
-                        }}
-                        scores={trace.scores}
-                        buttonVariant="outline"
-                        analyticsData={{
-                          type: "trace",
-                          source: "SessionDetail",
-                        }}
-                        scoreMetadata={{
-                          projectId: projectId,
-                          environment: trace.environment ?? undefined,
-                        }}
-                      />
-                      <CreateNewAnnotationQueueItem
-                        projectId={projectId}
-                        objectId={trace.id}
-                        objectType="TRACE"
-                        variant="outline"
-                      />
-                    </div>
-                    <CommentDrawerButton
-                      projectId={projectId}
-                      variant="outline"
-                      objectId={trace.id}
-                      objectType="TRACE"
-                      count={getNumberFromMap(traceCommentCounts, trace.id)}
-                    />
-                  </div>
+                  <SessionTraceActionButtons
+                    projectId={projectId}
+                    traceId={trace.id}
+                    timestamp={new Date(trace.timestamp)}
+                    environment={trace.environment}
+                    scores={trace.scores}
+                    traceCommentCounts={traceCommentCounts}
+                  />
                 </div>
                 <div className="flex-1">
                   <p className="mb-1 font-medium">Scores</p>
@@ -404,7 +486,7 @@ export const TraceEventsRow = React.memo(
             </>
           )}
         </div>
-      </Card>
+      </Frame>
     );
   },
 );

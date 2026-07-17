@@ -7,7 +7,9 @@ export type LegacySessionTrace =
 export type EventSession =
   RouterOutputs["sessions"]["byIdWithScoresFromEvents"];
 export type EventSessionTrace =
-  RouterOutputs["sessions"]["tracesFromEvents"][number];
+  RouterOutputs["sessions"]["tracesFromEvents"][number] & {
+    observationCount?: number;
+  };
 export type CommentCounts = Map<string, number>;
 export type EventFilterOptions = Record<
   string,

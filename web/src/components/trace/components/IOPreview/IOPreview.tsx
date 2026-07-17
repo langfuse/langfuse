@@ -15,6 +15,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
 
 export type { ViewMode };
+export type IOPreviewContentMode = "all" | "conversation" | "data";
 
 const EMPTY_IO_ALERT_ID = "empty-io";
 const STORAGE_KEY = "dismissed-trace-view-notifications";
@@ -65,6 +66,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   hideOutput?: boolean;
   hideInput?: boolean;
   currentView?: ViewMode;
+  contentMode?: IOPreviewContentMode;
   setIsPrettyViewAvailable?: (value: boolean) => void;
   // Inline comment props (JSON Beta view only)
   enableInlineComments?: boolean;
@@ -112,6 +114,7 @@ export function IOPreview({
   hideInput = false,
   media,
   currentView,
+  contentMode = "all",
   inputExpansionState,
   outputExpansionState,
   metadataExpansionState,
@@ -280,9 +283,11 @@ export function IOPreview({
         />
       ) : (
         <IOPreviewPretty
+          key={contentMode}
           {...sharedProps}
           observationName={observationName}
           showMetadata={showMetadata}
+          contentMode={contentMode}
         />
       )}
 

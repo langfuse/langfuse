@@ -2,10 +2,12 @@ import React from "react";
 import {
   TraceEventsRow,
   TraceEventsSkeleton,
+  type TraceEventsSurface,
 } from "@/src/components/session/TraceEventsRow";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { type RouterOutputs } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
+import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
 
 type LazySessionTraceEventsRowProps = {
   trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
@@ -17,6 +19,9 @@ type LazySessionTraceEventsRowProps = {
   filterState: FilterState;
   viewLabel: string | null;
   hideTracePanel?: boolean;
+  surface?: TraceEventsSurface;
+  contentMode?: IOPreviewContentMode;
+  isActive?: boolean;
 };
 
 const LazySessionTraceEventsRowInner = (
@@ -43,10 +48,20 @@ const LazySessionTraceEventsRowInner = (
     internalRef.current = node;
   }, []);
 
+  const isStation = props.surface === "station";
+
   return (
-    <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
+    <div
+      ref={setRowRef}
+      className={isStation ? undefined : "pb-3"}
+      data-session-row-index={index}
+    >
       {shouldLoad ? (
         <TraceEventsRow {...rowProps} showCorrections={showCorrections} />
+      ) : isStation ? (
+        <div className="flex h-80 items-center justify-center px-6 py-8">
+          <TraceEventsSkeleton />
+        </div>
       ) : (
         <TraceEventsSkeleton />
       )}

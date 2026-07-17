@@ -22,6 +22,7 @@ import {
   hasRedactedThinkingContent,
 } from "./chat-message-utils";
 import { ThinkingBlock, RedactedThinkingBlock } from "./ThinkingBlock";
+import { type IOPreviewContentMode } from "../IOPreview";
 
 // View mode for pretty/json toggle
 export type ViewMode = "pretty" | "json";
@@ -33,6 +34,7 @@ export interface ChatMessageProps {
   currentView: ViewMode;
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
+  contentMode?: IOPreviewContentMode;
 }
 
 /**
@@ -50,6 +52,7 @@ export function ChatMessage({
   currentView,
   toolCallNumbers,
   isOutputMessage,
+  contentMode = "all",
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
@@ -59,25 +62,27 @@ export function ChatMessage({
   // Collapse from the raw role: the title is the message `name` when present,
   // so name-bearing system prompts would otherwise never collapse.
   const isSystemPrompt = message.role === "system";
+  const showData = contentMode !== "conversation";
 
   // Toggle button for passthrough JSON
-  const passthroughToggleButton = hasPassthroughJson(message) ? (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      onClick={() => setShowTableView((v) => !v)}
-      title={
-        showTableView ? "Show formatted view" : "Show passthrough JSON data"
-      }
-      className="hover:bg-border -mr-2"
-    >
-      {showTableView ? (
-        <ListChevronsDownUp className="text-primary h-3 w-3" />
-      ) : (
-        <ListChevronsUpDown className="h-3 w-3" />
-      )}
-    </Button>
-  ) : undefined;
+  const passthroughToggleButton =
+    showData && hasPassthroughJson(message) ? (
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={() => setShowTableView((v) => !v)}
+        title={
+          showTableView ? "Show formatted view" : "Show passthrough JSON data"
+        }
+        className="hover:bg-border -mr-2"
+      >
+        {showTableView ? (
+          <ListChevronsDownUp className="text-primary h-3 w-3" />
+        ) : (
+          <ListChevronsUpDown className="h-3 w-3" />
+        )}
+      </Button>
+    ) : undefined;
 
   // Placeholder message
   if (isPlaceholderMessage(message)) {
@@ -99,6 +104,47 @@ export function ChatMessage({
         </div>
       </div>
     );
+  }
+
+  if (contentMode === "data") {
+    if (toolCalls.length > 0) {
+      return (
+        <div className="bg-muted/30 rounded-md border p-2">
+          <MarkdownJsonViewHeader
+            title={title}
+            handleOnValueChange={() => {}}
+            handleOnCopy={() => {
+              const rawText = JSON.stringify(message, null, 2);
+              copyTextToClipboard(rawText);
+            }}
+          />
+          <ToolCallInvocationsView
+            message={message}
+            toolCallNumbers={toolCallNumbers}
+          />
+        </div>
+      );
+    }
+
+    if (
+      message.role === "tool" ||
+      message.role === "function" ||
+      isOnlyJsonMessage(message) ||
+      hasPassthroughJson(message) ||
+      hasAdditionalData(message)
+    ) {
+      return (
+        <div className="bg-muted/30 rounded-md border">
+          <PrettyJsonView
+            title={title || (isOutputMessage ? "Output data" : "Input data")}
+            json={message.json ?? message.content ?? message}
+            currentView="pretty"
+          />
+        </div>
+      );
+    }
+
+    return null;
   }
 
   // JSON-only message (non-ChatML object)
@@ -194,7 +240,7 @@ export function ChatMessage({
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
           />
-          {toolCalls.length > 0 && (
+          {showData && toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
                 message={message}
@@ -214,7 +260,7 @@ export function ChatMessage({
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
           />
-          {toolCalls.length > 0 && (
+          {showData && toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
                 message={message}
