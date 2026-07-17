@@ -28,6 +28,8 @@ import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   MoreVertical,
   PanelLeftClose,
   PanelLeftOpen,
@@ -784,7 +786,10 @@ const FilterAccordionTrigger = ({
   <AccordionPrimitive.Header className="bg-background sticky top-0 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "group/facet relative flex flex-1 items-center text-left font-medium hover:underline",
+        // min-w-0: without it the trigger's automatic min width equals the
+        // nowrap chip's full text width, so long chips push the row past the
+        // panel edge (clipped) instead of ellipsing.
+        "group/facet relative flex min-w-0 flex-1 items-center text-left font-medium hover:underline",
         className,
       )}
       {...props}
@@ -954,7 +959,11 @@ export function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                className="bg-background/95 text-muted-foreground hover:bg-accent hover:text-foreground absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                // top-0.5 anchors the button to the label line — a 24px
+                // button in the 28px single-line header still reads centered,
+                // and on two-line headers it stays top-right instead of
+                // floating mid-height.
+                className="bg-background/95 text-muted-foreground hover:bg-accent hover:text-foreground absolute top-0.5 right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
                 aria-label={`Clear ${label} filter`}
               >
                 <IconX className="h-3.5 w-3.5" />
@@ -1355,7 +1364,7 @@ function CategoricalSelectContent({
               {/* Remaining options, capped */}
               {visibleRemainingOptions.map(renderOption)}
               {(canShowMore || canShowFewer) && (
-                <div className="flex gap-1 px-2">
+                <div className="flex flex-col px-2">
                   {canShowMore && (
                     <Button
                       variant="ghost"
@@ -1365,8 +1374,9 @@ function CategoricalSelectContent({
                           (current) => current + SHOW_MORE_INCREMENT,
                         )
                       }
-                      className="mt-1 h-auto justify-start py-1 pl-7 text-xs"
+                      className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
+                      <ChevronDown className="mr-1 h-3 w-3" />
                       Show more values
                     </Button>
                   )}
@@ -1375,11 +1385,9 @@ function CategoricalSelectContent({
                       variant="ghost"
                       size="sm"
                       onClick={() => setVisibleCount(MAX_VISIBLE_OPTIONS)}
-                      className={cn(
-                        "mt-1 h-auto justify-start py-1 text-xs",
-                        !canShowMore && "pl-7",
-                      )}
+                      className="mt-0.5 h-auto w-full justify-start py-1 pl-7 text-xs"
                     >
+                      <ChevronUp className="mr-1 h-3 w-3" />
                       Show fewer values
                     </Button>
                   )}
