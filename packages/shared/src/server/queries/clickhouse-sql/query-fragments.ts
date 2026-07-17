@@ -32,6 +32,59 @@ export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
 
+export const promptEventsForMetrics = (params: {
+  projectId: string;
+  promptIds: string[];
+  fromTimestamp?: string;
+  toTimestamp?: string;
+}): CTEWithSchema => {
+  const builder = new EventsQueryBuilder({ projectId: params.projectId })
+    .selectRaw(
+      "e.project_id AS project_id",
+      "e.prompt_id AS prompt_id",
+      "e.prompt_version AS prompt_version",
+      "e.trace_id AS trace_id",
+      "e.span_id AS span_id",
+      "e.start_time AS start_time",
+      "e.end_time AS end_time",
+      "e.usage_details AS usage_details",
+      "e.cost_details AS cost_details",
+      "e.is_deleted AS is_deleted",
+    )
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("e.prompt_id IN ({promptIds: Array(String)})", {
+      promptIds: params.promptIds,
+    })
+    .when(Boolean(params.fromTimestamp), (b) =>
+      b.whereRaw("e.start_time >= {fromTimestamp: DateTime64(6)}", {
+        fromTimestamp: params.fromTimestamp,
+      }),
+    )
+    .when(Boolean(params.toTimestamp), (b) =>
+      b.whereRaw("e.start_time <= {toTimestamp: DateTime64(6)}", {
+        toTimestamp: params.toTimestamp,
+      }),
+    )
+    .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+    .limitBy("e.span_id", "e.project_id");
+
+  return {
+    ...builder.buildWithParams(),
+    schema: [
+      "project_id",
+      "prompt_id",
+      "prompt_version",
+      "trace_id",
+      "span_id",
+      "start_time",
+      "end_time",
+      "usage_details",
+      "cost_details",
+      "is_deleted",
+    ],
+  };
+};
+
 interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];

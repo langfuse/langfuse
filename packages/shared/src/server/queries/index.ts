@@ -87,6 +87,7 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
+  promptEventsForMetrics,
   scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
 export {
