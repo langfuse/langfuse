@@ -10,7 +10,6 @@
 import {
   FilterCondition,
   type ScoreDataTypeType,
-  TimeFilter,
   TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -65,7 +64,7 @@ export const getEventsStream = async (props: {
     },
   };
 
-  const { queryBuilder, eventOnlyFilters } = buildEventsBlobExportStreamQuery({
+  const { queryBuilder, startTimeFrom } = buildEventsBlobExportStreamQuery({
     projectId,
     cutoffCreatedAt,
     filter,
@@ -79,11 +78,7 @@ export const getEventsStream = async (props: {
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: eventOnlyFilters,
-    isTimestampFilter: (
-      filterItem: FilterCondition,
-    ): filterItem is TimeFilter =>
-      filterItem.column === "Start Time" && filterItem.type === "datetime",
+    startTimeFrom,
     clickhouseConfigs,
   });
 

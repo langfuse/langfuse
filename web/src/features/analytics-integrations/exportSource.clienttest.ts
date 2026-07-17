@@ -25,22 +25,33 @@ const ROW_PRE = new Date(LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY);
 const cloudPreCutoff: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
+  legacyWritesActive: true,
   projectCreatedAt: PROJECT_PRE,
   integrationCreatedAt: ROW_PRE,
 };
 const cloudPostCutoff: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
+  legacyWritesActive: true,
   projectCreatedAt: PROJECT_POST,
   integrationCreatedAt: ROW_PRE,
 };
 const selfHostedWithPreview: ExportSourceContext = {
   isCloud: false,
   enrichedAvailable: true,
+  legacyWritesActive: true,
 };
 const selfHostedRolledBack: ExportSourceContext = {
   isCloud: false,
   enrichedAvailable: false,
+  legacyWritesActive: true,
+};
+// Self-hosted events_only: v3 tables no longer written (LFE-10148). Enriched
+// stays available (events_only requires the V4 preview opt-in).
+const selfHostedEventsOnly: ExportSourceContext = {
+  isCloud: false,
+  enrichedAvailable: true,
+  legacyWritesActive: false,
 };
 
 describe("getExportSourceFormValue", () => {
@@ -73,6 +84,18 @@ describe("getExportSourceFormValue", () => {
     expect(getExportSourceFormValue(undefined, selfHostedRolledBack)).toBe(
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
     );
+  });
+
+  it("defaults new configurations to EVENTS on events_only, keeps a persisted legacy value (LFE-10148)", () => {
+    expect(getExportSourceFormValue(undefined, selfHostedEventsOnly)).toBe(
+      AnalyticsIntegrationExportSource.EVENTS,
+    );
+    expect(
+      getExportSourceFormValue(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        selfHostedEventsOnly,
+      ),
+    ).toBe(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS);
   });
 });
 
@@ -121,6 +144,21 @@ describe("isExportSourceSelectable", () => {
       );
     }
   });
+
+  it("rejects legacy sources on events_only, EVENTS stays (LFE-10148)", () => {
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+        selfHostedEventsOnly,
+      ),
+    ).toBe(false);
+    expect(
+      isExportSourceSelectable(
+        AnalyticsIntegrationExportSource.EVENTS,
+        selfHostedEventsOnly,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("getExportSourceOptions", () => {
@@ -139,6 +177,23 @@ describe("getExportSourceOptions", () => {
     expect(options.map((o) => o.value)).toEqual([
       AnalyticsIntegrationExportSource.EVENTS,
     ]);
+  });
+
+  it("marks a persisted legacy source unavailable on events_only, EVENTS selectable (LFE-10148)", () => {
+    const options = getExportSourceOptions(
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      selfHostedEventsOnly,
+    );
+    expect(
+      options.find(
+        (o) => o.value === AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+      )?.unavailable,
+    ).toBe(true);
+    expect(
+      options.find((o) => o.value === AnalyticsIntegrationExportSource.EVENTS)
+        ?.unavailable,
+    ).toBe(false);
+    expect(shouldHideExportSourceSelector(options)).toBe(false);
   });
 
   it("includes a stale persisted enriched source, marked unavailable (LFE-10296)", () => {
@@ -208,5 +263,11 @@ describe("getExportSourceUnavailableMessage", () => {
     expect(getExportSourceUnavailableMessage("cloud-cutoff")).toContain(
       "no longer available for this project",
     );
+  });
+
+  it("names the env var for legacy-writes-disabled (self-hosted operator-facing)", () => {
+    const message = getExportSourceUnavailableMessage("legacy-writes-disabled");
+    expect(message).toContain("LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only");
+    expect(message).not.toContain("no longer available for this project");
   });
 });

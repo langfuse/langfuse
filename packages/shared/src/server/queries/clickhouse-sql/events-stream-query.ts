@@ -18,7 +18,10 @@ export type EventsStreamQueryInput = {
 
 export type EventsStreamQuery = {
   queryBuilder: EventsQueryBuilder;
-  eventOnlyFilters: FilterCondition[];
+};
+
+export type EventsBlobExportStreamQuery = EventsStreamQuery & {
+  startTimeFrom: string | null;
 };
 
 /**
@@ -26,8 +29,10 @@ export type EventsStreamQuery = {
  *
  * The returned builder is intentionally unprojected so each consumer can
  * select its own row shape. Callers must add a field set or raw selection
- * before building the query. Score and comment filters are intentionally
- * excluded here to preserve the legacy stream behavior.
+ * before building the query.
+ *
+ * Score filters are applied by the shared row-selection planner. Unresolved
+ * comment filters remain excluded until the stream caller resolves them.
  */
 const buildEventsStreamQueryInternal = (
   {
@@ -39,9 +44,13 @@ const buildEventsStreamQueryInternal = (
     rowLimit,
   }: EventsStreamQueryInput,
   buildRowSelection: typeof buildEventsObservationRowSelection,
-): EventsStreamQuery => {
+): EventsBlobExportStreamQuery => {
   const originalFilterGroups = groupEventsObservationFilters(filter);
-  const filterConditions: FilterCondition[] = [...originalFilterGroups.events];
+  const filterConditions: FilterCondition[] = [
+    ...originalFilterGroups.events,
+    ...originalFilterGroups.observationScores,
+    ...originalFilterGroups.traceScores,
+  ];
   if (cutoffCreatedAt) {
     filterConditions.push({
       column: "startTime",
@@ -51,12 +60,11 @@ const buildEventsStreamQueryInternal = (
     });
   }
 
-  const { queryBuilder } = buildRowSelection({
+  const { queryBuilder, startTimeFrom } = buildRowSelection({
     projectId,
     filter: filterConditions,
     searchQuery,
     searchType,
-    scoreFilterCapabilities: { observation: false, trace: false },
   });
 
   queryBuilder
@@ -67,7 +75,7 @@ const buildEventsStreamQueryInternal = (
 
   return {
     queryBuilder,
-    eventOnlyFilters: originalFilterGroups.events,
+    startTimeFrom,
   };
 };
 
@@ -82,7 +90,7 @@ export const buildEventsStreamQuery = (
  */
 export const buildEventsBlobExportStreamQuery = (
   input: EventsStreamQueryInput,
-): EventsStreamQuery => {
+): EventsBlobExportStreamQuery => {
   const result = buildEventsStreamQueryInternal(
     input,
     buildEventsObservationRowSelectionForBlobExport,

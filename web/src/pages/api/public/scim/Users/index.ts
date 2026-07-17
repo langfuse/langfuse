@@ -262,6 +262,9 @@ export default async function handler(
         userId: user.id,
         email: user.email,
         name: user.name,
+        createdAt: user.createdAt,
+        // SCIM provisioning is org-admin-driven, never an organic signup.
+        leadSource: "Langfuse Cloud Invite",
       });
       await getSfdcService()?.setUserRole({
         orgId: authCheck.scope.orgId,

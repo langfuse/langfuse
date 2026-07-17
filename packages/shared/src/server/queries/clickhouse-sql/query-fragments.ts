@@ -11,6 +11,10 @@ import {
   type CTEWithSchema,
 } from "./event-query-builder";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+} from "../../repositories/constants";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -90,6 +94,7 @@ interface BaseScoresParams {
 
 interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
+  startTimeLookbackIntervals: readonly string[];
   /**
    * When true, adds an extra `score_categories_tuples` column with
    * `tuple(name, string_value, data_type)` encoding alongside the default concat-encoded
@@ -99,6 +104,14 @@ interface BaseScoresAggregationParams extends BaseScoresParams {
    */
   includeTupleEncoding?: boolean;
 }
+
+const scoreTimestampLowerBound = (
+  startTimeFrom: string | null | undefined,
+  lookbackIntervals: readonly string[],
+): string =>
+  startTimeFrom
+    ? `AND timestamp >= {startTimeFrom: DateTime64(3)}${lookbackIntervals.map((interval) => ` - ${interval}`).join("")}`
+    : "";
 
 /**
  * Unified score aggregation CTE builder for both observation-level and trace-level scores.
@@ -153,7 +166,7 @@ export const buildScoresAggregationCTE = (
         FROM scores FINAL
         WHERE project_id = {projectId: String}
           ${observationFilter}
-          ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+          ${scoreTimestampLowerBound(params.startTimeFrom, params.startTimeLookbackIntervals)}
         GROUP BY
           ${primaryKey},
           trace_id,
@@ -190,6 +203,7 @@ export const eventsScoresAggregation = (
   return buildScoresAggregationCTE({
     ...params,
     level: "observation",
+    startTimeLookbackIntervals: [SCORE_TO_TRACE_OBSERVATIONS_INTERVAL],
   });
 };
 
@@ -212,13 +226,15 @@ interface EventsTracesScoresAggregationParams {
  *
  * Returns a query and params object that can be passed directly to withCTE.
  */
-export const eventsTracesScoresAggregation = (
+const buildEventsTracesScoresAggregation = (
   params: EventsTracesScoresAggregationParams,
+  startTimeLookbackIntervals: readonly string[],
 ): { query: string; params: Record<string, any> } => {
   if (params.hasScoreAggregationFilters) {
     return buildScoresAggregationCTE({
       ...params,
       level: "trace",
+      startTimeLookbackIntervals,
     });
   }
 
@@ -239,7 +255,7 @@ export const eventsTracesScoresAggregation = (
     FROM scores
     WHERE project_id = {projectId: String}
       AND observation_id IS NULL
-      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+      ${scoreTimestampLowerBound(params.startTimeFrom, startTimeLookbackIntervals)}
     GROUP BY
       trace_id,
       project_id
@@ -247,6 +263,25 @@ export const eventsTracesScoresAggregation = (
 
   return { query, params: queryParams };
 };
+
+export const eventsTracesScoresAggregation = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } =>
+  buildEventsTracesScoresAggregation(params, [
+    SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  ]);
+
+/**
+ * Trace-score aggregation for observation rows selected by event start time.
+ * The lower bound covers trace-to-observation skew before the score lookback.
+ */
+export const eventsTracesScoresAggregationFromObservationStart = (
+  params: EventsTracesScoresAggregationParams,
+): { query: string; params: Record<string, any> } =>
+  buildEventsTracesScoresAggregation(params, [
+    OBSERVATIONS_TO_TRACE_INTERVAL,
+    SCORE_TO_TRACE_OBSERVATIONS_INTERVAL,
+  ]);
 
 /**
  * Aggregates events directly by session_id in a single step.
