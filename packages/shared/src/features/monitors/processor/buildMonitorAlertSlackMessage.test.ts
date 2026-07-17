@@ -134,4 +134,23 @@ describe("buildMonitorAlertSlackMessage", () => {
     expect(actions.elements).toHaveLength(1);
     expect(actions.elements[0].text.text).toBe("View in Langfuse");
   });
+
+  // buildAlert only sets dataPermalink for breaching severities, so recovery
+  // (OK) and NO_DATA notifications arrive here with dataPermalink undefined and
+  // must render no "View traces" button — recovery messages stay unchanged.
+  it.each(["OK", "NO_DATA"] as const)(
+    "renders no secondary data button for a %s (non-breach) alert",
+    (severity) => {
+      const { attachments } = buildMonitorAlertSlackMessage({
+        ...mockMonitorAlert,
+        severity,
+        dataPermalink: undefined,
+      });
+      const actions = attachments![0].blocks!.find(
+        (b: any) => b.type === "actions",
+      );
+      expect(actions.elements).toHaveLength(1);
+      expect(actions.elements[0].text.text).toBe("View in Langfuse");
+    },
+  );
 });

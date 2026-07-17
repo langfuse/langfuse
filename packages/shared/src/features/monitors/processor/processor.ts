@@ -28,6 +28,7 @@ import {
   MonitorSeveritySchema,
   MonitorStatusSchema,
   type MonitorAlert,
+  type MonitorSeverity,
   type MonitorWindow,
   type MonitorView,
   type Monitor,
@@ -383,12 +384,17 @@ function buildAlert(args: {
     fromTimestamp,
     toTimestamp,
     permalink: buildPermalink(prev.projectId, prev.id),
-    dataPermalink: buildDataWindowPermalink(
-      prev.projectId,
-      prev.view,
-      fromTimestamp,
-      toTimestamp,
-    ),
+    // Only a threshold-cross (ALERT/WARNING) links to the breaching data window;
+    // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
+    // a recovered/empty window, so they carry no data link.
+    dataPermalink: isBreaching(next.severity)
+      ? buildDataWindowPermalink(
+          prev.projectId,
+          prev.view,
+          fromTimestamp,
+          toTimestamp,
+        )
+      : undefined,
     message: renderAlertMessage({ monitor: prev, completion: next }),
     view: prev.view,
     filters: prev.filters,
@@ -404,6 +410,14 @@ export function buildPermalink(
   if (!env.NEXTAUTH_URL) return undefined;
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   return `${base}/project/${projectId}/monitors/${monitorId}`;
+}
+
+/** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
+export function isBreaching(severity: MonitorSeverity): boolean {
+  return (
+    severity === MonitorSeveritySchema.enum.ALERT ||
+    severity === MonitorSeveritySchema.enum.WARNING
+  );
 }
 
 /**
