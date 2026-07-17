@@ -36,13 +36,13 @@ export function V4MigrationDelayBadge() {
     >
       <span
         aria-hidden
-        className="bg-dark-yellow size-1.75 shrink-0 rounded-full"
+        className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
       ></span>
       <span className="flex items-center">
-        15 minutes delay
+        New data in ~15 min
         <span className="flex max-w-0 items-center overflow-hidden transition-[max-width] duration-300 ease-out group-hover:max-w-96">
           <span className="whitespace-nowrap">
-            .&nbsp;Update your SDK to receive real-time data.
+            .&nbsp;Update your SDK for real-time data.
           </span>
         </span>
         <ChevronRight className="ml-1 h-3 w-3 shrink-0" />

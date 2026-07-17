@@ -1,4 +1,4 @@
-import { ZapIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -34,14 +34,18 @@ export function V4MigrationNavItem() {
   };
 
   return (
-    <SidebarMenuButton onClick={handleClick} tooltip="Update">
-      <ZapIcon className="h-4 w-4 shrink-0" />
-      <span className="truncate" title="Update">
-        Update
-      </span>
-      <span className="bg-light-yellow text-dark-yellow inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium">
-        required
-      </span>
-    </SidebarMenuButton>
+    <div className="px-1 py-2">
+      <SidebarMenuButton
+        onClick={handleClick}
+        tooltip="Action required"
+        className="w-full gap-1.5 rounded-full border px-2"
+      >
+        <span className="h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400" />
+        <span className="truncate font-medium" title="Action required">
+          Action required
+        </span>
+        <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />
+      </SidebarMenuButton>
+    </div>
   );
 }
