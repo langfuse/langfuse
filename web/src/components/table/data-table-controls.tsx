@@ -28,7 +28,6 @@ import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
   Check,
-  ChevronDown,
   MoreVertical,
   PanelLeftClose,
   PanelLeftOpen,
@@ -167,34 +166,30 @@ export function DataTableControls({
     ? `data-table-controls-${tableName}`
     : "data-table-controls";
 
-  // Selected filters on top: facets with an active filter sort above the
-  // rest (config order preserved within each group), re-sorting IMMEDIATELY
-  // on every change — and when the user's own interaction moves a facet, the
-  // list follows it to its new position (see the follow-scroll effect below)
-  // instead of letting it vanish from view.
-  const orderedFilters = [...queryFilter.filters].sort(
-    (a, b) => Number(b.isActive) - Number(a.isActive),
-  );
-
-  // "Show only active" (the header … menu): the list collapses to the active
-  // facets plus any the user explicitly added this mount via "Add filter".
+  // "Show only active" (the header … menu): the list collapses to the
+  // promoted facets. Explicit "Add filter" picks are tracked per mount.
   const [showOnlyActive, setShowOnlyActive] = useLocalStorage(
     `${storagePrefix}-active-only`,
     false,
   );
   const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
+
+  // Selected filters on top: a facet is PROMOTED when it carries an active
+  // filter OR the user explicitly added it via "Add filter" — the explicit
+  // add is a promotion in itself, so typing a first value (facet becomes
+  // active) or clearing it again (inactive) never moves the facet around
+  // while someone is working in it. Config order is preserved within each
+  // group, the sort updates immediately, and both display modes share the
+  // exact same order. When an interaction does move a facet (activation by
+  // direct click), the follow-scroll effect below keeps it in view.
+  const revealedSet = new Set(revealedColumns);
+  const isPromoted = (filter: UIFilter) =>
+    filter.isActive || revealedSet.has(filter.column);
+  const orderedFilters = [...queryFilter.filters].sort(
+    (a, b) => Number(isPromoted(b)) - Number(isPromoted(a)),
+  );
   const displayedFilters = showOnlyActive
-    ? [
-        ...orderedFilters.filter((filter) => filter.isActive),
-        ...revealedColumns
-          .map((column) =>
-            queryFilter.filters.find((filter) => filter.column === column),
-          )
-          .filter(
-            (filter): filter is UIFilter =>
-              filter !== undefined && !filter.isActive,
-          ),
-      ]
+    ? orderedFilters.filter(isPromoted)
     : orderedFilters;
 
   // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
@@ -257,6 +252,13 @@ export function DataTableControls({
     if (!queryFilter.expanded.includes(column)) {
       queryFilter.onExpandedChange([...queryFilter.expanded, column]);
     }
+    // The added facet lands at its config-order slot within the promoted
+    // group — bring it into view once the re-render has painted.
+    requestAnimationFrame(() => {
+      scrollRootRef.current
+        ?.querySelector(`[data-facet-column="${CSS.escape(column)}"]`)
+        ?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    });
     capture("filters:facet_added", {
       tableName,
       column,
@@ -284,6 +286,180 @@ export function DataTableControls({
     },
     [queryFilter],
   );
+
+  const promotedFacetCount = displayedFilters.filter(isPromoted).length;
+
+  const renderFacet = (filter: UIFilter) => {
+    if (filter.type === "categorical") {
+      return (
+        <CategoricalFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          options={filter.options}
+          counts={filter.counts}
+          displayByValue={filter.displayByValue}
+          loading={filter.loading}
+          value={filter.value}
+          onChange={filter.onChange}
+          onOnlyChange={filter.onOnlyChange}
+          renderIcon={filter.renderIcon}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          operator={filter.operator}
+          onOperatorChange={filter.onOperatorChange}
+          textFilters={filter.textFilters}
+          onTextFilterAdd={filter.onTextFilterAdd}
+          onTextFilterRemove={filter.onTextFilterRemove}
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "numeric") {
+      return (
+        <NumericFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          min={filter.min}
+          max={filter.max}
+          value={filter.value}
+          onChange={filter.onChange}
+          unit={filter.unit}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "string") {
+      return (
+        <StringFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          value={filter.value}
+          onChange={filter.onChange}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "keyValue") {
+      return (
+        <KeyValueFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          keyOptions={filter.keyOptions}
+          availableValues={filter.availableValues}
+          value={filter.value}
+          onChange={filter.onChange}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          keyPlaceholder="Name"
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "numericKeyValue") {
+      return (
+        <NumericKeyValueFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          keyOptions={filter.keyOptions}
+          value={filter.value}
+          onChange={filter.onChange}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          keyPlaceholder="Name"
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "booleanKeyValue") {
+      return (
+        <BooleanKeyValueFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          keyOptions={filter.keyOptions}
+          value={filter.value}
+          onChange={filter.onChange}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          keyPlaceholder="Name"
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    if (filter.type === "stringKeyValue") {
+      return (
+        <StringKeyValueFacet
+          key={filter.column}
+          filterKey={filter.column}
+          label={filter.label}
+          tooltip={filter.tooltip}
+          help={filter.help}
+          summary={getFacetSummary(filter)}
+          expanded={filter.expanded}
+          loading={filter.loading}
+          keyOptions={filter.keyOptions}
+          value={filter.value}
+          onChange={filter.onChange}
+          isActive={filter.isActive}
+          onReset={filter.onReset}
+          isDisabled={filter.isDisabled}
+          disabledReason={filter.disabledReason}
+        />
+      );
+    }
+
+    return null;
+  };
 
   return (
     <>
@@ -445,184 +621,30 @@ export function DataTableControls({
               value={queryFilter.expanded}
               onValueChange={queryFilter.onExpandedChange}
             >
-              {displayedFilters.map((filter) => {
-                if (filter.type === "categorical") {
-                  return (
-                    <CategoricalFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      options={filter.options}
-                      counts={filter.counts}
-                      displayByValue={filter.displayByValue}
-                      loading={filter.loading}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      onOnlyChange={filter.onOnlyChange}
-                      renderIcon={filter.renderIcon}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      operator={filter.operator}
-                      onOperatorChange={filter.onOperatorChange}
-                      textFilters={filter.textFilters}
-                      onTextFilterAdd={filter.onTextFilterAdd}
-                      onTextFilterRemove={filter.onTextFilterRemove}
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "numeric") {
-                  return (
-                    <NumericFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      min={filter.min}
-                      max={filter.max}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      unit={filter.unit}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "string") {
-                  return (
-                    <StringFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "keyValue") {
-                  return (
-                    <KeyValueFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      keyOptions={filter.keyOptions}
-                      availableValues={filter.availableValues}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      keyPlaceholder="Name"
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "numericKeyValue") {
-                  return (
-                    <NumericKeyValueFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      keyOptions={filter.keyOptions}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      keyPlaceholder="Name"
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "booleanKeyValue") {
-                  return (
-                    <BooleanKeyValueFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      keyOptions={filter.keyOptions}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      keyPlaceholder="Name"
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                if (filter.type === "stringKeyValue") {
-                  return (
-                    <StringKeyValueFacet
-                      key={filter.column}
-                      filterKey={filter.column}
-                      label={filter.label}
-                      tooltip={filter.tooltip}
-                      help={filter.help}
-                      summary={getFacetSummary(filter)}
-                      expanded={filter.expanded}
-                      loading={filter.loading}
-                      keyOptions={filter.keyOptions}
-                      value={filter.value}
-                      onChange={filter.onChange}
-                      isActive={filter.isActive}
-                      onReset={filter.onReset}
-                      isDisabled={filter.isDisabled}
-                      disabledReason={filter.disabledReason}
-                    />
-                  );
-                }
-
-                return null;
-              })}
+              {displayedFilters.slice(0, promotedFacetCount).map(renderFacet)}
+              {/* Clear spatial break between the active/added block and the
+                  inactive rest of the catalog. */}
+              {promotedFacetCount > 0 &&
+                promotedFacetCount < displayedFilters.length && (
+                  <div
+                    className="border-border/60 mx-3 my-3 border-t"
+                    aria-hidden
+                  />
+                )}
+              {displayedFilters.slice(promotedFacetCount).map(renderFacet)}
             </Accordion>
 
             {/* Active-only mode: surface the rest of the catalog behind an
                 explicit "Add filter" picker, most-recently-used first, so
                 the filters someone actually works with are one click away. */}
             {showOnlyActive && (
-              <div className="px-3 pt-4">
+              <div
+                className={cn(
+                  "px-3 pt-4",
+                  displayedFilters.length === 0 &&
+                    "flex flex-col items-center gap-1 pt-8 text-center",
+                )}
+              >
                 {displayedFilters.length === 0 && (
                   <p className="text-muted-foreground pb-2 text-xs">
                     No active filters.
@@ -756,16 +778,18 @@ const FilterAccordionTrigger = ({
 }: React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>) => (
   // top-0: the panel header row sits outside the scroll container
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
+  // No expand/collapse chevron: the whole row toggles (hover background +
+  // aria-expanded signal the affordance), and the clear button overlays on
+  // hover without reserving layout space.
   <AccordionPrimitive.Header className="bg-background sticky top-0 z-10 flex">
     <AccordionPrimitive.Trigger
       className={cn(
-        "flex flex-1 items-center justify-between text-left font-medium hover:underline [&[data-state=open]>svg]:rotate-180",
+        "group/facet relative flex flex-1 items-center text-left font-medium hover:underline",
         className,
       )}
       {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 shrink-0" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
 );
@@ -820,18 +844,27 @@ export function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground px-3 py-1.5 text-sm font-normal hover:no-underline",
+          "text-muted-foreground hover:text-foreground hover:bg-accent/50 px-3 py-1 text-sm font-normal transition-colors hover:no-underline",
           isActive && "text-foreground",
           isDisabled &&
-            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed",
+            "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
         )}
       >
-        <div className="flex min-w-0 grow items-center gap-1.5 pr-2">
+        {/* Two-line-max header: line 1 is the label, which NEVER wraps —
+            it ellipses so the clear button keeps its place — and the chip
+            drops to its own second line when it doesn't fit inline.
+            flex-wrap breaks lines by content sizes, so the chip wraps
+            before anything shrinks; only an item alone on its line
+            shrink-truncates. The clear button and chevron sit outside the
+            wrap container and never move. */}
+        <div className="flex min-w-0 grow flex-wrap items-center gap-x-1.5 gap-y-0.5">
           {isDisabled && disabledReason ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
-                <span className="flex grow items-baseline gap-1">
-                  {label}
+                <span className="flex min-w-0 grow items-center gap-1">
+                  <span className="min-w-0 truncate" title={label}>
+                    {label}
+                  </span>
                   {filterKeyShort && (
                     <code className="text-muted-foreground/70 hidden font-mono text-xs">
                       {filterKeyShort}
@@ -844,8 +877,10 @@ export function FilterAccordionItem({
               </TooltipContent>
             </Tooltip>
           ) : help ? (
-            <div className="flex grow items-center gap-1">
-              {label}
+            <div className="flex min-w-0 grow items-center gap-1">
+              <span className="min-w-0 truncate" title={label}>
+                {label}
+              </span>
               <DocPopup description={help.description} href={help.href} />
               {filterKeyShort && (
                 <code className="text-muted-foreground/70 hidden font-mono text-xs">
@@ -856,8 +891,10 @@ export function FilterAccordionItem({
           ) : tooltip ? (
             <Tooltip delayDuration={80}>
               <TooltipTrigger asChild>
-                <span className="flex grow items-center gap-1">
-                  {label}
+                <span className="flex min-w-0 grow items-center gap-1">
+                  <span className="min-w-0 truncate" title={label}>
+                    {label}
+                  </span>
                   <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
                   {filterKeyShort && (
                     <code className="text-muted-foreground/70 hidden font-mono text-xs">
@@ -871,8 +908,10 @@ export function FilterAccordionItem({
               </TooltipContent>
             </Tooltip>
           ) : (
-            <span className="flex grow items-baseline gap-1">
-              {label}
+            <span className="flex min-w-0 grow items-center gap-1">
+              <span className="min-w-0 truncate" title={label}>
+                {label}
+              </span>
               {filterKeyShort && (
                 <code className="text-muted-foreground/70 hidden font-mono text-xs">
                   {filterKeyShort}
@@ -881,13 +920,11 @@ export function FilterAccordionItem({
             </span>
           )}
           {summary && (
-            // shrink-0 + own max-w: a long facet label wraps rather than
-            // crushing the chip to nothing at the 200px minimum panel width.
             <span
               className={cn(
-                "max-w-[8rem] shrink-0 truncate text-xs",
+                "max-w-full min-w-0 truncate text-[11px] leading-4",
                 isActive
-                  ? "bg-accent text-accent-foreground rounded px-1.5 py-0.5 font-medium"
+                  ? "bg-accent text-accent-foreground rounded px-1 py-px font-medium"
                   : "text-muted-foreground/60 font-normal",
               )}
               title={summary}
@@ -895,37 +932,39 @@ export function FilterAccordionItem({
               {summary}
             </span>
           )}
-          {isActive && onReset && (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                {/* div[role=button], not <Button>: the accordion trigger is
-                    already a <button> and buttons cannot nest. */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReset();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onReset();
-                    }
-                  }}
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground -my-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm"
-                  aria-label={`Clear ${label} filter`}
-                >
-                  <IconX className="h-3.5 w-3.5" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">
-                Clear {label.toLowerCase()} filter
-              </TooltipContent>
-            </Tooltip>
-          )}
         </div>
+        {isActive && onReset && (
+          <Tooltip delayDuration={80}>
+            <TooltipTrigger asChild>
+              {/* div[role=button], not <Button>: the accordion trigger is
+                  already a <button> and buttons cannot nest. Rendered as a
+                  hover/focus-revealed OVERLAY (absolute, own background) so
+                  it never shifts the header layout. */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReset();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onReset();
+                  }
+                }}
+                className="bg-background/95 text-muted-foreground hover:bg-accent hover:text-foreground absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                aria-label={`Clear ${label} filter`}
+              >
+                <IconX className="h-3.5 w-3.5" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="text-xs">
+              Clear {label.toLowerCase()} filter
+            </TooltipContent>
+          </Tooltip>
+        )}
       </FilterAccordionTrigger>
       <FilterAccordionContent className="pb-2">
         <fieldset
