@@ -18,6 +18,7 @@ import {
   buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
+  eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsScoresAggregation,
@@ -1073,7 +1074,12 @@ export const getExperimentItemsFromEvents = async (
   ];
 
   // ========== QUERY 2: Fetch data for ALL experiments ==========
-  const queryBuilderData = eventsExperimentsRootSpans({
+  // total_cost is summed across the item's full observation subtree via a
+  // window function - the root span itself usually carries no cost of its
+  // own, so reading e.total_cost directly would just return 0. WHERE only
+  // scopes to project/experiment/item; root-row selection happens in
+  // ORDER BY/LIMIT BY below, so the window function still sees sibling rows.
+  const queryBuilderData = eventsExperimentsForItems({
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
@@ -1083,13 +1089,19 @@ export const getExperimentItemsFromEvents = async (
       "e.experiment_id as experiment_id",
       "e.level as level",
       "e.start_time as start_time",
-      "e.total_cost as total_cost",
+      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id) as total_cost",
       "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
     )
     // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    .orderByColumns([
+      {
+        column: "(e.span_id = e.experiment_item_root_span_id)",
+        direction: "DESC",
+      },
+      { column: "e.start_time", direction: "DESC" },
+    ])
     .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query: dataQuery, params: dataParams } =
