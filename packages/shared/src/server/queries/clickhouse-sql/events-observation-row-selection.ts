@@ -1,4 +1,5 @@
 import { eventsTableCols } from "../../../eventsTable";
+import { InvalidRequestError } from "../../../errors";
 import type { TracingSearchType } from "../../../interfaces/search";
 import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
@@ -148,6 +149,12 @@ const buildEventsObservationRowSelectionInternal = (
   startTimeFrom: string | null;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
+
+  if (filterGroups.comments.length > 0) {
+    throw new InvalidRequestError(
+      "Event comment filters must be resolved before building the ClickHouse row selection.",
+    );
+  }
 
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
