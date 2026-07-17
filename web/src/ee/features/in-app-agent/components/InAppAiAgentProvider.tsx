@@ -38,9 +38,11 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentMessageEntryPointContext,
   createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
+  type InAppAgentMessageEntryPoint,
 } from "@/src/ee/features/in-app-agent/context";
 import type {
   InAppAgentQuickActionAttribution,
@@ -63,7 +65,10 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 
-export type InAppAgentEntryPoint = "top_nav" | "keyboard_shortcut";
+export type InAppAgentEntryPoint =
+  | "top_nav"
+  | "keyboard_shortcut"
+  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -646,6 +651,7 @@ function InAppAiAgentProviderInner({
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
       quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
       clearLoadingEvents();
       setIsRunning(true);
@@ -667,6 +673,9 @@ function InAppAiAgentProviderInner({
               ? createInAppAgentQuickActionAttributionContext(
                   quickActionAttribution,
                 )
+              : [],
+            messageEntryPoint
+              ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
               : [],
           ),
         })
@@ -791,7 +800,8 @@ function InAppAiAgentProviderInner({
         !content ||
         isRunning ||
         isInAppAgentRateLimited(error) ||
-        isSelectedConversationHydrating ||
+        (options?.newConversation !== true &&
+          isSelectedConversationHydrating) ||
         submitInFlightRef.current
       ) {
         return false;
@@ -803,7 +813,10 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        if (selectedConversationIsWriteLocked) {
+        const isNewConversation =
+          options?.newConversation === true || !selectedConversationId;
+
+        if (!isNewConversation && selectedConversationIsWriteLocked) {
           setError({
             type: "generic",
             message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
@@ -811,9 +824,13 @@ function InAppAiAgentProviderInner({
           return false;
         }
 
-        const isNewConversation = !selectedConversationId;
-        const conversationId =
-          selectedConversationId ?? createInAppAgentConversationId();
+        const conversationId = isNewConversation
+          ? createInAppAgentConversationId()
+          : selectedConversationId;
+
+        if (!conversationId) {
+          return false;
+        }
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -848,12 +865,19 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started");
+          capture("in_app_agent:new_chat_started", { entryPoint });
         }
-        capture("in_app_agent:new_chat_turn");
+        capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        runAgent(agent, conversationId, undefined, options?.quickAction);
+        runAgent(
+          agent,
+          conversationId,
+          undefined,
+          options?.quickAction,
+          entryPoint,
+        );
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
