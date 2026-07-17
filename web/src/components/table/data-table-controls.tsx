@@ -1289,7 +1289,9 @@ function CategoricalSelectContent({
           ))}
         </>
       ) : visibleOptionValues.length === 0 ? (
-        <div className="text-muted-foreground py-1 text-xs">
+        // px-2 on top of the outer px-2 = the same 16px inset as the mode
+        // tabs and inputs, so empty states don't stick to the panel edge.
+        <div className="text-muted-foreground px-2 py-1 text-xs">
           {filterKey === "sessionId" ? (
             <span>
               Sessions group {tableName} together, which is useful for tracing
