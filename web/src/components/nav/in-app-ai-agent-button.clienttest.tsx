@@ -34,6 +34,7 @@ describe("InAppAiAgentButton", () => {
       {},
       { metaKey: true, altKey: true },
       { ctrlKey: true, shiftKey: true },
+      { metaKey: true, repeat: true },
     ]) {
       const nonShortcut = new KeyboardEvent("keydown", {
         key: "i",
