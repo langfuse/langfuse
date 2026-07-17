@@ -281,6 +281,8 @@ export const events = {
     "applied",
     "cleared",
     "facet_operator_toggled",
+    "active_only_toggled",
+    "facet_added",
     "search_submitted",
     "search_error",
     "ai_generate_requested",

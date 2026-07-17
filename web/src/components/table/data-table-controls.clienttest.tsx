@@ -358,24 +358,21 @@ describe("DataTableControls facet ordering", () => {
     expect(labelOrder("Beta", "Alpha")).toBe(true);
   });
 
-  it("freezes the order on first interaction so facets don't jump mid-click", () => {
-    const filters = [
-      categoricalFilter("alpha", "Alpha", false),
-      categoricalFilter("beta", "Beta", true),
-    ];
+  it("re-sorts immediately when a facet's activity changes", () => {
     const { rerender } = render(
       <TooltipProvider>
-        <DataTableControls queryFilter={queryFilter(filters)} />
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", false),
+            categoricalFilter("beta", "Beta", true),
+          ])}
+        />
       </TooltipProvider>,
     );
     expect(labelOrder("Beta", "Alpha")).toBe(true);
 
-    // Any interaction inside the facet LIST freezes the current order
-    // (header actions like Clear all deliberately stay live)…
-    fireEvent.keyDown(screen.getByText("Alpha"));
-
-    // …so Alpha becoming active (as a click on its checkbox would make it)
-    // must NOT re-sort it above Beta while the user is working in the list.
+    // Alpha becoming active promotes it right away (config order among
+    // equally-active facets)…
     rerender(
       <TooltipProvider>
         <DataTableControls
@@ -386,10 +383,49 @@ describe("DataTableControls facet ordering", () => {
         />
       </TooltipProvider>,
     );
-    expect(labelOrder("Beta", "Alpha")).toBe(true);
+    expect(labelOrder("Alpha", "Beta")).toBe(true);
+
+    // …and Beta clearing demotes it below the still-active Alpha.
+    rerender(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter([
+            categoricalFilter("alpha", "Alpha", true),
+            categoricalFilter("beta", "Beta", false),
+          ])}
+        />
+      </TooltipProvider>,
+    );
+    expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
 
-  it("tracks activity live before any interaction (late-arriving URL filters)", () => {
+  it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
+    // The header … menu persists the mode per table; no provider here, so
+    // the storage key is the unscoped default.
+    localStorage.setItem("data-table-controls-active-only", "true");
+    try {
+      render(
+        <TooltipProvider>
+          <DataTableControls
+            queryFilter={queryFilter([
+              categoricalFilter("alpha", "Alpha", false),
+              categoricalFilter("beta", "Beta", true),
+            ])}
+          />
+        </TooltipProvider>,
+      );
+
+      expect(screen.getByText("Beta")).toBeInTheDocument();
+      expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Add filter/ }),
+      ).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem("data-table-controls-active-only");
+    }
+  });
+
+  it("tracks late-arriving URL filters (Pages Router populates params after mount)", () => {
     const { rerender } = render(
       <TooltipProvider>
         <DataTableControls

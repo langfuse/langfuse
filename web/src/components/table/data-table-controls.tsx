@@ -26,7 +26,22 @@ import { cn } from "@/src/utils/tailwind";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  ChevronDown,
+  MoreVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/ui/badge";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { Button } from "@/src/components/ui/button";
@@ -124,6 +139,8 @@ export interface QueryFilter {
   clearAll: () => void;
   isFiltered: boolean;
   setFilterState: (filters: FilterState) => void;
+  /** v3-vs-v4 analytics dimension of the surface (see useSidebarFilterState). */
+  isV4?: boolean;
 }
 
 interface DataTableControlsProps {
@@ -131,60 +148,124 @@ interface DataTableControlsProps {
   filterWithAI?: boolean;
 }
 
-// Stable sort into a previously captured column order; columns missing from
-// the captured order keep their relative position at the end.
-function sortFacetsByColumnOrder(
-  filters: UIFilter[],
-  order: string[],
-): UIFilter[] {
-  const index = new Map(order.map((column, i) => [column, i]));
-  return [...filters].sort(
-    (a, b) =>
-      (index.get(a.column) ?? order.length) -
-      (index.get(b.column) ?? order.length),
-  );
-}
+// Module-stable initial value: a fresh {} per render would re-subscribe
+// useLocalStorage's cross-tab listener on every render.
+const EMPTY_RECENCY: Record<string, number> = {};
 
 export function DataTableControls({
   queryFilter,
   filterWithAI,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen } = useDataTableControls();
+  const { setOpen, tableName } = useDataTableControls();
+  const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
     (filter) => filter.isActive,
   ).length;
+  const storagePrefix = tableName
+    ? `data-table-controls-${tableName}`
+    : "data-table-controls";
 
-  // Selected filters on top: facets with an active filter are promoted above
-  // the rest (config order preserved within each group), so landing on a
-  // filtered view — deep link, saved view, restored session — shows what is
-  // filtered without scrolling. The order FREEZES on the first user
-  // interaction with the sidebar: re-sorting live would teleport the facet a
-  // user is ticking checkboxes in to the top of the list mid-interaction,
-  // moving the very rows under their cursor. Until that first interaction the
-  // order tracks activity live, which also covers URL filters that arrive a
-  // few renders late (Pages Router populates query params after the first
-  // render — see LFE-10164 in useSidebarFilterState). A remount (navigation,
-  // saved-view switch) recomputes the promotion.
-  const [frozenOrder, setFrozenOrder] = useState<string[] | null>(null);
-  const orderedFilters = frozenOrder
-    ? sortFacetsByColumnOrder(queryFilter.filters, frozenOrder)
-    : [...queryFilter.filters].sort(
-        (a, b) => Number(b.isActive) - Number(a.isActive),
-      );
-  const orderedColumns = orderedFilters.map((filter) => filter.column);
-  const freezeFacetOrder = () => {
-    setFrozenOrder((current) => current ?? orderedColumns);
+  // Selected filters on top: facets with an active filter sort above the
+  // rest (config order preserved within each group), re-sorting IMMEDIATELY
+  // on every change — and when the user's own interaction moves a facet, the
+  // list follows it to its new position (see the follow-scroll effect below)
+  // instead of letting it vanish from view.
+  const orderedFilters = [...queryFilter.filters].sort(
+    (a, b) => Number(b.isActive) - Number(a.isActive),
+  );
+
+  // "Show only active" (the header … menu): the list collapses to the active
+  // facets plus any the user explicitly added this mount via "Add filter".
+  const [showOnlyActive, setShowOnlyActive] = useLocalStorage(
+    `${storagePrefix}-active-only`,
+    false,
+  );
+  const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
+  const displayedFilters = showOnlyActive
+    ? [
+        ...orderedFilters.filter((filter) => filter.isActive),
+        ...revealedColumns
+          .map((column) =>
+            queryFilter.filters.find((filter) => filter.column === column),
+          )
+          .filter(
+            (filter): filter is UIFilter =>
+              filter !== undefined && !filter.isActive,
+          ),
+      ]
+    : orderedFilters;
+
+  // Facet-usage recency, feeding the "Add filter" dropdown's ordering so the
+  // filters someone actually uses on this table surface first.
+  const [recentColumns, setRecentColumns] = useLocalStorage<
+    Record<string, number>
+  >(`${storagePrefix}-recent-facets`, EMPTY_RECENCY);
+  const addableFilters = showOnlyActive
+    ? orderedFilters
+        .filter(
+          (filter) =>
+            !filter.isActive && !revealedColumns.includes(filter.column),
+        )
+        .sort(
+          (a, b) =>
+            (recentColumns[b.column] ?? 0) - (recentColumns[a.column] ?? 0),
+        )
+    : [];
+
+  // Follow-scroll + recency: DOM scrolling is the external system here, so an
+  // effect is the right integration boundary. When exactly one facet changed
+  // activity (the user's own interaction — bulk changes like Clear all, AI
+  // apply, or a restored view skip the scroll), the re-sort has already moved
+  // it by the time this runs; scroll the list to its new position.
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+  const activeColumnsKey = queryFilter.filters
+    .filter((filter) => filter.isActive)
+    .map((filter) => filter.column)
+    .join(",");
+  const prevActiveColumnsRef = useRef(activeColumnsKey);
+  useEffect(() => {
+    const prevKey = prevActiveColumnsRef.current;
+    if (prevKey === activeColumnsKey) return;
+    prevActiveColumnsRef.current = activeColumnsKey;
+    const prev = new Set(prevKey.split(",").filter(Boolean));
+    const current = new Set(activeColumnsKey.split(",").filter(Boolean));
+    const became = [...current].filter((column) => !prev.has(column));
+    const ceased = [...prev].filter((column) => !current.has(column));
+
+    if (became.length > 0) {
+      const now = Date.now();
+      setRecentColumns((existing) => ({
+        ...existing,
+        ...Object.fromEntries(became.map((column) => [column, now])),
+      }));
+    }
+
+    const changed = [...became, ...ceased];
+    if (changed.length !== 1) return;
+    const facetElement = scrollRootRef.current?.querySelector(
+      `[data-facet-column="${CSS.escape(changed[0])}"]`,
+    );
+    facetElement?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+  }, [activeColumnsKey, setRecentColumns]);
+
+  const handleAddFilter = (column: string) => {
+    setRevealedColumns((current) =>
+      current.includes(column) ? current : [...current, column],
+    );
+    if (!queryFilter.expanded.includes(column)) {
+      queryFilter.onExpandedChange([...queryFilter.expanded, column]);
+    }
+    capture("filters:facet_added", {
+      tableName,
+      column,
+      isV4: queryFilter.isV4 ?? false,
+    });
   };
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
-      // Un-freeze so the facets the AI just activated promote to the top —
-      // opening the popover necessarily interacted with the panel earlier,
-      // and nothing is under the user's cursor inside the list right now.
-      setFrozenOrder(null);
-
       // Apply filters
       queryFilter.setFilterState(filters);
 
@@ -272,26 +353,6 @@ export function DataTableControls({
             )}
           </div>
           <div className="flex items-center gap-1">
-            {queryFilter.isFiltered && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      // Un-freeze so the list actually returns to config
-                      // order (nothing is promoted once nothing is active).
-                      setFrozenOrder(null);
-                      queryFilter.clearAll();
-                    }}
-                    className="h-7 px-2 text-xs"
-                  >
-                    Clear all
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Clear all filters</TooltipContent>
-              </Tooltip>
-            )}
             {filterWithAI && isLangfuseCloud && (
               <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
                 <Tooltip>
@@ -311,21 +372,51 @@ export function DataTableControls({
                 </PopoverContent>
               </Popover>
             )}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      aria-label="Filter options"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Filter options</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  disabled={!queryFilter.isFiltered}
+                  onClick={() => queryFilter.clearAll()}
+                >
+                  Clear all filters
+                </DropdownMenuItem>
+                <DropdownMenuCheckboxItem
+                  checked={showOnlyActive}
+                  onCheckedChange={(checked) => {
+                    setShowOnlyActive(Boolean(checked));
+                    capture("filters:active_only_toggled", {
+                      tableName,
+                      enabled: Boolean(checked),
+                      isV4: queryFilter.isV4 ?? false,
+                    });
+                  }}
+                >
+                  Show only active
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setOpen(false)}>
+                  Collapse sidebar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        <ScrollArea
-          className="min-h-0 flex-1"
-          // Capture-phase so the order freezes BEFORE the click that would
-          // change it lands (see the frozenOrder comment above). Scoped to the
-          // facet LIST: header actions (Clear all, AI filters) deliberately
-          // stay live — clearing returns the list to config order, AI-applied
-          // filters promote — since neither moves rows under the cursor.
-          onPointerDownCapture={freezeFacetOrder}
-          onKeyDownCapture={freezeFacetOrder}
-          // Wheel too: a late-arriving URL filter must not reorder rows
-          // while the user is scroll-reading the list.
-          onWheelCapture={freezeFacetOrder}
-        >
+        <ScrollArea className="min-h-0 flex-1" ref={scrollRootRef}>
           {/* w-0 + min-w-full pins the content to the viewport width: the
               Radix viewport wraps children in an inline-styled
               `display: table; min-width: 100%` div that otherwise grows to
@@ -341,7 +432,7 @@ export function DataTableControls({
               value={queryFilter.expanded}
               onValueChange={queryFilter.onExpandedChange}
             >
-              {orderedFilters.map((filter) => {
+              {displayedFilters.map((filter) => {
                 if (filter.type === "categorical") {
                   return (
                     <CategoricalFacet
@@ -513,6 +604,45 @@ export function DataTableControls({
                 return null;
               })}
             </Accordion>
+
+            {/* Active-only mode: surface the rest of the catalog behind an
+                explicit "Add filter" picker, most-recently-used first, so
+                the filters someone actually works with are one click away. */}
+            {showOnlyActive && (
+              <div className="px-3 pt-1">
+                {displayedFilters.length === 0 && (
+                  <p className="text-muted-foreground pb-2 text-xs">
+                    No active filters.
+                  </p>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-xs"
+                      disabled={addableFilters.length === 0}
+                    >
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      Add filter
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="max-h-72 w-56 overflow-y-auto"
+                  >
+                    {addableFilters.map((filter) => (
+                      <DropdownMenuItem
+                        key={filter.column}
+                        onClick={() => handleAddFilter(filter.column)}
+                      >
+                        {filter.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
         </ScrollArea>
       </div>
@@ -668,7 +798,12 @@ export function FilterAccordionItem({
   onReset,
 }: FilterAccordionItemProps) {
   return (
-    <FilterAccordionItemPrimitive value={filterKey} className="border-none">
+    <FilterAccordionItemPrimitive
+      value={filterKey}
+      className="border-none"
+      // Anchor for the follow-scroll after a re-sort moves this facet.
+      data-facet-column={filterKey}
+    >
       <FilterAccordionTrigger
         className={cn(
           "text-muted-foreground hover:text-foreground px-3 py-1.5 text-sm font-normal hover:no-underline",

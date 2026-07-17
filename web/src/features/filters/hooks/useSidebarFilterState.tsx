@@ -1779,5 +1779,8 @@ export function useSidebarFilterState(
     filters,
     expanded: expandedState,
     onExpandedChange,
+    // Exposed so view-layer captures (DataTableControls) carry the same
+    // v3-vs-v4 dimension as the hook's own events.
+    isV4: isV4Surface,
   };
 }
