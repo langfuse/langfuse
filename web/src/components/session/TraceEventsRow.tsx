@@ -13,7 +13,7 @@ import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
-import { parseChatML } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import { isOnlyJsonMessage } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
 
 export type TraceEventsSurface = "card" | "station" | "data";
@@ -31,6 +31,113 @@ const observationHasIO = (observation: {
   input?: unknown;
   output?: unknown;
 }): boolean => hasContent(observation.input) || hasContent(observation.output);
+
+type SessionObservation =
+  RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
+
+const TraceStationObservation = ({
+  observation,
+  projectId,
+  sessionId,
+  traceId,
+  environment,
+  showCorrections,
+  contentMode,
+  onOpenInTraceView,
+}: {
+  observation: SessionObservation;
+  projectId: string;
+  sessionId: string;
+  traceId: string;
+  environment?: string;
+  showCorrections: boolean;
+  contentMode: IOPreviewContentMode;
+  onOpenInTraceView: (observationId: string) => void;
+}) => {
+  const parsed = React.useMemo(
+    () => ({
+      input: deepParseJson(observation.input, {
+        maxSize: 300_000,
+        maxDepth: 2,
+      }),
+      output: deepParseJson(observation.output, {
+        maxSize: 300_000,
+        maxDepth: 2,
+      }),
+      metadata: deepParseJson(observation.metadata, {
+        maxSize: 100_000,
+        maxDepth: 2,
+      }),
+    }),
+    [observation.input, observation.output, observation.metadata],
+  );
+  const chatMLParserResult = useChatMLParser(
+    observation.input ?? undefined,
+    observation.output ?? undefined,
+    observation.metadata ?? undefined,
+    observation.name ?? undefined,
+    parsed.input,
+    parsed.output,
+    parsed.metadata,
+  );
+  const isConversation =
+    chatMLParserResult.canDisplayAsChat &&
+    !chatMLParserResult.allMessages.every(isOnlyJsonMessage);
+
+  return (
+    <div
+      className={
+        isConversation
+          ? "flex flex-col gap-2"
+          : "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
+      }
+    >
+      {!isConversation ? <ObservationHeader observation={observation} /> : null}
+      <SessionObservationIO
+        observation={observation}
+        projectId={projectId}
+        sessionId={sessionId}
+        traceId={traceId}
+        environment={environment}
+        showCorrections={showCorrections}
+        onOpenInTraceView={onOpenInTraceView}
+        contentMode={isConversation ? contentMode : "all"}
+        currentView={isConversation ? "pretty" : undefined}
+        parsedInput={parsed.input}
+        parsedOutput={parsed.output}
+        parsedMetadata={parsed.metadata}
+        chatMLParserResult={chatMLParserResult}
+      />
+    </div>
+  );
+};
+
+const ObservationHeader = ({
+  observation,
+}: {
+  observation: SessionObservation;
+}) => (
+  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+    <span className="min-w-0 wrap-break-word">
+      {observation.name ?? "Observation"}
+    </span>
+    <span className="-mr-1">•</span>
+    <span className="inline-flex items-center gap-1">
+      <ItemBadge
+        type={observation.type ?? "EVENT"}
+        isSmall
+        className="h-3 w-3"
+      />
+      <span>
+        {String(observation.type ?? "EVENT")
+          .toLowerCase()
+          .replace(/_/g, " ")}
+      </span>
+    </span>
+    <span>•</span>
+    <span>{observation.startTime.toLocaleString()}</span>
+  </div>
+);
 
 // Opens the session-detail "View" drawer by activating its trigger — the empty
 // notice's action routes through the one shared View control (no per-card state).
@@ -253,33 +360,6 @@ export const TraceEventsRow = React.memo(
       return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
-    const chatMLObservationIds = React.useMemo(() => {
-      const ids = new Set<string>();
-      if (surface !== "station") return ids;
-
-      for (const observation of visibleObservations ?? []) {
-        const { canDisplayAsChat, allMessages } = parseChatML(
-          deepParseJson(observation.input, {
-            maxSize: 300_000,
-            maxDepth: 2,
-          }),
-          deepParseJson(observation.output, {
-            maxSize: 300_000,
-            maxDepth: 2,
-          }),
-          deepParseJson(observation.metadata, {
-            maxSize: 100_000,
-            maxDepth: 2,
-          }),
-          observation.name ?? undefined,
-        );
-        if (canDisplayAsChat && !allMessages.every(isOnlyJsonMessage)) {
-          ids.add(observation.id);
-        }
-      }
-      return ids;
-    }, [surface, visibleObservations]);
-
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
 
@@ -290,7 +370,7 @@ export const TraceEventsRow = React.memo(
             ? "border-border shadow-none"
             : surface === "station"
               ? isActive
-                ? "bg-background border-primary border-l-2"
+                ? "bg-background border-l-primary border-l-2"
                 : "bg-background border-l-2 border-l-transparent"
               : "min-w-0"
         }
@@ -308,7 +388,7 @@ export const TraceEventsRow = React.memo(
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
                 : surface === "station"
-                  ? "min-w-0 overflow-hidden px-6 pb-10"
+                  ? "min-w-0 px-6 pb-10"
                   : "min-w-0 overflow-hidden"
             }
           >
@@ -328,7 +408,7 @@ export const TraceEventsRow = React.memo(
                     {trace.name ?? "Trace"}
                   </span>
                   <span
-                    className="text-muted-foreground max-w-52 shrink-0 truncate font-mono text-xs group-hover:underline"
+                    className="text-muted-foreground min-w-0 truncate font-mono text-xs group-hover:underline"
                     title={trace.id}
                   >
                     {trace.id}
@@ -348,48 +428,29 @@ export const TraceEventsRow = React.memo(
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {visibleObservations.map((observation) => {
-                  const isConversationObservation = chatMLObservationIds.has(
-                    observation.id,
-                  );
-                  const isInlineDataObservation =
-                    surface === "station" && !isConversationObservation;
-                  const observationContentMode = isInlineDataObservation
-                    ? "all"
-                    : contentMode;
+                  if (surface === "station") {
+                    return (
+                      <TraceStationObservation
+                        key={observation.id}
+                        observation={observation}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        traceId={trace.id}
+                        environment={
+                          observation.environment ??
+                          trace.environment ??
+                          undefined
+                        }
+                        showCorrections={showCorrections}
+                        contentMode={contentMode}
+                        onOpenInTraceView={openObservationInTraceView}
+                      />
+                    );
+                  }
 
                   return (
-                    <div
-                      key={observation.id}
-                      className={
-                        isInlineDataObservation
-                          ? "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
-                          : "flex flex-col gap-2"
-                      }
-                    >
-                      {surface !== "station" || isInlineDataObservation ? (
-                        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                          {/* min-w-0 + wrap-break-word: unbroken long names must
-                            wrap inside the card, not escape it */}
-                          <span className="min-w-0 wrap-break-word">
-                            {observation.name ?? "Observation"}
-                          </span>
-                          <span className="-mr-1">•</span>
-                          <span className="inline-flex items-center gap-1">
-                            <ItemBadge
-                              type={observation.type ?? "EVENT"}
-                              isSmall
-                              className="h-3 w-3"
-                            />
-                            <span>
-                              {String(observation.type ?? "EVENT")
-                                .toLowerCase()
-                                .replace(/_/g, " ")}
-                            </span>
-                          </span>
-                          <span>•</span>
-                          <span>{observation.startTime.toLocaleString()}</span>
-                        </div>
-                      ) : null}
+                    <div key={observation.id} className="flex flex-col gap-2">
+                      <ObservationHeader observation={observation} />
                       <SessionObservationIO
                         observation={observation}
                         projectId={projectId}
@@ -402,12 +463,7 @@ export const TraceEventsRow = React.memo(
                         }
                         showCorrections={showCorrections}
                         onOpenInTraceView={openObservationInTraceView}
-                        contentMode={observationContentMode}
-                        currentView={
-                          surface === "card" || isInlineDataObservation
-                            ? undefined
-                            : "pretty"
-                        }
+                        contentMode={contentMode}
                       />
                     </div>
                   );

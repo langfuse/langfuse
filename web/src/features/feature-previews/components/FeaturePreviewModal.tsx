@@ -45,6 +45,7 @@ type PreviewRegistryItem = {
  *  owns the session + the toggle mutation). The static content lives here. */
 export type PreviewState = {
   enabled: boolean;
+  disabled?: boolean;
   warningReason?: string;
   onToggle: (enabled: boolean) => void;
   isToggling?: boolean;
@@ -153,7 +154,11 @@ export function FeaturePreviewModal({
                         {item.sidebarLabel}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
-                        {state[item.flag]?.enabled ? "Enabled" : "Available"}
+                        {state[item.flag]?.disabled
+                          ? "Unavailable"
+                          : state[item.flag]?.enabled
+                            ? "Enabled"
+                            : "Available"}
                       </span>
                     </span>
                   </button>
@@ -192,7 +197,10 @@ export function FeaturePreviewModal({
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <Switch
                       checked={selectedState.enabled}
-                      disabled={selectedState.isToggling === true}
+                      disabled={
+                        selectedState.disabled === true ||
+                        selectedState.isToggling === true
+                      }
                       onCheckedChange={selectedState.onToggle}
                       aria-label={`Toggle ${selected.title}`}
                     />

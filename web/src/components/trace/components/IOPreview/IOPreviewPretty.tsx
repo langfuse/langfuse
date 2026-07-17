@@ -4,7 +4,10 @@ import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { useChatMLParser } from "./hooks/useChatMLParser";
+import {
+  type ChatMLParserResult,
+  useChatMLParser,
+} from "./hooks/useChatMLParser";
 import { ChatMessageList } from "./components/ChatMessageList";
 import { SectionToolDefinitions } from "./components/SectionToolDefinitions";
 import {
@@ -89,6 +92,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
+  chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -126,6 +130,7 @@ export function IOPreviewPretty({
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
+  chatMLParserResult,
   observationName,
   isLoading = false,
   isParsing = false,
@@ -192,6 +197,7 @@ export function IOPreviewPretty({
     parsedInput,
     parsedOutput,
     parsedMetadata,
+    chatMLParserResult,
   );
 
   // Determine if markdown is safe to render (content size check)

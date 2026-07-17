@@ -11,6 +11,7 @@ import { downloadJsonFile } from "@/src/components/session/actions/downloadSessi
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -80,6 +81,10 @@ export const SessionObservationIO = ({
   onOpenInTraceView,
   contentMode = "all",
   currentView,
+  parsedInput,
+  parsedOutput,
+  parsedMetadata,
+  chatMLParserResult,
 }: {
   observation: SessionTraceObservation;
   projectId: string;
@@ -90,6 +95,10 @@ export const SessionObservationIO = ({
   onOpenInTraceView: (observationId: string) => void;
   contentMode?: IOPreviewContentMode;
   currentView?: ViewMode;
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
+  parsedMetadata?: unknown;
+  chatMLParserResult?: ChatMLParserResult;
 }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -156,6 +165,10 @@ export const SessionObservationIO = ({
           showCorrections={showCorrections}
           contentMode={contentMode}
           currentView={currentView}
+          parsedInput={parsedInput}
+          parsedOutput={parsedOutput}
+          parsedMetadata={parsedMetadata}
+          chatMLParserResult={chatMLParserResult}
         />
         {observation.metadataTruncated && (
           <p className="text-muted-foreground text-xs">

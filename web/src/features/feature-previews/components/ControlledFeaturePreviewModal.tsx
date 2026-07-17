@@ -67,19 +67,17 @@ export function ControlledFeaturePreviewModal({
     traceStation: {
       enabled:
         authSession.data?.user?.featureFlags.traceStation === true ||
-        authSession.data?.user?.admin === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        !isBetaEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isBetaEnabled
-        ? "Compact Session View is available on the events-backed session view. Turn on Fast (Preview) to use it after enabling this preview."
-        : authSession.data?.user?.admin === true ||
-            authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled for all administrators or by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+        ? "Compact Session View is only available on the events-backed session view. Turn on Fast (Preview) to enable it."
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
           : undefined,
       onToggle: onToggle("traceStation"),
-      isToggling:
-        pendingFlags.has("traceStation") ||
-        authSession.data?.user?.admin === true ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
+      isToggling: pendingFlags.has("traceStation"),
     },
     // The "Filter Search Bar" preview is retired — the bar is now generally
     // available on the v4 events tables for everyone (see useSearchBarEnabled),

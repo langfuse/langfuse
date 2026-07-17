@@ -93,7 +93,7 @@ import {
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 10;
+const INITIAL_USERS_DISPLAY_COUNT = 3;
 const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
@@ -645,7 +645,9 @@ const LoadedSessionEventsPage: React.FC<{
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
   const capture = usePostHogClientCapture();
-  const isTraceStationEnabled = useIsFeatureEnabled("traceStation");
+  const isTraceStationEnabled = useIsFeatureEnabled("traceStation", {
+    enableForAdmins: false,
+  });
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -688,7 +690,7 @@ const LoadedSessionEventsPage: React.FC<{
   );
 
   const setInlineToolCallsForSession = (isEnabled: boolean) => {
-    capture("session_detail:inline_tools_toggled", { isEnabled });
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
     sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
   };
 

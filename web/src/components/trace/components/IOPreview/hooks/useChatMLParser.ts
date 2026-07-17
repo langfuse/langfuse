@@ -201,26 +201,37 @@ export function useChatMLParser(
   preParsedInput?: unknown,
   preParsedOutput?: unknown,
   preParsedMetadata?: unknown,
+  preParsedResult?: ChatMLParserResult,
 ): ChatMLParserResult {
   // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
   // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
-  const parsedInput =
-    preParsedInput !== undefined
+  const parsedInput = preParsedResult
+    ? undefined
+    : preParsedInput !== undefined
       ? preParsedInput
       : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput =
-    preParsedOutput !== undefined
+  const parsedOutput = preParsedResult
+    ? undefined
+    : preParsedOutput !== undefined
       ? preParsedOutput
       : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata =
-    preParsedMetadata !== undefined
+  const parsedMetadata = preParsedResult
+    ? undefined
+    : preParsedMetadata !== undefined
       ? preParsedMetadata
       : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
 
   return useMemo(
     () =>
+      preParsedResult ??
       parseChatML(parsedInput, parsedOutput, parsedMetadata, observationName),
-    [parsedInput, parsedOutput, parsedMetadata, observationName],
+    [
+      preParsedResult,
+      parsedInput,
+      parsedOutput,
+      parsedMetadata,
+      observationName,
+    ],
   );
 }
 

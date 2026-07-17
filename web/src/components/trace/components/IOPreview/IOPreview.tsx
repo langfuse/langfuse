@@ -10,6 +10,7 @@ import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
+import { type ChatMLParserResult } from "./hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
@@ -58,6 +59,7 @@ export interface IOPreviewProps extends ExpansionStateProps {
   parsedInput?: unknown;
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
+  chatMLParserResult?: ChatMLParserResult;
   observationName?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -106,6 +108,7 @@ export function IOPreview({
   parsedInput,
   parsedOutput,
   parsedMetadata,
+  chatMLParserResult,
   observationName,
   isLoading = false,
   isParsing = false,
@@ -178,6 +181,7 @@ export function IOPreview({
     parsedInput,
     parsedOutput,
     parsedMetadata,
+    chatMLParserResult,
     isLoading,
     isParsing,
     hideIfNull,
@@ -283,7 +287,6 @@ export function IOPreview({
         />
       ) : (
         <IOPreviewPretty
-          key={contentMode}
           {...sharedProps}
           observationName={observationName}
           showMetadata={showMetadata}
