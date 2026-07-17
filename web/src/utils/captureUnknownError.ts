@@ -62,6 +62,11 @@ export function captureUnknownError(
     tags: { area: context },
   });
   // warn, not error → captureConsoleIntegration only captures console.error,
-  // so this line does not create a second, opaque Sentry event.
-  console.warn(`[${context}]`, err.message);
+  // so this line does not create a second, opaque Sentry event. The
+  // synthesized (non-Error) message already carries the `[context]` prefix; a
+  // pass-through Error does not, so add it here only in that branch to keep the
+  // context present exactly once in both cases.
+  console.warn(
+    value instanceof Error ? `[${context}] ${err.message}` : err.message,
+  );
 }

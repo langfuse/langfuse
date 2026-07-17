@@ -95,6 +95,25 @@ describe("captureUnknownError", () => {
     expect(errorSpy).not.toHaveBeenCalled();
   });
 
+  it("prints the context tag exactly once for a non-Error value (no double-tag)", () => {
+    captureUnknownError("auth.signIn.credentials", { reason: "bad" });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const message = String(warnSpy.mock.calls[0]![0]);
+    const occurrences = message.split("[auth.signIn.credentials]").length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  it("prints the context once plus the original message for a real Error", () => {
+    captureUnknownError("auth.signIn.credentials", new Error("kaboom"));
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const message = String(warnSpy.mock.calls[0]![0]);
+    const occurrences = message.split("[auth.signIn.credentials]").length - 1;
+    expect(occurrences).toBe(1);
+    expect(message).toContain("kaboom");
+  });
+
   it("captures exactly once per call", () => {
     captureUnknownError("test.ctx", new Error("once"));
     expect(captureExceptionMock).toHaveBeenCalledTimes(1);
