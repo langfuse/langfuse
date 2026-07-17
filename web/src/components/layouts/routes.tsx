@@ -27,7 +27,6 @@ import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
@@ -248,14 +247,6 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <BookACallButton />,
-  },
-  {
-    title: "Assistant",
-    section: RouteSection.Secondary,
-    pathname: "",
-    show: ({ organization, projectId, isLangfuseCloud }) =>
-      isLangfuseCloud && organization !== undefined && projectId !== undefined,
-    menuNode: <InAppAiAgentButton />,
   },
   {
     title: "Support",

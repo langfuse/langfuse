@@ -1,3 +1,7 @@
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
@@ -159,6 +163,8 @@ describe("MCP public API tools", () => {
         "getHealth",
         "listScores",
         "getScore",
+        "listMonitors",
+        "getMonitor",
         "createModel",
         "createScoreConfig",
       ]),
@@ -242,7 +248,9 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addDashboardPlacement",
         "createChatPrompt",
+        "createDashboard",
         "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",
@@ -251,6 +259,9 @@ describe("MCP public API tools", () => {
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
+        "deleteDashboard",
+        "deleteDashboardPlacement",
+        "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteEvaluationRule",
@@ -258,6 +269,9 @@ describe("MCP public API tools", () => {
         "deleteModel",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
+        "updateDashboard",
+        "updateDashboardPlacement",
+        "updateDashboardWidget",
         "updateEvaluationRule",
         "updatePromptLabels",
         "updateScoreConfig",

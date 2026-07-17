@@ -1,5 +1,10 @@
+// @vitest-environment jsdom
+
 import { describe, it, expect } from "vitest";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
+import {
+  formatCompactRelativeTime,
+  formatIntervalSeconds,
+} from "@/src/utils/dates";
 
 describe("formatCompactRelativeTime", () => {
   const ago = (seconds: number) => new Date(Date.now() - seconds * 1000);
@@ -21,5 +26,20 @@ describe("formatCompactRelativeTime", () => {
 
   it("clamps future timestamps to just now", () => {
     expect(formatCompactRelativeTime(ago(-120))).toBe("just now");
+  });
+});
+
+describe("formatIntervalSeconds", () => {
+  it("keeps sub-minute durations in decimal-seconds form", () => {
+    expect(formatIntervalSeconds(5)).toBe("5.00s");
+    expect(formatIntervalSeconds(59.4, 1)).toBe("59.4s");
+  });
+
+  it("zero-pads single-digit minute/second components", () => {
+    // pad() previously sliced from the front ("005".slice(2) === "5"), so
+    // single-digit components rendered unpadded ("20m 0s", "1h 5m 3s").
+    expect(formatIntervalSeconds(1200)).toBe("20m 00s");
+    expect(formatIntervalSeconds(3903)).toBe("1h 05m 03s");
+    expect(formatIntervalSeconds(9945)).toBe("2h 45m 45s");
   });
 });

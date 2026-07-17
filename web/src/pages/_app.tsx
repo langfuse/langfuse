@@ -1,3 +1,8 @@
+// Must stay the first import: installs a `crypto.randomUUID` fallback for
+// non-secure (plain-HTTP) origins before any other module can call it
+// (LFE-10858).
+import "@/src/polyfills/crypto-random-uuid";
+
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
@@ -113,6 +118,8 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const skipAppLayout =
+    "skipAppLayout" in Component && Component.skipAppLayout === true;
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
@@ -128,6 +135,13 @@ const MyApp: AppType<{ session: Session | null }> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const page = (
+    <>
+      <Component {...pageProps} />
+      <UserTracking />
+    </>
+  );
 
   return (
     <QueryParamProvider
@@ -155,10 +169,11 @@ const MyApp: AppType<{ session: Session | null }> = ({
                         <SupportDrawerProvider defaultOpen={false}>
                           <V4MigrationPanelProvider defaultOpen={false}>
                             <InAppAiAgentProvider defaultOpen={false}>
-                              <AppLayout>
-                                <Component {...pageProps} />
-                                <UserTracking />
-                              </AppLayout>
+                              {skipAppLayout ? (
+                                page
+                              ) : (
+                                <AppLayout>{page}</AppLayout>
+                              )}
                             </InAppAiAgentProvider>
                           </V4MigrationPanelProvider>
                         </SupportDrawerProvider>

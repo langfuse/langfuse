@@ -28,6 +28,7 @@ import { getEventsStream } from "../database-read-stream/event-stream";
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   traces: "TRACE",
   observations: "OBSERVATION",
+  events: "OBSERVATION",
   sessions: "SESSION",
 };
 

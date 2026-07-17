@@ -320,44 +320,50 @@ export function applyExpansionState(
 
   // Apply expansion state to each node
   postOrder.forEach((node) => {
-    if (!node.isExpandable) return;
+    // Expansion decision only applies to expandable nodes.
+    if (node.isExpandable) {
+      let shouldExpand = true;
 
-    let shouldExpand = true;
+      if (collapsedPaths.has("*")) {
+        shouldExpand = false;
+      } else if (typeof expansionState === "boolean") {
+        shouldExpand = expansionState;
+      } else if (collapsedPaths.has(node.id)) {
+        // Exact match: explicitly collapsed
+        shouldExpand = false;
+      } else if (expandedPaths.has(node.id)) {
+        // Exact match: explicitly expanded
+        shouldExpand = true;
+      } else if (expandedAncestors.has(node.id)) {
+        // Prefix matching: This node is an ancestor of an expanded path
+        // e.g., if "messages.0.content.text" is expanded, expand "messages", "messages.0", etc.
+        shouldExpand = true;
+      }
+      // No match: keep default (shouldExpand = true)
+      // This ensures nodes not explicitly in stored state stay expanded
 
-    if (collapsedPaths.has("*")) {
-      shouldExpand = false;
-    } else if (typeof expansionState === "boolean") {
-      shouldExpand = expansionState;
-    } else if (collapsedPaths.has(node.id)) {
-      // Exact match: explicitly collapsed
-      shouldExpand = false;
-    } else if (expandedPaths.has(node.id)) {
-      // Exact match: explicitly expanded
-      shouldExpand = true;
-    } else if (expandedAncestors.has(node.id)) {
-      // Prefix matching: This node is an ancestor of an expanded path
-      // e.g., if "messages.0.content.text" is expanded, expand "messages", "messages.0", etc.
-      shouldExpand = true;
+      node.isExpanded = shouldExpand;
+      // Set userExpand for:
+      // - Exact matches from expansionState
+      // - Ancestor nodes expanded via prefix matching (so they're tracked for export)
+      if (typeof expansionState === "boolean") {
+        node.userExpand = undefined;
+      } else if (expansionState[node.id] !== undefined) {
+        node.userExpand = expansionState[node.id];
+      } else if (expandedAncestors.has(node.id)) {
+        // Ancestors expanded via prefix matching should be tracked
+        node.userExpand = true;
+      } else {
+        node.userExpand = undefined;
+      }
     }
-    // No match: keep default (shouldExpand = true)
-    // This ensures nodes not explicitly in stored state stay expanded
 
-    node.isExpanded = shouldExpand;
-    // Set userExpand for:
-    // - Exact matches from expansionState
-    // - Ancestor nodes expanded via prefix matching (so they're tracked for export)
-    if (typeof expansionState === "boolean") {
-      node.userExpand = undefined;
-    } else if (expansionState[node.id] !== undefined) {
-      node.userExpand = expansionState[node.id];
-    } else if (expandedAncestors.has(node.id)) {
-      // Ancestors expanded via prefix matching should be tracked
-      node.userExpand = true;
-    } else {
-      node.userExpand = undefined;
-    }
-
-    // Recompute offsets
+    // Recompute offsets for EVERY node, not just expandable ones. Post-order
+    // guarantees children are already updated, and recomputeNodeOffsets is a
+    // no-op for collapsed/childless nodes. Crucially this includes the synthetic
+    // meta-root (isExpandable: false) whose visibleDescendantCount drives the
+    // virtualizer's row count — skipping it left a stale/over-counted total after
+    // a section collapse, producing phantom row indexes (LANGFUSE-456).
     recomputeNodeOffsets(node);
   });
 
@@ -397,12 +403,16 @@ export function expandToDepth(tree: TreeState, depth: number): TreeState {
 
   // Apply expansion based on depth
   postOrder.forEach((node) => {
-    if (!node.isExpandable) return;
+    // Expansion decision only applies to expandable nodes.
+    if (node.isExpandable) {
+      const shouldExpand = node.depth < depth;
+      node.isExpanded = shouldExpand;
+      node.userExpand = shouldExpand;
+    }
 
-    const shouldExpand = node.depth < depth;
-    node.isExpanded = shouldExpand;
-    node.userExpand = shouldExpand;
-
+    // Recompute offsets for EVERY node (see applyExpansionState): post-order +
+    // no-op-on-collapsed makes this safe, and it keeps the non-expandable
+    // meta-root's visibleDescendantCount in sync with the virtualizer row count.
     recomputeNodeOffsets(node);
   });
 

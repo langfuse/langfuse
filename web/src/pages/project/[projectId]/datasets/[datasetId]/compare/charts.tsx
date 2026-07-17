@@ -248,6 +248,9 @@ export default function DatasetCompare() {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
+                          // The x-axis is dataset-run names — long and cluttered;
+                          // show them on hover instead of on the axis.
+                          hideXAxisLabels
                         />
                       </div>
                     </div>

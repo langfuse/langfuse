@@ -508,14 +508,16 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const timestamp = result.data.timestamp;
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
+  const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
   let clickhouseTrace = traceId
     ? // eslint-disable-next-line @typescript-eslint/no-deprecated
       await getTraceById({
         traceId,
         projectId,
-        timestamp: timestamp ?? undefined,
-        fromTimestamp: fromTimestamp ?? undefined,
+        timestamp: isEventsOnly ? undefined : (timestamp ?? undefined),
+        fromTimestamp:
+          fromTimestamp ?? (isEventsOnly ? timestamp : undefined) ?? undefined,
         renderingProps: {
           truncated: verbosity === "truncated",
           shouldJsonParse: false, // we do not want to parse the input/output for tRPC
@@ -526,9 +528,9 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   // In dual write mode the lookup above reads the legacy traces table, but
   // internally produced traces (e.g. code-eval execution traces) were written
   // to the events tables only — fall back so trace-level auth does not 404 on
-  // a trace the events-backed views can render (LFE-10884). Gated on "dual"
-  // because in "legacy" mode the events tables may not exist and in
-  // "events_only" mode getTraceById already read them.
+  // a trace the events-backed views can render (LFE-10884). The timestamp can
+  // identify a clicked observation, so use it as a bounded lookup anchor rather
+  // than as the synthesized trace timestamp (LFE-10947).
   if (
     traceId &&
     !clickhouseTrace &&
@@ -537,8 +539,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
     clickhouseTrace = await getTraceByIdFromEventsTable({
       traceId,
       projectId,
-      timestamp: timestamp ?? undefined,
-      fromTimestamp: fromTimestamp ?? undefined,
+      fromTimestamp: fromTimestamp ?? timestamp ?? undefined,
       renderingProps: {
         truncated: verbosity === "truncated",
         shouldJsonParse: false,

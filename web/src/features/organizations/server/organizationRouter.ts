@@ -148,9 +148,8 @@ export const organizationsRouter = createTRPCRouter({
       await getSfdcService()?.upsertOrg({
         orgId: organization.id,
         orgName: organization.name,
-        userId: ctx.session.user.id,
-        email: ctx.session.user.email,
-        role: "OWNER",
+        createdAt: organization.createdAt,
+        plan: "Hobby",
       });
       await getSfdcService()?.setUserRole({
         orgId: organization.id,

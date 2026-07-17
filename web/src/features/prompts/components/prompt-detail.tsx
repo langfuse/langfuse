@@ -33,7 +33,9 @@ import {
 import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import Generations from "@/src/components/table/use-cases/observations";
+import LegacyGenerations from "@/src/components/table/use-cases/observations";
+import EventsTable from "@/src/features/events/components/EventsTable";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { FlaskConical, MoreVertical, Plus } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Button } from "@/src/components/ui/button";
@@ -112,6 +114,7 @@ export const PromptDetail = ({
   const projectId = useProjectIdFromURL();
   const capture = usePostHogClientCapture();
   const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
 
   const promptName =
     promptNameProp ||
@@ -490,12 +493,22 @@ export const PromptDetail = ({
               className="mt-0 mb-2 flex max-h-full min-h-0 flex-1 flex-col overflow-hidden"
             >
               <div className="flex h-full flex-1 flex-col overflow-hidden">
-                <Generations
-                  projectId={prompt.projectId}
-                  promptName={prompt.name}
-                  promptVersion={prompt.version}
-                  omittedFilter={["promptName"]}
-                />
+                {isBetaEnabled ? (
+                  <EventsTable
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                    isolateTableState
+                  />
+                ) : (
+                  <LegacyGenerations
+                    projectId={prompt.projectId}
+                    promptName={prompt.name}
+                    promptVersion={prompt.version}
+                    omittedFilter={["promptName"]}
+                  />
+                )}
               </div>
             </TabsBarContent>
             <TabsBarContent

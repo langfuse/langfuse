@@ -142,4 +142,12 @@ export interface ChartProps {
    * gap. (LFE-10694, manifesto V2)
    */
   connectNulls?: boolean;
+  /**
+   * Hide the x-axis tick labels on a categorical (entity-name) axis, keeping the
+   * full name in the hover tooltip. Off by default. Opt in for the experiments /
+   * dataset-compare charts, whose long entity names clutter the axis with little
+   * value. Forwarded to `prepareTimeAxis` as `hideCategoryTickLabels`, so it only
+   * affects a categorical axis — a temporal axis keeps its timestamp labels.
+   */
+  hideXAxisLabels?: boolean;
 }

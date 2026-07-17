@@ -50,7 +50,11 @@ import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
 
 // Import step prop types
-import { PromptType } from "@langfuse/shared";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  PromptType,
+} from "@langfuse/shared";
 
 export const MultiStepExperimentForm = ({
   projectId,
@@ -178,6 +182,7 @@ export const MultiStepExperimentForm = ({
     promptsByName,
     expectedColumns,
     selectedPromptModelConfig,
+    selectedPromptToolConfig,
   } = useExperimentPromptData({
     projectId,
     form,
@@ -269,6 +274,19 @@ export const MultiStepExperimentForm = ({
   };
 
   const onSubmit = async (data: CreateExperiment) => {
+    if (
+      hasPromptToolStructuredOutputConflict(
+        selectedPromptToolConfig,
+        Boolean(data.structuredOutputSchema),
+      )
+    ) {
+      showErrorToast(
+        PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+        "Disable structured output or choose a prompt without tools.",
+      );
+      return;
+    }
+
     capture("dataset_run:new_form_submit");
     const experiment = {
       ...data,
@@ -329,6 +347,10 @@ export const MultiStepExperimentForm = ({
 
   // Get dataset info for review step
   const selectedDataset = datasets.data?.find((d) => d.id === datasetId);
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
 
   // Step validation function
   const isStepValid = (stepId: string): boolean => {
@@ -338,6 +360,7 @@ export const MultiStepExperimentForm = ({
           form.getValues("promptId") &&
           modelParams.provider.value &&
           modelParams.model.value &&
+          !hasToolStructuredOutputConflict &&
           !form.formState.errors.promptId &&
           !form.formState.errors.modelConfig
         );
@@ -379,6 +402,7 @@ export const MultiStepExperimentForm = ({
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
+    selectedPromptToolConfig,
   };
   const modelState = {
     modelParams,
@@ -566,6 +590,7 @@ export const MultiStepExperimentForm = ({
                     disabled={
                       (Boolean(promptIdFromHook && datasetId) &&
                         !validationResult.data?.isValid) ||
+                      hasToolStructuredOutputConflict ||
                       !!form.formState.errors.name
                     }
                     loading={form.formState.isSubmitting}

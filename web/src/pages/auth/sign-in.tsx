@@ -39,6 +39,7 @@ import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
@@ -220,7 +221,7 @@ export function SSOButtons({
         // do not reset loadingProvider here, as the page will reload
       })
       .catch((error) => {
-        console.error(error);
+        captureUnknownError("auth.signIn.provider", error, { provider });
         setProviderSigningIn(null);
       });
   };
@@ -640,8 +641,7 @@ export default function SignIn({
         );
       }
     } catch (error) {
-      captureException(error);
-      console.error(error);
+      captureUnknownError("auth.signIn.credentials", error);
       setCredentialsFormError("An unexpected error occurred.");
     }
   }
@@ -710,7 +710,7 @@ export default function SignIn({
         }
       }, 100);
     } catch (error) {
-      console.error(error);
+      captureUnknownError("auth.signIn.checkSso", error);
       setCredentialsFormError(
         "Unable to check SSO configuration. Please try again.",
       );

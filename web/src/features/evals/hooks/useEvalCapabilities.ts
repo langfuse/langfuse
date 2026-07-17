@@ -8,7 +8,6 @@ export interface EvalCapabilities {
   isNewCompatible: boolean;
   compatibilityCheckWasPerformed: boolean;
   allowLegacy: boolean;
-  allowPropagationFilters: boolean;
   isLoading: boolean;
   hasLegacyEvals: boolean;
 }
@@ -41,8 +40,6 @@ export function useEvalCapabilities(
 
   // Determine OTEL status from SDK version info
   const isOtel = sdkVersionInfo.data?.isOtel ?? false;
-  // TODO: Implement propagation check
-  const isPropagating = false;
 
   // Get eval counts including legacy eval count
   const evalCounts = api.evals.counts.useQuery({ projectId });
@@ -76,8 +73,6 @@ export function useEvalCapabilities(
     // Allow legacy if: not a code eval AND (user has legacy evals to manage OR
     // the deployment mode/cohort offers the legacy experience).
     allowLegacy: !isCodeEvalConfig && (hasLegacyEvals || modeAllowsNewLegacy),
-    // Allow propagation filters only when using OTEL and spans are propagating
-    allowPropagationFilters: isOtel && isPropagating,
     isLoading:
       evalCounts.isLoading || isSessionLoading || sdkVersionInfo.isLoading,
     hasLegacyEvals,
