@@ -6,7 +6,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
-import { Info } from "lucide-react";
+import { ExternalLink, Info } from "lucide-react";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -33,23 +33,11 @@ export default function DocPopup({
         }
       }}
     >
-      <HoverCardTrigger
-        className={cn("mx-1", href ? "cursor-pointer" : "cursor-default")}
-        asChild
-      >
-        <div
-          className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0"
-          onClick={(e) => {
-            if (!href) return;
-            e.preventDefault();
-            e.stopPropagation();
-            window.open(href, "_blank");
-            capture("help_popup:href_clicked", {
-              href: href,
-              description: description,
-            });
-          }}
-        >
+      {/* The ⓘ itself never navigates — docs open only via the explicit
+          link inside the card, so a stray click on the icon can't yank the
+          user into a new tab. */}
+      <HoverCardTrigger className="mx-1 cursor-help" asChild>
+        <div className="text-muted-foreground inline-block whitespace-nowrap sm:pl-0">
           <Info className="h-3 w-3" />
         </div>
       </HoverCardTrigger>
@@ -63,6 +51,24 @@ export default function DocPopup({
           >
             {description}
           </div>
+          {href && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                capture("help_popup:href_clicked", {
+                  href: href,
+                  description: description,
+                });
+              }}
+              className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
+            >
+              Read docs
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
         </HoverCardContent>
       </HoverCardPortal>
     </HoverCard>

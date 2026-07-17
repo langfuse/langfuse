@@ -675,7 +675,11 @@ export function DataTableControls({
           </div>
         </div>
         <ScrollArea
-          className="min-h-0 flex-1"
+          // contain:paint — during handle drags the browser (notably
+          // Firefox) can leave stale fragments of the sticky headers
+          // painted outside the shrinking panel; paint containment pins
+          // every layer inside the scroll root.
+          className="min-h-0 flex-1 [contain:paint]"
           ref={scrollRootRef}
           onFocusCapture={(event) => {
             lastFocusedRef.current = event.target as HTMLElement;
@@ -706,9 +710,11 @@ export function DataTableControls({
                   // Clear spatial break between the active/added block and
                   // the inactive rest of the catalog.
                   nodes.push(
+                    // The one line that means something: the boundary
+                    // between the active/added block and the catalog.
                     <div
                       key="promoted-separator"
-                      className="h-2"
+                      className="border-border mx-2 my-2 border-t"
                       aria-hidden
                     />,
                   );
@@ -866,7 +872,7 @@ const FilterAccordionTrigger = ({
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
   // The expand chevron leads the row (> closed, v open); the clear button
   // overlays on hover without reserving layout space.
-  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex">
+  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 py-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
@@ -936,8 +942,8 @@ export function FilterAccordionItem({
     >
       <FilterAccordionTrigger
         className={cn(
-          "text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-accent/60 px-3 py-1 text-[13px] font-normal transition-colors hover:no-underline",
-          isActive && "text-foreground",
+          "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
+          isActive && "text-foreground font-semibold",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
         )}
