@@ -1,4 +1,5 @@
 import type { FilterCondition } from "../../../types";
+import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
 import {
   buildEventsObservationRowSelection,
@@ -167,25 +168,6 @@ describe("buildEventsStreamQuery", () => {
 
     expect(Object.values(params)).toContain("quality");
   });
-
-  it("keeps comment filters out of the legacy stream selection", () => {
-    const { queryBuilder } = buildEventsStreamQuery({
-      projectId,
-      filter: [
-        nativeFilter,
-        {
-          column: "commentContent",
-          operator: "contains",
-          value: "comment-needle",
-          type: "string",
-        },
-      ],
-      rowLimit: 7,
-    });
-    const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
-
-    expect(Object.values(params)).not.toContain("comment-needle");
-  });
 });
 
 describe("buildEventsObservationRowSelection", () => {
@@ -275,7 +257,7 @@ describe("buildEventsObservationRowSelection", () => {
     },
   );
 
-  it("does not silently discard unresolved comment filters", () => {
+  it("rejects unresolved comment filters", () => {
     expect(() =>
       buildSelection({
         filter: [
@@ -287,6 +269,6 @@ describe("buildEventsObservationRowSelection", () => {
           },
         ],
       }),
-    ).toThrow();
+    ).toThrow(InvalidRequestError);
   });
 });

@@ -58,6 +58,18 @@ const config: StorybookConfig = {
           replacement: replacement as string,
         }));
     viteConfig.resolve.alias = [
+      // The package also exposes a few named subpath exports (e.g.
+      // `@langfuse/shared/query`, imported transitively via the chart-library's
+      // PivotTable → widgets/utils). Those aren't under `src/`, so the two rules
+      // below miss them and they fall through to the CJS dist bundle, whose
+      // re-exported names (e.g. `getViewDeclaration`) Vite's lexer can't resolve
+      // — the same failure the bare-specifier rule fixes. Map the source-safe
+      // subpaths to source too. (`query/index.ts` only re-exports client-safe
+      // dataModel/types/validateQuery.)
+      {
+        find: /^@langfuse\/shared\/query$/,
+        replacement: `${sharedSrc}/features/query`,
+      },
       {
         find: /^\.prisma\/client\/index-browser$/,
         replacement: prismaBrowserStub,

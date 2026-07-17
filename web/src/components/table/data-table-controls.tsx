@@ -151,6 +151,13 @@ export interface QueryFilter {
 interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
+  /**
+   * Given a filter column, the reason an active filter on it is NOT applied on
+   * the current surface (e.g. the chart view can't filter on it), or null. When
+   * it returns a reason, that active facet renders deactivated (dimmed + the
+   * reason on hover); Clearing still works. Undefined leaves every filter live.
+   */
+  deactivatedColumnReason?: (column: string) => string | null;
 }
 
 // Module-stable initial value: a fresh {} per render would re-subscribe
@@ -160,6 +167,7 @@ const EMPTY_RECENCY: Record<string, number> = {};
 export function DataTableControls({
   queryFilter,
   filterWithAI,
+  deactivatedColumnReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { setOpen, tableName } = useDataTableControls();
@@ -331,6 +339,15 @@ export function DataTableControls({
   const promotedFacetCount = displayedFilters.filter(isPromoted).length;
 
   const renderFacet = (filter: UIFilter) => {
+    // "Not applied on this surface" (e.g. the chart can't filter on this
+    // column — #15187). Only an ACTIVE filter deactivates — an empty facet
+    // stays usable. Overrides isDisabled/disabledReason so the facet dims
+    // and explains on hover while Clear still works.
+    const deactivatedReason = filter.isActive
+      ? (deactivatedColumnReason?.(filter.column) ?? null)
+      : null;
+    const facetDisabled = filter.isDisabled || deactivatedReason !== null;
+    const facetDisabledReason = deactivatedReason ?? filter.disabledReason;
     if (filter.type === "categorical") {
       const summaryValue = getFacetSummaryValue(filter);
       return (
@@ -363,8 +380,8 @@ export function DataTableControls({
           textFilters={filter.textFilters}
           onTextFilterAdd={filter.onTextFilterAdd}
           onTextFilterRemove={filter.onTextFilterRemove}
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -387,8 +404,8 @@ export function DataTableControls({
           unit={filter.unit}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -408,8 +425,8 @@ export function DataTableControls({
           onChange={filter.onChange}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -432,8 +449,8 @@ export function DataTableControls({
           isActive={filter.isActive}
           onReset={filter.onReset}
           keyPlaceholder="Name"
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -455,8 +472,8 @@ export function DataTableControls({
           isActive={filter.isActive}
           onReset={filter.onReset}
           keyPlaceholder="Name"
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -478,8 +495,8 @@ export function DataTableControls({
           isActive={filter.isActive}
           onReset={filter.onReset}
           keyPlaceholder="Name"
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }
@@ -500,8 +517,8 @@ export function DataTableControls({
           onChange={filter.onChange}
           isActive={filter.isActive}
           onReset={filter.onReset}
-          isDisabled={filter.isDisabled}
-          disabledReason={filter.disabledReason}
+          isDisabled={facetDisabled}
+          disabledReason={facetDisabledReason}
         />
       );
     }

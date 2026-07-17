@@ -427,6 +427,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100), // Chunk size for counting projects in ClickHouse
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(180_000), // 3 minutes for candidate discovery queries
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
