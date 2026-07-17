@@ -35,7 +35,7 @@
      (700): the `font-bold` utility IS the bold role. font-medium /
      font-semibold / raw numbers are drift — use font-bold or nothing. */
   --font-weight-regular: 400;
-  --font-weight-bold: 500;
+  --font-weight-bold: 600;
 }
 
 @theme inline {
