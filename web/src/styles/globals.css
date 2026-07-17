@@ -9,30 +9,31 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* App fonts via next/font (src/styles/fonts.ts — currently IBM Plex Sans +
-   IBM Plex Mono; vars declared on :root in _app.tsx). Overrides Tailwind's
-   font-sans/font-mono utilities AND the preflight body default. System
-   stacks remain as fallbacks. Deliberately a plain @theme block (not
-   `inline`): preflight reads var(--font-sans) at runtime, and only
-   non-inline themes emit the :root custom property. `static`: emit the
-   weight-role vars even when unused in source — the theme-lab tool and
+/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
+   system stacks while the token system (families here, weight roles below,
+   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
+   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
+   :root from _app — next/font CSS is silently dropped in _document), prepend
+   its var to the stacks below, and retune the two weight-role numbers
+   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
+   can preview typefaces live without shipping them. Deliberately a plain
+   @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
+   and only non-inline themes emit the :root custom property. `static`: emit
+   the weight-role vars even when unused in source — the theme-lab tool and
    inline styles read them at runtime. */
 @theme static {
   --font-sans:
-    var(--font-app-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    var(--font-app-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
-     Both are font-relative (IBM Plex reads bold at ~400; Inter wants more),
-     so components never hardcode numbers. `--font-weight-bold` deliberately
-     overrides Tailwind's built-in bold (700): the `font-bold` utility IS the
-     bold role. font-medium / font-semibold / raw numbers are drift — use
-     font-bold or nothing. Swapping the font = swap the families above and
-     retune these two lines; keep loaded weights in src/styles/fonts.ts in
-     sync. IBM Plex: regular 400 / bold 500. Inter would want bold 600. */
+     Both are font-relative, so components never hardcode numbers.
+     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
+     (700): the `font-bold` utility IS the bold role. font-medium /
+     font-semibold / raw numbers are drift — use font-bold or nothing. */
   --font-weight-regular: 400;
   --font-weight-bold: 500;
 }

@@ -17,7 +17,6 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { appSans, appMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -148,16 +147,6 @@ const MyApp: AppType<{ session: Session | null }> = ({
       adapter={NextAdapterPages}
       options={{ enableBatching: true }}
     >
-      {/* next/font must live in the client component graph (in _document its
-          CSS is silently dropped). The vars are declared on :root — not a
-          wrapper div — so portaled overlays in the [data-overlay-root] layer
-          containers (body children outside #__next) inherit them too.
-          globals.css maps --font-sans/--font-mono onto these. */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `:root { --font-app-sans: ${appSans.style.fontFamily}; --font-app-mono: ${appMono.style.fontFamily}; }`,
-        }}
-      />
       <TooltipProvider>
         <CommandMenuProvider>
           <PostHogProvider client={posthog}>
