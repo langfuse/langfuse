@@ -1,9 +1,13 @@
 import {
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
+
+const QUERY_ID_PATTERN =
+  /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
 
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
@@ -132,6 +136,60 @@ describe("ClickHouse Resource Error Handling", () => {
         expect(results.length).toBe(3);
         expect(results[0]).toHaveProperty("number");
       });
+    });
+
+    describe("query_id propagation (LFE-11043)", () => {
+      it("should include query_id in errors thrown mid-stream", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT throwIf(number = 2, 'memory limit exceeded: would use 10.23 GiB') as V FROM numbers(10)`,
+          clickhouseSettings: { max_block_size: "1" },
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error).toBeInstanceOf(ClickHouseResourceError);
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+        }
+      });
+
+      it("should include query_id in errors thrown before streaming starts", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+        }
+      });
+    });
+  });
+
+  describe("queryClickhouseStreamRawText", () => {
+    it("should include query_id in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseStreamRawText({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: string[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+      }
     });
   });
 
