@@ -1,9 +1,27 @@
-import { type SyntheticEvent, useState } from "react";
-import { BotMessageSquare, Sparkles } from "lucide-react";
+import {
+  type KeyboardEvent,
+  type SyntheticEvent,
+  useRef,
+  useState,
+} from "react";
+import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Textarea } from "@/src/components/ui/textarea";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+
+const MAX_TEXTAREA_HEIGHT_PX = 160;
+
+// Grow the textarea to fit its content up to a cap, then scroll. Driven from the
+// change/submit events (no effect): the initiating event owns the DOM sync.
+function resizeTextarea(textarea: HTMLTextAreaElement | null) {
+  if (!textarea) {
+    return;
+  }
+
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
+}
 
 const getWidgetCreationPrompt = (request: string) =>
   `Create a dashboard widget for this request and add it to the current dashboard:\n\n${request}\n\nChoose an appropriate data view, metrics, dimensions, filters, and chart type. Briefly explain the plan, then create the widget.`;
@@ -16,6 +34,7 @@ export function InAppAgentWidgetComposer({
   const { isAvailable, isRunning, isSubmitting, openAssistant, submit } =
     useInAppAiAgent();
   const [request, setRequest] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!isAvailable) {
     return null;
@@ -40,7 +59,19 @@ export function InAppAgentWidgetComposer({
 
     if (started) {
       setRequest("");
+      resizeTextarea(textareaRef.current);
       onSubmitted();
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
     }
   };
 
@@ -51,30 +82,37 @@ export function InAppAgentWidgetComposer({
     >
       <div className="flex items-center gap-2 font-medium">
         <Sparkles className="h-4 w-4" />
-        Create with Assistant
+        Add with Langfuse Assistant
       </div>
       <p className="text-muted-foreground text-xs">
-        Describe the chart you need. The Assistant will create it as a reusable
-        widget and add it to this dashboard.
+        Describe the chart you need. The Assistant will create it as a widget
+        and add it to this dashboard.
       </p>
-      <div className="flex gap-2">
-        <Input
+      <div className="flex items-end gap-2">
+        <Textarea
+          ref={textareaRef}
           aria-label="Describe the widget you want"
           autoComplete="off"
           maxLength={2000}
+          rows={1}
           placeholder="e.g. Show p95 latency by model over the last 7 days"
           value={request}
           onChange={(event) => {
             setRequest(event.target.value);
+            resizeTextarea(event.currentTarget);
           }}
+          onKeyDown={handleKeyDown}
+          className="max-h-40 min-h-8 resize-none px-2 py-1 leading-5"
         />
         <Button
           type="submit"
-          size="sm"
+          size="icon"
+          className="h-8 w-8 shrink-0 rounded-md border"
+          variant="outline"
           aria-label="Create with Assistant"
           disabled={!request.trim() || isRunning || isSubmitting}
         >
-          <BotMessageSquare className="h-4 w-4" />
+          <SendHorizontal className="h-4 w-4" />
         </Button>
       </div>
     </form>
