@@ -38,9 +38,14 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/ee/features/in-app-agent/context";
+import type {
+  InAppAgentQuickActionAttribution,
+  InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
@@ -148,7 +153,10 @@ type InAppAiAgentContextType = {
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
-  submit: (content: string) => Promise<boolean>;
+  submit: (
+    content: string,
+    options?: InAppAgentSubmitOptions,
+  ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -637,6 +645,7 @@ function InAppAiAgentProviderInner({
       agent: HttpAgent,
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
     ) => {
       clearLoadingEvents();
       setIsRunning(true);
@@ -646,7 +655,7 @@ function InAppAiAgentProviderInner({
           context: createInAppAgentScreenContext({
             currentUrl: window.location.href,
           }).concat(
-            ...createInAppAgentUserContext({
+            createInAppAgentUserContext({
               userName: session.data?.user?.name,
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               languages:
@@ -654,6 +663,11 @@ function InAppAiAgentProviderInner({
                   ? Array.from(navigator.languages)
                   : [navigator.language],
             }),
+            quickActionAttribution
+              ? createInAppAgentQuickActionAttributionContext(
+                  quickActionAttribution,
+                )
+              : [],
           ),
         })
         .then(() => true)
@@ -772,7 +786,7 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string) => {
+    async (content: string, options?: InAppAgentSubmitOptions) => {
       if (
         !content ||
         isRunning ||
@@ -839,7 +853,7 @@ function InAppAiAgentProviderInner({
         }
         capture("in_app_agent:new_chat_turn");
         startedRun = true;
-        runAgent(agent, conversationId);
+        runAgent(agent, conversationId, undefined, options?.quickAction);
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));

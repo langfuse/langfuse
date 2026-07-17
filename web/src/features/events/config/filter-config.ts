@@ -75,7 +75,10 @@ export const migrateLegacyRootObservationFilters = (
   });
 };
 
-export type ObservationEventsOmittableFilterColumn = "sessionId" | "userId";
+export type ObservationEventsOmittableFilterColumn =
+  | "sessionId"
+  | "userId"
+  | "promptName";
 
 export const observationEventsFilterConfig: FilterConfig = {
   tableName: "observations-events",

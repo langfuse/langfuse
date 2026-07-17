@@ -57,6 +57,7 @@ import {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
+  promptEventsForMetrics,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
   eventsTableNativeUiColumnDefinitions,
@@ -560,6 +561,75 @@ export async function getObservationsWithModelDataFromEventsTable(
     };
   });
 }
+
+export const getObservationMetricsForPromptsFromEvents = async (
+  projectId: string,
+  promptIds: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE(
+      "prompt_events",
+      promptEventsForMetrics({
+        projectId,
+        promptIds,
+        ...(fromTimestamp
+          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+          : {}),
+        ...(toTimestamp
+          ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+          : {}),
+      }),
+    )
+    .from("prompt_events", "e")
+    .select(
+      "count(*) AS count",
+      "e.prompt_id AS prompt_id",
+      "e.prompt_version AS prompt_version",
+      "min(e.start_time) AS first_observation",
+      "max(e.start_time) AS last_observation",
+      "medianExact(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, e.usage_details)))) AS median_input_usage",
+      "medianExact(arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, e.usage_details)))) AS median_output_usage",
+      "medianExact(e.cost_details['total']) AS median_total_cost",
+      "medianExact(dateDiff('millisecond', e.start_time, e.end_time)) AS median_latency_ms",
+    )
+    .whereRaw("e.is_deleted = 0")
+    .groupBy("e.prompt_id", "e.prompt_version")
+    .orderBy("ORDER BY e.prompt_version DESC");
+
+  const { query, params } = queryBuilder.buildWithParams();
+  const rows = await queryClickhouse<{
+    count: string;
+    prompt_id: string;
+    prompt_version: number;
+    first_observation: string;
+    last_observation: string;
+    median_input_usage: string;
+    median_output_usage: string;
+    median_total_cost: string;
+    median_latency_ms: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    count: Number(row.count),
+    promptId: row.prompt_id,
+    promptVersion: row.prompt_version,
+    firstObservation: parseClickhouseUTCDateTimeFormat(row.first_observation),
+    lastObservation: parseClickhouseUTCDateTimeFormat(row.last_observation),
+    medianInputUsage: Number(row.median_input_usage),
+    medianOutputUsage: Number(row.median_output_usage),
+    medianTotalCost: Number(row.median_total_cost),
+    medianLatencyMs: Number(row.median_latency_ms),
+  }));
+};
 
 export const getTraceDeleteCursorPageFromEvents = async (props: {
   projectId: string;
