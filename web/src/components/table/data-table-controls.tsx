@@ -27,6 +27,7 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import { Accordion } from "@/src/components/ui/accordion";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import {
+  Check,
   ChevronDown,
   MoreVertical,
   PanelLeftClose,
@@ -35,7 +36,6 @@ import {
 } from "lucide-react";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -392,24 +392,37 @@ export function DataTableControls({
                 <DropdownMenuItem
                   disabled={!queryFilter.isFiltered}
                   onClick={() => queryFilter.clearAll()}
+                  className="cursor-pointer"
                 >
                   Clear all filters
                 </DropdownMenuItem>
-                <DropdownMenuCheckboxItem
-                  checked={showOnlyActive}
-                  onCheckedChange={(checked) => {
-                    setShowOnlyActive(Boolean(checked));
+                {/* Plain item with a TRAILING check instead of
+                    DropdownMenuCheckboxItem: its reserved leading indicator
+                    slot (pl-8) reads as broken indentation next to the
+                    non-checkbox items, and a trailing check keeps the label
+                    aligned in both states. */}
+                <DropdownMenuItem
+                  role="menuitemcheckbox"
+                  aria-checked={showOnlyActive}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    const enabled = !showOnlyActive;
+                    setShowOnlyActive(enabled);
                     capture("filters:active_only_toggled", {
                       tableName,
-                      enabled: Boolean(checked),
+                      enabled,
                       isV4: queryFilter.isV4 ?? false,
                     });
                   }}
                 >
                   Show only active
-                </DropdownMenuCheckboxItem>
+                  {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setOpen(false)}>
+                <DropdownMenuItem
+                  onClick={() => setOpen(false)}
+                  className="cursor-pointer"
+                >
                   Collapse sidebar
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -609,7 +622,7 @@ export function DataTableControls({
                 explicit "Add filter" picker, most-recently-used first, so
                 the filters someone actually works with are one click away. */}
             {showOnlyActive && (
-              <div className="px-3 pt-1">
+              <div className="px-3 pt-4">
                 {displayedFilters.length === 0 && (
                   <p className="text-muted-foreground pb-2 text-xs">
                     No active filters.
@@ -620,7 +633,7 @@ export function DataTableControls({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full justify-start text-xs"
+                      className="text-xs"
                       disabled={addableFilters.length === 0}
                     >
                       <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -635,6 +648,7 @@ export function DataTableControls({
                       <DropdownMenuItem
                         key={filter.column}
                         onClick={() => handleAddFilter(filter.column)}
+                        className="cursor-pointer"
                       >
                         {filter.label}
                       </DropdownMenuItem>
