@@ -123,8 +123,13 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   // NextAuth interpolates unknown error values directly into a Location
   // header. Encode user-controlled text before it reaches that code path so
   // control characters cannot make Node throw ERR_INVALID_CHAR.
-  if (getAuthAction(req) === "error" && req.query.error !== undefined) {
-    req.query.error = encodeAuthError(req.query.error);
+  if (getAuthAction(req) === "error") {
+    const nextauth = req.query.nextauth;
+    const error =
+      req.query.error ?? (Array.isArray(nextauth) ? nextauth[1] : undefined);
+    if (error !== undefined) {
+      req.query.error = encodeAuthError(error);
+    }
   }
 
   return await NextAuth(req, res, authOptions);

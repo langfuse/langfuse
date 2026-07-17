@@ -136,6 +136,18 @@ describe("NextAuth error route malformed input handling", () => {
     );
   });
 
+  it("does not throw when the auth error path segment contains invalid Location header characters", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["error", "configuration\r\nscanner-payload"],
+    });
+
+    await expect(auth(req, res)).resolves.toBeUndefined();
+    expect(res.statusCode).toBe(302);
+    expect(res.getHeader("Location")).toBe(
+      "/auth/error?error=configuration%0D%0Ascanner-payload",
+    );
+  });
+
   it("uses a generic error for an ambiguous array-valued error", async () => {
     const { req, res } = createRequest({
       nextauth: ["error"],
