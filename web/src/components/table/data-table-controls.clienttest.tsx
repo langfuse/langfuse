@@ -599,3 +599,121 @@ describe("DataTableControls facet ordering", () => {
     expect(screen.getByText("All")).toBeInTheDocument();
   });
 });
+
+describe("DataTableControls blocked facets (LFE-11040)", () => {
+  const categoricalFilter = (
+    column: string,
+    label: string,
+    isActive: boolean,
+  ): CategoricalUIFilter => ({
+    type: "categorical",
+    column,
+    label,
+    loading: false,
+    expanded: false,
+    isActive,
+    isDisabled: false,
+    onReset: () => {},
+    value: isActive ? ["x"] : [],
+    options: ["x", "y"],
+    counts: new Map(),
+    onChange: () => {},
+  });
+
+  const queryFilter = (
+    filters: UIFilter[],
+    expanded: string[] = [],
+  ): QueryFilter => ({
+    filters,
+    expanded,
+    onExpandedChange: () => {},
+    clearAll: () => {},
+    isFiltered: filters.some((f) => f.isActive),
+    setFilterState: () => {},
+  });
+
+  const REASON = "Charts can't filter by this field at the moment.";
+
+  it("blocks an INACTIVE facet whose column the surface can't honour, while leaving a forwardable one live", () => {
+    // The core of LFE-11040: previously only an ACTIVE filter deactivated, so
+    // an empty facet on an unavailable column stayed usable. Now a column the
+    // surface can't honour blocks regardless of whether it holds a value.
+    const { container } = render(
+      <TooltipProvider>
+        <DataTableControls
+          queryFilter={queryFilter(
+            [
+              categoricalFilter("blocked", "Blocked", false),
+              categoricalFilter("forwardable", "Forwardable", false),
+            ],
+            // Expand both so each facet's fieldset is mounted and observable.
+            ["blocked", "forwardable"],
+          )}
+          blockedColumnReason={(column) =>
+            column === "blocked" ? REASON : null
+          }
+        />
+      </TooltipProvider>,
+    );
+
+    // The inactive-but-blocked facet's inputs are disabled (fieldset) even
+    // though it carries no value…
+    expect(
+      container.querySelector('[data-facet-column="blocked"] fieldset'),
+    ).toBeDisabled();
+    // …and its header reads blocked (dimmed + not-allowed cursor).
+    expect(screen.getByRole("button", { name: /Blocked/ }).className).toContain(
+      "cursor-not-allowed",
+    );
+
+    // A forwardable inactive facet (resolver returns null) stays interactive.
+    expect(
+      container.querySelector('[data-facet-column="forwardable"] fieldset'),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /Forwardable/ }).className,
+    ).not.toContain("cursor-not-allowed");
+  });
+
+  it("makes a blocked column non-addable in the Add-filter picker, carrying the reason as its title", () => {
+    // Active-only mode surfaces the rest of the catalog behind "Add filter".
+    localStorage.setItem("data-table-controls-active-only", "true");
+    try {
+      render(
+        <TooltipProvider>
+          <DataTableControls
+            queryFilter={queryFilter([
+              // One active facet so active-only mode has something to show
+              // and the picker (addable = the inactive rest) renders.
+              categoricalFilter("active", "Active", true),
+              categoricalFilter("blocked", "Blocked", false),
+              categoricalFilter("forwardable", "Forwardable", false),
+            ])}
+            blockedColumnReason={(column) =>
+              column === "blocked" ? REASON : null
+            }
+          />
+        </TooltipProvider>,
+      );
+
+      // Open the Add-filter dropdown. Radix opens the menu on the trigger's
+      // pointer-down, which jsdom doesn't synthesize reliably; the keyboard
+      // path (Enter) opens it without depending on PointerEvent support.
+      const addButton = screen.getByRole("button", { name: /Add filter/ });
+      fireEvent.keyDown(addButton, { key: "Enter" });
+
+      const blockedItem = screen.getByRole("menuitem", { name: "Blocked" });
+      const forwardableItem = screen.getByRole("menuitem", {
+        name: "Forwardable",
+      });
+      // Blocked column stays visible but is disabled, with the reason on hover.
+      expect(blockedItem).toHaveAttribute("aria-disabled", "true");
+      expect(blockedItem).toHaveAttribute("title", REASON);
+      // Forwardable column is addable as usual.
+      expect(forwardableItem).not.toHaveAttribute("aria-disabled", "true");
+      expect(forwardableItem).not.toHaveAttribute("title");
+    } finally {
+      localStorage.removeItem("data-table-controls-active-only");
+    }
+  });
+});

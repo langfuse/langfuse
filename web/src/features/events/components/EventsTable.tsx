@@ -2050,9 +2050,10 @@ export default function ObservationsEventsTable({
               // In bar mode AI filtering lives in the search bar; only offer the
               // sidebar wand on non-bar surfaces (embedded scoped tables).
               filterWithAI={!searchBarMode}
-              // In chart mode, dim active filters the chart can't apply (+ hover
-              // reason). Stateless per-column resolver — matches the search bar.
-              deactivatedColumnReason={
+              // In chart mode, block filters the chart can't apply — active or
+              // not — dimmed + hover reason. Stateless per-column resolver,
+              // matching the search bar.
+              blockedColumnReason={
                 chartActive ? chartFilterExclusionReason : undefined
               }
             />
