@@ -36,7 +36,7 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
-const drawerVariants = cva("fixed flex flex-col border bg-background", {
+const drawerVariants = cva("fixed flex flex-col border bg-modal", {
   variants: {
     direction: {
       bottom: "inset-x-0 bottom-0 rounded-t-lg",
