@@ -1074,15 +1074,10 @@ export const getExperimentItemsFromEvents = async (
   ];
 
   // ========== QUERY 2: Fetch data for ALL experiments ==========
-  // total_cost is summed across the item's full observation subtree via a
-  // window function - the root span itself usually carries no cost of its
-  // own, so reading e.total_cost directly would just return 0. WHERE only
-  // scopes to project/experiment/item; root-row selection happens in
-  // ORDER BY/LIMIT BY below, so the window function still sees sibling rows.
-  // The partition includes trace_id so items with multiple repetitions
-  // (until we model them properly, LFE-8965) sum only the selected
-  // iteration's own subtree, not every repetition's cost combined.
-  const queryBuilderData = eventsExperimentsForItems({
+  // Collapses un-merged ReplacingMergeTree span versions to the newest one
+  // (by event_ts) before summing cost, so a duplicate version isn't counted
+  // twice.
+  const dedupBuilder = eventsExperimentsForItems({
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
@@ -1092,24 +1087,56 @@ export const getExperimentItemsFromEvents = async (
       "e.experiment_id as experiment_id",
       "e.level as level",
       "e.start_time as start_time",
-      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id, e.trace_id) as total_cost",
-      "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
+      "e.end_time as end_time",
+      "e.total_cost as total_cost",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
+      "e.experiment_item_root_span_id as experiment_item_root_span_id",
     )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965).
-    // Uses raw orderBy() rather than orderByColumns(), which auto-prepends a
-    // toStartOfMinute(start_time) primary-key-read-order prefix whenever a
-    // start_time entry is present - that prefix would outrank the root-flag
-    // tiebreak below whenever a child observation starts in a later minute
-    // bucket than its root, causing LIMIT BY to keep the child row instead.
+    .orderBy("ORDER BY e.event_ts DESC")
+    .limitBy("e.span_id");
+
+  // total_cost sums the item's full observation subtree (root spans usually
+  // carry no cost of their own); partitioned by trace_id too so items with
+  // multiple repetitions (LFE-8965) sum only the selected iteration.
+  // ORDER BY uses a raw clause, not orderByColumns(), to avoid its
+  // auto-prepended toStartOfMinute(start_time) prefix outranking the
+  // root-flag tiebreak.
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("deduped_events", {
+      ...dedupBuilder.buildWithParams(),
+      schema: [
+        "item_id",
+        "experiment_id",
+        "level",
+        "start_time",
+        "end_time",
+        "total_cost",
+        "observation_id",
+        "trace_id",
+        "experiment_item_root_span_id",
+      ],
+    })
+    .from("deduped_events", "d")
+    .selectColumns(
+      "d.item_id",
+      "d.experiment_id",
+      "d.level",
+      "d.start_time",
+      "d.observation_id",
+      "d.trace_id",
+    )
+    .select(
+      "sum(d.total_cost) OVER (PARTITION BY d.item_id, d.experiment_id, d.trace_id) as total_cost",
+      "if(isNull(d.end_time), NULL, date_diff('millisecond', d.start_time, d.end_time)) as latency_ms",
+    )
     .orderBy(
-      "ORDER BY (e.span_id = e.experiment_item_root_span_id) DESC, e.start_time DESC",
+      "ORDER BY (d.observation_id = d.experiment_item_root_span_id) DESC, d.start_time DESC",
     )
-    .limitBy("e.experiment_item_id, e.experiment_id");
+    .limitBy("d.item_id, d.experiment_id");
 
   const { query: dataQuery, params: dataParams } =
-    queryBuilderData.buildWithParams();
+    queryBuilder.buildWithParams();
 
   const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
     query: dataQuery,
