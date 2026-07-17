@@ -26,7 +26,7 @@ export function InAppAgentDisabledDialog({
         </DialogHeader>
         <DialogBody>
           <AIFeaturesDisabledNotice organizationId={organizationId}>
-            The assistant requires AI features to be enabled for this
+            The Langfuse Assistant requires AI features to be enabled for this
             organization.
           </AIFeaturesDisabledNotice>
         </DialogBody>

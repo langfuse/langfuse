@@ -44,6 +44,13 @@ export const events = {
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Download from the large-string IO fallback (LFE-10991): a top-level
+    // string over the render limit is shown as a bounded preview + download
+    // instead of the full Pretty/JSON viewer. Measures how often users hit it.
+    "large_string_field_download",
+    // Raw download from the JSON-view fallback shown when a field is too large
+    // to render in the unvirtualized viewer (LFE-10989).
+    "json_view_large_field_download",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -272,7 +279,12 @@ export const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
-  in_app_agent: ["entry_point_click", "new_chat_started", "new_chat_turn"],
+  in_app_agent: [
+    "entry_point_click",
+    "new_chat_started",
+    "new_chat_turn",
+    "quick_action_started",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
   sidebar: ["book_a_call_clicked", "v4_beta_toggled"],

@@ -34,11 +34,18 @@ import {
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
 } from "@/src/ee/features/in-app-agent/context";
+import type {
+  InAppAgentQuickActionAttribution,
+  InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
@@ -46,8 +53,7 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
+import { InAppAgentDisabledDialog } from "@/src/ee/features/in-app-agent/components/InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -57,7 +63,10 @@ const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
 
-export type InAppAgentEntryPoint = "sidebar" | "dashboard_widget";
+export type InAppAgentEntryPoint =
+  | "top_nav"
+  | "keyboard_shortcut"
+  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -126,6 +135,9 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
+   * the disabled dialog and returns false when the organization has AI
+   * features turned off. */
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
@@ -146,7 +158,7 @@ type InAppAiAgentContextType = {
   deleteConversation: (conversationId: string) => Promise<void>;
   submit: (
     content: string,
-    options?: { newConversation?: boolean },
+    options?: InAppAgentSubmitOptions,
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
@@ -636,6 +648,7 @@ function InAppAiAgentProviderInner({
       agent: HttpAgent,
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
     ) => {
       clearLoadingEvents();
       setIsRunning(true);
@@ -645,7 +658,7 @@ function InAppAiAgentProviderInner({
           context: createInAppAgentScreenContext({
             currentUrl: window.location.href,
           }).concat(
-            ...createInAppAgentUserContext({
+            createInAppAgentUserContext({
               userName: session.data?.user?.name,
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               languages:
@@ -653,6 +666,11 @@ function InAppAiAgentProviderInner({
                   ? Array.from(navigator.languages)
                   : [navigator.language],
             }),
+            quickActionAttribution
+              ? createInAppAgentQuickActionAttributionContext(
+                  quickActionAttribution,
+                )
+              : [],
           ),
         })
         .then(() => true)
@@ -771,7 +789,7 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string, options?: { newConversation?: boolean }) => {
+    async (content: string, options?: InAppAgentSubmitOptions) => {
       if (
         !content ||
         isRunning ||
@@ -846,7 +864,7 @@ function InAppAiAgentProviderInner({
         }
         capture("in_app_agent:new_chat_turn");
         startedRun = true;
-        runAgent(agent, conversationId);
+        runAgent(agent, conversationId, undefined, options?.quickAction);
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -1271,4 +1289,20 @@ export function useInAppAiAgent() {
     return NOOP_CONTEXT;
   }
   return ctx;
+}
+
+/** Whether the current user/context may use the in-app assistant at all.
+ * Shared gate for the launcher button and the window host. */
+export function useCanUseInAppAgent() {
+  const { isAvailable } = useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return (
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    isLangfuseCloud &&
+    Boolean(organization)
+  );
 }
