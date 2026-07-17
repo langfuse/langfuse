@@ -1,7 +1,7 @@
 import { type FilterState } from "@langfuse/shared";
 import { type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { mapWidgetUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   classifyViewFiltersForTable,
   tableTargetForView,
@@ -72,6 +72,14 @@ function encodeFiltersWithinBudget(filters: FilterState): {
  * global filters); they are normalized to view space here before classifying.
  * `dateRange` is the dashboard's absolute range; when absent the table keeps
  * its own stored/default range.
+ *
+ * Normalization uses `mapLegacyUiTableFilterToView` (the "stored" variant), the
+ * SAME mapping DashboardWidget's own query build applies to widget +
+ * dashboard-global filters. This matters where the two variants diverge on a
+ * legacy alias: e.g. a dashboard-global "Version" filter on an observations
+ * widget maps to `traceVersion` (which the observations table correctly drops)
+ * under the stored variant, but to the observation `version` column under the
+ * editor variant — which would filter a different field than the chart did.
  */
 export function buildTableFilterHref(
   projectId: string,
@@ -81,7 +89,7 @@ export function buildTableFilterHref(
 ): TableFilterHrefResult {
   const table = tableTargetForView(view);
 
-  const viewFilters = mapWidgetUiTableFilterToView(view, filters);
+  const viewFilters = mapLegacyUiTableFilterToView(view, filters);
   const { applicable, notApplicable } = classifyViewFiltersForTable(
     view,
     viewFilters,

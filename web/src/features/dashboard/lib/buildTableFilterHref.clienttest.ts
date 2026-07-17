@@ -112,6 +112,28 @@ describe("buildTableFilterHref", () => {
     expect(notApplicable.get("sessionId")).toMatch(/session/i);
   });
 
+  it('drops a dashboard-global "Version" filter on an observations widget (parity with the widget query, which maps it to the dropped traceVersion)', () => {
+    // The "stored" mapping variant the widget query uses resolves the legacy
+    // "Version" alias to `traceVersion`, which the observations table can't
+    // express. The builder must match: no observation `version` filter leaks in.
+    const uiFilters: FilterState = [
+      { column: "Version", type: "string", operator: "=", value: "v1" },
+      { column: "user", type: "string", operator: "=", value: "u-1" },
+    ];
+
+    const { href, notApplicable } = buildTableFilterHref(
+      "proj-1",
+      "observations",
+      uiFilters,
+      DATE_RANGE,
+    );
+
+    const decoded = decodeHrefFilters(href);
+    expect(decoded.map((f) => f.column)).toEqual(["userId"]);
+    expect(decoded.some((f) => f.column === "version")).toBe(false);
+    expect(notApplicable.has("traceVersion")).toBe(true);
+  });
+
   it("encodes the widget time range as a custom dateRange", () => {
     const { href } = buildTableFilterHref("proj-1", "traces", [], DATE_RANGE);
     const url = new URL("http://localhost" + href);
