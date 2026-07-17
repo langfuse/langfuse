@@ -79,11 +79,13 @@ function InAppAgentQuickActionPicker({
   focusedActions,
   initialContext,
   isDisabled,
+  isExpanded,
   onSelectAction,
 }: {
   focusedActions?: readonly InAppAgentQuickAction[];
   initialContext: InAppAgentQuickActionContext;
   isDisabled: boolean;
+  isExpanded: boolean;
   onSelectAction: (
     action: InAppAgentQuickAction,
     context: InAppAgentQuickActionContext,
@@ -100,15 +102,15 @@ function InAppAgentQuickActionPicker({
 
   return (
     <>
-      <p className="text-foreground mt-4 text-base font-medium">
+      <p className="text-foreground mt-3 text-sm font-medium">
         Welcome to the Langfuse Assistant
       </p>
-      <p className="text-muted-foreground mt-2 max-w-xs text-center text-sm leading-relaxed">
+      <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
       <Tabs
         value={selectedContext}
-        className="mt-5 w-full max-w-md"
+        className="mt-4 w-full max-w-sm"
         onValueChange={(value) => {
           if (isInAppAgentQuickActionContext(value)) {
             setSelectedContext(value);
@@ -117,21 +119,28 @@ function InAppAgentQuickActionPicker({
       >
         <TabsList
           aria-label="Quick action category"
-          className="h-auto w-full justify-between rounded-none border-b bg-transparent p-0"
+          className="grid h-auto w-full grid-cols-4 rounded-none border-b bg-transparent p-0"
         >
           {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
             <TabsTrigger
               key={context}
               value={context}
               disabled={isDisabled}
-              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-8 shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 text-sm tracking-[-0.04em] shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
             >
               {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
             </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
-      <div className="mt-4 flex w-full max-w-sm flex-col gap-2.5">
+      <div
+        className={cn(
+          "mt-3 grid w-full gap-2",
+          isExpanded
+            ? "max-w-2xl grid-cols-1 sm:grid-cols-2"
+            : "max-w-sm grid-cols-1",
+        )}
+      >
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;
 
@@ -140,21 +149,21 @@ function InAppAgentQuickActionPicker({
               key={action.id}
               type="button"
               variant="outline"
-              className="bg-card hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
+              className="bg-card hover:bg-muted/60 group h-auto min-h-13 w-full justify-start gap-2 rounded-md px-2.5 py-2 text-left whitespace-normal shadow-xs"
               disabled={isDisabled}
               onClick={() => {
                 onSelectAction(action, selectedContext, position);
               }}
             >
-              <span className="bg-muted text-primary-accent flex size-8 shrink-0 items-center justify-center rounded-md">
-                <ActionIcon aria-hidden="true" className="size-4" />
+              <span className="bg-muted text-primary-accent flex size-7 shrink-0 items-center justify-center rounded-md">
+                <ActionIcon aria-hidden="true" className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="text-foreground block text-sm leading-snug font-semibold">
+                <span className="text-foreground block text-xs leading-snug font-semibold">
                   {action.label}
                 </span>
                 <span
-                  className="text-muted-foreground mt-0.5 block truncate text-sm leading-snug font-normal"
+                  className="text-muted-foreground mt-0.5 block truncate text-xs leading-snug font-normal"
                   title={action.description}
                 >
                   {action.description}
@@ -162,7 +171,7 @@ function InAppAgentQuickActionPicker({
               </span>
               <ArrowRight
                 aria-hidden="true"
-                className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+                className="text-muted-foreground size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
               />
             </Button>
           );
@@ -708,13 +717,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             {!hasUserMessage ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
-                  <BotMessageSquare className="text-muted-foreground mx-auto h-8 w-8" />
+                  <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
                 </div>
                 <InAppAgentQuickActionPicker
                   key={`${selectedConversationId ?? "new"}:${quickActionResetKey}`}
                   focusedActions={focusedQuickActions}
                   initialContext={quickActionContext}
                   isDisabled={isInputDisabled}
+                  isExpanded={isExpanded}
                   onSelectAction={(action, context, position) => {
                     capture("in_app_agent:quick_action_started", {
                       quickActionKey: action.id,

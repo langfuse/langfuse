@@ -8,6 +8,7 @@ import {
   useInAppAiAgent,
   type InAppAgentEntryPoint,
 } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by
  * InAppAgentWindowHost from the persistent authenticated layout, so it
@@ -59,13 +60,16 @@ export const InAppAiAgentButton = () => {
   return (
     <Button
       type="button"
-      variant={open ? "secondary" : "ghost"}
-      size="sm"
+      variant="outline"
       aria-label={open ? "Close assistant" : "Open assistant"}
       aria-pressed={open}
       data-ignore-outside-interaction
       onClick={() => toggleAssistant("top_nav")}
-      className="gap-2"
+      className={cn(
+        "gap-2",
+        open &&
+          "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
+      )}
     >
       <BotMessageSquare className="h-4 w-4" />
       <span className="hidden sm:inline">Assistant</span>
