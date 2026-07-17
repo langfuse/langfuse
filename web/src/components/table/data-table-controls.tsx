@@ -592,7 +592,14 @@ export function DataTableControls({
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
                   disabled={!queryFilter.isFiltered}
-                  onClick={() => queryFilter.clearAll()}
+                  onClick={() => {
+                    // Explicit adds are part of "everything" too: without
+                    // this, a value-less added facet stays pinned after
+                    // Clear all and the active-only empty state can never
+                    // render again this mount.
+                    setRevealedColumns([]);
+                    queryFilter.clearAll();
+                  }}
                   className="cursor-pointer"
                 >
                   Clear all filters
