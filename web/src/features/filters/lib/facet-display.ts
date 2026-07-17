@@ -127,6 +127,47 @@ export function getFacetSummary(filter: UIFilter): string | null {
 }
 
 /**
+ * The single option value a categorical facet's summary refers to, or null
+ * when the summary is not about exactly one value (counts, text filters,
+ * inactive "All", …). Lets the header chip reuse the facet's per-value
+ * color coding (renderIcon) — e.g. the Status chip carries the level color.
+ * Mirrors getFacetSummary's single-value branches.
+ */
+export function getFacetSummaryValue(filter: UIFilter): string | null {
+  if (filter.type !== "categorical") return null;
+  if (filter.textFilters && filter.textFilters.length > 0) return null;
+
+  if (!filter.isActive) {
+    // inactive strict-subset kept set (managed environments) with one value
+    if (
+      filter.options.length > 0 &&
+      filter.value.length === 1 &&
+      filter.value.length < filter.options.length
+    ) {
+      return filter.value[0];
+    }
+    return null;
+  }
+
+  if (filter.operator === "none of") {
+    const kept = new Set(filter.value);
+    const excluded =
+      filter.excludedValues ??
+      filter.options.filter((option) => !kept.has(option));
+    return excluded.length === 1 ? excluded[0] : null;
+  }
+
+  if (
+    filter.value.length === 1 &&
+    (filter.operator !== undefined ||
+      filter.value.length < filter.options.length)
+  ) {
+    return filter.value[0];
+  }
+  return null;
+}
+
+/**
  * Rank a facet's option values for its search box the way the search bar
  * ranks completions (prefix matches before substring matches, stable within
  * a rank) instead of plain substring filtering. Matches against the raw

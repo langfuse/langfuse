@@ -18,6 +18,7 @@ import {
 } from "@/src/components/ui/select";
 import {
   getFacetSummary,
+  getFacetSummaryValue,
   rankFacetOptions,
 } from "@/src/features/filters/lib/facet-display";
 import { useMediaQuery } from "react-responsive";
@@ -217,6 +218,10 @@ export function DataTableControls({
   // apply, or a restored view skip the scroll), the re-sort has already moved
   // it by the time this runs; scroll the list to its new position.
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  // Last focused element inside the list: re-sorting moves DOM nodes, and a
+  // reinserted node loses focus even when React merely reorders it — typing
+  // the first character into a facet's input must not kick the caret out.
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
   const activeColumnsKey = queryFilter.filters
     .filter((filter) => filter.isActive)
     .map((filter) => filter.column)
@@ -237,6 +242,18 @@ export function DataTableControls({
         ...existing,
         ...Object.fromEntries(became.map((column) => [column, now])),
       }));
+    }
+
+    // Restore focus dropped by the reorder's DOM move (inputs keep their own
+    // selection state across blur, so focus() alone restores the caret).
+    const lastFocused = lastFocusedRef.current;
+    if (
+      lastFocused &&
+      lastFocused.isConnected &&
+      (document.activeElement === document.body ||
+        document.activeElement === null)
+    ) {
+      lastFocused.focus({ preventScroll: true });
     }
 
     const changed = [...became, ...ceased];
@@ -293,6 +310,7 @@ export function DataTableControls({
 
   const renderFacet = (filter: UIFilter) => {
     if (filter.type === "categorical") {
+      const summaryValue = getFacetSummaryValue(filter);
       return (
         <CategoricalFacet
           key={filter.column}
@@ -301,6 +319,11 @@ export function DataTableControls({
           tooltip={filter.tooltip}
           help={filter.help}
           summary={getFacetSummary(filter)}
+          summaryIcon={
+            summaryValue !== null
+              ? filter.renderIcon?.(summaryValue)
+              : undefined
+          }
           expanded={filter.expanded}
           options={filter.options}
           counts={filter.counts}
@@ -607,7 +630,13 @@ export function DataTableControls({
             </DropdownMenu>
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1" ref={scrollRootRef}>
+        <ScrollArea
+          className="min-h-0 flex-1"
+          ref={scrollRootRef}
+          onFocusCapture={(event) => {
+            lastFocusedRef.current = event.target as HTMLElement;
+          }}
+        >
           {/* w-0 + min-w-full pins the content to the viewport width: the
               Radix viewport wraps children in an inline-styled
               `display: table; min-width: 100%` div that otherwise grows to
@@ -623,17 +652,26 @@ export function DataTableControls({
               value={queryFilter.expanded}
               onValueChange={queryFilter.onExpandedChange}
             >
-              {displayedFilters.slice(0, promotedFacetCount).map(renderFacet)}
-              {/* Clear spatial break between the active/added block and the
-                  inactive rest of the catalog. */}
-              {promotedFacetCount > 0 &&
-                promotedFacetCount < displayedFilters.length && (
-                  <div
-                    className="border-border/60 mx-3 my-3 border-t"
-                    aria-hidden
-                  />
-                )}
-              {displayedFilters.slice(promotedFacetCount).map(renderFacet)}
+              {/* ONE keyed child array — not two .map() slices: React can
+                  only match keys within the same array, so a facet crossing
+                  the promoted/rest boundary would REMOUNT (wiping input
+                  focus and draft state) instead of moving. */}
+              {displayedFilters.flatMap((filter, index) => {
+                const nodes = [];
+                if (index === promotedFacetCount && promotedFacetCount > 0) {
+                  // Clear spatial break between the active/added block and
+                  // the inactive rest of the catalog.
+                  nodes.push(
+                    <div
+                      key="promoted-separator"
+                      className="border-border/60 mx-3 my-3 border-t"
+                      aria-hidden
+                    />,
+                  );
+                }
+                nodes.push(renderFacet(filter));
+                return nodes;
+              })}
             </Accordion>
 
             {/* Active-only mode: surface the rest of the catalog behind an
@@ -708,6 +746,8 @@ interface BaseFacetProps {
 }
 
 interface CategoricalFacetProps extends BaseFacetProps {
+  /** Color-coded icon of the single value the summary names (renderIcon). */
+  summaryIcon?: React.ReactNode;
   options: string[];
   counts: Map<string, number>;
   displayByValue?: Map<string, string>;
@@ -816,8 +856,10 @@ interface FilterAccordionItemProps {
     description: React.ReactNode;
     href?: string;
   };
-  /** One-line "what is selected?" summary rendered before the chevron. */
+  /** One-line "what is selected?" summary rendered in the header. */
   summary?: string | null;
+  /** Color-coded icon of the single value the summary names. */
+  summaryIcon?: React.ReactNode;
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -832,6 +874,7 @@ export function FilterAccordionItem({
   tooltip,
   help,
   summary,
+  summaryIcon,
   filterKey,
   filterKeyShort,
   children,
@@ -934,6 +977,11 @@ export function FilterAccordionItem({
               )}
               title={summary}
             >
+              {summaryIcon && (
+                <span className="mr-1 inline-flex align-text-bottom">
+                  {summaryIcon}
+                </span>
+              )}
               {summary}
             </span>
           )}
@@ -995,6 +1043,7 @@ export function CategoricalFacet({
   tooltip,
   help,
   summary,
+  summaryIcon,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1048,6 +1097,7 @@ export function CategoricalFacet({
       tooltip={tooltip}
       help={help}
       summary={summary}
+      summaryIcon={summaryIcon}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
