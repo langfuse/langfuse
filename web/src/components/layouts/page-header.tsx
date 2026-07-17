@@ -126,7 +126,7 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div className="bg-header">
+        <div>
           <div
             className={cn(
               "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",

@@ -140,7 +140,7 @@ function InAppAgentQuickActionPicker({
               key={action.id}
               type="button"
               variant="outline"
-              className="bg-card dark:bg-header hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
+              className="bg-card hover:bg-muted/60 group h-auto min-h-16 w-full justify-start gap-2.5 rounded-lg px-3 py-2 text-left whitespace-normal shadow-xs"
               disabled={isDisabled}
               onClick={() => {
                 onSelectAction(action, selectedContext, position);
@@ -504,7 +504,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           isHeaderDragHandleEnabled ? "true" : undefined
         }
         className={cn(
-          "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          "bg-card flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
           isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
         )}
       >
@@ -883,9 +883,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {isExpanded && (
                 <>
                   {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Make sure this matches the color of the background */}
-                  <div className="from-header absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-header absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
+                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
                 </>
               )}
             </div>
@@ -894,7 +894,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         <div
           className={cn(
             "p-1.5",
-            isExpanded ? "pt-0" : "bg-header",
+            isExpanded ? "pt-0" : "bg-card",
             !isExpanded && hasUserMessage && "border-t",
           )}
         >
