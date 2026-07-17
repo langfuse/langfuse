@@ -362,6 +362,15 @@ describe("default-model-prices.json", () => {
     );
     expect(issueTotalCost).toBeCloseTo(0.740238, 12);
 
+    const implicitCacheWriteResult = matchPricingTier(solTiers, {
+      input: 100,
+      cache_read_input_tokens: 1000,
+    });
+    expect(implicitCacheWriteResult?.pricingTierName).toBe(
+      "Standard with Implicit Cache Writes",
+    );
+    expect(implicitCacheWriteResult?.prices.input.toNumber()).toBe(6.25e-6);
+
     const explicitCacheWriteResult = matchPricingTier(solTiers, {
       input: 100,
       cache_read_input_tokens: 1000,
@@ -374,8 +383,7 @@ describe("default-model-prices.json", () => {
     );
 
     const rawCacheWriteLargeContextResult = matchPricingTier(solTiers, {
-      input: 100,
-      cache_write_tokens: 272000,
+      cache_write_tokens: 272001,
     });
     expect(rawCacheWriteLargeContextResult?.pricingTierName).toBe(
       "Large Context (>272K)",
