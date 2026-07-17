@@ -79,13 +79,11 @@ function InAppAgentQuickActionPicker({
   focusedActions,
   initialContext,
   isDisabled,
-  isExpanded,
   onSelectAction,
 }: {
   focusedActions?: readonly InAppAgentQuickAction[];
   initialContext: InAppAgentQuickActionContext;
   isDisabled: boolean;
-  isExpanded: boolean;
   onSelectAction: (
     action: InAppAgentQuickAction,
     context: InAppAgentQuickActionContext,
@@ -133,14 +131,7 @@ function InAppAgentQuickActionPicker({
           ))}
         </TabsList>
       </Tabs>
-      <div
-        className={cn(
-          "mt-3 grid w-full gap-2",
-          isExpanded
-            ? "max-w-2xl grid-cols-1 sm:grid-cols-2"
-            : "max-w-sm grid-cols-1",
-        )}
-      >
+      <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;
 
@@ -724,7 +715,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   focusedActions={focusedQuickActions}
                   initialContext={quickActionContext}
                   isDisabled={isInputDisabled}
-                  isExpanded={isExpanded}
                   onSelectAction={(action, context, position) => {
                     capture("in_app_agent:quick_action_started", {
                       quickActionKey: action.id,
