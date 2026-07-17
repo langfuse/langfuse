@@ -142,11 +142,12 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  {/* Explicit text-foreground: the SidebarProvider shell sets
+                  {/* Explicit color: the SidebarProvider shell sets
                       text-sidebar-foreground (60% grey in dark) on the whole
                       app, so unstyled text here would inherit the dimmed
-                      sidebar tint. */}
-                  <h2 className="text-foreground line-clamp-1 text-lg leading-7 font-bold">
+                      sidebar tint. text-primary is the emphasis tier —
+                      brighter than body text-foreground in dark. */}
+                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (
