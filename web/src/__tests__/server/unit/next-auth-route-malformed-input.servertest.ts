@@ -102,36 +102,30 @@ describe("NextAuth route malformed input handling", () => {
     );
   });
 
-  it(
-    "does not throw when an auth error contains invalid Location header characters",
-    async () => {
-      const { req, res } = createRequest({
-        nextauth: ["error"],
-        query: { error: "configuration\r\nscanner-payload" },
-      });
+  it("does not throw when an auth error contains invalid Location header characters", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["error"],
+      query: { error: "configuration\r\nscanner-payload" },
+    });
 
-      await expect(auth(req, res)).resolves.toBeUndefined();
-      expect(res.statusCode).toBe(302);
-      expect(res.getHeader("Location")).toBe(
-        "/auth/error?error=configuration%0D%0Ascanner-payload",
-      );
-    },
-  );
+    await expect(auth(req, res)).resolves.toBeUndefined();
+    expect(res.statusCode).toBe(302);
+    expect(res.getHeader("Location")).toBe(
+      "/auth/error?error=configuration%0D%0Ascanner-payload",
+    );
+  });
 
-  it(
-    "does not return 500 for a malformed callbackUrl query parameter",
-    async () => {
-      const { req, res } = createRequest({
-        nextauth: ["callback", "credentials"],
-        query: { callbackUrl: ".....///.....///etc/passwd" },
-      });
+  it("does not return 500 for a malformed callbackUrl query parameter", async () => {
+    const { req, res } = createRequest({
+      nextauth: ["callback", "credentials"],
+      query: { callbackUrl: ".....///.....///etc/passwd" },
+    });
 
-      await auth(req, res);
+    await auth(req, res);
 
-      expect(res.statusCode).toBe(400);
-      expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
-    },
-  );
+    expect(res.statusCode).toBe(400);
+    expect(res._getJSONData()).toEqual({ error: "Invalid callback URL" });
+  });
 
   it("does not return 500 for a malformed callbackUrl cookie", async () => {
     const { req, res } = createRequest({
