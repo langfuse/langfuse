@@ -2795,6 +2795,54 @@ describe("batch export test suite", () => {
 
       expect(rows).toHaveLength(1);
       expect(rows[0].name).toBe("help-assistant");
+      // The matched row must also EXPORT the trace-level score's value —
+      // matching-but-blank diverges from the UI's unified Scores column.
+      expect(rows[0].CSAT).toEqual([1]);
+    });
+
+    it("exports trace-level score values without any score filter (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      // No filter: the export must still carry the trace-level score value,
+      // mirroring the UI's unified Scores column (LFE-10596).
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].CSAT).toEqual([1]);
     });
 
     it("should apply observation-level score filters and ignore trace-level score filters when useEventsTable is true", async () => {
@@ -3083,6 +3131,63 @@ describe("batch export test suite", () => {
       );
     });
 
+    it("exports trace-level score values on the events export (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+      ]);
+
+      // One trace-level (observation_id NULL) numeric score and one
+      // trace-level categorical score: both must land in the exported row —
+      // pre-fix this path never joined the trace-score aggregate, so every
+      // trace-level score exported blank (diverging from the UI's unified
+      // Scores column).
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "sentiment",
+          value: null,
+          string_value: "positive",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const stream = await getEventsStream({
+        projectId: projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("help-assistant");
+      expect(rows[0].CSAT).toEqual([1]);
+      expect(rows[0].sentiment).toEqual(["positive"]);
+    });
     it("should export events with filters", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

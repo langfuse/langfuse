@@ -46,7 +46,10 @@ import {
 } from "./abortClassification";
 import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
-import { isCustomerFaultError } from "./isCustomerFaultError";
+import {
+  BLOB_INTEGRATION_DISABLED_METRIC,
+  classifyCustomerFault,
+} from "./isCustomerFaultError";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -69,6 +72,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
+import { assertLegacyExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
   buildBlobExportManifest,
@@ -1275,6 +1279,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    // Symmetric legacy-side guard (LFE-10148); the catch persists lastError
+    // and notifies admins.
+    assertLegacyExportSourceWritable(
+      blobStorageIntegration.exportSource,
+      "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
+    );
+
     // Preflight the persisted integration endpoint once per job inside the
     // export error path. StorageService connection-time validation remains the
     // DNS-rebinding defense for each SDK connection.
@@ -1513,8 +1524,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // 0-based, so the final attempt is attempts - 1.
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    // The reason bucket doubles as the disable decision (defined => disable) and
+    // as the tag on the disable log + metric below.
+    const customerFaultReason = classifyCustomerFault(error);
     const disableForCustomerFault =
-      isFinalAttempt && isCustomerFaultError(error);
+      isFinalAttempt && customerFaultReason !== undefined;
 
     // True only for the worker that actually flips enabled true→false, so the
     // "disabled" email (which bypasses the cooldown) is sent exactly once and
@@ -1543,8 +1557,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
         disableClaimRan = true;
         persistedDisable = count === 1;
         if (persistedDisable) {
+          // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
+          // separated from customer misconfig, and a mass-disable regression is
+          // visible as a spike in the non-SSRF buckets after rollout.
+          const reason = customerFaultReason ?? "unknown";
+          recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, { reason });
           logger.warn(
-            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${reason}): ${errorMessage}`,
+            { blobStorageDisableReason: reason, projectId },
           );
         }
       }

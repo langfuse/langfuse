@@ -1,4 +1,4 @@
-import { prisma } from "../../../db";
+import { prisma, Prisma } from "../../../db";
 import {
   LangfuseConflictError,
   LangfuseNotFoundError,
@@ -217,12 +217,26 @@ export class DashboardService {
     dashboardId: string,
     projectId: string,
   ): Promise<void> {
-    await prisma.dashboard.delete({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-    });
+    try {
+      await prisma.dashboard.delete({
+        where: {
+          id: dashboardId,
+          projectId,
+        },
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the dashboard exists in another project.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
   }
 
   /**

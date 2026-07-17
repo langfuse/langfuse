@@ -1,5 +1,6 @@
 import { eventsTableCols } from "../../../eventsTable";
 import type { TracingSearchType } from "../../../interfaces/search";
+import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import {
@@ -11,11 +12,14 @@ import {
   NumberObjectFilter,
 } from "./clickhouse-filter";
 import { EventsQueryBuilder } from "./event-query-builder";
-import { createFilterFromFilterState } from "./factory";
+import {
+  createFilterFromFilterState,
+  resolveLegacyScoreFilterColumn,
+} from "./factory";
 import { extractTimeFilter } from "./filter-utils";
 import {
   eventsScoresAggregation,
-  eventsTracesScoresAggregation,
+  eventsTracesScoresAggregationFromObservationStart,
 } from "./query-fragments";
 import { clickhouseSearchCondition } from "./search";
 
@@ -56,10 +60,6 @@ export type EventsObservationRowSelectionInput = {
   filter: FilterCondition[] | null;
   searchQuery?: string;
   searchType?: TracingSearchType[];
-  scoreFilterCapabilities: {
-    observation: boolean;
-    trace: boolean;
-  };
 };
 
 type ObservationScoreDependency = {
@@ -67,6 +67,12 @@ type ObservationScoreDependency = {
   joinTable: string;
   joinCondition: string;
   selectExpressions?: string[];
+  /**
+   * Blob export: also join the trace-score CTE (with tuple encoding) so the
+   * `ts.*` select expressions resolve and trace-level scores land in the
+   * export like they do in the UI's unified Scores column (LFE-10596).
+   */
+  includeTraceScores?: boolean;
 };
 
 type ObservationScoreDependencyFactory = (input: {
@@ -82,9 +88,10 @@ const buildObservationScoreFilterDependency: ObservationScoreDependencyFactory =
   });
 
 const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFactory =
-  ({ projectId }) => ({
+  ({ projectId, startTimeFrom }) => ({
     cte: eventsScoresAggregation({
       projectId,
+      startTimeFrom,
       includeTupleEncoding: true,
     }),
     joinTable: "scores_agg s",
@@ -94,7 +101,10 @@ const buildBlobExportObservationScoreDependency: ObservationScoreDependencyFacto
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
       "s.score_categories_tuples as score_categories_tuples",
+      "ts.scores_avg as trace_scores_avg",
+      "ts.score_categories_tuples as trace_score_categories_tuples",
     ],
+    includeTraceScores: true,
   });
 
 // LFE-10596: in v4 the events table splits scores into observation-scoped
@@ -232,10 +242,13 @@ export const filterHasTraceScores = (
   });
 
 const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
-  const columnDefinition = eventsTableUiColumnDefinitions.find(
-    (column) =>
-      column.uiTableName === filter.column ||
-      column.uiTableId === filter.column,
+  const filterColumn = resolveLegacyScoreFilterColumn(
+    filter,
+    eventsTableUiColumnDefinitions,
+  );
+  const columnDefinition = findUiColumnMapping(
+    eventsTableUiColumnDefinitions,
+    filterColumn,
   );
 
   if (columnDefinition?.clickhouseTableName === "comments") {
@@ -276,69 +289,42 @@ const buildEventsObservationRowSelectionInternal = (
     filter,
     searchQuery,
     searchType,
-    scoreFilterCapabilities,
   }: EventsObservationRowSelectionInput,
   observationScoreDependencyFactory?: ObservationScoreDependencyFactory,
 ): {
   queryBuilder: EventsQueryBuilder;
   filterGroups: EventsObservationFilterGroups;
   search: ReturnType<typeof eventSearchCondition>;
+  startTimeFrom: string | null;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
-  const classifiedFilters = (filter ?? []).map((filterItem) => ({
-    filter: filterItem,
-    group: classifyFilter(filterItem),
-  }));
-
-  const effectiveFilters = classifiedFilters.flatMap(({ filter, group }) => {
-    if (group === "observationScores" && !scoreFilterCapabilities.observation) {
-      return [];
-    }
-    if (group === "traceScores" && !scoreFilterCapabilities.trace) return [];
-    return [filter];
-  });
 
   // Observation-scoped score filters are rewritten into a level-agnostic
-  // union across the obs (`s.`) and trace (`ts.`) score columns (LFE-10596).
-  // The union references `ts.*`, so it only applies when the caller supports
-  // the trace-score join.
-  const levelAgnosticScores =
-    scoreFilterCapabilities.observation && scoreFilterCapabilities.trace;
-  const createdFilters = createFilterFromFilterState(
-    effectiveFilters,
-    eventsTableUiColumnDefinitions,
-    eventsTableCols,
-  );
+  // union across the obs (`s.`) and trace (`ts.`) score columns (LFE-10596),
+  // for every caller of this planner (events list, blob export, stream).
   const eventsFilter = new FilterList(
-    levelAgnosticScores
-      ? createdFilters.map(toLevelAgnosticScoreFilter)
-      : createdFilters,
+    createFilterFromFilterState(
+      filter ?? [],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ).map(toLevelAgnosticScoreFilter),
   );
   const startTimeFrom = extractTimeFilter(eventsFilter);
-  const hasObservationScoreFilter =
-    scoreFilterCapabilities.observation &&
-    eventsFilter.some(
-      (filterItem) =>
-        filterItem.clickhouseTable === "scores" &&
-        filterItem.field.startsWith("s."),
-    );
-  const hasTraceScoreFilter =
-    (scoreFilterCapabilities.trace &&
-      eventsFilter.some(
-        (filterItem) =>
-          filterItem.clickhouseTable === "scores" &&
-          filterItem.field.startsWith("ts."),
-      )) ||
-    // The level-agnostic union references the trace score CTE too, so join it
-    // whenever an observation-scoped score filter is present, not only for
-    // explicit `trace_scores_avg` filters.
-    (levelAgnosticScores && hasObservationScoreFilter);
+  const hasObservationScoreFilter = filterGroups.observationScores.length > 0;
   const queryBuilder = new EventsQueryBuilder({ projectId });
   const observationScoreDependency =
     observationScoreDependencyFactory?.({ projectId, startTimeFrom }) ??
     (hasObservationScoreFilter
       ? buildObservationScoreFilterDependency({ projectId, startTimeFrom })
       : undefined);
+  // The trace-score CTE is needed for explicit trace-only filters, for the
+  // level-agnostic union (an observation-scoped filter now references `ts.*`
+  // too), and whenever the score dependency selects `ts.*` so trace-level
+  // scores land in exports like they do in the UI's unified Scores column.
+  const hasTraceScoreFilter =
+    filterGroups.traceScores.length > 0 ||
+    hasObservationScoreFilter ||
+    Boolean(observationScoreDependency?.includeTraceScores);
   const search = eventSearchCondition({ query: searchQuery, searchType });
 
   if (observationScoreDependency) {
@@ -358,10 +344,13 @@ const buildEventsObservationRowSelectionInternal = (
     .when(hasTraceScoreFilter, (builder) =>
       builder.withCTE(
         "trace_scores_agg",
-        eventsTracesScoresAggregation({
+        eventsTracesScoresAggregationFromObservationStart({
           projectId,
           startTimeFrom,
           hasScoreAggregationFilters: true,
+          includeTupleEncoding: Boolean(
+            observationScoreDependency?.includeTraceScores,
+          ),
         }),
       ),
     )
@@ -378,7 +367,7 @@ const buildEventsObservationRowSelectionInternal = (
 
   queryBuilder.applyFilters(eventsFilter).where(search);
 
-  return { queryBuilder, filterGroups, search };
+  return { queryBuilder, filterGroups, search, startTimeFrom };
 };
 
 export const buildEventsObservationRowSelection = (

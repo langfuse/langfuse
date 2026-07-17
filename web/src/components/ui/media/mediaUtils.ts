@@ -38,6 +38,26 @@ const PREVIEWABLE_TOP_LEVEL = new Set(["image", "audio", "video"]);
 // Guards the per-value hot path: bail before parsing a URL out of long strings.
 const MAX_URL_LENGTH = 2048;
 
+// A data: payload can be many megabytes, so we only ever validate the head.
+// This is comfortably longer than any real image/audio/video data-URI header
+// (`data:<mediatype>(;param=value)*(;base64)?,` — typically well under 40
+// chars) while keeping the regex cost bounded regardless of payload size.
+const MAX_DATA_URI_HEADER_SCAN = 256;
+
+// RFC 2397 data-URI header shape: `data:<type>/<subtype>(;<param>=<value>)*
+// (;base64)?,`. The trailing comma that separates the header from the payload
+// is MANDATORY — requiring it (and a well-formed parameter list up to it) is
+// what stops ordinary strings that merely start with "data:image/…" from being
+// mistaken for previewable media. The first capture group is the MIME type.
+//
+// The `i` flag matches the `;base64` token ASCII-case-insensitively, per the
+// WHATWG data-URL spec (browsers accept `;BASE64,` / `;Base64,`). It does NOT
+// widen which media is previewable: the top-level type is still gated by the
+// lowercase `PREVIEWABLE_TOP_LEVEL` check below, so `data:IMAGE/PNG,…` remains
+// non-previewable regardless of the flag.
+const DATA_URI_HEADER_PATTERN =
+  /^data:([\w.+-]+\/[\w.+-]+)(?:;[\w.+-]+=[^;,]*)*(?:;base64)?,/i;
+
 /**
  * Classifies a string value as previewable media, or returns null. Pure and
  * cheap: a prefix check gates every branch so non-media strings (the common
@@ -59,8 +79,14 @@ export function classifyMediaValue(value: unknown) {
   }
 
   if (value.startsWith(DATA_URI_PREFIX)) {
-    // Read only the head — a base64 payload can be megabytes long.
-    const match = /^data:([\w.+-]+\/[\w.+-]+)/.exec(value.slice(0, 100));
+    // Validate the head against the RFC 2397 shape — reading only the head,
+    // since a base64 payload can be megabytes long. Requiring a well-formed
+    // header terminated by its mandatory comma rejects prose / JSON strings
+    // that happen to start with "data:image/…" (false positives that would
+    // otherwise render a broken media chip and skip the normal truncation).
+    const match = DATA_URI_HEADER_PATTERN.exec(
+      value.slice(0, MAX_DATA_URI_HEADER_SCAN),
+    );
     const contentType = match?.[1];
     if (!contentType) return null;
     if (!PREVIEWABLE_TOP_LEVEL.has(contentType.split("/")[0]!)) return null;

@@ -28,7 +28,6 @@ import {
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
   toLevelAgnosticScoreFilter,
-  filterHasObservationScores,
   scoreBooleansAggregation,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
@@ -474,11 +473,6 @@ const getObservationStreamFromEvents = async (
     return true;
   });
 
-  // Observation-scoped score filters become a union across the obs and trace
-  // score columns, which references `ts.*`, so the trace-score CTE must be
-  // joined too — mirroring `getObservationsFromEventsTableInternal`.
-  const needsTraceScoresJoin = filterHasObservationScores(exportableFilters);
-
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
@@ -526,6 +520,8 @@ const getObservationStreamFromEvents = async (
       "s.scores_avg as scores_avg",
       "s.score_categories as score_categories",
       "s.score_categories_tuples as score_categories_tuples",
+      "ts.scores_avg as trace_scores_avg",
+      "ts.score_categories_tuples as trace_score_categories_tuples",
     )
     .withCTE(
       "scores_agg",
@@ -535,20 +531,20 @@ const getObservationStreamFromEvents = async (
       "scores_agg s",
       "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
     )
-    // Level-agnostic score union references the trace-score CTE (LFE-10596).
-    .when(needsTraceScoresJoin, (b) =>
-      b
-        .withCTE(
-          "trace_scores_agg",
-          eventsTracesScoresAggregation({
-            projectId,
-            hasScoreAggregationFilters: true,
-          }),
-        )
-        .leftJoin(
-          "trace_scores_agg AS ts",
-          "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-        ),
+    // Trace-level scores are always joined and exported so the export matches
+    // the UI's unified Scores column, and so the level-agnostic score-filter
+    // union (which references `ts.*`) resolves (LFE-10596).
+    .withCTE(
+      "trace_scores_agg",
+      eventsTracesScoresAggregation({
+        projectId,
+        hasScoreAggregationFilters: true,
+        includeTupleEncoding: true,
+      }),
+    )
+    .leftJoin(
+      "trace_scores_agg AS ts",
+      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
     )
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
     .where(appliedEventsFilter)
@@ -571,6 +567,19 @@ const getObservationStreamFromEvents = async (
       | undefined;
     score_categories: string[] | undefined;
     score_categories_tuples: [string, string | null, string][] | undefined;
+    // Trace-level scores (observation_id NULL), merged into the exported
+    // scores so the export matches the UI's unified Scores column (LFE-10596).
+    trace_scores_avg:
+      | {
+          name: string;
+          value: number;
+          dataType: ScoreDataTypeType;
+          stringValue: string;
+        }[]
+      | undefined;
+    trace_score_categories_tuples:
+      | [string, string | null, string][]
+      | undefined;
   };
 
   const asyncGenerator = queryClickhouseStream<EventsObservationRow>({
@@ -600,8 +609,13 @@ const getObservationStreamFromEvents = async (
     const model = await modelCache.getModel(converted.internalModelId);
     const modelData = enrichObservationWithModelData(model);
 
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
+    // Process numeric/boolean scores (tuples from ClickHouse), merging the
+    // observation-level and trace-level aggregates so the export matches the
+    // UI's unified Scores column (LFE-10596).
+    const numericScores = [
+      ...(bufferedRow.scores_avg ?? []),
+      ...(bufferedRow.trace_scores_avg ?? []),
+    ].map((score: any) => ({
       name: score[0],
       value: score[1],
       dataType: score[2],
@@ -609,14 +623,15 @@ const getObservationStreamFromEvents = async (
     }));
 
     // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
+    const categoricalScores = [
+      ...(bufferedRow.score_categories_tuples ?? []),
+      ...(bufferedRow.trace_score_categories_tuples ?? []),
+    ].map((cat) => ({
+      name: cat[0],
+      value: null,
+      dataType: cat[2],
+      stringValue: cat[1],
+    }));
 
     const outputScores: Record<string, string[] | number[]> =
       prepareScoresForOutput([...numericScores, ...categoricalScores]);

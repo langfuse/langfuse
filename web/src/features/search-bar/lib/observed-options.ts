@@ -137,8 +137,10 @@ export const MAX_SCORE_NAME_LENGTH = 256;
 export type ObservedScoreNames = {
   numeric?: string[];
   categorical?: string[];
+  booleans?: string[];
   traceNumeric?: string[];
   traceCategorical?: string[];
+  traceBooleans?: string[];
 };
 
 /**
@@ -167,8 +169,10 @@ export function observedScoreNamesFromOptions(
   return {
     numeric: names("scores_avg"),
     categorical: names("score_categories"),
+    booleans: names("score_booleans"),
     traceNumeric: names("trace_scores_avg"),
     traceCategorical: names("trace_score_categories"),
+    traceBooleans: names("trace_score_booleans"),
   };
 }
 
