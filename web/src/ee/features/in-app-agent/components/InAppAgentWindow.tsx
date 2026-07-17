@@ -789,9 +789,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {isExpanded && (
                 <>
                   {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Make sure this matches the color of the background */}
-                  <div className="from-header absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-header absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
+                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
+                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
                 </>
               )}
             </div>
