@@ -1,17 +1,19 @@
 import {
+  deleteAnnotationQueueItemsByObjectIds,
   deleteEventsOlderThanDays,
   deleteMediaFiles,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
   findExpiredMediaByProjectId,
+  getExpiredAnnotationQueueTraceIds,
   getS3MediaStorageClient,
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
-import { prisma } from "@langfuse/shared/src/db";
+import { AnnotationQueueObjectType, prisma } from "@langfuse/shared/src/db";
 import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
@@ -80,6 +82,18 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     );
   }
 
+  // Annotation queue items reference traces by objectId with no foreign key to
+  // ClickHouse, so age-based trace deletion would otherwise leave orphaned items
+  // that render "Trace not found" in the review UI. Resolve which referenced
+  // traces are expiring before the delete runs (while they still exist), then
+  // remove their queue items after the trace data is gone. See
+  // langfuse/langfuse#12852. NOTE: only TRACE-type items are handled here;
+  // OBSERVATION- and SESSION-type items are a documented follow-up.
+  const expiredReferencedTraceIds = await getExpiredAnnotationQueueTraceIds(
+    projectId,
+    cutoffDate,
+  );
+
   // Delete ClickHouse (TTL / Delete Queries)
   logger.info(
     `[Data Retention] Deleting ClickHouse and S3 data older than ${currentRetention} days for project ${projectId}`,
@@ -101,6 +115,18 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   logger.info(
     `[Data Retention] Deleted ClickHouse and S3 data older than ${currentRetention} days for project ${projectId}`,
   );
+
+  // Clean up annotation queue items that referenced the traces we just deleted.
+  if (expiredReferencedTraceIds.length > 0) {
+    const deletedQueueItems = await deleteAnnotationQueueItemsByObjectIds({
+      projectId,
+      objectType: AnnotationQueueObjectType.TRACE,
+      objectIds: expiredReferencedTraceIds,
+    });
+    logger.info(
+      `[Data Retention] Deleted ${deletedQueueItems} annotation queue items referencing expired traces for project ${projectId}`,
+    );
+  }
 
   // Set S3 Lifecycle for deletion (Future)
 };
