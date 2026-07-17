@@ -399,6 +399,24 @@ describe("DataTableControls facet ordering", () => {
     expect(labelOrder("Alpha", "Beta")).toBe(true);
   });
 
+  it("expands and collapses all facets from the header toggle", () => {
+    const expandedChanges: string[][] = [];
+    const qf = queryFilter([
+      categoricalFilter("alpha", "Alpha", false),
+      categoricalFilter("beta", "Beta", true),
+    ]);
+    qf.onExpandedChange = (value) => expandedChanges.push(value);
+    render(
+      <TooltipProvider>
+        <DataTableControls queryFilter={qf} />
+      </TooltipProvider>,
+    );
+
+    // Nothing expanded -> the toggle offers Expand all with every column.
+    fireEvent.click(screen.getByRole("button", { name: "Expand all filters" }));
+    expect(expandedChanges.at(-1)).toEqual(["beta", "alpha"]);
+  });
+
   it("shows only active facets plus an Add filter picker when active-only mode is on", () => {
     // The header … menu persists the mode per table; no provider here, so
     // the storage key is the unscoped default.

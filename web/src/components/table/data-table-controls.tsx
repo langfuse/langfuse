@@ -31,10 +31,12 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  FoldVertical,
   MoreVertical,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  UnfoldVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -573,6 +575,40 @@ export function DataTableControls({
                 </PopoverContent>
               </Popover>
             )}
+            {/* Expand/collapse all facets — same affordance and icons as
+                the trace tree/timeline header. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() =>
+                    queryFilter.onExpandedChange(
+                      queryFilter.expanded.length === 0
+                        ? displayedFilters.map((filter) => filter.column)
+                        : [],
+                    )
+                  }
+                  aria-label={
+                    queryFilter.expanded.length === 0
+                      ? "Expand all filters"
+                      : "Collapse all filters"
+                  }
+                >
+                  {queryFilter.expanded.length === 0 ? (
+                    <UnfoldVertical className="h-3.5 w-3.5" />
+                  ) : (
+                    <FoldVertical className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {queryFilter.expanded.length === 0
+                  ? "Expand all filters"
+                  : "Collapse all filters"}
+              </TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -830,7 +866,7 @@ const FilterAccordionTrigger = ({
   // No expand/collapse chevron: the whole row toggles (hover background +
   // aria-expanded signal the affordance), and the clear button overlays on
   // hover without reserving layout space.
-  <AccordionPrimitive.Header className="bg-background sticky top-0 z-10 flex">
+  <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex">
     <AccordionPrimitive.Trigger
       className={cn(
         // min-w-0: without it the trigger's automatic min width equals the
@@ -944,24 +980,26 @@ export function FilterAccordionItem({
               )}
             </div>
           ) : tooltip ? (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                <span className="flex min-w-0 grow items-center gap-1">
-                  <span className="min-w-0 truncate" title={label}>
-                    {label}
-                  </span>
+            // The tooltip triggers on the ⓘ icon only — hovering the label
+            // itself must not pop explanatory text.
+            <span className="flex min-w-0 grow items-center gap-1">
+              <span className="min-w-0 truncate" title={label}>
+                {label}
+              </span>
+              <Tooltip delayDuration={80}>
+                <TooltipTrigger asChild>
                   <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
-                  {filterKeyShort && (
-                    <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                      {filterKeyShort}
-                    </code>
-                  )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80 text-xs">
-                {tooltip}
-              </TooltipContent>
-            </Tooltip>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-80 text-xs">
+                  {tooltip}
+                </TooltipContent>
+              </Tooltip>
+              {filterKeyShort && (
+                <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                  {filterKeyShort}
+                </code>
+              )}
+            </span>
           ) : (
             <span className="flex min-w-0 grow items-center gap-1">
               <span className="min-w-0 truncate" title={label}>
