@@ -167,6 +167,34 @@ describe("chatCompletionHandler", () => {
     );
   });
 
+  it("preserves extracted tool names for provider validation", async () => {
+    const toolSet = { "ns:get_time": { description: "Get the time" } };
+    mocks.createToolSet.mockReturnValue(toolSet);
+    mocks.generate.mockResolvedValue({
+      text: "",
+      finalStep: {},
+      toolCalls: [],
+    });
+
+    const toolDefinition = {
+      name: "ns:get_time",
+      description: "Get the time",
+      parameters: { type: "object", properties: {} },
+    };
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        tools: [toolDefinition],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createToolSet).toHaveBeenCalledWith([toolDefinition]);
+    expect(mocks.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: toolSet }),
+    );
+  });
+
   it("preserves the text/plain streaming response", async () => {
     const textStream = new ReadableStream<string>({
       start(controller) {

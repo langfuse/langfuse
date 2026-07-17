@@ -299,6 +299,8 @@ export const MonitorAlertSchema = z.object({
   monitorId: z.string(),
   projectId: z.string(),
   permalink: z.url().optional(),
+  /** dataPermalink deep-links to the data table scoped to the breaching window. Optional so in-flight webhook messages without it still parse. */
+  dataPermalink: z.url().optional(),
   message: z.object({ title: z.string(), body: z.string() }),
   severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),

@@ -12,10 +12,8 @@ import type {
   blobStorageIntegrationFormSchema,
   BlobStorageIntegrationFormSchema,
 } from "@/src/features/blobstorage-integration/types";
-import {
-  getExportSourceFormValue,
-  type ExportSourceAvailability,
-} from "@/src/features/blobstorage-integration/exportSource";
+import { getExportSourceFormValue } from "@/src/features/analytics-integrations/exportSource";
+import { type ExportSourceContext } from "@langfuse/shared";
 
 // Pre-parse (input) shape of the form; zod defaults make some fields optional.
 export type BlobStorageFormValues = z.input<
@@ -31,7 +29,7 @@ export type BlobStorageFormControl = Control<
 
 export function buildBlobStorageFormValues(
   state: Partial<BlobStorageIntegration> | undefined,
-  availability: ExportSourceAvailability,
+  exportSourceCtx: ExportSourceContext,
 ): BlobStorageFormValues {
   return {
     type: state?.type || BlobStorageIntegrationType.S3,
@@ -48,7 +46,10 @@ export function buildBlobStorageFormValues(
     fileType: state?.fileType || BlobStorageIntegrationFileType.PARQUET,
     exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
     exportStartDate: state?.exportStartDate || null,
-    exportSource: getExportSourceFormValue(state?.exportSource, availability),
+    exportSource: getExportSourceFormValue(
+      state?.exportSource,
+      exportSourceCtx,
+    ),
     // Empty array in the DB means "export everything" (the worker falls back
     // to all groups), so surface it as the full selection in the form.
     exportFieldGroups: state?.exportFieldGroups?.length

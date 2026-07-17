@@ -6,6 +6,12 @@
  * whole (cards render exactly as before); larger fields come back as a
  * preview head plus their true length and a truncated flag, with the trace
  * peek / `sessions.observationFullIOFromEvents` as the full-reading surfaces.
+ *
+ * The procedure returns a BARE ARRAY of observations (backward-compatible with
+ * clients that call `.find` on the response directly, LFE-10958 regression).
+ * "More observations exist" is signalled in-band: up to
+ * SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1 real observations come back, and
+ * the extra (+1) row is the client's "has more" sentinel.
  */
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
@@ -33,6 +39,12 @@ describe("sessions observations io cap liveness", () => {
 const INLINE_LIMIT = 300_000;
 const PREVIEW_LIMIT = 4_000;
 const PER_TRACE_LIMIT = 50;
+
+// The client derives "more exist" from the +1 sentinel: the response is a bare
+// array of up to PER_TRACE_LIMIT + 1 real observations, so more than
+// PER_TRACE_LIMIT real rows means the trace has more than the card shows.
+const hasMore = (observations: { id: string }[], traceId: string) =>
+  observations.filter((o) => o.id !== `t-${traceId}`).length > PER_TRACE_LIMIT;
 
 maybe("sessions observations bounded I/O (events)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -128,8 +140,8 @@ maybe("sessions observations bounded I/O (events)", () => {
         traceId,
         filter: [],
       });
-      expect(result.observations.length).toBeGreaterThanOrEqual(
-        Math.min(events.length, PER_TRACE_LIMIT),
+      expect(result.length).toBeGreaterThanOrEqual(
+        Math.min(events.length, PER_TRACE_LIMIT + 1),
       );
     });
 
@@ -143,15 +155,14 @@ maybe("sessions observations bounded I/O (events)", () => {
       { input: bigInput, output: "small" },
     ]);
 
-    const { observations, hasMoreObservations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
-    expect(hasMoreObservations).toBe(false);
+    expect(hasMore(observations, traceId)).toBe(false);
 
     const small = observations.find((o) => o.id === `${traceId}-o0`);
     expect(small?.input).toBe("hello");
@@ -174,13 +185,12 @@ maybe("sessions observations bounded I/O (events)", () => {
       { metadataValues: [bigValue, "tiny"], metadataNames: ["big", "small"] },
     ]);
 
-    const { observations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     const observation = observations[0];
     expect(observation.metadataTruncated).toBe(true);
@@ -189,21 +199,22 @@ maybe("sessions observations bounded I/O (events)", () => {
     expect(metadata.small).toBe("tiny");
   });
 
-  it("caps observations per card and reports more exist", async () => {
+  it("caps observations per card and signals more exist via the +1 sentinel", async () => {
     const { sessionId, traceId } = await seedObservations(
       Array.from({ length: PER_TRACE_LIMIT + 2 }, () => ({})),
     );
 
-    const { observations, hasMoreObservations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
-    expect(observations.length).toBe(PER_TRACE_LIMIT);
-    expect(hasMoreObservations).toBe(true);
+    // The response is bounded to the display limit plus one sentinel row; the
+    // sentinel is what tells the client "more observations exist".
+    expect(observations.length).toBe(PER_TRACE_LIMIT + 1);
+    expect(hasMore(observations, traceId)).toBe(true);
   });
 
   it("trims to preview heads once the cumulative I/O budget is exhausted (valid-JSON payloads)", async () => {
@@ -218,13 +229,12 @@ maybe("sessions observations bounded I/O (events)", () => {
       Array.from({ length: 8 }, () => ({ input: nearCap, output: "ok" })),
     );
 
-    const { observations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     const first = observations[0];
     expect(first.inputTruncated).toBe(false);
@@ -242,9 +252,8 @@ maybe("sessions observations bounded I/O (events)", () => {
   it("does not let the synthetic trace row consume a card slot or trip hasMore", async () => {
     // 50 real observations + the synthetic trace-level row (id `t-<traceId>`,
     // the shape handleEventPropagationJob writes): all 50 real observations
-    // must come back alongside the synthetic row, and hasMoreObservations
-    // must stay false — the synthetic row is trace metadata, not observation
-    // number 51.
+    // must come back alongside the synthetic row, and the +1 sentinel must not
+    // appear — the synthetic row is trace metadata, not observation number 51.
     const { sessionId, traceId, baseTime } = await seedObservations(
       Array.from({ length: PER_TRACE_LIMIT }, () => ({})),
     );
@@ -271,22 +280,21 @@ maybe("sessions observations bounded I/O (events)", () => {
         traceId,
         filter: [],
       });
-      expect(result.observations.length).toBe(PER_TRACE_LIMIT + 1);
+      expect(result.length).toBe(PER_TRACE_LIMIT + 1);
     });
 
-    const { observations, hasMoreObservations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     expect(observations.some((o) => o.id === `t-${traceId}`)).toBe(true);
     expect(observations.filter((o) => o.id !== `t-${traceId}`).length).toBe(
       PER_TRACE_LIMIT,
     );
-    expect(hasMoreObservations).toBe(false);
+    expect(hasMore(observations, traceId)).toBe(false);
   });
 
   it("collapses un-merged span versions to one observation (newest wins)", async () => {
@@ -332,19 +340,18 @@ maybe("sessions observations bounded I/O (events)", () => {
         traceId,
         filter: [],
       });
-      expect(result.observations.length).toBeGreaterThanOrEqual(1);
+      expect(result.length).toBeGreaterThanOrEqual(1);
     });
 
-    const { observations, hasMoreObservations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     expect(observations.length).toBe(1);
-    expect(hasMoreObservations).toBe(false);
+    expect(hasMore(observations, traceId)).toBe(false);
     expect(observations[0].output).toBe("completed answer");
   });
 
@@ -360,13 +367,12 @@ maybe("sessions observations bounded I/O (events)", () => {
       },
     ]);
 
-    const { observations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     const observation = observations[0];
     expect((observation.metadata as Record<string, unknown>).k).toBe(
@@ -389,13 +395,12 @@ maybe("sessions observations bounded I/O (events)", () => {
       })),
     );
 
-    const { observations } =
-      await caller.sessions.observationsForTraceFromEvents({
-        projectId,
-        sessionId,
-        traceId,
-        filter: [],
-      });
+    const observations = await caller.sessions.observationsForTraceFromEvents({
+      projectId,
+      sessionId,
+      traceId,
+      filter: [],
+    });
 
     const first = observations[0];
     expect(first.metadataTruncated).toBe(false);

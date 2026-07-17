@@ -19,7 +19,10 @@ import { validateFilters } from "@/src/components/table/table-view-presets/valid
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
-import { sessionFilterConfig } from "./config/sessions-config";
+import {
+  sessionEventsFilterConfig,
+  sessionFilterConfig,
+} from "./config/sessions-config";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
@@ -564,6 +567,28 @@ describe("Config Validation of old saved views", () => {
     );
 
     expect(invalidFacets).toEqual([]);
+  });
+
+  it("exposes metadata only on the v4 sessions filter config", () => {
+    expect(
+      sessionEventsFilterConfig.columnDefinitions.find(
+        (column) => column.id === "metadata",
+      ),
+    ).toMatchObject({ type: "stringObject" });
+    expect(
+      sessionEventsFilterConfig.facets.find(
+        (facet) => facet.column === "metadata",
+      ),
+    ).toMatchObject({ type: "stringKeyValue", label: "Metadata" });
+
+    expect(
+      sessionFilterConfig.columnDefinitions.some(
+        (column) => column.id === "metadata",
+      ),
+    ).toBe(false);
+    expect(
+      sessionFilterConfig.facets.some((facet) => facet.column === "metadata"),
+    ).toBe(false);
   });
 });
 

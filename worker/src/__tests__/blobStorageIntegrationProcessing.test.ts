@@ -64,6 +64,7 @@ import {
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 
@@ -177,6 +178,58 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         where: { projectId },
       });
       expect(row.lastError).toMatch(/enriched/i);
+      expect(row.lastErrorAt).not.toBeNull();
+
+      // Nothing was exported.
+      const files = await storageService.listFiles(s3Prefix);
+      expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
+  // LFE-10148: a persisted legacy export source on an events_only deployment
+  // reads the v3 traces/observations tables, which are no longer written — the
+  // job must fail loudly instead of exporting stale/empty data.
+  describe("legacy export source guard on events_only", () => {
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("fails the job and persists lastError when a legacy source runs on events_only", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(/events_only/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toMatch(/events_only/i);
       expect(row.lastErrorAt).not.toBeNull();
 
       // Nothing was exported.
@@ -1905,6 +1958,269 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(typeof manifest.createdAt).toBe("string");
       },
     );
+  });
+
+  // LFE-10896: legacy-source projects get a plain-text deprecation notice in
+  // their destination; enriched-only (EVENTS) projects do not, and a stale
+  // notice is removed once a project migrates off a legacy source. The notice
+  // is Cloud-only, so set a cloud region for this suite (the top-level harness
+  // clears it) and restore it afterwards.
+  describe("legacy-source deprecation notice (LFE-10896)", () => {
+    const NOTICE_SUFFIX = "/DEPRECATION_NOTICE.txt";
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeAll(() => {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    });
+    afterAll(() => {
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    });
+
+    maybeIt(
+      "writes DEPRECATION_NOTICE.txt for a legacy export source",
+      async () => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = `${projectId}/`;
+        const now = new Date();
+        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+        const dataTime = now.getTime() - 40 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "TRACES_OBSERVATIONS",
+            fileType: BlobStorageIntegrationFileType.JSONL,
+            compressed: false,
+            lastSyncAt: oneHourAgo,
+          },
+        });
+
+        await createTracesCh([
+          createTrace({
+            id: randomUUID(),
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Notice Trace",
+          }),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const noticeFile = files.find((f) => f.file.endsWith(NOTICE_SUFFIX));
+        expect(noticeFile).toBeDefined();
+        expect(noticeFile!.file).toBe(
+          `${s3Prefix}${projectId}${NOTICE_SUFFIX}`,
+        );
+
+        const notice = await s3StorageService.download(noticeFile!.file);
+        expect(notice).toContain("Traces and observations (legacy)");
+        expect(notice).toContain("Enriched observations (recommended)");
+        expect(notice).toContain(
+          "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage",
+        );
+      },
+    );
+
+    // The EVENTS export reads the enriched events table, which only the
+    // V4-preview CI leg provisions — gate these like every other enriched test.
+    // isCloud is set by the suite's beforeAll, so the notice logic still runs.
+    maybeDescribe("after migrating to the enriched-only source", () => {
+      maybeIt(
+        "does not write a deprecation notice for the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "No Notice Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const files = await s3StorageService.listFiles(s3Prefix);
+          expect(files.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+
+      // A notice written while on a legacy source must be cleaned up once the
+      // project migrates to the enriched-only source, so it can't linger with
+      // now-false claims. Cleanup only runs for integrations old enough to have
+      // used a legacy source (pre-exporter-cutoff createdAt).
+      maybeIt(
+        "removes a stale notice after migrating to the EVENTS source",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          // Simulate a notice left behind by an earlier legacy-source run.
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stale notice from a previous legacy run",
+          });
+          const before = await s3StorageService.listFiles(s3Prefix);
+          expect(before.some((f) => f.file === noticeKey)).toBe(true);
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+              // Pre-exporter-cutoff: old enough to have used a legacy source, so
+              // cleanup runs. Derived from the live cutoff so an env override
+              // can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Migrated Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file.endsWith(NOTICE_SUFFIX))).toBe(false);
+        },
+      );
+
+      // Post-cutoff integrations can never have used a legacy source, so they
+      // never wrote a notice — the cleanup delete must be skipped for them to
+      // avoid a needless per-run s3:DeleteObject on every enriched-only export.
+      maybeIt(
+        "skips notice cleanup for a post-cutoff enriched-only integration",
+        async () => {
+          const { projectId } = await createOrgProjectAndApiKey();
+          s3Prefix = `${projectId}/`;
+          const noticeKey = `${s3Prefix}${projectId}${NOTICE_SUFFIX}`;
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const dataTime = now.getTime() - 40 * 60 * 1000;
+
+          // A stray notice a post-cutoff project could never legitimately have —
+          // the gate must leave it untouched (no delete attempted).
+          await s3StorageService.uploadFile({
+            fileName: noticeKey,
+            fileType: "text/plain; charset=utf-8",
+            data: "stray notice that must not be touched",
+          });
+
+          await prisma.blobStorageIntegration.create({
+            data: {
+              projectId,
+              type: BlobStorageIntegrationType.S3,
+              bucketName,
+              prefix: s3Prefix,
+              accessKeyId: minioAccessKeyId,
+              secretAccessKey: encrypt(minioAccessKeySecret),
+              region: region ? region : "auto",
+              endpoint: minioEndpoint,
+              forcePathStyle:
+                env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+              enabled: true,
+              exportFrequency: "hourly",
+              exportSource: "EVENTS",
+              fileType: BlobStorageIntegrationFileType.JSONL,
+              compressed: false,
+              lastSyncAt: oneHourAgo,
+              // Post-exporter-cutoff: never could have used a legacy source, so
+              // cleanup is skipped and the stray file is left in place. Derived
+              // from the live cutoff so an env override can't flip the gate.
+              createdAt: new Date(
+                LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 24 * 60 * 60 * 1000,
+              ),
+            },
+          });
+
+          await createEventsCh([
+            createEvent({
+              id: randomUUID(),
+              project_id: projectId,
+              start_time: dataTime,
+              name: "Post-cutoff Event",
+            }),
+          ]);
+
+          await handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job);
+
+          const after = await s3StorageService.listFiles(s3Prefix);
+          expect(after.some((f) => f.file === noticeKey)).toBe(true);
+        },
+      );
+    });
   });
 
   // LFE-10402: raw-passthrough streams ClickHouse JSONEachRow bytes straight to
