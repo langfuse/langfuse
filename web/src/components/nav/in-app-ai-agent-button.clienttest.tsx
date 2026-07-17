@@ -5,6 +5,7 @@ import { InAppAiAgentButton } from "./in-app-ai-agent-button";
 const mocks = vi.hoisted(() => ({
   open: false,
   setOpen: vi.fn(),
+  openAssistant: vi.fn().mockReturnValue(true),
 }));
 
 vi.mock(
@@ -14,20 +15,16 @@ vi.mock(
     useInAppAiAgent: () => ({
       open: mocks.open,
       setOpen: mocks.setOpen,
+      openAssistant: mocks.openAssistant,
     }),
   }),
 );
-
-vi.mock("@/src/features/projects/hooks", () => ({
-  useQueryProjectOrOrganization: () => ({
-    organization: { aiFeaturesEnabled: true },
-  }),
-}));
 
 describe("InAppAiAgentButton", () => {
   beforeEach(() => {
     mocks.open = false;
     mocks.setOpen.mockReset();
+    mocks.openAssistant.mockReset().mockReturnValue(true);
   });
 
   it("toggles the assistant with Cmd/Ctrl+I and leaves other shortcuts alone", () => {
@@ -49,6 +46,7 @@ describe("InAppAiAgentButton", () => {
       expect(nonShortcut.defaultPrevented).toBe(false);
     }
 
+    expect(mocks.openAssistant).not.toHaveBeenCalled();
     expect(mocks.setOpen).not.toHaveBeenCalled();
 
     const openShortcut = new KeyboardEvent("keydown", {
@@ -60,7 +58,8 @@ describe("InAppAiAgentButton", () => {
     fireEvent(document, openShortcut);
 
     expect(openShortcut.defaultPrevented).toBe(true);
-    expect(mocks.setOpen).toHaveBeenCalledWith(true);
+    expect(mocks.openAssistant).toHaveBeenCalledWith("keyboard_shortcut");
+    expect(mocks.setOpen).not.toHaveBeenCalled();
 
     mocks.open = true;
     rerender(<InAppAiAgentButton />);
@@ -74,8 +73,7 @@ describe("InAppAiAgentButton", () => {
     fireEvent(document, closeShortcut);
 
     expect(closeShortcut.defaultPrevented).toBe(true);
-    expect(mocks.setOpen).toHaveBeenCalledTimes(2);
-    expect(mocks.setOpen).toHaveBeenNthCalledWith(1, true);
-    expect(mocks.setOpen).toHaveBeenNthCalledWith(2, false);
+    expect(mocks.openAssistant).toHaveBeenCalledTimes(1);
+    expect(mocks.setOpen).toHaveBeenCalledWith(false);
   });
 });
