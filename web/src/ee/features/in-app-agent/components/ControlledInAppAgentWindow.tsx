@@ -7,6 +7,10 @@ import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
+import {
+  getInAppAgentFocusedQuickActions,
+  getInAppAgentQuickActionContext,
+} from "@/src/ee/features/in-app-agent/quickActions";
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
@@ -70,6 +74,13 @@ export function ControlledInAppAgentWindow(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
   );
+  const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
+  const focusedQuickActions = getInAppAgentFocusedQuickActions(
+    screenContextDescription.type,
+  );
+  // Strip query and hash so peek views and filter changes on the same page do
+  // not reset the quick-action picker.
+  const quickActionResetKey = router.asPath.replace(/[?#].*$/, "");
 
   const drawerMessages = useMemo(
     () =>
@@ -96,6 +107,9 @@ export function ControlledInAppAgentWindow(
       isInputDisabled={isInputDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
+      quickActionContext={quickActionContext}
+      focusedQuickActions={focusedQuickActions}
+      quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
