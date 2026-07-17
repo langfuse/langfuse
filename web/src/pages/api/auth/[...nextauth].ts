@@ -8,21 +8,47 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import NextAuth from "next-auth";
 
 const maxAuthErrorLength = 1_000;
+const authErrorFallback = "Configuration";
+
+type AuthErrorSource = "query" | "path";
 
 const getAuthAction = (req: NextApiRequest) => {
   const nextauth = req.query.nextauth;
   return Array.isArray(nextauth) ? nextauth[0] : nextauth;
 };
 
-const encodeAuthError = (error: unknown) => {
-  if (typeof error !== "string" || error.length > maxAuthErrorLength) {
-    return "Configuration";
+const logAuthErrorFallback = (
+  reason: "invalid_type" | "too_long" | "encoding_failed",
+  source: AuthErrorSource,
+  metadata: Record<string, unknown>,
+) => {
+  logger.warn("[NEXT_AUTH] Replaced malformed auth error with Configuration", {
+    reason,
+    source,
+    ...metadata,
+  });
+  return authErrorFallback;
+};
+
+const encodeAuthError = (error: unknown, source: AuthErrorSource) => {
+  if (typeof error !== "string") {
+    return logAuthErrorFallback("invalid_type", source, {
+      errorType: Array.isArray(error) ? "array" : typeof error,
+    });
+  }
+
+  if (error.length > maxAuthErrorLength) {
+    return logAuthErrorFallback("too_long", source, {
+      errorLength: error.length,
+    });
   }
 
   try {
     return encodeURIComponent(error);
   } catch {
-    return "Configuration";
+    return logAuthErrorFallback("encoding_failed", source, {
+      errorLength: error.length,
+    });
   }
 };
 
@@ -128,7 +154,8 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
     const error =
       req.query.error ?? (Array.isArray(nextauth) ? nextauth[1] : undefined);
     if (error !== undefined) {
-      req.query.error = encodeAuthError(error);
+      const source = req.query.error !== undefined ? "query" : "path";
+      req.query.error = encodeAuthError(error, source);
     }
   }
 

@@ -5,8 +5,9 @@ import type { NextAuthOptions } from "next-auth";
 import { createMocks } from "node-mocks-http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockGetAuthOptions } = vi.hoisted(() => ({
+const { mockGetAuthOptions, mockLoggerWarn } = vi.hoisted(() => ({
   mockGetAuthOptions: vi.fn(),
+  mockLoggerWarn: vi.fn(),
 }));
 
 vi.mock("@/src/server/auth", () => ({
@@ -18,7 +19,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: mockLoggerWarn,
     error: vi.fn(),
   },
   ClickHouseClientManager: {
@@ -121,6 +122,7 @@ describe("NextAuth error route malformed input handling", () => {
     expect(res.getHeader("Location")).toBe(
       "http://localhost:3000/api/auth/signin?error=OAuthCallback",
     );
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
   });
 
   it("does not throw when an auth error contains invalid Location header characters", async () => {
@@ -158,5 +160,54 @@ describe("NextAuth error route malformed input handling", () => {
 
     expect(res.statusCode).toBe(302);
     expect(res.getHeader("Location")).toBe("/auth/error?error=Configuration");
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "[NEXT_AUTH] Replaced malformed auth error with Configuration",
+      {
+        reason: "invalid_type",
+        source: "query",
+        errorType: "array",
+      },
+    );
+  });
+
+  it("logs when an oversized error uses the generic fallback", async () => {
+    const error = "a".repeat(1_001);
+    const { req, res } = createRequest({
+      nextauth: ["error"],
+      query: { error },
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.getHeader("Location")).toBe("/auth/error?error=Configuration");
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "[NEXT_AUTH] Replaced malformed auth error with Configuration",
+      {
+        reason: "too_long",
+        source: "query",
+        errorLength: error.length,
+      },
+    );
+  });
+
+  it("logs the path source when an unencodable error uses the generic fallback", async () => {
+    const error = "\uD800";
+    const { req, res } = createRequest({
+      nextauth: ["error", error],
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(302);
+    expect(res.getHeader("Location")).toBe("/auth/error?error=Configuration");
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "[NEXT_AUTH] Replaced malformed auth error with Configuration",
+      {
+        reason: "encoding_failed",
+        source: "path",
+        errorLength: error.length,
+      },
+    );
   });
 });
