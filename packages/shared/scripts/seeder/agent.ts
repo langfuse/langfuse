@@ -274,6 +274,7 @@ const main = async (): Promise<void> => {
   ];
 
   let finalText = "";
+  let lastStopReason: string | null = null;
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const response = await client.messages.create({
       model: MODEL,
@@ -293,6 +294,7 @@ const main = async (): Promise<void> => {
       .join("\n")
       .trim();
 
+    lastStopReason = response.stop_reason;
     if (response.stop_reason !== "tool_use") {
       if (response.stop_reason !== "end_turn") {
         console.error(`stopping on stop_reason=${response.stop_reason}`);
@@ -320,6 +322,22 @@ const main = async (): Promise<void> => {
 
   if (finalText.length === 0) {
     throw new Error("the agent produced no final answer");
+  }
+  if (lastStopReason !== "end_turn") {
+    // Ran out of turns while still calling tools, or hit max_tokens: what we
+    // have is mid-work narration or a truncated message, not a completed
+    // answer. Never present it as a success — mark it and exit non-zero so
+    // the dispatcher uses its "did not finish cleanly" framing.
+    const why =
+      lastStopReason === "tool_use"
+        ? `hit the ${MAX_ITERATIONS}-turn limit while still working`
+        : `stop reason: ${String(lastStopReason)}`;
+    emitResult(
+      `⚠️ The seeder agent stopped before finishing (${why}). Data may be ` +
+        `partially seeded. Last status:\n\n${finalText}`,
+    );
+    process.exitCode = 1;
+    return;
   }
   emitResult(finalText);
 };
