@@ -493,7 +493,7 @@ export function MarkdownView({
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
-  const { setIsMarkdownEnabled } = useMarkdownContext();
+  const { isMarkdownEnabled, setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
@@ -524,10 +524,13 @@ export function MarkdownView({
     copyTextToClipboard(markdownContent);
   };
 
+  // Toggle relative to the context value, not the `renderMarkdown` prop: the
+  // header icon reads the context, so this keeps icon and action consistent
+  // even for a caller that passes a static `renderMarkdown`.
   const handleOnValueChange = () => {
-    setIsMarkdownEnabled(!renderMarkdown);
+    setIsMarkdownEnabled(!isMarkdownEnabled);
     capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: !renderMarkdown,
+      renderMarkdown: !isMarkdownEnabled,
     });
   };
 
