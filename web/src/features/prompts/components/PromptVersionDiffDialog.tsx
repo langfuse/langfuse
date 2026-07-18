@@ -13,6 +13,7 @@ import {
 import { type Prompt } from "@langfuse/shared";
 import DiffViewer from "@/src/components/DiffViewer";
 import { FileDiffIcon } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
 type PromptVersionDiffDialogProps = {
   isOpen: boolean;
@@ -39,16 +40,21 @@ const createSmartDiff = (
     };
   }
 
+  // Render each message as readable text so newlines inside the content show as
+  // actual line breaks instead of escaped "\n" sequences (as JSON.stringify would).
   const formatMessages = (messages: any[]) =>
-    JSON.stringify(
-      messages.map((m) =>
-        Object.fromEntries(
-          Object.entries(m).sort(([a], [b]) => a.localeCompare(b)),
-        ),
-      ),
-      null,
-      2,
-    );
+    messages
+      .map((m) =>
+        Object.entries(m)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, value]) =>
+            typeof value === "string"
+              ? `${key}: ${value}`
+              : `${key}: ${JSON.stringify(value, null, 2)}`,
+          )
+          .join("\n"),
+      )
+      .join("\n\n");
 
   return {
     oldString: formatMessages(oldPrompt.prompt as any[]),
@@ -60,6 +66,12 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
   props,
 ) => {
   const { leftPrompt, rightPrompt, isOpen, setIsOpen } = props;
+
+  const contentDiff = createSmartDiff(leftPrompt, rightPrompt);
+  // Only let the Content section fill the body height when it actually has a
+  // diff. Otherwise the "No changes" state would reserve a full viewport and
+  // push the Config diff below the fold (common for config-only version diffs).
+  const contentUnchanged = contentDiff.oldString === contentDiff.newString;
 
   return (
     <Dialog
@@ -102,28 +114,32 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="mb-2 text-base font-medium">Content</h3>
-                <DiffViewer
-                  {...createSmartDiff(leftPrompt, rightPrompt)}
-                  oldLabel={`v${leftPrompt.version}`}
-                  newLabel={`v${rightPrompt.version}`}
-                  oldSubLabel={leftPrompt.commitMessage ?? undefined}
-                  newSubLabel={rightPrompt.commitMessage ?? undefined}
-                />
-              </div>
-              <div>
-                <h3 className="mb-2 text-base font-medium">Config</h3>
-                <DiffViewer
-                  oldString={JSON.stringify(leftPrompt.config, null, 2)}
-                  newString={JSON.stringify(rightPrompt.config, null, 2)}
-                  oldLabel={`v${leftPrompt.version}`}
-                  newLabel={`v${rightPrompt.version}`}
-                />
-              </div>
-            </div>
+          {/* Content fills the body height when it has a diff; scroll to reach Config */}
+          <div
+            className={cn(
+              "flex shrink-0 flex-col",
+              !contentUnchanged && "h-full",
+            )}
+          >
+            <h3 className="mb-2 text-base font-medium">Content</h3>
+            <DiffViewer
+              {...contentDiff}
+              oldLabel={`v${leftPrompt.version}`}
+              newLabel={`v${rightPrompt.version}`}
+              oldSubLabel={leftPrompt.commitMessage ?? undefined}
+              newSubLabel={rightPrompt.commitMessage ?? undefined}
+              fillContainerHeight={!contentUnchanged}
+              className={cn(!contentUnchanged && "min-h-0 flex-1")}
+            />
+          </div>
+          <div className="flex shrink-0 flex-col">
+            <h3 className="mb-2 text-base font-medium">Config</h3>
+            <DiffViewer
+              oldString={JSON.stringify(leftPrompt.config, null, 2)}
+              newString={JSON.stringify(rightPrompt.config, null, 2)}
+              oldLabel={`v${leftPrompt.version}`}
+              newLabel={`v${rightPrompt.version}`}
+            />
           </div>
         </DialogBody>
 
