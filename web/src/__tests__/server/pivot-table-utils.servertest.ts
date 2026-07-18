@@ -453,6 +453,29 @@ describe("pivot-table-utils", () => {
       expect(result.avg_cost).toBeCloseTo(0.4267, 4);
     });
 
+    // Regression test for langfuse/langfuse#15208 — Greptile review of
+    // #15211 round 2. ``detectAggregationType`` maps both the ``avg_``
+    // and ``average_`` prefixes to ``avg`` aggregation type. The
+    // weighted-average path must derive the matching ``count_<base>``
+    // column from the *actual* prefix on the metric name — not from a
+    // hard-coded 4-char strip. With a 4-char strip ``"average_cost"``
+    // would slice to ``"rage_cost"`` and the count column would never
+    // be found, silently falling back to the unweighted mean.
+    it("should count-weight grand totals for the average_ prefix too", () => {
+      const data: DatabaseRow[] = [
+        { count_cost: 10, average_cost: 0.5 },
+        { count_cost: 15, average_cost: 0.6 },
+        { count_cost: 20, average_cost: 0.2 },
+        { count_cost: 25, average_cost: 0.4 },
+        { count_cost: 5, average_cost: 0.8 },
+      ];
+
+      const result = calculateGrandTotals(data, ["average_cost"]);
+
+      // Same expected value as the avg_ case: 32/75 ≈ 0.4267.
+      expect(result.average_cost).toBeCloseTo(0.4267, 4);
+    });
+
     it("should handle empty data", () => {
       const result = calculateGrandTotals([], sampleMetrics);
 

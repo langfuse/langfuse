@@ -581,9 +581,18 @@ function weightedAverage(
   const aggregationType = detectAggregationType(avgMetric);
   if (aggregationType !== "avg") return null;
 
-  // ``avg_<base>`` → ``count_<base>``. Strip the ``avg_`` prefix and try to
-  // find the matching count column in the data rows.
-  const baseName = avgMetric.slice("avg_".length);
+  // ``avg_<base>`` → ``count_<base>``. ``detectAggregationType`` accepts
+  // both the ``avg_`` and ``average_`` prefixes (mapped to "avg"), so the
+  // base-name extraction must match whatever prefix the metric actually
+  // uses — slicing a fixed ``"avg_".length`` would otherwise produce
+  // ``"rage_cost"`` for ``"average_cost"`` and silently fall back to the
+  // unweighted mean. Longest-prefix-first wins.
+  const baseName = avgMetric.startsWith("average_")
+    ? avgMetric.slice("average_".length)
+    : avgMetric.startsWith("avg_")
+      ? avgMetric.slice("avg_".length)
+      : null;
+  if (baseName === null) return null;
   const countMetric = `count_${baseName}`;
 
   let weightedSum = 0;

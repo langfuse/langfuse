@@ -20,67 +20,74 @@ describe("createHistogramData", () => {
   //
   // The previous implementation rounded the value to 2dp *before* computing
   // the bin index while keeping the bin edges at the raw precision, so a
-  // value like 0.857 (whose round-trip edge is at 0.86) jumped to the wrong
+  // value like 0.857 (whose round-trip edge is 0.86) jumped to the wrong
   // bucket on integer-style floor/precision mismatches.
   //
-  // We exercise this with a synthetic large enough dataset that the bin
-  // count is wide enough for 0.857 to fall into its own sub-bucket — that
-  // is, we make sure 0.857 lands in a bucket whose label genuinely
-  // contains 0.857, not one whose lower edge rounds up past it.
+  // To trigger the bug we need ``binSize`` small enough that ``round(v)``
+  // and ``v`` land in *different* buckets. ``computeBinSize`` picks
+  // ``bins = clamp(floor(sqrt(valueCount)), minBins, maxBins)``, so to get
+  // ``bins >= 7`` we need ``valueCount >= 49``. With ``bins=7`` and
+  // ``range=1``, ``binSize = 1/7 ≈ 0.1429``. For v=0.857:
+  //   buggy:  round(0.857, 2) = 0.86, floor(0.86 / (1/7)) = floor(6.02) = 6
+  //           → bucket 6 = [6/7, 1] = [0.857, 1]
+  //   fixed:  floor(0.857 / (1/7)) = floor(5.999) = 5
+  //           → bucket 5 = [5/7, 6/7] = [0.714, 0.857]
+  //
+  // We seed 49 evenly-spaced values and then *replace* one of them (which
+  // originally landed in bucket 6) with the bug-trigger 0.857, which
+  // belongs in bucket 5. With the fix, bucket 5 picks up the sentinel;
+  // with the bug, the sentinel rounds to 0.86 and stays in bucket 6.
   it("bins raw values without rounding the value before floor()", () => {
-    // Build a dense dataset so ``computeBinSize`` picks a bin count wide
-    // enough for 0.857 to land in the [0.857, 0.86) bucket. With ``n=100``
-    // and ``range=1`` the floor(sqrt(100))=10, clamped to ``maxBins=10`` —
-    // binSize = 0.1, edges at 0, 0.1, 0.2, …, 1.0.
-    const dense: DatabaseRow[] = [];
-    for (let i = 0; i <= 100; i++) {
-      dense.push(row(i / 100));
+    const data: DatabaseRow[] = [];
+    // 50 evenly-spaced values in [0, 1]: floor(sqrt(50)) = 7, so
+    // bins = 7 (clamped to [1, 10]). binSize = 1/7 ≈ 0.1429.
+    for (let i = 0; i < 50; i++) {
+      data.push(row(i / 49));
     }
-    // Replace the value closest to 0.857 with the bug-trigger value.
-    const targetIdx = dense.findIndex(
-      (r) => Math.abs((r.value as number) - 0.857) < 1e-9,
-    );
-    if (targetIdx >= 0) dense[targetIdx] = row(0.857);
+    // ``data[43]`` originally held 43/49 ≈ 0.8776, which belongs in
+    // bucket 6 ([0.857, 1]). Replace it with the bug-trigger 0.857,
+    // which *correctly* belongs in bucket 5 ([0.714, 0.857)).
+    data[43] = row(0.857);
 
-    const { chartData } = createHistogramData(dense, 1, 10);
+    const { chartData } = createHistogramData(data, 1, 10);
 
-    // Every bin's label range must contain its count value — i.e., the
-    // rendered distribution cannot disagree with the bin labels.
-    for (const bin of chartData) {
-      const match = bin.binLabel.match(/\[([-\d.]+),\s*([-\d.]+)\]/);
-      if (!match) continue;
-      const lower = parseFloat(match[1]!);
-      const upper = parseFloat(match[2]!);
-      expect(lower).toBeLessThanOrEqual(upper);
-      // For each filled bin, the bin's lower edge must be ≤ some value
-      // assigned to it. We just check the labels are well-formed here;
-      // a stricter content check is the next test.
-      expect(Number.isFinite(lower)).toBe(true);
-      expect(Number.isFinite(upper)).toBe(true);
-    }
+    // Locate bucket 5 ([0.714, 0.857)) and bucket 6 ([0.857, 1]) by
+    // their actual numeric edges — don't rely on label string matching
+    // because labels are rounded to 3dp.
+    const findBucket = (lo: number, hi: number) =>
+      chartData.find((b) => {
+        const m = b.binLabel.match(/\[([\d.]+),\s*([\d.]+)\]/);
+        if (!m) return false;
+        return (
+          Math.abs(parseFloat(m[1]!) - lo) < 0.01 &&
+          Math.abs(parseFloat(m[2]!) - hi) < 0.01
+        );
+      });
 
-    // The total count across all bins must equal the input length.
+    const bucket5 = findBucket(5 / 7, 6 / 7);
+    const bucket6 = findBucket(6 / 7, 7 / 7);
+    expect(bucket5).toBeDefined();
+    expect(bucket6).toBeDefined();
+
+    // With 50 dense values and bins=7:
+    //   - bucket 5 ([0.714, 0.857)) naturally contains 7 dense values
+    //     (i=35..41 ⇒ 35/49..41/49, all < 6/7 ≈ 0.857).
+    //   - bucket 6 ([0.857, 1]) naturally contains 8 dense values
+    //     (i=42..49 ⇒ 42/49..49/49, all ≥ 6/7).
+    //
+    // We replaced data[43] (which was 43/49 ≈ 0.878, in bucket 6) with
+    // 0.857 (which lives in bucket 5).
+    //
+    //   - FIXED: 0.857 → bucket 5 ⇒ bucket 5 = 7 + 1 = 8,
+    //                            bucket 6 = 8 − 1 = 7.
+    //   - BUGGY: round(0.857, 2) = 0.86 → bucket 6 ⇒ bucket 5 = 7,
+    //                                       bucket 6 = 8 − 1 + 1 = 8.
+    expect(bucket5!.count).toBe(8);
+    expect(bucket6!.count).toBe(7);
+
+    // Total count must equal the input length — nothing dropped.
     const total = chartData.reduce((sum, b) => sum + b.count, 0);
-    expect(total).toBe(dense.length);
-
-    // Find the bin whose label *should* contain 0.857. With binSize=0.1,
-    // it must be the [0.8, 0.9] bin (rounded labels to 3dp → [0.8, 0.9]).
-    const expectedBin = chartData.find((b) => b.binLabel.startsWith("[0.8, "));
-    expect(expectedBin).toBeDefined();
-    expect(expectedBin!.count).toBeGreaterThanOrEqual(1);
-
-    // And there must be NO bucket whose label is [0.9, 1] that *claims*
-    // our 0.857 value (the bug rounded it up to 0.86 and pushed it there).
-    // We assert this indirectly: the [0.8, 0.9) bucket contains at least
-    // one value (the 0.857 we inserted), which proves 0.857 was not
-    // rounded up to 0.86 before binning.
-    const nineBucket = chartData.find((b) => b.binLabel.startsWith("[0.9,"));
-    if (nineBucket) {
-      // Every value in this bucket should be ≥ 0.9. We can only verify
-      // this structurally by ensuring the bucket just below it isn't
-      // empty — the 0.857 sentinel forces at least one entry there.
-      expect(expectedBin!.count).toBeGreaterThanOrEqual(2);
-    }
+    expect(total).toBe(data.length);
   });
 
   // Regression test for langfuse/langfuse#15208 — Bug 1, second symptom.
