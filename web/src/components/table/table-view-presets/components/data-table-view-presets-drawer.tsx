@@ -199,7 +199,7 @@ export function TableViewPresetsDrawer({
     updateNameMutation,
     deleteMutation,
     generatePermalinkMutation,
-  } = useViewMutations({ handleSetViewId });
+  } = useViewMutations({ handleSetViewId, applyViewState });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -469,7 +469,7 @@ export function TableViewPresetsDrawer({
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
-            <DrawerHeader className="bg-background flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
+            <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
                 Views{" "}
                 <a

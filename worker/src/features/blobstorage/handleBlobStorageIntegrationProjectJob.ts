@@ -46,7 +46,10 @@ import {
 } from "./abortClassification";
 import { isSigtermReceived } from "../health";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
-import { isCustomerFaultError } from "./isCustomerFaultError";
+import {
+  BLOB_INTEGRATION_DISABLED_METRIC,
+  classifyCustomerFault,
+} from "./isCustomerFaultError";
 import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -58,6 +61,8 @@ import {
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  isLegacyBlobExportSource,
+  isLegacyBlobExporter,
   resolveBlobExportTuning,
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
@@ -67,7 +72,18 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
+import { assertLegacyExportSourceWritable } from "../exportWriteModeGuard";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import {
+  buildBlobExportManifest,
+  buildBlobExportManifestKey,
+  formatBlobExportTimestamp,
+  type BlobExportManifestFile,
+} from "./manifest";
+import {
+  buildBlobExportDeprecationNotice,
+  buildBlobExportDeprecationNoticeKey,
+} from "./deprecationNotice";
 
 export const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -312,45 +328,21 @@ const createRawJsonlNewlineTransform = (): Transform =>
     },
   });
 
-const processBlobStorageExport = async (config: {
-  projectId: string;
-  minTimestamp: Date;
-  maxTimestamp: Date;
+// KMS SSE is not supported for this integration.
+type BlobStorageConnectionConfig = {
   bucketName: string;
   endpoint: string | null;
   region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
-  prefix?: string;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
-  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
-  fileType: BlobStorageIntegrationFileType;
-  compressed: boolean;
-  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
-  // when `compressed` is true.
-  gzipLevel: number | undefined;
-  convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroupFull[];
-  rawPassthrough: boolean;
-  // LFE-10463: when true, export via ClickHouse-native `FORMAT Parquet`,
-  // overriding `fileType` and `compressed`. Takes precedence over rawPassthrough.
-  parquet: boolean;
-  // undefined concurrency/attempts => backend keeps its native default.
-  partSizeBytes: number;
-  maxConcurrentParts: number | undefined;
-  maxPartAttempts: number | undefined;
-  skipEnrichment: boolean;
-  bullmqJobId: string | undefined;
-  bullmqAttemptsMade: number;
-}) => {
-  logger.info(
-    `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
-  );
+};
 
-  // Initialize the storage service
-  // KMS SSE is not supported for this integration.
-  const storageService: StorageService = StorageServiceFactory.getInstance({
+const createBlobStorageService = (
+  config: BlobStorageConnectionConfig,
+): StorageService =>
+  StorageServiceFactory.getInstance({
     accessKeyId: config.accessKeyId,
     secretAccessKey: config.secretAccessKey,
     bucketName: config.bucketName,
@@ -365,7 +357,37 @@ const processBlobStorageExport = async (config: {
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
-  await instrumentAsync(
+const processBlobStorageExport = async (config: {
+  projectId: string;
+  minTimestamp: Date;
+  maxTimestamp: Date;
+  storageService: StorageService;
+  prefix?: string;
+  type: BlobStorageIntegrationType;
+  table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
+  fileType: BlobStorageIntegrationFileType;
+  compressed: boolean;
+  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
+  // when `compressed` is true.
+  gzipLevel: number | undefined;
+  convertV4LatencyToSeconds: boolean;
+  exportFieldGroups?: ObservationFieldGroupFull[];
+  rawPassthrough: boolean;
+  // undefined concurrency/attempts => backend keeps its native default.
+  partSizeBytes: number;
+  maxConcurrentParts: number | undefined;
+  maxPartAttempts: number | undefined;
+  skipEnrichment: boolean;
+  bullmqJobId: string | undefined;
+  bullmqAttemptsMade: number;
+}) => {
+  logger.info(
+    `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
+  );
+
+  const storageService = config.storageService;
+
+  return await instrumentAsync(
     {
       name: `blob-export-table`,
       spanKind: SpanKind.INTERNAL,
@@ -440,9 +462,7 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // Both paths converge: legacy exportTuning.parquet override and the new fileType=PARQUET.
         const parquetEligible =
-          config.parquet ||
           config.fileType === BlobStorageIntegrationFileType.PARQUET;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
@@ -465,10 +485,7 @@ const processBlobStorageExport = async (config: {
             ? "passthrough"
             : "standard";
 
-        const timestamp = config.maxTimestamp
-          .toISOString()
-          .replace(/:/g, "-")
-          .substring(0, 19);
+        const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
         const extension = parquetEligible
           ? "parquet"
@@ -783,6 +800,23 @@ const processBlobStorageExport = async (config: {
           const exportFormat = parquetEligible
             ? BlobExportFormat.PARQUET
             : resolveBlobExportFormat(config.fileType, config.compressed);
+
+          // rowCount null on parquet: sourceStats.rows stays 0 for the binary
+          // stream and would misreport as an empty file.
+          const manifestFile: BlobExportManifestFile = {
+            key: filePath,
+            table: config.table,
+            fileType: parquetEligible
+              ? BlobStorageIntegrationFileType.PARQUET
+              : config.fileType,
+            format: exportFormat,
+            compressed: parquetEligible ? false : config.compressed,
+            contentType: uploadContentType,
+            sizeBytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
+            rowCount: parquetEligible ? null : sourceStats.rows,
+          };
           // Unified export-volume metric: the actual uploaded volume per
           // source (post-gzip size for compressed formats, raw/parquet size
           // otherwise). destination_type (S3 / S3_COMPATIBLE / AZURE_*) splits
@@ -847,6 +881,8 @@ const processBlobStorageExport = async (config: {
                 ? ` gzipLevel=${gzipStats.level} compressedBytes=${compressedCounter.bytes}`
                 : ""),
           );
+
+          return manifestFile;
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
           // Same chReadMs / uploadWaitMs derivation as the success path above.
@@ -1031,6 +1067,97 @@ const processBlobStorageExport = async (config: {
   );
 };
 
+// Small JSON body, so single-shot uploadFile instead of the buffered multipart
+// path the table streams use.
+const writeBlobExportManifest = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+  exportSource: string;
+  minTimestamp: Date;
+  maxTimestamp: Date;
+  files: BlobExportManifestFile[];
+}): Promise<void> => {
+  const manifest = buildBlobExportManifest({
+    projectId: params.projectId,
+    exportSource: params.exportSource,
+    minTimestamp: params.minTimestamp,
+    maxTimestamp: params.maxTimestamp,
+    createdAt: new Date(),
+    files: params.files,
+  });
+  const key = buildBlobExportManifestKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+    maxTimestamp: params.maxTimestamp,
+  });
+
+  await params.storageService.uploadFile({
+    fileName: key,
+    fileType: "application/json; charset=utf-8",
+    // Trailing newline for POSIX-friendly shell tooling.
+    data: JSON.stringify(manifest, null, 2) + "\n",
+  });
+
+  logger.info(
+    `[BLOB INTEGRATION] Wrote run manifest for project ${params.projectId}: ` +
+      `key=${key} files=${manifest.files.length} tables=${manifest.tables.join(",")}`,
+  );
+};
+
+// LFE-10896: drop a plain-text deprecation notice into the export destination
+// for legacy-source projects. Best-effort — a failure to write the notice must
+// not fail the export run, so it is called after the manifest commit point and
+// swallows its own error.
+const writeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.uploadFile({
+      fileName: key,
+      fileType: "text/plain; charset=utf-8",
+      data: buildBlobExportDeprecationNotice(),
+    });
+    logger.info(
+      `[BLOB INTEGRATION] Wrote legacy-source deprecation notice for project ${params.projectId}: key=${key}`,
+    );
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to write legacy-source deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
+};
+
+// Counterpart to the writer: once a project migrates off a legacy source (the
+// action the notice asks for), a notice left from an earlier run would linger
+// with now-false claims. Best-effort delete on the non-legacy path clears it.
+// Idempotent — deleting a non-existent key is a no-op — and never fails the run.
+const removeBlobExportDeprecationNotice = async (params: {
+  storageService: StorageService;
+  prefix?: string;
+  projectId: string;
+}): Promise<void> => {
+  const key = buildBlobExportDeprecationNoticeKey({
+    prefix: params.prefix,
+    projectId: params.projectId,
+  });
+  try {
+    await params.storageService.deleteFiles([key]);
+  } catch (error) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to remove stale deprecation notice for project ${params.projectId} (key=${key}); export run is unaffected`,
+      error,
+    );
+  }
+};
+
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
@@ -1133,6 +1260,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
+  // Legacy-source deprecation is a Cloud policy (see blob-export-gate.ts:
+  // isLegacyBlobExportAllowed / isLegacyBlobExporter both exempt self-hosted),
+  // so the deprecation notice below is Cloud-only too.
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
   try {
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
@@ -1140,15 +1272,19 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // (LFE-10296).
     if (
       isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
-      !isEnrichedBlobExportAvailable(
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-        v4AllowPreviewOptIn(env),
-      )
+      !isEnrichedBlobExportAvailable(isCloud, v4AllowPreviewOptIn(env))
     ) {
       throw new Error(
         "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
       );
     }
+
+    // Symmetric legacy-side guard (LFE-10148); the catch persists lastError
+    // and notifies admins.
+    assertLegacyExportSourceWritable(
+      blobStorageIntegration.exportSource,
+      "Select the enriched export source (OBSERVATIONS_V2) in the blob storage integration settings.",
+    );
 
     // Preflight the persisted integration endpoint once per job inside the
     // export error path. StorageService connection-time validation remains the
@@ -1177,10 +1313,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    const executionConfig = {
-      projectId,
-      minTimestamp,
-      maxTimestamp,
+    // One client per run, shared by all table uploads and the manifest write.
+    const storageService = createBlobStorageService({
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || "auto",
@@ -1188,8 +1322,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
       secretAccessKey: blobStorageIntegration.secretAccessKey
         ? decrypt(blobStorageIntegration.secretAccessKey)
         : undefined,
-      prefix: blobStorageIntegration.prefix || undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
+      type: blobStorageIntegration.type,
+    });
+
+    const executionConfig = {
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      storageService,
+      prefix: blobStorageIntegration.prefix || undefined,
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
@@ -1198,7 +1340,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
-      parquet: exportTuning.parquet,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,
@@ -1221,7 +1362,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // dispatch and is intentionally not warned about (avoids ~hourly log noise).
     if (
       exportTuning.rawPassthrough &&
-      !exportTuning.parquet &&
       blobStorageIntegration.fileType !==
         BlobStorageIntegrationFileType.PARQUET &&
       (blobStorageIntegration.fileType !==
@@ -1235,15 +1375,18 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    let runFiles: BlobExportManifestFile[];
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
         `[BLOB INTEGRATION] Project ${projectId} is configured for trace-only export via env var, skipping observations, scores, and events`,
       );
-      await processBlobStorageExport({ ...executionConfig, table: "traces" });
+      runFiles = [
+        await processBlobStorageExport({ ...executionConfig, table: "traces" }),
+      ];
     } else {
       // Process tables based on exportSource setting
-      const processPromises: Promise<void>[] = [];
+      const processPromises: Promise<BlobExportManifestFile>[] = [];
 
       // Always include scores
       processPromises.push(
@@ -1278,7 +1421,42 @@ export const handleBlobStorageIntegrationProjectJob = async (
         );
       }
 
-      await Promise.all(processPromises);
+      runFiles = await Promise.all(processPromises);
+    }
+
+    // The manifest is the run's commit point: written strictly after every
+    // table upload succeeded. A failure here fails the run, so lastSyncAt does
+    // not advance and the retry idempotently overwrites the table files.
+    await writeBlobExportManifest({
+      storageService,
+      prefix: blobStorageIntegration.prefix || undefined,
+      projectId,
+      exportSource: blobStorageIntegration.exportSource,
+      minTimestamp,
+      maxTimestamp,
+      files: runFiles,
+    });
+
+    // Cloud-only v3-deprecation notice; both sides best-effort (never fail the run).
+    if (isCloud) {
+      if (isLegacyBlobExportSource(blobStorageIntegration.exportSource)) {
+        await writeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      } else if (
+        // Gate cleanup on "old enough to have written a notice": otherwise every
+        // enriched-only export adds a needless per-run s3:DeleteObject on the
+        // destination, which is write-only for many customers.
+        isLegacyBlobExporter(blobStorageIntegration.createdAt, isCloud)
+      ) {
+        await removeBlobExportDeprecationNotice({
+          storageService,
+          prefix: blobStorageIntegration.prefix || undefined,
+          projectId,
+        });
+      }
     }
 
     // Determine if we've caught up with present-day data
@@ -1346,8 +1524,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // 0-based, so the final attempt is attempts - 1.
     const isFinalAttempt =
       (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+    // The reason bucket doubles as the disable decision (defined => disable) and
+    // as the tag on the disable log + metric below.
+    const customerFaultReason = classifyCustomerFault(error);
     const disableForCustomerFault =
-      isFinalAttempt && isCustomerFaultError(error);
+      isFinalAttempt && customerFaultReason !== undefined;
 
     // True only for the worker that actually flips enabled true→false, so the
     // "disabled" email (which bypasses the cooldown) is sent exactly once and
@@ -1376,8 +1557,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
         disableClaimRan = true;
         persistedDisable = count === 1;
         if (persistedDisable) {
+          // Tag by reason so SSRF/abuse disables (ssrf_blocked_endpoint) can be
+          // separated from customer misconfig, and a mass-disable regression is
+          // visible as a spike in the non-SSRF buckets after rollout.
+          const reason = customerFaultReason ?? "unknown";
+          recordIncrement(BLOB_INTEGRATION_DISABLED_METRIC, 1, { reason });
           logger.warn(
-            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer-config/credential failure: ${errorMessage}`,
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after a customer fault (reason=${reason}): ${errorMessage}`,
+            { blobStorageDisableReason: reason, projectId },
           );
         }
       }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@/src/ee/features/in-app-agent/constants";
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
@@ -14,9 +15,14 @@ import {
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
 
-export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
+const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
+  code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
+  message: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+});
+
+export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 
 const PendingToolApprovalSchema = z.object({
   toolCallId: z.string().min(1),
@@ -155,7 +161,6 @@ export function parseInAppAgentInterruptEvent(
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
-  shouldContinue: boolean;
   toolCallApproval?: {
     toolCallId: string;
     status: "approved" | "rejected";
@@ -172,22 +177,37 @@ export async function createManualToolApprovalRunInput(params: {
   const forwardedProps = getResumeForwardedProps(params.input);
 
   if (!forwardedProps) {
-    return { input: params.input, syntheticEvents: [], shouldContinue: true };
+    return { input: params.input, syntheticEvents: [] };
   }
 
   const { approved, approvalRequest } = forwardedProps.command.resume;
   if (!approved) {
+    const assistantMessage =
+      createManualToolCallAssistantMessage(approvalRequest);
+    const toolMessage: AgUiMessage = {
+      id: createManualToolResultMessageId(approvalRequest),
+      role: "tool",
+      content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+      toolCallId: approvalRequest.toolCallId,
+      error: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
+    };
+
     return {
       input: {
         ...params.input,
+        messages: [
+          ...params.input.messages,
+          assistantMessage,
+          toolMessage,
+          createToolRejectionGuidanceMessage(approvalRequest),
+        ],
         forwardedProps: {},
       },
       syntheticEvents: createManualToolApprovalEvents({
         approvalRequest,
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
-        toolError: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+        toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
       }),
-      shouldContinue: false,
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
         status: "rejected",
@@ -235,11 +255,25 @@ export async function createManualToolApprovalRunInput(params: {
       forwardedProps: {},
     },
     syntheticEvents,
-    shouldContinue: true,
     toolCallApproval: {
       toolCallId: approvalRequest.toolCallId,
       status: "approved",
     },
+  };
+}
+
+function createToolRejectionGuidanceMessage(
+  approvalRequest: InAppAgentToolApprovalRequest,
+): AgUiMessage {
+  return {
+    id: `${approvalRequest.toolCallId}-approval-rejection-guidance`,
+    role: "developer",
+    content: [
+      `The user declined the proposed tool call ${approvalRequest.toolName}.`,
+      "The action was not completed.",
+      "Do not retry this tool call or attempt an equivalent action unless the user explicitly requests it.",
+      "Briefly acknowledge that the action was not completed and ask the user how they would like to continue.",
+    ].join("\n"),
   };
 }
 

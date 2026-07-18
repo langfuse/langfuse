@@ -35,6 +35,12 @@ type TraceGraphViewProps = {
   viewMode?: GraphViewMode;
   /** When provided, the mode switch is rendered over the canvas. */
   onViewModeChange?: (mode: GraphViewMode) => void;
+  /**
+   * Called when an in-canvas node click selects an observation (including
+   * cycling a repeated node) — the host's analytics seam. Not called for
+   * system start/end nodes or background deselects.
+   */
+  onObservationSelect?: () => void;
 };
 
 export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
@@ -42,6 +48,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
   activeObservationIds,
   viewMode = "aggregated",
   onViewModeChange,
+  onObservationSelect,
 }) => {
   const [selectedNodeName, setSelectedNodeName] = useState<string | null>(null);
   const [currentObservationId, setCurrentObservationId] = useQueryParam(
@@ -291,6 +298,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           }));
           clickWroteObservationIdRef.current = observations[targetIndex];
           setCurrentObservationId(observations[targetIndex]);
+          onObservationSelect?.();
         } else {
           clickWroteObservationIdRef.current = null;
           setCurrentObservationId(null);
@@ -307,6 +315,7 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
       currentObservationIndices,
       previousSelectedNode,
       setCurrentObservationId,
+      onObservationSelect,
     ],
   );
 
@@ -328,6 +337,14 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
           // Expanded runs are long chains — left→right reads like a
           // timeline and fits the wide graph panel far better than top-down.
           layoutDirection={isExpanded ? "RIGHT" : "DOWN"}
+          // Only the aggregated (DOWN) layout hits the size budget; when it
+          // does, offer the budget-exempt expanded view as the in-place
+          // recovery (it renders the same trace as an acyclic DAG).
+          onShowExpanded={
+            onViewModeChange && !isExpanded
+              ? () => onViewModeChange("expanded")
+              : null
+          }
         />
       )}
       {onViewModeChange && (

@@ -7,16 +7,19 @@ import {
 import {
   ChatMessage,
   convertDateToClickhouseDateTime,
+  createLLMOutput,
+  createLLMToolSet,
   createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
-  fetchLLMCompletion,
+  generateLLMText,
   getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
+  mapLegacyLLMCompletionParams,
   processEventBatch,
   queryClickhouse,
   QueueJobs,
@@ -206,10 +209,8 @@ async function processLLMCall(
     }),
   };
 
-  await fetchLLMCompletion({
-    streaming: false,
-    llmConnection: config.validatedApiKey,
-    maxRetries: 1,
+  const llmParams = mapLegacyLLMCompletionParams({
+    connection: config.validatedApiKey,
     messages,
     modelParams: {
       provider: config.provider,
@@ -217,9 +218,19 @@ async function processLLMCall(
       adapter: config.validatedApiKey.adapter,
       ...config.model_params,
     },
-    structuredOutputSchema: config.structuredOutputSchema,
-    traceSinkParams,
-  }).catch(); // catch errors and do not retry
+  });
+
+  await generateLLMText({
+    ...llmParams,
+    maxRetries: 1,
+    // Setup rejects the unsupported tools + structured-output combination.
+    ...(config.structuredOutputSchema
+      ? { output: createLLMOutput(config.structuredOutputSchema) }
+      : config.tools.length > 0
+        ? { tools: createLLMToolSet(config.tools) }
+        : {}),
+    trace: traceSinkParams,
+  }).catch(() => undefined); // catch errors and do not retry
 
   return { success: true };
 }

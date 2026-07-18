@@ -11,6 +11,15 @@ import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { cn } from "@/src/utils/tailwind";
+
+// Target height of one bar row (bar + spacing) and the x-axis strip below the
+// bars. Used both to decide how many bars fit and to size the expanded chart.
+const BAR_ROW_HEIGHT = 40;
+const CHART_AXIS_PADDING = 30;
+// Cap on bars shown when expanded ("Show all"); the rest stay hidden.
+const MAX_EXPANDED_BARS = 20;
 
 export const TracesBarListChart = ({
   className,
@@ -107,19 +116,31 @@ export const TracesBarListChart = ({
       };
     }) ?? [];
 
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 };
+  // Fit the number of bars to the tile height instead of a fixed count: the
+  // collapsed view renders exactly as many bars as fill the measured chart area
+  // (no scrollbar, no dead gap), and "Show all" reveals the rest. (LFE-11035)
+  const { containerRef, rowCount, height } = useFitRowCount({
+    rowHeightPx: BAR_ROW_HEIGHT,
+    reservedPx: CHART_AXIS_PADDING,
+    min: 1,
+    fallback: 5,
+  });
 
-  const adjustedData = isExpanded
-    ? transformedTraces.slice(0, maxNumberOfEntries.expanded)
-    : transformedTraces.slice(0, maxNumberOfEntries.collapsed);
-
-  // Height scales with bar count so each bar keeps the same height when expanding, otherwise recharts chart would resize to fit into the container.
-  const BAR_ROW_HEIGHT = 36;
-  const CHART_AXIS_PADDING = 32;
+  const expandedCount = Math.min(MAX_EXPANDED_BARS, transformedTraces.length);
+  const collapsedCount = Math.min(rowCount, transformedTraces.length);
+  const adjustedData = transformedTraces.slice(
+    0,
+    isExpanded ? expandedCount : collapsedCount,
+  );
 
   return (
     <DashboardCard
-      className={className}
+      // h-full (not just min-h-full) pins the card to the tile so the chart
+      // area measures the AVAILABLE height, not its own content; min-h-0 on the
+      // content lets the flex column shrink so the chart viewport does too and
+      // scrolls internally instead of overflowing the tile. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="Traces"
       description={null}
       isLoading={isLoading || traces.isPending || totalTraces.isPending}
@@ -133,40 +154,50 @@ export const TracesBarListChart = ({
           )}
           description="Total traces tracked"
         />
-        {adjustedData.length > 0 ? (
-          // The computed height is the flex basis (floor); grow lets the chart
-          // absorb extra tile height on dashboards — bar thickness stays
-          // capped, only the spacing stretches. (LFE-10813)
+        {transformedTraces.length > 0 ? (
+          // The chart fills the leftover tile height (flex-1) and never forces
+          // the card past its tile. Collapsed, it renders only the bars that fit
+          // the measured area and sizes the chart to that same measured height,
+          // so the bars spread to use it: a sparse list has no dead gap and a
+          // full one has no scrollbar. Expanded, it grows to the bars' natural
+          // height and this viewport scrolls within the tile. (LFE-11035,
+          // revises LFE-10813)
           <div
-            className="mt-4 w-full shrink-0 grow"
-            style={{
-              minHeight: 200,
-              height: Math.max(
-                200,
-                adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING,
-              ),
-            }}
+            ref={containerRef}
+            className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
           >
-            <Chart
-              chartType="HORIZONTAL_BAR"
-              data={barListToDataPoints(adjustedData)}
-              metricFormatter={(value) =>
-                formatMetric(value, { style: "full" })
-              }
-              config={{
-                metric: {
-                  label: "Traces",
-                },
+            <div
+              className="w-full"
+              style={{
+                // Collapsed: fill the measured area exactly (definite px so
+                // recharts renders and the bars spread to use the height).
+                // Expanded: grow to the bars' natural height so the viewport
+                // above scrolls.
+                height: isExpanded
+                  ? adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING
+                  : (height ?? 200),
               }}
-              rowLimit={maxNumberOfEntries.expanded}
-              chartConfig={{
-                type: "HORIZONTAL_BAR",
-                row_limit: maxNumberOfEntries.expanded,
-                unit: "traces",
-                subtle_fill: true,
-                show_value_labels: true,
-              }}
-            />
+            >
+              <Chart
+                chartType="HORIZONTAL_BAR"
+                data={barListToDataPoints(adjustedData)}
+                metricFormatter={(value) =>
+                  formatMetric(value, { style: "full" })
+                }
+                config={{
+                  metric: {
+                    label: "Traces",
+                  },
+                }}
+                rowLimit={MAX_EXPANDED_BARS}
+                chartConfig={{
+                  type: "HORIZONTAL_BAR",
+                  row_limit: MAX_EXPANDED_BARS,
+                  unit: "traces",
+                  show_value_labels: true,
+                }}
+              />
+            </div>
           </div>
         ) : (
           <NoDataOrLoading
@@ -180,10 +211,10 @@ export const TracesBarListChart = ({
           isExpanded={isExpanded}
           setExpanded={setIsExpanded}
           totalLength={transformedTraces.length}
-          maxLength={maxNumberOfEntries.collapsed}
+          maxLength={collapsedCount}
           expandText={
-            transformedTraces.length > maxNumberOfEntries.expanded
-              ? `Show top ${maxNumberOfEntries.expanded}`
+            transformedTraces.length > MAX_EXPANDED_BARS
+              ? `Show top ${MAX_EXPANDED_BARS}`
               : "Show all"
           }
         />

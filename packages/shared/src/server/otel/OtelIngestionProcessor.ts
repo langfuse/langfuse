@@ -28,6 +28,7 @@ import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
 import { isValidDateString, flattenJsonToPathArrays } from "./utils";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
 // Type definitions for internal processor state
 interface TraceState {
@@ -51,6 +52,12 @@ export interface OtelIngestionProcessorConfig {
    * schema strips.
    */
   isLangfuseInternal?: boolean;
+  /**
+   * S3 key of the raw OTLP payload this batch was replayed from. Only set on
+   * the queue-consumer side; included in conversion failure logs so a single
+   * log line points at the replayable payload.
+   */
+  fileKey?: string;
 }
 
 interface CreateTraceEventParams {
@@ -166,6 +173,7 @@ export class OtelIngestionProcessor {
   private readonly sdkVersion: string;
   private readonly ingestionVersion?: string;
   private readonly isLangfuseInternal?: boolean;
+  private readonly fileKey?: string;
 
   constructor(config: OtelIngestionProcessorConfig) {
     this.projectId = config.projectId;
@@ -180,6 +188,7 @@ export class OtelIngestionProcessor {
     // only used as a write-path hint, not as SDK attribution.
     this.ingestionVersion = config.ingestionVersion;
     this.isLangfuseInternal = config.isLangfuseInternal;
+    this.fileKey = config.fileKey;
   }
 
   /**
@@ -540,7 +549,10 @@ export class OtelIngestionProcessor {
             return events;
           });
       } catch (error) {
-        logger.error("Error processing OTEL spans to events:", error);
+        logger.error("Error processing OTEL spans to events:", {
+          error,
+          ...this.getConversionFailureLogContext(resourceSpans),
+        });
         traceException(error, span);
         throw error;
       }
@@ -617,7 +629,10 @@ export class OtelIngestionProcessor {
           }
 
           // Log error but don't throw to avoid breaking the ingestion pipeline
-          logger.error("Error processing OTEL spans:", error);
+          logger.error("Error processing OTEL spans:", {
+            error,
+            ...this.getConversionFailureLogContext(resourceSpans),
+          });
           traceException(error, span);
 
           return [];
@@ -2925,9 +2940,9 @@ export class OtelIngestionProcessor {
         ? String(experimentDatasetId)
         : undefined,
       experimentItemId: experimentItemId ? String(experimentItemId) : undefined,
-      experimentItemVersion: experimentItemVersion
-        ? String(experimentItemVersion)
-        : undefined,
+      experimentItemVersion: this.parseExperimentItemVersion(
+        experimentItemVersion,
+      ),
       experimentItemRootSpanId: experimentItemRootSpanId
         ? String(experimentItemRootSpanId)
         : undefined,
@@ -2951,6 +2966,22 @@ export class OtelIngestionProcessor {
           ? experimentItemMetadataFlattened.values
           : undefined,
     };
+  }
+
+  /**
+   * The item version is a pointer to a dataset item version (`valid_from` timestamp),
+   * not a free-form label; "v1" or "latest" cannot resolve to one, so we drop them.
+   */
+  private parseExperimentItemVersion(value: unknown): string | undefined {
+    if (value == null || value === "") return undefined;
+    const stringValue = String(value);
+    if (isValidDateString(stringValue)) {
+      return convertDateToClickhouseDateTime(new Date(stringValue));
+    }
+    logger.warn(
+      "OTEL invalid experiment item version, dropping. Expected timestamp.",
+    );
+    return undefined;
   }
 
   private parseLangfusePromptFromAISDK(
@@ -3169,6 +3200,52 @@ export class OtelIngestionProcessor {
       failure_type: failureType,
       timestamp_field: field,
     });
+  }
+
+  /**
+   * Attribution context for conversion failure logs so a Datadog log line
+   * answers which SDK/version/instrumentation produced a malformed batch and
+   * how many spans were lost. Must never throw.
+   */
+  private getConversionFailureLogContext(
+    resourceSpans: ResourceSpan[],
+  ): Record<string, unknown> {
+    return {
+      projectId: this.projectId,
+      sdkName: this.sdkName,
+      sdkVersion: this.sdkVersion,
+      fileKey: this.fileKey,
+      spanCount: this.getTotalSpanCount(resourceSpans),
+      instrumentationScopes: this.getInstrumentationScopes(resourceSpans),
+    };
+  }
+
+  private getInstrumentationScopes(
+    resourceSpans: ResourceSpan[],
+    limit = 10,
+  ): string[] {
+    try {
+      if (!Array.isArray(resourceSpans)) {
+        return [];
+      }
+
+      const scopes = new Set<string>();
+      for (const resourceSpan of resourceSpans) {
+        for (const scopeSpan of resourceSpan?.scopeSpans ?? []) {
+          const name = scopeSpan?.scope?.name;
+          if (name) {
+            scopes.add(name);
+            if (scopes.size >= limit) {
+              return [...scopes];
+            }
+          }
+        }
+      }
+      return [...scopes];
+    } catch (error) {
+      logger.warn("Failed to collect instrumentation scopes:", error);
+      return [];
+    }
   }
 
   /**

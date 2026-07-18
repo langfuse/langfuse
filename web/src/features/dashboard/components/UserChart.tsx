@@ -13,6 +13,13 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { cn } from "@/src/utils/tailwind";
+
+// Target height of one bar row (bar + spacing) and the x-axis strip; matches
+// TracesBarListChart so bars are the same thickness across the two cards.
+const BAR_ROW_HEIGHT = 40;
+const CHART_AXIS_PADDING = 30;
 
 type BarChartDataPoint = {
   name: string;
@@ -159,18 +166,20 @@ export const UserChart = ({
     0,
   );
 
-  // Slightly tighter rows than TracesBarListChart: this card also stacks tabs
-  // and an expand button, and grow stretches the spacing back out whenever the
-  // tile offers more height. (LFE-10813)
-  const BAR_ROW_HEIGHT = 32;
-  const CHART_AXIS_PADDING = 32;
+  // Fit the number of bars to the tile height (see TracesBarListChart): render
+  // exactly the bars that fill the measured chart area, no scrollbar, and defer
+  // the rest to "Show all". (LFE-11035)
+  const { containerRef, rowCount, height } = useFitRowCount({
+    rowHeightPx: BAR_ROW_HEIGHT,
+    reservedPx: CHART_AXIS_PADDING,
+    min: 1,
+    fallback: maxNumberOfEntries.collapsed,
+  });
 
   const data = [
     {
       tabTitle: "Token cost",
-      data: isExpanded
-        ? transformedCost.slice(0, maxNumberOfEntries.expanded)
-        : transformedCost.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedCost,
       totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
       chartMetricLabel: "USD",
@@ -178,9 +187,7 @@ export const UserChart = ({
     },
     {
       tabTitle: "Count of Traces",
-      data: isExpanded
-        ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
-        : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedNumberOfTraces,
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
@@ -192,54 +199,71 @@ export const UserChart = ({
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the chart area measures the
+      // AVAILABLE height, not its own content; min-h-0 lets the flex column
+      // shrink so the chart viewport scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="User consumption"
       isLoading={isLoading || user.isPending}
     >
       <TabComponent
         tabs={data.map((item) => {
+          const shown = item.data.slice(
+            0,
+            isExpanded
+              ? Math.min(maxNumberOfEntries.expanded, item.data.length)
+              : Math.min(rowCount, item.data.length),
+          );
           return {
             tabTitle: item.tabTitle,
             content: (
               <>
                 {item.data.length > 0 ? (
-                  <div className="flex grow flex-col">
+                  <div className="flex min-h-0 grow flex-col">
                     <TotalMetric
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    {/* The computed height is the flex basis (floor); grow
-                        lets the chart absorb extra tile height on dashboards —
-                        bar thickness stays capped, only the spacing
-                        stretches. (LFE-10813) */}
+                    {/* The chart fills the leftover tile height. Collapsed it
+                        renders only the bars that fit the measured area and
+                        sizes the chart to that same height, so they spread to
+                        use it: no dead gap for a sparse list, no scrollbar for a
+                        full one. Expanded it grows to the bars' natural height
+                        and this viewport scrolls within the tile. Mirrors
+                        TracesBarListChart. (LFE-11035, revises LFE-10813) */}
                     <div
-                      className="mt-4 w-full shrink-0 grow"
-                      style={{
-                        minHeight: 200,
-                        height: Math.max(
-                          200,
-                          item.data.length * BAR_ROW_HEIGHT +
-                            CHART_AXIS_PADDING,
-                        ),
-                      }}
+                      ref={containerRef}
+                      className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
                     >
-                      <Chart
-                        chartType="HORIZONTAL_BAR"
-                        data={barListToDataPoints(item.data)}
-                        config={{
-                          metric: {
-                            label: item.chartMetricLabel,
-                          },
+                      <div
+                        className="w-full"
+                        style={{
+                          // Collapsed: fill the measured area (definite px).
+                          // Expanded: grow to the bars' natural height so the
+                          // viewport scrolls.
+                          height: isExpanded
+                            ? shown.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING
+                            : (height ?? 200),
                         }}
-                        rowLimit={maxNumberOfEntries.expanded}
-                        chartConfig={{
-                          type: "HORIZONTAL_BAR",
-                          row_limit: maxNumberOfEntries.expanded,
-                          unit: item.chartUnit,
-                          show_value_labels: true,
-                          subtle_fill: true,
-                        }}
-                      />
+                      >
+                        <Chart
+                          chartType="HORIZONTAL_BAR"
+                          data={barListToDataPoints(shown)}
+                          config={{
+                            metric: {
+                              label: item.chartMetricLabel,
+                            },
+                          }}
+                          rowLimit={maxNumberOfEntries.expanded}
+                          chartConfig={{
+                            type: "HORIZONTAL_BAR",
+                            row_limit: maxNumberOfEntries.expanded,
+                            unit: item.chartUnit,
+                            show_value_labels: true,
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -259,7 +283,7 @@ export const UserChart = ({
         isExpanded={isExpanded}
         setExpanded={setIsExpanded}
         totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
+        maxLength={Math.min(rowCount, transformedCost.length)}
         expandText={
           transformedCost.length > maxNumberOfEntries.expanded
             ? `Show top ${maxNumberOfEntries.expanded}`

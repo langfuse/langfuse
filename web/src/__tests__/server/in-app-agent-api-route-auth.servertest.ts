@@ -1,7 +1,12 @@
+import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import type { InAppAgentToolApprovalRequest } from "@/src/ee/features/in-app-agent/schema";
+import type {
+  AgUiEvent,
+  InAppAgentToolApprovalRequest,
+} from "@/src/ee/features/in-app-agent/schema";
+import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -32,6 +37,9 @@ const rateLimitMocks = vi.hoisted(() => ({
 const agentMocks = vi.hoisted(() => ({
   createAgUiStream: vi.fn(),
 }));
+
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 const langfuseClientMocks = vi.hoisted(() => ({
   getLangfuseClient: vi.fn(() => ({})),
@@ -194,7 +202,7 @@ describe("in-app agent public API route auth", () => {
         resume: {
           approved: true,
           approvalRequest: {
-            type: "tool_approval_request",
+            type: "tool_approval_request" as const,
             toolCallId: "tool-call-1",
             toolName: "langfuse_upsertDataset",
             args: { name: "Approved dataset" },
@@ -307,6 +315,37 @@ describe("in-app agent public API route auth", () => {
         error: "Invalid forwarded props",
       });
       expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not create a mutating tool override for rejected approvals", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(200);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            langfuseMcp: expect.objectContaining({
+              runOverride: undefined,
+            }),
+          }),
+        }),
+      );
     });
   });
 
@@ -486,6 +525,40 @@ describe("in-app agent public API route auth", () => {
     });
   });
 
+  it("does not restore a rejected approval when stream initialization fails", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const forwardedProps = createResumeForwardedProps(false);
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      agentMocks.createAgUiStream.mockRejectedValueOnce(
+        new Error("stream init failed"),
+      );
+
+      await expect(
+        callInAppAgentRoute({
+          projectId: project.id,
+          conversationId,
+          runId: "client-run-rejected-failed",
+          forwardedProps,
+        }),
+      ).rejects.toThrow("stream init failed");
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(false);
+    });
+  });
+
   it("keeps pending approval retryable when a resumed stream errors after creation", async () => {
     await withInAppAgentCloudEnv(async () => {
       const { project, userId } = await setupInAppAgentProjectSession();
@@ -546,6 +619,152 @@ describe("in-app agent public API route auth", () => {
         }),
       ).resolves.toBe(false);
       expect(agentMocks.createAgUiStream).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("blocks writes to old conversations with sandbox tool history", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const createdAt = new Date(Date.now() - 9 * 60 * 60 * 1000);
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Old sandbox conversation",
+          createdAt,
+        },
+      });
+      await prisma.inAppAgentRun.create({
+        data: {
+          id: "run-old-sandbox",
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          model: "haiku",
+          mcpApiKeyId: "api-key-old-sandbox",
+        },
+      });
+      await replaceRunEvents({
+        prisma,
+        projectId: project.id,
+        conversationId,
+        runId: "run-old-sandbox",
+        events: [
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: "tool-call-1",
+            toolCallName: "bash",
+          } as AgUiEvent,
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: "tool-call-1",
+            content: "done",
+          } as AgUiEvent,
+        ],
+      });
+
+      const { default: handler } =
+        await import("@/src/ee/features/in-app-agent/server/handler");
+      const response = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: conversationId,
+            runId: "client-run-locked",
+            messages: [{ id: "message-1", role: "user", content: "hello" }],
+            tools: [],
+            context: [],
+            state: {
+              type: "existingConversation",
+              projectId: project.id,
+              conversationId,
+            },
+            forwardedProps: {},
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(412);
+      await expect(response.json()).resolves.toEqual({
+        error: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      });
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
+  it("blocks resume writes to old conversations with sandbox tool history", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const createdAt = new Date(Date.now() - 9 * 60 * 60 * 1000);
+      const forwardedProps = createResumeForwardedProps();
+
+      await prisma.inAppAgentConversation.create({
+        data: {
+          id: conversationId,
+          projectId: project.id,
+          createdByUserId: userId,
+          title: "Old sandbox resume conversation",
+          createdAt,
+        },
+      });
+      await prisma.inAppAgentRun.create({
+        data: {
+          id: "run-old-sandbox-resume",
+          projectId: project.id,
+          conversationId,
+          triggeredByUserId: userId,
+          model: "haiku",
+          mcpApiKeyId: "api-key-old-sandbox-resume",
+        },
+      });
+      await replaceRunEvents({
+        prisma,
+        projectId: project.id,
+        conversationId,
+        runId: "run-old-sandbox-resume",
+        events: [
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: "tool-call-1",
+            toolCallName: "write",
+          } as AgUiEvent,
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: "tool-call-1",
+            content: "done",
+          } as AgUiEvent,
+        ],
+      });
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: forwardedProps.command.resume.approvalRequest,
+      });
+
+      const { response } = await callInAppAgentRoute({
+        projectId: project.id,
+        conversationId,
+        forwardedProps,
+      });
+
+      expect(response.status).toBe(412);
+      await expect(response.json()).resolves.toEqual({
+        error: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      });
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: forwardedProps.command.resume.approvalRequest.toolCallId,
+        }),
+      ).resolves.toBe(true);
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
     });
   });
 
@@ -617,7 +836,10 @@ describe("in-app agent public API route auth", () => {
 
       expect(response.status).toBe(429);
       await expect(response.json()).resolves.toEqual({
-        error: "Rate limit exceeded",
+        code: "rate_limited",
+        details: {
+          retryAfterSeconds: 60,
+        },
       });
       expect(response.headers.get("Retry-After")).toBe("60");
       expect(rateLimitMocks.rateLimitRequest).toHaveBeenCalledWith(
@@ -1004,11 +1226,11 @@ async function setupInAppAgentProjectSession() {
   return { org, project, userId };
 }
 
-function createResumeForwardedProps() {
+function createResumeForwardedProps(approved = true) {
   return {
     command: {
       resume: {
-        approved: true,
+        approved,
         approvalRequest: {
           type: "tool_approval_request" as const,
           toolCallId: `tool-call-${randomUUID()}`,

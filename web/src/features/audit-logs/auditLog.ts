@@ -43,6 +43,7 @@ export type AuditableResource =
   | "automation"
   | "action"
   | "dashboardWidget"
+  | "dashboard"
   | "slackIntegration"
   | "cloudSpendAlert"
   | "verifiedDomain"
@@ -83,40 +84,72 @@ type AuditLog = {
 );
 
 export async function auditLog(log: AuditLog, prisma?: typeof _prisma) {
-  const meta =
-    "session" in log
-      ? {
-          userId: log.session.user.id,
-          orgId: log.session.orgId,
-          userOrgRole: log.session.orgRole,
-          projectId: log.session.projectId,
-          userProjectRole: log.session.projectRole,
-          type: AuditLogRecordType.USER,
-        }
-      : "userId" in log
-        ? {
-            userId: log.userId,
-            orgId: log.orgId,
-            userOrgRole: log.orgRole,
-            projectId: log.projectId,
-            userProjectRole: log.projectRole,
-            type: AuditLogRecordType.USER,
-          }
-        : {
-            apiKeyId: log.apiKeyId,
-            orgId: log.orgId,
-            projectId: log.projectId,
-            type: AuditLogRecordType.API_KEY,
-          };
+  const db = prisma ?? _prisma;
+  const shared = {
+    resourceType: log.resourceType,
+    resourceId: log.resourceId,
+    action: log.action,
+    before: log.before ? JSON.stringify(log.before) : undefined,
+    after: log.after ? JSON.stringify(log.after) : undefined,
+  };
 
-  await (prisma ?? _prisma).auditLog.create({
-    data: {
-      ...meta,
-      resourceType: log.resourceType,
-      resourceId: log.resourceId,
-      action: log.action,
-      before: log.before ? JSON.stringify(log.before) : undefined,
-      after: log.after ? JSON.stringify(log.after) : undefined,
-    },
-  });
+  if ("apiKeyId" in log) {
+    await db.$transaction(async (tx) => {
+      const apiKey = await tx.apiKey.findUnique({
+        where: { id: log.apiKeyId },
+        select: {
+          isInAppAgentKey: true,
+          createdByUserId: true,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          apiKeyId: log.apiKeyId,
+          userId:
+            apiKey?.isInAppAgentKey === true
+              ? (apiKey.createdByUserId ?? undefined)
+              : undefined,
+          orgId: log.orgId,
+          projectId: log.projectId,
+          type: AuditLogRecordType.API_KEY,
+          ...shared,
+        },
+      });
+    });
+
+    return;
+  }
+
+  if ("session" in log) {
+    await db.auditLog.create({
+      data: {
+        userId: log.session.user.id,
+        orgId: log.session.orgId,
+        userOrgRole: log.session.orgRole,
+        projectId: log.session.projectId,
+        userProjectRole: log.session.projectRole,
+        type: AuditLogRecordType.USER,
+        ...shared,
+      },
+    });
+
+    return;
+  }
+
+  if ("userId" in log) {
+    await db.auditLog.create({
+      data: {
+        userId: log.userId,
+        orgId: log.orgId,
+        userOrgRole: log.orgRole,
+        projectId: log.projectId,
+        userProjectRole: log.projectRole,
+        type: AuditLogRecordType.USER,
+        ...shared,
+      },
+    });
+
+    return;
+  }
 }

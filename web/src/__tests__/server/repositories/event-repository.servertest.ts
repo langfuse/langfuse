@@ -27,7 +27,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import {
+  type EventsTableFilterState,
+  type FilterCondition,
+} from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -350,7 +353,11 @@ describe("Clickhouse Events Repository Test", () => {
         name: "io-metadata-test",
         input: "Test input content",
         output: "Test output content",
-        metadata: { key: "value" },
+        // events_full has no `metadata` map column; ClickHouse skips unknown
+        // JSONEachRow fields on insert, so this extra key is inert.
+        ...({ metadata: { key: "value" } } as Partial<
+          Parameters<typeof createEvent>[0]
+        >),
       });
 
       await createEventsCh([event]);
@@ -817,7 +824,7 @@ describe("Clickhouse Events Repository Test", () => {
         const options = await getEventFilterOptions({
           projectId: uniqueProjectId,
         });
-        expect(options.level.map((level) => level.value)).toContain(
+        expect(options.level!.map((level) => level.value)).toContain(
           recentLevel,
         );
       });
@@ -825,7 +832,7 @@ describe("Clickhouse Events Repository Test", () => {
       const defaultOptions = await getEventFilterOptions({
         projectId: uniqueProjectId,
       });
-      const defaultLevels = defaultOptions.level.map((level) => level.value);
+      const defaultLevels = defaultOptions.level!.map((level) => level.value);
 
       expect(defaultLevels).toContain(recentLevel);
       expect(defaultLevels).not.toContain(oldLevel);
@@ -841,7 +848,7 @@ describe("Clickhouse Events Repository Test", () => {
           },
         ],
       });
-      const upperOnlyLevels = upperOnlyOptions.level.map(
+      const upperOnlyLevels = upperOnlyOptions.level!.map(
         (level) => level.value,
       );
 
@@ -860,7 +867,7 @@ describe("Clickhouse Events Repository Test", () => {
             },
           ],
         });
-        const explicitLevels = explicitOptions.level.map(
+        const explicitLevels = explicitOptions.level!.map(
           (level) => level.value,
         );
 
@@ -1569,7 +1576,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const traceIds = filteredObservations.map((o) => o.traceId).sort();
@@ -1683,7 +1692,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const names = filteredObservations.map((o) => o.name).sort();
@@ -1871,7 +1882,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(1);
         expect(filteredObservations[0].name).toBe("new-user-1");
@@ -2176,6 +2189,129 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         expect(result.length).toBe(0);
+      });
+    });
+
+    describe("Truncation-sensitive filters (must read events_full)", () => {
+      // events_core stores input/output/metadata_values truncated to 200 chars
+      // (events_core_mv). Filters on these fields must run against events_full,
+      // otherwise matches beyond the truncation point are silently dropped.
+
+      it("metadata 'contains' matches a value beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const needle = `needle-${randomUUID()}`;
+        const longValue = "x".repeat(220) + needle;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-metadata-value",
+            metadata_names: ["payload"],
+            metadata_values: [longValue],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "contains",
+            key: "payload",
+            value: needle,
+          },
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: filterTime,
+          },
+          {
+            type: "string",
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+          },
+        ];
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter,
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-metadata-value");
+
+        const count = await getObservationsCountFromEventsTable({
+          projectId,
+          filter,
+        });
+        expect(count).toBe(1);
+      });
+
+      it("input 'matches' finds a token beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const token = `needletoken${randomUUID().replaceAll("-", "")}`;
+        const longInput = "x".repeat(220) + " " + token;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-input-value",
+            input: longInput,
+            start_time: now * 1000,
+          }),
+        ]);
+
+        // "matches" belongs to the events-table filter grammar
+        // (EventsTableFilterState); the events service passes it through the
+        // FilterState-typed repository signature untyped, so mirror that here.
+        const matchesFilter = {
+          type: "string",
+          column: "input",
+          operator: "matches",
+          value: token,
+        } satisfies EventsTableFilterState[number] as unknown as FilterCondition;
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            matchesFilter,
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-input-value");
       });
     });
   });
@@ -3306,10 +3442,14 @@ describe("Clickhouse Events Repository Test", () => {
     });
 
     it("should handle empty observation array", async () => {
+      // minStartTime/maxStartTime are intentionally omitted: the function
+      // early-returns on an empty observations array before touching them.
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [],
-      });
+      } as unknown as Parameters<
+        typeof getObservationsBatchIOFromEventsTable
+      >[0]);
 
       expect(result).toBeDefined();
       expect(result).toEqual([]);
@@ -3735,8 +3875,8 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      const scoreCategoryLabels = options.score_categories.map((c) => c.label);
-      const traceScoreCategoryLabels = options.trace_score_categories.map(
+      const scoreCategoryLabels = options.score_categories!.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories!.map(
         (c) => c.label,
       );
 

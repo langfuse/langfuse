@@ -14,6 +14,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { type ObservationLevelType, ObservationLevel } from "@langfuse/shared";
 import useLocalStorage from "@/src/components/useLocalStorage";
+import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
   GRAPH_VIEW_MODES,
   type GraphViewMode,
@@ -27,6 +28,9 @@ export type LogViewTreeStyle = "flat" | "indented";
 
 /** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta) */
 export type JsonViewPreference = "pretty" | "json" | "json-beta";
+
+/** Context in which trace is rendered - affects feature availability */
+export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;
@@ -46,6 +50,8 @@ interface ViewPreferencesContextValue {
   setGraphViewMode: (value: GraphViewMode) => void;
   minObservationLevel: ObservationLevelType;
   setMinObservationLevel: (value: ObservationLevelType) => void;
+  /** Context in which trace is rendered (also an analytics dimension) */
+  traceContext: TraceRenderContext;
   /** Whether trace is rendered in peek mode (e.g., table peek views) */
   isPeekMode: boolean;
   /** Whether trace is rendered in annotation mode (annotation queue processing) */
@@ -62,6 +68,9 @@ interface ViewPreferencesContextValue {
   /** Whether JSON Beta (advanced viewer) is enabled */
   jsonBetaEnabled: boolean;
   setJsonBetaEnabled: (value: boolean) => void;
+  /** Whether long system prompts render collapsed to a first-lines preview */
+  collapseSystemPrompt: boolean;
+  setCollapseSystemPrompt: (value: boolean) => void;
 }
 
 const ViewPreferencesContext =
@@ -80,7 +89,7 @@ export function useViewPreferences(): ViewPreferencesContextValue {
 interface ViewPreferencesProviderProps {
   children: ReactNode;
   /** Context in which trace is rendered - affects feature availability */
-  traceContext?: "fullscreen" | "peek" | "annotation";
+  traceContext?: TraceRenderContext;
 }
 
 export function ViewPreferencesProvider({
@@ -134,6 +143,10 @@ export function ViewPreferencesProvider({
     typeof window !== "undefined" &&
       localStorage.getItem("jsonViewPreference") === '"json-beta"',
   );
+  // Shared with the inline expand/collapse toggle on system prompt messages;
+  // instances sync via useLocalStorage's localStorageChange events.
+  const [collapseSystemPrompt, setCollapseSystemPrompt] =
+    useCollapseSystemPromptPreference();
 
   const value = useMemo<ViewPreferencesContextValue>(
     () => ({
@@ -153,6 +166,7 @@ export function ViewPreferencesProvider({
       setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
+      traceContext,
       isPeekMode,
       isAnnotationMode,
       logViewMode,
@@ -163,6 +177,8 @@ export function ViewPreferencesProvider({
       setJsonViewPreference,
       jsonBetaEnabled,
       setJsonBetaEnabled,
+      collapseSystemPrompt,
+      setCollapseSystemPrompt,
     }),
     [
       showDuration,
@@ -181,6 +197,7 @@ export function ViewPreferencesProvider({
       setGraphViewMode,
       minObservationLevel,
       setMinObservationLevel,
+      traceContext,
       isPeekMode,
       isAnnotationMode,
       logViewMode,
@@ -191,6 +208,8 @@ export function ViewPreferencesProvider({
       setJsonViewPreference,
       jsonBetaEnabled,
       setJsonBetaEnabled,
+      collapseSystemPrompt,
+      setCollapseSystemPrompt,
     ],
   );
 

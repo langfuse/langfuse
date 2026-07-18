@@ -475,10 +475,26 @@ export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
   );
 
+export const buildMonitorUrl = (params: {
+  projectId: string;
+  monitorId: string;
+}) =>
+  buildProductUrl(
+    `${buildMonitorsPath(params)}/${encodeURIComponent(params.monitorId)}`,
+  );
+
 export const buildDashboardWidgetUrl = (params: {
   projectId: string;
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
+
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  buildProductUrl(
+    `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`,
+  );
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;
