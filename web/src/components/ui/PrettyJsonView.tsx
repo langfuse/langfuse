@@ -47,6 +47,8 @@ import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
 } from "@/src/components/schemas/MarkdownSchema";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
 import {
   convertRowIdToKeyPath,
@@ -907,6 +909,8 @@ export function PrettyJsonView(props: {
     useState<LangfuseExpandedState>({});
 
   const isChatML = useMemo(() => isChatMLFormat(parsedJson), [parsedJson]);
+  const { isMarkdownEnabled, setIsMarkdownEnabled } = useMarkdownContext();
+  const capture = usePostHogClientCapture();
   const { isMarkdown, content: markdownContent } = useMemo(
     // Skip the markdown probe for gated large strings: isMarkdownContent runs
     // `JSON.stringify` on the whole value, an O(n) pass over the multi-MB string.
@@ -1326,6 +1330,7 @@ export function PrettyJsonView(props: {
               markdown={markdownContent || ""}
               media={props.media}
               isSystemPrompt={props.isSystemPrompt}
+              renderMarkdown={isMarkdownEnabled}
             />
           )}
         </div>
@@ -1444,8 +1449,13 @@ export function PrettyJsonView(props: {
         <MarkdownJsonViewHeader
           title={props.title}
           titleIcon={props.titleIcon}
-          canEnableMarkdown={false}
-          handleOnValueChange={() => {}} // No-op, parent handles state
+          canEnableMarkdown={isMarkdownMode}
+          handleOnValueChange={() => {
+            setIsMarkdownEnabled(!isMarkdownEnabled);
+            capture("trace_detail:io_pretty_format_toggle_group", {
+              renderMarkdown: !isMarkdownEnabled,
+            });
+          }}
           handleOnCopy={handleOnCopy}
           controlButtons={
             <>

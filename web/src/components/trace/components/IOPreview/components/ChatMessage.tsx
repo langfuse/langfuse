@@ -139,6 +139,7 @@ export function ChatMessage({
       <div className="hover:bg-muted transition-colors">
         <MarkdownJsonViewHeader
           title={title}
+          canEnableMarkdown={false}
           handleOnValueChange={() => {}}
           handleOnCopy={() => {
             const rawText = JSON.stringify(message, null, 2);
