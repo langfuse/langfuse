@@ -199,24 +199,35 @@ function findDataUris(value: string): DataUriOccurrence[] {
     if (start === -1) break;
 
     let headerCursor = start + DATA_URI_PREFIX.length;
+    let contentTypeEnd: number | undefined;
+    let markerStart: number | undefined;
     while (headerCursor < value.length) {
       if (value.startsWith(DATA_URI_PREFIX, headerCursor)) {
         start = headerCursor;
         headerCursor += DATA_URI_PREFIX.length;
+        contentTypeEnd = undefined;
+        markerStart = undefined;
         continue;
       }
-      if (value.charCodeAt(headerCursor) === 59) break;
+      const code = value.charCodeAt(headerCursor);
+      if (code === 44) break;
+      if (code === 59) {
+        contentTypeEnd ??= headerCursor;
+        if (value.startsWith(BASE64_MARKER, headerCursor)) {
+          markerStart = headerCursor;
+          break;
+        }
+      }
       headerCursor += 1;
     }
 
-    if (headerCursor === value.length) break;
-    const semicolon = headerCursor;
-    if (!value.startsWith(BASE64_MARKER, semicolon)) {
-      cursor = semicolon + 1;
+    if (markerStart === undefined) {
+      if (headerCursor === value.length) break;
+      cursor = headerCursor + 1;
       continue;
     }
 
-    const dataStart = semicolon + BASE64_MARKER.length;
+    const dataStart = markerStart + BASE64_MARKER.length;
     let end = dataStart;
     let padding = 0;
     let valid = true;
@@ -231,7 +242,10 @@ function findDataUris(value: string): DataUriOccurrence[] {
       end += 1;
     }
 
-    const contentType = value.slice(start + DATA_URI_PREFIX.length, semicolon);
+    const contentType = value.slice(
+      start + DATA_URI_PREFIX.length,
+      contentTypeEnd ?? markerStart,
+    );
     const base64Data = value.slice(dataStart, end);
     occurrences.push({
       start,

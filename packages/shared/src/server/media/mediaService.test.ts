@@ -30,6 +30,7 @@ vi.mock("../s3", () => ({
 }));
 
 import { MediaContentType } from "../../domain/media";
+import { recordHistogram, recordIncrement } from "../instrumentation";
 import { uploadMediaForTrace } from "./mediaService";
 
 const CONTENT_BYTES = Buffer.from("test-image");
@@ -78,6 +79,47 @@ describe("uploadMediaForTrace", () => {
         },
         data: expect.objectContaining({ uploadHttpStatus: 200 }),
       }),
+    );
+    expect(mocks.uploadFile.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.update.mock.invocationCallOrder[0]!,
+    );
+    expect(mocks.update.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.queryRaw.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("does not link media and records storage metrics when upload fails", async () => {
+    const uploadError = Object.assign(new Error("S3 unavailable"), {
+      $metadata: { httpStatusCode: 503 },
+    });
+    mocks.findUnique.mockResolvedValue(null);
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.uploadFile.mockRejectedValue(uploadError);
+
+    await expect(
+      uploadMediaForTrace({
+        projectId: "project-id",
+        traceId: "trace-id",
+        observationId: "observation-id",
+        field: "input",
+        contentType: MediaContentType.PNG,
+        contentBytes: CONTENT_BYTES,
+        mediaBucket: "media-bucket",
+        mediaPrefix: "media/",
+      }),
+    ).rejects.toBe(uploadError);
+
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.media.upload_http_status",
+      1,
+      { status_code: 503 },
+    );
+    expect(recordHistogram).toHaveBeenCalledWith(
+      "langfuse.media.upload_time_ms",
+      expect.any(Number),
+      { status_code: 503 },
     );
   });
 

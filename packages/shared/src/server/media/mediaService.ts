@@ -10,6 +10,7 @@ import {
 import { InternalServerError } from "../../errors";
 import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
+import { summarizeS3Error } from "../services/s3SigningDiagnostics";
 
 export function getMediaId(sha256Hash: string): string {
   const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
@@ -213,20 +214,26 @@ export async function uploadMediaForTrace(params: {
     contentType,
     contentLength: contentBytes.length,
   });
-  await linkMediaToTraceOrObservation({
-    projectId,
-    traceId,
-    observationId,
-    mediaId,
-    field,
-  });
 
   const uploadStartedAt = Date.now();
-  await getS3MediaStorageClient(mediaBucket).uploadFile({
-    fileName: bucketPath,
-    fileType: contentType,
-    data: Readable.from([contentBytes]),
-  });
+  try {
+    await getS3MediaStorageClient(mediaBucket).uploadFile({
+      fileName: bucketPath,
+      fileType: contentType,
+      data: Readable.from([contentBytes]),
+    });
+  } catch (error) {
+    const statusCode = summarizeS3Error(error).httpStatusCode ?? 500;
+    recordIncrement("langfuse.media.upload_http_status", 1, {
+      status_code: statusCode,
+    });
+    recordHistogram(
+      "langfuse.media.upload_time_ms",
+      Date.now() - uploadStartedAt,
+      { status_code: statusCode },
+    );
+    throw error;
+  }
   const uploadTimeMs = Date.now() - uploadStartedAt;
 
   try {
@@ -254,6 +261,14 @@ export async function uploadMediaForTrace(params: {
     }
     throw error;
   }
+
+  await linkMediaToTraceOrObservation({
+    projectId,
+    traceId,
+    observationId,
+    mediaId,
+    field,
+  });
 
   recordIncrement("langfuse.media.upload_http_status", 1, {
     status_code: 200,

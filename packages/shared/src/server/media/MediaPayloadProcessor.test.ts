@@ -74,6 +74,26 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it("processes Data URIs with media type parameters", async () => {
+    const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
+    const textBase64 = Buffer.from("hello").toString("base64");
+    const dataUri = `data:text/plain;charset=utf-8;base64,${textBase64}`;
+
+    const transformed = await transformMediaPayload(`file: ${dataUri}`, {
+      processCandidate,
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(transformed.value).toBe(`file: ${MEDIA_REFERENCE}`);
+    expect(processCandidate).toHaveBeenCalledWith({
+      base64Data: textBase64,
+      contentType: "text/plain",
+      kind: "data_uri",
+      source: "base64_data_uri",
+    });
+  });
+
   it("reports checks of shape-based stringified JSON", async () => {
     const onDetectionPath = vi.fn();
 
