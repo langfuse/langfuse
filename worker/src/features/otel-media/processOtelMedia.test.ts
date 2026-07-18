@@ -85,6 +85,36 @@ describe("createOtelMediaTargets", () => {
       },
     ]);
   });
+
+  it("can select persisted legacy and direct-event payloads independently", () => {
+    const legacyBody = {
+      id: "trace-id",
+      input: "legacy-input",
+    };
+    const directEventInput = {
+      traceId: "trace-id",
+      spanId: "observation-id",
+      input: "direct-input",
+    };
+
+    expect(
+      createOtelMediaTargets({
+        ingestionEvents: [{ type: "trace-create", body: legacyBody } as never],
+        eventInputs: [],
+      }),
+    ).toEqual([expect.objectContaining({ body: legacyBody, field: "input" })]);
+    expect(
+      createOtelMediaTargets({
+        ingestionEvents: [],
+        eventInputs: [directEventInput],
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        body: directEventInput,
+        observationId: "observation-id",
+      }),
+    ]);
+  });
 });
 
 describe("processOtelMediaIfEnabled", () => {

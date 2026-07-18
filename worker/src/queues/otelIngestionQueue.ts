@@ -327,11 +327,12 @@ export const otelIngestionQueueProcessorBuilder = (
       const eventInputs = processor.processToEvent(parsedSpans);
       const mediaUploadEnabled =
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
+      const skipLegacyWrites = !v4WritesToLegacyTables(env);
 
-      if (mediaUploadEnabled) {
+      if (mediaUploadEnabled && !skipLegacyWrites) {
         const mediaTargets = createOtelMediaTargets({
           ingestionEvents: events,
-          eventInputs,
+          eventInputs: [],
         });
 
         await processOtelMediaIfEnabled({
@@ -457,8 +458,6 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
-      const skipLegacyWrites = !v4WritesToLegacyTables(env);
-
       if (skipLegacyWrites) {
         span?.setAttribute(
           "langfuse.ingestion.otel.skipped_legacy_writes",
@@ -532,6 +531,22 @@ export const otelIngestionQueueProcessorBuilder = (
       // Early exit if no processing needed
       if (!hasEvalConfigs && !shouldWriteToEventsTable) {
         return;
+      }
+
+      if (mediaUploadEnabled && shouldWriteToEventsTable) {
+        const mediaTargets = createOtelMediaTargets({
+          ingestionEvents: [],
+          eventInputs,
+        });
+
+        await processOtelMediaIfEnabled({
+          enabled: true,
+          targets: mediaTargets,
+          projectId,
+          fileKey,
+          mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+        });
       }
 
       // Create scheduler deps only if we have eval configs

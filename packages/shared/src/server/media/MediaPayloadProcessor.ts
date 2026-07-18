@@ -104,38 +104,38 @@ export async function transformMediaPayload(
 
   if (isMediaReference(value)) return { value, bytesRemoved: 0 };
 
+  let valueToParse = value;
+  let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
   if (value.includes(BASE64_MARKER)) {
-    const withDataUriReferences = await replaceDataUris(value, params);
-    if (
-      withDataUriReferences.value !== value ||
-      value.includes(DATA_URI_PREFIX)
-    ) {
-      return withDataUriReferences;
-    }
+    dataUriResult = await replaceDataUris(value, params);
+    valueToParse = dataUriResult.value;
   }
 
-  const strippedValue = value.trimStart();
+  const strippedValue = valueToParse.trimStart();
   if (
     (!strippedValue.startsWith("{") && !strippedValue.startsWith("[")) ||
-    !mayContainSerializedMedia(value)
+    !mayContainSerializedMedia(valueToParse)
   ) {
-    return { value, bytesRemoved: 0 };
+    return dataUriResult ?? { value, bytesRemoved: 0 };
   }
 
-  params.onDetectionPath("stringified_json", Buffer.byteLength(value, "utf8"));
+  params.onDetectionPath(
+    "stringified_json",
+    Buffer.byteLength(valueToParse, "utf8"),
+  );
   let parsedValue: unknown;
   try {
-    parsedValue = JSON.parse(value);
+    parsedValue = JSON.parse(valueToParse);
   } catch {
-    return { value, bytesRemoved: 0 };
+    return dataUriResult ?? { value, bytesRemoved: 0 };
   }
 
   if (!isObject(parsedValue) && !Array.isArray(parsedValue)) {
-    return { value, bytesRemoved: 0 };
+    return dataUriResult ?? { value, bytesRemoved: 0 };
   }
 
   const state = await transformStructuredValue(parsedValue, params, false);
-  if (!state.changed) return { value, bytesRemoved: 0 };
+  if (!state.changed) return dataUriResult ?? { value, bytesRemoved: 0 };
 
   const transformedValue = JSON.stringify(parsedValue);
   return {

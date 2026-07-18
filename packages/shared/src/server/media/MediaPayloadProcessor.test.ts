@@ -121,6 +121,35 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it("processes Data URIs and raw base64 shapes in the same stringified JSON", async () => {
+    const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const value = JSON.stringify({
+      image: dataUri,
+      document: {
+        type: "base64",
+        media_type: "image/png",
+        data: PNG_BASE64,
+      },
+    });
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate,
+      onInvalidCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(JSON.parse(transformed.value as string)).toEqual({
+      image: MEDIA_REFERENCE,
+      document: {
+        type: "base64",
+        media_type: "image/png",
+        data: MEDIA_REFERENCE,
+      },
+    });
+    expect(processCandidate).toHaveBeenCalledTimes(2);
+  });
+
   it("does not parse generic stringified JSON with data-like keys", async () => {
     const processCandidate = vi.fn();
     const onDetectionPath = vi.fn();
