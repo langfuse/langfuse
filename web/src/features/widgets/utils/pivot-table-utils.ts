@@ -539,13 +539,69 @@ export function calculateSubtotals(
 
     // Detect aggregation type and apply correct function
     const aggregationType = detectAggregationType(metric);
-    const result = applyAggregation(values, aggregationType);
+    let result: number;
+    if (aggregationType === "avg") {
+      // Bug #15208: a naive `Σavg_i / N` is an *average of per-row averages*,
+      // which only equals the true overall average when every group has the
+      // same size. When the pivot also exposes a `count_<base>` column for
+      // the same base metric, weight by that — which is exactly what the
+      // SQL query already computes per row.
+      const weighted = weightedAverage(data, metric);
+      result = weighted ?? applyAggregation(values, aggregationType);
+    } else {
+      result = applyAggregation(values, aggregationType);
+    }
 
     // Round to 10 decimal places to avoid floating-point precision issues
     subtotals[metric] = Math.round(result * 1e10) / 1e10;
   }
 
   return subtotals;
+}
+
+/**
+ * Compute a count-weighted average for an ``avg_<base>`` metric.
+ *
+ * The pivot-table SQL emits an ``avg_<base>`` column whose per-row value is
+ * already an average over that row's slice of the underlying data, alongside
+ * a ``count_<base>`` column for the same base. Multiplying each row's
+ * average by its count and dividing by the sum of counts recovers the true
+ * overall average across the grouped rows.
+ *
+ * Returns ``null`` when no ``count_<base>`` column exists (or when the
+ * count column is zero across the group) so the caller can fall back to the
+ * unweighted mean.
+ *
+ * Regression test for langfuse/langfuse#15208.
+ */
+function weightedAverage(
+  data: DatabaseRow[],
+  avgMetric: string,
+): number | null {
+  const aggregationType = detectAggregationType(avgMetric);
+  if (aggregationType !== "avg") return null;
+
+  // ``avg_<base>`` → ``count_<base>``. Strip the ``avg_`` prefix and try to
+  // find the matching count column in the data rows.
+  const baseName = avgMetric.slice("avg_".length);
+  const countMetric = `count_${baseName}`;
+
+  let weightedSum = 0;
+  let totalCount = 0;
+  let foundCountColumn = false;
+
+  for (const row of data) {
+    const value = extractMetricValues(row, [avgMetric])[avgMetric];
+    const count = row[countMetric];
+    if (typeof value !== "number" || typeof count !== "number") continue;
+    if (count <= 0) continue;
+    foundCountColumn = true;
+    weightedSum += value * count;
+    totalCount += count;
+  }
+
+  if (!foundCountColumn || totalCount === 0) return null;
+  return weightedSum / totalCount;
 }
 
 /**

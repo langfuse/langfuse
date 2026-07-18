@@ -351,10 +351,50 @@ describe("pivot-table-utils", () => {
 
       const result = calculateSubtotals(data, ["count", "avg_cost"]);
 
+      // ``avg_cost`` falls back to the unweighted mean because there is no
+      // ``count_cost`` column in the data — the regression-test for
+      // count-weighting lives in the next test case.
       expect(result).toEqual({
         count: 45,
         avg_cost: 0.5,
       });
+    });
+
+    // Regression test for langfuse/langfuse#15208.
+    //
+    // When the pivot emits both ``avg_<base>`` and ``count_<base>`` columns
+    // (the common case for query-builder pivots over a count+avg aggregation),
+    // subtotal and grand-total rows must use a count-weighted average so the
+    // number is exact for the underlying grouped rows, not the naive
+    // ``Σavg_i / N`` average of averages that mis-weights groups of different
+    // size.
+    it("should count-weight average subtotals when count_<base> is present", () => {
+      const data: DatabaseRow[] = [
+        { count_cost: 10, avg_cost: 0.5 },
+        { count_cost: 15, avg_cost: 0.6 },
+        { count_cost: 20, avg_cost: 0.2 },
+        { count_cost: 25, avg_cost: 0.4 },
+        { count_cost: 5, avg_cost: 0.8 },
+      ];
+
+      const result = calculateSubtotals(data, ["avg_cost"]);
+
+      // Σ(avg_i × count_i) / Σ(count_i) =
+      //   (0.5*10 + 0.6*15 + 0.2*20 + 0.4*25 + 0.8*5) / (10+15+20+25+5)
+      // = (5 + 9 + 4 + 10 + 4) / 75 = 32/75 = 0.42666...
+      expect(result.avg_cost).toBeCloseTo(0.4267, 4);
+    });
+
+    it("should fall back to the unweighted mean when count_<base> is absent", () => {
+      const data: DatabaseRow[] = [
+        { avg_cost: 0.5 },
+        { avg_cost: 0.6 },
+        { avg_cost: 0.4 },
+      ];
+
+      const result = calculateSubtotals(data, ["avg_cost"]);
+
+      expect(result.avg_cost).toBeCloseTo(0.5, 4);
     });
 
     it("should handle missing values", () => {
@@ -386,10 +426,31 @@ describe("pivot-table-utils", () => {
     it("should calculate grand totals for all data", () => {
       const result = calculateGrandTotals(sampleData, sampleMetrics);
 
+      // ``sampleData`` only has a top-level ``count`` column (not a
+      // ``count_cost`` match), so ``avg_cost`` falls back to the unweighted
+      // mean — preserving the previous test contract. The count-weighted
+      // case is covered by the sibling ``calculateSubtotals`` test above.
       expect(result).toEqual({
         count: 75, // 10 + 15 + 20 + 25 + 5
         avg_cost: 0.5, // (0.5 + 0.6 + 0.2 + 0.4 + 0.8) / 5
       });
+    });
+
+    // Regression test for langfuse/langfuse#15208 — same weighted-average
+    // behavior as the subtotals path, but exercised through the
+    // ``calculateGrandTotals`` wrapper used by ``transformToPivotTable``.
+    it("should count-weight grand totals when count_<base> is present", () => {
+      const data: DatabaseRow[] = [
+        { count_cost: 10, avg_cost: 0.5 },
+        { count_cost: 15, avg_cost: 0.6 },
+        { count_cost: 20, avg_cost: 0.2 },
+        { count_cost: 25, avg_cost: 0.4 },
+        { count_cost: 5, avg_cost: 0.8 },
+      ];
+
+      const result = calculateGrandTotals(data, ["avg_cost"]);
+
+      expect(result.avg_cost).toBeCloseTo(0.4267, 4);
     });
 
     it("should handle empty data", () => {
