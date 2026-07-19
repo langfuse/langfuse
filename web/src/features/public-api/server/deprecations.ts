@@ -6,13 +6,13 @@ import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 // gets a top-level `_deprecation` key.
 
 // Sunset date for the legacy v3 public API — single source of truth. Set to the
-// end of October 2026; update here if the date moves.
+// end of October 2026; update both constants together if the date moves.
 export const V3_SUNSET_DATE = "2026-10-31";
+const V3_SUNSET_HUMAN = "October 31, 2026";
 
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
-const V3_NOTICE =
-  "Langfuse v3 is deprecated; this endpoint will be removed in a future release.";
+const V3_NOTICE = `Langfuse v3 is deprecated; this endpoint will be removed on ${V3_SUNSET_HUMAN}.`;
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
 // Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).

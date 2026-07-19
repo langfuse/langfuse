@@ -9,7 +9,7 @@ service:
     get:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read span and trace data via GET /api/public/v2/observations."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, read span and trace data via GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>."
       docs: Get a specific trace
       method: GET
       path: /traces/{traceId}
@@ -36,7 +36,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read span and trace data via GET /api/public/v2/observations."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, read span and trace data via GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>."
       docs: Get list of traces
       method: GET
       path: /traces
