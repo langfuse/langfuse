@@ -34,14 +34,20 @@ progress output. Full usage and the need→command table live in the
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
   `pnpm run dx` seed path (unchanged by the CLI)
-- `agent.ts` — PR-preview agentic seeder entrypoint: an Anthropic-powered
-  agent that drives this CLI (as a subprocess, same public contract) inside
-  a preview environment when someone comments `@seeder <prompt>` on a
-  preview-labeled PR. Dispatch, credentials, and result posting live in
-  langfuse/infrastructure (`k8s/preview/README.md`, "Agentic seeder"); the
-  env contract is documented in the file header. Runtime-only and
-  preview-only — it needs `ANTHROPIC_API_KEY` at runtime, but no scenario
-  or fixture may ever depend on a model provider key (rule below stands).
+- `agent.ts` / `agent-main.ts` — PR-preview agentic seeder: an agent that
+  drives this CLI (as a subprocess, same public contract) inside a preview
+  environment when someone comments `@seeder <prompt>` on a preview-labeled
+  PR. `agent.ts` is a thin bootstrap (imports nothing from `src/`, emits the
+  result block on any failure) that dynamically loads `agent-main.ts` — the
+  same split as `cli.ts`/`cli-main.ts`, so an env-schema failure still
+  reports cleanly. The LLM runs through `@langfuse/shared`'s own
+  `generateLLMText` (the AI SDK boundary that also backs LLM-as-a-judge) —
+  the repo's single Anthropic path, not a separate SDK. Dispatch,
+  credentials, and result posting live in langfuse/infrastructure
+  (`k8s/preview/README.md`, "Agentic seeder"); the env contract is in the
+  `agent-main.ts` header. Runtime-only and preview-only — it needs
+  `ANTHROPIC_API_KEY` at runtime, but no scenario or fixture may ever depend
+  on a model provider key (rule below stands).
 - `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes
