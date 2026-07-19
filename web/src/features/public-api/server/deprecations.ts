@@ -15,10 +15,14 @@ const V3_NOTICE =
   "Langfuse v3 is deprecated; this endpoint will be removed in a future release.";
 
 // v4 replacement endpoints, referenced by both the message and `replacement`.
+// Placeholder style matches rateLimitUpgradePaths (<from>, <to>, filters).
 const REPLACEMENT = {
-  observationsV2: "GET /api/public/v2/observations",
+  observationsV2:
+    "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+  observationsV2BySession:
+    "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
   scoresV3: "GET /api/public/v3/scores",
-  metricsV2: "GET /api/public/v2/metrics",
+  metricsV2: "GET /api/public/v2/metrics?query=<urlencoded json query>",
   otelTraces: "POST /api/public/otel/v1/traces",
 } as const;
 
@@ -48,8 +52,8 @@ export const TRACES_DEPRECATION: ApiDeprecationInfo = {
 
 // Sessions have no drop-in successor; filter observations v2 by session instead.
 export const SESSIONS_DEPRECATION: ApiDeprecationInfo = {
-  message: `${V3_NOTICE} In Langfuse v4, read session data via ${REPLACEMENT.observationsV2} filtered by sessionId.`,
-  replacement: REPLACEMENT.observationsV2,
+  message: `${V3_NOTICE} In Langfuse v4, read session data via ${REPLACEMENT.observationsV2BySession}.`,
+  replacement: REPLACEMENT.observationsV2BySession,
   docsUrl: DOCS.observationsV2,
   sunsetAt: V3_SUNSET_DATE,
 };

@@ -45,7 +45,7 @@ describe("public API deprecation signal", () => {
     expect(response.status).toBe(200);
     expect(response.body._deprecation).toEqual(OBSERVATIONS_V1_DEPRECATION);
     expect(response.body._deprecation?.replacement).toBe(
-      "GET /api/public/v2/observations",
+      "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
     );
   });
 
@@ -139,7 +139,7 @@ describe("public API deprecation signal", () => {
     const deprecation = (response.body as Record<string, unknown>)._deprecation;
     expect(deprecation).toEqual(SESSIONS_DEPRECATION);
     expect((deprecation as Record<string, unknown>)?.replacement).toBe(
-      "GET /api/public/v2/observations",
+      "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
     );
   });
 });
