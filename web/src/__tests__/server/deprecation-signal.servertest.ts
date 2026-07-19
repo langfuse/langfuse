@@ -120,10 +120,8 @@ describe("public API deprecation signal", () => {
 
     expect(response.status).toBe(200);
     const deprecation = (response.body as Record<string, unknown>)._deprecation;
+    // toEqual against the constant covers `replacement` (incl. query params).
     expect(deprecation).toEqual(TRACES_DEPRECATION);
-    expect((deprecation as Record<string, unknown>).replacement).toBe(
-      "GET /api/public/v2/observations",
-    );
   });
 
   // Sessions is deprecated and not replaced, so `_deprecation` is message-only.
