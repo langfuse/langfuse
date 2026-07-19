@@ -18,6 +18,7 @@ import {
   TRACES_DEPRECATION,
   V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
+import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
 
 // LFE-10895: legacy (v3-data-model) endpoints attach a top-level `_deprecation`
@@ -48,7 +49,7 @@ describe("public API deprecation signal", () => {
     );
   });
 
-  it("omits empty `_deprecation` fields but carries the committed sunset date", async () => {
+  it("carries the docs URL and the committed sunset date", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,
       "GET",
@@ -57,8 +58,10 @@ describe("public API deprecation signal", () => {
       auth,
     );
 
-    // docsUrl has no value yet → omitted (never emitted as null).
-    expect(response.body._deprecation).not.toHaveProperty("docsUrl");
+    // docsUrl points at the migration guidance for the endpoint family.
+    expect(response.body._deprecation?.docsUrl).toBe(
+      OBSERVATIONS_API_V2_DOCS_URL,
+    );
     // sunsetAt is committed → present.
     expect(response.body._deprecation?.sunsetAt).toBe(V3_SUNSET_DATE);
   });
@@ -135,6 +138,8 @@ describe("public API deprecation signal", () => {
     expect(response.status).toBe(200);
     const deprecation = (response.body as Record<string, unknown>)._deprecation;
     expect(deprecation).toEqual(SESSIONS_DEPRECATION);
-    expect(deprecation).not.toHaveProperty("replacement");
+    expect((deprecation as Record<string, unknown>)?.replacement).toBe(
+      "GET /api/public/v2/observations",
+    );
   });
 });

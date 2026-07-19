@@ -1,4 +1,5 @@
 import { type ApiDeprecationInfo } from "@langfuse/shared";
+import { OBSERVATIONS_API_V2_DOCS_URL } from "./rateLimitUpgradePaths";
 
 // LFE-10895. Family-level deprecation signals for legacy (v3) public API
 // endpoints. Attach one via the `deprecation` route-config field; the response
@@ -21,9 +22,19 @@ const REPLACEMENT = {
   otelTraces: "POST /api/public/otel/v1/traces",
 } as const;
 
+// Migration guidance pages; each family points at the page that documents its
+// replacement (all pages also serve markdown to agents via the `.md` routes).
+const DOCS = {
+  observationsV2: OBSERVATIONS_API_V2_DOCS_URL,
+  metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
+  compatibility: "https://langfuse.com/docs/compatibility",
+  otel: "https://langfuse.com/integrations/native/opentelemetry",
+} as const;
+
 export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Use ${REPLACEMENT.observationsV2} instead.`,
   replacement: REPLACEMENT.observationsV2,
+  docsUrl: DOCS.observationsV2,
   sunsetAt: V3_SUNSET_DATE,
 };
 
@@ -31,24 +42,29 @@ export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
 export const TRACES_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} In Langfuse v4, read span and trace data via ${REPLACEMENT.observationsV2}.`,
   replacement: REPLACEMENT.observationsV2,
+  docsUrl: DOCS.observationsV2,
   sunsetAt: V3_SUNSET_DATE,
 };
 
-// Sessions have no replacement.
+// Sessions have no drop-in successor; filter observations v2 by session instead.
 export const SESSIONS_DEPRECATION: ApiDeprecationInfo = {
-  message: `${V3_NOTICE} It has no replacement.`,
+  message: `${V3_NOTICE} In Langfuse v4, read session data via ${REPLACEMENT.observationsV2} filtered by sessionId.`,
+  replacement: REPLACEMENT.observationsV2,
+  docsUrl: DOCS.observationsV2,
   sunsetAt: V3_SUNSET_DATE,
 };
 
 export const SCORES_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Use ${REPLACEMENT.scoresV3} instead.`,
   replacement: REPLACEMENT.scoresV3,
+  docsUrl: DOCS.compatibility,
   sunsetAt: V3_SUNSET_DATE,
 };
 
 export const METRICS_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Use ${REPLACEMENT.metricsV2} instead.`,
   replacement: REPLACEMENT.metricsV2,
+  docsUrl: DOCS.metricsV2,
   sunsetAt: V3_SUNSET_DATE,
 };
 
@@ -56,6 +72,7 @@ export const METRICS_DEPRECATION: ApiDeprecationInfo = {
 export const LEGACY_INGESTION_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Send data via the OpenTelemetry endpoint at ${REPLACEMENT.otelTraces} instead.`,
   replacement: REPLACEMENT.otelTraces,
+  docsUrl: DOCS.otel,
   sunsetAt: V3_SUNSET_DATE,
 };
 

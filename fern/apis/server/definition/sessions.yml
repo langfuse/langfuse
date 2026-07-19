@@ -9,7 +9,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. It has no replacement."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read session data via GET /api/public/v2/observations filtered by sessionId."
       docs: |
         Get sessions.
 
@@ -42,7 +42,7 @@ service:
     get:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. It has no replacement."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read session data via GET /api/public/v2/observations filtered by sessionId."
       docs: |
         Get a session.
 
