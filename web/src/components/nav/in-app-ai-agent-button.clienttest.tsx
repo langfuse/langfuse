@@ -77,4 +77,35 @@ describe("InAppAiAgentButton", () => {
     expect(mocks.openAssistant).toHaveBeenCalledTimes(1);
     expect(mocks.setOpen).toHaveBeenCalledWith(false);
   });
+
+  it("no-ops without throwing when event.key is undefined", () => {
+    render(<InAppAiAgentButton />);
+
+    // Synthetic / autofill keydown events can arrive without a `key`
+    // (undefined); jsdom otherwise defaults it to "". The handler must not
+    // call `.toLowerCase()` on undefined. dispatchEvent does not rethrow a
+    // listener exception — it reports it as a global error event — so assert
+    // on that as well as the direct throw.
+    const onError = vi.fn();
+    window.addEventListener("error", onError);
+
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      metaKey: true,
+    });
+    Object.defineProperty(event, "key", {
+      value: undefined,
+      configurable: true,
+    });
+
+    expect(() => fireEvent(document, event)).not.toThrow();
+
+    window.removeEventListener("error", onError);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+    expect(mocks.openAssistant).not.toHaveBeenCalled();
+    expect(mocks.setOpen).not.toHaveBeenCalled();
+  });
 });
