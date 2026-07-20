@@ -262,22 +262,17 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                       role="combobox"
                       className="flex-1 justify-between text-left font-normal"
                     >
+                      {/* Selected name renders plain — level tags show only in
+                          the option rows below (design call: a selected filter
+                          needs no level tag, and long names must truncate). */}
                       <span
                         className={cn(
-                          "flex min-w-0 items-center gap-1.5",
+                          "min-w-0 truncate",
                           !filter.key && "text-muted-foreground",
                         )}
+                        title={filter.key || keyPlaceholder}
                       >
-                        <span
-                          className="truncate"
-                          title={filter.key || keyPlaceholder}
-                        >
-                          {filter.key || keyPlaceholder}
-                        </span>
-                        {filter.key &&
-                          keyLevels?.[filter.key]?.map((level) => (
-                            <ScoreTag key={level} level={level} />
-                          ))}
+                        {filter.key || keyPlaceholder}
                       </span>
                       <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
