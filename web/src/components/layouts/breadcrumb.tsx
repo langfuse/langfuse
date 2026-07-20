@@ -98,9 +98,6 @@ const BreadcrumbComponent = ({
                 : { state: "loading" })}
               canCreateOrganizations={!!canCreateOrganizations}
               getOrgPath={getOrgPath}
-              onGoToOrganizationSettings={(orgId) => {
-                return router.push(`/organization/${orgId}/settings`);
-              }}
             />
           </DropdownMenu>
         )}
@@ -126,9 +123,6 @@ const BreadcrumbComponent = ({
                   : { state: "loading" })}
                 canCreateProjects={!!canCreateProjects}
                 getProjectPath={getProjectPath}
-                onGoToProjectSettings={(projectId) => {
-                  return router.push(`/project/${projectId}/settings`);
-                }}
               />
             </DropdownMenu>
           </>

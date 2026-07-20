@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import {
   DropdownMenu,
@@ -35,7 +34,6 @@ const meta = preview.meta({
     organizationId: "org-acme",
     canCreateProjects: true,
     getProjectPath: (projectId) => `/project/${projectId}`,
-    onGoToProjectSettings: fn(),
   },
   render: (args) => (
     <DropdownMenu defaultOpen>
