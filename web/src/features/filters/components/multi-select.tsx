@@ -210,7 +210,7 @@ export function MultiSelect({
                     >
                       <Check className="h-4 w-4" />
                     </div>
-                    <div className="font-medium">
+                    <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
                     </div>
                   </InputCommandItem>

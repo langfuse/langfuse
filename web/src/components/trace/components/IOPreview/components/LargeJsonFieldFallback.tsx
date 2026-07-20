@@ -64,7 +64,7 @@ export function LargeJsonFieldFallback({
     <div className="io-message-content">
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-foreground font-medium">{title}</span>
+          <span className="text-foreground font-bold">{title}</span>
           <span>
             {compactNumberFormatter(charCount, 1)} characters — too large to
             render in JSON view
@@ -72,8 +72,8 @@ export function LargeJsonFieldFallback({
         </div>
         <p className="text-muted-foreground text-xs">
           Rendering this much JSON at once freezes the tab. Use the{" "}
-          <span className="font-medium">Formatted</span> or{" "}
-          <span className="font-medium">JSON Beta</span> view for the full
+          <span className="font-bold">Formatted</span> or{" "}
+          <span className="font-bold">JSON Beta</span> view for the full
           payload, or download it below.
         </p>
         <pre className="bg-muted/50 max-h-40 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">

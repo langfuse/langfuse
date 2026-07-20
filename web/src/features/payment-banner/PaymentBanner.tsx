@@ -96,7 +96,7 @@ export function PaymentBanner() {
       <div className="flex items-center gap-3">
         <AlertCircle className="h-4 w-4 shrink-0" />
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-          <span className="text-sm font-semibold">Billing Issue:</span>
+          <span className="text-sm font-bold">Billing Issue:</span>
           <span className="text-sm">
             {`We have problems collecting subscription payment for your organization '${organization.name}'. Please update your payment information to continue using Langfuse.`}
           </span>

@@ -130,7 +130,7 @@ export function WidgetHeader({
   return (
     <div className={cn("mb-4", className)}>
       <div className="flex items-center justify-between">
-        <span className="truncate font-medium" title={title}>
+        <span className="truncate font-bold" title={title}>
           {title}
         </span>
         {actions && <div className="flex space-x-2">{actions}</div>}

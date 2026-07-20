@@ -408,7 +408,7 @@ export const CreateOrEditAnnotationQueueButton = ({
                                 ) : (
                                   <ChevronRight className="text-muted-foreground h-4 w-4" />
                                 )}
-                                <span className="text-sm font-medium">
+                                <span className="text-sm font-bold">
                                   User Assignment
                                 </span>
                               </div>

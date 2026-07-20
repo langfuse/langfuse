@@ -337,8 +337,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // side. The body clips its own content instead.
                 "bg-modal top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
                 // Soft shadow cast leftward (toward the table) to lift the peek
-                // off the content behind it.
-                "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
+                // off the content behind it. Token-backed so it stays a DARK
+                // cast in both modes: foreground is near-black in light mode,
+                // and background is near-black in dark mode (where foreground
+                // would flip to a white glow).
+                "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
                 panel.isResizing && "select-none",
               )}

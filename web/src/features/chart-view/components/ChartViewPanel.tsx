@@ -70,7 +70,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
       {/* Canvas */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-foreground text-sm font-medium">
+          <div className="text-foreground text-sm font-bold">
             {describeConfig(config)}
           </div>
           {chartActions}
@@ -99,7 +99,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
       {open ? (
         <div className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Visualize</span>
+            <span className="text-sm font-bold">Visualize</span>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -158,7 +158,7 @@ function PanelField({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs font-medium">{label}</span>
+      <span className="text-muted-foreground text-xs font-bold">{label}</span>
       {children}
     </div>
   );

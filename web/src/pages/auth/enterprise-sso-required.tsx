@@ -188,7 +188,7 @@ export default function EnterpriseSsoRequiredPage() {
             </form>
           </Form>
           {error ? (
-            <div className="text-destructive mt-4 text-center text-sm font-medium">
+            <div className="text-destructive mt-4 text-center text-sm font-bold">
               {error}
               <br />
               Contact{" "}

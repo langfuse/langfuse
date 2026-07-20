@@ -64,7 +64,6 @@ const BUTTON_VARIANTS: ButtonProps["variant"][] = [
   "destructive",
   "destructive-secondary",
   "outline",
-  "outline-solid",
   "secondary",
   "tertiary",
   "ghost",
@@ -130,7 +129,7 @@ function Section({
 }) {
   return (
     <section className="mt-8">
-      <h2 className="text-foreground text-lg font-semibold">{title}</h2>
+      <h2 className="text-foreground text-lg font-bold">{title}</h2>
       {note && <p className="text-muted-foreground mt-1 text-xs">{note}</p>}
       <div className="mt-3">{children}</div>
     </section>
@@ -346,7 +345,7 @@ function ComponentGalleryDoc() {
                 className={`inline-block h-3 w-3 rounded-full ${style.markerClass}`}
               />
               <span
-                className={`rounded-md border px-2 py-0.5 text-xs font-medium ${style.badgeClass}`}
+                className={`rounded-md border px-2 py-0.5 text-xs font-bold ${style.badgeClass}`}
               >
                 {EXPERIMENT_STYLE_LABELS[i]}
               </span>

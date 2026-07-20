@@ -70,7 +70,7 @@ export const MockEventsTable = React.memo(function MockEventsTable({
                     {e.type}
                   </Badge>
                 </TableCell>
-                <TableCell className="py-1.5 font-medium">{e.name}</TableCell>
+                <TableCell className="py-1.5 font-bold">{e.name}</TableCell>
                 <TableCell className="text-muted-foreground py-1.5 font-mono">
                   {e.model ?? "–"}
                 </TableCell>

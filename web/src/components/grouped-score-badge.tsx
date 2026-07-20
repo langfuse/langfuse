@@ -168,7 +168,7 @@ export const GroupedScoreBadges = <
         <HoverCard>
           <HoverCardTrigger className="inline-block rounded-sm">
             <Badge
-              className={`cursor-pointer ${compact ? "px-0.5 py-0 leading-tight" : "px-1"} text-xs font-medium${badgeClassName ? " " + badgeClassName : ""}`}
+              className={`cursor-pointer ${compact ? "px-0.5 py-0 leading-tight" : "px-1"} text-xs font-bold${badgeClassName ? " " + badgeClassName : ""}`}
               variant="tertiary"
             >
               +{hiddenScores.length}

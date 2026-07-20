@@ -111,7 +111,7 @@ const WidgetCard = ({
   data: DataPoint[];
 }) => (
   <div className="bg-background flex h-[300px] w-[480px] flex-col rounded-lg border p-4">
-    <span className="truncate font-medium">{title}</span>
+    <span className="truncate font-bold">{title}</span>
     <div className="text-muted-foreground mb-2 truncate text-sm">
       {description}
     </div>
@@ -305,7 +305,7 @@ export const LegendDefaultVisibility = meta.story({
 export const TooltipEdgePlacement = meta.story({
   render: () => (
     <div className="bg-background w-[95vw] rounded-md border p-3">
-      <div className="mb-1 text-sm font-medium">
+      <div className="mb-1 text-sm font-bold">
         Hover near the right edge — long names, viewport-wide chart
       </div>
       <div className="h-[300px] w-full">
