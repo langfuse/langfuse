@@ -244,10 +244,15 @@ export function DashboardGrid({
           useCSSTransforms
         >
           {widgets.map((widget) => (
+            // h-full (not max-h-full) makes the react-grid tile's definite pixel
+            // height propagate down so height-aware widgets (fit-to-tile bar
+            // cards) measure a layout-guaranteed box rather than their own
+            // content; min-h-0 lets that box shrink so it scrolls internally
+            // instead of pushing past the tile. (LFE-11060)
             <div
               key={widget.id}
               data-placement-id={widget.id}
-              className="max-h-full max-w-full"
+              className="h-full min-h-0 max-w-full"
             >
               {renderPlacement(widget)}
             </div>
