@@ -113,86 +113,97 @@ const dropdownMenuScrollGradientVariants = cva(
   },
 );
 
-const DropdownMenuContent = React.forwardRef<
+type DropdownMenuContentProps = React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.Content
+> & {
+  header?: React.ReactNode;
+  maxHeight?: React.CSSProperties["maxHeight"];
+};
+
+const DropdownContentWrapper = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
-    header?: React.ReactNode;
-    maxHeight?: React.CSSProperties["maxHeight"];
+  Omit<DropdownMenuContentProps, "children"> & {
+    children:
+      | React.ReactNode
+      | ((gradients: { top: boolean; bottom: boolean }) => React.ReactNode);
   }
 >(
   (
     { children, className, header, sideOffset = 4, maxHeight, style, ...props },
     ref,
   ) => {
-    // Route into the `popover` overlay layer (above `modal`). null until mounted
-    // → falls back to <body>, SSR-parity. Layer order, not z-index, stacks it.
     const container = useLayerContainer("popover");
+    const { register, recompute, top, bottom } = useScrollGradients<
+      React.ComponentRef<typeof DropdownMenuPrimitive.Content>
+    >(maxHeight !== undefined);
+    const content =
+      typeof children === "function" ? children({ top, bottom }) : children;
 
-    const DropdownContentWrapper = React.useCallback(
-      function DropdownContentWrapper({
-        children: wrapperChildren,
-      }: {
-        children:
-          | React.ReactNode
-          | ((gradients: { top: boolean; bottom: boolean }) => React.ReactNode);
-      }) {
-        const { register, recompute, top, bottom } = useScrollGradients<
-          React.ComponentRef<typeof DropdownMenuPrimitive.Content>
-        >(maxHeight !== undefined);
-        const content =
-          typeof wrapperChildren === "function"
-            ? wrapperChildren({ top, bottom })
-            : wrapperChildren;
-
-        return (
-          <DropdownMenuPrimitive.Portal container={container}>
-            <DropdownMenuPrimitive.Content
-              ref={(element) => {
-                register(element);
-                if (typeof ref === "function") {
-                  ref(element);
-                } else if (ref) {
-                  ref.current = element;
-                }
-              }}
-              sideOffset={sideOffset}
-              className={cn(
-                dropdownMenuContentVariants({
-                  hasHeader: header != null,
-                  className,
-                }),
-                maxHeight !== undefined &&
-                  header == null &&
-                  dropdownMenuScrollGradientVariants({
-                    hasHeader: false,
-                    showTopGradient: top,
-                    showBottomGradient: bottom,
-                  }),
-              )}
-              style={
-                maxHeight === undefined
-                  ? style
-                  : { ...style, maxHeight, overflowY: "auto" }
-              }
-              {...props}
-              onScroll={(event) => {
-                recompute();
-                props.onScroll?.(event);
-              }}
-            >
-              {content}
-            </DropdownMenuPrimitive.Content>
-          </DropdownMenuPrimitive.Portal>
-        );
-      },
-      [className, container, header, maxHeight, props, ref, sideOffset, style],
+    return (
+      <DropdownMenuPrimitive.Portal container={container}>
+        <DropdownMenuPrimitive.Content
+          ref={(element) => {
+            register(element);
+            if (typeof ref === "function") {
+              ref(element);
+            } else if (ref) {
+              ref.current = element;
+            }
+          }}
+          sideOffset={sideOffset}
+          className={cn(
+            dropdownMenuContentVariants({
+              hasHeader: header != null,
+              className,
+            }),
+            maxHeight !== undefined &&
+              header == null &&
+              dropdownMenuScrollGradientVariants({
+                hasHeader: false,
+                showTopGradient: top,
+                showBottomGradient: bottom,
+              }),
+          )}
+          style={
+            maxHeight === undefined
+              ? style
+              : { ...style, maxHeight, overflowY: "auto" }
+          }
+          {...props}
+          onScroll={(event) => {
+            recompute();
+            props.onScroll?.(event);
+          }}
+        >
+          {content}
+        </DropdownMenuPrimitive.Content>
+      </DropdownMenuPrimitive.Portal>
     );
+  },
+);
+DropdownContentWrapper.displayName = "DropdownContentWrapper";
 
+const DropdownMenuContent = React.forwardRef<
+  React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
+  DropdownMenuContentProps
+>(
+  (
+    { children, className, header, sideOffset = 4, maxHeight, style, ...props },
+    ref,
+  ) => {
     if (header != null) {
       // The sticky header sits outside the padded body so its background and
       // border cover the full width of the scroll container.
       return (
-        <DropdownContentWrapper>
+        <DropdownContentWrapper
+          ref={ref}
+          className={className}
+          header={header}
+          sideOffset={sideOffset}
+          maxHeight={maxHeight}
+          style={style}
+          {...props}
+        >
           {({ top, bottom }) => (
             <>
               <div
@@ -222,7 +233,18 @@ const DropdownMenuContent = React.forwardRef<
       );
     }
 
-    return <DropdownContentWrapper>{children}</DropdownContentWrapper>;
+    return (
+      <DropdownContentWrapper
+        ref={ref}
+        className={className}
+        sideOffset={sideOffset}
+        maxHeight={maxHeight}
+        style={style}
+        {...props}
+      >
+        {children}
+      </DropdownContentWrapper>
+    );
   },
 );
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
@@ -326,26 +348,30 @@ const DropdownMenuItemWithSecondaryAction = (
   }
 
   return (
-    <DropdownMenuItem className="h-8 p-0">
+    <div className="flex h-8">
       {props.href !== undefined ? (
-        <Link
-          href={props.href}
-          className={dropdownMenuItemPrimaryActionVariants()}
-        >
-          {primaryContent}
-        </Link>
+        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
+          <Link
+            href={props.href}
+            className={dropdownMenuItemPrimaryActionVariants()}
+          >
+            {primaryContent}
+          </Link>
+        </DropdownMenuItem>
       ) : (
-        <button
-          type="button"
-          className={dropdownMenuItemPrimaryActionVariants()}
-          onClick={props.onClick}
-        >
-          {primaryContent}
-        </button>
+        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
+          <button
+            type="button"
+            className={dropdownMenuItemPrimaryActionVariants()}
+            onClick={props.onClick}
+          >
+            {primaryContent}
+          </button>
+        </DropdownMenuItem>
       )}
 
       {secondaryActionContent}
-    </DropdownMenuItem>
+    </div>
   );
 };
 

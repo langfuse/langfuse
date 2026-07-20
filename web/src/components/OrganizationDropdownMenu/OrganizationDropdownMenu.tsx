@@ -29,7 +29,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
   return (
     <DropdownMenuContent align="start" header="Organizations" maxHeight="15rem">
       {props.state === "loaded" ? (
-        props.organizations
+        [...props.organizations]
           .sort((a, b) => {
             // sort demo org to the bottom
             const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
