@@ -723,8 +723,13 @@ export async function* queryClickhouseWithProgress<T>(
     kind: SpanKind.CLIENT,
   });
 
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
+
   try {
     setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
@@ -737,6 +742,7 @@ export async function* queryClickhouseWithProgress<T>(
           },
           format: "JSONEachRowWithProgress",
           span,
+          queryId,
         }),
       )
       .catch((error) => {
@@ -752,9 +758,18 @@ export async function* queryClickhouseWithProgress<T>(
       }
     }
   } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(
+            error.errorType,
+            enriched,
+            normalizedTags,
+          );
+    }
     throw ClickHouseResourceError.wrapIfResourceError(
-      error as Error,
+      enrichWithQueryId(error as Error, queryId),
       normalizedTags,
     );
   } finally {

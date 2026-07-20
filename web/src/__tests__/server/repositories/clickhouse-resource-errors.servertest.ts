@@ -3,6 +3,7 @@ import {
   queryClickhouseStream,
   queryClickhouseStreamRawText,
   queryClickhouseExecRaw,
+  queryClickhouseWithProgress,
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
@@ -184,6 +185,25 @@ describe("ClickHouse Resource Error Handling", () => {
       });
 
       const rows: string[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseWithProgress", () => {
+    it("should include query_id exactly once in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseWithProgress({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: unknown[] = [];
       try {
         for await (const item of generator) {
           rows.push(item);
