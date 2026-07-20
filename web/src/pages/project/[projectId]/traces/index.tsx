@@ -10,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { MobileBottomBarDemoActions } from "@/src/components/layouts/mobile-bottom-bar/MobileBottomBarDemoActions";
 
 export default function Traces() {
   const router = useRouter();
@@ -87,6 +88,9 @@ export default function Traces() {
               },
       }}
     >
+      {/* LFE-11067 demo: portal page actions into the mobile bottom bar.
+          Renders nothing itself — only visible below `md`, inside the bar. */}
+      <MobileBottomBarDemoActions />
       {isInitializing ? (
         <>
           {/* Wait for the beta flag before mounting either table. Otherwise the
