@@ -91,17 +91,10 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-8 w-full text-sm font-normal"
-              asChild
-            >
-              <Link href={createProjectRoute(organizationId)}>
-                <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                New Project
-              </Link>
-            </Button>
+            <Link href={createProjectRoute(organizationId)}>
+              <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              New Project
+            </Link>
           </DropdownMenuItem>
         </>
       )}

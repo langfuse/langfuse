@@ -102,17 +102,10 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-8 w-full text-sm font-normal"
-              asChild
-            >
-              <Link href={createOrganizationRoute}>
-                <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                New Organization
-              </Link>
-            </Button>
+            <Link href={createOrganizationRoute}>
+              <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              New Organization
+            </Link>
           </DropdownMenuItem>
         </>
       )}
