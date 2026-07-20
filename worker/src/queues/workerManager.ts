@@ -60,7 +60,7 @@ export class WorkerManager {
 
   // Empty failed set emits 0 so monitors see the gauge reset after a DLQ
   // drain.
-  private static computeDlqOldestAgeMs(
+  public static computeDlqOldestAgeMs(
     jobs: (Job | undefined)[],
     nowMs: number,
   ): number {

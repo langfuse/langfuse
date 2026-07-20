@@ -19,11 +19,10 @@ const extractProjectId = (data: unknown): string | undefined =>
   ).extractProjectId({ data });
 
 const computeDlqOldestAgeMs = (jobs: unknown[], nowMs: number): number =>
-  (
-    WorkerManager as unknown as {
-      computeDlqOldestAgeMs(jobs: unknown[], nowMs: number): number;
-    }
-  ).computeDlqOldestAgeMs(jobs, nowMs);
+  WorkerManager.computeDlqOldestAgeMs(
+    jobs as Parameters<typeof WorkerManager.computeDlqOldestAgeMs>[0],
+    nowMs,
+  );
 
 const resolveMetricInfo = (queueName: QueueName) =>
   (

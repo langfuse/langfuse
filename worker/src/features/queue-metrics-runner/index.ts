@@ -89,6 +89,24 @@ export class QueueMetricsRunner extends PeriodicRunner {
       const metricBase = convertQueueNameToMetricName(queueName);
 
       promises.push(
+        queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            recordGauge(
+              metricBase + ".dlq_oldest_age",
+              WorkerManager.computeDlqOldestAgeMs(jobs, Date.now()),
+              { unit: "milliseconds" },
+            );
+          })
+          .catch((err) => {
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${queueName}`,
+              err,
+            );
+          }),
+      );
+
+      promises.push(
         collectDepth(queue)
           .then((depths) => {
             if (depths) {
