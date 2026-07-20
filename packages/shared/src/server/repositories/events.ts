@@ -2537,6 +2537,95 @@ export const getObservationsBatchIOFromEventsTable = async <
 };
 
 /**
+ * The single observation IO fields that {@link streamObservationIOFieldFromEventsTable}
+ * can serve. `input`/`output` are raw `String` columns; `metadata` is
+ * reconstructed from the `metadata_names`/`metadata_values` arrays.
+ */
+export const OBSERVATION_IO_STREAM_FIELDS = [
+  "input",
+  "output",
+  "metadata",
+] as const;
+
+export type ObservationIoStreamField =
+  (typeof OBSERVATION_IO_STREAM_FIELDS)[number];
+
+/**
+ * Stream ONE observation's single IO field (input | output | metadata) straight
+ * from ClickHouse to the caller as raw bytes, WITHOUT materializing the whole
+ * value in the Node process. Uses `FORMAT RawBLOB`, so ClickHouse emits exactly
+ * the field's bytes (no JSONEachRow envelope) and {@link queryClickhouseExecRaw}
+ * hands back the live HTTP body as a `Readable` for the caller to pipe onward.
+ * This is the transport primitive behind the lazy/streaming large-JSON viewer
+ * (LFE-11081): the browser can fetch a multi-hundred-MB field as a byte stream
+ * instead of forcing the server to buffer + JSON-serialize it in one shot.
+ *
+ * SECURITY: strictly tenant-scoped. The read is pinned to a single
+ * (project_id, trace_id, span_id) via parameterized predicates, so it can only
+ * ever return bytes for that one observation inside that one project — a wrong
+ * projectId yields zero rows (zero bytes). `field` is NOT interpolated user
+ * input: it selects from a fixed, closed set of SQL expressions. Callers MUST
+ * still authorize the (projectId, traceId) pair before calling — this function
+ * performs data isolation, not request authorization.
+ *
+ * The ±1s window around `startTime` only prunes the primary key
+ * (project_id, toStartOfMinute(start_time), xxHash32(trace_id)); it is a
+ * performance hint, never an authorization control.
+ */
+export const streamObservationIOFieldFromEventsTable = (opts: {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+  field: ObservationIoStreamField;
+  /** The observation's startTime; bounds the read for primary-key pruning. */
+  startTime: Date;
+}) => {
+  const minTimestamp = new Date(opts.startTime.getTime() - 1000);
+  const maxTimestamp = new Date(opts.startTime.getTime() + 1000);
+
+  // Closed set of SQL expressions keyed by the validated `field` enum — never
+  // string-interpolated user input. input/output are raw String columns;
+  // metadata is rebuilt into a JSON object string so it streams as one column.
+  const fieldSelect: Record<ObservationIoStreamField, string> = {
+    input: "e.input",
+    output: "e.output",
+    metadata:
+      "toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))",
+  };
+
+  const query = `
+    SELECT ${fieldSelect[opts.field]} AS field
+    FROM events_full e
+    WHERE e.project_id = {projectId: String}
+      AND e.trace_id = {traceId: String}
+      AND e.span_id = {observationId: String}
+      AND e.start_time >= {minTimestamp: DateTime64(3)}
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}
+    ORDER BY e.event_ts DESC
+    LIMIT 1
+  `;
+
+  // FORMAT RawBLOB emits the selected String column's bytes with no escaping or
+  // delimiters; with LIMIT 1 that is exactly this observation's field value.
+  return queryClickhouseExecRaw({
+    query,
+    format: "RawBLOB",
+    params: {
+      projectId: opts.projectId,
+      traceId: opts.traceId,
+      observationId: opts.observationId,
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    },
+    tags: {
+      projectId: opts.projectId,
+      route: "observation-io-stream",
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+};
+
+/**
  * Full raw I/O + metadata for ONE observation, scoped to a session (the
  * session-detail download fallback for payloads too large to render inline,
  * LFE-10958). Callers are session-authorized (public sessions included), so
