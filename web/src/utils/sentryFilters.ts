@@ -141,6 +141,14 @@ function coreMessage(value: string): string {
  * signature is left out. Real outages behind these client amplifications remain
  * observable server-side (request tracing / logs).
  *
+ * Event shape: message-signature rules are checked against the exception value
+ * AND the message-event fields (`event.message` / `event.logentry.message`),
+ * because console-origin noise (NextAuth `CLIENT_FETCH_ERROR`, PostHog notices,
+ * the Next.js `_error.js` artifact) is captured by `captureConsoleIntegration`
+ * as a MESSAGE event with NO `event.exception` (no stacktrace is attached by
+ * default). The `type`-guarded rules stay exception-only — message events carry
+ * no exception `type`, and those artifacts always arrive as thrown exceptions.
+ *
  * DELIBERATELY NOT dropped here (needs separate, verified handling — do not add
  * without confirming the real error is still captured elsewhere):
  *  - the generic prod error-boundary string `A client-side exception has
@@ -154,53 +162,69 @@ function coreMessage(value: string): string {
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
-  const value = exception?.value;
-  if (typeof value !== "string" || value.length === 0) return false;
-  const type = exception?.type;
+  const exceptionType = exception?.type;
+  const exceptionValue = exception?.value;
+  const hasExceptionValue =
+    typeof exceptionValue === "string" && exceptionValue.length > 0;
 
-  // --- A. Transport / connectivity (whole-message match after unwrapping) ---
-  const core = coreMessage(value);
-  if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
+  // The message-signature rules run against the exception value when present,
+  // otherwise the message-event text (console-origin noise has no exception).
+  const messageText =
+    (hasExceptionValue ? exceptionValue : undefined) ??
+    event.message ??
+    event.logentry?.message;
 
-  // --- A + B + C(vendor). Unambiguous framework/vendor/transport prefixes. ---
-  if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
-    return true;
+  if (typeof messageText === "string" && messageText.length > 0) {
+    const core = coreMessage(messageText);
+
+    // --- A. Transport / connectivity (whole-message match after unwrapping) ---
+    if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
+
+    // --- A + B + C(vendor). Unambiguous framework/vendor/transport prefixes. ---
+    if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+      return true;
+    }
+
+    // --- A. Server returned an HTML error page where JSON was expected. ---
+    // Requires the JSON-parse signature (`is not valid JSON`) AND an HTML body
+    // marker, so it stays a "parsed an HTML error page as JSON" transport
+    // artifact and does NOT overlap the chunk-load / stale-deploy `SyntaxError`
+    // family (script parsing an HTML page), which is handled separately.
+    if (
+      messageText.includes("Unexpected token '<'") &&
+      messageText.includes("<html") &&
+      messageText.includes("is not valid JSON")
+    ) {
+      return true;
+    }
+
+    // --- C. Next.js internal artifact: error boundary handed a falsy error. ---
+    if (messageText.includes("_error.js called with falsy error")) return true;
   }
 
-  // --- A. Server returned an HTML error page where JSON was expected. ---
-  // Requires the JSON-parse signature (`is not valid JSON`) AND an HTML body
-  // marker, so it stays a "parsed an HTML error page as JSON" transport artifact
-  // and does NOT overlap the chunk-load / stale-deploy `SyntaxError` family
-  // (script parsing an HTML page), which is handled separately, not dropped.
-  if (
-    value.includes("Unexpected token '<'") &&
-    value.includes("<html") &&
-    value.includes("is not valid JSON")
-  ) {
-    return true;
-  }
+  // --- C. `type`-guarded rules — exception events only (message events carry
+  // no exception `type`; these artifacts always arrive as thrown exceptions). ---
+  if (typeof exceptionValue === "string") {
+    // Expected clipboard permission denial (we already fall back). The generic
+    // `NotAllowedError` type (autoplay, fullscreen, ...) REQUIRES a clipboard
+    // marker alongside it.
+    if (
+      exceptionType === "NotAllowedError" &&
+      (exceptionValue.includes("Clipboard") ||
+        exceptionValue.includes("writeText"))
+    ) {
+      return true;
+    }
 
-  // --- C. Expected clipboard permission denial (we already fall back). ---
-  // `NotAllowedError` is generic (autoplay, fullscreen, ...), so a clipboard
-  // marker is REQUIRED alongside the type.
-  if (
-    type === "NotAllowedError" &&
-    (value.includes("Clipboard") || value.includes("writeText"))
-  ) {
-    return true;
+    // Intentional request cancellation (nav away / superseded query).
+    if (
+      exceptionType === "AbortError" &&
+      (exceptionValue.includes("signal is aborted") ||
+        exceptionValue.includes("The operation was aborted"))
+    ) {
+      return true;
+    }
   }
-
-  // --- C. Intentional request cancellation (nav away / superseded query). ---
-  if (
-    type === "AbortError" &&
-    (value.includes("signal is aborted") ||
-      value.includes("The operation was aborted"))
-  ) {
-    return true;
-  }
-
-  // --- C. Next.js internal artifact: error boundary handed a falsy error. ---
-  if (value.includes("_error.js called with falsy error")) return true;
 
   return false;
 }

@@ -193,6 +193,22 @@ function exceptionEvent(value: string, type = "Error"): ErrorEvent {
   } as ErrorEvent;
 }
 
+/**
+ * Build the shape `captureConsoleIntegration` produces for a string
+ * `console.error(...)` with `attachStacktrace` unset (the default): a MESSAGE
+ * event with `event.message` and NO `event.exception`. This is how the biggest
+ * console-origin families (NextAuth CLIENT_FETCH_ERROR, PostHog notices, the
+ * Next.js `_error.js` artifact) actually reach `beforeSend` in production.
+ */
+function messageEvent(message: string): ErrorEvent {
+  return { message } as ErrorEvent;
+}
+
+/** Same, but the text lives on `event.logentry.message` (defensive fallback). */
+function logentryEvent(message: string): ErrorEvent {
+  return { logentry: { message } } as ErrorEvent;
+}
+
 describe("isDenylistedNoiseEvent", () => {
   describe("A. drops browser/transport failures (whole-message match)", () => {
     it("drops Chrome 'Failed to fetch'", () => {
@@ -244,11 +260,23 @@ describe("isDenylistedNoiseEvent", () => {
   });
 
   describe("B. drops NextAuth session-poll CLIENT_FETCH_ERROR", () => {
-    it("drops the [next-auth][error][CLIENT_FETCH_ERROR] log", () => {
+    // NextAuth logs a STRING via console.error, so this arrives as a MESSAGE
+    // event (no exception) — the shape captureConsoleIntegration produces.
+    it("drops the [next-auth][error][CLIENT_FETCH_ERROR] log (message event)", () => {
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent(
+          messageEvent(
             "[next-auth][error][CLIENT_FETCH_ERROR] https://cloud.langfuse.com/api/auth/session Failed to fetch",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops it when the text lives on event.logentry.message", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          logentryEvent(
+            "[next-auth][error][CLIENT_FETCH_ERROR] https://cloud.langfuse.com/api/auth/session Load failed",
           ),
         ),
       ).toBe(true);
@@ -280,19 +308,39 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
-    it("drops a third-party [PostHog.js] notice", () => {
+    // PostHog and the Next.js artifact also arrive as MESSAGE events (string
+    // console.error), so assert against that production shape.
+    it("drops a third-party [PostHog.js] notice (message event)", () => {
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent("[PostHog.js] was already loaded elsewhere."),
+          messageEvent("[PostHog.js] was already loaded elsewhere."),
         ),
       ).toBe(true);
     });
 
-    it("drops the Next.js '_error.js called with falsy error' artifact", () => {
+    it("drops the Next.js '_error.js called with falsy error' artifact (message event)", () => {
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent(
+          messageEvent(
             "The default export is not a React Component in page: /_error.js called with falsy error",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("A. transport failures also drop when they arrive as message events", () => {
+    it("drops a message-event 'Failed to fetch'", () => {
+      expect(isDenylistedNoiseEvent(messageEvent("Failed to fetch"))).toBe(
+        true,
+      );
+    });
+
+    it("drops a message-event HTML-parsed-as-JSON error", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            `Unexpected token '<', "<html>\n<head>"... is not valid JSON`,
           ),
         ),
       ).toBe(true);
@@ -410,7 +458,27 @@ describe("isDenylistedNoiseEvent", () => {
     it("keeps a different next-auth error (only CLIENT_FETCH_ERROR is dropped)", () => {
       expect(
         isDenylistedNoiseEvent(
-          exceptionEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
+          messageEvent("[next-auth][error][SIGNIN_OAUTH_ERROR] boom"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a phrase-quoting app error delivered as a MESSAGE event", () => {
+      // Same safety contract on the message-event path: whole-message equality
+      // means a longer app message is not caught even without an exception.
+      expect(
+        isDenylistedNoiseEvent(messageEvent("Failed to fetch created model")),
+      ).toBe(false);
+    });
+
+    it("keeps the generic prod error-boundary string as a MESSAGE event (still excluded)", () => {
+      // captureConsoleIntegration delivers this 1MY string as a message event;
+      // it must survive on that path too, not just the exception path.
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent(
+            "A client-side exception has occurred while loading cloud.langfuse.com, see the browser console for more information.",
+          ),
         ),
       ).toBe(false);
     });
