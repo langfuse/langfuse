@@ -38,12 +38,24 @@ type ParsedObservationResult =
   | EventBatchIOOutput
   | undefined;
 
+const toObservationWithStringifiedIO = (
+  observation: ObservationReturnType | ObservationReturnTypeWithMetadata,
+): ObservationWithStringifiedIO => ({
+  ...observation,
+  input: null,
+  output: null,
+  metadata:
+    "metadata" in observation ? stringifyMetadata(observation.metadata) : null,
+});
+
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
  * Below this: sync parse (faster, no message-passing overhead)
  * Above this: Web Worker (non-blocking, prevents UI freeze)
  */
 const PARSE_IN_WEBWORKER_THRESHOLD = 100_000; // 100KB
+const FALLBACK_MIN_START_TIME = new Date(0);
+const FALLBACK_MAX_START_TIME = new Date("2100-01-01T00:00:00.000Z");
 
 /**
  * Estimate the size of a value in characters (for threshold check)
@@ -106,6 +118,7 @@ interface UseParsedObservationParams {
   startTime?: Date;
   // Base observation to merge IO data into (for events path when beta ON)
   baseObservation?: ObservationReturnType | ObservationReturnTypeWithMetadata;
+  forceFetchRaw?: boolean;
 }
 
 interface ParsedData {
@@ -206,8 +219,11 @@ export function useParsedObservation({
   projectId,
   startTime,
   baseObservation,
+  forceFetchRaw = false,
 }: UseParsedObservationParams) {
   const { isBetaEnabled } = useV4Beta();
+  const minStartTime = startTime ?? FALLBACK_MIN_START_TIME;
+  const maxStartTime = startTime ?? FALLBACK_MAX_START_TIME;
 
   // Step 1a: Fetch raw observation data from observations table (beta OFF)
   const observationQuery = api.observations.byId.useQuery(
@@ -223,19 +239,39 @@ export function useParsedObservation({
     },
   );
 
+  const parsedObservationIoQuery = api.events.parsedObservationIO.useQuery(
+    {
+      projectId,
+      observation: { id: observationId, traceId },
+      minStartTime,
+      maxStartTime,
+    },
+    {
+      enabled: isBetaEnabled,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
+
+  const shouldFetchRawEvents =
+    isBetaEnabled &&
+    (forceFetchRaw ||
+      Boolean(baseObservation) ||
+      parsedObservationIoQuery.isError ||
+      parsedObservationIoQuery.data?.mode === "raw_fallback");
+
   // Step 1b: Fetch raw observation data from events table (beta ON)
   const eventsQuery = api.events.batchIO.useQuery(
     {
       projectId,
       traceId,
       observations: [{ id: observationId, traceId }],
-      minStartTime: startTime ?? new Date(0),
-      maxStartTime: startTime ?? new Date(),
+      minStartTime,
+      maxStartTime,
       truncated: false,
     },
     {
       ...sendAsPostOption,
-      enabled: isBetaEnabled,
+      enabled: shouldFetchRawEvents,
       staleTime: 5 * 60 * 1000, // 5 minutes
       select: (data) => data[0], // Extract single result from batch
     },
@@ -251,6 +287,9 @@ export function useParsedObservation({
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
         } satisfies ObservationWithStringifiedIO;
+      }
+      if (baseObservation) {
+        return toObservationWithStringifiedIO(baseObservation);
       }
       // No base observation provided: return partial events data with safe stringified I/O.
       return eventsQuery.data;
@@ -271,7 +310,7 @@ export function useParsedObservation({
   }, [isBetaEnabled, eventsQuery.data, baseObservation, observationId]);
 
   const isLoadingRaw = isBetaEnabled
-    ? eventsQuery.isLoading
+    ? parsedObservationIoQuery.isLoading || eventsQuery.isLoading
     : observationQuery.isLoading;
 
   // Per-field cache signatures: content-sensitive but never a whole-payload
@@ -340,5 +379,7 @@ export function useParsedObservation({
     // Debug info
     parseTime: parseQuery.data?.parseTime,
     parseError: parseQuery.error?.message,
+    parsedObservationIo: parsedObservationIoQuery.data,
+    isLoadingParsedObservationIo: parsedObservationIoQuery.isLoading,
   };
 }

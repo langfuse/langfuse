@@ -420,6 +420,7 @@ export function convertEventsObservation(
       tags: record.tags ?? null,
       bookmarked: record.bookmarked!,
       public: record.public!,
+      eventBytes: record.event_bytes,
     };
   }
 
@@ -437,6 +438,7 @@ export function convertEventsObservation(
     ...(record.tags !== undefined && { tags: record.tags }),
     ...(record.bookmarked !== undefined && { bookmarked: record.bookmarked }),
     ...(record.public !== undefined && { public: record.public }),
+    ...(record.event_bytes !== undefined && { eventBytes: record.event_bytes }),
   };
 }
 

@@ -178,6 +178,10 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude internal event sizing data from public API.
+    eventBytes,
+
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {

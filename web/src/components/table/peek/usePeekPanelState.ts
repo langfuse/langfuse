@@ -70,11 +70,13 @@ export function usePeekPanelState({
   isOpen,
   isExpanded,
   onExpandedChange,
+  resizeAriaLabel = "Resize peek view",
   onResized,
 }: {
   isOpen: boolean;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  resizeAriaLabel?: string;
   /**
    * Notified once per user resize gesture that lands on a widget width — a
    * completed drag, or a burst of keyboard nudges (debounced). The host's
@@ -256,7 +258,7 @@ export function usePeekPanelState({
     resizeHandleProps: {
       role: "separator",
       "aria-orientation": "vertical",
-      "aria-label": "Resize peek view",
+      "aria-label": resizeAriaLabel,
       "aria-valuemin": Math.round(PEEK_MIN_WIDTH_FRACTION * 100),
       "aria-valuemax": 100,
       "aria-valuenow": widthPercent,
