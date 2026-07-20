@@ -144,6 +144,48 @@ export class QueueMetricsRunner extends PeriodicRunner {
 
       const metricBase = convertQueueNameToMetricName(config.baseQueueName);
 
+      const agePromises = shardNames.map((shardName) => {
+        const queue = config.getInstance(shardName);
+        if (!queue) return Promise.resolve(null);
+
+        return queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            const age = WorkerManager.computeDlqOldestAgeMs(jobs, Date.now());
+            recordGauge(metricBase + ".dlq_oldest_age", age, {
+              shard: shardName,
+              unit: "milliseconds",
+            });
+            return age;
+          })
+          .catch((err) => {
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${shardName}`,
+              err,
+            );
+            return null;
+          });
+      });
+
+      // Aggregate is the max across shards (the oldest job overall); unlike
+      // depth there is nothing to extrapolate for failed shards.
+      promises.push(
+        Promise.allSettled(agePromises).then((results) => {
+          const ages: number[] = [];
+          for (const result of results) {
+            if (result.status === "fulfilled" && result.value !== null) {
+              ages.push(result.value);
+            }
+          }
+          if (ages.length === 0) return;
+
+          recordGauge(metricBase + ".dlq_oldest_age", Math.max(...ages), {
+            shard: "all",
+            unit: "milliseconds",
+          });
+        }),
+      );
+
       const shardPromises = shardNames.map((shardName) => {
         const queue = config.getInstance(shardName);
         if (!queue) return Promise.resolve(null);
