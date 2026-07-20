@@ -6,6 +6,7 @@ import { Check, ChevronRight, Circle, Minus } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/components/ui/layer";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -108,6 +109,12 @@ const DropdownMenuItem = React.forwardRef<
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
+const DropdownMenuLoadingItem = () => (
+  <DropdownMenuItem disabled aria-label="Loading">
+    <Skeleton variant="contrast" className="h-4 w-24" />
+  </DropdownMenuItem>
+);
+
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -199,6 +206,7 @@ export {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,

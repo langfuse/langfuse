@@ -1,10 +1,10 @@
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuLoadingItem,
 } from "@/src/components/ui/dropdown-menu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { PlusIcon, Settings } from "lucide-react";
@@ -26,15 +26,6 @@ type ProjectDropdownMenuProps = {
       state: "loaded";
       projects: Project[];
     }
-);
-
-const LoadingMenuItem = () => (
-  <DropdownMenuItem>
-    <span className="mr-1.5 inline-flex">
-      <Spinner size="sm" />
-    </span>
-    Loading...
-  </DropdownMenuItem>
 );
 
 export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
@@ -83,7 +74,11 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
             </DropdownMenuItem>
           ))
         ) : (
-          <LoadingMenuItem />
+          <>
+            <DropdownMenuLoadingItem />
+            <DropdownMenuLoadingItem />
+            <DropdownMenuLoadingItem />
+          </>
         )}
       </div>
 

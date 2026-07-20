@@ -1,10 +1,10 @@
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuLoadingItem,
 } from "@/src/components/ui/dropdown-menu";
 import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
@@ -25,17 +25,6 @@ type OrganizationDropdownMenuProps = {
       state: "loaded";
       organizations: Organization[];
     }
-);
-
-// TODO: This is duplicated in /web/src/components/layouts/breadcrumb.tsx
-// Should this be a shared utility component?
-const LoadingMenuItem = () => (
-  <DropdownMenuItem>
-    <span className="mr-1.5 inline-flex">
-      <Spinner size="sm" />
-    </span>
-    Loading...
-  </DropdownMenuItem>
 );
 
 export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
@@ -94,7 +83,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               </Fragment>
             ))
         ) : (
-          <LoadingMenuItem />
+          <DropdownMenuLoadingItem />
         )}
       </div>
 
