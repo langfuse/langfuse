@@ -2,20 +2,37 @@
  * The JSON Beta viewer virtualizes the DOM but still builds the full node tree
  * on the main thread, so a field with too many nodes (a large conversation /
  * deeply nested JSON) freezes the tab even here (LFE-10847). These tests pin the
- * node-count gate in IOPreviewJSON: over-limit fields render the bounded
- * fallback and are NEVER handed to MultiSectionJsonViewer, while normal fields
- * (including a huge single string, which is only one node) render as before.
+ * node-count gate in IOPreviewJSON: over-limit fields render as a `hideData`
+ * section (so the viewer builds no tree) whose footer is the bounded fallback,
+ * while normal fields (including a huge single string, which is only one node)
+ * render with their data as before.
  */
 import { render, screen } from "@testing-library/react";
 
-// MultiSectionJsonViewer is the tree-building path we must NOT reach for
-// over-limit fields — mock it and expose the section keys it receives.
+// Mock MultiSectionJsonViewer: expose each section's key, whether it carries
+// data (hideData=false) vs. is gated (hideData=true, tree never built), and
+// render its footer so the fallback is observable.
 vi.mock(
   "@/src/components/ui/AdvancedJsonViewer/MultiSectionJsonViewer",
   () => ({
-    MultiSectionJsonViewer: (props: { sections: { key: string }[] }) => (
+    MultiSectionJsonViewer: (props: {
+      sections: {
+        key: string;
+        hideData?: boolean;
+        renderFooter?: (ctx: unknown) => React.ReactNode;
+      }[];
+    }) => (
       <div data-testid="multi-section-viewer">
-        {props.sections.map((s) => s.key).join(",")}
+        {props.sections.map((s) => (
+          <div
+            key={s.key}
+            data-testid={`section-${s.key}`}
+            data-hide-data={String(!!s.hideData)}
+          >
+            {!s.hideData && <span data-testid={`data-${s.key}`}>data</span>}
+            {s.renderFooter ? s.renderFooter({}) : null}
+          </div>
+        ))}
       </div>
     ),
   }),
@@ -66,7 +83,7 @@ const manyRows = () =>
   Array.from({ length: JSON_VIEW_RENDER_ROW_LIMIT }, (_, i) => i);
 
 describe("IOPreviewJSON node-count gating", () => {
-  it("renders the fallback and never mounts the viewer for an over-limit field", () => {
+  it("renders an over-limit field as a hideData section with the fallback footer", () => {
     render(
       <IOPreviewJSON
         input={manyRows()}
@@ -78,17 +95,38 @@ describe("IOPreviewJSON node-count gating", () => {
       />,
     );
 
+    // Fallback (with download) shown for the gated field...
     expect(screen.getByText(FALLBACK_TEXT)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Download Input/i }),
     ).toBeInTheDocument();
-    // The over-limit field was never handed to the tree-building viewer.
+    // ...and its section carries NO data, so the viewer builds no tree for it.
+    expect(screen.getByTestId("section-input")).toHaveAttribute(
+      "data-hide-data",
+      "true",
+    );
+    expect(screen.queryByTestId("data-input")).not.toBeInTheDocument();
+  });
+
+  it("reports the node/row count as the reason, not a character count", () => {
+    render(
+      <IOPreviewJSON
+        input={manyRows()}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    // Node-count gate → the summary names rows, not characters.
+    expect(screen.getByText(/rows — too large to render/i)).toBeInTheDocument();
     expect(
-      screen.queryByTestId("multi-section-viewer"),
+      screen.queryByText(/characters — too large to render/i),
     ).not.toBeInTheDocument();
   });
 
-  it("lets a huge single STRING through (one node) — no fallback, viewer renders it", () => {
+  it("lets a huge single STRING through (one node) — no fallback, data rendered", () => {
     // A 20 MB base64-style string is a single node: cheap for the virtualized
     // viewer (renders as a media chip). A char-based gate would wrongly gate it.
     const hugeString = "A".repeat(20_000_000);
@@ -104,11 +142,14 @@ describe("IOPreviewJSON node-count gating", () => {
     );
 
     expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
-    const viewer = screen.getByTestId("multi-section-viewer");
-    expect(viewer).toHaveTextContent("input");
+    expect(screen.getByTestId("section-input")).toHaveAttribute(
+      "data-hide-data",
+      "false",
+    );
+    expect(screen.getByTestId("data-input")).toBeInTheDocument();
   });
 
-  it("gates only the over-limit field, keeping the rest in the viewer", () => {
+  it("gates only the over-limit field and keeps its position among sections", () => {
     render(
       <IOPreviewJSON
         input={manyRows()}
@@ -120,17 +161,24 @@ describe("IOPreviewJSON node-count gating", () => {
       />,
     );
 
-    // Input fallback shown...
+    // Input fallback shown, input section is gated (no data)...
     expect(
       screen.getByRole("button", { name: /Download Input/i }),
     ).toBeInTheDocument();
-    // ...and the viewer still renders, with output but NOT input.
-    const viewer = screen.getByTestId("multi-section-viewer");
-    expect(viewer).toHaveTextContent("output");
-    expect(viewer).not.toHaveTextContent("input");
+    expect(screen.getByTestId("section-input")).toHaveAttribute(
+      "data-hide-data",
+      "true",
+    );
+    // ...output still renders its data, and Input precedes Output (order kept).
+    expect(screen.getByTestId("data-output")).toBeInTheDocument();
+    const sections = screen.getAllByTestId(/^section-/);
+    expect(sections.map((el) => el.getAttribute("data-testid"))).toEqual([
+      "section-input",
+      "section-output",
+    ]);
   });
 
-  it("renders the viewer (no fallback) for normal small I/O", () => {
+  it("renders normal small I/O with its data and no fallback", () => {
     render(
       <IOPreviewJSON
         input={{ messages: [{ role: "user", content: "hi" }] }}
@@ -143,8 +191,6 @@ describe("IOPreviewJSON node-count gating", () => {
     );
 
     expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
-    expect(screen.getByTestId("multi-section-viewer")).toHaveTextContent(
-      "input",
-    );
+    expect(screen.getByTestId("data-input")).toBeInTheDocument();
   });
 });

@@ -187,17 +187,21 @@ function IOPreviewJSONInner({
   );
 
   // Probe over-limit fields once for the bounded fallback (preview + download).
+  // Probe the PARSED value — the same value the row-count gate ran on — so the
+  // preview, download and reported size all reflect what tripped the gate (a
+  // string field that deep-parses into a large tree would otherwise show its
+  // short raw length).
   const inputProbe = useMemo(
-    () => (inputTooLarge ? probeJsonField(input) : null),
-    [input, inputTooLarge],
+    () => (inputTooLarge ? probeJsonField(inputParsed) : null),
+    [inputParsed, inputTooLarge],
   );
   const outputProbe = useMemo(
-    () => (outputTooLarge ? probeJsonField(output) : null),
-    [output, outputTooLarge],
+    () => (outputTooLarge ? probeJsonField(outputParsed) : null),
+    [outputParsed, outputTooLarge],
   );
   const metadataProbe = useMemo(
-    () => (metadataTooLarge ? probeJsonField(metadata) : null),
-    [metadata, metadataTooLarge],
+    () => (metadataTooLarge ? probeJsonField(metadataParsed) : null),
+    [metadataParsed, metadataTooLarge],
   );
 
   // A gated field parses to undefined above but is not empty — it is too big.
@@ -299,16 +303,25 @@ function IOPreviewJSONInner({
   }, []);
 
   const handleCopy = useCallback(() => {
+    // Gated fields have no materialized value (effective* is undefined), so
+    // copy a placeholder rather than silently dropping the key — the field is
+    // visibly present on screen (fallback + download), it just can't be inlined.
+    const TOO_LARGE = "<omitted: too large to render — use the field download>";
     const dataObj: Record<string, unknown> = {};
-    if (showInput) dataObj.input = effectiveInput;
-    if (showOutput) dataObj.output = effectiveOutput;
-    if (showMetadata) dataObj.metadata = effectiveMetadata;
+    if (showInput) dataObj.input = inputTooLarge ? TOO_LARGE : effectiveInput;
+    if (showOutput)
+      dataObj.output = outputTooLarge ? TOO_LARGE : effectiveOutput;
+    if (showMetadata)
+      dataObj.metadata = metadataTooLarge ? TOO_LARGE : effectiveMetadata;
     const jsonString = JSON.stringify(dataObj, null, 2);
     navigator.clipboard.writeText(jsonString);
   }, [
     showInput,
     showOutput,
     showMetadata,
+    inputTooLarge,
+    outputTooLarge,
+    metadataTooLarge,
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
@@ -326,28 +339,72 @@ function IOPreviewJSONInner({
     [stringWrapMode],
   );
 
-  // Build sections - memoized to prevent re-creation. Over-limit fields are
-  // NOT added here: they render as a bounded fallback outside the viewer, so
-  // the viewer never builds a tree for them.
+  // Build sections - memoized to prevent re-creation. A gated field renders as
+  // a section with no data (hideData → the viewer builds no tree for it, so it
+  // can't freeze) whose footer is the bounded fallback. Keeping it a section —
+  // rather than a block outside the viewer — preserves the natural
+  // Input → Output → Metadata order and the shared search/scroll. The section
+  // header shows the field name, so the fallback hides its own title.
   const sections = useMemo(() => {
+    const gatedSection = (
+      key: string,
+      title: string,
+      backgroundColor: string,
+      probe: ReturnType<typeof probeJsonField> | null,
+      rowCount: number,
+    ) => ({
+      key,
+      title,
+      data: null,
+      hideData: true,
+      backgroundColor,
+      minHeight: "4px",
+      renderFooter: () =>
+        probe ? (
+          <LargeJsonFieldFallback
+            title={title}
+            hideTitle
+            serialized={probe.serialized}
+            isString={probe.isString}
+            charCount={probe.size}
+            rowCount={rowCount}
+            downloadFileBase={`${key}-${downloadName}`}
+          />
+        ) : null,
+    });
+
     const result = [];
-    if (showInput && !inputTooLarge) {
-      result.push({
-        key: "input",
-        title: "Input",
-        data: effectiveInput,
-        backgroundColor: inputBgColor,
-        minHeight: "200px",
-      });
+    if (showInput) {
+      result.push(
+        inputTooLarge
+          ? gatedSection("input", "Input", inputBgColor, inputProbe, inputRows)
+          : {
+              key: "input",
+              title: "Input",
+              data: effectiveInput,
+              backgroundColor: inputBgColor,
+              minHeight: "200px",
+            },
+      );
     }
-    if (showOutput && !outputTooLarge) {
-      result.push({
-        key: "output",
-        title: "Output",
-        data: effectiveOutput,
-        backgroundColor: outputBgColor,
-        minHeight: "200px",
-      });
+    if (showOutput) {
+      result.push(
+        outputTooLarge
+          ? gatedSection(
+              "output",
+              "Output",
+              outputBgColor,
+              outputProbe,
+              outputRows,
+            )
+          : {
+              key: "output",
+              title: "Output",
+              data: effectiveOutput,
+              backgroundColor: outputBgColor,
+              minHeight: "200px",
+            },
+      );
     }
     if (showCorrections) {
       result.push({
@@ -371,14 +428,24 @@ function IOPreviewJSONInner({
         ),
       });
     }
-    if (showMetadata && !metadataTooLarge) {
-      result.push({
-        key: "metadata",
-        title: "Metadata",
-        data: effectiveMetadata,
-        backgroundColor: metadataBgColor,
-        minHeight: "200px",
-      });
+    if (showMetadata) {
+      result.push(
+        metadataTooLarge
+          ? gatedSection(
+              "metadata",
+              "Metadata",
+              metadataBgColor,
+              metadataProbe,
+              metadataRows,
+            )
+          : {
+              key: "metadata",
+              title: "Metadata",
+              data: effectiveMetadata,
+              backgroundColor: metadataBgColor,
+              minHeight: "200px",
+            },
+      );
     }
     return result;
   }, [
@@ -391,6 +458,13 @@ function IOPreviewJSONInner({
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
+    inputProbe,
+    outputProbe,
+    metadataProbe,
+    inputRows,
+    outputRows,
+    metadataRows,
+    downloadName,
     inputBgColor,
     outputBgColor,
     metadataBgColor,
@@ -401,43 +475,6 @@ function IOPreviewJSONInner({
     traceId,
     environment,
   ]);
-
-  // Bounded fallbacks for over-limit fields (rendered outside the viewer, in
-  // field order). Preview + raw download; the full payload also renders in the
-  // lazy Formatted view.
-  const largeFieldFallbacks = (
-    <>
-      {showInput && inputTooLarge && inputProbe && (
-        <LargeJsonFieldFallback
-          title="Input"
-          serialized={inputProbe.serialized}
-          isString={inputProbe.isString}
-          charCount={inputProbe.size}
-          downloadFileBase={`input-${downloadName}`}
-        />
-      )}
-      {showOutput && outputTooLarge && outputProbe && (
-        <LargeJsonFieldFallback
-          title="Output"
-          serialized={outputProbe.serialized}
-          isString={outputProbe.isString}
-          charCount={outputProbe.size}
-          downloadFileBase={`output-${downloadName}`}
-        />
-      )}
-      {showMetadata && metadataTooLarge && metadataProbe && (
-        <LargeJsonFieldFallback
-          title="Metadata"
-          serialized={metadataProbe.serialized}
-          isString={metadataProbe.isString}
-          charCount={metadataProbe.size}
-          downloadFileBase={`metadata-${downloadName}`}
-        />
-      )}
-    </>
-  );
-
-  const hasViewerSections = sections.length > 0;
 
   // Wait for parsing to complete before rendering to avoid flicker
   if (isParsing) {
@@ -483,143 +520,135 @@ function IOPreviewJSONInner({
         <InlineCommentBubble onAddComment={handleAddComment} />
       )}
 
-      {/* Header + nav are only meaningful when the viewer renders sections; a
-          fully-gated view shows just the fallbacks below. */}
-      {hasViewerSections && (
-        <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
-          {/* Search input - expands to fill available width */}
-          <Command className="flex-1 rounded-none border-0 bg-transparent">
-            <CommandInput
-              showBorder={false}
-              placeholder="Search across all sections..."
-              className="h-7 border-0 focus:ring-0"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (e.shiftKey) {
-                    handlePreviousMatch();
-                  } else {
-                    handleNextMatch();
-                  }
-                } else if (e.key === "Escape") {
-                  handleClearSearch();
+      {/* Header - matches LogViewToolbar styling */}
+      <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+        {/* Search input - expands to fill available width */}
+        <Command className="flex-1 rounded-none border-0 bg-transparent">
+          <CommandInput
+            showBorder={false}
+            placeholder="Search across all sections..."
+            className="h-7 border-0 focus:ring-0"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (e.shiftKey) {
+                  handlePreviousMatch();
+                } else {
+                  handleNextMatch();
                 }
-              }}
-            />
-          </Command>
+              } else if (e.key === "Escape") {
+                handleClearSearch();
+              }
+            }}
+          />
+        </Command>
 
-          {/* Match counter - inline text (only when searching) */}
-          {searchQuery && (
-            <span className="text-muted-foreground text-xs whitespace-nowrap">
-              {searchMatchCount > 0
-                ? `${currentMatchIndex + 1} of ${searchMatchCount}`
-                : "No matches"}
-            </span>
-          )}
+        {/* Match counter - inline text (only when searching) */}
+        {searchQuery && (
+          <span className="text-muted-foreground text-xs whitespace-nowrap">
+            {searchMatchCount > 0
+              ? `${currentMatchIndex + 1} of ${searchMatchCount}`
+              : "No matches"}
+          </span>
+        )}
 
-          {/* Navigation buttons (only when matches exist) */}
-          {searchQuery && searchMatchCount > 0 && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={handlePreviousMatch}
-                title="Previous match (Shift+Enter)"
-              >
-                <ChevronUp className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={handleNextMatch}
-                title="Next match (Enter)"
-              >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
+        {/* Navigation buttons (only when matches exist) */}
+        {searchQuery && searchMatchCount > 0 && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handlePreviousMatch}
+              title="Previous match (Shift+Enter)"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={handleNextMatch}
+              title="Next match (Enter)"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
 
-          {/* Wrap mode toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleCycleWrapMode}
-            title={`String wrap mode: ${stringWrapMode}`}
-          >
-            {wrapIcon}
-          </Button>
+        {/* Wrap mode toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCycleWrapMode}
+          title={`String wrap mode: ${stringWrapMode}`}
+        >
+          {wrapIcon}
+        </Button>
 
-          {/* Copy button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={handleCopy}
-            title="Copy to clipboard"
-          >
-            <Copy className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+        {/* Copy button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={handleCopy}
+          title="Copy to clipboard"
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
       {/* Section navigation hint bar */}
-      {hasViewerSections && (
-        <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
-          <span className="text-muted-foreground text-xs">Jump to:</span>
-          {sections.map((section, index) => (
-            <span key={section.key} className="flex items-center">
-              <button
-                onClick={() => handleScrollToSection(section.key)}
-                className="text-primary cursor-pointer text-xs hover:underline"
-              >
-                {section.title}
-              </button>
-              {index < sections.length - 1 && (
-                <span className="text-muted-foreground text-xs">,&nbsp;</span>
-              )}
-            </span>
-          ))}
-          {needsVirtualization && (
-            <HoverCard>
-              <HoverCardTrigger asChild>
-                <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
-                  Virtualized
-                </span>
-              </HoverCardTrigger>
-              <HoverCardContent className="w-80" side="bottom" align="end">
-                <div className="space-y-2">
-                  <p className="text-sm font-bold">Virtualized View</p>
-                  <p className="text-muted-foreground text-xs">
-                    This view is using virtualization due to a large number of
-                    keys ({rowCounts.input.toLocaleString()} input,{" "}
-                    {rowCounts.output.toLocaleString()} output,{" "}
-                    {rowCounts.metadata.toLocaleString()} metadata). Only
-                    visible rows are rendered for optimal performance.
-                  </p>
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          )}
-        </div>
-      )}
+      <div className="bg-background flex h-6 shrink-0 items-center gap-1.5 border-b px-2">
+        <span className="text-muted-foreground text-xs">Jump to:</span>
+        {sections.map((section, index) => (
+          <span key={section.key} className="flex items-center">
+            <button
+              onClick={() => handleScrollToSection(section.key)}
+              className="text-primary cursor-pointer text-xs hover:underline"
+            >
+              {section.title}
+            </button>
+            {index < sections.length - 1 && (
+              <span className="text-muted-foreground text-xs">,&nbsp;</span>
+            )}
+          </span>
+        ))}
+        {needsVirtualization && (
+          <HoverCard>
+            <HoverCardTrigger asChild>
+              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
+                Virtualized
+              </span>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-80" side="bottom" align="end">
+              <div className="space-y-2">
+                <p className="text-sm font-bold">Virtualized View</p>
+                <p className="text-muted-foreground text-xs">
+                  This view is using virtualization due to a large number of
+                  keys ({rowCounts.input.toLocaleString()} input,{" "}
+                  {rowCounts.output.toLocaleString()} output,{" "}
+                  {rowCounts.metadata.toLocaleString()} metadata). Only visible
+                  rows are rendered for optimal performance.
+                </p>
+              </div>
+            </HoverCardContent>
+          </HoverCard>
+        )}
+      </div>
 
-      {/* Body: bounded fallbacks for over-limit fields, then the viewer for the
-          remaining sections (if any). Both scroll together. */}
+      {/* Body with MultiSectionJsonViewer */}
       <div className="min-h-0 flex-1 overflow-auto" ref={scrollContainerRef}>
-        {largeFieldFallbacks}
-        {hasViewerSections &&
-          (enableInlineComments ? (
-            <CommentableJsonView enabled={enableInlineComments}>
-              {viewerContent}
-            </CommentableJsonView>
-          ) : (
-            viewerContent
-          ))}
+        {enableInlineComments ? (
+          <CommentableJsonView enabled={enableInlineComments}>
+            {viewerContent}
+          </CommentableJsonView>
+        ) : (
+          viewerContent
+        )}
       </div>
     </div>
   );

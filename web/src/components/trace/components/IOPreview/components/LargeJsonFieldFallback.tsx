@@ -28,7 +28,9 @@ export function LargeJsonFieldFallback({
   serialized,
   isString,
   charCount,
+  rowCount,
   downloadFileBase,
+  hideTitle = false,
 }: {
   title: string;
   /** Pre-serialized content: raw text for string fields, compact JSON for
@@ -38,10 +40,24 @@ export function LargeJsonFieldFallback({
    *  base64/plain payloads are not quote/escape-wrapped; objects use .json. */
   isString: boolean;
   charCount: number;
+  /** When set, the field was gated on node/row count (JSON Beta viewer), so the
+   *  summary names rows — the actual trigger — instead of characters. Omit for
+   *  the plain view's char-based gate. */
+  rowCount?: number;
   /** File name without extension. */
   downloadFileBase: string;
+  /** Omit the field-name heading — used when the surrounding section already
+   *  renders the title (JSON Beta section footer). */
+  hideTitle?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+
+  // Name the metric that actually tripped the gate: rows for the virtualized
+  // Beta viewer (node/tree-build cost), characters for the plain view.
+  const sizeSummary =
+    rowCount != null
+      ? `${compactNumberFormatter(rowCount, 1)} rows`
+      : `${compactNumberFormatter(charCount, 1)} characters`;
 
   const previewText = useMemo(
     () =>
@@ -66,11 +82,10 @@ export function LargeJsonFieldFallback({
     <div className="io-message-content">
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-foreground font-bold">{title}</span>
-          <span>
-            {compactNumberFormatter(charCount, 1)} characters — too large to
-            render in JSON view
-          </span>
+          {!hideTitle && (
+            <span className="text-foreground font-bold">{title}</span>
+          )}
+          <span>{sizeSummary} — too large to render in JSON view</span>
         </div>
         <p className="text-muted-foreground text-xs">
           Rendering this much JSON at once freezes the tab. Use the{" "}
