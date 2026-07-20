@@ -41,6 +41,7 @@ import {
   createEvent,
   createEventsCh,
   createScoresCh,
+  createSessionScore,
   createTraceScore,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
@@ -63,6 +64,7 @@ import {
   buildMonitorUrl,
   buildObservationUrl,
   buildPromptUrl,
+  buildSessionUrl,
   buildTraceUrl,
 } from "@/src/utils/product-url";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
@@ -2209,16 +2211,16 @@ describe("MCP Read Tools", () => {
       verifyToolAnnotations(listScoresTool, { readOnlyHint: true });
     });
 
-    it("should return paginated scores with object-shaped filters", async () => {
+    it("should return v3-shaped scores with polymorphic value, subject, and url", async () => {
       const { context, projectId } = await createMcpTestSetup();
-      const matchingScore = createTraceScore({
+      const numericScore = createTraceScore({
         project_id: projectId,
         id: randomUUID(),
         name: `mcp-score-${nanoid()}`,
         data_type: "NUMERIC",
         value: 0.9,
       });
-      const otherScore = createTraceScore({
+      const booleanScore = createTraceScore({
         project_id: projectId,
         id: randomUUID(),
         name: `mcp-score-${nanoid()}`,
@@ -2226,63 +2228,150 @@ describe("MCP Read Tools", () => {
         value: 1,
         string_value: "True",
       });
+      const sessionScore = createSessionScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-score-${nanoid()}`,
+        data_type: "CATEGORICAL",
+        value: 0,
+        string_value: "good",
+      });
 
-      await createScoresCh([matchingScore, otherScore]);
+      await createScoresCh([numericScore, booleanScore, sessionScore]);
 
       const result = (await handleListScores(
         {
           limit: 10,
-          page: 1,
-          scoreIds: [matchingScore.id, otherScore.id],
-          dataType: "NUMERIC",
-          fields: ["score"],
+          id: [numericScore.id, booleanScore.id, sessionScore.id],
+          dataType: ["NUMERIC"],
         },
         context,
       )) as any;
-      const data = result.data;
 
       expect(Object.keys(result).sort()).toEqual(["data", "meta"]);
-      expect(result.meta).toMatchObject({
-        page: 1,
-        limit: 10,
-        totalItems: 1,
-      });
-      expect(data).toHaveLength(1);
-      expect(data).toEqual([
+      expect(result.meta).toEqual({ limit: 10 });
+      expect(result.data).toEqual([
         expect.objectContaining({
-          id: matchingScore.id,
+          id: numericScore.id,
           dataType: "NUMERIC",
+          value: 0.9,
+          comment: numericScore.comment,
+          subject: { kind: "trace", id: numericScore.trace_id },
           url: buildTraceUrl({
             projectId,
-            traceId: matchingScore.trace_id!,
+            traceId: numericScore.trace_id!,
           }),
         }),
       ]);
-      expect(data).toEqual([
-        expect.not.objectContaining({ trace: expect.anything() }),
+
+      const booleanResult = (await handleListScores(
+        { limit: 10, id: [booleanScore.id] },
+        context,
+      )) as any;
+      expect(booleanResult.data).toEqual([
+        expect.objectContaining({
+          id: booleanScore.id,
+          dataType: "BOOLEAN",
+          value: true,
+        }),
+      ]);
+
+      const sessionResult = (await handleListScores(
+        { limit: 10, id: [sessionScore.id] },
+        context,
+      )) as any;
+      expect(sessionResult.data).toEqual([
+        expect.objectContaining({
+          id: sessionScore.id,
+          dataType: "CATEGORICAL",
+          value: "good",
+          subject: { kind: "session", id: sessionScore.session_id },
+          url: buildSessionUrl({
+            projectId,
+            sessionId: sessionScore.session_id!,
+          }),
+        }),
       ]);
     });
 
-    it("should enforce public v2 score field validation", async () => {
+    it("should paginate with an opaque cursor", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const name = `mcp-cursor-score-${nanoid()}`;
+      const now = Date.now();
+      const scores = [0, 1, 2].map((i) =>
+        createTraceScore({
+          project_id: projectId,
+          id: randomUUID(),
+          name,
+          data_type: "NUMERIC",
+          value: i,
+          timestamp: now - i * 60_000,
+        }),
+      );
+
+      await createScoresCh(scores);
+
+      const firstPage = (await handleListScores(
+        { limit: 2, name: [name] },
+        context,
+      )) as any;
+      expect(firstPage.data).toHaveLength(2);
+      expect(firstPage.meta.limit).toBe(2);
+      expect(firstPage.meta.cursor).toEqual(expect.any(String));
+
+      const secondPage = (await handleListScores(
+        { limit: 2, name: [name], cursor: firstPage.meta.cursor },
+        context,
+      )) as any;
+      expect(secondPage.data).toHaveLength(1);
+      expect(secondPage.meta.cursor).toBeUndefined();
+
+      const seenIds = [...firstPage.data, ...secondPage.data].map(
+        (score: { id: string }) => score.id,
+      );
+      expect(seenIds.sort()).toEqual(scores.map((s) => s.id).sort());
+
+      await expect(
+        handleListScores(
+          { limit: 2, name: [name], cursor: "not-base64-json" },
+          context,
+        ),
+      ).rejects.toThrow(/invalid cursor format/i);
+    });
+
+    it("should enforce v3 cross-field validation and reject dropped v2 params", async () => {
       const { context } = await createMcpTestSetup();
 
       await expect(
-        handleListScores({ fields: ["trace"], limit: 10, page: 1 }, context),
-      ).rejects.toThrow(/Scores needs to be selected always/i);
+        handleListScores({ limit: 10, value: ["0.5"] }, context),
+      ).rejects.toThrow(/value filter requires a single dataType/i);
+
+      await expect(
+        handleListScores({ limit: 10, valueMin: 0.5 }, context),
+      ).rejects.toThrow(/valueMin and valueMax require dataType=NUMERIC/i);
+
+      await expect(
+        handleListScores({ limit: 10, observationId: [randomUUID()] }, context),
+      ).rejects.toThrow(/observationId filter requires traceId/i);
 
       await expect(
         handleListScores(
-          { fields: ["score"], userId: "user-1", limit: 10, page: 1 },
+          { limit: 10, traceId: [randomUUID()], sessionId: [randomUUID()] },
           context,
         ),
-      ).rejects.toThrow(/Cannot filter by trace properties/i);
+      ).rejects.toThrow(/At most one of traceId, sessionId, experimentId/i);
 
+      // v2-only params (userId, traceTags, page, fields, filter) are rejected
+      // by the strict schema instead of being silently ignored.
       await expect(
-        handleListScores(
-          { fields: ["score"], traceTags: [], limit: 10, page: 1 },
-          context,
-        ),
-      ).resolves.toMatchObject({ data: [] });
+        handleListScores({ limit: 10, userId: "user-1" } as any, context),
+      ).rejects.toThrow(/validation failed/i);
+      await expect(
+        handleListScores({ limit: 10, traceTags: ["tag"] } as any, context),
+      ).rejects.toThrow(/validation failed/i);
+      await expect(
+        handleListScores({ limit: 10, page: 1 } as any, context),
+      ).rejects.toThrow(/validation failed/i);
     });
   });
 
@@ -2310,6 +2399,8 @@ describe("MCP Read Tools", () => {
         name: score.name,
         dataType: "NUMERIC",
         value: 0.8,
+        comment: score.comment,
+        subject: { kind: "trace", id: score.trace_id },
         url: buildTraceUrl({ projectId, traceId: score.trace_id! }),
       });
     });
