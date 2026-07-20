@@ -260,7 +260,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="flex-1 justify-between text-left font-normal"
+                      className="min-w-0 flex-1 justify-between overflow-hidden text-left font-normal"
                     >
                       {/* Selected name renders plain — level tags show only in
                           the option rows below (design call: a selected filter
