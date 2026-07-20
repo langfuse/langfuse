@@ -102,6 +102,7 @@ describe("evalsV2.activateRule", () => {
     expect(updated.timeScope).toEqual(["NEW"]);
     expect(createdScope.filter).toEqual([]);
     expect(createdScope.sampling.toNumber()).toBe(0.5);
+    expect(createdScope.createdByUserId).toBe("user-1");
   });
 
   it("activates an evaluator with one existing scope", async () => {
@@ -560,6 +561,33 @@ describe("evalsV2.activateRule", () => {
     await expect(
       prisma.evalRunScope.findUnique({ where: { id: scope.id } }),
     ).resolves.not.toBeNull();
+  });
+
+  it("creates and returns run-scope creator metadata", async () => {
+    const { project, caller, session } = await prepare();
+
+    const created = await caller.evalsV2.createRunScope({
+      projectId: project.id,
+      name: `created-scope-${project.id}`,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: 1,
+    });
+
+    const persisted = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: created.id },
+    });
+    expect(persisted.createdByUserId).toBe(session.user.id);
+
+    const scopes = await caller.evalsV2.runScopes({ projectId: project.id });
+    expect(scopes).toContainEqual(
+      expect.objectContaining({
+        id: created.id,
+        createdAt: persisted.createdAt,
+        updatedAt: persisted.updatedAt,
+        createdByUser: expect.objectContaining({ name: "Demo User" }),
+      }),
+    );
   });
 
   it("returns evaluator overview metadata and run-scope usage", async () => {

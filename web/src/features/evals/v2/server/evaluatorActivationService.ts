@@ -16,12 +16,14 @@ export const EvaluatorActivationScopeSchema = z.discriminatedUnion("mode", [
 export async function activateEvaluator({
   prisma,
   projectId,
+  createdByUserId,
   evaluatorId,
   scope,
   now = new Date(),
 }: {
   prisma: PrismaClient;
   projectId: string;
+  createdByUserId: string;
   evaluatorId: string;
   scope: z.infer<typeof EvaluatorActivationScopeSchema>;
   now?: Date;
@@ -46,6 +48,7 @@ export async function activateEvaluator({
         : await tx.evalRunScope.create({
             data: {
               projectId,
+              createdByUserId,
               name: `Evaluator scope ${now.toISOString()}`,
               targetObject: evaluator.targetObject,
               filter: z.array(singleFilter).parse(evaluator.filter),

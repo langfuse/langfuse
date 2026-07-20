@@ -23,6 +23,17 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["evaluators"][number];
 
+function RelativeDate({ date }: { date: Date }) {
+  return (
+    <span
+      className="text-muted-foreground whitespace-nowrap"
+      title={date.toLocaleString()}
+    >
+      {formatDistanceToNowStrict(date, { addSuffix: true })}
+    </span>
+  );
+}
+
 export function EvaluatorOverviewTable({
   projectId,
   hasWriteAccess,
@@ -114,20 +125,18 @@ export function EvaluatorOverviewTable({
         },
       },
       {
+        accessorKey: "createdAt",
+        id: "createdAt",
+        header: "Created at",
+        size: 150,
+        cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
+      },
+      {
         accessorKey: "updatedAt",
         id: "updatedAt",
         header: "Last update",
         size: 150,
-        cell: ({ row }) => (
-          <span
-            className="text-muted-foreground whitespace-nowrap"
-            title={row.original.updatedAt.toLocaleString()}
-          >
-            {formatDistanceToNowStrict(row.original.updatedAt, {
-              addSuffix: true,
-            })}
-          </span>
-        ),
+        cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
         accessorKey: "usedByCount",

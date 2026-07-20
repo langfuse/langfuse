@@ -6,6 +6,7 @@ import {
   Play,
   Trash2,
 } from "lucide-react";
+import { formatDistanceToNowStrict } from "date-fns";
 import { useRouter } from "next/router";
 import { useCallback, useMemo, useState } from "react";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -43,6 +44,17 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type RunScopeRow = RouterOutputs["evalsV2"]["runScopes"][number];
 type RunScopeExecution = RunScopeRow["jobExecutions"][number];
+
+function RelativeDate({ date }: { date: Date }) {
+  return (
+    <span
+      className="text-muted-foreground whitespace-nowrap"
+      title={date.toLocaleString()}
+    >
+      {formatDistanceToNowStrict(date, { addSuffix: true })}
+    </span>
+  );
+}
 
 const statusColor: Record<JobExecutionStatus, string> = {
   COMPLETED: "bg-green-500",
@@ -312,6 +324,38 @@ export function RunScopesOverviewTable({
         ),
       },
       {
+        accessorKey: "createdByUser",
+        id: "createdByUser",
+        header: "Created by",
+        size: 180,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const creator =
+            row.original.createdByUser?.name ??
+            row.original.createdByUser?.email ??
+            "Unknown";
+          return (
+            <span className="block truncate" title={creator}>
+              {creator}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        id: "createdAt",
+        header: "Created at",
+        size: 150,
+        cell: ({ row }) => <RelativeDate date={row.original.createdAt} />,
+      },
+      {
+        accessorKey: "updatedAt",
+        id: "updatedAt",
+        header: "Updated at",
+        size: 150,
+        cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
+      },
+      {
         accessorKey: "actions",
         id: "actions",
         header: "",
@@ -475,8 +519,3 @@ export function RunScopesOverviewTable({
     </div>
   );
 }
-
-export const __test = {
-  filterLabel,
-  executionLabel,
-};

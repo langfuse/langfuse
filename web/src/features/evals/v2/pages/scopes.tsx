@@ -1,7 +1,11 @@
+import { Plus } from "lucide-react";
 import { useRouter } from "next/router";
+import { useState } from "react";
 
+import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { CreateRunScopeDialog } from "@/src/features/evals/v2/components/CreateRunScopeDialog";
 import { RunScopesOverviewTable } from "@/src/features/evals/v2/components/RunScopesOverviewTable";
 import { TablePeekViewRunScopeDetail } from "@/src/features/evals/v2/components/RunScopePeekView";
 import {
@@ -14,6 +18,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/Suppo
 export default function RunScopesPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const peekNavigation = usePeekNavigation({ queryParams: ["editScope"] });
 
   const hasReadAccess = useHasProjectAccess({
@@ -40,6 +45,16 @@ export default function RunScopesPage() {
         tabsProps: {
           tabs: getEvalsV2Tabs(projectId),
           activeTab: EVALS_V2_TABS.RUN_SCOPES,
+          actionButtonsRight: (
+            <ActionButton
+              hasAccess={hasWriteAccess}
+              icon={<Plus className="h-4 w-4" />}
+              className="-translate-y-2"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              New run scope
+            </ActionButton>
+          ),
         },
       }}
     >
@@ -52,6 +67,13 @@ export default function RunScopesPage() {
         projectId={projectId}
         closePeek={peekNavigation.closePeek}
       />
+      {createDialogOpen ? (
+        <CreateRunScopeDialog
+          projectId={projectId}
+          open
+          onOpenChange={setCreateDialogOpen}
+        />
+      ) : null}
     </Page>
   );
 }

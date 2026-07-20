@@ -13,6 +13,7 @@ import { type PrismaClient } from "@langfuse/shared/src/db";
 export async function createRunScope({
   prisma,
   projectId,
+  createdByUserId,
   name,
   targetObject,
   filter,
@@ -21,6 +22,7 @@ export async function createRunScope({
 }: {
   prisma: PrismaClient;
   projectId: string;
+  createdByUserId: string;
   name: string;
   targetObject: string;
   filter: z.infer<typeof singleFilter>[];
@@ -46,6 +48,7 @@ export async function createRunScope({
       const runScope = await tx.evalRunScope.create({
         data: {
           projectId,
+          createdByUserId,
           name: name.trim(),
           targetObject,
           filter,

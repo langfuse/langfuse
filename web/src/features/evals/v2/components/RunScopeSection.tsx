@@ -1,12 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  CircleDot,
-  EyeOff,
-  FlaskConical,
-  ListTree,
-  Sparkles,
-  Wrench,
-} from "lucide-react";
+import { EyeOff, FlaskConical, ListTree, Sparkles, Wrench } from "lucide-react";
 
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
@@ -139,23 +132,6 @@ export function mergeExampleFilters(
     }
   }
   return next;
-}
-
-// Same icons as the old evaluator setup's target toggle.
-export const TARGET_OBJECT_OPTIONS: {
-  value: ScopeTargetObject;
-  label: string;
-  icon: typeof CircleDot;
-}[] = [
-  { value: "event", label: "Observations", icon: CircleDot },
-  { value: "experiment", label: "Experiments", icon: FlaskConical },
-];
-
-export function targetObjectLabel(targetObject: string): string {
-  return (
-    TARGET_OBJECT_OPTIONS.find((o) => o.value === targetObject)?.label ??
-    targetObject
-  );
 }
 
 function formatFilterValue(value: unknown): string {

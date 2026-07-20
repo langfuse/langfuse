@@ -236,6 +236,7 @@ export const evalsV2Router = createTRPCRouter({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
         include: {
+          createdByUser: { select: { name: true, email: true } },
           _count: { select: { evaluatorAssignments: true } },
           evaluatorAssignments: {
             select: {
@@ -702,6 +703,7 @@ export const evalsV2Router = createTRPCRouter({
       const runScope = await createRunScope({
         prisma: ctx.prisma,
         projectId: input.projectId,
+        createdByUserId: ctx.session.user.id,
         name: input.name,
         targetObject: input.targetObject,
         filter: input.filter ?? [],
@@ -777,41 +779,6 @@ export const evalsV2Router = createTRPCRouter({
       return result;
     }),
 
-  renameRunScope: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        runScopeId: z.string(),
-        name: z.string().min(1),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "evalJob:CUD",
-      });
-
-      try {
-        await ctx.prisma.evalRunScope.update({
-          where: { id: input.runScopeId, projectId: input.projectId },
-          data: { name: input.name.trim() },
-        });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          throw new LangfuseConflictError(
-            `A run scope named "${input.name.trim()}" already exists.`,
-          );
-        }
-        throw error;
-      }
-
-      return { id: input.runScopeId };
-    }),
-
   activateRule: protectedProjectProcedure
     .input(
       z.object({
@@ -837,6 +804,7 @@ export const evalsV2Router = createTRPCRouter({
       const result = await activateEvaluator({
         prisma: ctx.prisma,
         projectId: input.projectId,
+        createdByUserId: ctx.session.user.id,
         evaluatorId: input.evaluatorId,
         scope: input.scope,
       });
@@ -913,6 +881,7 @@ export const evalsV2Router = createTRPCRouter({
           const scope = await ctx.prisma.evalRunScope.create({
             data: {
               projectId: input.projectId,
+              createdByUserId: ctx.session.user.id,
               name: input.scope.name,
               targetObject: input.scope.targetObject,
               filter: filter,
