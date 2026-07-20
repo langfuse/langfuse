@@ -104,16 +104,22 @@ const PageHeader = ({
           >
             <div className="flex min-w-0 flex-wrap items-center gap-3">
               {showSidebarTrigger ? (
-                <SidebarTrigger />
+                <>
+                  <SidebarTrigger />
+                  {/* Brand the app in the top bar while the sidebar (which
+                      owns the logo) is off-canvas below `md`. Hidden on
+                      desktop where the sidebar logo is visible. Gated on the
+                      same condition as the trigger so it only appears where a
+                      sidebar actually exists to mirror — never on the
+                      sidebar-less MinimalLayout (e.g. the public/shared trace
+                      view, which supplies its own leadingControl). */}
+                  <TopbarBrand className="md:hidden" />
+                </>
               ) : (
                 leadingControl && (
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
-              {/* Brand the app in the top bar while the sidebar (which owns the
-                  logo) is off-canvas below `md`. Hidden on desktop where the
-                  sidebar logo is visible. */}
-              <TopbarBrand className="md:hidden" />
               <div>
                 <EnvLabel />
               </div>
