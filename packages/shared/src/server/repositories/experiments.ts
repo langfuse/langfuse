@@ -2,6 +2,7 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   FilterList,
@@ -976,7 +977,10 @@ const getExperimentItemsFromEventsGeneric = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.experiment_item_id",
-    selectExpression: "e.experiment_item_id as item_id",
+    // min(start_time) is the item's root start_time (WHERE below restricts
+    // to root rows), used as a coarse partition-prune lower bound for Query 2.
+    selectExpression:
+      "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
     .when(hasScoreFilters, (b) =>
@@ -1055,7 +1059,10 @@ export const getExperimentItemsFromEvents = async (
       offset,
     });
 
-  const itemIdsResult = await queryClickhouse<{ item_id: string }>({
+  const itemIdsResult = await queryClickhouse<{
+    item_id: string;
+    start_time: string;
+  }>({
     query: itemIdsQuery,
     params: itemIdsParams,
     tags: { projectId },
@@ -1073,6 +1080,17 @@ export const getExperimentItemsFromEvents = async (
     ...compExperimentIds,
   ];
 
+  // Earliest root start_time among the qualified items - a coarse partition
+  // prune for Query 2. Children always start at or after their own root, so
+  // this bound can't exclude a legitimate descendant.
+  const minStartTime = new Date(
+    Math.min(
+      ...itemIdsResult.map((r) =>
+        parseClickhouseUTCDateTimeFormat(r.start_time).getTime(),
+      ),
+    ),
+  );
+
   // ========== QUERY 2: Fetch data for ALL experiments ==========
   // total_cost is summed across the item's full observation subtree via a
   // window function - the root span itself usually carries no cost of its
@@ -1087,6 +1105,9 @@ export const getExperimentItemsFromEvents = async (
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
   })
+    .whereRaw("e.start_time >= {itemsMinStartTime: DateTime64(3)}", {
+      itemsMinStartTime: convertDateToClickhouseDateTime(minStartTime),
+    })
     .selectRaw(
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
