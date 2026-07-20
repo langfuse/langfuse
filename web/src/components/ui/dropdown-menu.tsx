@@ -202,7 +202,7 @@ const DropdownMenuItemWithSecondaryAction = (
   }
 
   return (
-    <DropdownMenuItem className="p-0">
+    <DropdownMenuItem className="h-8 p-0">
       {props.href !== undefined ? (
         <Link
           href={props.href}
