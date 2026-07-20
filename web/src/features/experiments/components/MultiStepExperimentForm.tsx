@@ -26,7 +26,6 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
-import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
 import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -205,12 +204,6 @@ export const MultiStepExperimentForm = ({
           model: selectedPromptModelConfig.model,
         }
       : null,
-  });
-
-  useExperimentNameValidation({
-    projectId,
-    datasetId,
-    form,
   });
 
   // Watch model config changes and update form

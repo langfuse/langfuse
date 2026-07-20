@@ -41,11 +41,16 @@ export default function Dataset() {
     datasetId,
     projectId,
   });
-  const run = api.datasets.runById.useQuery({
-    datasetId,
-    projectId,
-    runId,
-  });
+  const run = api.datasets.runById.useQuery(
+    {
+      datasetId,
+      projectId,
+      runId,
+    },
+    {
+      enabled: !isExperimentsBetaActive,
+    },
+  );
   // In fast-preview mode a direct-written experiment may not have a Postgres
   // dataset-run row, so source the title/name from the events-backed experiment.
   const experiment = api.experiments.byId.useQuery(
