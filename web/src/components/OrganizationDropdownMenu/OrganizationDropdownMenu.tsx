@@ -3,6 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import { PlusIcon, Settings } from "lucide-react";
@@ -43,11 +44,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
 
   return (
     <DropdownMenuContent align="start">
-      <DropdownMenuItem className="font-bold" asChild>
-        <Link href="/" className="cursor-pointer">
-          Organizations
-        </Link>
-      </DropdownMenuItem>
+      <DropdownMenuLabel>Organizations</DropdownMenuLabel>
       <DropdownMenuSeparator />
       <div className="max-h-36 overflow-y-auto">
         {props.state === "loaded" ? (

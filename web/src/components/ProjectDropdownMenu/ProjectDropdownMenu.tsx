@@ -3,6 +3,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
@@ -46,14 +47,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
 
   return (
     <DropdownMenuContent align="start">
-      <DropdownMenuItem asChild className="font-bold">
-        <Link
-          href={`/organization/${organizationId}`}
-          className="cursor-pointer"
-        >
-          Projects
-        </Link>
-      </DropdownMenuItem>
+      <DropdownMenuLabel>Projects</DropdownMenuLabel>
       <DropdownMenuSeparator />
       <div className="max-h-36 overflow-y-auto">
         {props.state === "loaded" ? (
