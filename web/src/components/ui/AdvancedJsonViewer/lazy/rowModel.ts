@@ -2,84 +2,87 @@
  * RowModel — the renderer-facing seam for the lazy JSON viewer (LFE-11080).
  *
  * The virtualized viewer talks to a JSON document ONLY through this async
- * contract: "how many visible rows are there, give me the window [start,count),
- * expand/collapse this node, materialize this node's full value." It never sees
- * the underlying tree, parsed object, or bytes — so the SAME renderer runs over:
+ * contract: revision, total-visible count, a window of rows, expand/collapse,
+ * page-in a wide container, and materialize one value. It never sees the
+ * underlying bytes/tree — so the SAME renderer runs over the byte-indexer whether
+ * that engine lives on the main thread (in-memory payloads, fed as bytes) or in
+ * a Worker (the ~1 GB path). There is ONE tree/flatten implementation
+ * (`TreeRowModel`) over one child source (`AsyncJsonSource`).
  *
- *   - `InMemoryRowModel` (this increment) — a model over an already-parsed JS
- *     value; resolves effectively synchronously. Ships the freeze fix for
- *     payloads that still parse, with no backend dependency.
- *   - a worker/byte-index RowModel (LFE-11081/82) — the worker owns the bytes +
- *     a cached offset index and answers these same messages, so the document is
- *     never fully parsed or held on the main thread → the path to ~1 GB.
- *
- * The contract is async because the worker impl must be; the in-memory impl just
- * resolves immediately. The renderer requests the visible window and paints
- * skeletons for rows not yet delivered — uniform across both sources.
- *
- * Nodes are addressed by a stable, model-assigned numeric `nodeId` (not a path):
- * path re-derivation is O(depth) scans, and the worker impl needs a cheap handle.
+ * Hardening the review (LFE-11079 Fable pass) demanded before a renderer is
+ * built against this seam:
+ * - **revision**: every structural mutation bumps a counter, and `getRows`
+ *   stamps its result, so a renderer can discard a row window that resolved
+ *   against a since-mutated model (worker responses race expand/collapse).
+ * - **error envelope**: `getValue` returns a Result, never throws (malformed
+ *   slices / unknown ids must not crash the UI).
+ * - **truncation passthrough**: a value capped by the engine's byte budget is
+ *   reported as such, so the UI can offer "download full" instead of lying.
  */
 
-import type { JSONType } from "../types";
+import type { JsonNodeType, GetValueResult } from "./byteJsonIndex";
+
+export type { JsonNodeType };
 
 /**
  * One visible line. Carries only a BOUNDED preview of its value — never the
- * full value (a 20 MB string must not ride along in a row). The full value is
- * fetched on demand via `getValue`.
+ * full value. The full value is fetched on demand via `getValue`.
  */
 export interface JsonRow {
+  /** Stable id (engine nodeId ≥ 0; synthetic load-more rows use negative ids). */
   nodeId: number;
-  /** Nesting depth (root = 0). */
   depth: number;
   /** Key in the parent: object property, array index, or null for the root. */
   keyOrIndex: string | number | null;
-  type: JSONType;
-  /** Immediate child count for containers (undefined for primitives). */
+  type: JsonNodeType;
+  /** Immediate child count for containers (undefined for primitives/unknown). */
   childCount?: number;
-  /** Bounded, display-ready preview of the value (truncated). */
+  /** Bounded, display-ready preview of the value (from the engine). */
   preview: string;
-  /** Whether the preview was truncated (value longer than the preview budget). */
+  /** Whether the preview was cut short of the full value. */
   truncatedPreview: boolean;
   expandable: boolean;
   expanded: boolean;
-  /** Synthetic "load more" row for a paginated wide container (not a real
-   *  JSON node — activating it reveals the next page via `loadMore`). */
+  /** Synthetic "reveal next page" row for a paginated wide container. */
   isLoadMore?: boolean;
 }
 
-/** A node's full value, materialized on demand. */
-export interface MaterializedValue {
-  value: unknown;
-  /** Present when the value is a number that cannot round-trip through a JS
-   *  double; carries the exact source text so precision isn't silently lost. */
-  lossyNumber?: string;
+/** A window of visible rows, stamped with the revision it was computed at. */
+export interface RowWindow {
+  revision: number;
+  rows: JsonRow[];
 }
+
+/** Result of materializing a value: never throws — errors are data. */
+export type ValueResult =
+  | { ok: true; value: GetValueResult }
+  | { ok: false; error: string };
 
 /**
  * Async, source-agnostic model of the currently-visible rows of a JSON document.
- * Implementations must keep cost proportional to what is expanded/visible, never
- * to the total document size.
+ * Cost stays proportional to what is expanded/visible, never to total size.
  */
 export interface RowModel {
+  /** Monotonic counter; bumped on every structural mutation (expand/collapse/
+   *  load-more). Compare against `RowWindow.revision` to detect stale reads. */
+  getRevision(): number;
+
   /** Number of currently-visible rows (the virtualizer's row count). Cheap. */
   getTotalVisible(): number;
 
-  /** The visible rows in `[start, start+count)`. */
-  getRows(start: number, count: number): Promise<JsonRow[]>;
+  /** The visible rows in `[start, start+count)`, stamped with the revision. */
+  getRows(start: number, count: number): Promise<RowWindow>;
 
-  /** Convenience: the single row at a visible index (`getRows(i, 1)[0]`). */
-  getRowAt(index: number): Promise<JsonRow | undefined>;
-
-  /** Expand a container node (materializes only its first page of children). */
+  /** Expand a container (materializes only its first page of children). */
   expand(nodeId: number): Promise<void>;
 
-  /** Collapse a container node (drops its visible descendants). */
+  /** Collapse a container (drops its visible descendants). */
   collapse(nodeId: number): Promise<void>;
 
-  /** Reveal the next page of a paginated wide container (or its load-more row). */
+  /** Reveal the next page of a paginated wide container, given the container's
+   *  nodeId or its load-more row id. */
   loadMore(nodeId: number): Promise<void>;
 
-  /** Materialize a single node's full value on demand. */
-  getValue(nodeId: number): Promise<MaterializedValue>;
+  /** Materialize a single node's full value on demand (never throws). */
+  getValue(nodeId: number): Promise<ValueResult>;
 }

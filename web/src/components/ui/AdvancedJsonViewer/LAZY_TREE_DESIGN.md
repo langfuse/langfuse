@@ -1,58 +1,53 @@
-# Lazy JSON tree — design (LFE-11080, part of the LFE-10847/LFE-10152 large-trace work)
+# Lazy JSON viewer — design (LFE-11080/82, under LFE-10847/LFE-10152)
 
 ## Problem
 
 The JSON Beta viewer virtualizes the DOM (only visible rows paint) but builds the
-**entire** node tree up front: one `TreeNode` per element **plus** a flat `allNodes`
-array (~2n objects), synchronously on the main thread, before any paint. A ~20 MB
-structured payload is ~1M nodes → the build freezes the tab. "JIT O(log n)" here is
-lazy _navigation_ over an already-complete tree, not lazy _building_.
+**entire** node tree up front, on the main thread, before any paint. A ~20 MB
+structured payload is ~1M nodes → the build freezes the tab; `JSON.parse` itself
+blows heap 5–8.5× and hard-walls at the ~512 MB JS-string cap. Interim stopgap: a
+node-count gate (LFE-10847, PR #15230). This is the real fix: **never build,
+parse, or hold more than what is expanded/visible.**
 
-Interim stopgap: a node-count gate (LFE-10847, PR #15230) refuses to build above 50k
-nodes and shows a download fallback. This is the real fix: **never build more of the
-tree than what is expanded/visible.**
+## Architecture (validated by the LFE-11079 spike + Fable review)
 
-## The seam: `ChildProvider`
-
-`utils/childProvider.ts` defines the one abstraction that decouples the tree from its
-data source. A provider returns a container's **immediate** children, one bounded
-**page** at a time, on demand — never up front, never recursing.
+Bytes in, lazy index, materialize on demand — **one engine, one model, one
+renderer**:
 
 ```
-getChildPage(parentValue, offset, limit) -> { children, offset, total, hasMore }
+raw UTF-8 bytes ──▶ ByteJsonIndexEngine ──▶ AsyncJsonSource ──▶ TreeRowModel ──▶ (renderer)
+  (streamed or        byteJsonIndex.ts      asyncJsonSource.ts    treeRowModel.ts
+   stringified)       cached offset index   nodeId-keyed async    flatten/expand/paginate
 ```
 
-Two implementations satisfy the same contract, so the tree/nav/search UI is
-source-agnostic:
+- **`byteJsonIndex.ts`** — our own UTF-8 byte indexer (never a JS string of the
+  whole doc, never a whole-doc `JSON.parse`). Scans a container **once** and
+  caches a columnar child-offset table, so pages after the first are O(page)
+  (measured ~5000× faster than re-walking). Values materialized by slicing +
+  `TextDecoder`; precision preserved (bigint / raw string) for leaves; a
+  `ByteScanner` seam lets a WASM hot-loop drop in later.
+- **`asyncJsonSource.ts`** — the async, nodeId-keyed child-source seam
+  (`root` / `childrenPage` / `getValue`). `createInProcessSource(bytes)` wraps the
+  engine on the main thread; a Worker source implements the same interface for the
+  ~1 GB streamed path. **`sourceFromValue(value)`** is the in-memory entry:
+  `JSON.stringify → UTF-8 → engine` — so in-memory data uses the SAME engine, not
+  a second tree (per the spike's "unify on the byte engine" decision).
+- **`treeRowModel.ts`** — the ONE flatten/expand/paginate implementation over a
+  source. Only expanded levels are fetched; wide containers page with a "load
+  more" row; the flattened visible list rebuilds iteratively (deep-tree safe) on
+  structural change. Hardened per the review: a **revision** counter stamped onto
+  every `getRows` window (stale-read detection for async/worker responses), a
+  **`getValue` error envelope** (never throws), and truncation/byteLength
+  passthrough.
+- **`rowModel.ts`** — the renderer-facing contract the renderer is built against
+  exactly once.
 
-- **`createInMemoryChildProvider()`** (this increment) — children from an
-  already-parsed JS value. Ships the freeze fix for payloads that still parse.
-- **byte-index provider** (LFE-11081/82, future) — a Worker returns children by
-  scanning only that container's bytes in the source `ArrayBuffer`, so the full
-  document is never parsed or held as a JS object → the path to ~1 GB.
+## Status / next
 
-Pagination is first-class (`CHILD_PAGE_SIZE = 100`) because one wide container
-(millions of siblings) is itself an O(N) failure mode: reveal in pages, load more on
-scroll.
-
-## Plan (this increment → next)
-
-1. **[done]** `ChildProvider` contract + in-memory provider + tests (this commit).
-2. Rework tree building to materialize a node's `children` **on expand** via the
-   provider instead of the eager `buildTreeStructureIterative` PASS 1. Reuse the
-   existing offset/`getNodeByIndex` machinery (`treeNavigation.ts`,
-   `treeExpansion.ts`) — it already treats a collapsed node as `visibleDescendantCount = 0`;
-   the only change is that a not-yet-expanded node's `children` are unmaterialized
-   until first expand, and offsets recompute on expand as they do today.
-3. Drop the eager `allNodes` array. Search (LFE-11083) becomes an on-demand walk /
-   Worker scan instead of iterating a prebuilt flat array.
-4. Wide-container stubs in the tree (page nodes / "load more"), fed by provider pages.
-5. Swap in the byte-index provider (LFE-11081/82) — no change to the tree/nav/search
-   layer, only the provider.
-
-## Contract the tree must keep (consumed by the virtualized viewer)
-
-`rootNode.visibleDescendantCount` (virtualizer count), `getNodeByIndex(root, i)`,
-`findNodeIndex/findSectionHeaderIndex`, expand/collapse + offset recompute, and
-per-node fields (`id`, `depth`, `childOffsets`, `value`, `pathArray`, …). Making
-children lazy must not change these signatures — only when `children` get populated.
+- Done: engine (LFE-11082), source + model + hardened contract (this commit),
+  backend streaming endpoint (PR #15239).
+- Next: the byte-engine **blockers** for the _streamed_ (non-JSON-guaranteed)
+  path — B1 non-JSON/raw root → string-leaf fallback, B2 empty-doc, B3 strict
+  truncation detection; endpoint `stream.pipeline` + integrity header. Then the
+  async virtualized renderer, then wire the Worker source. (In-memory bytes come
+  from `JSON.stringify`, so they're always valid JSON — B1/B2/B3 are stream-only.)
