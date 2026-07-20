@@ -50,37 +50,48 @@ export function BarListChartArea({
   metricFormatter?: MetricFormatterFunction;
 }) {
   return (
-    // The chart fills the leftover tile height (flex-1) and never forces the
-    // card past its tile. Collapsed, the inner box takes the measured height so
-    // the bars spread to use it (a sparse list has no dead gap, a full one no
-    // scrollbar); expanded, it grows to the bars' natural height and this
-    // viewport scrolls within the tile. The observed (flex-1) box's height is
-    // owned by layout, not by this content. (LFE-11060, revises LFE-11035)
-    <div
-      ref={containerRef}
-      className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
-    >
-      <div
-        className="w-full"
-        style={{
-          height: isExpanded
-            ? data.length * barRowHeightPx + axisPaddingPx
-            : (measuredHeightPx ?? 200),
-        }}
-      >
-        <Chart
-          chartType="HORIZONTAL_BAR"
-          data={barListToDataPoints(data)}
-          metricFormatter={metricFormatter}
-          config={{ metric: { label: metricLabel } }}
-          rowLimit={maxExpandedBars}
-          chartConfig={{
-            type: "HORIZONTAL_BAR",
-            row_limit: maxExpandedBars,
-            unit,
-            show_value_labels: true,
+    // Two boxes, deliberately split:
+    //
+    //  - the OUTER box carries the ResizeObserver ref and does NOT scroll. Its
+    //    height is pure flex layout (flex-1 of the card), so it can never be
+    //    reduced by a scrollbar appearing on a descendant. useFitRowCount
+    //    therefore measures a stable value and cannot enter a
+    //    measure -> shrink -> remeasure loop — even in browsers/OSes whose
+    //    scrollbars consume layout space (classic, non-overlay).
+    //  - the INNER box scrolls: `overflow-y-auto` lets the expanded list scroll
+    //    within the tile, while `overflow-x-hidden` stops a horizontal scrollbar
+    //    from ever appearing (the chart is width-fitted, so nothing is clipped).
+    //    A horizontal scrollbar is what would otherwise consume vertical space
+    //    and flicker on wide content (e.g. many long trace names).
+    //
+    // The chart is a pure function of the passed dimensions and never measures
+    // itself. Collapsed, the sized box takes the measured height so the bars
+    // spread to fill it (no dead gap, no scrollbar); expanded, it grows to the
+    // bars' natural height and the inner box scrolls. (LFE-11060, revises LFE-11035)
+    <div ref={containerRef} data-fit-box className="mt-4 min-h-0 w-full flex-1">
+      <div className="h-full min-h-0 w-full overflow-x-hidden overflow-y-auto">
+        <div
+          className="w-full"
+          style={{
+            height: isExpanded
+              ? data.length * barRowHeightPx + axisPaddingPx
+              : (measuredHeightPx ?? 200),
           }}
-        />
+        >
+          <Chart
+            chartType="HORIZONTAL_BAR"
+            data={barListToDataPoints(data)}
+            metricFormatter={metricFormatter}
+            config={{ metric: { label: metricLabel } }}
+            rowLimit={maxExpandedBars}
+            chartConfig={{
+              type: "HORIZONTAL_BAR",
+              row_limit: maxExpandedBars,
+              unit,
+              show_value_labels: true,
+            }}
+          />
+        </div>
       </div>
     </div>
   );
