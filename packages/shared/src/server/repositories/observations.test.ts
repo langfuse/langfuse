@@ -56,9 +56,14 @@ describe("getCostForTraces — cost-fallback SQL", () => {
 
     expect(mockQueryClickhouse).toHaveBeenCalledOnce();
     const { query } = mockQueryClickhouse.mock.calls[0][0];
-    // The COALESCE ends with a literal 0, so a SUM over an empty set still
-    // yields 0 rather than null. This pins the behaviour so future edits
-    // cannot regress to a null sum.
+    // The trailing literal `0` in the COALESCE protects the case where
+    // observations exist for the session's traces but both caller-ingested
+    // total_cost and model-calculated calculated_total_cost are NULL on
+    // every row. The empty-result case is handled separately: ClickHouse's
+    // sum() returns 0 for an empty set, and the caller-side
+    // `res.length > 0 ? ... : undefined` guard in observations.ts maps that
+    // to `undefined` so the badge shows "$0.00". This test pins the
+    // expression so future edits cannot regress the fallback arm.
     expect(query).toMatch(
       /COALESCE\(o\.total_cost,\s*o\.calculated_total_cost,\s*0\)/i,
     );
