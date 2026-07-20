@@ -124,6 +124,8 @@ export const events = {
     "copy_session_id_click",
     "truncated_observation_open_trace_click",
     "truncated_observation_download_click",
+    "inline_tools_toggled",
+    "system_prompt_toggled",
   ],
   eval_config: [
     "new_form_submit",
@@ -244,7 +246,7 @@ export const events = {
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
   ],
-  user_settings: ["theme_changed"],
+  user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
     "project_delete",
     "rename_form_submit",

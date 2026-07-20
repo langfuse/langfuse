@@ -3,15 +3,11 @@ import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";
 import { type RouterOutputs } from "@/src/utils/api";
-import { getNumberFromMap } from "@/src/utils/map-utils";
 import Link from "next/link";
 import React, { useEffect, useCallback, useRef } from "react";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
-import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
+import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 
 const TraceSkeleton = () => {
   return (
@@ -92,47 +88,14 @@ const TraceRow = React.memo(
                   </span>
                 </div>
               </Link>
-              <div className="flex flex-wrap gap-2">
-                <NewDatasetItemFromTraceId
-                  projectId={projectId}
-                  traceId={trace.id}
-                  timestamp={new Date(trace.timestamp)}
-                  buttonVariant="outline"
-                />
-                <div className="flex items-start">
-                  <AnnotateDrawer
-                    key={"annotation-drawer" + trace.id}
-                    projectId={projectId}
-                    scoreTarget={{
-                      type: "trace",
-                      traceId: trace.id,
-                    }}
-                    scores={trace.scores}
-                    buttonVariant="outline"
-                    analyticsData={{
-                      type: "trace",
-                      source: "SessionDetail",
-                    }}
-                    scoreMetadata={{
-                      projectId: projectId,
-                      environment: trace.environment,
-                    }}
-                  />
-                  <CreateNewAnnotationQueueItem
-                    projectId={projectId}
-                    objectId={trace.id}
-                    objectType="TRACE"
-                    variant="outline"
-                  />
-                </div>
-                <CommentDrawerButton
-                  projectId={projectId}
-                  variant="outline"
-                  objectId={trace.id}
-                  objectType="TRACE"
-                  count={getNumberFromMap(traceCommentCounts, trace.id)}
-                />
-              </div>
+              <SessionTraceActionButtons
+                projectId={projectId}
+                traceId={trace.id}
+                timestamp={new Date(trace.timestamp)}
+                environment={trace.environment}
+                scores={trace.scores}
+                traceCommentCounts={traceCommentCounts}
+              />
             </div>
             <div className="flex-1">
               <p className="mb-1 font-bold">Scores</p>
