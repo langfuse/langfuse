@@ -70,7 +70,7 @@ export function TruncatedString({
       <span
         style={{
           color: theme.stringColor,
-          fontFamily: "monospace",
+          fontFamily: "var(--font-mono)",
         }}
       >
         &quot;
@@ -118,7 +118,7 @@ export function TruncatedString({
           ref={triggerRef}
           style={{
             color: theme.stringColor,
-            fontFamily: "monospace",
+            fontFamily: "var(--font-mono)",
             cursor: "help",
             display: "inline-block",
             maxWidth: "100%",
@@ -159,7 +159,7 @@ export function TruncatedString({
         <div
           className="max-h-60 overflow-auto p-0.5"
           style={{
-            fontFamily: "monospace",
+            fontFamily: "var(--font-mono)",
             fontSize: theme.fontSize,
             color: theme.stringColor,
             whiteSpace: "pre-wrap",

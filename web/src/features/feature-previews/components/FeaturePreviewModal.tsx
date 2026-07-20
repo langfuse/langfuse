@@ -112,7 +112,7 @@ export function FeaturePreviewModal({
         className="border-border bg-background text-foreground max-h-[88vh] p-0 shadow-2xl sm:rounded-2xl"
       >
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg font-semibold">
+          <DialogTitle className="text-foreground text-lg font-bold">
             {FEATURE_PREVIEW_MODAL_TITLE}
           </DialogTitle>
           <DialogDescription className="mt-0">
@@ -139,7 +139,7 @@ export function FeaturePreviewModal({
                     )}
                   >
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium">
+                      <span className="block text-sm font-bold">
                         {item.sidebarLabel}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
@@ -163,7 +163,7 @@ export function FeaturePreviewModal({
 
                 <div className="flex items-start justify-between gap-6">
                   <div>
-                    <h2 className="text-foreground text-xl font-semibold">
+                    <h2 className="text-foreground text-xl font-bold">
                       {selected.title}
                     </h2>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">

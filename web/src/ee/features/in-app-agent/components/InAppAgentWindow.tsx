@@ -100,7 +100,7 @@ function InAppAgentQuickActionPicker({
 
   return (
     <>
-      <p className="text-foreground mt-3 text-sm font-medium">
+      <p className="text-foreground mt-3 text-sm font-bold">
         Welcome to the Langfuse Assistant
       </p>
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
@@ -150,7 +150,7 @@ function InAppAgentQuickActionPicker({
                 <ActionIcon aria-hidden="true" className="size-3.5" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="text-foreground block text-xs leading-snug font-semibold">
+                <span className="text-foreground block text-xs leading-snug font-bold">
                   {action.label}
                 </span>
                 <span
@@ -324,7 +324,7 @@ function InAppAgentRateLimitError({
       )}
     >
       <div className="space-y-0.5">
-        <p className="font-medium">
+        <p className="font-bold">
           You&apos;ve reached the assistant request limit
         </p>
         <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
@@ -509,13 +509,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p
-            className="shrink-0 truncate text-sm font-semibold"
-            title="Assistant"
-          >
+          <p className="shrink-0 truncate text-sm font-bold" title="Assistant">
             Assistant
           </p>
-          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
+          <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
             Beta
           </span>
         </div>

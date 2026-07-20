@@ -72,7 +72,7 @@ export const DashboardTable = ({
                       <th
                         key={i}
                         scope="col"
-                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-semibold whitespace-nowrap sm:pl-0"
+                        className="text-primary py-3.5 pr-3 pl-4 text-left text-xs font-bold whitespace-nowrap sm:pl-0"
                       >
                         {header}
                       </th>

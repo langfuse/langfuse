@@ -64,7 +64,7 @@ export function FinalPreviewStep({
   return (
     <div className="h-[62vh] space-y-6 p-6">
       <div>
-        <h3 className="text-lg font-semibold">Review Configuration</h3>
+        <h3 className="text-lg font-bold">Review Configuration</h3>
         <p className="text-muted-foreground text-sm">
           Adding {totalCount} observation{totalCount !== 1 ? "s" : ""} to
           dataset &quot;
@@ -193,7 +193,7 @@ function PreviewCard({
   return (
     <div className={issueCardVariants({ variant: variant ?? "none" })}>
       <div className="bg-muted/30 flex items-center justify-between border-b px-4 py-2">
-        <span className="flex items-center gap-1.5 text-sm font-medium">
+        <span className="flex items-center gap-1.5 text-sm font-bold">
           {Icon && variant && (
             <Icon
               className={cn("h-3.5 w-3.5", issueTextVariants({ variant }))}

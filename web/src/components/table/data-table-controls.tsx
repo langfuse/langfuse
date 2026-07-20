@@ -579,7 +579,7 @@ export function DataTableControls({
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-64 text-xs">
-              <p className="font-medium">
+              <p className="font-bold">
                 {activeFilterCount} active{" "}
                 {activeFilterCount === 1 ? "filter" : "filters"}
               </p>
@@ -626,7 +626,7 @@ export function DataTableControls({
               </TooltipTrigger>
               <TooltipContent>Hide filters</TooltipContent>
             </Tooltip>
-            <span className="text-sm font-medium">Filters</span>
+            <span className="text-sm font-bold">Filters</span>
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
                 {activeFilterCount}
@@ -973,7 +973,7 @@ const FilterAccordionTrigger = ({
         // min-w-0: without it the trigger's automatic min width equals the
         // nowrap chip's full text width, so long chips push the row past the
         // panel edge (clipped) instead of ellipsing.
-        "group/facet relative flex min-w-0 flex-1 items-center gap-1.5 text-left font-medium hover:underline [&[data-state=open]>svg:first-child]:rotate-90",
+        "group/facet relative flex min-w-0 flex-1 items-center gap-1.5 text-left font-bold hover:underline [&[data-state=open]>svg:first-child]:rotate-90",
         className,
       )}
       {...props}
@@ -1036,7 +1036,7 @@ export function FilterAccordionItem({
       <FilterAccordionTrigger
         className={cn(
           "text-muted-foreground hover:text-foreground bg-muted hover:bg-accent min-h-6 rounded-md px-2 py-1 text-xs font-normal transition-colors hover:no-underline",
-          isActive && "text-foreground font-semibold",
+          isActive && "text-foreground font-bold",
           isDisabled &&
             "text-muted-foreground/60 hover:text-muted-foreground/60 cursor-not-allowed hover:bg-transparent",
         )}
@@ -1108,7 +1108,7 @@ export function FilterAccordionItem({
                 // must equal the label's line height so headers with and
                 // without a value render at the same height.
                 isActive
-                  ? "bg-background text-foreground rounded px-1 font-medium"
+                  ? "bg-background text-foreground rounded px-1 font-bold"
                   : "text-muted-foreground/60 font-normal",
               )}
               title={summary}
@@ -2188,11 +2188,11 @@ function TextFilterSection({
               key={idx}
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
-              <span className="text-muted-foreground shrink-0 text-[11px] font-medium">
+              <span className="text-muted-foreground shrink-0 text-[11px] font-bold">
                 {f.operator === "contains" ? "contains" : "does not contain"}
               </span>
               <span
-                className="min-w-0 flex-1 truncate font-medium"
+                className="min-w-0 flex-1 truncate font-bold"
                 title={f.value}
               >
                 {f.value}
@@ -2308,7 +2308,7 @@ export function DataTableControlsSection({
 }) {
   return (
     <div className="space-y-3">
-      <h3 className="text-foreground text-sm font-medium">{title}</h3>
+      <h3 className="text-foreground text-sm font-bold">{title}</h3>
       <div>{children}</div>
     </div>
   );

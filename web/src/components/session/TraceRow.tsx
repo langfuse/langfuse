@@ -84,7 +84,7 @@ const TraceRow = React.memo(
                 {/* min-w-0 + wrap-break-word: an unbroken long trace name
                     must wrap inside the panel, not escape the card */}
                 <div className="flex min-w-0 flex-col">
-                  <span className="text-xs font-medium wrap-break-word">
+                  <span className="text-xs font-bold wrap-break-word">
                     {trace.name} ({trace.id})&nbsp;↗
                   </span>
                   <span className="text-muted-foreground text-xs">
@@ -135,7 +135,7 @@ const TraceRow = React.memo(
               </div>
             </div>
             <div className="flex-1">
-              <p className="mb-1 font-medium">Scores</p>
+              <p className="mb-1 font-bold">Scores</p>
               <div className="flex flex-wrap content-start items-start gap-1">
                 <GroupedScoreBadges scores={trace.scores} />
               </div>

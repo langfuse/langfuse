@@ -111,7 +111,7 @@ export const BreakdownTooltip = ({
         <TooltipContent className="w-64 p-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <span className="font-semibold">
+              <span className="font-bold">
                 {isCost ? "Cost breakdown" : "Usage breakdown"}
               </span>
               {Array.isArray(details) && details.length > 0 && (
@@ -153,10 +153,10 @@ export const BreakdownTooltip = ({
 
             {/* Total */}
             <div className="flex justify-between border-t border-b-4 border-double py-1">
-              <span className="text-xs font-semibold">
+              <span className="text-xs font-bold">
                 {isCost ? "Total cost" : "Total usage"}
               </span>
-              <span className="font-mono text-xs font-semibold">
+              <span className="font-mono text-xs font-bold">
                 {formatValueWithPadding(
                   aggregatedDetails.total ?? 0,
                   maxDecimals,
@@ -191,8 +191,8 @@ const Section = ({ title, details, filterFn, formatValue }: SectionProps) => {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between border-b pb-1">
-        <span className="text-xs font-semibold">{title}</span>
-        <span className="text-right font-mono text-xs font-semibold">
+        <span className="text-xs font-bold">{title}</span>
+        <span className="text-right font-mono text-xs font-bold">
           {formatValue(sectionTotal)}
         </span>
       </div>
@@ -234,10 +234,10 @@ const OtherSection = ({ details, isCost, formatValue }: OtherSectionProps) => {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between border-b pb-2">
-        <span className="text-xs font-medium">
+        <span className="text-xs font-bold">
           {isCost ? "Other cost" : "Other usage"}
         </span>
-        <span className="text-right font-mono text-xs font-medium">
+        <span className="text-right font-mono text-xs font-bold">
           {formatValue(otherTotal)}
         </span>
       </div>

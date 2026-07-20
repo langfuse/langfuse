@@ -41,7 +41,7 @@ const TruncatedIOSection = ({
   return (
     <div className="flex flex-col gap-1">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-medium">{label}</span>
+        <span className="font-bold">{label}</span>
         {(truncated || shown.length < text.length) && (
           <span>
             {compactNumberFormatter(Math.max(fullLength, text.length), 1)}{" "}

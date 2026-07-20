@@ -47,7 +47,7 @@ export function GraphViewModeSwitch({
           aria-label={label}
           title={title}
           className={cn(
-            "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+            "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
             value === mode
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",

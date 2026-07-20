@@ -142,7 +142,7 @@ const OverviewPanelHeader = React.forwardRef<
     {...props}
   >
     <div>
-      {title && <h3 className="text-lg font-semibold">{title}</h3>}
+      {title && <h3 className="text-lg font-bold">{title}</h3>}
       {subtitle && <p className="text-muted-foreground text-sm">{subtitle}</p>}
     </div>
     {actions && <div className="flex items-center gap-2">{actions}</div>}
@@ -203,7 +203,7 @@ const OverviewPanelSection = React.forwardRef<
 >(({ title, className, children, ...props }, ref) => (
   <div ref={ref} className={cn("space-y-3", className)} {...props}>
     {title && (
-      <h4 className="text-muted-foreground text-sm font-medium">{title}</h4>
+      <h4 className="text-muted-foreground text-sm font-bold">{title}</h4>
     )}
     {children}
   </div>

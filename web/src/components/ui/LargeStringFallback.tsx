@@ -60,7 +60,7 @@ export function LargeStringFallback({
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
           {title ? (
-            <span className="text-foreground font-medium">{title}</span>
+            <span className="text-foreground font-bold">{title}</span>
           ) : null}
           <span>
             Large string — {compactNumberFormatter(value.length, 1)} characters,

@@ -311,7 +311,7 @@ export function IOPreview({
               <div className="bg-accent flex h-8 w-8 items-center justify-center rounded-full">
                 <BookOpen className="text-muted-foreground h-4 w-4" />
               </div>
-              <h3 className="text-sm font-semibold">
+              <h3 className="text-sm font-bold">
                 Looks like this trace didn&apos;t receive an input or output.
               </h3>
             </div>
