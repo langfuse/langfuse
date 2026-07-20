@@ -12,7 +12,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/src/components/ui/select";
 import type { CloudRegion } from "@/src/features/organizations/cloudRegions";
 
@@ -48,11 +47,9 @@ export function CloudRegionPicker({
               selectedRegion ? `${selectedRegion.name} data region` : undefined
             }
           >
-            <SelectValue>
-              {selectedRegion ? (
-                <CloudRegionLabel region={selectedRegion} />
-              ) : null}
-            </SelectValue>
+            {selectedRegion ? (
+              <CloudRegionLabel region={selectedRegion} />
+            ) : null}
           </SelectTrigger>
           <SelectContent>
             {regions.map((region) => (
@@ -86,10 +83,9 @@ export function CloudRegionPicker({
 
 function CloudRegionLabel({ region }: { region: CloudRegion }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="!flex items-center gap-2">
       <span
         className={
-          // The HIPAA symbol glyph sits lower than flag emojis in the same font.
           region.name === "HIPAA"
             ? "translate-y-[-3px] text-xl leading-none"
             : "-translate-y-px text-xl leading-none"
