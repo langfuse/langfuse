@@ -1,7 +1,6 @@
 import {
   DropdownMenuContent,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuLoadingItem,
 } from "@/src/components/ui/dropdown-menu";
@@ -28,9 +27,7 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
   const { canCreateOrganizations, getOrgPath } = props;
 
   return (
-    <DropdownMenuContent align="start" maxHeight="15rem">
-      <DropdownMenuLabel>Organizations</DropdownMenuLabel>
-      <DropdownMenuSeparator />
+    <DropdownMenuContent align="start" header="Organizations" maxHeight="15rem">
       {props.state === "loaded" ? (
         props.organizations
           .sort((a, b) => {

@@ -76,34 +76,100 @@ const DropdownMenuSubContent = React.forwardRef<
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName;
 
+const dropdownMenuLabelVariants = cva("px-2 py-1.5 text-sm font-bold");
+
+const dropdownMenuContentVariants = cva(
+  "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-32 overflow-hidden rounded-md border shadow-md",
+  {
+    variants: {
+      // Header content provides its own full-width header and padded body.
+      // Headerless content needs the default padding on the Radix container.
+      hasHeader: {
+        true: null,
+        false: "p-1",
+      },
+    },
+  },
+);
+
 const DropdownMenuContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+    header?: React.ReactNode;
     maxHeight?: React.CSSProperties["maxHeight"];
   }
->(({ className, sideOffset = 4, maxHeight, style, ...props }, ref) => {
-  // Route into the `popover` overlay layer (above `modal`). null until mounted
-  // → falls back to <body>, SSR-parity. Layer order, not z-index, stacks it.
-  const container = useLayerContainer("popover");
-  return (
-    <DropdownMenuPrimitive.Portal container={container}>
-      <DropdownMenuPrimitive.Content
-        ref={ref}
-        sideOffset={sideOffset}
-        className={cn(
-          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-32 overflow-hidden rounded-md border p-1 shadow-md",
+>(
+  (
+    { children, className, header, sideOffset = 4, maxHeight, style, ...props },
+    ref,
+  ) => {
+    // Route into the `popover` overlay layer (above `modal`). null until mounted
+    // → falls back to <body>, SSR-parity. Layer order, not z-index, stacks it.
+    const container = useLayerContainer("popover");
+
+    const DropdownContentWrapper = React.useCallback(
+      function DropdownContentWrapper({
+        children: wrapperChildren,
+        className,
+      }: React.PropsWithChildren<{
+        className?: string;
+      }>) {
+        return (
+          <DropdownMenuPrimitive.Portal container={container}>
+            <DropdownMenuPrimitive.Content
+              ref={ref}
+              sideOffset={sideOffset}
+              className={className}
+              style={
+                maxHeight === undefined
+                  ? style
+                  : { ...style, maxHeight, overflowY: "auto" }
+              }
+              {...props}
+            >
+              {wrapperChildren}
+            </DropdownMenuPrimitive.Content>
+          </DropdownMenuPrimitive.Portal>
+        );
+      },
+      [container, maxHeight, props, ref, sideOffset, style],
+    );
+
+    if (header != null) {
+      // The sticky header sits outside the padded body so its background and
+      // border cover the full width of the scroll container.
+      return (
+        <DropdownContentWrapper
+          className={dropdownMenuContentVariants({
+            hasHeader: true,
+            className,
+          })}
+        >
+          <div
+            className={cn(
+              dropdownMenuLabelVariants(),
+              "border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5",
+            )}
+          >
+            {header}
+          </div>
+          <div className="p-1">{children}</div>
+        </DropdownContentWrapper>
+      );
+    }
+
+    return (
+      <DropdownContentWrapper
+        className={dropdownMenuContentVariants({
+          hasHeader: false,
           className,
-        )}
-        style={
-          maxHeight === undefined
-            ? style
-            : { ...style, maxHeight, overflowY: "auto" }
-        }
-        {...props}
-      />
-    </DropdownMenuPrimitive.Portal>
-  );
-});
+        })}
+      >
+        {children}
+      </DropdownContentWrapper>
+    );
+  },
+);
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
 const DropdownMenuItem = React.forwardRef<
@@ -286,7 +352,7 @@ const DropdownMenuLabel = React.forwardRef<
 >(({ className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
-    className={cn("px-2 py-1.5 text-sm font-bold", inset && "pl-8", className)}
+    className={cn(dropdownMenuLabelVariants(), inset && "pl-8", className)}
     {...props}
   />
 ));

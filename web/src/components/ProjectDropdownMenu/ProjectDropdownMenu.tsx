@@ -1,7 +1,6 @@
 import {
   DropdownMenuContent,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuLoadingItem,
 } from "@/src/components/ui/dropdown-menu";
@@ -29,9 +28,7 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
   const { organizationId, canCreateProjects, getProjectPath } = props;
 
   return (
-    <DropdownMenuContent align="start" maxHeight="15rem">
-      <DropdownMenuLabel>Projects</DropdownMenuLabel>
-      <DropdownMenuSeparator />
+    <DropdownMenuContent align="start" header="Projects" maxHeight="15rem">
       {props.state === "loaded" ? (
         props.projects.map((dropdownProject) => (
           <DropdownMenuItemWithSecondaryAction
