@@ -43,6 +43,7 @@ export function CloudRegionPicker({
         <Select value={selectedRegion?.name} onValueChange={onValueChange}>
           <SelectTrigger
             className="w-full"
+            disableValueLineClamp
             aria-label={
               selectedRegion ? `${selectedRegion.name} data region` : undefined
             }
@@ -83,7 +84,7 @@ export function CloudRegionPicker({
 
 function CloudRegionLabel({ region }: { region: CloudRegion }) {
   return (
-    <span className="!flex items-center gap-2">
+    <span className="flex items-center gap-2">
       <span
         className={
           region.name === "HIPAA"
