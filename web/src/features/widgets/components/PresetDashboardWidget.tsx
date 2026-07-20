@@ -206,13 +206,8 @@ export function PresetDashboardWidget({
   }
 
   return (
-    // h-full + min-h-0 keep the tile's definite height flowing down to the
-    // preset card (so fit-to-tile widgets measure the available height, not
-    // their content) while letting the scroll wrapper below shrink. (LFE-11060)
-    <div className="group relative h-full min-h-0 w-full">
-      <div className="h-full min-h-0 w-full overflow-y-auto">
-        {renderPreset(ctx)}
-      </div>
+    <div className="group relative h-full w-full">
+      <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
