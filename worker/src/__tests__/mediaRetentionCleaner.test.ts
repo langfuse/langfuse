@@ -205,7 +205,7 @@ describe("MediaRetentionCleaner", () => {
       ).resolves.toBe(0);
     });
 
-    it("continues an over-limit project and cleans claimed media links", async () => {
+    it("skips claimed media without consuming the batch limit", async () => {
       await drainExpiredMedia();
       mockDeleteFiles.mockClear();
 
@@ -219,8 +219,8 @@ describe("MediaRetentionCleaner", () => {
         data: { retentionDays: 7 },
       });
 
-      // Claimed media remains stored, but its stale links must stop consuming
-      // the limited selection so later runs reach deletable media.
+      // Claimed media remains stored and may be reused by recent traces. It
+      // must not consume the limit or lose those links.
       const protectedMediaIds: string[] = [];
       for (const ageInDays of [300, 299]) {
         const protectedMedia = await createTestMedia(
@@ -272,33 +272,20 @@ describe("MediaRetentionCleaner", () => {
       const firstCleaner = new MediaRetentionCleaner();
       await firstCleaner.processBatch();
 
-      expect(mockDeleteFiles).not.toHaveBeenCalled();
-      await expect(
-        prisma.traceMedia.count({
-          where: { projectId, mediaId: { in: protectedMediaIds } },
-        }),
-      ).resolves.toBe(0);
-      await expect(
-        prisma.observationMedia.count({
-          where: { projectId, mediaId: { in: protectedMediaIds } },
-        }),
-      ).resolves.toBe(0);
-      await expect(
-        prisma.media.count({
-          where: {
-            projectId,
-            id: { in: deletableMedia.map((media) => media.id) },
-          },
-        }),
-      ).resolves.toBe(3);
-
-      const secondCleaner = new MediaRetentionCleaner();
-      await secondCleaner.processBatch();
-
       expect(mockDeleteFiles).toHaveBeenCalledTimes(1);
       expect(mockDeleteFiles).toHaveBeenLastCalledWith(
         deletableMedia.slice(0, 2).map((media) => media.bucketPath),
       );
+      await expect(
+        prisma.traceMedia.count({
+          where: { projectId, mediaId: { in: protectedMediaIds } },
+        }),
+      ).resolves.toBe(2);
+      await expect(
+        prisma.observationMedia.count({
+          where: { projectId, mediaId: { in: protectedMediaIds } },
+        }),
+      ).resolves.toBe(2);
       await expect(
         prisma.media.count({
           where: {
@@ -308,8 +295,8 @@ describe("MediaRetentionCleaner", () => {
         }),
       ).resolves.toBe(1);
 
-      const thirdCleaner = new MediaRetentionCleaner();
-      await thirdCleaner.processBatch();
+      const secondCleaner = new MediaRetentionCleaner();
+      await secondCleaner.processBatch();
 
       expect(mockDeleteFiles).toHaveBeenCalledTimes(2);
       expect(mockDeleteFiles).toHaveBeenLastCalledWith([
