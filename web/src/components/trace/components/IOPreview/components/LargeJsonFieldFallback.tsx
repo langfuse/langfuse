@@ -10,11 +10,13 @@ const PREVIEW_DISPLAY_CHARS = 4_000;
 
 /**
  * Fallback for a single JSON-view field (Input / Output / Metadata) whose
- * payload is too large to render in the unvirtualized react18-json-view
- * (LFE-10989). Instead of parsing + rendering the full tree on the main thread
- * — which freezes for seconds and crashes the renderer around ~20 MB — it
- * shows a bounded preview head plus escape hatches: a raw download, and a
- * pointer to the Formatted (lazy) and JSON Beta (virtualized) views that scale.
+ * payload is too large to render. Used by both JSON views: the plain view when
+ * a field exceeds the char limit (unvirtualized react18-json-view, LFE-10989),
+ * and the Beta viewer when a field exceeds the node/row limit (its O(N)
+ * tree-build freezes the tab even though the DOM is virtualized, LFE-10847).
+ * Instead of building the full tree on the main thread — which freezes for
+ * seconds and crashes the renderer — it shows a bounded preview head plus
+ * escape hatches: a raw download, and a pointer to the Formatted (lazy) view.
  *
  * This component never serializes the payload: the caller's size probe already
  * did that once and passes the `serialized` string in, reused here for both the
@@ -72,8 +74,7 @@ export function LargeJsonFieldFallback({
         </div>
         <p className="text-muted-foreground text-xs">
           Rendering this much JSON at once freezes the tab. Use the{" "}
-          <span className="font-bold">Formatted</span> or{" "}
-          <span className="font-bold">JSON Beta</span> view for the full
+          <span className="font-bold">Formatted</span> view for the full
           payload, or download it below.
         </p>
         <pre className="bg-muted/50 max-h-40 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">
