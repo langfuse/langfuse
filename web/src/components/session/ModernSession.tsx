@@ -71,7 +71,7 @@ const ModernSessionMinimapItem = React.memo(
           <span className="flex min-w-0 items-center gap-1.5">
             <ItemBadge type="TRACE" isSmall />
             <span
-              className="min-w-0 flex-1 truncate text-xs font-semibold"
+              className="min-w-0 flex-1 truncate text-xs font-bold"
               title={trace.name ?? "Trace"}
             >
               {trace.name ?? "Trace"}
@@ -160,10 +160,10 @@ const ModernSessionMinimap = React.memo(
         className="bg-muted/10 min-h-0 overflow-y-auto border-r"
       >
         <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          <span className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
             Traces · {traces.length}
           </span>
-          <span className="text-muted-foreground text-xs font-medium">
+          <span className="text-muted-foreground text-xs font-bold">
             Total cost · {usdFormatter(totalCost, 2)}
           </span>
         </div>

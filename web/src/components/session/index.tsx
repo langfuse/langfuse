@@ -1345,7 +1345,7 @@ const LoadedSessionEventsPage: React.FC<{
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-72 p-1">
-                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
                     LLM Calls per Trace
                   </div>
                   {SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
@@ -1359,7 +1359,7 @@ const LoadedSessionEventsPage: React.FC<{
                           onClick={() => applyLlmCallPreset(preset)}
                         >
                           <span className="flex flex-col">
-                            <span className="font-medium">{preset.name}</span>
+                            <span className="font-bold">{preset.name}</span>
                             {preset.description ? (
                               <span className="text-muted-foreground text-xs">
                                 {preset.description}

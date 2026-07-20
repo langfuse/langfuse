@@ -413,7 +413,7 @@ export const TraceEventsRow = React.memo(
                 >
                   <ItemBadge type="TRACE" isSmall />
                   <span
-                    className="truncate text-sm font-semibold"
+                    className="truncate text-sm font-bold"
                     title={trace.name ?? "Trace"}
                   >
                     {trace.name ?? "Trace"}
