@@ -992,6 +992,38 @@ export const hasAnyTraceOlderThan = async (
   return rows.length > 0;
 };
 
+/**
+ * Given a set of candidate trace ids, returns the subset whose trace timestamp is
+ * older than `beforeDate`. Used by data retention to find annotation queue items
+ * that reference traces about to be removed, so those items can be cleaned up
+ * instead of being left as orphans. See langfuse/langfuse#12852.
+ */
+export const getTraceIdsOlderThan = async (
+  projectId: string,
+  traceIds: string[],
+  beforeDate: Date,
+): Promise<string[]> => {
+  if (traceIds.length === 0) return [];
+
+  const rows = await queryClickhouse<{ id: string }>({
+    query: `
+      SELECT DISTINCT id
+      FROM traces
+      WHERE project_id = {projectId: String}
+      AND id IN ({traceIds: Array(String)})
+      AND timestamp < {cutoffDate: DateTime64(3)}
+    `,
+    params: {
+      projectId,
+      traceIds,
+      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
+    },
+    tags: { projectId },
+  });
+
+  return rows.map((row) => row.id);
+};
+
 export const deleteTracesOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
