@@ -22,6 +22,7 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 
 export default function Dataset() {
   const router = useRouter();
@@ -38,6 +39,11 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page
@@ -45,14 +51,10 @@ export default function Dataset() {
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
+          ...breadcrumb,
           {
             name: "Experiments",
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
         actionButtonsRight: (
@@ -87,7 +89,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -119,10 +121,10 @@ export default function Dataset() {
               <>
                 {run.data?.datasetVersion && (
                   <div className="flex flex-col gap-2 p-1">
-                    <span className="text-sm font-medium">Dataset Version</span>
+                    <span className="text-sm font-bold">Dataset Version</span>
                     <Link
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
-                      className="text-accent-dark-blue hover:text-primary-accent/60 text-sm"
+                      className="text-link hover:text-link-hover text-sm"
                     >
                       <LocalIsoDate date={run.data.datasetVersion} />
                     </Link>

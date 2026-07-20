@@ -19,7 +19,7 @@ export function EvaluatorTitleEditor({
       <Input
         ref={inputRef}
         aria-label="Evaluator name"
-        className="placeholder:text-foreground [field-sizing:content] h-7 max-w-full min-w-20 border-0 bg-transparent px-0 py-0 text-lg leading-7 font-semibold shadow-none focus-visible:ring-0"
+        className="placeholder:text-foreground [field-sizing:content] h-7 max-w-full min-w-20 border-0 bg-transparent px-0 py-0 text-lg leading-7 font-bold shadow-none focus-visible:ring-0"
         placeholder="Untitled"
         title="This name is also used for scores created by the evaluator."
         value={scoreName}

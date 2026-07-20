@@ -57,9 +57,14 @@ export default function AutomationsPage() {
   );
 
   // Fetch automations to check if any exist
-  const { data: automations } = api.automations.getAutomations.useQuery({
-    projectId,
-  });
+  const { data: automations } = api.automations.getAutomations.useQuery(
+    {
+      projectId,
+    },
+    {
+      enabled: !!projectId,
+    },
+  );
 
   // Fetch editing automation when in edit mode
   const { data: editingAutomation, error: editingAutomationError } =
@@ -70,6 +75,10 @@ export default function AutomationsPage() {
       },
       {
         enabled: view === "edit" && !!automationId,
+        // Suppress 404 toast: invalidation after deletion can trigger a refetch
+        // before the URL update commits (reachable via the delete button
+        // rendered inside AutomationForm on the dedicated edit view).
+        meta: { silentHttpCodes: [404] },
       },
     );
 
@@ -82,6 +91,11 @@ export default function AutomationsPage() {
       },
       {
         enabled: view === "list" && !!selectedAutomation,
+        // Suppress 404 toast: invalidation after deletion can trigger a refetch
+        // before the URL update commits. The error *state* is preserved so the
+        // NOT_FOUND check below (renderAutomationNotFoundError) still works for
+        // stale/invalid automation URLs.
+        meta: { silentHttpCodes: [404] },
       },
     );
 
@@ -360,7 +374,7 @@ export default function AutomationsPage() {
       <div className="h-full p-6">
         <div className="text-muted-foreground flex h-full items-center justify-center">
           <div className="text-center">
-            <h3 className="text-lg font-medium">Select an automation</h3>
+            <h3 className="text-lg font-bold">Select an automation</h3>
             <p className="mt-2 text-sm">
               Choose an automation from the sidebar to view its details and
               execution history.

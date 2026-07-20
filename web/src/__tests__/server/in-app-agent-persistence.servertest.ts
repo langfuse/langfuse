@@ -2,11 +2,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
   return {
     ...actual,
-    fetchLLMCompletion: vi.fn(),
+    generateLLMText: vi.fn(),
   };
 });
 
 import type { Session } from "next-auth";
+import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
@@ -15,7 +16,7 @@ import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
-  fetchLLMCompletion,
+  generateLLMText,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -41,7 +42,7 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
 
-const mockFetchLLMCompletion = vi.mocked(fetchLLMCompletion);
+const mockGenerateLLMText = vi.mocked(generateLLMText);
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -52,7 +53,7 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    mockFetchLLMCompletion.mockReset();
+    mockGenerateLLMText.mockReset();
   });
 
   const createCaller = async (
@@ -103,7 +104,7 @@ describe("in-app agent persistence", () => {
             ],
           },
         ],
-        featureFlags: {},
+        featureFlags: {} as Flags,
         admin: false,
       },
       environment: {} as any,
@@ -477,7 +478,7 @@ describe("in-app agent persistence", () => {
         title: "My custom title",
         renamedByUserAt: expect.any(Date),
       });
-      expect(mockFetchLLMCompletion).not.toHaveBeenCalled();
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
     } finally {
       (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = originalBedrockSmallModel;
     }
@@ -503,7 +504,7 @@ describe("in-app agent persistence", () => {
 
     try {
       (env as any).LANGFUSE_AWS_BEDROCK_SMALL_MODEL = "small-title-model";
-      mockFetchLLMCompletion.mockRejectedValue(new Error("Bedrock failed"));
+      mockGenerateLLMText.mockRejectedValue(new Error("Bedrock failed"));
 
       await expect(
         maybeInferAndPersistConversationTitle({
@@ -769,6 +770,20 @@ describe("in-app agent persistence", () => {
         where: { projectId, conversationId: conversation.id, runId: run.id },
       }),
     ).resolves.toBe(9);
+
+    const persistedEventTypes = (
+      await prisma.inAppAgentEvent.findMany({
+        where: { projectId, conversationId: conversation.id, runId: run.id },
+        select: { type: true },
+      })
+    ).map((event) => event.type);
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_START,
+    );
+    expect(persistedEventTypes).not.toContain(
+      EventType.REASONING_MESSAGE_CONTENT,
+    );
+    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {

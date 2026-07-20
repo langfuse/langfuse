@@ -235,6 +235,7 @@ export function ScopeFilterSearchBar({
 
   const { store, commit, applyFilters } = useEventsSearchBar({
     projectId,
+    tableName: "observations",
     enabled: true,
     filterState,
     searchQuery,
@@ -248,6 +249,7 @@ export function ScopeFilterSearchBar({
   return (
     <EventsSearchBarRow
       projectId={projectId}
+      tableName="observations"
       store={store}
       commit={commit}
       observed={observed}

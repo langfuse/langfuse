@@ -82,7 +82,7 @@ const SyncedDashboardDemo = ({
     </p>
     {PANELS.map((panel) => (
       <div key={panel.title} className="bg-background rounded-md border p-3">
-        <div className="mb-1 text-sm font-medium">{panel.title}</div>
+        <div className="mb-1 text-sm font-bold">{panel.title}</div>
         <div className="h-[180px] w-full">
           <LineChartTimeSeries
             data={panel.data}
@@ -120,7 +120,7 @@ export const SyncedTimeline = meta.story({});
 export const Spaghetti = meta.story({
   render: () => (
     <div className="bg-background h-[380px] w-full rounded-md border p-3">
-      <div className="mb-1 text-sm font-medium">p95 Latency — 14 models</div>
+      <div className="mb-1 text-sm font-bold">p95 Latency — 14 models</div>
       <div className="h-[330px] w-full">
         <LineChartTimeSeries
           data={spaghettiData}

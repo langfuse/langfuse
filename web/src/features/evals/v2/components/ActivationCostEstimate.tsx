@@ -79,7 +79,7 @@ export function ActivationCostEstimate({
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="flex items-center gap-1.5 font-medium">
+        <span className="flex items-center gap-1.5 font-bold">
           <Coins className="text-muted-foreground h-4 w-4" />
           Estimated daily cost
         </span>
@@ -88,7 +88,7 @@ export function ActivationCostEstimate({
         ) : isCodeEvaluator ? (
           <span className="text-muted-foreground">No LLM API cost</span>
         ) : dailyCostUsd !== null ? (
-          <span className="font-medium tabular-nums">
+          <span className="font-bold tabular-nums">
             ≈ {costFormatter(dailyCostUsd)} / day
           </span>
         ) : (

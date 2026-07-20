@@ -26,7 +26,7 @@ interface SlackDisconnectButtonProps {
   /** Button variant */
   variant?:
     | "default"
-    | "outline-solid"
+    | "outline"
     | "secondary"
     | "destructive"
     | "ghost"
@@ -169,7 +169,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 this project?
               </p>
               <div className="bg-muted space-y-2 rounded-md p-3">
-                <p className="text-sm font-medium">This will:</p>
+                <p className="text-sm font-bold">This will:</p>
                 <ul className="ml-4 space-y-1 text-sm">
                   <li>• Remove the bot from your Slack workspace</li>
                   <li>• Disable all existing Slack automations</li>

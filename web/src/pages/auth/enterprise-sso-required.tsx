@@ -18,7 +18,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { env } from "@/src/env.mjs";
-import { captureException } from "@sentry/nextjs";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 const enterpriseSsoFormSchema = z.object({
   email: z.email(),
@@ -123,7 +123,7 @@ export default function EnterpriseSsoRequiredPage() {
           "Unable to start the Enterprise SSO sign-in flow. Please try again.",
       );
     } catch (err) {
-      captureException(err);
+      captureUnknownError("auth.enterpriseSso", err);
       setError(
         "Something went wrong while checking your Enterprise SSO configuration. Please try again.",
       );
@@ -188,13 +188,13 @@ export default function EnterpriseSsoRequiredPage() {
             </form>
           </Form>
           {error ? (
-            <div className="text-destructive mt-4 text-center text-sm font-medium">
+            <div className="text-destructive mt-4 text-center text-sm font-bold">
               {error}
               <br />
               Contact{" "}
               <a
                 href="mailto:support@langfuse.com"
-                className="text-primary-accent hover:text-hover-primary-accent"
+                className="text-link hover:text-link-hover"
               >
                 support@langfuse.com
               </a>{" "}
@@ -204,7 +204,7 @@ export default function EnterpriseSsoRequiredPage() {
           <div className="text-muted-foreground mt-6 text-center text-sm">
             <Link
               href="/auth/sign-in"
-              className="text-primary-accent hover:text-hover-primary-accent"
+              className="text-link hover:text-link-hover"
             >
               Back to other sign-in options
             </Link>
@@ -215,7 +215,7 @@ export default function EnterpriseSsoRequiredPage() {
           Need help? Contact{" "}
           <a
             href="mailto:support@langfuse.com"
-            className="text-primary-accent hover:text-hover-primary-accent"
+            className="text-link hover:text-link-hover"
           >
             support@langfuse.com
           </a>

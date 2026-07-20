@@ -144,7 +144,13 @@ interface TableViewPresetsDrawerProps {
        * shared-link visit where the view is intentionally not applied). */
       appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      applyViewState: (viewData: TableViewPresetState) => void;
+      applyViewState: (
+        viewData: TableViewPresetState,
+        meta?: {
+          trigger: "select" | "permalink" | "default" | "system_preset";
+          viewId?: string | null;
+        },
+      ) => void;
     };
   };
   currentState: {
@@ -193,7 +199,7 @@ export function TableViewPresetsDrawer({
     updateNameMutation,
     deleteMutation,
     generatePermalinkMutation,
-  } = useViewMutations({ handleSetViewId });
+  } = useViewMutations({ handleSetViewId, applyViewState });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -222,33 +228,35 @@ export function TableViewPresetsDrawer({
   const [isEditPopoverOpen, setIsEditPopoverOpen] = useState<boolean>(false);
   const [dropdownId, setDropdownId] = useState<string | null>(null);
 
-  const selectedViewName = useMemo(() => {
-    // Check system filter presets first
-    const systemPreset = systemFilterPresets?.find(
-      (p) => p.id === selectedViewId,
-    );
-    if (systemPreset) {
-      // Normalize both to handle missing vs undefined property mismatch
-      const normalizedCurrent = normalizeForComparison(currentState.filters);
-      const normalizedPreset = normalizeForComparison(systemPreset.filters);
-      // If filters have been modified from the preset, show the generic trigger label instead
-      if (!isEqual(normalizedCurrent, normalizedPreset)) {
-        return undefined;
-      }
-      return systemPreset.name;
-    }
-    // Then check user presets
-    return TableViewPresetsList?.find((v) => v.id === selectedViewId)?.name;
-  }, [
-    selectedViewId,
-    systemFilterPresets,
-    TableViewPresetsList,
-    currentState.filters,
-  ]);
-
   const allViewNames = useMemo(
     () => TableViewPresetsList?.map((view) => ({ value: view.name })) ?? [],
     [TableViewPresetsList],
+  );
+
+  // Categorized system presets are surfaced by the category chip row beneath
+  // the search bar, so they are excluded from the drawer list to avoid showing
+  // the same preset in two places. Name lookups and uniqueness checks above
+  // still use the full list. Two exceptions stay in the drawer:
+  // - a categorized USER view (the name-dedup lets a same-named user view
+  //   displace a system preset into the chips) — a personal view must never
+  //   vanish from "My Views", it is its only management surface (rename,
+  //   delete, defaults, permalink);
+  // - a categorized system preset that IS the current user/project default
+  //   (assignable pre-chips; the row still exists in default_views) — this
+  //   row is the only place carrying the default badge and the "Remove as
+  //   my/project default" menu, so hiding it would leave the assignment
+  //   auto-applying on every load with no UI to inspect or clear it. Once
+  //   the default is removed, the row leaves the drawer again.
+  const drawerPresetList = useMemo(
+    () =>
+      TableViewPresetsList?.filter(
+        (view) =>
+          !view.category ||
+          !view.isSystem ||
+          view.id === defaultAssignments?.userDefaultViewId ||
+          view.id === defaultAssignments?.projectDefaultViewId,
+      ),
+    [TableViewPresetsList, defaultAssignments],
   );
 
   useUniqueNameValidation({
@@ -265,7 +273,7 @@ export function TableViewPresetsDrawer({
     });
 
     handleSetViewId(view.id);
-    applyViewState(view);
+    applyViewState(view, { trigger: "select", viewId: view.id });
   };
 
   const handleSelectSystemFilterPreset = useCallback(
@@ -275,7 +283,10 @@ export function TableViewPresetsDrawer({
         presetId: preset.id,
       });
       handleSetViewId(preset.id);
-      applyViewState(buildSystemFilterPresetState(preset));
+      applyViewState(buildSystemFilterPresetState(preset), {
+        trigger: "system_preset",
+        viewId: preset.id,
+      });
     },
     [capture, tableName, handleSetViewId, applyViewState],
   );
@@ -445,26 +456,20 @@ export function TableViewPresetsDrawer({
         }}
       >
         <DrawerTrigger asChild>
-          <Button
-            variant="outline"
-            id={triggerId}
-            title={selectedViewName ? `View: ${selectedViewName}` : "Views"}
-          >
-            <span>
-              {selectedViewName ? `View: ${selectedViewName}` : "Views"}
-            </span>
+          <Button variant="outline" id={triggerId} title="My Views">
+            <span>My Views</span>
             {selectedViewId ? (
               <ChevronDown className="ml-1 h-4 w-4" />
             ) : (
               <div className="bg-input ml-1 rounded-sm px-1 text-xs">
-                {TableViewPresetsList?.length ?? 0}
+                {drawerPresetList?.length ?? 0}
               </div>
             )}
           </Button>
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">
           <div className="mx-auto w-full">
-            <DrawerHeader className="bg-background flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
+            <DrawerHeader className="bg-modal flex flex-row items-center justify-between rounded-sm px-3 py-1.5">
               <DrawerTitle className="flex flex-row items-center gap-1">
                 Views{" "}
                 <a
@@ -545,13 +550,12 @@ export function TableViewPresetsDrawer({
                   ))}
 
                   {/* Separator between system and user presets */}
-                  {systemFilterPresets?.length &&
-                  TableViewPresetsList?.length ? (
+                  {systemFilterPresets?.length && drawerPresetList?.length ? (
                     <Separator className="my-2" />
                   ) : null}
 
                   {/* User Presets */}
-                  {TableViewPresetsList?.map((view) => {
+                  {drawerPresetList?.map((view) => {
                     const isUserDefault =
                       defaultAssignments?.userDefaultViewId === view.id;
                     const isProjectDefault =
@@ -701,9 +705,7 @@ export function TableViewPresetsDrawer({
                                       <PopoverContent
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <h2 className="mb-3 font-semibold">
-                                          Edit
-                                        </h2>
+                                        <h2 className="mb-3 font-bold">Edit</h2>
                                         <Form {...form}>
                                           <form
                                             onSubmit={form.handleSubmit(

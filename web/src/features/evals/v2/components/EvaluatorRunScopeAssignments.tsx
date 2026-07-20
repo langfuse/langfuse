@@ -223,7 +223,7 @@ export function EvaluatorRunScopeAssignments({
             >
               <Plus className="h-4 w-4 shrink-0" />
               <span className="flex min-w-0 flex-col items-start">
-                <span className="font-medium">Create new run scope</span>
+                <span className="font-bold">Create new run scope</span>
                 <span className="text-muted-foreground text-xs font-normal">
                   Define a new set of filters for this evaluator.
                 </span>

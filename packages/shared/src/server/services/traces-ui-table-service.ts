@@ -1,4 +1,5 @@
 import { OrderByState } from "../../interfaces/orderBy";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { tracesTableUiColumnDefinitions } from "../tableMappings";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { findUiColumnMapping } from "../../tableDefinitions";
@@ -328,7 +329,8 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
              groupArrayIf(
                concat(name, ':', string_value),
                data_type = 'CATEGORICAL' AND notEmpty(string_value)
-             ) AS score_categories
+             ) AS score_categories,
+             ${scoreBooleansAggregation()} AS score_booleans
            FROM (
                   SELECT
                     project_id,

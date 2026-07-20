@@ -16,11 +16,27 @@ import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
+  // Admin-only fallback for useOrganization: returns the org in the same shape
+  // as session.user.organizations[number], since admins are not members of
+  // customer orgs and have no session entry.
+  byId: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(ctx);
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      return organization;
+    }),
   create: authenticatedProcedure
     .input(organizationNameSchema)
     .mutation(async ({ input, ctx }) => {
@@ -118,9 +134,8 @@ export const organizationsRouter = createTRPCRouter({
       await getSfdcService()?.upsertOrg({
         orgId: organization.id,
         orgName: organization.name,
-        userId: ctx.session.user.id,
-        email: ctx.session.user.email,
-        role: "OWNER",
+        createdAt: organization.createdAt,
+        plan: "Hobby",
       });
       await getSfdcService()?.setUserRole({
         orgId: organization.id,

@@ -167,7 +167,7 @@ export function SpendAlertDialog({
             <div className="text-muted-foreground text-xs">
               <div className="flex flex-row items-center">
                 <Info className="mr-2 h-3 w-3" />
-                <span className="font-medium">How it works</span>
+                <span className="font-bold">How it works</span>
               </div>
               <ul className="list-disc pl-5">
                 <li>

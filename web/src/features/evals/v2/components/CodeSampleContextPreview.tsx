@@ -181,7 +181,7 @@ export function CodeSampleContextDrawer({
         onClick={() => onOpenChange(!open)}
       >
         <Chevron className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-medium">
+        <span className="font-bold">
           Sample data <code className="font-mono font-normal">(ctx)</code>
         </span>
         {sampleLabel ? (

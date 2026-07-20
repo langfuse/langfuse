@@ -92,8 +92,8 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
   };
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <div className="min-h-0 flex-1">
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col">
         {isQueryLoading ? (
           <p className="text-muted-foreground text-sm">Loading evaluators...</p>
         ) : isQueryError ? (
@@ -189,7 +189,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       >
                         <div className="min-w-0 flex-1">
                           <p
-                            className="truncate text-sm font-medium"
+                            className="truncate text-sm font-bold"
                             title={item.scoreName}
                           >
                             {item.scoreName}

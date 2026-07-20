@@ -32,15 +32,15 @@ interface ScheduleObservationEvalsParams {
  *
  * Internal Langfuse environments are excluded: LLM-as-a-judge executions
  * publish their own telemetry through the OTel ingestion pipeline
- * (fetchLLMCompletion AI SDK engine), and scheduling evals on eval
+ * (shared AI SDK LLM runtime), and scheduling evals on eval
  * observations would recurse indefinitely — the observation-eval counterpart
  * of the trace-upsert safeguard in evalService.ts createEvalJobs().
  *
  * Single exception: prompt-experiment run-item ROOT observations
  * (span_id === experiment_item_root_span_id), so experiments executed on the
  * AI SDK engine get their evals scheduled from the queue — the async
- * equivalent of the LangChain path's synchronous onRootEventRecordReady
- * scheduling, which only ever offered the root record. Loop safety holds
+ * equivalent of internal tracing's synchronous onRootEventRecordReady
+ * scheduling, which only ever offers the root record. Loop safety holds
  * because evals triggered on experiment roots execute in the
  * langfuse-llm-as-a-judge environment, which stays blocked here, and
  * experiment child spans carry the root's span id, so they never match.

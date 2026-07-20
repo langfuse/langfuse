@@ -30,12 +30,19 @@ export function TimelineGutterRow({
   onToggleCollapse,
   hasChildren,
   isCollapsed,
+  maxVisualDepth = Infinity,
 }: TimelineGutterRowProps) {
   const { node, depth, treeLines, isLastSibling } = item;
 
-  const ownRailX = depth * INDENT + RAIL;
-  const parentRailX = (depth - 1) * INDENT + RAIL;
-  const showsChildSpine = hasChildren && !isCollapsed;
+  // Visual depth: real depth capped to the gutter width (see visual-depth.ts)
+  // so extremely deep traces keep names readable — rows past the cap render
+  // flat at the cap level (LFE-10959).
+  const visualDepth = Math.min(depth, maxVisualDepth);
+  const ownRailX = visualDepth * INDENT + RAIL;
+  const parentRailX = (visualDepth - 1) * INDENT + RAIL;
+  // A capped node's children render at the SAME indent (not one level right),
+  // so its child spine would dangle next to nothing — suppress it.
+  const showsChildSpine = hasChildren && !isCollapsed && depth < maxVisualDepth;
   const contentLeft = ownRailX + ICON_GAP;
 
   return (
@@ -57,30 +64,30 @@ export function TimelineGutterRow({
       )}
       {/* Ancestor rails: continue through this row for ancestors with a sibling below. */}
       {treeLines
-        .slice(0, Math.max(0, depth - 1))
+        .slice(0, Math.max(0, visualDepth - 1))
         .map((continues, level) =>
           continues ? (
             <div
               key={level}
-              className="bg-border absolute inset-y-0 w-px"
+              className="bg-border-contrast absolute inset-y-0 w-px"
               style={{ left: `${level * INDENT + RAIL}px` }}
             />
           ) : null,
         )}
 
-      {depth > 0 && (
+      {visualDepth > 0 && (
         <>
           {/* This node's vertical off the parent rail: top→center (last) or full. */}
           <div
             className={cn(
-              "bg-border absolute top-0 w-px",
+              "bg-border-contrast absolute top-0 w-px",
               isLastSibling ? "h-1/2" : "bottom-0",
             )}
             style={{ left: `${parentRailX}px` }}
           />
           {/* Elbow: parent rail → icon, at the row's vertical center. */}
           <div
-            className="bg-border absolute top-1/2 h-px"
+            className="bg-border-contrast absolute top-1/2 h-px"
             style={{
               left: `${parentRailX}px`,
               width: `${INDENT + ICON_GAP}px`,
@@ -92,7 +99,7 @@ export function TimelineGutterRow({
       {/* Downward stub to this node's children, on its own rail (left of the icon). */}
       {showsChildSpine && (
         <div
-          className="bg-border absolute top-1/2 bottom-0 w-px"
+          className="bg-border-contrast absolute top-1/2 bottom-0 w-px"
           style={{ left: `${ownRailX}px` }}
         />
       )}
@@ -109,7 +116,10 @@ export function TimelineGutterRow({
           <ItemBadge type={node.type} isSmall />
         </div>
         <span
-          className="text-primary min-w-0 flex-1 truncate text-xs font-medium"
+          className={cn(
+            "min-w-0 flex-1 truncate text-xs font-bold",
+            isSelected ? "text-foreground" : "dark:text-muted-foreground",
+          )}
           title={node.name}
         >
           {node.name || `Unnamed ${node.type.toLowerCase()}`}

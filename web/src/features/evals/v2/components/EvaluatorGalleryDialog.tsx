@@ -133,7 +133,7 @@ function EvaluatorCard({
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="truncate text-sm font-medium" title={template.name}>
+          <span className="truncate text-sm font-bold" title={template.name}>
             {template.name}
           </span>
           {description ? (
@@ -157,7 +157,7 @@ function EvaluatorCard({
           <Badge
             variant="outline-solid"
             size="sm"
-            className="text-muted-foreground ml-auto shrink-0 px-1.5 py-0.5 text-sm font-medium"
+            className="text-muted-foreground ml-auto shrink-0 px-1.5 py-0.5 text-sm font-bold"
           >
             {template.type === "CODE" ? "Code" : "LLM-as-a-Judge"}
           </Badge>
@@ -178,7 +178,7 @@ function SectionHeader({
 }) {
   return (
     <div>
-      <h4 className="text-base leading-6 font-medium">{label}</h4>
+      <h4 className="text-base leading-6 font-bold">{label}</h4>
       <p className="text-muted-foreground text-xs">{description}</p>
     </div>
   );
@@ -491,7 +491,7 @@ export function EvaluatorGalleryDialog({
             {/* Group header: one hierarchy level above the sm/font-normal
                 nav items, so it must not render smaller than them. */}
             {navItems.length > 0 ? (
-              <div className="flex h-8 shrink-0 items-center px-3 text-base font-semibold">
+              <div className="flex h-8 shrink-0 items-center px-3 text-base font-bold">
                 Examples
               </div>
             ) : null}
@@ -531,7 +531,7 @@ export function EvaluatorGalleryDialog({
                 <>
                   {filteredProjectTemplates.length > 0 ||
                   visibleCategorySections.length > 0 ? (
-                    <h3 className="text-xl leading-7 font-semibold">
+                    <h3 className="text-xl leading-7 font-bold">
                       Start from Examples
                     </h3>
                   ) : null}

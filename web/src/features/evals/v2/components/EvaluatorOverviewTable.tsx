@@ -87,7 +87,7 @@ export function EvaluatorOverviewTable({
         size: 200,
         cell: ({ row }) => (
           <span
-            className="block min-w-0 truncate font-medium"
+            className="block min-w-0 truncate font-bold"
             title={row.original.scoreName}
           >
             {row.original.scoreName}

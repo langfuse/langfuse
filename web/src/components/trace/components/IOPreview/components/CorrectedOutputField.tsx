@@ -163,7 +163,7 @@ export function CorrectedOutputField({
             <div className="flex items-center gap-1">
               <span
                 className={cn(
-                  "text-sm font-medium",
+                  "text-sm font-bold",
                   compact ? "text-xs" : "text-sm",
                 )}
               >

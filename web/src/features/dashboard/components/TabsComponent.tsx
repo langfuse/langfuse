@@ -13,7 +13,10 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const capture = usePostHogClientCapture();
   return (
-    <div>
+    // Grows inside the card's flex column so tab content (charts) can absorb
+    // extra tile height on dashboards; min-h-0 lets it also shrink so a
+    // height-aware child can measure the available space. (LFE-10813, LFE-11035)
+    <div className="flex min-h-0 grow flex-col">
       <div className="sm:hidden">
         <label htmlFor="tabs" className="sr-only">
           Select a tab
@@ -41,9 +44,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
                 key={tab.tabTitle}
                 className={cn(
                   index === selectedIndex
-                    ? "border-primary-accent text-primary-accent"
-                    : "text-muted-foreground hover:border-border hover:text-primary border-transparent",
-                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap",
+                    ? "border-primary-accent text-foreground"
+                    : "text-muted-foreground hover:border-border hover:text-foreground border-transparent",
+                  "cursor-pointer border-b-2 px-1 py-2 text-sm font-bold whitespace-nowrap",
                 )}
                 aria-current={index === selectedIndex ? "page" : undefined}
                 onClick={() => {
@@ -59,7 +62,9 @@ export const TabComponent = ({ tabs }: TabComponentProps) => {
           </nav>
         </div>
       </div>
-      <div className="mt-4 flex flex-col">{tabs[selectedIndex]?.content}</div>
+      <div className="mt-4 flex min-h-0 grow flex-col">
+        {tabs[selectedIndex]?.content}
+      </div>
     </div>
   );
 };

@@ -107,7 +107,7 @@ export function ModelParamsSettingsButton({
       </PopoverTrigger>
       <PopoverContent className="p-4" align={align} sideOffset={5}>
         <div className="mb-3">
-          <h4 className="mb-1 text-sm font-medium">Model Advanced Settings</h4>
+          <h4 className="mb-1 text-sm font-bold">Model Advanced Settings</h4>
           <p className="text-muted-foreground text-xs">
             Configure advanced parameters for your model.
           </p>
@@ -214,7 +214,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
           customHeader
         ) : (
           <div className="flex items-center justify-between">
-            <p className="font-semibold">Model</p>
+            <p className="font-bold">Model</p>
           </div>
         )}
         <p className="text-xs">No LLM API key set in project. </p>
@@ -325,7 +325,12 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
     >
       {!isEmbedded ? (
         <div className="flex items-center justify-between">
-          {customHeader ? customHeader : <p className="font-semibold">Model</p>}
+          {customHeader ? customHeader : <p className="font-bold">Model</p>}
+          {SettingsButton}
+        </div>
+      ) : customHeader ? (
+        <div className="mb-2 flex items-center justify-between">
+          {customHeader}
           {SettingsButton}
         </div>
       ) : (
@@ -440,7 +445,7 @@ const ModelParamsSelect = ({
       <div className="w-24 shrink-0">
         <p
           className={cn(
-            "text-xs font-semibold",
+            "text-xs font-bold",
             disabled && "text-muted-foreground",
           )}
         >
@@ -511,7 +516,7 @@ const ModelParamsSlider = ({
       <div className="flex flex-row">
         <p
           className={cn(
-            "flex-1 text-xs font-semibold",
+            "flex-1 text-xs font-bold",
             (!enabled || formDisabled) && "text-muted-foreground",
           )}
         >
@@ -585,7 +590,7 @@ const ProviderOptionsInput = ({
         <div className="flex-1 flex-row space-x-1">
           <span
             className={cn(
-              "text-xs font-semibold",
+              "text-xs font-bold",
               (!enabled || formDisabled) && "text-muted-foreground",
             )}
           >

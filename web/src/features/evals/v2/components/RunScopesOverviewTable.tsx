@@ -241,10 +241,7 @@ export function RunScopesOverviewTable({
         header: "Name",
         size: 180,
         cell: ({ row }) => (
-          <span
-            className="block truncate font-medium"
-            title={row.original.name}
-          >
+          <span className="block truncate font-bold" title={row.original.name}>
             {row.original.name}
           </span>
         ),

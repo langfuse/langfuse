@@ -52,6 +52,10 @@ import {
   COMPOSER_PLACEHOLDER,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
+import {
+  COMPOSER_SURFACE_CLASSES,
+  COMPOSER_TEXT_CLASSES,
+} from "@/src/features/search-bar/components/composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -291,6 +295,8 @@ export function SearchComposer({
   onRequestColumns,
   savedQueries,
   onPickSavedQuery,
+  fieldReason,
+  freeTextReason,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -318,6 +324,11 @@ export function SearchComposer({
     items: { id: string; label: string; detail?: string }[];
   };
   onPickSavedQuery?: (id: string) => void;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -723,7 +734,9 @@ export function SearchComposer({
       // it reveals the invalid draft and returns null. On success it returns the
       // CANONICAL committed text in its RESTING form (trailing space when
       // non-empty) — the same text the resetTo effect re-derives.
-      const committedText = commitToFilterState();
+      const committedText = commitToFilterState(
+        advanceToTrailingSpace ? "enter" : "blur",
+      );
       if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
@@ -772,7 +785,7 @@ export function SearchComposer({
   // (the `commit` path above) or blur. writeDraft ran synchronously, so the
   // freshly-set draftValid is current here.
   const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState();
+    if (storeApi.getState().draftValid) commitToFilterState("pick");
   }, [storeApi, commitToFilterState]);
 
   const pickOption = React.useCallback(
@@ -799,7 +812,7 @@ export function SearchComposer({
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
         // recent stored before a grammar tightening, or a since-retyped score).
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState();
+        if (state.draftValid) commitToFilterState("pick");
         else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;
@@ -1295,7 +1308,9 @@ export function SearchComposer({
           // centers a single line near min-h-9 and the box grows when wrapped.
           // Right gutter keeps the last token clear of the top-right control:
           // the "Ask AI" button (pr-20), or the error icon (pr-8).
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          // Box + text metrics are shared with the preview surface
+          // (composer-chrome.ts) so the overlay renders pixel-identical.
+          COMPOSER_SURFACE_CLASSES,
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
@@ -1344,7 +1359,10 @@ export function SearchComposer({
           // below the ~24px pills ("too big"). 24px matches the pill height so
           // the caret aligns with the pills. Trade-off: tighter gap between
           // wrapped lines of pills (single-line is unaffected).
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className={cn(
+            COMPOSER_TEXT_CLASSES,
+            "caret-[hsl(var(--foreground))] outline-none",
+          )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
@@ -1367,6 +1385,8 @@ export function SearchComposer({
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
           />
         </div>
         {/* "Ask AI" affordance — a plain button, always available so filters can

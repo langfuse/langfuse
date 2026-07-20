@@ -12,6 +12,17 @@
  */
 
 import { type TimelineScaleProps } from "./types";
+import { formatIntervalSeconds } from "@/src/utils/dates";
+
+/**
+ * Sub-minute ticks keep the precise "5.00s" form; minute-scale and larger
+ * ticks read as durations ("25m 00s", "1h 30m 00s") — raw "1500.00s" labels
+ * are unreadable on hour-scale traces (LFE-10959).
+ */
+const formatTickLabel = (timeValue: number): string =>
+  timeValue >= 60
+    ? formatIntervalSeconds(timeValue)
+    : `${timeValue.toFixed(2)}s`;
 
 export function TimelineScale({
   traceDuration,
@@ -44,14 +55,14 @@ export function TimelineScale({
           return (
             <div
               key={index}
-              className="absolute h-full border-l text-xs"
+              className="border-border-contrast absolute h-full border-l text-xs"
               style={{ left: `${tickLeft(timeValue)}px` }}
             >
               <span
-                className="text-muted-foreground absolute left-2 text-xs"
-                title={`${timeValue.toFixed(2)}s`}
+                className="text-muted-foreground absolute left-2 text-xs whitespace-nowrap"
+                title={formatTickLabel(timeValue)}
               >
-                {timeValue.toFixed(2)}s
+                {formatTickLabel(timeValue)}
               </span>
             </div>
           );

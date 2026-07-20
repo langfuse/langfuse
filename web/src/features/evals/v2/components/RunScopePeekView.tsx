@@ -204,7 +204,7 @@ export function TablePeekViewRunScopeDetail({
 
           <section className="flex flex-col gap-2">
             <Label>Sampling</Label>
-            <div className="w-fit rounded-md border px-3 py-2 text-sm font-medium">
+            <div className="w-fit rounded-md border px-3 py-2 text-sm font-bold">
               {Math.round(runScope.data.sampling * 100)}%
             </div>
           </section>

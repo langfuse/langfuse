@@ -16,7 +16,7 @@ export function OverviewSelectionBar({
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
       <div className="bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 shadow-lg ring-2 ring-black/10 backdrop-blur-md dark:ring-white/10">
-        <span className="text-sm font-medium">{selectedCount} selected</span>
+        <span className="text-sm font-bold">{selectedCount} selected</span>
         <Button
           type="button"
           variant="ghost"

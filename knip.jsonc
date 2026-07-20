@@ -1,13 +1,71 @@
 {
   "ignore": [".agents/skills/**", "scripts/**", "vitest.workspace.ts"],
-  "ignoreBinaries": ["vitest"],
-  "ignoreWorkspaces": [
-    "web",
-    "worker",
-    "packages/shared",
-  ],
+  // Re-enable once Knip tracks all workspace packages and catalog entries stop false-positiveing.
+  "rules": {
+    "catalog": "off",
+  },
+  "ignoreIssues": {
+    "web/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
+    "packages/shared/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
+    "worker/**": [
+      "files",
+      "exports",
+      "nsExports",
+      "types",
+      "nsTypes",
+      "enumMembers",
+      "namespaceMembers",
+      "duplicates",
+    ],
+  },
   "workspaces": {
+    "worker": {
+      // Tests intentionally load these from @langfuse/shared's dependency tree.
+      "ignoreDependencies": [
+        "@aws-sdk/client-bedrock-runtime",
+        "@langchain/aws",
+        "@langchain/core",
+      ],
+    },
+    "web": {
+      // Include runtime JavaScript modules such as src/env.mjs in dependency analysis.
+      "project": ["src/**/*.{ts,tsx,mjs}"],
+      "ignoreDependencies": [
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "@tailwindcss/forms",
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "@tailwindcss/typography",
+        // Tailwind loads this plugin from an @plugin directive in globals.css.
+        "tailwindcss-animate",
+        // Turbopack resolves this loader from its string name in next.config.mjs.
+        "raw-loader",
+        // The next-auth patch requires this module from core/lib/oauth/client.js.
+        "https-proxy-agent",
+      ],
+    },
     "ee": {
+      "project": ["src/**/*.ts"],
+    },
+    "packages/in-app-agent-sandbox-runtime": {
+      "entry": ["src/server.ts"],
       "project": ["src/**/*.ts"],
     },
     "packages/config-eslint": {
@@ -15,6 +73,10 @@
     },
     "packages/eslint-plugin": {
       "project": ["src/**/*.ts"],
+    },
+    "packages/config-typescript": {
+      // The shared Next.js tsconfig names a plugin supplied by its consuming workspace.
+      "ignoreUnresolved": ["next"],
     },
   },
 }

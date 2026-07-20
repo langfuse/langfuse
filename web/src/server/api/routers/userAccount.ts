@@ -101,11 +101,9 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // TODO(remove ~2026-06-19): "searchBar" is retired — the bar is now GA
-        // on the v4 events tables (see useSearchBarEnabled) and no longer has a
-        // dialog tile. Kept in the allowlist as dead plumbing for a safe
-        // rollback; drop once the GA rollout is confirmed stable.
-        flag: z.enum(["searchBar"]),
+        // `modernSession` is the active preview. `searchBar` is retired — the
+        // bar is now GA on v4 events tables — but remains as rollback plumbing.
+        flag: z.enum(["modernSession", "searchBar"]),
         enabled: z.boolean(),
       }),
     )

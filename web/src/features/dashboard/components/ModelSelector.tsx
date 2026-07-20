@@ -63,7 +63,7 @@ export const ModelSelectorPopover = ({
                 )}
               />
               <span>
-                <p className="font-semibold">Select All</p>
+                <p className="font-bold">Select All</p>
               </span>
             </InputCommandItem>
             <InputCommandSeparator className="my-1" />

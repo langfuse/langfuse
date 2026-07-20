@@ -10,14 +10,16 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
+  createLLMOutput,
   createW3CTraceId,
   DefaultEvalModelService,
   extractObservationVariables,
-  fetchLLMCompletion,
   findModel,
+  generateLLMText,
   getObservationByIdFromEventsTable,
   INTERNAL_TRACE_EVENT_SOURCE,
   logger,
+  mapLegacyLLMCompletionParams,
 } from "@langfuse/shared/src/server";
 import { writeTraceViaIngestion } from "@/src/features/evals/server/codeEvalTestRun";
 
@@ -267,25 +269,27 @@ export async function runLlmJudgeTest(params: {
   };
 
   try {
-    const response = await fetchLLMCompletion({
-      streaming: false,
-      llmConnection: modelConfig.config.apiKey,
-      messages: [
-        {
-          type: ChatMessageType.User,
-          role: ChatMessageRole.User,
-          content: interpolatedPrompt,
+    const result = await generateLLMText({
+      ...mapLegacyLLMCompletionParams({
+        connection: modelConfig.config.apiKey,
+        messages: [
+          {
+            type: ChatMessageType.User,
+            role: ChatMessageRole.User,
+            content: interpolatedPrompt,
+          },
+        ],
+        modelParams: {
+          provider: modelConfig.config.provider,
+          model: modelConfig.config.model,
+          adapter: modelConfig.config.apiKey.adapter,
+          ...modelConfig.config.modelParams,
         },
-      ],
-      modelParams: {
-        provider: modelConfig.config.provider,
-        model: modelConfig.config.model,
-        adapter: modelConfig.config.apiKey.adapter,
-        ...modelConfig.config.modelParams,
-      },
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
+      }),
+      output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
       maxRetries: 1,
     });
+    const response = result.output;
 
     const executionTraceId = await writeJudgeExecutionTrace({
       projectId: params.projectId,

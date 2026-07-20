@@ -373,7 +373,7 @@ export default function EvaluatorDetailPage() {
                 >
                   <div className="min-w-0">
                     <p
-                      className="truncate text-sm font-medium"
+                      className="truncate text-sm font-bold"
                       title={`Version ${version.version}`}
                     >
                       Version {version.version}
@@ -384,7 +384,7 @@ export default function EvaluatorDetailPage() {
                     </p>
                   </div>
                   {version.id === template.id ? (
-                    <span className="bg-light-green text-dark-green rounded-md px-2 py-0.5 text-xs font-medium">
+                    <span className="bg-light-green text-dark-green rounded-md px-2 py-0.5 text-xs font-bold">
                       Current
                     </span>
                   ) : null}

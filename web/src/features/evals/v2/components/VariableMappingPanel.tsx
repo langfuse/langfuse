@@ -133,7 +133,7 @@ function DrillRow({
       className="hover:bg-accent/50 flex w-full min-w-0 items-center gap-2 px-2 py-1.5 text-left text-sm"
       onClick={onClick}
     >
-      <span className="shrink-0 font-mono font-medium">{label}</span>
+      <span className="shrink-0 font-mono font-bold">{label}</span>
       <span
         className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
         title={value !== undefined ? previewOf(value) : undefined}
@@ -354,13 +354,13 @@ export function VariableMappingPanel({
                   onClick={() => onSelectVariable(item.variable)}
                 >
                   <span
-                    className="text-primary-accent shrink-0 font-mono font-medium"
+                    className="text-primary-accent shrink-0 font-mono font-bold"
                     title={`{{${item.variable}}}`}
                   >
                     {`{{${item.variable}}}`}
                   </span>
                   {item.unmapped ? (
-                    <span className="text-dark-yellow flex min-w-0 flex-1 items-center gap-1.5 font-medium">
+                    <span className="text-dark-yellow flex min-w-0 flex-1 items-center gap-1.5 font-bold">
                       <TriangleAlert className="h-4 w-4 shrink-0" />
                       <span className="truncate" title="not mapped yet">
                         not mapped yet
@@ -385,7 +385,7 @@ export function VariableMappingPanel({
         {testAction && (
           <div className="flex shrink-0 flex-col items-center gap-2 border-t p-3">
             {overview.length > 0 && unmapped.length === 0 && (
-              <p className="text-dark-green flex items-center gap-1.5 text-sm font-medium">
+              <p className="text-dark-green flex items-center gap-1.5 text-sm font-bold">
                 <Check className="h-4 w-4 shrink-0 text-green-600" />
                 All variables mapped
               </p>
@@ -448,7 +448,7 @@ export function VariableMappingPanel({
     segments !== null && segments.length > 0 ? (
       <button
         type="button"
-        className="hover:text-foreground mr-2 font-medium underline-offset-2 hover:underline"
+        className="hover:text-foreground mr-2 font-bold underline-offset-2 hover:underline"
         title={`Back to ${
           segments.length >= 2
             ? crumbLabel(segments[segments.length - 2])
@@ -473,7 +473,7 @@ export function VariableMappingPanel({
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
             <span
-              className="text-primary-accent shrink-0 font-mono text-sm font-semibold"
+              className="text-primary-accent shrink-0 font-mono text-sm font-bold"
               title={`{{${activeVariable}}}`}
             >
               {`{{${activeVariable}}}`}
@@ -494,7 +494,7 @@ export function VariableMappingPanel({
                 >
                   <SelectTrigger
                     className={cn(
-                      "hover:bg-accent/50 h-7 w-auto shrink-0 gap-1 border-none bg-transparent px-2 font-medium shadow-none",
+                      "hover:bg-accent/50 h-7 w-auto shrink-0 gap-1 border-none bg-transparent px-2 font-bold shadow-none",
                       segments !== null &&
                         segments.length === 0 &&
                         "bg-accent/60",
@@ -538,8 +538,7 @@ export function VariableMappingPanel({
                         type="button"
                         className={cn(
                           "hover:bg-accent/50 max-w-48 truncate rounded-md px-2 py-1 font-mono text-sm",
-                          index === all.length - 1 &&
-                            "bg-accent/60 font-medium",
+                          index === all.length - 1 && "bg-accent/60 font-bold",
                         )}
                         title={crumbLabel(segment)}
                         onClick={() => setPath(all.slice(0, index + 1))}

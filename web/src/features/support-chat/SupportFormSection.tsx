@@ -13,7 +13,6 @@ import {
   type MessageType,
   SupportFormSchema,
   isSeverityAllowedForPlan,
-  highestSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -30,6 +29,16 @@ import {
 } from "@/src/components/ui/form";
 import { RadioGroup } from "@/src/components/ui/radio-group";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -43,8 +52,7 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useSession } from "next-auth/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Dropzone,
@@ -171,18 +179,12 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
-  const session = useSession();
 
   // The support drawer is mounted globally and reachable from pages without an
   // org/project in the URL (home, setup, onboarding, account settings), where
-  // `organization` is null. Fall back to the user's highest-tier org plan so
-  // severity eligibility reflects what the user actually has access to instead
-  // of being wrongly restricted. The server applies the same fallback.
-  const effectivePlan =
-    organization?.plan ??
-    highestSupportPlan(
-      (session.data?.user?.organizations ?? []).map((o) => o.plan),
-    );
+  // `organization` is null. Without an org context the plan is unknown, so
+  // Severity 1/2 are gated there. The server applies the same rule.
+  const effectivePlan = organization?.plan;
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -196,6 +198,10 @@ export function SupportFormSection({
 
   // Local submit guard to avoid flicker across multiple mutations
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
+
+  // Sev-1 pages the on-call team, so submission requires an explicit
+  // confirmation step.
+  const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
@@ -213,6 +219,20 @@ export function SupportFormSection({
   const isProductFeatureTopic = TopicGroups["Product Features"].includes(
     selectedTopic as any,
   );
+
+  // The drawer is globally mounted, so a severity selected under one org's
+  // plan can survive navigation to an org (or no-org page) that no longer
+  // allows it. Snap back to Severity 3 so the visible selection, the Sev-1
+  // confirm dialog, and the submitted value stay consistent with the plan.
+  const selectedSeverity = form.watch("severity");
+  useEffect(() => {
+    if (
+      selectedSeverity &&
+      !isSeverityAllowedForPlan(selectedSeverity, effectivePlan)
+    ) {
+      form.setValue("severity", SEVERITY_3);
+    }
+  }, [selectedSeverity, effectivePlan, form]);
 
   const createSupportThread = api.supportRouter.createSupportThread.useMutation(
     {
@@ -282,7 +302,23 @@ export function SupportFormSection({
       return;
     }
 
+    // Sev-1 pages the on-call team — require explicit confirmation before
+    // submitting. The dialog's confirm action calls `submitForm` directly.
+    if (parsed.severity === SEVERITY_1) {
+      setSev1ConfirmOpen(true);
+      return;
+    }
+
+    await submitForm(values);
+  };
+
+  const submitForm = async (values: SupportFormInput) => {
     try {
+      // Parse inside the try so a failure surfaces via form.setError below
+      // instead of escaping as an unhandled rejection (the confirm dialog
+      // calls this outside react-hook-form's handleSubmit).
+      const parsed: SupportFormValues = SupportFormSchema.parse(values);
+
       setIsSubmittingLocal(true);
 
       // Validate files using centralized validation function
@@ -342,7 +378,7 @@ export function SupportFormSection({
 
   return (
     <div className="mt-1 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-base font-semibold">
+      <div className="flex items-center gap-2 text-base font-bold">
         E-Mail a Support Engineer
       </div>
       <p className="text-muted-foreground text-sm">
@@ -371,9 +407,7 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={
-                          field.value === v ? "default" : "outline-solid"
-                        }
+                        variant={field.value === v ? "default" : "outline"}
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
@@ -393,8 +427,8 @@ export function SupportFormSection({
             )}
           />
 
-          {/* Priority (maps to Pylon case_severity). Severity 1 is gated to
-              Team / Enterprise plans. */}
+          {/* Priority (maps to Pylon case_severity). Severity 1 and 2 are
+              gated to Enterprise plans. */}
           <FormField
             control={form.control}
             name="severity"
@@ -428,8 +462,8 @@ export function SupportFormSection({
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
                               {s === SEVERITY_1
-                                ? "Severity 1 is available on the Team and Enterprise plans."
-                                : "Severity 2 is available on the Pro plan and above."}
+                                ? "Severity 1 is available on the Enterprise plan."
+                                : "Severity 2 is available on the Enterprise plan."}
                             </TooltipContent>
                           </Tooltip>
                         ),
@@ -459,7 +493,7 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Product Features
                         </div>
                         {TopicGroups["Product Features"].map((t) => (
@@ -469,7 +503,7 @@ export function SupportFormSection({
                         ))}
                       </div>
                       <div className="border-t p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Operations
                         </div>
                         {TopicGroups.Operations.map((t) => (
@@ -601,8 +635,8 @@ export function SupportFormSection({
                 </Dropzone>
 
                 {files && files.length > 0 && (
-                  <div className="p-0 text-left text-sm font-medium">
-                    <div className="text-muted-foreground mb-2 text-xs font-medium">
+                  <div className="p-0 text-left text-sm font-bold">
+                    <div className="text-muted-foreground mb-2 text-xs font-bold">
                       Attached files
                     </div>
                     {files?.map((file) => (
@@ -672,6 +706,29 @@ export function SupportFormSection({
           )}
         </form>
       </Form>
+
+      {/* Confirmation gate before a Sev-1 request pages the on-call team. */}
+      <AlertDialog open={sev1ConfirmOpen} onOpenChange={setSev1ConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Confirm Severity 1 (Critical Business Impact)
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Please confirm that your issue has critical business impact. This
+              means it severely impacts your use of Langfuse in production, such
+              as loss of production data, ingestion issues, or prompt fetching
+              issues.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => submitForm(form.getValues())}>
+              Confirm &amp; Submit
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

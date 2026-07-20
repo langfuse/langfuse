@@ -1,19 +1,53 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   errors: ./errors.yml
+  pagination: ../utils/pagination.yml
 
 service:
   auth: true
   base-path: /api/public/unstable
   endpoints:
+    list:
+      docs: |
+        List dashboard widgets in the project, ordered by most recently
+        updated first.
+
+        Responses may include legacy `traces` widgets created before this
+        API existed. New widgets cannot be created with `view: traces`.
+      method: GET
+      path: /dashboard-widgets
+      request:
+        name: ListDashboardWidgetsRequest
+        query-parameters:
+          page:
+            type: optional<integer>
+            docs: 1-based page number. Defaults to `1`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of items per page. Defaults to `50`.
+      response: DashboardWidgetList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
     create:
       docs: |
-        Create a reusable dashboard widget.
+        Create a dashboard widget (a standalone chart definition you place on
+        any dashboard).
 
-        This endpoint creates the widget. It does not place the widget on a dashboard grid, this has to be done in the UI.
+        This endpoint creates the widget only; place it on a dashboard via
+        `POST /dashboards/{dashboardId}/placements`.
 
         Supported views are `observations`, `scores-numeric`, and `scores-categorical`.
-        The legacy `traces` view is not supported by this unstable API, `minVersion` defaults to `2`; values below `2` are rejected.
+        The legacy `traces` view is not supported by this unstable API.
+        Widgets are created as v2 internally.
+
+        `chartConfig` is optional and defaults to the plain config for
+        `chartType`; when `chartConfig.type` is given it must match
+        `chartType`.
 
         Unstable API note:
         - This surface may evolve while dashboard/widget APIs are being finalized.
@@ -42,9 +76,7 @@ service:
             filters: []
             chartType: HORIZONTAL_BAR
             chartConfig:
-              type: HORIZONTAL_BAR
               row_limit: 10
-            minVersion: 2
           response:
             body:
               id: cm_dashboard_widget_123
@@ -63,7 +95,69 @@ service:
               chartConfig:
                 type: HORIZONTAL_BAR
                 row_limit: 10
-              minVersion: 2
+    get:
+      docs: |
+        Get a dashboard widget by id.
+
+        The response may use `view: traces` for legacy widgets.
+      method: GET
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      response: DashboardWidget
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    update:
+      docs: |
+        Update a dashboard widget.
+
+        All fields are optional; at least one field is required.
+        Changing `chartType` without sending `chartConfig` resets the config
+        to the new chart type's defaults. When `chartConfig.type` is given
+        it must match the widget's (possibly updated) `chartType`.
+
+        `view` cannot be changed to the legacy `traces` value. Existing
+        `traces` widgets may be updated on other fields.
+      method: PATCH
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      request: UpdateDashboardWidgetRequest
+      response: DashboardWidget
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
+    delete:
+      docs: |
+        Delete a dashboard widget.
+
+        The API returns `409` while the widget is still placed on a dashboard.
+        Remove those placements first.
+      method: DELETE
+      path: /dashboard-widgets/{widgetId}
+      path-parameters:
+        widgetId: string
+      response: DeleteDashboardWidgetResponse
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.ConflictError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
 
 types:
   DashboardWidgetView:
@@ -73,6 +167,18 @@ types:
         value: scores-numeric
       - name: ScoresCategorical
         value: scores-categorical
+
+  DashboardWidgetViewWithLegacy:
+    docs: |
+      Widget data view. Responses may include the legacy `traces` value for
+      widgets created before this API existed.
+    enum:
+      - observations
+      - name: ScoresNumeric
+        value: scores-numeric
+      - name: ScoresCategorical
+        value: scores-categorical
+      - traces
 
   DashboardWidgetChartType:
     enum:
@@ -115,10 +221,22 @@ types:
 
   DashboardWidgetFilter:
     docs: |
-      A dashboard widget filter in Langfuse filter-state shape.
+      A filter in Langfuse filter-state shape. The `value` shape and the
+      allowed operators depend on `type`:
 
-      Filter shapes depend on `type`, for example string filters use a string `value`,
-      option filters use a list of strings, and object filters include `key`.
+      | `type` | `value` | operators |
+      |---|---|---|
+      | `string` | string | `=`, `contains`, `does not contain`, `starts with`, `ends with` |
+      | `number` | number | `=`, `>`, `<`, `>=`, `<=` |
+      | `datetime` | ISO datetime string | `>`, `<`, `>=`, `<=` |
+      | `boolean` | boolean | `=`, `<>` |
+      | `null` | `""` | `is null`, `is not null` |
+      | `stringOptions` | list of strings | `any of`, `none of` |
+      | `arrayOptions` | list of strings | `any of`, `none of`, `all of` |
+      | `categoryOptions` | list of strings (requires `key`) | `any of`, `none of` |
+      | `stringObject` | string (requires `key`, e.g. a metadata key) | same as `string` |
+      | `numberObject` | number (requires `key`, e.g. a score name) | same as `number` |
+      | `booleanObject` | boolean (requires `key`) | `=`, `<>` |
     properties:
       column:
         type: string
@@ -163,12 +281,29 @@ types:
       - ASC
       - DESC
 
+  DashboardWidgetChartConfigInput:
+    docs: |
+      Input-side chart config. `type` is optional and defaults to the
+      widget's `chartType`; when given it must match.
+    properties:
+      type:
+        type: optional<DashboardWidgetChartType>
+      row_limit:
+        type: optional<integer>
+      show_value_labels:
+        type: optional<boolean>
+      bins:
+        type: optional<integer>
+      defaultSort:
+        type: optional<DashboardWidgetDefaultSort>
+
   CreateDashboardWidgetRequest:
     properties:
       name:
         type: string
       description:
-        type: string
+        type: optional<string>
+        docs: Defaults to an empty string.
       view:
         type: DashboardWidgetView
       dimensions:
@@ -180,9 +315,39 @@ types:
       chartType:
         type: DashboardWidgetChartType
       chartConfig:
-        type: DashboardWidgetChartConfig
-      minVersion:
-        type: optional<integer>
+        type: optional<DashboardWidgetChartConfigInput>
+        docs: Defaults to the plain config for `chartType`.
+
+  UpdateDashboardWidgetRequest:
+    properties:
+      name:
+        type: optional<string>
+      description:
+        type: optional<string>
+      view:
+        type: optional<DashboardWidgetView>
+      dimensions:
+        type: optional<list<DashboardWidgetDimension>>
+      metrics:
+        type: optional<list<DashboardWidgetMetric>>
+      filters:
+        type: optional<list<DashboardWidgetFilter>>
+      chartType:
+        type: optional<DashboardWidgetChartType>
+      chartConfig:
+        type: optional<DashboardWidgetChartConfigInput>
+
+  DashboardWidgetList:
+    properties:
+      data:
+        type: list<DashboardWidget>
+      meta:
+        type: pagination.MetaResponse
+
+  DeleteDashboardWidgetResponse:
+    properties:
+      message:
+        type: string
 
   DashboardWidget:
     properties:
@@ -197,7 +362,7 @@ types:
       description:
         type: string
       view:
-        type: DashboardWidgetView
+        type: DashboardWidgetViewWithLegacy
       dimensions:
         type: list<DashboardWidgetDimension>
       metrics:
@@ -208,5 +373,3 @@ types:
         type: DashboardWidgetChartType
       chartConfig:
         type: DashboardWidgetChartConfig
-      minVersion:
-        type: integer

@@ -109,7 +109,7 @@ const BreadcrumbComponent = ({
               <ChevronDownIcon className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem className="font-semibold" asChild>
+              <DropdownMenuItem className="font-bold" asChild>
                 <Link href="/" className="cursor-pointer">
                   Organizations
                 </Link>
@@ -204,7 +204,7 @@ const BreadcrumbComponent = ({
                 <ChevronDownIcon className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem asChild className="font-semibold">
+                <DropdownMenuItem asChild className="font-bold">
                   <Link
                     href={`/organization/${organization.id}`}
                     className="cursor-pointer"

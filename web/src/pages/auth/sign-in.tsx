@@ -39,6 +39,7 @@ import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
@@ -220,7 +221,7 @@ export function SSOButtons({
         // do not reset loadingProvider here, as the page will reload
       })
       .catch((error) => {
-        console.error(error);
+        captureUnknownError("auth.signIn.provider", error, { provider });
         setProviderSigningIn(null);
       });
   };
@@ -640,8 +641,7 @@ export default function SignIn({
         );
       }
     } catch (error) {
-      captureException(error);
-      console.error(error);
+      captureUnknownError("auth.signIn.credentials", error);
       setCredentialsFormError("An unexpected error occurred.");
     }
   }
@@ -710,7 +710,7 @@ export default function SignIn({
         }
       }, 100);
     } catch (error) {
-      console.error(error);
+      captureUnknownError("auth.signIn.checkSso", error);
       setCredentialsFormError(
         "Unable to check SSO configuration. Please try again.",
       );
@@ -740,7 +740,7 @@ export default function SignIn({
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
-              className="text-primary-accent hover:text-hover-primary-accent cursor-pointer text-xs font-medium whitespace-nowrap"
+              className="text-link hover:text-link-hover cursor-pointer text-xs font-bold whitespace-nowrap"
             >
               (contact us)
             </a>
@@ -797,7 +797,7 @@ export default function SignIn({
                               Password{" "}
                               <Link
                                 href="/auth/reset-password"
-                                className="text-primary-accent hover:text-hover-primary-accent ml-1 text-xs"
+                                className="text-link hover:text-link-hover ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
                               >
@@ -847,7 +847,7 @@ export default function SignIn({
               </div>
             )}
             {credentialsFormError ? (
-              <div className="text-destructive text-center text-sm font-medium">
+              <div className="text-destructive text-center text-sm font-bold">
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
@@ -869,7 +869,7 @@ export default function SignIn({
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-                className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+                className="text-link hover:text-link-hover leading-6 font-bold"
               >
                 Sign up
               </Link>

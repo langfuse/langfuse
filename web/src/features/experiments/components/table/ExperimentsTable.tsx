@@ -274,7 +274,10 @@ export default function ExperimentsTable({
     order: "DESC",
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId, {
+    defaultRelativeAggregation: "last30Days",
+    persistAsDefault: false,
+  });
 
   // Convert timeRange to absolute date range for compatibility
   const tableDateRange = useMemo(() => {
@@ -778,7 +781,7 @@ export default function ExperimentsTable({
               <AccordionItem value="charts" className="border-t">
                 <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Charts</span>
+                    <span className="text-sm font-bold">Charts</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">

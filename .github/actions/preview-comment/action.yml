@@ -1,0 +1,54 @@
+name: AWS preview status comment
+description: >-
+  Create or update the single marker-tagged AWS preview status comment on a
+  pull request, so each PR carries exactly one authoritative preview comment.
+
+inputs:
+  pr-number:
+    description: Pull request number
+    required: true
+  body:
+    description: Comment body (the hidden marker is prepended automatically)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        PREVIEW_PR_NUMBER: ${{ inputs.pr-number }}
+        PREVIEW_COMMENT_BODY: ${{ inputs.body }}
+      with:
+        script: |
+          const marker = "<!-- aws-preview -->";
+          const issue_number = Number(process.env.PREVIEW_PR_NUMBER);
+          const body = `${marker}\n${process.env.PREVIEW_COMMENT_BODY}`;
+
+          const { owner, repo } = context.repo;
+          const comments = await github.paginate(github.rest.issues.listComments, {
+            owner,
+            repo,
+            issue_number,
+            per_page: 100,
+          });
+          const previous = comments.find(
+            (comment) =>
+              comment.user?.login === "github-actions[bot]" &&
+              comment.body?.includes(marker),
+          );
+
+          if (previous) {
+            await github.rest.issues.updateComment({
+              owner,
+              repo,
+              comment_id: previous.id,
+              body,
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
+          }

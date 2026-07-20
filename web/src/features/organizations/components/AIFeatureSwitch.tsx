@@ -23,6 +23,7 @@ import { useSession } from "next-auth/react";
 
 export default function AIFeatureSwitch() {
   const { update: updateSession } = useSession();
+  const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
@@ -43,6 +44,8 @@ export default function AIFeatureSwitch() {
   const updateAIFeatures = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -53,6 +56,8 @@ export default function AIFeatureSwitch() {
   const updateAITelemetry = api.organizations.update.useMutation({
     onSuccess: async () => {
       await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
     },
     onError: () => {
       setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
@@ -117,7 +122,7 @@ export default function AIFeatureSwitch() {
       <Card className="mb-4 p-3">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-col gap-1">
-            <h4 className="font-semibold">
+            <h4 className="font-bold">
               Enable AI powered features for your organization
             </h4>
             <p className="text-sm">
@@ -153,7 +158,7 @@ export default function AIFeatureSwitch() {
         {isAIFeatureSwitchEnabled && (
           <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
             <div className="flex flex-col gap-1">
-              <h4 className="font-semibold">
+              <h4 className="font-bold">
                 AI Data Use for Product/Service Improvement
               </h4>
               <p className="text-sm">

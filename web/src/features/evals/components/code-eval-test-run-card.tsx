@@ -118,7 +118,7 @@ export function CodeEvalTestRunCard({
       <Card className="flex min-w-0 flex-col gap-4 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="text-sm font-medium">Test run</span>
+            <span className="text-sm font-bold">Test run</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {evalTemplate.projectId ? (
@@ -247,6 +247,8 @@ function CodeEvalTestRunInputCards({
   previewData: CodeEvalInputPreviewData;
   includeExperimentVariables: boolean;
 }) {
+  // Mirrors the payload shape buildCodeEvalPayload hands to the evaluator,
+  // so the preview shows exactly what the code receives.
   const inputPreviewJson = useMemo(() => {
     const data = previewData.data;
 
@@ -255,6 +257,10 @@ function CodeEvalTestRunInputCards({
         input: deepParseJson(data.input),
         output: deepParseJson(data.output),
         metadata: deepParseJson(data.metadata),
+        // No deepParseJson, matching variable extraction: the zipped calls are
+        // fully parsed already, and it would coerce id/name/type strings that
+        // are JSON literals ("true"/"null") into primitives.
+        toolCalls: data.toolCalls,
       },
       ...(includeExperimentVariables
         ? {
@@ -272,7 +278,7 @@ function CodeEvalTestRunInputCards({
   return (
     <div className="bg-muted/20 min-w-0 rounded-md border">
       <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <span className="text-muted-foreground text-xs font-medium">
+        <span className="text-muted-foreground text-xs font-bold">
           Evaluator input
         </span>
       </div>

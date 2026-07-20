@@ -167,7 +167,7 @@ const PivotTableRowComponent: React.FC<{
           row.level === 1 && "pl-6", // 1.5rem indentation for level 1
           row.level === 2 && "pl-10", // 2.5rem indentation for level 2
           // Bold styling for subtotal and total rows
-          (row.isSubtotal || row.isTotal) && "font-semibold",
+          (row.isSubtotal || row.isTotal) && "font-bold",
         )}
         style={{
           // Fallback for levels beyond 2 using inline styles
@@ -184,7 +184,7 @@ const PivotTableRowComponent: React.FC<{
           key={metric}
           className={cn(
             "p-2 text-right align-middle tabular-nums",
-            (row.isSubtotal || row.isTotal) && "font-semibold",
+            (row.isSubtotal || row.isTotal) && "font-bold",
           )}
         >
           {valueFormatter(row.values[metric], units?.[i])}
@@ -382,7 +382,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                   ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
                   : "Dimension"
               }
-              className="p-2 text-left font-medium first:pl-2"
+              className="p-2 text-left font-bold first:pl-2"
             />
 
             {/* Metric column headers */}
@@ -393,7 +393,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                 label={formatColumnHeader(metric)}
                 sortState={sortState}
                 onSort={handleSort}
-                className="p-2 font-medium"
+                className="p-2 font-bold"
                 rightAlign={true}
               />
             ))}

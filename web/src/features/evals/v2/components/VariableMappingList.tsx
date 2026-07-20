@@ -104,7 +104,7 @@ function BindingCrumbs({
   // vertical alignment.
   return (
     <span className="flex min-w-0 flex-wrap items-baseline gap-1">
-      <span className="shrink-0 font-medium">{columnLabel}</span>
+      <span className="shrink-0 font-bold">{columnLabel}</span>
       {segments.map((segment, index) => {
         const isArraySegment =
           segment === WILDCARD ||
@@ -116,7 +116,7 @@ function BindingCrumbs({
             {isArraySegment ? (
               <button
                 type="button"
-                className="hover:bg-accent rounded px-1 font-mono text-sm font-medium underline decoration-dotted underline-offset-2"
+                className="hover:bg-accent rounded px-1 font-mono text-sm font-bold underline decoration-dotted underline-offset-2"
                 title={
                   segment === WILDCARD
                     ? "Every entry — click to switch to the last entry"
@@ -447,7 +447,7 @@ function VariableMappingRow({
           )}
         />
         <span
-          className="text-primary-accent shrink-0 font-mono font-medium"
+          className="text-primary-accent shrink-0 font-mono font-bold"
           title={`{{${variable}}}`}
         >
           {`{{${variable}}}`}
@@ -463,7 +463,7 @@ function VariableMappingRow({
             choosing below…
           </span>
         ) : unmapped || !columnLabel ? (
-          <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-medium">
+          <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
             <TriangleAlert className="h-4 w-4 shrink-0" />
             <span className="truncate" title="Not mapped yet">
               nothing yet

@@ -152,9 +152,7 @@ export function ActivateEvaluatorDialog({
                           )}
                         />
                         <span className="flex min-w-0 flex-col">
-                          <span className="font-medium">
-                            Filters from setup
-                          </span>
+                          <span className="font-bold">Filters from setup</span>
                           <span className="text-muted-foreground text-xs">
                             Configured while creating this evaluator
                           </span>
@@ -201,7 +199,7 @@ export function ActivateEvaluatorDialog({
 
           <div className="flex flex-col gap-2 rounded-md border p-3">
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="font-medium">Filters</span>
+              <span className="font-bold">Filters</span>
               <span className="text-muted-foreground">
                 {Math.round(selectedSampling * 100)}% sampling
               </span>

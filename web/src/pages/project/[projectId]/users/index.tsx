@@ -431,6 +431,7 @@ const UsersTable = ({
         />
       )}
       <DataTableToolbar
+        tableName="users"
         filterColumnDefinition={usersTableCols}
         filterState={userFilterState}
         setFilterState={useDebounce(setUserFilterState)}

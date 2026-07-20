@@ -16,7 +16,7 @@ const isWhitelistedForFeature = (
   featureFlag: Flag,
 ): boolean => {
   const flags = session.data?.user?.featureFlags;
-  return flags !== undefined && flags[featureFlag];
+  return flags?.[featureFlag] === true;
 };
 
 export const FeatureFlagToggle = (props: {

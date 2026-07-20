@@ -251,7 +251,7 @@ function CategoryEditorPopover({
       <PopoverContent align="start" className="w-80">
         <div className="flex flex-col gap-4">
           <div>
-            <p className="text-sm font-medium">{title}</p>
+            <p className="text-sm font-bold">{title}</p>
             <p className="text-muted-foreground text-xs">
               Set the returned label and its optional numeric score.
             </p>
@@ -446,7 +446,7 @@ export function ScoreOutputSection({
                 <PopoverContent align="start" className="w-72">
                   <div className="flex flex-col gap-4">
                     <div>
-                      <p className="text-sm font-medium">Number limits</p>
+                      <p className="text-sm font-bold">Number limits</p>
                       <p className="text-muted-foreground text-sm">
                         Leave either field empty when only one side should be
                         constrained.
@@ -509,7 +509,7 @@ export function ScoreOutputSection({
                   trigger={
                     <button
                       type="button"
-                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-default disabled:opacity-70"
+                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-default disabled:opacity-70"
                       disabled={readOnly}
                     >
                       <span>
@@ -550,12 +550,12 @@ export function ScoreOutputSection({
           {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
             <>
               <span>as</span>
-              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium">
+              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
                 true
                 <span className="text-muted-foreground font-normal">· 1</span>
               </span>
               <span>or</span>
-              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium">
+              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
                 false
                 <span className="text-muted-foreground font-normal">· 0</span>
               </span>
@@ -566,7 +566,7 @@ export function ScoreOutputSection({
       <div className="flex flex-col gap-4">
         <button
           type="button"
-          className="flex w-fit items-center gap-1.5 text-sm font-medium"
+          className="flex w-fit items-center gap-1.5 text-sm font-bold"
           aria-expanded={advancedOpen}
           onClick={() => setAdvancedOpen((prev) => !prev)}
         >

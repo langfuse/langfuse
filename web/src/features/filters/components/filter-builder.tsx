@@ -88,6 +88,8 @@ export function PopoverFilterBuilder({
   filterWithAI = false,
   buttonType = "default",
   label = "Filters",
+  tableName = "unknown",
+  isV4 = false,
 }: {
   /** Which column field to persist in filter.column: 'id' for stable refs, 'name' for legacy compatibility */
   columns: ColumnDefinitionWithAlert[];
@@ -101,10 +103,18 @@ export function PopoverFilterBuilder({
   buttonType?: "default" | "icon";
   /** Trigger button label. Defaults to "Filters"; override to clarify scope. */
   label?: string;
+  /** Table this builder filters — the `tableName` analytics dimension. */
+  tableName?: string;
+  /** Whether this builder sits on a v4 (fast-mode) surface — `isV4` dimension. */
+  isV4?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
+  // Count of already-applied (valid) filters, so `setWipFilterState` can emit
+  // `filters:applied` only when a filter is newly completed — not on every
+  // keystroke of an in-progress edit. Seeded from the incoming applied state.
+  const prevValidCountRef = useRef(filterState.length);
 
   // Sync wipFilterState when filterState prop changes externally
   // (e.g., when a saved view preset is applied)
@@ -121,7 +131,15 @@ export function PopoverFilterBuilder({
         (f) => !singleFilter.safeParse(f).success,
       );
       // Don't sync if user is actively editing (has invalid WIP filters)
-      return hasWipFilters ? currentWip : filterState;
+      if (hasWipFilters) return currentWip;
+      // Synced from external state (saved view applied, URL nav, clear-all): the
+      // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
+      // applied-count ref here too (LFE-10781). Otherwise a stale count makes the
+      // next wrapper edit — including popover close — mis-fire `filters:applied`.
+      // `filterState` is already-valid (typed FilterState), so its length is the
+      // valid count.
+      prevValidCountRef.current = filterState.length;
+      return filterState;
     });
   }, [filterState]);
 
@@ -152,6 +170,49 @@ export function PopoverFilterBuilder({
       const newState = state instanceof Function ? state(prev) : state;
       const validFilters = getValidFilters(newState);
       onChange(validFilters);
+      const prevCount = prevValidCountRef.current;
+      // A row was actually removed (clear-all X → []; or a single row X). This
+      // is the ONLY thing that counts as a clear: a valid count that drops
+      // because a row went transiently invalid mid-edit (changing a row's column
+      // sets value:undefined → fails safeParse) keeps the SAME row count and
+      // must NOT emit `filters:cleared` — the user is refining, not clearing
+      // (LFE-10781 review).
+      const rowsRemoved = newState.length < prev.length;
+      // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
+      // shape + counts, never a raw value. Count semantics match the sidebar:
+      // `conditionCount` = TOTAL applied conditions across ALL columns;
+      // `columnConditionCount` = rows for the changed column.
+      if (validFilters.length > prevCount) {
+        // A filter was newly completed (valid count grew) — an in-progress edit
+        // does not fire per keystroke.
+        const applied = validFilters[validFilters.length - 1];
+        if (applied) {
+          capture("filters:applied", {
+            surface: "filter_builder",
+            tableName,
+            column: applied.column,
+            filterType: applied.type,
+            operator: applied.operator,
+            ...("key" in applied && applied.key ? { key: applied.key } : {}),
+            valueCount: Array.isArray(applied.value) ? applied.value.length : 1,
+            conditionCount: validFilters.length,
+            columnConditionCount: validFilters.filter(
+              (f) => f.column === applied.column,
+            ).length,
+            isV4,
+          });
+        }
+      } else if (validFilters.length < prevCount && rowsRemoved) {
+        // A real clear — the clear-all X buttons (setWipFilterState([])) or
+        // removing a row. NOT a transient mid-column-change invalid shrink.
+        capture("filters:cleared", {
+          surface: "filter_builder",
+          tableName,
+          clearedCount: prevCount - validFilters.length,
+          isV4,
+        });
+      }
+      prevValidCountRef.current = validFilters.length;
       return newState;
     });
   };
@@ -167,8 +228,11 @@ export function PopoverFilterBuilder({
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
+            // METADATA ONLY (LFE-10781): previously sent the full `filterState`,
+            // which leaked raw filter VALUES (user ids, metadata content, free
+            // text = PII) into PostHog. Send only the applied-filter count.
             capture("table:filter_builder_close", {
-              filter: filterState,
+              filterCount: filterState.length,
             });
             setWipFilterState(filterState);
           }
@@ -281,7 +345,9 @@ export function InlineFilterState({
         )}
       >
         {filter.column}
-        {filter.type === "stringObject" || filter.type === "numberObject"
+        {filter.type === "stringObject" ||
+        filter.type === "numberObject" ||
+        filter.type === "booleanObject"
           ? `.${filter.key}`
           : ""}{" "}
         {filter.operator}{" "}
@@ -295,7 +361,7 @@ export function InlineFilterState({
                 : filter.value.join(", ")
               : filter.type === "number" || filter.type === "numberObject"
                 ? filter.value
-                : filter.type === "boolean"
+                : filter.type === "boolean" || filter.type === "booleanObject"
                   ? `${filter.value}`
                   : filter.type === "null"
                     ? ""
@@ -482,7 +548,10 @@ function FilterBuilderForm({
           setAiPrompt("");
           setShowAiFilter(false);
         } else {
-          console.error(result);
+          console.error(
+            "filterBuilder.aiGenerate: invalid response format",
+            JSON.stringify(result),
+          );
           setAiError("Invalid response format from API");
         }
       } catch (error) {
@@ -599,7 +668,8 @@ function FilterBuilderForm({
                 );
                 const keyOptions =
                   column?.type === "numberObject" ||
-                  column?.type === "stringObject"
+                  column?.type === "stringObject" ||
+                  column?.type === "booleanObject"
                     ? column.keyOptions?.filter(
                         (o) => NonEmptyString.safeParse(o).success,
                       )
@@ -721,9 +791,11 @@ function FilterBuilderForm({
                       </Popover>
                       {filter.type &&
                       (filter.type === "numberObject" ||
-                        filter.type === "stringObject") &&
+                        filter.type === "stringObject" ||
+                        filter.type === "booleanObject") &&
                       (column?.type === "numberObject" ||
-                        column?.type === "stringObject") ? (
+                        column?.type === "stringObject" ||
+                        column?.type === "booleanObject") ? (
                         keyOptions?.length ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
@@ -954,7 +1026,8 @@ function FilterBuilderForm({
                             columnsWithCustomSelect.includes(column.id)
                           }
                         />
-                      ) : filter.type === "boolean" ? (
+                      ) : filter.type === "boolean" ||
+                        filter.type === "booleanObject" ? (
                         <Select
                           disabled={disabled}
                           onValueChange={(value) => {

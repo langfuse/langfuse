@@ -107,7 +107,7 @@ export function ScopePreviewTable({
       {isEmpty && (
         <div className="text-muted-foreground flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed px-4 py-8 text-center text-sm">
           <SearchX className="h-4 w-4" />
-          <p className="text-foreground font-medium">
+          <p className="text-foreground font-bold">
             No observations match the current filters and time range
           </p>
           <p>

@@ -1205,7 +1205,7 @@ export function RuleSetupForm({
                       Filters from
                     </span>
                     <span
-                      className="truncate font-medium"
+                      className="truncate font-bold"
                       title={activeFilterSourceLabel}
                     >
                       {activeFilterSourceLabel}
@@ -1335,7 +1335,7 @@ export function RuleSetupForm({
                             </p>
                           )}
                           {!isCodeMode && unmappedVariables.length > 0 && (
-                            <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-sm font-medium">
+                            <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-sm font-bold">
                               {unmappedVariables.map((item) => (
                                 <button
                                   key={item.variable}

@@ -1,6 +1,7 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
+import { Separator } from "@/src/components/ui/separator";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
@@ -13,6 +14,8 @@ import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/Pee
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 // Peek view-mode URL param (also cleared by usePeekNavigation on close). When
 // `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
@@ -86,6 +89,11 @@ type TablePeekViewProps = Pick<
    * The content to display in the peek view.
    */
   children: React.ReactNode;
+  /**
+   * Optional footer content to display at the bottom of the peek view.
+   * Useful for navigation controls or contextual actions.
+   */
+  footer?: React.ReactNode;
 };
 
 // Shared DataTable selection controls live outside the peek but must never
@@ -140,8 +148,10 @@ export const shouldClosePeekAfterDelete = (
 ): boolean => currentPeekTraceId === deletedTraceId;
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const { title, children } = props;
+  const { title, children, footer } = props;
   const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const { isBetaEnabled: isV4 } = useV4Beta();
   const itemId = router.query.peek as string | undefined;
   const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
   const isMobile = useIsMobile();
@@ -158,6 +168,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       // No-op when the flag already matches: skip the redundant shallow
       // router.replace (and the re-render it would otherwise trigger).
       if (expanded === currentlyExpanded) return;
+      // Header button, drag-past-threshold, and keyboard all commit through
+      // here, so this (post no-op guard) fires once per real toggle.
+      capture("peek:expand_toggle", {
+        isExpanded: expanded,
+        routePattern: router.pathname,
+        isV4,
+      });
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
       router.replace(
@@ -169,13 +186,25 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         { shallow: true },
       );
     },
-    [router],
+    [router, capture, isV4],
   );
 
   const panel = usePeekPanelState({
     isOpen: !!itemId,
     isExpanded,
     onExpandedChange: setExpanded,
+    onResized: useCallback(
+      (widthFraction: number, trigger: "drag" | "keyboard") => {
+        capture("peek:resized", {
+          // Bucketed viewport percentage — coarse metadata, not px.
+          widthPercent: Math.round((widthFraction * 100) / 5) * 5,
+          trigger,
+          routePattern: router.pathname,
+          isV4,
+        });
+      },
+      [capture, router.pathname, isV4],
+    ),
   });
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 
@@ -233,6 +262,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       <div className="flex-1 overflow-auto" key={itemId}>
         {children}
       </div>
+      {footer && (
+        <>
+          <Separator />
+          <div className="shrink-0 px-3 py-2.5">{footer}</div>
+        </>
+      )}
     </div>
   );
 
@@ -300,10 +335,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // No overflow-hidden here: the resize handle straddles the left
                 // edge (overhangs onto the table) so it's grabbable from either
                 // side. The body clips its own content instead.
-                "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
+                "bg-modal top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
                 // Soft shadow cast leftward (toward the table) to lift the peek
-                // off the content behind it.
-                "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
+                // off the content behind it. Token-backed so it stays a DARK
+                // cast in both modes: foreground is near-black in light mode,
+                // and background is near-black in dark mode (where foreground
+                // would flip to a white glow).
+                "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
                 panel.isResizing && "select-none",
               )}

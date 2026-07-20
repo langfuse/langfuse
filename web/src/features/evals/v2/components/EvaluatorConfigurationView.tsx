@@ -58,13 +58,13 @@ function ReadOnlyMappings({
                 key={mapping.templateVariable}
                 className="bg-muted/30 flex min-w-0 items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
               >
-                <span className="text-primary-accent shrink-0 font-mono font-medium">
+                <span className="text-primary-accent shrink-0 font-mono font-bold">
                   {`{{${mapping.templateVariable}}}`}
                 </span>
                 <span className="text-muted-foreground shrink-0">
                   pulls from
                 </span>
-                <span className="min-w-0 truncate font-medium" title={label}>
+                <span className="min-w-0 truncate font-bold" title={label}>
                   {label}
                 </span>
               </div>
@@ -111,7 +111,7 @@ export function EvaluatorDefinitionView({
     <div className="flex min-w-0 flex-col gap-6">
       <section className="flex flex-col gap-2">
         <Label>Evaluator type</Label>
-        <div className="bg-muted flex h-8 w-fit items-center gap-1.5 rounded-md border px-3 text-sm font-medium">
+        <div className="bg-muted flex h-8 w-fit items-center gap-1.5 rounded-md border px-3 text-sm font-bold">
           {isCode ? (
             sourceCodeLanguage === "TYPESCRIPT" ? (
               <SiTypescript className="h-3.5 w-3.5" />

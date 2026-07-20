@@ -113,7 +113,7 @@ function CodeTestRunResultBody({ testRun }: { testRun: CodeTestRunMutation }) {
                   <span className="text-muted-foreground text-sm">
                     {score.name}:
                   </span>
-                  <span className="text-2xl leading-none font-semibold">
+                  <span className="text-2xl leading-none font-bold">
                     {String(score.value)}
                   </span>
                 </div>
@@ -127,7 +127,7 @@ function CodeTestRunResultBody({ testRun }: { testRun: CodeTestRunMutation }) {
           </div>
         ) : (
           <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-            <p className="text-destructive text-sm font-medium">
+            <p className="text-destructive text-sm font-bold">
               Test run failed
             </p>
             <p className="text-sm">{result.error}</p>
@@ -152,7 +152,7 @@ function LlmTestRunResultBody({ testRun }: { testRun: TestRunMutation }) {
           <div className="flex flex-col gap-2">
             <div className="flex items-baseline gap-1.5">
               <span className="text-muted-foreground text-sm">Score:</span>
-              <span className="text-2xl leading-none font-semibold">
+              <span className="text-2xl leading-none font-bold">
                 {String(result.score)}
               </span>
             </div>
@@ -164,7 +164,7 @@ function LlmTestRunResultBody({ testRun }: { testRun: TestRunMutation }) {
           </div>
         ) : (
           <div className="border-destructive/40 bg-destructive/5 flex flex-col gap-1 rounded-md border p-3">
-            <p className="text-destructive text-sm font-medium">
+            <p className="text-destructive text-sm font-bold">
               Test run failed
             </p>
             <p className="text-sm">{result.error}</p>
@@ -246,7 +246,7 @@ export function TestResultPanel({
             <ArrowLeft className="h-3.5 w-3.5" />
           </Button>
         )}
-        <p className="text-sm font-medium">Test result</p>
+        <p className="text-sm font-bold">Test result</p>
         {durationMs !== undefined && (
           <span
             className="text-muted-foreground flex items-center gap-1 text-xs"

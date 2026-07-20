@@ -109,10 +109,15 @@ export const HAS_KEY = "has";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
-  observation: { numeric: "scores_avg", categorical: "score_categories" },
+  observation: {
+    numeric: "scores_avg",
+    categorical: "score_categories",
+    boolean: "score_booleans",
+  },
   trace: {
     numeric: "trace_scores_avg",
     categorical: "trace_score_categories",
+    boolean: "trace_score_booleans",
   },
 } as const;
 

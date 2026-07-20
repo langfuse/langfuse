@@ -29,6 +29,7 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
@@ -182,7 +183,7 @@ function StandardSignupFlow({
         }
       }, 100);
     } catch (error) {
-      console.error(error);
+      captureUnknownError("auth.signUp.checkSso", error);
       setFormError("Unable to check SSO configuration. Please try again.");
     } finally {
       setContinueLoading(false);
@@ -295,7 +296,7 @@ function StandardSignupFlow({
             {showPasswordStep ? "Sign up" : "Continue"}
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -415,7 +416,7 @@ function VerifiedSignupFlow({
             </h2>
             <p className="text-muted-foreground mt-2 text-center text-sm">
               We sent a verification code to{" "}
-              <span className="font-medium">{otpEmail}</span>
+              <span className="font-bold">{otpEmail}</span>
             </p>
           </div>
 
@@ -424,7 +425,7 @@ function VerifiedSignupFlow({
               <div>
                 <label
                   htmlFor="otp-code"
-                  className="mb-2 block text-sm font-medium"
+                  className="mb-2 block text-sm font-bold"
                 >
                   Verification code
                 </label>
@@ -449,7 +450,7 @@ function VerifiedSignupFlow({
                 Verify
               </Button>
               {otpError && (
-                <div className="text-destructive text-center text-sm font-medium">
+                <div className="text-destructive text-center text-sm font-bold">
                   {otpError}
                 </div>
               )}
@@ -457,7 +458,7 @@ function VerifiedSignupFlow({
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="text-primary-accent hover:text-hover-primary-accent font-medium"
+                  className="text-link hover:text-link-hover font-bold"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -522,7 +523,7 @@ function VerifiedSignupFlow({
             Continue
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -585,7 +586,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+        className="text-link hover:text-link-hover leading-6 font-bold"
       >
         Sign in
       </Link>

@@ -440,7 +440,7 @@ const InlineLink = ({
   children: ReactNode;
 }) => {
   const className =
-    "text-accent-dark-blue hover:text-primary-accent/60 inline-flex items-center gap-1 text-sm font-semibold whitespace-nowrap";
+    "text-link hover:text-link-hover inline-flex items-center gap-1 text-sm font-bold whitespace-nowrap";
 
   return external ? (
     <a
@@ -485,7 +485,7 @@ const AuditSection = ({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <TriangleAlert className="text-dark-yellow h-4 w-4 shrink-0" />
-          <h3 className="text-sm font-semibold">{title}</h3>
+          <h3 className="text-sm font-bold">{title}</h3>
           <Badge variant="outline-solid" size="sm">
             {countLabel}
           </Badge>
@@ -505,7 +505,7 @@ const SuccessAudit = () => (
   <div className="border-light-green flex items-start gap-3 border-l-2 py-2 pl-4">
     <CircleCheck className="text-dark-green mt-0.5 h-4 w-4 shrink-0" />
     <div className="min-w-0">
-      <div className="text-sm font-semibold">
+      <div className="text-sm font-bold">
         No required v4 migration changes detected
       </div>
       <div className="text-muted-foreground mt-0.5 text-sm">
@@ -544,7 +544,7 @@ const NonActionDetails = ({
         <AccordionTrigger className="py-3 text-sm hover:no-underline">
           <span className="flex min-w-0 items-center gap-2">
             <Info className="text-muted-foreground h-4 w-4 shrink-0" />
-            <span className="font-medium">
+            <span className="font-bold">
               Details that do not require action
             </span>
             <Badge variant="outline-solid" size="sm">
@@ -556,7 +556,7 @@ const NonActionDetails = ({
           {sdkUsageSeries.length ? (
             <section className="flex flex-col gap-2">
               <div>
-                <h4 className="text-sm font-medium">SDK telemetry</h4>
+                <h4 className="text-sm font-bold">SDK telemetry</h4>
                 <p className="text-muted-foreground text-xs">
                   Current, unknown with API keys, unsupported, and invalid SDK
                   telemetry is shown for context only.
@@ -571,7 +571,7 @@ const NonActionDetails = ({
           {passedChecks.length ? (
             <section className="flex flex-col gap-2">
               <div>
-                <h4 className="text-sm font-medium">Passed checks</h4>
+                <h4 className="text-sm font-bold">Passed checks</h4>
                 <p className="text-muted-foreground text-xs">
                   These checks did not produce required customer work in the
                   selected range.
@@ -710,7 +710,7 @@ export const UsageStackedBarOverview = ({
   return (
     <div className="py-2">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">Usage over time</span>
+        <span className="text-sm font-bold">Usage over time</span>
         <span className="text-muted-foreground text-xs">
           {numberFormatter(total, 0, 2)} {valueLabel}
         </span>
@@ -775,7 +775,7 @@ export const UsageStackedBarOverview = ({
               className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
               style={{ backgroundColor: item.color }}
             />
-            <span className="truncate font-medium" title={item.name}>
+            <span className="truncate font-bold" title={item.name}>
               {item.name}
             </span>
             <span className="text-muted-foreground shrink-0">
@@ -806,7 +806,7 @@ const SdkUsageDetails = ({
         seriesLimit={null}
       />
       <div className="overflow-hidden">
-        <div className="text-muted-foreground hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] gap-3 border-b py-2 text-xs font-medium md:grid">
+        <div className="text-muted-foreground hidden grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_7rem_7rem] gap-3 border-b py-2 text-xs font-bold md:grid">
           <span>SDK</span>
           <span>API key</span>
           <span className="text-right">Last seen</span>
@@ -842,7 +842,7 @@ const SdkUsageDetails = ({
                       {getSdkUpgradeStatusLabel(item.upgradeStatus)}
                     </Badge>
                     <span
-                      className="truncate text-sm font-medium"
+                      className="truncate text-sm font-bold"
                       title={
                         isUntrackedSdkUsage(item)
                           ? "untracked"
@@ -878,7 +878,7 @@ const SdkUsageDetails = ({
                 <div className="text-muted-foreground text-xs md:text-right">
                   {item.lastSeen ? getBucketLabel(item.lastSeen) : "-"}
                 </div>
-                <div className="text-sm font-medium md:text-right">
+                <div className="text-sm font-bold md:text-right">
                   {numberFormatter(item.total, 0, 2)}
                 </div>
               </div>
@@ -909,7 +909,7 @@ const ActionRow = ({
   <div className="grid gap-3 border-b py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
     <div className="min-w-0">
       <div
-        className={cn("truncate text-sm font-medium", titleClassName)}
+        className={cn("truncate text-sm font-bold", titleClassName)}
         title={title}
       >
         {title}
@@ -924,7 +924,7 @@ const ActionRow = ({
     <div className="md:text-right">
       {typeof total === "number" ? (
         <>
-          <div className="text-sm font-medium">
+          <div className="text-sm font-bold">
             {numberFormatter(total, 0, 2)}
           </div>
           <div className="text-muted-foreground text-xs">
