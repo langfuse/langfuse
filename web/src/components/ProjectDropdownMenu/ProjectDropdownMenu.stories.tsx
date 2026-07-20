@@ -26,6 +26,10 @@ const projects = [
   createProject("project-analytics", "Analytics"),
   createProject("project-production", "Production"),
   createProject("project-staging", "Staging"),
+  createProject(
+    "project-long-name",
+    "A project name that is too long to fit in the menu",
+  ),
 ];
 
 const meta = preview.meta({
@@ -37,7 +41,7 @@ const meta = preview.meta({
   },
   render: (args) => (
     <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger>Current project</DropdownMenuTrigger>
+      <DropdownMenuTrigger>Trigger</DropdownMenuTrigger>
       <ProjectDropdownMenu {...args} />
     </DropdownMenu>
   ),
@@ -50,7 +54,7 @@ export const Default = meta.story({
   },
 });
 
-export const Scrollable = meta.story({
+export const Many = meta.story({
   args: {
     state: "loaded",
     projects: Array.from({ length: 10 }, (_, index) =>
@@ -64,19 +68,6 @@ export const WithoutCreation = meta.story({
     state: "loaded",
     projects,
     canCreateProjects: false,
-  },
-});
-
-export const WithLongName = meta.story({
-  args: {
-    state: "loaded",
-    projects: [
-      createProject(
-        "project-long-name",
-        "A project name that is too long to fit in the menu",
-      ),
-      ...projects,
-    ],
   },
 });
 

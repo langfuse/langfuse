@@ -27,6 +27,10 @@ const organizations = [
   createOrganization("org-acme", "Acme Inc."),
   createOrganization("org-globex", "Globex Corporation"),
   createOrganization("org-initech", "Initech"),
+  createOrganization(
+    "org-long-name",
+    "An organization name that is too long to fit in the menu",
+  ),
 ];
 
 const meta = preview.meta({
@@ -37,7 +41,7 @@ const meta = preview.meta({
   },
   render: (args) => (
     <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger>Current organization</DropdownMenuTrigger>
+      <DropdownMenuTrigger>Trigger</DropdownMenuTrigger>
       <OrganizationDropdownMenu {...args} />
     </DropdownMenu>
   ),
@@ -50,7 +54,7 @@ export const Default = meta.story({
   },
 });
 
-export const Scrollable = meta.story({
+export const Many = meta.story({
   args: {
     state: "loaded",
     organizations: Array.from({ length: 10 }, (_, index) =>
@@ -64,19 +68,6 @@ export const WithoutCreation = meta.story({
     state: "loaded",
     organizations,
     canCreateOrganizations: false,
-  },
-});
-
-export const WithLongName = meta.story({
-  args: {
-    state: "loaded",
-    organizations: [
-      createOrganization(
-        "org-long-name",
-        "An organization name that is too long to fit in the menu",
-      ),
-      ...organizations,
-    ],
   },
 });
 
