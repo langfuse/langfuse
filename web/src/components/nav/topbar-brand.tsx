@@ -1,5 +1,6 @@
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
+import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
@@ -13,19 +14,22 @@ import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
  * app, so the page header renders this compact mark instead — mirroring the
  * icon the sidebar itself shows when collapsed.
  *
+ * `variant="icon"` (default) renders just the Langfuse mark; `variant="wordmark"`
+ * renders the full logotype, for the centered brand in the mobile top bar.
+ *
  * Respects the self-host UI-customization logo entitlement, same as
  * `LangfuseLogo`, and links to `/` like the sidebar logo.
  */
-export const TopbarBrand = ({ className }: { className?: string }) => {
-  const hasAppSidebar = useHasAppSidebar();
+export const TopbarBrand = ({
+  className,
+  variant = "icon",
+}: {
+  className?: string;
+  variant?: "icon" | "wordmark";
+}) => {
   const uiCustomization = useUiCustomization();
   const logoLight = uiCustomization?.logoLightModeHref;
   const logoDark = uiCustomization?.logoDarkModeHref;
-
-  // Nothing to mirror when there is no sidebar (sidebar-less MinimalLayout,
-  // e.g. public/shared trace and session views). Guarding here keeps the
-  // brand off every such route without each caller having to opt out.
-  if (!hasAppSidebar) return null;
 
   return (
     <Link
@@ -52,9 +56,27 @@ export const TopbarBrand = ({ className }: { className?: string }) => {
           <PlusIcon size={8} className="text-muted-foreground" />
           <LangfuseIcon size={16} />
         </>
+      ) : variant === "wordmark" ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="max-h-5 max-w-24 dark:hidden"
+            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
+            alt="Langfuse Logo"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            className="hidden max-h-5 max-w-24 dark:block"
+            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
+            alt="Langfuse Logo"
+          />
+        </>
       ) : (
         <LangfuseIcon size={28} />
       )}
     </Link>
   );
 };
+
+/** True when a real AppSidebar exists to mirror — see {@link useHasAppSidebar}. */
+export { useHasAppSidebar };
