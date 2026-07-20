@@ -390,7 +390,14 @@ export const eventsExperimentsAggregation = (params: {
     .whereRaw("e.experiment_id != ''");
 };
 
-export const eventsExperimentsRootSpans = (params: {
+/**
+ * Scopes events to a project/experiment/item-id set, without narrowing to
+ * root-span rows. Use this (instead of eventsExperimentsRootSpans) when a
+ * query needs to see every observation for an item - e.g. to aggregate cost
+ * across an item's full subtree - and will pick the root row itself via
+ * ORDER BY / LIMIT BY rather than WHERE, so aggregates see sibling rows too.
+ */
+export const eventsExperimentsForItems = (params: {
   projectId: string;
   experimentIds?: string[];
   experimentItemIds?: string[];
@@ -398,18 +405,25 @@ export const eventsExperimentsRootSpans = (params: {
   eventsExperiments({
     projectId: params.projectId,
     experimentIds: params.experimentIds,
-  })
-    .whereRaw("e.experiment_item_root_span_id = e.span_id")
-    .when(
-      Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
-      (b) =>
-        b.whereRaw(
-          "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
-          {
-            experimentItemIds: params.experimentItemIds,
-          },
-        ),
-    );
+  }).when(
+    Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
+    (b) =>
+      b.whereRaw(
+        "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
+        {
+          experimentItemIds: params.experimentItemIds,
+        },
+      ),
+  );
+
+export const eventsExperimentsRootSpans = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  experimentItemIds?: string[];
+}): EventsQueryBuilder =>
+  eventsExperimentsForItems(params).whereRaw(
+    "e.experiment_item_root_span_id = e.span_id",
+  );
 
 /**
  * Session-level scores aggregation CTE.

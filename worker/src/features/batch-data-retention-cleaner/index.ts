@@ -1,11 +1,11 @@
 import { createHash } from "crypto";
 
-import { percentile } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
   convertDateToClickhouseDateTime,
   logger,
+  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
   recordGauge,
@@ -54,8 +54,13 @@ interface ProjectRetention {
 }
 
 interface ProjectWorkload extends ProjectRetention {
-  expiredRowCount: number | null;
-  oldestAgeSeconds: number | null;
+  rowCount: number | null;
+  secondsPastCutoff: number | null;
+}
+
+interface ProjectWorkloadSelection {
+  observedWorkloads: ProjectWorkload[];
+  selectedWorkloads: ProjectWorkload[];
 }
 
 function parseMonthlyPartitionStart(partitionId: string): Date | null {
@@ -113,7 +118,7 @@ function toParamKey(projectId: string): string {
 
 /**
  * Build OR conditions for project-specific cutoffs.
- * Used by both count and delete queries.
+ * Used by candidate discovery and delete queries.
  * Uses hashed projectId keys to prevent index mismatch bugs.
  */
 function buildRetentionConditions(
@@ -164,8 +169,8 @@ function buildRetentionConditions(
  * 1. Query PG for all projects with retentionDays > 0
  * 2. Calculate retention cutoff dates for each project
  * 3. Stream projects with expired rows from bounded project chunks
- * 4. Best-effort enrich candidates with exact count and oldest timestamp
- * 5. Sort by expired count DESC when enrichment is available
+ * 4. Best-effort enrich candidates with total row count and oldest timestamp
+ * 5. Sort by lag past cutoff DESC, using total row count as a tie-breaker
  * 6. Execute a single batch DELETE with OR conditions
  */
 export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
@@ -276,75 +281,54 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         this.lastLockExtensionAt = 0;
 
         // Step 1: Get project workloads (streamed CH candidates + PG config)
-        const workloads = await this.getProjectWorkloads();
+        const { observedWorkloads, selectedWorkloads } =
+          await this.getProjectWorkloads();
 
-        recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
-          table: this.tableName,
-        });
+        recordGauge(
+          `${METRIC_PREFIX}.pending_projects`,
+          observedWorkloads.length,
+          {
+            table: this.tableName,
+          },
+        );
 
-        const SECONDS_PER_DAY = 86400;
-        const secondsPastCutoffByProject = workloads
-          .filter((workload) => workload.oldestAgeSeconds !== null)
-          .map((workload) => ({
-            projectId: workload.projectId,
-            secondsPastCutoff:
-              workload.oldestAgeSeconds! -
-              workload.retentionDays * SECONDS_PER_DAY,
-          }));
-
-        // Compute p90 for the gauge metric (0 when no pending work)
-        const p90SecondsPastCutoff = percentile(
-          secondsPastCutoffByProject.map((project) =>
-            Math.max(project.secondsPastCutoff, 0),
-          ),
-          0.9,
+        // Retention cutoffs come from Postgres and are frozen once per run.
+        // Fold the per-project results here to preserve one maximum across all
+        // bounded ClickHouse queries.
+        const maxSecondsPastCutoff = observedWorkloads.reduce(
+          (maximum, workload) =>
+            workload.secondsPastCutoff === null
+              ? maximum
+              : Math.max(maximum, workload.secondsPastCutoff),
+          0,
         );
 
         recordGauge(
           `${METRIC_PREFIX}.seconds_past_cutoff`,
-          Math.max(p90SecondsPastCutoff, 0),
+          maxSecondsPastCutoff,
           {
             table: this.tableName,
           },
         );
 
         // Step 2: Execute DELETE
-        if (workloads.length >= 0) {
+        if (selectedWorkloads.length > 0) {
           logger.info(
-            `${this.instanceName}: Processing ${workloads.length} projects`,
+            `${this.instanceName}: Processing ${selectedWorkloads.length} projects`,
             {
-              projectIds: workloads.map((workload) => workload.projectId),
-              secondsPastCutoffByProject,
+              projectIds: selectedWorkloads.map(
+                (workload) => workload.projectId,
+              ),
+              pendingProjectsSeen: observedWorkloads.length,
+              maxSecondsPastCutoff,
             },
           );
 
-          await this.executeBatchDelete(timestampColumn, workloads);
-
-          if (workloads.length > 0) {
-            const matchedRows = workloads.reduce<number | null>(
-              (sum, workload) =>
-                sum === null || workload.expiredRowCount === null
-                  ? null
-                  : sum + workload.expiredRowCount,
-              0,
-            );
-
-            if (matchedRows === null) {
-              recordIncrement(`${METRIC_PREFIX}.row_count_unavailable`, 1, {
-                table: this.tableName,
-              });
-            } else {
-              recordIncrement(
-                `${METRIC_PREFIX}.rows_matched_before_delete`,
-                matchedRows,
-                { table: this.tableName },
-              );
-            }
-          }
+          await this.executeBatchDelete(timestampColumn, selectedWorkloads);
 
           logger.info(`${this.instanceName}: Batch deletion completed`, {
             table: this.tableName,
-            projectsProcessed: workloads.length,
+            projectsProcessed: selectedWorkloads.length,
           });
         } else {
           logger.info(
@@ -358,7 +342,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         });
         recordIncrement(
           `${METRIC_PREFIX}.projects_processed`,
-          workloads.length,
+          selectedWorkloads.length,
           {
             table: this.tableName,
           },
@@ -377,10 +361,10 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    * 1. PostgreSQL: Get all projects with retention enabled
    * 2. Calculate cutoffs for all projects
    * 3. Stream projects with expired data from each CHUNK_SIZE project chunk
-   * 4. Best-effort enrich each chunk's candidates with count/min
-   * 5. Sort by count when available and select top PROJECT_LIMIT
+   * 4. Best-effort enrich each chunk's candidates with total count/min
+   * 5. Sort by lag, then total count, and select top PROJECT_LIMIT
    */
-  private async getProjectWorkloads(): Promise<ProjectWorkload[]> {
+  private async getProjectWorkloads(): Promise<ProjectWorkloadSelection> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
 
     // Step 1: Get all projects with retention from PostgreSQL
@@ -393,7 +377,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     });
 
     if (projectsWithRetention.length === 0) {
-      return [];
+      return { observedWorkloads: [], selectedWorkloads: [] };
     }
 
     // Step 2: Calculate cutoffs for all projects upfront
@@ -421,9 +405,10 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       );
     }
 
-    // Step 4: Exact count/min is useful for global ordering and metrics, but
-    // deletion must not depend on this more expensive grouped query succeeding.
-    // Keep enrichment per input chunk so its parameters remain bounded too.
+    // Step 4: Oldest timestamp provides the main ordering signal and total
+    // count breaks ties, but deletion must not depend on this grouped query
+    // succeeding. Keep enrichment per input chunk so its parameters remain
+    // bounded too.
     const chunkWorkloads = await Promise.all(
       projectChunks.map(async (projectChunk) => {
         const candidates = await this.findExpiredProjectCandidates(
@@ -435,22 +420,39 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     );
     const workloads = chunkWorkloads.flat();
 
-    // A failed count can indicate a particularly large workload. Prioritize
-    // unknown counts ahead of exact counts instead of treating them as empty.
+    // Prioritize the projects furthest behind their cutoff. A failed lag or
+    // count estimate can indicate a particularly large workload, so keep
+    // unknown values ahead of known ones to avoid starvation.
     workloads.sort((left, right) => {
-      if (left.expiredRowCount === null) {
-        return right.expiredRowCount === null ? 0 : -1;
+      if (left.secondsPastCutoff === null) {
+        if (right.secondsPastCutoff !== null) {
+          return -1;
+        }
+      } else if (right.secondsPastCutoff === null) {
+        return 1;
+      } else {
+        const lagDifference = right.secondsPastCutoff - left.secondsPastCutoff;
+        if (lagDifference !== 0) {
+          return lagDifference;
+        }
       }
-      if (right.expiredRowCount === null) {
+
+      if (left.rowCount === null) {
+        return right.rowCount === null ? 0 : -1;
+      }
+      if (right.rowCount === null) {
         return 1;
       }
-      return right.expiredRowCount - left.expiredRowCount;
+      return right.rowCount - left.rowCount;
     });
 
-    return workloads.slice(
-      0,
-      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
-    );
+    return {
+      observedWorkloads: workloads,
+      selectedWorkloads: workloads.slice(
+        0,
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
+      ),
+    };
   }
 
   /**
@@ -529,8 +531,11 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   /**
-   * Best-effort exact count and oldest age for discovered candidates. If this
-   * query fails, estimate the oldest age from the monthly partition instead.
+   * Best-effort total count and oldest retention timestamp for discovered
+   * candidates. The query deliberately filters only on project_id. Retention
+   * cutoffs come from Postgres and are frozen once per run, so they are applied
+   * after the result is returned. If this query fails, estimate the oldest
+   * timestamp from the monthly partition instead.
    */
   private async enrichProjectCandidates(
     timestampColumn: string,
@@ -540,42 +545,47 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       return [];
     }
 
-    const { conditions, params } = buildRetentionConditions(
-      timestampColumn,
-      candidates,
-    );
     const query = `
       SELECT
         project_id,
-        count() AS count,
-        dateDiff('second', min(event_ts), now()) AS oldest_age_seconds
+        count() AS row_count,
+        min(${timestampColumn}) AS oldest_timestamp
       FROM ${this.tableName}
-      PREWHERE ${conditions}
+      PREWHERE project_id IN ({candidateProjectIds: Array(String)})
       GROUP BY project_id
     `;
 
     try {
       const result = await queryClickhouse<{
         project_id: string;
-        count: number;
-        oldest_age_seconds: number;
+        row_count: number;
+        oldest_timestamp: string;
       }>({
         query,
-        params,
+        params: {
+          candidateProjectIds: candidates.map(
+            (candidate) => candidate.projectId,
+          ),
+        },
         useMultipartParamsAuto: true,
       });
 
       const resultByProjectId = new Map(
         result.map((row) => {
-          const oldestAgeSeconds = Number(row.oldest_age_seconds);
+          const oldestTimestamp = parseClickhouseUTCDateTimeFormat(
+            row.oldest_timestamp,
+          );
+          if (Number.isNaN(oldestTimestamp.getTime())) {
+            throw new Error(
+              `Invalid oldest timestamp for project ${row.project_id}`,
+            );
+          }
 
           return [
             row.project_id,
             {
-              count: Number(row.count),
-              oldestAgeSeconds: Number.isFinite(oldestAgeSeconds)
-                ? oldestAgeSeconds
-                : null,
+              rowCount: Number(row.row_count),
+              oldestTimestamp,
             },
           ] as const;
         }),
@@ -583,13 +593,26 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
       await this.extendLockOnProgress();
 
-      return candidates.map((candidate) => {
+      return candidates.flatMap((candidate) => {
         const resultForProject = resultByProjectId.get(candidate.projectId);
-        return {
-          ...candidate,
-          expiredRowCount: resultForProject?.count ?? null,
-          oldestAgeSeconds: resultForProject?.oldestAgeSeconds ?? null,
-        };
+        if (
+          !resultForProject ||
+          resultForProject.oldestTimestamp.getTime() >=
+            candidate.cutoffDate.getTime()
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            ...candidate,
+            rowCount: resultForProject.rowCount,
+            secondsPastCutoff:
+              (candidate.cutoffDate.getTime() -
+                resultForProject.oldestTimestamp.getTime()) /
+              1000,
+          },
+        ];
       });
     } catch (error) {
       if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
@@ -609,9 +632,10 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   /**
-   * Estimate each candidate's oldest age from its oldest monthly partition.
-   * The partition start is an upper bound on how far the oldest row is past
-   * cutoff. If this query also fails, retain the candidates without metrics.
+   * Estimate each candidate's lag from its oldest monthly partition. The
+   * partition start is an upper bound on how far the oldest row is past the
+   * fixed project cutoff. If this query also fails, retain the candidates
+   * without metrics.
    */
   private async enrichCandidatesFromOldestPartition(
     candidates: ProjectRetention[],
@@ -624,16 +648,19 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
       await this.extendLockOnProgress();
 
-      const now = Date.now();
       return candidates.map((candidate) => {
         const partitionStart = partitionStartByProjectId.get(
           candidate.projectId,
         );
         return {
           ...candidate,
-          expiredRowCount: null,
-          oldestAgeSeconds: partitionStart
-            ? (now - partitionStart.getTime()) / 1000
+          rowCount: null,
+          secondsPastCutoff: partitionStart
+            ? Math.max(
+                (candidate.cutoffDate.getTime() - partitionStart.getTime()) /
+                  1000,
+                0,
+              )
             : null,
         };
       });
@@ -652,8 +679,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       await this.extendLockOnProgress();
       return candidates.map((candidate) => ({
         ...candidate,
-        expiredRowCount: null,
-        oldestAgeSeconds: null,
+        rowCount: null,
+        secondsPastCutoff: null,
       }));
     }
   }

@@ -9,8 +9,7 @@ import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
@@ -168,7 +167,8 @@ export const UserChart = ({
 
   // Fit the number of bars to the tile height (see TracesBarListChart): render
   // exactly the bars that fill the measured chart area, no scrollbar, and defer
-  // the rest to "Show all". (LFE-11035)
+  // the rest to "Show all". The measured `height` flows one-way into the pure
+  // BarListChartArea chart. (LFE-11035, LFE-11060)
   const { containerRef, rowCount, height } = useFitRowCount({
     rowHeightPx: BAR_ROW_HEIGHT,
     reservedPx: CHART_AXIS_PADDING,
@@ -225,46 +225,17 @@ export const UserChart = ({
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    {/* The chart fills the leftover tile height. Collapsed it
-                        renders only the bars that fit the measured area and
-                        sizes the chart to that same height, so they spread to
-                        use it: no dead gap for a sparse list, no scrollbar for a
-                        full one. Expanded it grows to the bars' natural height
-                        and this viewport scrolls within the tile. Mirrors
-                        TracesBarListChart. (LFE-11035, revises LFE-10813) */}
-                    <div
-                      ref={containerRef}
-                      className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
-                    >
-                      <div
-                        className="w-full"
-                        style={{
-                          // Collapsed: fill the measured area (definite px).
-                          // Expanded: grow to the bars' natural height so the
-                          // viewport scrolls.
-                          height: isExpanded
-                            ? shown.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING
-                            : (height ?? 200),
-                        }}
-                      >
-                        <Chart
-                          chartType="HORIZONTAL_BAR"
-                          data={barListToDataPoints(shown)}
-                          config={{
-                            metric: {
-                              label: item.chartMetricLabel,
-                            },
-                          }}
-                          rowLimit={maxNumberOfEntries.expanded}
-                          chartConfig={{
-                            type: "HORIZONTAL_BAR",
-                            row_limit: maxNumberOfEntries.expanded,
-                            unit: item.chartUnit,
-                            show_value_labels: true,
-                          }}
-                        />
-                      </div>
-                    </div>
+                    <BarListChartArea
+                      containerRef={containerRef}
+                      measuredHeightPx={height}
+                      isExpanded={isExpanded}
+                      data={shown}
+                      barRowHeightPx={BAR_ROW_HEIGHT}
+                      axisPaddingPx={CHART_AXIS_PADDING}
+                      maxExpandedBars={maxNumberOfEntries.expanded}
+                      metricLabel={item.chartMetricLabel}
+                      unit={item.chartUnit}
+                    />
                   </div>
                 ) : (
                   <NoDataOrLoading

@@ -6,9 +6,8 @@ import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
@@ -118,7 +117,9 @@ export const TracesBarListChart = ({
 
   // Fit the number of bars to the tile height instead of a fixed count: the
   // collapsed view renders exactly as many bars as fill the measured chart area
-  // (no scrollbar, no dead gap), and "Show all" reveals the rest. (LFE-11035)
+  // (no scrollbar, no dead gap), and "Show all" reveals the rest. The hook
+  // measures a layout-guaranteed box and hands `height` down to a pure chart
+  // (BarListChartArea) — one-way, no measure/resize feedback. (LFE-11035, LFE-11060)
   const { containerRef, rowCount, height } = useFitRowCount({
     rowHeightPx: BAR_ROW_HEIGHT,
     reservedPx: CHART_AXIS_PADDING,
@@ -155,50 +156,18 @@ export const TracesBarListChart = ({
           description="Total traces tracked"
         />
         {transformedTraces.length > 0 ? (
-          // The chart fills the leftover tile height (flex-1) and never forces
-          // the card past its tile. Collapsed, it renders only the bars that fit
-          // the measured area and sizes the chart to that same measured height,
-          // so the bars spread to use it: a sparse list has no dead gap and a
-          // full one has no scrollbar. Expanded, it grows to the bars' natural
-          // height and this viewport scrolls within the tile. (LFE-11035,
-          // revises LFE-10813)
-          <div
-            ref={containerRef}
-            className="mt-4 min-h-0 w-full flex-1 overflow-y-auto"
-          >
-            <div
-              className="w-full"
-              style={{
-                // Collapsed: fill the measured area exactly (definite px so
-                // recharts renders and the bars spread to use the height).
-                // Expanded: grow to the bars' natural height so the viewport
-                // above scrolls.
-                height: isExpanded
-                  ? adjustedData.length * BAR_ROW_HEIGHT + CHART_AXIS_PADDING
-                  : (height ?? 200),
-              }}
-            >
-              <Chart
-                chartType="HORIZONTAL_BAR"
-                data={barListToDataPoints(adjustedData)}
-                metricFormatter={(value) =>
-                  formatMetric(value, { style: "full" })
-                }
-                config={{
-                  metric: {
-                    label: "Traces",
-                  },
-                }}
-                rowLimit={MAX_EXPANDED_BARS}
-                chartConfig={{
-                  type: "HORIZONTAL_BAR",
-                  row_limit: MAX_EXPANDED_BARS,
-                  unit: "traces",
-                  show_value_labels: true,
-                }}
-              />
-            </div>
-          </div>
+          <BarListChartArea
+            containerRef={containerRef}
+            measuredHeightPx={height}
+            isExpanded={isExpanded}
+            data={adjustedData}
+            barRowHeightPx={BAR_ROW_HEIGHT}
+            axisPaddingPx={CHART_AXIS_PADDING}
+            maxExpandedBars={MAX_EXPANDED_BARS}
+            metricLabel="Traces"
+            unit="traces"
+            metricFormatter={(value) => formatMetric(value, { style: "full" })}
+          />
         ) : (
           <NoDataOrLoading
             isLoading={isLoading || traces.isPending || totalTraces.isPending}

@@ -38,10 +38,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     queryClickhouse: async <T>(
       opts: Parameters<typeof actual.queryClickhouse>[0],
     ) => {
+      const candidateProjectIds = opts.params?.candidateProjectIds;
       if (
-        opts.query.includes("AS oldest_age_seconds") &&
+        opts.query.includes("AS oldest_timestamp") &&
         integrationHooks.failExactEnrichmentForProjectId !== null &&
-        Object.values(opts.params ?? {}).includes(
+        Array.isArray(candidateProjectIds) &&
+        candidateProjectIds.includes(
           integrationHooks.failExactEnrichmentForProjectId,
         )
       ) {
@@ -138,7 +140,7 @@ async function insertRetentionTestRows(
     values: rows.map((row) => ({
       project_id: row.projectId,
       start_time: row.startTime,
-      event_ts: row.startTime,
+      event_ts: Date.now(),
     })),
   });
 }
@@ -166,6 +168,13 @@ async function getRetentionTestProjectCount(
     params: { projectId },
   });
   return Number(result[0]?.count ?? 0);
+}
+
+function getLastGaugeValue(stat: string): number {
+  return (
+    integrationHooks.gaugeCalls.findLast(([name]) => name === stat)?.[1] ??
+    Number.NaN
+  );
 }
 
 describe("BatchDataRetentionCleaner", () => {
@@ -483,43 +492,66 @@ describe("BatchDataRetentionCleaner", () => {
       await commandClickhouse({ query: `DROP TABLE IF EXISTS ${tableName}` });
     });
 
-    it("discovers expired projects across every configured project chunk", async () => {
-      const projectIds = await createProjectsWithRetention(3);
+    it("prioritizes lag, breaks ties by total rows, and reports maximum lag", async () => {
+      const [
+        smallerTieProjectId,
+        largerTieProjectId,
+        olderButLessLateProjectId,
+      ] = await createProjectsWithRetention(3);
+      await prisma.project.update({
+        where: { id: olderButLessLateProjectId! },
+        data: { retentionDays: 59 },
+      });
+
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const rowsAtDaysAgo = (projectId: string, daysAgo: number[]) =>
+        daysAgo.map((days) => ({
+          projectId,
+          startTime: now - days * dayMs,
+        }));
       await insertRetentionTestRows(
         tableName,
-        projectIds.map((projectId) => ({
-          projectId,
-          startTime: Date.now() - 10 * 24 * 60 * 60 * 1000,
-        })),
+        rowsAtDaysAgo(smallerTieProjectId!, [10, 9]).concat(
+          rowsAtDaysAgo(largerTieProjectId!, [10, 2, 1]),
+          rowsAtDaysAgo(olderButLessLateProjectId!, [60]),
+        ),
       );
       env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE = 2;
-      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT = 3;
+      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT = 1;
 
       await new BatchDataRetentionCleaner(table).processBatch();
 
-      expect(await getRetentionTestRowCount(tableName)).toBe(0);
-      expect(integrationHooks.incrementCalls).toContainEqual([
-        "langfuse.batch_data_retention_cleaner.rows_matched_before_delete",
-        3,
-      ]);
-      expect(integrationHooks.candidateHttpTimeouts.length).toBeGreaterThan(0);
-      for (const timeouts of integrationHooks.candidateHttpTimeouts) {
-        const expectedTimeoutSeconds = Math.ceil(
-          env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS /
-            1000,
-        );
-        expect(timeouts).toEqual({
-          send: expectedTimeoutSeconds,
-          receive: expectedTimeoutSeconds,
-        });
-      }
       expect(
-        integrationHooks.gaugeCalls.findLast(
-          ([stat]) =>
-            stat ===
-            "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
-        )?.[1],
-      ).toBeGreaterThan(0);
+        await Promise.all(
+          [
+            smallerTieProjectId!,
+            largerTieProjectId!,
+            olderButLessLateProjectId!,
+          ].map((projectId) =>
+            getRetentionTestProjectCount(tableName, projectId),
+          ),
+        ),
+      ).toEqual([2, 2, 1]);
+      const expectedTimeoutSeconds = Math.ceil(
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS /
+          1000,
+      );
+      expect(integrationHooks.candidateHttpTimeouts[0]).toEqual({
+        send: expectedTimeoutSeconds,
+        receive: expectedTimeoutSeconds,
+      });
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.pending_projects",
+        ),
+      ).toBe(3);
+
+      const lagValue = getLastGaugeValue(
+        "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+      );
+      expect(lagValue).toBeGreaterThan(2 * (dayMs / 1000));
+      expect(lagValue).toBeLessThan(4 * (dayMs / 1000));
     });
 
     it("renews on progress and aborts when the final lease renewal fails", async () => {
@@ -574,10 +606,8 @@ describe("BatchDataRetentionCleaner", () => {
       ]);
     });
 
-    it("prioritizes unenriched candidates and estimates lag from their oldest partition", async () => {
-      const [fallbackProjectId, exactProjectId] =
-        await createProjectsWithRetention(2);
-      const exactExpiredAt = Date.now() - 10 * 24 * 60 * 60 * 1000;
+    it("uses partition lag when exact enrichment fails", async () => {
+      const [fallbackProjectId] = await createProjectsWithRetention(1);
       await insertRetentionTestRows(tableName, [
         {
           projectId: fallbackProjectId!,
@@ -587,12 +617,7 @@ describe("BatchDataRetentionCleaner", () => {
           projectId: fallbackProjectId!,
           startTime: new Date("2020-01-15T00:00:00.000Z").getTime(),
         },
-        { projectId: exactProjectId!, startTime: exactExpiredAt },
-        { projectId: exactProjectId!, startTime: exactExpiredAt - 1 },
-        { projectId: exactProjectId!, startTime: exactExpiredAt - 2 },
       ]);
-      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE = 1;
-      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT = 1;
       integrationHooks.failExactEnrichmentForProjectId = fallbackProjectId!;
       const beforeRun = Date.now();
 
@@ -602,17 +627,12 @@ describe("BatchDataRetentionCleaner", () => {
       expect(
         await getRetentionTestProjectCount(tableName, fallbackProjectId!),
       ).toBe(0);
-      expect(
-        await getRetentionTestProjectCount(tableName, exactProjectId!),
-      ).toBe(3);
 
-      const lagGauge = integrationHooks.gaugeCalls.findLast(
-        ([stat]) =>
-          stat === "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+      const lagValue = getLastGaugeValue(
+        "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
       );
       const partitionStart = new Date("2020-01-01T00:00:00.000Z").getTime();
       const retentionMs = 7 * 24 * 60 * 60 * 1000;
-      const lagValue = lagGauge?.[1] ?? Number.NaN;
 
       expect(lagValue).toBeGreaterThanOrEqual(
         (beforeRun - retentionMs - partitionStart) / 1000,
@@ -620,10 +640,6 @@ describe("BatchDataRetentionCleaner", () => {
       expect(lagValue).toBeLessThanOrEqual(
         (afterRun - retentionMs - partitionStart) / 1000,
       );
-      expect(integrationHooks.incrementCalls).toContainEqual([
-        "langfuse.batch_data_retention_cleaner.row_count_unavailable",
-        1,
-      ]);
     });
   });
 });
