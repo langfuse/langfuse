@@ -80,6 +80,16 @@ const parseCursor = (cursor: string) => {
 
 const ListScoresInputSchema = ListScoresBaseSchema.superRefine((data, ctx) => {
   if (data.value !== undefined && data.value.length > 0) {
+    // Number("") and Number("  ") coerce to 0, which would silently turn an
+    // empty placeholder into a value=0 filter — reject instead.
+    for (const v of data.value) {
+      if (v.trim().length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "value filter entries must be non-empty strings",
+        });
+      }
+    }
     const dataType = data.dataType?.length === 1 ? data.dataType[0] : undefined;
     if (
       !dataType ||

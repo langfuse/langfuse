@@ -2388,6 +2388,20 @@ describe("MCP Read Tools", () => {
         handleListScores({ limit: 10, value: ["0.5"] }, context),
       ).rejects.toThrow(/value filter requires a single dataType/i);
 
+      // Number("") === 0: an empty placeholder must not become a value=0 filter.
+      await expect(
+        handleListScores(
+          { limit: 10, value: [""], dataType: ["NUMERIC"] },
+          context,
+        ),
+      ).rejects.toThrow(/value filter entries must be non-empty/i);
+      await expect(
+        handleListScores(
+          { limit: 10, value: ["  "], dataType: ["NUMERIC"] },
+          context,
+        ),
+      ).rejects.toThrow(/value filter entries must be non-empty/i);
+
       await expect(
         handleListScores({ limit: 10, valueMin: 0.5 }, context),
       ).rejects.toThrow(/valueMin and valueMax require dataType=NUMERIC/i);
