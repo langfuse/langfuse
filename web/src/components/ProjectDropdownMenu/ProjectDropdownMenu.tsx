@@ -30,42 +30,40 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
   const { organizationId, canCreateProjects, getProjectPath } = props;
 
   return (
-    <DropdownMenuContent align="start">
+    <DropdownMenuContent align="start" maxHeight="15rem">
       <DropdownMenuLabel>Projects</DropdownMenuLabel>
       <DropdownMenuSeparator />
-      <div className="max-h-36 overflow-y-auto">
-        {props.state === "loaded" ? (
-          props.projects.map((dropdownProject) => (
-            <DropdownMenuItem key={dropdownProject.id} className="p-0">
-              <Link
-                href={getProjectPath(dropdownProject.id)}
-                className="flex min-w-0 flex-1 cursor-pointer px-2 py-1.5"
+      {props.state === "loaded" ? (
+        props.projects.map((dropdownProject) => (
+          <DropdownMenuItem key={dropdownProject.id} className="p-0">
+            <Link
+              href={getProjectPath(dropdownProject.id)}
+              className="flex min-w-0 flex-1 cursor-pointer px-2 py-1.5"
+            >
+              <span
+                className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
+                title={dropdownProject.name}
               >
-                <span
-                  className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
-                  title={dropdownProject.name}
-                >
-                  {dropdownProject.name}
-                </span>
-              </Link>
-              <Link
-                href={`/project/${dropdownProject.id}/settings`}
-                aria-label={`Go to settings for ${dropdownProject.name}`}
-                className="hover:bg-background flex size-8 shrink-0 cursor-pointer items-center justify-center"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <Settings size={12} />
-              </Link>
-            </DropdownMenuItem>
-          ))
-        ) : (
-          <>
-            <DropdownMenuLoadingItem />
-            <DropdownMenuLoadingItem />
-            <DropdownMenuLoadingItem />
-          </>
-        )}
-      </div>
+                {dropdownProject.name}
+              </span>
+            </Link>
+            <Link
+              href={`/project/${dropdownProject.id}/settings`}
+              aria-label={`Go to settings for ${dropdownProject.name}`}
+              className="hover:bg-background flex size-8 shrink-0 cursor-pointer items-center justify-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <Settings size={12} />
+            </Link>
+          </DropdownMenuItem>
+        ))
+      ) : (
+        <>
+          <DropdownMenuLoadingItem />
+          <DropdownMenuLoadingItem />
+          <DropdownMenuLoadingItem />
+        </>
+      )}
 
       {canCreateProjects && (
         <>

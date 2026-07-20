@@ -70,8 +70,10 @@ DropdownMenuSubContent.displayName =
 
 const DropdownMenuContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+    maxHeight?: React.CSSProperties["maxHeight"];
+  }
+>(({ className, sideOffset = 4, maxHeight, style, ...props }, ref) => {
   // Route into the `popover` overlay layer (above `modal`). null until mounted
   // → falls back to <body>, SSR-parity. Layer order, not z-index, stacks it.
   const container = useLayerContainer("popover");
@@ -84,6 +86,11 @@ const DropdownMenuContent = React.forwardRef<
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 min-w-32 overflow-hidden rounded-md border p-1 shadow-md",
           className,
         )}
+        style={
+          maxHeight === undefined
+            ? style
+            : { ...style, maxHeight, overflowY: "auto" }
+        }
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
