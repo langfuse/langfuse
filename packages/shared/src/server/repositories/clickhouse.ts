@@ -471,8 +471,16 @@ export async function queryClickhouseExecRaw(
     );
 
     // The span outlives this function (it covers the consumer's read). Forward
-    // source errors so the consumer sees them.
-    res.stream.on("error", (error) => guardedStream.destroy(error));
+    // source errors (e.g. mid-transfer connection resets) so the consumer sees
+    // them, enriched like the other error paths of this function.
+    res.stream.on("error", (error) =>
+      guardedStream.destroy(
+        ClickHouseResourceError.wrapIfResourceError(
+          enrichWithQueryId(error, queryId),
+          normalizedTags,
+        ),
+      ),
+    );
     // `.pipe()` only wires src→dest, so destroying guardedStream (e.g. the
     // worker's pipeline aborting on an upload failure) would leave the live CH
     // body streaming into an unread socket — pinning a connection slot and query
