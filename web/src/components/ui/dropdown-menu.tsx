@@ -2,7 +2,15 @@
 
 import * as React from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight, Circle, Minus } from "lucide-react";
+import { cva } from "class-variance-authority";
+import {
+  Check,
+  ChevronRight,
+  Circle,
+  Minus,
+  type LucideIcon,
+} from "lucide-react";
+import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
 import { useLayerContainer } from "@/src/components/ui/layer";
@@ -116,6 +124,91 @@ const DropdownMenuItem = React.forwardRef<
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
+type DropdownMenuItemAction =
+  | {
+      href: React.ComponentProps<typeof Link>["href"];
+      onClick?: never;
+    }
+  | {
+      href?: never;
+      onClick: () => void;
+    };
+
+type DropdownMenuItemWithSecondaryActionProps = {
+  title: string;
+  secondaryAction: DropdownMenuItemAction & {
+    ariaLabel?: string;
+    icon: LucideIcon;
+  };
+} & DropdownMenuItemAction;
+
+const dropdownMenuItemPrimaryActionVariants = cva(
+  "flex min-w-0 flex-1 cursor-pointer px-2 py-1.5",
+);
+
+const dropdownMenuItemSecondaryActionVariants = cva(
+  "hover:bg-border dark:hover:bg-white/10 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded mr-1",
+);
+
+const DropdownMenuItemWithSecondaryAction = (
+  props: DropdownMenuItemWithSecondaryActionProps,
+) => {
+  const secondaryAction = props.secondaryAction;
+  const SecondaryActionIcon = secondaryAction.icon;
+  const primaryContent = (
+    <span
+      className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
+      title={props.title}
+    >
+      {props.title}
+    </span>
+  );
+
+  return (
+    <DropdownMenuItem className="p-0">
+      {props.href !== undefined ? (
+        <Link
+          href={props.href}
+          className={dropdownMenuItemPrimaryActionVariants()}
+        >
+          {primaryContent}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className={dropdownMenuItemPrimaryActionVariants()}
+          onClick={props.onClick}
+        >
+          {primaryContent}
+        </button>
+      )}
+
+      {secondaryAction.href !== undefined ? (
+        <Link
+          href={secondaryAction.href}
+          aria-label={secondaryAction.ariaLabel}
+          className={dropdownMenuItemSecondaryActionVariants()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <SecondaryActionIcon size={12} />
+        </Link>
+      ) : (
+        <button
+          type="button"
+          aria-label={secondaryAction.ariaLabel}
+          className={dropdownMenuItemSecondaryActionVariants()}
+          onClick={(event) => {
+            event.stopPropagation();
+            secondaryAction.onClick();
+          }}
+        >
+          <SecondaryActionIcon size={12} />
+        </button>
+      )}
+    </DropdownMenuItem>
+  );
+};
+
 const DropdownMenuLoadingItem = () => (
   <DropdownMenuItem disabled aria-label="Loading">
     <Skeleton variant="contrast" className="h-4 w-24" />
@@ -213,6 +306,7 @@ export {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemWithSecondaryAction,
   DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,

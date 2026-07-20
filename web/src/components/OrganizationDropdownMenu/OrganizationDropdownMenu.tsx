@@ -1,6 +1,7 @@
 import {
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemWithSecondaryAction,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuLoadingItem,
@@ -47,27 +48,15 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
               {env.NEXT_PUBLIC_DEMO_ORG_ID === dropdownOrg.id && (
                 <DropdownMenuSeparator />
               )}
-              <DropdownMenuItem className="p-0">
-                <Link
-                  href={getOrgPath(dropdownOrg.id)}
-                  className="flex min-w-0 flex-1 cursor-pointer px-2 py-1.5"
-                >
-                  <span
-                    className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
-                    title={dropdownOrg.name}
-                  >
-                    {dropdownOrg.name}
-                  </span>
-                </Link>
-                <Link
-                  href={`/organization/${dropdownOrg.id}/settings`}
-                  aria-label={`Go to settings for ${dropdownOrg.name}`}
-                  className="hover:bg-background flex size-8 shrink-0 cursor-pointer items-center justify-center"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <Settings size={12} />
-                </Link>
-              </DropdownMenuItem>
+              <DropdownMenuItemWithSecondaryAction
+                title={dropdownOrg.name}
+                href={getOrgPath(dropdownOrg.id)}
+                secondaryAction={{
+                  href: `/organization/${dropdownOrg.id}/settings`,
+                  ariaLabel: `Go to settings for ${dropdownOrg.name}`,
+                  icon: Settings,
+                }}
+              />
             </Fragment>
           ))
       ) : (
