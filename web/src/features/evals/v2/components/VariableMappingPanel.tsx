@@ -276,7 +276,7 @@ export function VariableMappingPanel({
   onSelectVariable: (variable: string) => void;
   /** The sample observation every variable maps against. */
   sourceObject: Record<string, unknown> | null;
-  /** False when the step-1 scope matches nothing — drives the empty state. */
+  /** False when the current scope matches nothing — drives the empty state. */
   hasMatchingObservations: boolean;
   onChange: (next: VariableFieldState) => void;
   /** Removes the active variable from the prompt. */
@@ -590,7 +590,7 @@ export function VariableMappingPanel({
           <Callout>
             {hasMatchingObservations
               ? "Loading sample data…"
-              : "No observations match the current scope — adjust the filters in step 2 to preview and drill into sample data."}
+              : "No observations match the current scope — adjust the filters in the right pane to preview and drill into sample data."}
           </Callout>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-2">
@@ -625,7 +625,7 @@ export function VariableMappingPanel({
         <Callout>
           {hasMatchingObservations
             ? "Loading sample data…"
-            : "No observations match the current scope — adjust the filters in step 2 to preview and drill into sample data."}
+            : "No observations match the current scope — adjust the filters in the right pane to preview and drill into sample data."}
         </Callout>
       ) : segments === null ? (
         // A path the drill-down can't express (filter, slice, …).

@@ -31,6 +31,7 @@ type TabDefinition = {
 type PageTabsProps = {
   tabs: TabDefinition[];
   activeTab: string;
+  actionButtonsRight?: ReactNode;
   className?: string;
   listClassName?: string;
 };
@@ -40,6 +41,8 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
+  titleDescription?: ReactNode;
+  fitTitleToContent?: boolean;
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
@@ -57,6 +60,8 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
+  titleDescription,
+  fitTitleToContent = false,
   itemType,
   actionButtonsLeft,
   actionButtonsRight,
@@ -131,56 +136,73 @@ const PageHeader = ({
           >
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1">
-                {itemType && (
-                  <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+              <div className="mr-2 flex min-w-0 flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  {itemType && (
+                    <div className="flex items-center">
+                      <ItemBadge type={itemType} showLabel />
+                    </div>
+                  )}
+                  <div
+                    className={cn(
+                      "relative inline-block",
+                      fitTitleToContent
+                        ? "max-w-none shrink-0"
+                        : "max-w-md md:max-w-none",
+                    )}
+                  >
+                    <h2
+                      className={cn(
+                        "text-lg leading-7 font-semibold",
+                        fitTitleToContent
+                          ? "whitespace-nowrap"
+                          : "line-clamp-1",
+                      )}
+                    >
+                      {titleTooltip ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="cursor-help wrap-break-word"
+                                data-testid="page-header-title"
+                              >
+                                {title}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              {titleTooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span
+                          className="wrap-break-word"
+                          title={title}
+                          data-testid="page-header-title"
+                        >
+                          {title}
+                        </span>
+                      )}
+                      {help && (
+                        <span className="whitespace-nowrap">
+                          &nbsp;
+                          <DocPopup
+                            description={help.description}
+                            href={help.href}
+                            className={help.className}
+                          />
+                        </span>
+                      )}
+                    </h2>
                   </div>
-                )}
-                <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
-                    {titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span
-                        className="wrap-break-word"
-                        title={title}
-                        data-testid="page-header-title"
-                      >
-                        {title}
-                      </span>
-                    )}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </h2>
+                  {titleBadges && (
+                    <div className="ml-1 flex items-center gap-1">
+                      {titleBadges}
+                    </div>
+                  )}
                 </div>
-                {titleBadges && (
-                  <div className="ml-1 flex items-center gap-1">
-                    {titleBadges}
-                  </div>
-                )}
+                {titleDescription}
               </div>
               {actionButtonsLeft && (
                 <div className="flex flex-wrap items-center gap-1 self-center">
@@ -198,10 +220,17 @@ const PageHeader = ({
           </div>
 
           {tabsProps && (
-            <div className={cn("ml-2", tabsProps.className)}>
+            <div
+              className={cn(
+                "flex items-center justify-between gap-2 pr-3",
+                tabsProps.actionButtonsRight ? "min-h-10" : "min-h-8",
+                tabsProps.className,
+              )}
+            >
               <div
                 className={cn(
-                  "inline-flex h-8 items-center justify-start",
+                  "ml-2 inline-flex items-center justify-start",
+                  tabsProps.actionButtonsRight ? "h-10" : "h-8",
                   tabsProps.listClassName,
                 )}
               >
@@ -243,6 +272,11 @@ const PageHeader = ({
                   );
                 })}
               </div>
+              {tabsProps.actionButtonsRight && (
+                <div className="flex flex-wrap items-center gap-1">
+                  {tabsProps.actionButtonsRight}
+                </div>
+              )}
             </div>
           )}
         </div>

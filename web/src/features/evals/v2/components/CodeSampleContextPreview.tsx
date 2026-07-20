@@ -145,10 +145,9 @@ function SampleSnippetView({
 }
 
 /**
- * Drawer attached under the code editor showing the sample as the `ctx = …`
- * literal the evaluator receives. The header strip is the control — clicking
- * it expands the data in place, so the toggle and the content can never
- * drift apart. Muted background: reference material, not a second editor.
+ * Standalone drawer showing the sample as the `ctx = …` literal the evaluator
+ * receives. The header strip is the control, so the toggle and content cannot
+ * drift apart.
  */
 export function CodeSampleContextDrawer({
   open,
@@ -171,8 +170,8 @@ export function CodeSampleContextDrawer({
       <button
         type="button"
         className={cn(
-          "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground flex w-full items-center gap-1.5 border border-t-0 px-2 py-1.5 text-xs",
-          !open && "rounded-b-md",
+          "bg-primary/5 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex w-full items-center gap-2 border px-3 py-1.5 text-sm",
+          open ? "rounded-t-md" : "rounded-md",
         )}
         title={
           open
@@ -194,7 +193,7 @@ export function CodeSampleContextDrawer({
         )}
       </button>
       {open && (
-        <div className="bg-muted/30 overflow-hidden rounded-b-md border border-t-0 [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
+        <div className="bg-muted/30 max-h-[calc(100dvh-12rem)] overflow-y-auto rounded-b-md border border-t-0 [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
           {sampleObservation ? (
             <SampleSnippetView
               sampleObservation={sampleObservation}
@@ -202,8 +201,8 @@ export function CodeSampleContextDrawer({
             />
           ) : (
             <p className="text-muted-foreground p-3 text-sm">
-              Pick a sample observation in step 2 to see the data your code
-              receives.
+              Pick a sample observation in the right pane to see the data your
+              code receives.
             </p>
           )}
         </div>

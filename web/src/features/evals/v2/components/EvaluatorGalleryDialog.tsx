@@ -531,7 +531,7 @@ export function EvaluatorGalleryDialog({
                 <>
                   {filteredProjectTemplates.length > 0 ||
                   visibleCategorySections.length > 0 ? (
-                    <h3 className="pt-2 text-xl leading-7 font-semibold">
+                    <h3 className="text-xl leading-7 font-semibold">
                       Start from Examples
                     </h3>
                   ) : null}
@@ -539,7 +539,7 @@ export function EvaluatorGalleryDialog({
                   {filteredProjectTemplates.length > 0 ? (
                     <section
                       ref={setSectionRef(CUSTOM_SECTION_KEY)}
-                      className="flex scroll-mt-1 flex-col gap-2.5 pt-2"
+                      className="flex scroll-mt-1 flex-col gap-2.5"
                     >
                       <SectionHeader
                         label="Your examples"
@@ -558,7 +558,7 @@ export function EvaluatorGalleryDialog({
                     <section
                       key={category.key}
                       ref={setSectionRef(category.key)}
-                      className="flex scroll-mt-1 flex-col gap-2.5 pt-2"
+                      className="flex scroll-mt-1 flex-col gap-2.5"
                     >
                       <SectionHeader
                         label={category.label}

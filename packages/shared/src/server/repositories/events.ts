@@ -3079,6 +3079,49 @@ export const getAvgCostByEvaluatorIds = async (
   }));
 };
 
+/**
+ * Get evaluation-generation cost grouped by run scope for the last week.
+ */
+export const getCostByRunScopeIds = async (
+  projectId: string,
+  runScopeIds: string[],
+): Promise<Array<{ runScopeId: string; totalCost: number }>> => {
+  if (runScopeIds.length === 0) return [];
+
+  const runScopeMetadata =
+    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['run_scope_id']";
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: runScopeMetadata,
+    selectExpression: [
+      `${runScopeMetadata} as run_scope_id`,
+      "sum(e.total_cost) as total_cost",
+    ].join(", "),
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("has(e.metadata_names, 'run_scope_id')")
+    .whereRaw(`${runScopeMetadata} IN ({runScopeIds: Array(String)})`, {
+      runScopeIds,
+    })
+    .whereRaw("e.start_time > today() - 7");
+
+  const { query, params } = builder.buildWithParams();
+  const rows = await queryClickhouse<{
+    run_scope_id: string;
+    total_cost: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    runScopeId: row.run_scope_id,
+    totalCost: Number(row.total_cost),
+  }));
+};
+
 export const getSessionMetricsFromEvents = async (props: {
   projectId: string;
   sessionIds: string[];

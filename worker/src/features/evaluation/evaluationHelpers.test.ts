@@ -342,6 +342,7 @@ describe("evaluation helpers", () => {
       const params = {
         jobExecutionId: "exec-123",
         jobConfigurationId: "config-456",
+        runScopeId: "scope-789",
         targetTraceId: "trace-789",
         targetObservationId: "obs-abc",
         targetDatasetItemId: "dataset-def",
@@ -352,6 +353,7 @@ describe("evaluation helpers", () => {
       expect(result).toEqual({
         job_execution_id: "exec-123",
         job_configuration_id: "config-456",
+        run_scope_id: "scope-789",
         target_trace_id: "trace-789",
         target_observation_id: "obs-abc",
         target_dataset_item_id: "dataset-def",

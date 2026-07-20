@@ -22,6 +22,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         id,
         projectId,
         jobConfigurationId,
+        runScopeId,
         jobInputTraceId,
         jobInputObservationId,
         jobTemplateId,
@@ -37,6 +38,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
           id,
           projectId,
           jobConfigurationId,
+          runScopeId,
           jobInputTraceId,
           jobInputObservationId,
           jobTemplateId,
@@ -45,6 +47,7 @@ export function createObservationEvalSchedulerDeps(): ObservationEvalSchedulerDe
         },
         update: {
           status,
+          ...(runScopeId ? { runScopeId } : {}),
         },
       });
 

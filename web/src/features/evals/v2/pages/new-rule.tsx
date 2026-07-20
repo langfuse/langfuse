@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useRouter } from "next/router";
 
 import Page from "@/src/components/layouts/page";
+import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorTitleEditor } from "@/src/features/evals/v2/components/EvaluatorTitleEditor";
 import {
   RuleSetupForm,
   type CatalogTemplate,
@@ -9,6 +12,64 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { api } from "@/src/utils/api";
+
+function toKebabCase(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function EvaluatorSetupPage({
+  projectId,
+  template,
+  scratchType,
+}: {
+  projectId: string;
+  template: CatalogTemplate | null;
+  scratchType: "llm" | "code";
+}) {
+  const [scoreName, setScoreName] = useState(() =>
+    template ? toKebabCase(template.name) : "",
+  );
+  const [description, setDescription] = useState("");
+
+  return (
+    <Page
+      headerProps={{
+        title: "New evaluator:",
+        fitTitleToContent: true,
+        titleBadges: (
+          <EvaluatorTitleEditor
+            scoreName={scoreName}
+            onScoreNameChange={setScoreName}
+          />
+        ),
+        titleDescription: (
+          <Input
+            aria-label="Evaluator description"
+            className="text-muted-foreground placeholder:text-muted-foreground [field-sizing:content] h-5 max-w-full min-w-48 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
+            placeholder="Add a description (optional)"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        ),
+        breadcrumb: [
+          { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
+        ],
+      }}
+    >
+      <RuleSetupForm
+        projectId={projectId}
+        sourceTemplate={template}
+        initialEvaluatorType={template?.type === "CODE" ? "code" : scratchType}
+        scoreName={scoreName}
+        description={description}
+      />
+    </Page>
+  );
+}
 
 /**
  * Standalone evaluator setup page. The template gallery lives on the
@@ -55,34 +116,30 @@ export default function NewEvaluationRulePage() {
     return <SupportOrUpgradePage />;
   }
 
-  return (
-    <Page
-      headerProps={{
-        title: "New evaluator",
-        breadcrumb: [
-          { name: "Evaluators", href: `/project/${projectId}/evals` },
-        ],
-        help: {
-          description:
-            "Define the evaluator on the left (name, prompt or code, score output), and which observations it runs on to the right (filter, sample, variable mapping) — then save it as a draft or save and run it.",
-        },
-      }}
-    >
-      {templateResolving ? (
+  if (templateResolving) {
+    return (
+      <Page
+        headerProps={{
+          title: "New evaluator",
+          breadcrumb: [
+            { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
+          ],
+        }}
+      >
         <div className="flex flex-col gap-4 p-6">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-40 w-full" />
         </div>
-      ) : (
-        <RuleSetupForm
-          key={template?.id ?? `scratch-${scratchType}`}
-          projectId={projectId}
-          sourceTemplate={template}
-          initialEvaluatorType={
-            template?.type === "CODE" ? "code" : scratchType
-          }
-        />
-      )}
-    </Page>
+      </Page>
+    );
+  }
+
+  return (
+    <EvaluatorSetupPage
+      key={template?.id ?? `scratch-${scratchType}`}
+      projectId={projectId}
+      template={template}
+      scratchType={scratchType}
+    />
   );
 }

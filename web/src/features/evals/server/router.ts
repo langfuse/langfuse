@@ -633,6 +633,10 @@ export const evalRouter = createTRPCRouter({
         },
         include: {
           evalTemplate: true,
+          runScopeAssignments: {
+            orderBy: { createdAt: "asc" },
+            include: { runScope: true },
+          },
         },
       });
 
@@ -1097,6 +1101,7 @@ export const evalRouter = createTRPCRouter({
         data: {
           id: jobId,
           projectId: input.projectId,
+          createdByUserId: ctx.session.user.id,
           jobType: "EVAL",
           evalTemplateId: resolvedEvalTemplate.id,
           scoreName: input.scoreName,
@@ -2078,7 +2083,6 @@ const generateExecutionsQuery = (
   const configCondition = jobConfigurationId
     ? Prisma.sql`AND je.job_configuration_id = ${jobConfigurationId}`
     : Prisma.empty;
-
   return Prisma.sql`
   SELECT
    ${select}

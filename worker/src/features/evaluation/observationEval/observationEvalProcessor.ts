@@ -260,6 +260,7 @@ export async function processObservationEval(
     executionMetadata: buildEvalExecutionMetadata({
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
+      runScopeId: job.runScopeId,
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,

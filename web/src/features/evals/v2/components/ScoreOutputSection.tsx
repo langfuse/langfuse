@@ -315,9 +315,11 @@ function CategoryEditorPopover({
 export function ScoreOutputSection({
   state,
   onChange,
+  readOnly = false,
 }: {
   state: ScoreOutputFormState;
   onChange: (next: ScoreOutputFormState) => void;
+  readOnly?: boolean;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
@@ -405,6 +407,7 @@ export function ScoreOutputSection({
           </span>
           <Select
             value={state.dataType}
+            disabled={readOnly}
             onValueChange={(value) =>
               handleDataTypeChange(value as ScoreOutputDataType)
             }
@@ -434,6 +437,7 @@ export function ScoreOutputSection({
                     variant="outline"
                     size="sm"
                     className="bg-muted hover:bg-muted/80 h-8 font-normal"
+                    disabled={readOnly}
                   >
                     {numericBoundsLabel}
                     <ChevronDown className="text-muted-foreground ml-1 h-3.5 w-3.5" />
@@ -505,7 +509,8 @@ export function ScoreOutputSection({
                   trigger={
                     <button
                       type="button"
-                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium focus-visible:ring-2 focus-visible:outline-hidden"
+                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-medium focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-default disabled:opacity-70"
+                      disabled={readOnly}
                     >
                       <span>
                         {choice.label.trim() || `Category ${index + 1}`}
@@ -515,28 +520,30 @@ export function ScoreOutputSection({
                   }
                 />
               ))}
-              <CategoryEditorPopover
-                title="Add category"
-                idSuffix="new"
-                choice={newChoice}
-                onChange={(next) =>
-                  setNewChoice((current) => ({ ...current, ...next }))
-                }
-                onDone={addChoice}
-                open={addCategoryOpen}
-                onOpenChange={handleAddCategoryOpenChange}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="bg-muted hover:bg-muted/80 h-8 w-8"
-                    aria-label="Add category"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                }
-              />
+              {!readOnly ? (
+                <CategoryEditorPopover
+                  title="Add category"
+                  idSuffix="new"
+                  choice={newChoice}
+                  onChange={(next) =>
+                    setNewChoice((current) => ({ ...current, ...next }))
+                  }
+                  onDone={addChoice}
+                  open={addCategoryOpen}
+                  onOpenChange={handleAddCategoryOpenChange}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="bg-muted hover:bg-muted/80 h-8 w-8"
+                      aria-label="Add category"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+              ) : null}
             </>
           )}
 
@@ -582,6 +589,7 @@ export function ScoreOutputSection({
                 className="min-h-16"
                 placeholder={generatedScoreDescription}
                 value={state.scoreDescription}
+                disabled={readOnly}
                 onChange={(e) =>
                   onChange({ ...state, scoreDescription: e.target.value })
                 }
@@ -596,6 +604,7 @@ export function ScoreOutputSection({
                 className="min-h-16"
                 placeholder={generatedReasoningDescription}
                 value={state.reasoningDescription}
+                disabled={readOnly}
                 onChange={(e) =>
                   onChange({ ...state, reasoningDescription: e.target.value })
                 }

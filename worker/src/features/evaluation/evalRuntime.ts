@@ -30,6 +30,7 @@ export function compileEvalPrompt(params: CompileEvalPromptParams): string {
 export function buildEvalExecutionMetadata(params: {
   jobExecutionId: string;
   jobConfigurationId: string;
+  runScopeId?: string | null;
   targetTraceId?: string | null;
   targetObservationId?: string | null;
   targetDatasetItemId?: string | null;
@@ -38,6 +39,7 @@ export function buildEvalExecutionMetadata(params: {
     Object.entries({
       job_execution_id: params.jobExecutionId,
       job_configuration_id: params.jobConfigurationId,
+      run_scope_id: params.runScopeId,
       target_trace_id: params.targetTraceId,
       target_observation_id: params.targetObservationId,
       target_dataset_item_id: params.targetDatasetItemId,

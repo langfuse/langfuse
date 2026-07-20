@@ -289,6 +289,145 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
+
+    it("should record the attached scope that matched", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ environment: "production" });
+      const sampling = {
+        toNumber: () => 1,
+      } as unknown as Prisma.Decimal;
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            targetingScopes: [
+              {
+                id: "staging-scope",
+                enabled: true,
+                targetObject: EvalTargetObject.EVENT,
+                sampling,
+                filter: [
+                  {
+                    column: "environment",
+                    type: "stringOptions",
+                    operator: "any of",
+                    value: ["staging"],
+                  },
+                ],
+              },
+              {
+                id: "production-scope",
+                enabled: true,
+                targetObject: EvalTargetObject.EVENT,
+                sampling,
+                filter: [
+                  {
+                    column: "environment",
+                    type: "stringOptions",
+                    operator: "any of",
+                    value: ["production"],
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ runScopeId: "production-scope" }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("should schedule one execution per matching evaluator-scope pair", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const config = createMockConfig({
+        targetingScopes: [
+          {
+            id: "scope-a",
+            enabled: true,
+            targetObject: EvalTargetObject.EVENT,
+            sampling: {
+              toNumber: () => 1,
+            } as unknown as Prisma.Decimal,
+            filter: [],
+          },
+          {
+            id: "scope-b",
+            enabled: true,
+            targetObject: EvalTargetObject.EVENT,
+            sampling: {
+              toNumber: () => 1,
+            } as unknown as Prisma.Decimal,
+            filter: [],
+          },
+        ],
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
+
+      for (const [index, runScopeId] of ["scope-a", "scope-b"].entries()) {
+        const jobExecutionId = createW3CTraceId(
+          JSON.stringify([
+            "observation-eval",
+            config.id,
+            runScopeId,
+            observation.trace_id,
+            observation.span_id,
+          ]),
+        );
+        expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({ id: jobExecutionId, runScopeId }),
+        );
+        expect(schedulerDeps.enqueueEvalJob).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({ jobExecutionId }),
+        );
+      }
+    });
+
+    it("should skip disabled scopes without falling back to the evaluator config", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            targetingScopes: [
+              {
+                id: "disabled-scope",
+                enabled: false,
+                targetObject: EvalTargetObject.EVENT,
+                sampling: {
+                  toNumber: () => 1,
+                } as unknown as Prisma.Decimal,
+                filter: [],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
+    });
   });
 
   describe("sampling", () => {

@@ -38,12 +38,13 @@ function truncateLabel(label: string, max = 36): string {
 // Linter-style token highlighting for {{variable}}: healthy variables are
 // plain accent-colored mono text, broken/unmapped ones get an amber wavy
 // underline (the universal "there's a problem here" editor idiom). The
-// binding itself lives in the step-3 card — here it only appears in the
+// binding itself lives in the variable mapping panel — here it only appears in the
 // hover title, plus click-to-jump.
 function createVariableHighlighter(
   getStatus: (variable: string) => VariableMappingStatus | undefined,
   getMappingLabel: (variable: string) => string | undefined,
   isActive: (variable: string) => boolean,
+  readOnly: boolean,
 ) {
   const decorator = new MatchDecorator({
     regexp: /{{\s*([\w.]+)\s*}}/g,
@@ -55,12 +56,14 @@ function createVariableHighlighter(
         from,
         to,
         Decoration.mark({
-          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}${isActive(match[1]) ? " cm-eval-variable-active" : ""}`,
+          class: `cm-eval-variable${status ? ` cm-eval-variable-${status.status}` : ""}${isActive(match[1]) ? " cm-eval-variable-active" : ""}${readOnly ? " cm-eval-variable-read-only" : ""}`,
           attributes: {
             title: invalid
               ? (status.message ??
                 "Not connected to the sample data — click to open its mapping")
-              : `Pulls from ${label} — click to open its mapping`,
+              : readOnly
+                ? `Pulls from ${label}`
+                : `Pulls from ${label} — click to open its mapping`,
           },
         }),
       );
@@ -96,6 +99,12 @@ const variableTheme = EditorView.baseTheme({
     backgroundColor:
       "color-mix(in srgb, hsl(var(--primary-accent)) 10%, transparent)",
   },
+  ".cm-eval-variable-read-only": {
+    cursor: "default",
+  },
+  ".cm-eval-variable-read-only:hover": {
+    backgroundColor: "transparent",
+  },
   // Broken mapping (unmapped, errors, or resolves empty against the sample):
   // amber with a wavy underline, like a linter warning. The error text
   // itself is in the mark's title attribute, shown on hover.
@@ -112,7 +121,7 @@ const variableTheme = EditorView.baseTheme({
     backgroundColor:
       "color-mix(in srgb, hsl(var(--dark-yellow)) 10%, transparent)",
   },
-  // The variable whose mapping card is open in step 3.
+  // The variable whose mapping card is open in the mapping panel.
   ".cm-eval-variable-active": {
     backgroundColor:
       "color-mix(in srgb, hsl(var(--primary-accent)) 12%, transparent)",
@@ -122,7 +131,7 @@ const variableTheme = EditorView.baseTheme({
 /**
  * Prompt editor with syntax-highlighted {{variable}} tokens: healthy
  * variables render as accent mono text, broken ones as linter-style amber
- * wavy underlines. Clicking a token opens its mapping card in step 3
+ * wavy underlines. Clicking a token opens its mapping card
  * (via onVariableClick) — no widget chrome in the text flow.
  */
 export function PromptVariableEditor({
@@ -137,6 +146,7 @@ export function PromptVariableEditor({
   showPreviewToggle = false,
   previewDisabledReason = null,
   previewSlot,
+  readOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -158,6 +168,8 @@ export function PromptVariableEditor({
   previewDisabledReason?: string | null;
   /** Interpolated-prompt preview rendered in place of the editor. */
   previewSlot?: ReactNode;
+  /** Preserve variable syntax highlighting without exposing editor controls. */
+  readOnly?: boolean;
 }) {
   // Click handling lives inside CodeMirror (domEventHandlers) so no extra
   // interactive wrapper element is needed. Routed through a ref so the
@@ -167,6 +179,7 @@ export function PromptVariableEditor({
     () => undefined,
   );
   handleClickRef.current = (event, view) => {
+    if (readOnly) return;
     const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
     if (pos === null) return;
     const line = view.state.doc.lineAt(pos);
@@ -194,6 +207,7 @@ export function PromptVariableEditor({
         (variable) => status[variable],
         (variable) => mappingLabels[variable],
         (variable) => variable === activeVariable,
+        readOnly,
       ),
       variableTheme,
       promptFontTheme,
@@ -201,33 +215,35 @@ export function PromptVariableEditor({
         click: (event, view) => handleClickRef.current(event, view),
       }),
     ];
-  }, [statusKey, mappingsKey, activeVariable]);
+  }, [statusKey, mappingsKey, activeVariable, readOnly]);
 
   return (
     <div className="flex flex-col">
       {/* Toolbar attached above the prompt; the editor's (or preview's) own
           top border draws the seam. */}
-      <div className="bg-muted/50 flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
-        {showPreviewToggle && (
-          <label
-            className={cn(
-              "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
-              previewDisabledReason
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer",
-            )}
-            title={previewDisabledReason ?? undefined}
-          >
-            <Switch
-              size="sm"
-              checked={previewEnabled}
-              disabled={Boolean(previewDisabledReason)}
-              onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
-            />
-            Preview
-          </label>
-        )}
-      </div>
+      {!readOnly ? (
+        <div className="bg-muted/50 flex items-center justify-end gap-1 rounded-t-md border border-b-0 px-1.5 py-1">
+          {showPreviewToggle && (
+            <label
+              className={cn(
+                "text-muted-foreground flex h-6 items-center gap-1.5 px-2 text-xs leading-none font-normal",
+                previewDisabledReason
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer",
+              )}
+              title={previewDisabledReason ?? undefined}
+            >
+              <Switch
+                size="sm"
+                checked={previewEnabled}
+                disabled={Boolean(previewDisabledReason)}
+                onCheckedChange={(checked) => onPreviewEnabledChange?.(checked)}
+              />
+              Preview
+            </label>
+          )}
+        </div>
+      ) : null}
 
       {previewEnabled && previewSlot ? (
         previewSlot
@@ -235,7 +251,7 @@ export function PromptVariableEditor({
         <CodeMirrorEditor
           value={value}
           onChange={onChange}
-          editable
+          editable={!readOnly}
           mode="prompt"
           // Low enough that typical prompts hug their content — a tall fixed
           // min-height leaves a dead strip under the last line that reads as
@@ -244,7 +260,7 @@ export function PromptVariableEditor({
           maxHeight="50dvh"
           lineNumbers={false}
           extensions={extensions}
-          className="rounded-t-none text-sm"
+          className={cn(!readOnly && "rounded-t-none", "text-sm")}
         />
       )}
     </div>

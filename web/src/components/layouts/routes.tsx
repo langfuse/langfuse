@@ -14,6 +14,7 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  FlaskConical,
   Search,
   Home,
   SquarePercent,
@@ -67,6 +68,7 @@ export type Route = {
     isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
+  activePathExclusions?: string[];
 };
 
 export const ROUTES: Route[] = [
@@ -169,6 +171,17 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
+    activePathExclusions: [`/project/[projectId]/evals/v2`],
+  },
+  {
+    title: "Evaluators v2",
+    icon: FlaskConical,
+    productModule: "evaluation",
+    projectRbacScopes: ["evalJob:read"],
+    group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+    pathname: `/project/[projectId]/evals/v2`,
+    label: "Beta",
   },
   {
     title: "Human Annotation",

@@ -16,7 +16,7 @@ const switchVariants = cva(
       },
       color: {
         default: "data-[state=checked]:bg-primary",
-        green: "data-[state=checked]:bg-dark-green",
+        green: "data-[state=checked]:bg-green-500",
       },
     },
     defaultVariants: {

@@ -10,12 +10,10 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { api } from "@/src/utils/api";
 import { createColumnHelper } from "@tanstack/react-table";
-import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
@@ -25,19 +23,9 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ExternalLinkIcon, Info, Pen } from "lucide-react";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -56,7 +44,6 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   TableBadgeLoadingCell,
   TableIconButtonLoadingCell,
@@ -105,7 +92,6 @@ function LegacyBadgeCell({ status }: { status: string }) {
 
 export default function EvaluatorTable({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -114,8 +100,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     "search",
     withDefault(StringParam, null),
   );
-  const [editConfigId, setEditConfigId] = useState<string | null>(null);
-  const utils = api.useUtils();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "status",
@@ -147,30 +131,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       searchQuery,
     });
 
-  const existingEvaluator = api.evals.configById.useQuery(
-    {
-      id: editConfigId as string,
-      projectId,
-    },
-    {
-      enabled: !!editConfigId,
-    },
-  );
-
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
-
-  useEffect(() => {
-    if (evaluators.isSuccess) {
-      const { configs: configList = [] } = evaluators.data ?? {};
-      setDetailPageList(
-        "evals",
-        configList.map((evaluator) => ({ id: evaluator.id })),
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evaluators.isSuccess, evaluators.data]);
 
   const columnHelper = createColumnHelper<EvaluatorDataRow>();
   const columns = [
@@ -378,7 +341,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               }
               onClick={(e) => {
                 e.stopPropagation();
-                if (id) setEditConfigId(id);
+                if (id) {
+                  router
+                    .push(
+                      `/project/${projectId}/evals/v2/${encodeURIComponent(id)}?edit=1`,
+                    )
+                    .catch(() => undefined);
+                }
               }}
             />
             <DeleteEvalConfigButton
@@ -403,22 +372,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       "evalConfigColumnVisibility",
       columns,
     );
-
-  const peekNavigationProps = usePeekNavigation();
-
-  const peekConfig = useMemo(
-    () => ({
-      itemType: "RUNNING_EVALUATOR" as const,
-      detailNavigationKey: "evals",
-      peekEventOptions: {
-        ignoredSelectors: [
-          "[aria-label='edit'], [aria-label='view-logs'], [aria-label='delete']",
-        ],
-      },
-      ...peekNavigationProps,
-    }),
-    [peekNavigationProps],
-  );
 
   return (
     <DataTableControlsProvider
@@ -485,7 +438,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <DataTable
               tableName="evalConfigs"
               columns={columns}
-              peekView={peekConfig}
+              onRowClick={(row) => {
+                router
+                  .push(
+                    `/project/${projectId}/evals/v2/${encodeURIComponent(row.id)}`,
+                  )
+                  .catch(() => undefined);
+              }}
               data={
                 evaluators.isLoading
                   ? { isLoading: true, isError: false }
@@ -513,55 +472,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             />
           </div>
         </ResizableFilterLayout>
-        <TablePeekViewEvaluatorConfigDetail
-          {...peekConfig}
-          projectId={projectId}
-        />
       </div>
-      <Dialog
-        open={!!editConfigId && existingEvaluator.isSuccess}
-        onOpenChange={(open) => {
-          if (!open) setEditConfigId(null);
-        }}
-      >
-        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit configuration</DialogTitle>
-          </DialogHeader>
-          {existingEvaluator.isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Spinner size="lg" />
-            </div>
-          ) : (
-            <EvaluatorForm
-              projectId={projectId}
-              evalTemplates={[]}
-              existingEvaluator={
-                existingEvaluator.data && existingEvaluator.data.evalTemplate
-                  ? {
-                      ...existingEvaluator.data,
-                      evalTemplate: {
-                        ...existingEvaluator.data.evalTemplate,
-                      },
-                    }
-                  : undefined
-              }
-              shouldWrapVariables={true}
-              useDialog={true}
-              mode="edit"
-              onFormSuccess={() => {
-                setEditConfigId(null);
-                utils.evals.allConfigs.invalidate();
-                showSuccessToast({
-                  title: "Evaluator updated successfully",
-                  description:
-                    "Changes will automatically be reflected future evaluator runs",
-                });
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </DataTableControlsProvider>
   );
 }

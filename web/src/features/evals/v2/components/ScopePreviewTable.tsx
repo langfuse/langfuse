@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { SearchX } from "lucide-react";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -81,9 +81,22 @@ export function ScopePreviewTable({
   // stays mounted (hidden) so its query refetches on filter/range changes
   // and reports rows back the moment something matches again.
   const [isEmpty, setIsEmpty] = useState(false);
+  const reportedRowsSignature = useRef<string | null>(null);
   const handleRowsChange = useCallback(
     (rows: EventsTableRow[]) => {
-      setIsEmpty(rows.length === 0);
+      const nextIsEmpty = rows.length === 0;
+      setIsEmpty((current) =>
+        current === nextIsEmpty ? current : nextIsEmpty,
+      );
+
+      const signature = rows
+        .map(
+          (row) =>
+            `${row.id}:${row.traceId ?? ""}:${row.name ?? ""}:${row.startTime.getTime()}`,
+        )
+        .join("|");
+      if (reportedRowsSignature.current === signature) return;
+      reportedRowsSignature.current = signature;
       onRowsChange?.(rows);
     },
     [onRowsChange],

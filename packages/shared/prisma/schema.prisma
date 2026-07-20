@@ -81,6 +81,7 @@ model User {
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
   evalTemplatesCreated      EvalTemplate[]              @relation("EvalTemplateCreatedByUser")
+  evaluatorsCreated         JobConfiguration[]          @relation("JobConfigurationCreatedByUser")
 
   @@map("users")
 }
@@ -1087,6 +1088,9 @@ model JobConfiguration {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
+  createdByUserId String? @map("created_by_user_id")
+  createdByUser   User?   @relation("JobConfigurationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
@@ -1106,11 +1110,11 @@ model JobConfiguration {
   sampling        Decimal // ratio of jobs that are executed for sampling (0..1)
   delay           Int // delay in milliseconds
   timeScope       String[]       @default(["NEW"]) @map("time_scope")
-  runScopeId      String?        @map("run_scope_id")
-  runScope        EvalRunScope?  @relation(fields: [runScopeId], references: [id], onDelete: SetNull)
+  runScopeAssignments EvalRunScopeAssignment[]
   JobExecution    JobExecution[]
 
   @@index([projectId, id])
+  @@index([createdByUserId])
   @@map("job_configurations")
 }
 
@@ -1126,17 +1130,35 @@ model EvalRunScope {
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   name         String
+  enabled      Boolean  @default(true)
   targetObject String   @map("target_object")
   filter       Json
   sampling     Decimal
   delay        Int      @default(30000)
   timeScope    String[] @default(["NEW"]) @map("time_scope")
 
-  jobConfigurations JobConfiguration[]
+  evaluatorAssignments EvalRunScopeAssignment[]
+  jobExecutions        JobExecution[]
 
   @@unique([projectId, name])
   @@index([projectId])
   @@map("eval_run_scopes")
+}
+
+// Explicit evaluator ↔ scope assignment. Keeping this as a model rather than
+// an implicit Prisma join makes the attachment lifecycle available to both
+// evaluator and run-scope management screens.
+model EvalRunScopeAssignment {
+  createdAt DateTime @default(now()) @map("created_at")
+
+  jobConfigurationId String           @map("job_configuration_id")
+  jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
+  runScopeId         String           @map("run_scope_id")
+  runScope           EvalRunScope     @relation(fields: [runScopeId], references: [id], onDelete: Cascade)
+
+  @@id([jobConfigurationId, runScopeId])
+  @@index([runScopeId])
+  @@map("eval_run_scope_assignments")
 }
 
 enum JobExecutionStatus {
@@ -1157,6 +1179,9 @@ model JobExecution {
 
   jobConfigurationId String           @map("job_configuration_id")
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
+
+  runScopeId String?       @map("run_scope_id")
+  runScope   EvalRunScope? @relation(fields: [runScopeId], references: [id], onDelete: SetNull)
 
   jobTemplateId String?       @map("job_template_id")
 
@@ -1180,6 +1205,7 @@ model JobExecution {
   executionTraceId String? @map("execution_trace_id")
 
   @@index([projectId, jobConfigurationId, jobInputTraceId])
+  @@index([projectId, jobConfigurationId, runScopeId])
   @@index([projectId, jobOutputScoreId])
   @@index([jobConfigurationId])
   @@map("job_executions")

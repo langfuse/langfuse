@@ -6,6 +6,16 @@ score output, name/description); **run scope** = shared targeting
 (`target_object`, `filter`, `sampling`, `delay`, `time_scope`);
 **attachment** = evaluator ↔ scope + status.
 
+## Current branch implementation
+
+The prototype now stores evaluator ↔ scope links in the explicit
+`eval_run_scope_assignments` table. The migration backfills every earlier
+`job_configurations.run_scope_id` link before dropping that one-to-many column.
+This gives evaluator and run-scope detail screens the same many-to-many
+attachment model. Observation scheduling creates a distinct execution for each
+matching evaluator-scope pair and records the scope on the execution; evaluator
+rows without assignments continue to use their legacy targeting columns.
+
 ## Current Data Model
 
 ```
@@ -128,7 +138,6 @@ With the rollout strategy below, all cases in this section are confined to
 skip the recommended maintenance window. None require permanent handling: the
 sentinel is the only must-have (money, not consistency), everything else is
 accepted and self-heals via repair-on-read + the post-deploy sweep.
-
 
 **New template with old app created _after_ migration ran - no job config**
 Consequence:

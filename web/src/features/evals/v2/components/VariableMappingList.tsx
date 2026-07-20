@@ -237,7 +237,7 @@ function TreeSelectorBody({
       <p className="text-muted-foreground p-4 text-center text-sm">
         {hasMatchingObservations
           ? "Loading sample data…"
-          : "No observations match the current scope — adjust the filters in step 2."}
+          : "No observations match the current scope — adjust the filters in the right pane."}
       </p>
     );
   }
@@ -557,7 +557,8 @@ function VariableMappingRow({
         </div>
       ) : !sourceObject ? (
         <p className="text-muted-foreground p-3 text-sm">
-          Pick a sample in step 2 to preview the value this mapping pulls in.
+          Pick a sample in the right pane to preview the value this mapping
+          pulls in.
         </p>
       ) : extracted?.error ? (
         <div className="text-dark-yellow flex items-start gap-1.5 p-3 text-sm">

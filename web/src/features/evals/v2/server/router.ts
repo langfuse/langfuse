@@ -23,6 +23,7 @@ import {
 } from "@langfuse/shared";
 import {
   BatchActionQueue,
+  getCostByRunScopeIds,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
   invalidateProjectEvalConfigCaches,
@@ -44,6 +45,19 @@ import {
   runDraftCodeEvalTest,
 } from "@/src/features/evals/server/codeEvalTestRun";
 import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
+import {
+  activateEvaluator,
+  EvaluatorActivationScopeSchema,
+} from "@/src/features/evals/v2/server/evaluatorActivationService";
+import {
+  attachEvaluatorToRunScope,
+  createRunScope,
+  deleteRunScope,
+  deleteRunScopes as deleteRunScopesService,
+  detachEvaluatorFromRunScope,
+  setRunScopesEnabled,
+} from "@/src/features/evals/v2/server/runScopeService";
+import { deleteEvaluators } from "@/src/features/evals/v2/server/evaluatorOverviewService";
 
 // "trace" remains readable for scopes saved by the earlier prototype; new
 // scopes are observation ("event") or experiment based.
@@ -176,6 +190,39 @@ export const evalsV2Router = createTRPCRouter({
       });
     }),
 
+  evaluators: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const evaluators = await ctx.prisma.jobConfiguration.findMany({
+        where: {
+          projectId: input.projectId,
+          jobType: "EVAL",
+          evalTemplateId: { not: null },
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          scoreName: true,
+          createdAt: true,
+          updatedAt: true,
+          createdByUser: { select: { name: true, email: true } },
+          evalTemplate: { select: { type: true } },
+          _count: { select: { runScopeAssignments: true } },
+        },
+      });
+
+      return evaluators.map(({ _count, ...evaluator }) => ({
+        ...evaluator,
+        usedByCount: _count.runScopeAssignments,
+      }));
+    }),
+
   runScopes: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -189,10 +236,28 @@ export const evalsV2Router = createTRPCRouter({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
         include: {
-          _count: { select: { jobConfigurations: true } },
-          jobConfigurations: {
-            select: { scoreName: true },
+          _count: { select: { evaluatorAssignments: true } },
+          evaluatorAssignments: {
+            select: {
+              jobConfiguration: {
+                select: { id: true, scoreName: true },
+              },
+            },
             take: 5,
+          },
+          jobExecutions: {
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: {
+              id: true,
+              status: true,
+              createdAt: true,
+              updatedAt: true,
+              executionTraceId: true,
+              jobConfiguration: {
+                select: { id: true, scoreName: true },
+              },
+            },
           },
         },
       });
@@ -201,16 +266,248 @@ export const evalsV2Router = createTRPCRouter({
         ...scope,
         sampling: scope.sampling.toNumber(),
         filter: z.array(singleFilter).catch([]).parse(scope.filter),
+        evaluators: scope.evaluatorAssignments.map(
+          (assignment) => assignment.jobConfiguration,
+        ),
+        evaluatorCount: scope._count.evaluatorAssignments,
       }));
     }),
 
-  // True sharing: updating a scope propagates filter + sampling to every
-  // evaluator (job configuration) that references it.
+  runScopeCosts: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        runScopeIds: z.array(z.string()).max(1_000),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const costs = await getCostByRunScopeIds(
+        input.projectId,
+        input.runScopeIds,
+      );
+
+      return Object.fromEntries(
+        costs.map(({ runScopeId, totalCost }) => [runScopeId, totalCost]),
+      );
+    }),
+
+  runScopeById: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), runScopeId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      const runScope = await ctx.prisma.evalRunScope.findFirst({
+        where: { id: input.runScopeId, projectId: input.projectId },
+        include: {
+          evaluatorAssignments: {
+            orderBy: { createdAt: "asc" },
+            select: {
+              jobConfiguration: {
+                select: { id: true, scoreName: true },
+              },
+            },
+          },
+        },
+      });
+      if (!runScope) {
+        throw new LangfuseNotFoundError("Run scope not found");
+      }
+
+      return {
+        ...runScope,
+        sampling: runScope.sampling.toNumber(),
+        filter: z.array(singleFilter).catch([]).parse(runScope.filter),
+        evaluators: runScope.evaluatorAssignments.map(
+          (assignment) => assignment.jobConfiguration,
+        ),
+      };
+    }),
+
+  evaluatorOptions: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:read",
+      });
+
+      return ctx.prisma.jobConfiguration.findMany({
+        where: {
+          projectId: input.projectId,
+          jobType: "EVAL",
+          evalTemplateId: { not: null },
+        },
+        select: {
+          id: true,
+          scoreName: true,
+          targetObject: true,
+          status: true,
+          evalTemplate: { select: { type: true } },
+        },
+        orderBy: { scoreName: "asc" },
+      });
+    }),
+
+  updateEvaluatorDefinition: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorId: z.string(),
+        scoreName: z.string().trim().min(1),
+        description: z.string().trim().nullable(),
+        prompt: z.string().nullable(),
+        sourceCode: z.string().nullable(),
+        sourceCodeLanguage: z.enum(["PYTHON", "TYPESCRIPT"]).nullable(),
+        provider: z.string().nullable().optional(),
+        model: z.string().nullable().optional(),
+        modelParams: z.record(z.string(), z.unknown()).nullable().optional(),
+        outputDefinition:
+          PersistedEvalOutputDefinitionSchema.nullable().optional(),
+        mapping: z.union([
+          z.array(variableMapping),
+          z.array(observationVariableMapping),
+        ]),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const evaluator = await ctx.prisma.jobConfiguration.findFirst({
+        where: { id: input.evaluatorId, projectId: input.projectId },
+        include: { evalTemplate: true },
+      });
+      if (!evaluator?.evalTemplate) {
+        throw new LangfuseNotFoundError("Evaluator not found");
+      }
+
+      const template = evaluator.evalTemplate;
+      const prompt =
+        template.type === "LLM_AS_JUDGE" ? input.prompt : template.prompt;
+      const sourceCode =
+        template.type === "CODE" ? input.sourceCode : template.sourceCode;
+      const sourceCodeLanguage =
+        template.type === "CODE"
+          ? (input.sourceCodeLanguage ?? template.sourceCodeLanguage)
+          : template.sourceCodeLanguage;
+      const provider =
+        template.type === "LLM_AS_JUDGE" && input.provider !== undefined
+          ? input.provider
+          : template.provider;
+      const model =
+        template.type === "LLM_AS_JUDGE" && input.model !== undefined
+          ? input.model
+          : template.model;
+      const modelParams =
+        template.type === "LLM_AS_JUDGE" && input.modelParams !== undefined
+          ? input.modelParams
+          : template.modelParams;
+      const outputDefinition =
+        template.type === "LLM_AS_JUDGE" && input.outputDefinition !== undefined
+          ? input.outputDefinition
+          : template.outputDefinition;
+      if (template.type === "LLM_AS_JUDGE" && !prompt?.trim()) {
+        throw new InvalidRequestError("The evaluator prompt cannot be empty");
+      }
+      if (template.type === "CODE" && !sourceCode?.trim()) {
+        throw new InvalidRequestError(
+          "The evaluator source code cannot be empty",
+        );
+      }
+
+      const vars =
+        template.type === "LLM_AS_JUDGE" && prompt
+          ? Array.from(
+              new Set(
+                [...prompt.matchAll(/{{\s*([\w.]+)\s*}}/g)].map(
+                  (match) => match[1],
+                ),
+              ),
+            )
+          : template.vars;
+      const definitionChanged =
+        prompt !== template.prompt ||
+        sourceCode !== template.sourceCode ||
+        sourceCodeLanguage !== template.sourceCodeLanguage ||
+        provider !== template.provider ||
+        model !== template.model ||
+        JSON.stringify(modelParams) !== JSON.stringify(template.modelParams) ||
+        JSON.stringify(outputDefinition) !==
+          JSON.stringify(template.outputDefinition);
+
+      await ctx.prisma.$transaction(async (tx) => {
+        let evalTemplateId = template.id;
+        if (definitionChanged) {
+          const latestVersion = await tx.evalTemplate.aggregate({
+            where: { projectId: input.projectId, name: template.name },
+            _max: { version: true },
+          });
+          const projectTemplate = await tx.evalTemplate.create({
+            data: {
+              projectId: input.projectId,
+              createdByUserId: ctx.session.user.id,
+              name: template.name,
+              version: (latestVersion._max.version ?? 0) + 1,
+              type: template.type,
+              partner: template.partner,
+              prompt,
+              model,
+              provider,
+              modelParams:
+                (modelParams as Prisma.InputJsonValue | null) ?? undefined,
+              vars,
+              outputDefinition:
+                (outputDefinition as Prisma.InputJsonValue | null) ?? undefined,
+              sourceCode,
+              sourceCodeLanguage,
+            },
+          });
+          evalTemplateId = projectTemplate.id;
+        }
+
+        await tx.jobConfiguration.update({
+          where: { id: evaluator.id, projectId: input.projectId },
+          data: {
+            evalTemplateId,
+            scoreName: input.scoreName,
+            description: input.description,
+            variableMapping: input.mapping,
+          },
+        });
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: evaluator.id,
+        action: "update",
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+      return { id: evaluator.id };
+    }),
+
+  // Assignments read targeting from the scope, so one update applies to every
+  // attached evaluator without duplicating the filter onto every job row.
   updateRunScope: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         runScopeId: z.string(),
+        name: z.string().trim().min(1),
         filter: z.array(singleFilter).nullable(),
         sampling: z.number().gt(0).lte(1),
       }),
@@ -229,20 +526,255 @@ export const evalsV2Router = createTRPCRouter({
         throw new LangfuseNotFoundError("Run scope not found");
       }
 
-      const filter = input.filter ?? [];
-      await ctx.prisma.$transaction([
-        ctx.prisma.evalRunScope.update({
-          where: { id: scope.id },
-          data: { filter, sampling: input.sampling },
-        }),
-        ctx.prisma.jobConfiguration.updateMany({
-          where: { projectId: input.projectId, runScopeId: scope.id },
-          data: { filter, sampling: input.sampling },
-        }),
-      ]);
+      try {
+        await ctx.prisma.evalRunScope.update({
+          where: { id: scope.id, projectId: input.projectId },
+          data: {
+            name: input.name,
+            filter: input.filter ?? [],
+            sampling: input.sampling,
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new LangfuseConflictError(
+            `A run scope named "${input.name}" already exists.`,
+          );
+        }
+        throw error;
+      }
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: scope.id,
+        action: "update",
+      });
       await invalidateProjectEvalConfigCaches(input.projectId);
 
       return { id: scope.id };
+    }),
+
+  deleteRunScope: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), runScopeId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const result = await deleteRunScope({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: result.id,
+        action: "delete",
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return result;
+    }),
+
+  setRunScopesEnabled: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        runScopeIds: z.array(z.string()).min(1),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const ids = await setRunScopesEnabled({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await Promise.all(
+        ids.map((resourceId) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+            resourceId,
+            action: "update",
+          }),
+        ),
+      );
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return { ids };
+    }),
+
+  deleteRunScopes: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        runScopeIds: z.array(z.string()).min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const ids = await deleteRunScopesService({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await Promise.all(
+        ids.map((resourceId) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+            resourceId,
+            action: "delete",
+          }),
+        ),
+      );
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return { ids };
+    }),
+
+  deleteEvaluators: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorIds: z.array(z.string()).min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const ids = await deleteEvaluators({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await Promise.all(
+        ids.map((resourceId) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+            resourceId,
+            action: "delete",
+          }),
+        ),
+      );
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return { ids };
+    }),
+
+  createRunScope: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        name: z.string().trim().min(1),
+        targetObject: ScopeTargetObjectSchema,
+        filter: z.array(singleFilter).nullable(),
+        sampling: z.number().gt(0).lte(1),
+        evaluatorId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const runScope = await createRunScope({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        name: input.name,
+        targetObject: input.targetObject,
+        filter: input.filter ?? [],
+        sampling: input.sampling,
+        evaluatorId: input.evaluatorId,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.evaluatorId ?? runScope.id,
+        action: "create",
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return { id: runScope.id };
+    }),
+
+  attachEvaluatorToRunScope: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorId: z.string(),
+        runScopeId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const result = await attachEvaluatorToRunScope({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.evaluatorId,
+        action: "update",
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+      return result;
+    }),
+
+  detachEvaluatorFromRunScope: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorId: z.string(),
+        runScopeId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      const result = await detachEvaluatorFromRunScope({
+        prisma: ctx.prisma,
+        ...input,
+      });
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.evaluatorId,
+        action: "update",
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+      return result;
     }),
 
   renameRunScope: protectedProjectProcedure
@@ -278,6 +810,39 @@ export const evalsV2Router = createTRPCRouter({
       }
 
       return { id: input.runScopeId };
+    }),
+
+  activateRule: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        evaluatorId: z.string(),
+        scope: EvaluatorActivationScopeSchema,
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: input.evaluatorId,
+        action: "update",
+      });
+
+      const result = await activateEvaluator({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        evaluatorId: input.evaluatorId,
+        scope: input.scope,
+      });
+      await invalidateProjectEvalConfigCaches(input.projectId);
+
+      return result;
     }),
 
   createRule: protectedProjectProcedure
@@ -524,29 +1089,41 @@ export const evalsV2Router = createTRPCRouter({
         action: "create",
       });
 
-      const job = await ctx.prisma.jobConfiguration.create({
-        data: {
-          id: jobId,
-          projectId: input.projectId,
-          jobType: "EVAL",
-          evalTemplateId,
-          scoreName: input.scoreName,
-          description: input.description ?? null,
-          targetObject: scopeValues.targetObject,
-          filter: scopeValues.filter,
-          variableMapping: input.mapping,
-          sampling: scopeValues.sampling,
-          delay: scopeValues.delay,
-          status,
-          timeScope: [
-            // Drafts keep NEW so activating them later behaves normally.
-            ...(input.runContinuously || status === JobConfigState.INACTIVE
-              ? ["NEW" as const]
-              : []),
-            ...(backfill ? ["EXISTING" as const] : []),
-          ],
-          runScopeId,
-        },
+      const job = await ctx.prisma.$transaction(async (tx) => {
+        const createdJob = await tx.jobConfiguration.create({
+          data: {
+            id: jobId,
+            projectId: input.projectId,
+            createdByUserId: ctx.session.user.id,
+            jobType: "EVAL",
+            evalTemplateId,
+            scoreName: input.scoreName,
+            description: input.description ?? null,
+            targetObject: scopeValues.targetObject,
+            filter: scopeValues.filter,
+            variableMapping: input.mapping,
+            sampling: scopeValues.sampling,
+            delay: scopeValues.delay,
+            status,
+            timeScope: [
+              // Drafts keep NEW so activating them later behaves normally.
+              ...(input.runContinuously || status === JobConfigState.INACTIVE
+                ? ["NEW" as const]
+                : []),
+              ...(backfill ? ["EXISTING" as const] : []),
+            ],
+          },
+        });
+
+        if (runScopeId) {
+          await tx.evalRunScopeAssignment.create({
+            data: {
+              jobConfigurationId: createdJob.id,
+              runScopeId,
+            },
+          });
+        }
+        return createdJob;
       });
 
       if (status === JobConfigState.ACTIVE) {
