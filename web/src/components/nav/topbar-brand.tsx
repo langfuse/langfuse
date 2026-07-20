@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 
 /**
  * Compact Langfuse brand mark for the top bar.
@@ -16,9 +17,15 @@ import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/Langfu
  * `LangfuseLogo`, and links to `/` like the sidebar logo.
  */
 export const TopbarBrand = ({ className }: { className?: string }) => {
+  const hasAppSidebar = useHasAppSidebar();
   const uiCustomization = useUiCustomization();
   const logoLight = uiCustomization?.logoLightModeHref;
   const logoDark = uiCustomization?.logoDarkModeHref;
+
+  // Nothing to mirror when there is no sidebar (sidebar-less MinimalLayout,
+  // e.g. public/shared trace and session views). Guarding here keeps the
+  // brand off every such route without each caller having to opt out.
+  if (!hasAppSidebar) return null;
 
   return (
     <Link
