@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertPostgresDatasetRunItemToInsert,
   logger,
@@ -35,6 +36,13 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
     // Check if ClickHouse dataset_run_items_rmt table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route:
+            "background-migration.migrateDatasetRunItemsFromPostgresToClickhouseRmt",
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "dataset_run_items_rmt")) {
@@ -162,6 +170,13 @@ export default class MigrateDatasetRunItemsFromPostgresToClickhouseRmt implement
         table: "dataset_run_items_rmt",
         values: datasetRunItems.map(convertPostgresDatasetRunItemToInsert),
         format: "JSONEachRow",
+        clickhouse_settings: {
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route:
+              "background-migration.migrateDatasetRunItemsFromPostgresToClickhouseRmt",
+          }),
+        },
       });
 
       logger.info(
