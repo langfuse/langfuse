@@ -209,7 +209,9 @@ export const GroupedScoreBadges = <
           <HoverCardTrigger asChild>
             <button
               type="button"
-              title={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
+              // aria-label, not title: a native tooltip would stack on top of
+              // the hover-card preview.
+              aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
               // Chips render inside clickable rows (tree nodes, table rows) —
               // expanding must not also select/navigate the row.
               onClick={(event) => {
@@ -221,7 +223,9 @@ export const GroupedScoreBadges = <
               +{hiddenScores.length}
             </button>
           </HoverCardTrigger>
-          <HoverCardContent className="max-h-[300px] max-w-[320px] overflow-y-auto p-2">
+          {/* w-max overrides the fixed w-64 base so the card adapts to its
+              chips; the cap makes long selections wrap instead of clipping. */}
+          <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
                 <ScoreGroupBadge
