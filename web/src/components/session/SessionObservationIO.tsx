@@ -200,38 +200,30 @@ export const SessionObservationIO = ({
         This observation&apos;s input/output is too large to display in the
         session view.
       </p>
-      {chatMLParserResult?.canDisplayAsChat &&
-      (contentMode === "conversation" || showSystemPrompt === false) ? (
-        ioPreview
-      ) : (
-        <>
+      <TruncatedIOSection
+        label="Input"
+        value={observation.input}
+        fullLength={observation.inputLength}
+        truncated={observation.inputTruncated}
+      />
+      <TruncatedIOSection
+        label="Output"
+        value={observation.output}
+        fullLength={observation.outputLength}
+        truncated={observation.outputTruncated}
+      />
+      {/* Metadata stays visible when I/O is truncated — it shipped with the
+          observation and was always shown alongside I/O before the cap. */}
+      {observation.metadata !== null &&
+        typeof observation.metadata === "object" &&
+        Object.keys(observation.metadata).length > 0 && (
           <TruncatedIOSection
-            label="Input"
-            value={observation.input}
-            fullLength={observation.inputLength}
-            truncated={observation.inputTruncated}
+            label="Metadata"
+            value={observation.metadata}
+            fullLength={observation.metadataLength}
+            truncated={observation.metadataTruncated}
           />
-          <TruncatedIOSection
-            label="Output"
-            value={observation.output}
-            fullLength={observation.outputLength}
-            truncated={observation.outputTruncated}
-          />
-          {/* Metadata stays visible when I/O is truncated — it shipped with
-              the observation and was always shown alongside I/O before the
-              cap. */}
-          {observation.metadata !== null &&
-            typeof observation.metadata === "object" &&
-            Object.keys(observation.metadata).length > 0 && (
-              <TruncatedIOSection
-                label="Metadata"
-                value={observation.metadata}
-                fullLength={observation.metadataLength}
-                truncated={observation.metadataTruncated}
-              />
-            )}
-        </>
-      )}
+        )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
           <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />

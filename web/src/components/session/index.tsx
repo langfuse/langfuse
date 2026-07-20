@@ -425,16 +425,6 @@ export const SessionPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
-              {!router.query.peek && (
-                <DetailPageNav
-                  key="nav"
-                  currentId={encodeURIComponent(sessionId)}
-                  path={(entry) =>
-                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-                  }
-                  listKey="sessions"
-                />
-              )}
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -449,6 +439,16 @@ export const SessionPage: React.FC<{
               >
                 <Download className="h-4 w-4" />
               </Button>
+              {!router.query.peek && (
+                <DetailPageNav
+                  key="nav"
+                  currentId={encodeURIComponent(sessionId)}
+                  path={(entry) =>
+                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                  }
+                  listKey="sessions"
+                />
+              )}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -713,6 +713,24 @@ const LoadedSessionEventsPage: React.FC<{
     });
     sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
   };
+
+  const displayOptions = [
+    {
+      label: "corrections",
+      checked: showCorrections,
+      onCheckedChange: setShowCorrectionsForSession,
+    },
+    {
+      label: "tool calls",
+      checked: showInlineToolCalls,
+      onCheckedChange: setInlineToolCallsForSession,
+    },
+    {
+      label: "system prompt",
+      checked: showSystemPrompt,
+      onCheckedChange: setShowSystemPromptForSession,
+    },
+  ];
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -1182,6 +1200,72 @@ const LoadedSessionEventsPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
+              {isModernSessionEnabled ? (
+                <>
+                  <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    {displayOptions.map(
+                      ({ label, checked, onCheckedChange }) => (
+                        <label
+                          key={label}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Switch
+                            checked={checked}
+                            onCheckedChange={onCheckedChange}
+                            size="sm"
+                          />
+                          <span className="text-muted-foreground text-xs">
+                            {label}
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 pr-2 min-[1900px]:hidden">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-2"
+                        >
+                          Options
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-52 p-2">
+                        <div className="flex flex-col gap-1">
+                          {displayOptions.map(
+                            ({ label, checked, onCheckedChange }) => (
+                              <label
+                                key={label}
+                                className="hover:bg-muted flex items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                              >
+                                <span className="text-sm capitalize">
+                                  {label}
+                                </span>
+                                <Switch
+                                  checked={checked}
+                                  onCheckedChange={onCheckedChange}
+                                  size="sm"
+                                />
+                              </label>
+                            ),
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              ) : null}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1192,47 +1276,6 @@ const LoadedSessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
-              {isModernSessionEnabled ? (
-                <div className="flex items-center gap-3 pr-2">
-                  <span className="text-muted-foreground text-xs">Show:</span>
-                  <label className="flex items-center gap-1.5">
-                    <Switch
-                      checked={showCorrections}
-                      onCheckedChange={setShowCorrectionsForSession}
-                      size="sm"
-                    />
-                    <span className="text-muted-foreground text-xs">
-                      corrections
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-1.5">
-                    <Switch
-                      checked={showInlineToolCalls}
-                      onCheckedChange={setInlineToolCallsForSession}
-                      size="sm"
-                    />
-                    <span className="text-muted-foreground text-xs">
-                      tool calls
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-1.5">
-                    <Switch
-                      checked={showSystemPrompt}
-                      onCheckedChange={setShowSystemPromptForSession}
-                      size="sm"
-                    />
-                    <span className="text-muted-foreground text-xs">
-                      system prompt
-                    </span>
-                  </label>
-                </div>
-              ) : null}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"

@@ -14,7 +14,10 @@ import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
-import { isOnlyJsonMessage } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
+import {
+  hasRenderableConversationMessages,
+  isOnlyJsonMessage,
+} from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
 
 export type TraceEventsSurface = "card" | "modern";
 
@@ -84,7 +87,12 @@ const ModernSessionObservation = ({
   );
   const isConversation =
     chatMLParserResult.canDisplayAsChat &&
-    !chatMLParserResult.allMessages.every(isOnlyJsonMessage);
+    (contentMode === "conversation"
+      ? hasRenderableConversationMessages(
+          chatMLParserResult.allMessages,
+          showSystemPrompt,
+        )
+      : !chatMLParserResult.allMessages.every(isOnlyJsonMessage));
 
   return (
     <div

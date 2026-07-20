@@ -6,6 +6,7 @@ import {
   hasPassthroughJson,
   isPlaceholderMessage,
   isOnlyJsonMessage,
+  hasRenderableConversationMessages,
   shouldRenderMessage,
   shouldRenderMessageForContentMode,
   parseToolCallsFromMessage,
@@ -220,6 +221,19 @@ describe("chat-message-utils", () => {
           }),
         ),
       ).toBe(false);
+    });
+  });
+
+  describe("hasRenderableConversationMessages", () => {
+    it("rejects empty-content passthrough JSON without changing all-data rendering", () => {
+      const message = createMessage({
+        role: "assistant",
+        content: "",
+        json: { data: "test" },
+      });
+
+      expect(hasRenderableConversationMessages([message], false)).toBe(false);
+      expect(shouldRenderMessage(message)).toBe(true);
     });
   });
 

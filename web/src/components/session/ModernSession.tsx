@@ -142,30 +142,68 @@ const ModernSessionMinimap = React.memo(
     openPeek: OpenPeek;
     onSelect: (index: number) => void;
     totalCost: number;
-  }) => (
-    <aside className="bg-muted/10 min-h-0 overflow-y-auto border-r">
-      <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
-        <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-          Traces · {traces.length}
-        </span>
-        <span className="text-muted-foreground text-xs font-medium">
-          Total cost · {usdFormatter(totalCost, 2)}
-        </span>
+  }) => {
+    const minimapRef = useRef<HTMLDivElement>(null);
+    const virtualizer = useVirtualizer({
+      count: traces.length,
+      getScrollElement: () => minimapRef.current,
+      estimateSize: () => 105,
+      overscan: MODERN_SESSION_OVERSCAN,
+      getItemKey: (index) => traces[index]?.id ?? index,
+    });
+
+    return (
+      <div
+        ref={minimapRef}
+        role="complementary"
+        aria-label="Session traces"
+        className="bg-muted/10 min-h-0 overflow-y-auto border-r"
+      >
+        <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Traces · {traces.length}
+          </span>
+          <span className="text-muted-foreground text-xs font-medium">
+            Total cost · {usdFormatter(totalCost, 2)}
+          </span>
+        </div>
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            position: "relative",
+            width: "100%",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const trace = traces[virtualItem.index];
+            if (!trace) return null;
+            const isActive = trace.id === activeTraceId;
+
+            return (
+              <SessionVirtualizedRow
+                key={virtualItem.key}
+                itemKey={String(virtualItem.key)}
+                measurementKey={`${String(virtualItem.key)}:${isActive}`}
+                source="modern"
+                virtualItem={virtualItem}
+                virtualizer={virtualizer}
+              >
+                <ModernSessionMinimapItem
+                  trace={trace}
+                  index={virtualItem.index}
+                  isActive={isActive}
+                  projectId={projectId}
+                  traceCommentCounts={traceCommentCounts}
+                  openPeek={openPeek}
+                  onSelect={onSelect}
+                />
+              </SessionVirtualizedRow>
+            );
+          })}
+        </div>
       </div>
-      {traces.map((trace, index) => (
-        <ModernSessionMinimapItem
-          key={trace.id}
-          trace={trace}
-          index={index}
-          isActive={trace.id === activeTraceId}
-          projectId={projectId}
-          traceCommentCounts={traceCommentCounts}
-          openPeek={openPeek}
-          onSelect={onSelect}
-        />
-      ))}
-    </aside>
-  ),
+    );
+  },
 );
 ModernSessionMinimap.displayName = "ModernSessionMinimap";
 

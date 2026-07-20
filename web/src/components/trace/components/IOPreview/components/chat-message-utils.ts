@@ -90,6 +90,19 @@ export function shouldRenderMessageForContentMode(
   );
 }
 
+export function hasRenderableConversationMessages(
+  messages: ChatMlMessage[],
+  showSystemPrompt?: boolean,
+): boolean {
+  return messages.some((message) =>
+    shouldRenderMessageForContentMode(
+      message,
+      "conversation",
+      showSystemPrompt,
+    ),
+  );
+}
+
 /**
  * Parse tool calls from a ChatML message.
  * Handles both standard tool_calls array and passthrough json.tool_calls.
