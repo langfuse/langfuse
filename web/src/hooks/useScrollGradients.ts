@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+const SCROLL_EDGE_THRESHOLD_PX = 10;
+
 /**
  * Tracks whether a scroll container has hidden content above or below it.
  * Re-measures when the container resizes or its DOM content changes so callers
@@ -21,8 +23,12 @@ export function useScrollGradients<TElement extends HTMLElement>(
     if (!element || !enabled) return;
 
     const maxScrollTop = element.scrollHeight - element.clientHeight;
-    const nextTop = maxScrollTop > 1 && element.scrollTop > 1;
-    const nextBottom = maxScrollTop > 1 && element.scrollTop < maxScrollTop - 1;
+    const nextTop =
+      maxScrollTop > SCROLL_EDGE_THRESHOLD_PX &&
+      element.scrollTop > SCROLL_EDGE_THRESHOLD_PX;
+    const nextBottom =
+      maxScrollTop > SCROLL_EDGE_THRESHOLD_PX &&
+      element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD_PX;
 
     setScrollGradients((current) => {
       if (current.top === nextTop && current.bottom === nextBottom) {
