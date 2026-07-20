@@ -2,6 +2,7 @@ import {
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
@@ -170,6 +171,7 @@ describe("ClickHouse Resource Error Handling", () => {
           fail("Should have thrown an error");
         } catch (error: any) {
           expect(error.message).toMatch(QUERY_ID_PATTERN);
+          expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
         }
       });
     });
@@ -189,6 +191,22 @@ describe("ClickHouse Resource Error Handling", () => {
         fail("Should have thrown an error");
       } catch (error: any) {
         expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseExecRaw", () => {
+    it("should include query_id exactly once in errors thrown before streaming", async () => {
+      try {
+        await queryClickhouseExecRaw({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+          format: "Parquet",
+        });
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
       }
     });
   });

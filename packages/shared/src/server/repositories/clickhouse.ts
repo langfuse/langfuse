@@ -429,28 +429,23 @@ export async function queryClickhouseExecRaw(
     setSpanQueryAttributes(span, queryWithFormat);
     span.setAttribute("ch.queryId", queryId);
 
-    const res = await context
-      .with(trace.setSpan(context.active(), span), () =>
-        clickhouseClient(
-          opts.clickhouseConfigs,
-          opts.preferredClickhouseService,
-        ).exec({
-          query: queryWithFormat,
-          query_params: opts.params,
-          use_multipart_params_auto: opts.useMultipartParamsAuto,
-          query_id: queryId,
-          clickhouse_settings: {
-            ...opts.clickhouseSettings,
-            log_comment: JSON.stringify(normalizedTags),
-          },
-        }),
-      )
-      .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(
-          enrichWithQueryId(error as Error, queryId),
-          normalizedTags,
-        );
-      });
+    // Failures reject into the outer catch, which enriches with the query_id
+    // and wraps resource errors exactly once.
+    const res = await context.with(trace.setSpan(context.active(), span), () =>
+      clickhouseClient(
+        opts.clickhouseConfigs,
+        opts.preferredClickhouseService,
+      ).exec({
+        query: queryWithFormat,
+        query_params: opts.params,
+        use_multipart_params_auto: opts.useMultipartParamsAuto,
+        query_id: queryId,
+        clickhouse_settings: {
+          ...opts.clickhouseSettings,
+          log_comment: JSON.stringify(normalizedTags),
+        },
+      }),
+    );
     for (const [key, value] of Object.entries(normalizedTags)) {
       span.setAttribute(`ch.tag.${key}`, value);
     }
