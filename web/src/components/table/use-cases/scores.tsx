@@ -63,7 +63,11 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
+import {
+  ScoreTag,
+  scoreLevelFromScore,
+  type ScoreLevel,
+} from "@/src/components/score-tag";
 
 export type ScoresTableRow = {
   id: string;
@@ -73,6 +77,8 @@ export type ScoresTableRow = {
   timestamp: Date;
   source: string;
   name: string;
+  /** Derived from the score's context ids (scoreLevelFromScore). */
+  level: ScoreLevel;
   dataType: ScoreDataTypeType;
   value: string;
   author: {
@@ -639,18 +645,21 @@ export default function ScoresTable({
       enableHiding: true,
       enableSorting: true,
       size: 150,
+    },
+    {
+      accessorKey: "level",
+      header: "Level",
+      id: "level",
+      enableHiding: true,
+      // Derived client-side from the score's context ids — not a sortable
+      // backend column.
+      enableSorting: false,
+      size: 110,
       cell: ({ row }) => {
-        const name: ScoresTableRow["name"] = row.getValue("name");
         // Level tag (LFE-10596): trace- vs observation- (vs session-) level
         // scores look identical here otherwise.
-        return (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate" title={name}>
-              {name}
-            </span>
-            <ScoreTag level={scoreLevelFromScore(row.original)} />
-          </span>
-        );
+        const level: ScoresTableRow["level"] = row.getValue("level");
+        return <ScoreTag level={level} />;
       },
     },
     {
@@ -835,6 +844,7 @@ export default function ScoresTable({
       timestamp: score.timestamp,
       source: score.source,
       name: score.name,
+      level: scoreLevelFromScore(score),
       dataType: score.dataType,
       value:
         isNumericDataType(score.dataType) && isPresent(score.value)
@@ -881,6 +891,7 @@ export default function ScoresTable({
         timestamp: score.timestamp,
         source: score.source,
         name: score.name,
+        level: scoreLevelFromScore(score),
         dataType: score.dataType,
         value:
           isNumericDataType(score.dataType) && isPresent(score.value)

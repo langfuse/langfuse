@@ -99,8 +99,9 @@ const run = async (
         traces: traceCount,
         observations: traceCount,
         // 5 observation-level + 5 trace-level scores per trace (incl. the
-        // dual-level `confidence`/`verdict` pair present at both levels)
-        scores: traceCount * 10,
+        // dual-level `confidence`/`verdict` pair present at both levels),
+        // plus one obs-level score on the v4 root span (mixed-level root)
+        scores: traceCount * (withV4 ? 11 : 10),
         events: withV4 ? traceCount * 2 : 0,
       },
       verified: {},
@@ -304,8 +305,31 @@ const run = async (
     );
 
     if (withV4) {
-      events.push(traceToEvent(trace));
+      const traceEvent = traceToEvent(trace);
+      events.push(traceEvent);
       events.push(observationToEvent(observation, trace));
+
+      // Observation-level score attached to the v4 ROOT span (`t-<traceId>`):
+      // the root's inline chips then MIX trace-level and observation-level
+      // scores — the shape where per-chip level tags must appear (a
+      // single-level node shows none). v4-only: in the v3 rendering no
+      // observation has this id, so the score would simply not display there.
+      scores.push(
+        createTraceScore({
+          id: `${traceId}-root-score-${DUAL_NUMERIC_SCORE}`,
+          project_id: ctx.projectId,
+          trace_id: traceId,
+          observation_id: traceEvent.span_id,
+          environment: ctx.environment,
+          name: DUAL_NUMERIC_SCORE,
+          value: Math.round(rng.next() * 49) / 100,
+          data_type: "NUMERIC",
+          source: "EVAL",
+          comment: null,
+          metadata: {},
+          timestamp,
+        }),
+      );
     }
   }
 
