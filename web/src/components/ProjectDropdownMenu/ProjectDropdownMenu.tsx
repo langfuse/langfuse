@@ -1,6 +1,5 @@
 import {
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -9,7 +8,6 @@ import {
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
-import Link from "next/link";
 
 type Project = NonNullable<
   Session["user"]
@@ -58,12 +56,11 @@ export function ProjectDropdownMenu(props: ProjectDropdownMenuProps) {
       {canCreateProjects && (
         <>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href={createProjectRoute(organizationId)}>
-              <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              New Project
-            </Link>
-          </DropdownMenuItem>
+          <DropdownMenuItemWithSecondaryAction
+            title="New Project"
+            href={createProjectRoute(organizationId)}
+            icon={PlusIcon}
+          />
         </>
       )}
     </DropdownMenuContent>

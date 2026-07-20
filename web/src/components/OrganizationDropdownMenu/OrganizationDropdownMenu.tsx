@@ -1,6 +1,5 @@
 import {
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -8,7 +7,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { PlusIcon, Settings } from "lucide-react";
 import { type Session } from "next-auth";
-import Link from "next/link";
 import { Fragment } from "react";
 import { env } from "@/src/env.mjs";
 import { createOrganizationRoute } from "@/src/features/setup/setupRoutes";
@@ -66,12 +64,11 @@ export function OrganizationDropdownMenu(props: OrganizationDropdownMenuProps) {
       {canCreateOrganizations && (
         <>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
-            <Link href={createOrganizationRoute}>
-              <PlusIcon className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              New Organization
-            </Link>
-          </DropdownMenuItem>
+          <DropdownMenuItemWithSecondaryAction
+            title="New Organization"
+            href={createOrganizationRoute}
+            icon={PlusIcon}
+          />
         </>
       )}
     </DropdownMenuContent>

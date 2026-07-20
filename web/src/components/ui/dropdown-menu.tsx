@@ -135,15 +135,16 @@ type DropdownMenuItemAction =
     };
 
 type DropdownMenuItemWithSecondaryActionProps = {
+  icon?: LucideIcon;
   title: string;
-  secondaryAction: DropdownMenuItemAction & {
+  secondaryAction?: DropdownMenuItemAction & {
     ariaLabel?: string;
     icon: LucideIcon;
   };
 } & DropdownMenuItemAction;
 
 const dropdownMenuItemPrimaryActionVariants = cva(
-  "flex min-w-0 flex-1 cursor-pointer px-2 py-1.5",
+  "flex min-w-0 flex-1 cursor-pointer items-center px-2 py-1.5",
 );
 
 const dropdownMenuItemSecondaryActionVariants = cva(
@@ -154,15 +155,51 @@ const DropdownMenuItemWithSecondaryAction = (
   props: DropdownMenuItemWithSecondaryActionProps,
 ) => {
   const secondaryAction = props.secondaryAction;
-  const SecondaryActionIcon = secondaryAction.icon;
+  const PrimaryActionIcon = props.icon;
+  const SecondaryActionIcon = secondaryAction?.icon;
   const primaryContent = (
-    <span
-      className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
-      title={props.title}
-    >
-      {props.title}
-    </span>
+    <>
+      {PrimaryActionIcon && (
+        <PrimaryActionIcon className="mr-1.5 size-4" aria-hidden="true" />
+      )}
+      <span
+        className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
+        title={props.title}
+      >
+        {props.title}
+      </span>
+    </>
   );
+  let secondaryActionContent: React.ReactNode = null;
+
+  if (secondaryAction && SecondaryActionIcon) {
+    if (secondaryAction.href !== undefined) {
+      secondaryActionContent = (
+        <Link
+          href={secondaryAction.href}
+          aria-label={secondaryAction.ariaLabel}
+          className={dropdownMenuItemSecondaryActionVariants()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <SecondaryActionIcon size={12} />
+        </Link>
+      );
+    } else {
+      secondaryActionContent = (
+        <button
+          type="button"
+          aria-label={secondaryAction.ariaLabel}
+          className={dropdownMenuItemSecondaryActionVariants()}
+          onClick={(event) => {
+            event.stopPropagation();
+            secondaryAction.onClick();
+          }}
+        >
+          <SecondaryActionIcon size={12} />
+        </button>
+      );
+    }
+  }
 
   return (
     <DropdownMenuItem className="p-0">
@@ -183,28 +220,7 @@ const DropdownMenuItemWithSecondaryAction = (
         </button>
       )}
 
-      {secondaryAction.href !== undefined ? (
-        <Link
-          href={secondaryAction.href}
-          aria-label={secondaryAction.ariaLabel}
-          className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => event.stopPropagation()}
-        >
-          <SecondaryActionIcon size={12} />
-        </Link>
-      ) : (
-        <button
-          type="button"
-          aria-label={secondaryAction.ariaLabel}
-          className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => {
-            event.stopPropagation();
-            secondaryAction.onClick();
-          }}
-        >
-          <SecondaryActionIcon size={12} />
-        </button>
-      )}
+      {secondaryActionContent}
     </DropdownMenuItem>
   );
 };
