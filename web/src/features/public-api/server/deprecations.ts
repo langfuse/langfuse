@@ -30,6 +30,8 @@ const REPLACEMENT = {
 // replacement (all pages also serve markdown to agents via the `.md` routes).
 const DOCS = {
   observationsV2: OBSERVATIONS_API_V2_DOCS_URL,
+  scoresV3:
+    "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
   metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
   compatibility: "https://langfuse.com/docs/compatibility",
   otel: "https://langfuse.com/integrations/native/opentelemetry",
@@ -61,7 +63,7 @@ export const SESSIONS_DEPRECATION: ApiDeprecationInfo = {
 export const SCORES_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Use ${REPLACEMENT.scoresV3} instead.`,
   replacement: REPLACEMENT.scoresV3,
-  docsUrl: DOCS.compatibility,
+  docsUrl: DOCS.scoresV3,
   sunsetAt: V3_SUNSET_DATE,
 };
 
