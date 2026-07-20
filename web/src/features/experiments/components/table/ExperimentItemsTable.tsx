@@ -248,6 +248,7 @@ const StackedOutputCell = ({
 export default function ExperimentItemsTable({
   projectId,
   hideControls = false,
+  experimentId,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -257,6 +258,9 @@ export default function ExperimentItemsTable({
     scope: "evalJob:CUD",
   });
 
+  // Single-experiment mode: when an experimentId is supplied (e.g. the legacy
+  // dataset run-detail route), the state hook fixes it as the baseline with no
+  // comparisons and a list layout, so every derived value below follows.
   const {
     baselineId,
     hasBaseline,
@@ -264,7 +268,7 @@ export default function ExperimentItemsTable({
     comparisonIds,
     layout,
     itemVisibility,
-  } = useExperimentResultsState();
+  } = useExperimentResultsState({ singleExperimentId: experimentId });
   const fallbackBaselineId = resolveBaselineOrFirstComparison();
   const comparisonIdsWithoutFallbackBaseline = useMemo(
     () =>

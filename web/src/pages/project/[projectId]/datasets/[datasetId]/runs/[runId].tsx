@@ -23,12 +23,19 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 
 export default function Dataset() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const runId = router.query.runId as string;
+
+  // Fast-preview (v4) users read experiment items directly from the events
+  // table; legacy users keep the dataset_run_items read path. Note that
+  // experiment_id === dataset_run_id, so the route's runId is the experiment id.
+  const { isExperimentsBetaActive } = useExperimentAccess();
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -39,6 +46,17 @@ export default function Dataset() {
     projectId,
     runId,
   });
+  // In fast-preview mode a direct-written experiment may not have a Postgres
+  // dataset-run row, so source the title/name from the events-backed experiment.
+  const experiment = api.experiments.byId.useQuery(
+    {
+      projectId,
+      experimentId: runId,
+    },
+    {
+      enabled: isExperimentsBetaActive && Boolean(runId),
+    },
+  );
   const breadcrumb = getDatasetBreadcrumb(
     projectId,
     datasetId,
@@ -48,8 +66,10 @@ export default function Dataset() {
   return (
     <Page
       headerProps={{
-        title: run.data?.name ?? runId,
-        itemType: "DATASET_RUN",
+        title: isExperimentsBetaActive
+          ? (experiment.data?.name ?? run.data?.name ?? runId)
+          : (run.data?.name ?? runId),
+        itemType: "EXPERIMENT",
         breadcrumb: [
           ...breadcrumb,
           {
@@ -100,12 +120,16 @@ export default function Dataset() {
     >
       <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          <DatasetRunItemsByRunTable
-            projectId={projectId}
-            datasetId={datasetId}
-            datasetRunId={runId}
-            datasetVersion={run.data?.datasetVersion}
-          />
+          {isExperimentsBetaActive ? (
+            <ExperimentItemsTable projectId={projectId} experimentId={runId} />
+          ) : (
+            <DatasetRunItemsByRunTable
+              projectId={projectId}
+              datasetId={datasetId}
+              datasetRunId={runId}
+              datasetVersion={run.data?.datasetVersion}
+            />
+          )}
         </div>
         <SidePanel
           mobileTitle="Experiment run details"
