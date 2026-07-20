@@ -18,13 +18,14 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 // Mock the env module to enable S3 bucket
-vi.mock("../../env", async () => {
-  const actual = await vi.importActual("../../env");
+vi.mock("../env", async () => {
+  const actual = await vi.importActual("../env");
   return {
     env: {
       ...(actual as { env: object }).env,
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "test-bucket",
       LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "false",
+      LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: 2,
     },
   };
 });
@@ -202,6 +203,119 @@ describe("MediaRetentionCleaner", () => {
           where: { projectId, datasetItemValidFrom: null },
         }),
       ).resolves.toBe(0);
+    });
+
+    it("continues an over-limit project and cleans claimed media links", async () => {
+      await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
+
+      const now = Date.now();
+      const daysAgo = (days: number) =>
+        new Date(now - days * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      // Claimed media remains stored, but its stale links must stop consuming
+      // the limited selection so later runs reach deletable media.
+      const protectedMediaIds: string[] = [];
+      for (const ageInDays of [300, 299]) {
+        const protectedMedia = await createTestMedia(
+          projectId,
+          daysAgo(ageInDays),
+        );
+        protectedMediaIds.push(protectedMedia.id);
+        const traceId = randomUUID();
+        await prisma.datasetItemMedia.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            datasetId: randomUUID(),
+            datasetItemId: randomUUID(),
+            datasetItemValidFrom: new Date(),
+            mediaId: protectedMedia.id,
+            field: "input",
+            jsonPath: "$['image']",
+            referenceString: `@@@langfuseMedia:type=image/png|id=${protectedMedia.id}|source=base64@@@`,
+          },
+        });
+        await prisma.traceMedia.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            mediaId: protectedMedia.id,
+            traceId,
+            field: "input",
+          },
+        });
+        await prisma.observationMedia.create({
+          data: {
+            id: randomUUID(),
+            projectId,
+            mediaId: protectedMedia.id,
+            traceId,
+            observationId: randomUUID(),
+            field: "input",
+          },
+        });
+      }
+
+      const deletableMedia = await Promise.all([
+        createTestMedia(projectId, daysAgo(200)),
+        createTestMedia(projectId, daysAgo(199)),
+        createTestMedia(projectId, daysAgo(198)),
+      ]);
+
+      const firstCleaner = new MediaRetentionCleaner();
+      await firstCleaner.processBatch();
+
+      expect(mockDeleteFiles).not.toHaveBeenCalled();
+      await expect(
+        prisma.traceMedia.count({
+          where: { projectId, mediaId: { in: protectedMediaIds } },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.observationMedia.count({
+          where: { projectId, mediaId: { in: protectedMediaIds } },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.media.count({
+          where: {
+            projectId,
+            id: { in: deletableMedia.map((media) => media.id) },
+          },
+        }),
+      ).resolves.toBe(3);
+
+      const secondCleaner = new MediaRetentionCleaner();
+      await secondCleaner.processBatch();
+
+      expect(mockDeleteFiles).toHaveBeenCalledTimes(1);
+      expect(mockDeleteFiles).toHaveBeenLastCalledWith(
+        deletableMedia.slice(0, 2).map((media) => media.bucketPath),
+      );
+      await expect(
+        prisma.media.count({
+          where: {
+            projectId,
+            id: { in: deletableMedia.map((media) => media.id) },
+          },
+        }),
+      ).resolves.toBe(1);
+
+      const thirdCleaner = new MediaRetentionCleaner();
+      await thirdCleaner.processBatch();
+
+      expect(mockDeleteFiles).toHaveBeenCalledTimes(2);
+      expect(mockDeleteFiles).toHaveBeenLastCalledWith([
+        deletableMedia[2].bucketPath,
+      ]);
+      await expect(getMediaCount(projectId)).resolves.toBe(2);
     });
 
     it("should NOT delete media within retention period", async () => {

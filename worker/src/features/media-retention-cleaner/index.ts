@@ -1,16 +1,16 @@
-import { prisma } from "@langfuse/shared/src/db";
 import {
   deleteMediaFiles,
-  findExpiredMediaByProjectId,
+  findExpiredMediaBatchByProjectId,
+  findNextMediaRetentionProject,
   getS3MediaStorageClient,
   logger,
+  type MediaRetentionProject,
   recordGauge,
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getRetentionCutoffDate } from "../utils";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 
 const METRIC_PREFIX = "langfuse.media_retention_cleaner";
@@ -18,18 +18,11 @@ const METRIC_PREFIX = "langfuse.media_retention_cleaner";
 export const MEDIA_RETENTION_CLEANER_LOCK_KEY =
   "langfuse:media-retention-cleaner";
 
-interface ProjectWorkload {
-  projectId: string;
-  retentionDays: number;
-  cutoffDate: Date;
-  secondsPastCutoff: number | null;
-}
-
 /**
  * MediaRetentionCleaner handles periodic deletion of media files and blob storage
  * entries based on project retention settings.
  *
- * Processes one project per iteration (most work first) for simplicity.
+ * Processes one project per iteration (oldest actionable media first).
  * Run frequently to process all projects over time.
  */
 export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
@@ -62,7 +55,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   /**
-   * Process expired media for the project with most work.
+   * Process expired media for the project furthest past its cutoff.
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
   protected async execute(): Promise<void> {
@@ -72,10 +65,10 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
     await this.withLock(
       async () => {
-        // Get the project with most expired media (single project per iteration)
-        let workload: ProjectWorkload | null;
+        // Get the most overdue project (single project per iteration)
+        let workload: MediaRetentionProject | null;
         try {
-          workload = await this.getTopProjectWorkload();
+          workload = await findNextMediaRetentionProject();
         } catch (error) {
           logger.error(`${this.name}: Failed to query project workload`, {
             error,
@@ -109,60 +102,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     );
   }
 
-  /**
-   * Get the project with the most expired media (single query via Prisma).
-   * Returns null if no projects have expired media.
-   */
-  private async getTopProjectWorkload(): Promise<ProjectWorkload | null> {
-    const now = new Date();
-
-    // Single query: join projects with media, filter by retention cutoff, order by count, limit 1
-    // Using raw SQL for the complex per-project cutoff logic
-    const result = await prisma.$queryRaw<
-      Array<{
-        project_id: string;
-        retention_days: number;
-        seconds_past_cutoff: number;
-      }>
-    >`
-      SELECT
-        p.id as project_id,
-        p.retention_days,
-        EXTRACT(EPOCH FROM (
-          (NOW() - (p.retention_days || ' days')::interval) - MIN(m.created_at)
-        ))::int as seconds_past_cutoff
-      FROM projects p
-      INNER JOIN media m ON m.project_id = p.id
-      -- Only a claimed association (validFrom set) protects media; pending rows
-      -- (null validFrom) are sweepable, matching deleteMediaFiles. Counting them
-      -- here would hide projects whose only expired media is abandoned uploads.
-      LEFT JOIN dataset_item_media dim
-        ON dim.project_id = m.project_id
-        AND dim.media_id = m.id
-        AND dim.dataset_item_valid_from IS NOT NULL
-      WHERE p.retention_days > 0
-        AND p.deleted_at IS NULL
-        AND m.created_at <= NOW() - (p.retention_days || ' days')::interval
-        AND dim.media_id IS NULL
-      GROUP BY p.id, p.retention_days
-      ORDER BY seconds_past_cutoff DESC
-      LIMIT 1
-    `;
-
-    if (result.length === 0) {
-      return null;
-    }
-
-    const row = result[0];
-    return {
-      projectId: row.project_id,
-      retentionDays: row.retention_days,
-      cutoffDate: getRetentionCutoffDate(row.retention_days, now),
-      secondsPastCutoff: row.seconds_past_cutoff,
-    };
-  }
-
-  private async processProject(workload: ProjectWorkload): Promise<void> {
+  private async processProject(workload: MediaRetentionProject): Promise<void> {
     // Delete media files (S3 + PostgreSQL)
     if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
       await this.deleteExpiredMedia(workload);
@@ -182,10 +122,13 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     });
   }
 
-  private async deleteExpiredMedia(workload: ProjectWorkload): Promise<void> {
-    const mediaFiles = await findExpiredMediaByProjectId({
+  private async deleteExpiredMedia(
+    workload: MediaRetentionProject,
+  ): Promise<void> {
+    const mediaFiles = await findExpiredMediaBatchByProjectId({
       projectId: workload.projectId,
       cutoffDate: workload.cutoffDate,
+      limit: env.LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT,
     });
 
     // Record gauge for observed work

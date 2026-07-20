@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import chunk from "lodash/chunk";
 
 import { prisma } from "../db";
@@ -8,6 +9,42 @@ interface MediaFileRef {
   id: string;
   bucketPath: string;
 }
+
+export interface MediaRetentionProject {
+  projectId: string;
+  retentionDays: number;
+  cutoffDate: Date;
+  secondsPastCutoff: number;
+}
+
+const expiredMediaWorkCondition = (params: {
+  projectId: Prisma.Sql;
+  cutoffDate: Prisma.Sql;
+}) => Prisma.sql`
+  m.project_id = ${params.projectId}
+  AND m.created_at <= ${params.cutoffDate}
+  AND (
+    NOT EXISTS (
+      SELECT 1
+      FROM dataset_item_media dim
+      WHERE dim.project_id = ${params.projectId}
+        AND dim.media_id = m.id
+        AND dim.dataset_item_valid_from IS NOT NULL
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM trace_media tm
+      WHERE tm.project_id = ${params.projectId}
+        AND tm.media_id = m.id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM observation_media om
+      WHERE om.project_id = ${params.projectId}
+        AND om.media_id = m.id
+    )
+  )
+`;
 
 /**
  * Find all media files for a project (for complete project deletion).
@@ -38,6 +75,65 @@ export async function findExpiredMediaByProjectId(params: {
       createdAt: { lte: params.cutoffDate },
     },
   });
+}
+
+/**
+ * Find the oldest bounded retention batch. Each returned row either deletes
+ * media or removes stale trace/observation links, so every batch progresses.
+ */
+export async function findExpiredMediaBatchByProjectId(params: {
+  projectId: string;
+  cutoffDate: Date;
+  limit: number;
+}): Promise<MediaFileRef[]> {
+  const condition = expiredMediaWorkCondition({
+    projectId: Prisma.sql`${params.projectId}`,
+    cutoffDate: Prisma.sql`${params.cutoffDate}`,
+  });
+
+  return prisma.$queryRaw<MediaFileRef[]>(Prisma.sql`
+    SELECT m.id, m.bucket_path AS "bucketPath"
+    FROM media m
+    WHERE ${condition}
+    ORDER BY m.created_at ASC, m.id ASC
+    LIMIT ${params.limit}
+  `);
+}
+
+/**
+ * Find the project whose oldest actionable media is furthest past retention.
+ * The lateral lookup stops at the first actionable row per project.
+ */
+export async function findNextMediaRetentionProject(): Promise<MediaRetentionProject | null> {
+  const cutoffDate = Prisma.sql`
+    NOW() - p.retention_days * INTERVAL '1 day'
+  `;
+  const condition = expiredMediaWorkCondition({
+    projectId: Prisma.sql`p.id`,
+    cutoffDate,
+  });
+  const rows = await prisma.$queryRaw<MediaRetentionProject[]>(Prisma.sql`
+    SELECT
+      p.id AS "projectId",
+      p.retention_days AS "retentionDays",
+      ${cutoffDate} AS "cutoffDate",
+      EXTRACT(EPOCH FROM (${cutoffDate} - oldest.created_at))::int
+        AS "secondsPastCutoff"
+    FROM projects p
+    CROSS JOIN LATERAL (
+      SELECT m.created_at
+      FROM media m
+      WHERE ${condition}
+      ORDER BY m.created_at ASC
+      LIMIT 1
+    ) oldest
+    WHERE p.retention_days > 0
+      AND p.deleted_at IS NULL
+    ORDER BY "secondsPastCutoff" DESC, p.id ASC
+    LIMIT 1
+  `);
+
+  return rows[0] ?? null;
 }
 
 export interface StorageClient {
