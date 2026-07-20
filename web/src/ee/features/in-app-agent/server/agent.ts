@@ -299,7 +299,7 @@ export async function createAgUiStream(params: {
     start(controller) {
       let streamedRunError: string | null = null;
       let streamedRunErrorHandled = false;
-      let pendingToolApprovalId: string | undefined;
+      let hasPendingToolApproval = false;
 
       const failStream = (error: unknown, eventType?: string) => {
         if (closed) {
@@ -557,18 +557,15 @@ export async function createAgUiStream(params: {
                 event satisfies AgUiEvent,
                 params.input,
               ).filter((agUiEvent) => {
-                const approvalRequest =
-                  parseInAppAgentInterruptEvent(agUiEvent);
-
-                if (!approvalRequest) {
+                if (!parseInAppAgentInterruptEvent(agUiEvent)) {
                   return true;
                 }
 
-                if (pendingToolApprovalId) {
+                if (hasPendingToolApproval) {
                   return false;
                 }
 
-                pendingToolApprovalId = approvalRequest.toolCallId;
+                hasPendingToolApproval = true;
                 return true;
               });
 

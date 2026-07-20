@@ -181,17 +181,9 @@ export async function createManualToolApprovalRunInput(params: {
   }
 
   const { approved, approvalRequest } = forwardedProps.command.resume;
-  const hasExistingToolCall = params.input.messages.some(
-    (message) =>
-      message.role === "assistant" &&
-      message.toolCalls?.some(
-        (toolCall) => toolCall.id === approvalRequest.toolCallId,
-      ),
-  );
-  const assistantMessages = hasExistingToolCall
-    ? []
-    : [createManualToolCallAssistantMessage(approvalRequest)];
   if (!approved) {
+    const assistantMessage =
+      createManualToolCallAssistantMessage(approvalRequest);
     const toolMessage: AgUiMessage = {
       id: createManualToolResultMessageId(approvalRequest),
       role: "tool",
@@ -205,7 +197,7 @@ export async function createManualToolApprovalRunInput(params: {
         ...params.input,
         messages: [
           ...params.input.messages,
-          ...assistantMessages,
+          assistantMessage,
           toolMessage,
           createToolRejectionGuidanceMessage(approvalRequest),
         ],
@@ -215,7 +207,6 @@ export async function createManualToolApprovalRunInput(params: {
         approvalRequest,
         toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
-        includeToolCall: !hasExistingToolCall,
       }),
       toolCallApproval: {
         toolCallId: approvalRequest.toolCallId,
@@ -230,6 +221,8 @@ export async function createManualToolApprovalRunInput(params: {
   });
   await params.onApprovedToolCallExecuted?.();
   const toolResultContent = serializeToolResultContent(toolResult);
+  const assistantMessage =
+    createManualToolCallAssistantMessage(approvalRequest);
   const toolMessage: AgUiMessage = {
     id: createManualToolResultMessageId(approvalRequest),
     role: "tool",
@@ -241,7 +234,6 @@ export async function createManualToolApprovalRunInput(params: {
     approvalRequest,
     toolResultContent,
     toolError,
-    includeToolCall: !hasExistingToolCall,
   });
 
   return {
@@ -249,7 +241,7 @@ export async function createManualToolApprovalRunInput(params: {
       ...params.input,
       messages: [
         ...params.input.messages,
-        ...assistantMessages,
+        assistantMessage,
         toolMessage,
         ...(toolError
           ? [
@@ -357,34 +349,26 @@ export function createManualToolApprovalEvents(params: {
   approvalRequest: InAppAgentToolApprovalRequest;
   toolResultContent: string;
   toolError?: string;
-  includeToolCall?: boolean;
 }): AgUiEvent[] {
   const { approvalRequest } = params;
   const args = serializeToolCallArgs(approvalRequest.args);
-  const toolCallEvents: AgUiEvent[] =
-    params.includeToolCall === false
-      ? []
-      : [
-          {
-            type: EventType.TOOL_CALL_START,
-            parentMessageId:
-              createManualToolCallParentMessageId(approvalRequest),
-            toolCallId: approvalRequest.toolCallId,
-            toolCallName: approvalRequest.toolName,
-          },
-          {
-            type: EventType.TOOL_CALL_ARGS,
-            toolCallId: approvalRequest.toolCallId,
-            delta: args,
-          },
-          {
-            type: EventType.TOOL_CALL_END,
-            toolCallId: approvalRequest.toolCallId,
-          },
-        ];
 
   return [
-    ...toolCallEvents,
+    {
+      type: EventType.TOOL_CALL_START,
+      parentMessageId: createManualToolCallParentMessageId(approvalRequest),
+      toolCallId: approvalRequest.toolCallId,
+      toolCallName: approvalRequest.toolName,
+    },
+    {
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: approvalRequest.toolCallId,
+      delta: args,
+    },
+    {
+      type: EventType.TOOL_CALL_END,
+      toolCallId: approvalRequest.toolCallId,
+    },
     {
       type: EventType.TOOL_CALL_RESULT,
       messageId: createManualToolResultMessageId(approvalRequest),
