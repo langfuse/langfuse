@@ -3,6 +3,7 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
+import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -109,6 +110,10 @@ const PageHeader = ({
                   <div className="flex items-center">{leadingControl}</div>
                 )
               )}
+              {/* Brand the app in the top bar while the sidebar (which owns the
+                  logo) is off-canvas below `md`. Hidden on desktop where the
+                  sidebar logo is visible. */}
+              <TopbarBrand className="md:hidden" />
               <div>
                 <EnvLabel />
               </div>
