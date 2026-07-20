@@ -217,6 +217,22 @@ describe("isDenylistedNoiseEvent", () => {
       );
     });
 
+    it("drops Chrome 'Failed to fetch (hostname)' (trailing parenthetical)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Failed to fetch (cloud.langfuse.com)"),
+        ),
+      ).toBe(true);
+      // also when wrapped by TRPCClientError
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "TRPCClientError: Failed to fetch (cloud.langfuse.com)",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     it("drops Firefox 'NetworkError when attempting to fetch resource' (with trailing period)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -308,8 +324,8 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
-    // PostHog and the Next.js artifact also arrive as MESSAGE events (string
-    // console.error), so assert against that production shape.
+    // PostHog logs a string via console.error, so it arrives as a MESSAGE event
+    // (captureConsoleIntegration) — assert against that production shape.
     it("drops a third-party [PostHog.js] notice (message event)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -318,12 +334,17 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
-    it("drops the Next.js '_error.js called with falsy error' artifact (message event)", () => {
+    it("drops the @sentry/nextjs '_error.js called with falsy error (…)' artifact", () => {
+      // Real shape: captureException(`_error.js called with falsy error (${err})`)
+      // → exception event whose value STARTS with the prefix.
       expect(
         isDenylistedNoiseEvent(
-          messageEvent(
-            "The default export is not a React Component in page: /_error.js called with falsy error",
-          ),
+          exceptionEvent("_error.js called with falsy error (undefined)"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("_error.js called with falsy error (null)"),
         ),
       ).toBe(true);
     });
@@ -384,6 +405,14 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent("Load failed for dataset export job 42"),
+        ),
+      ).toBe(false);
+      // Ends in a parenthetical, but the non-parenthetical part is longer than a
+      // bare transport phrase, so stripping the trailing `(…)` still leaves a
+      // non-matching whole message — must survive.
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent("Failed to fetch traces (batch 3 of 5)"),
         ),
       ).toBe(false);
     });

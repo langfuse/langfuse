@@ -108,6 +108,11 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
   "Failed to execute 'json' on 'Response'",
+  // `@sentry/nextjs`'s own pages-router `_error` instrumentation calls
+  // `captureException(err || `_error.js called with falsy error (${err})`)`, so
+  // the fallback message always STARTS with this literal (`(undefined)`,
+  // `(null)`, ...). It is a framework artifact with no real error attached.
+  "_error.js called with falsy error",
 ];
 
 /**
@@ -123,9 +128,19 @@ function coreMessage(value: string): string {
   const withoutWrapper = value.startsWith(TRPC_CLIENT_ERROR_PREFIX)
     ? value.slice(TRPC_CLIENT_ERROR_PREFIX.length)
     : value;
-  // Normalize a single trailing period (Firefox appends one to its transport
-  // message) so the whole-message comparison stays exact but engine-agnostic.
-  return withoutWrapper.trim().replace(/\.$/, "");
+  // Strip engine-specific decorations so the whole-message comparison stays
+  // exact yet engine-agnostic:
+  //  - a trailing ` (host)` parenthetical Chrome appends, e.g.
+  //    `Failed to fetch (cloud.langfuse.com)` -> `Failed to fetch`;
+  //  - a single trailing period Firefox appends to its transport message.
+  // Only a WHOLE trailing parenthetical/period is removed, so a real app error
+  // that merely quotes a phrase (`Failed to fetch created model`) is untouched
+  // and still fails the exact-equality match.
+  return withoutWrapper
+    .trim()
+    .replace(/\s*\([^()]*\)$/, "")
+    .replace(/\.$/, "")
+    .trim();
 }
 
 /**
@@ -180,7 +195,9 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     // --- A. Transport / connectivity (whole-message match after unwrapping) ---
     if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
 
-    // --- A + B + C(vendor). Unambiguous framework/vendor/transport prefixes. ---
+    // --- A + B + C. Unambiguous framework/vendor/transport prefixes (incl.
+    // NextAuth, PostHog, non-JSON Response.json(), and the Next.js `_error.js`
+    // falsy-error artifact). Anchored with startsWith, never a loose includes. ---
     if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
       return true;
     }
@@ -197,9 +214,6 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
     ) {
       return true;
     }
-
-    // --- C. Next.js internal artifact: error boundary handed a falsy error. ---
-    if (messageText.includes("_error.js called with falsy error")) return true;
   }
 
   // --- C. `type`-guarded rules — exception events only (message events carry
