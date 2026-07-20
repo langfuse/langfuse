@@ -16,6 +16,7 @@ export default withMiddlewares({
     name: "Get annotation queues",
     querySchema: GetAnnotationQueuesQuery,
     responseSchema: GetAnnotationQueuesResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await listAnnotationQueuesForApi({
         projectId: auth.scope.projectId,
@@ -28,6 +29,7 @@ export default withMiddlewares({
     name: "Create annotation queue",
     bodySchema: CreateAnnotationQueueBody,
     responseSchema: CreateAnnotationQueueResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ body, auth }) =>
       await createAnnotationQueueForApi({
         projectId: auth.scope.projectId,

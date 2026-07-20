@@ -378,6 +378,48 @@ describe("RateLimitService", () => {
     expect(result?.isRateLimited()).toBe(false);
   });
 
+  it("should apply annotation queue rate limits by cloud plan", async () => {
+    const cases = [
+      { plan: "cloud:hobby" as const, points: 100 },
+      { plan: "cloud:core" as const, points: 1000 },
+      { plan: "cloud:pro" as const, points: 1000 },
+      { plan: "cloud:team" as const, points: 1000 },
+      { plan: "cloud:enterprise" as const, points: 1000 },
+    ];
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (const testCase of cases) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:annotation-queues:${orgId}`,
+      );
+
+      const scope = {
+        orgId: orgId,
+        plan: testCase.plan,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [],
+      };
+
+      const result = await rateLimitService.rateLimitRequest(
+        asScope(scope),
+        "annotation-queues",
+      );
+
+      expect(result?.res).toEqual({
+        scope: scope,
+        resource: "annotation-queues",
+        points: testCase.points,
+        remainingPoints: testCase.points - 1,
+        msBeforeNext: expect.any(Number),
+        consumedPoints: 1,
+        isFirstInDuration: true,
+      });
+      expect(result?.isRateLimited()).toBe(false);
+    }
+  });
+
   it("should apply public-api-legacy rate limits by cloud plan", async () => {
     const cases = [
       { plan: "cloud:hobby" as const, points: 15 },

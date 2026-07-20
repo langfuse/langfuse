@@ -301,6 +301,12 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 100,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -391,6 +397,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
@@ -476,6 +488,12 @@ const getPlanBasedRateLimitConfig = (
         case "datasets":
           return {
             resource: "datasets",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
             points: 1000,
             durationInSec: 60,
           };
