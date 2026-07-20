@@ -1,4 +1,5 @@
 import {
+  InvalidRequestError,
   SCORE_FIELD_GROUPS_V3,
   ScoreDataTypeDomain,
   ScoreSourceDomain,
@@ -65,6 +66,17 @@ const ListScoresBaseSchema = z
     toTimestamp: z.iso.datetime({ offset: true }).optional(),
   })
   .strict();
+
+// EncodedScoresCursorV3 throws InvalidRequestError for undecodable base64/JSON
+// but a ZodError for decodable JSON with a mismatched schema (e.g. a future
+// cursor version); normalize both to the same client-facing error.
+const parseCursor = (cursor: string) => {
+  try {
+    return EncodedScoresCursorV3.parse(cursor);
+  } catch (_e) {
+    throw new InvalidRequestError("Invalid cursor format");
+  }
+};
 
 const ListScoresInputSchema = ListScoresBaseSchema.superRefine((data, ctx) => {
   if (data.value !== undefined && data.value.length > 0) {
@@ -158,9 +170,7 @@ export const [listScoresTool, handleListScores] = defineTool({
         const result = await listScoresV3ForPublicApi({
           projectId: context.projectId,
           limit: input.limit,
-          cursor: input.cursor
-            ? EncodedScoresCursorV3.parse(input.cursor)
-            : undefined,
+          cursor: input.cursor ? parseCursor(input.cursor) : undefined,
           // Always fetch every field group: subject feeds the url mapping below.
           fields: [...SCORE_FIELD_GROUPS_V3],
           id: input.id,

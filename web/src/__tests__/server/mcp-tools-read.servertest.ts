@@ -38,6 +38,7 @@ import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createDatasetRunScore,
   createEvent,
   createEventsCh,
   createScoresCh,
@@ -62,6 +63,7 @@ import {
   buildDashboardWidgetUrl,
   buildEvaluatorUrl,
   buildMonitorUrl,
+  buildExperimentUrl,
   buildObservationUrl,
   buildPromptUrl,
   buildSessionUrl,
@@ -2294,6 +2296,34 @@ describe("MCP Read Tools", () => {
       ]);
     });
 
+    it("should link experiment-subject scores to the experiment results page", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const runScore = createDatasetRunScore({
+        project_id: projectId,
+        id: randomUUID(),
+        name: `mcp-run-score-${nanoid()}`,
+        data_type: "NUMERIC",
+        value: 0.7,
+      });
+
+      await createScoresCh([runScore]);
+
+      const result = (await handleListScores(
+        { limit: 10, id: [runScore.id] },
+        context,
+      )) as any;
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: runScore.id,
+          subject: { kind: "experiment", id: runScore.dataset_run_id },
+          url: buildExperimentUrl({
+            projectId,
+            experimentId: runScore.dataset_run_id!,
+          }),
+        }),
+      ]);
+    });
+
     it("should paginate with an opaque cursor", async () => {
       const { context, projectId } = await createMcpTestSetup();
       const name = `mcp-cursor-score-${nanoid()}`;
@@ -2334,6 +2364,18 @@ describe("MCP Read Tools", () => {
       await expect(
         handleListScores(
           { limit: 2, name: [name], cursor: "not-base64-json" },
+          context,
+        ),
+      ).rejects.toThrow(/invalid cursor format/i);
+
+      // Decodable JSON with a mismatched cursor schema (e.g. future version)
+      // must surface the same error, not a raw schema failure.
+      const wrongVersionCursor = Buffer.from(
+        JSON.stringify({ v: 2, lastId: "x" }),
+      ).toString("base64url");
+      await expect(
+        handleListScores(
+          { limit: 2, name: [name], cursor: wrongVersionCursor },
           context,
         ),
       ).rejects.toThrow(/invalid cursor format/i);
