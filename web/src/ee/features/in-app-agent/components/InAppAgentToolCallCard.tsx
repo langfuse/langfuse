@@ -29,7 +29,7 @@ export function InAppAgentToolCallCard({
   return (
     <div
       className={cn(
-        "bg-card dark:bg-header text-foreground border-border rounded-2xl border shadow-xs",
+        "bg-card text-foreground border-border rounded-2xl border shadow-xs",
         isCompact
           ? "rounded-xl px-2.5 py-2 text-[0.775rem]"
           : "px-3 py-2.5 text-sm",
@@ -37,7 +37,7 @@ export function InAppAgentToolCallCard({
     >
       {approval ? (
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs leading-none font-medium">
+          <div className="flex items-center gap-2 text-xs leading-none font-bold">
             <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <span
               className="min-w-0 flex-1 truncate py-0.5"
@@ -95,7 +95,7 @@ export function InAppAgentToolCallCard({
         </div>
       ) : (
         <details className="group/tool min-w-0">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-bold [&::-webkit-details-marker]:hidden">
             <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate py-0.5" title={usedLabel}>
               {usedLabel}

@@ -7,7 +7,11 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
-import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import {
+  getInAppAgentMessageEntryPointTraceMetadata,
+  getInAppAgentQuickActionTraceMetadata,
+  sanitizeInAppAgentContext,
+} from "@/src/ee/features/in-app-agent/context";
 import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
@@ -547,6 +551,10 @@ export default async function handler(request: Request) {
                       parsedState.data.type === "existingConversation"
                         ? "existing"
                         : "new",
+                    ...getInAppAgentQuickActionTraceMetadata(input.context),
+                    ...getInAppAgentMessageEntryPointTraceMetadata(
+                      input.context,
+                    ),
                   },
                 });
 

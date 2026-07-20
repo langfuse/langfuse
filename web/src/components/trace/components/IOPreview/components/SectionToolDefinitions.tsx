@@ -30,7 +30,7 @@ export function SectionToolDefinitions({
   return (
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       <div className="border-border mb-4 border-b pb-4">
-        <div className="io-message-header px-1 py-1 text-sm font-medium capitalize">
+        <div className="io-message-header px-1 py-1 text-sm font-bold capitalize">
           Tools
         </div>
         <ToolCallDefinitionCard

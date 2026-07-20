@@ -61,7 +61,7 @@ export const scoreLevelFromScore = (score: {
 // globals.css (light + dark themes): observation=blue, trace=violet,
 // session=teal, experiment=yellow.
 const scoreTagVariants = cva(
-  "inline-flex shrink-0 items-center rounded-sm px-1 py-0 text-xs font-medium",
+  "inline-flex shrink-0 items-center rounded-sm px-1 py-0 text-xs",
   {
     variants: {
       level: {

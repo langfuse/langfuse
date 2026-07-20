@@ -141,7 +141,7 @@ export const UserAssignmentSection = ({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-3">
-                  <p className="truncate text-xs font-medium" title={userName}>
+                  <p className="truncate text-xs font-bold" title={userName}>
                     {userName}
                   </p>
                   <p
@@ -178,7 +178,7 @@ export const UserAssignmentSection = ({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-3">
                             <p
-                              className="truncate text-xs font-medium"
+                              className="truncate text-xs font-bold"
                               title={userName}
                             >
                               {userName}

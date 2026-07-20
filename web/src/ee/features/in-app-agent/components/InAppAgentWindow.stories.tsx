@@ -6,6 +6,7 @@ import {
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import { getInAppAgentQuickActionContext } from "@/src/ee/features/in-app-agent/quickActions";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
@@ -605,6 +606,8 @@ const meta = preview.meta({
     onExpandedChange: fn(),
     onSubmit: fn(),
     onSubmitFeedback: fn(),
+    quickActionContext: getInAppAgentQuickActionContext("/"),
+    quickActionResetKey: "/",
     screenContextDescription: { type: "page" as const },
     showCloseButton: true,
   },
@@ -1124,7 +1127,7 @@ export const RateLimited = meta.story({
       timeout: 2_000,
     });
     await expect(
-      canvas.getByRole("textbox", { name: "Ask the assistant a question" }),
+      canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Confirm" }),
@@ -1139,9 +1142,12 @@ export const RateLimited = meta.story({
   },
 });
 
-export const RefocusAfterSubmit = {
+export const RefocusAfterSubmit = meta.story({
   name: "(Test) Refocus After Submit",
-  render: function Render(args: InAppAgentWindowProps) {
+  args: {
+    messages: [],
+  },
+  render: function Render(args) {
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
@@ -1195,7 +1201,7 @@ export const RefocusAfterSubmit = {
   },
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
-    const textarea = canvas.getByLabelText("Ask the assistant a question");
+    const textarea = canvas.getByLabelText("Message the assistant");
 
     await userEvent.type(textarea, "Check the latest latency regression");
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
@@ -1210,4 +1216,4 @@ export const RefocusAfterSubmit = {
       expect(textarea).toHaveFocus();
     });
   },
-};
+});

@@ -82,7 +82,7 @@ const SubmitButton = () => {
             onClick={(e) => e.preventDefault()}
           >
             <div className="flex flex-col">
-              <span className="font-medium">Stream responses</span>
+              <span className="font-bold">Stream responses</span>
               <span className="text-muted-foreground text-xs">
                 {streamingEnabled
                   ? "Real-time response streaming"

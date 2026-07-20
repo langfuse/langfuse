@@ -188,7 +188,7 @@ export const GroupedScoreBadges = <
     badgeVariants({ variant: "tertiary" }),
     "cursor-pointer",
     compact ? "px-0.5 py-0 leading-tight" : "px-1",
-    "text-xs font-medium",
+    "text-xs font-bold",
     badgeClassName,
   );
 

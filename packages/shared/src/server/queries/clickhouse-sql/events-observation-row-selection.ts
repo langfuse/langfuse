@@ -1,4 +1,5 @@
 import { eventsTableCols } from "../../../eventsTable";
+import { InvalidRequestError } from "../../../errors";
 import type { TracingSearchType } from "../../../interfaces/search";
 import { findUiColumnMapping } from "../../../tableDefinitions";
 import type { FilterCondition } from "../../../types";
@@ -298,6 +299,12 @@ const buildEventsObservationRowSelectionInternal = (
   startTimeFrom: string | null;
 } => {
   const filterGroups = groupEventsObservationFilters(filter);
+
+  if (filterGroups.comments.length > 0) {
+    throw new InvalidRequestError(
+      "Event comment filters must be resolved before building the ClickHouse row selection.",
+    );
+  }
 
   // Observation-scoped score filters are rewritten into a level-agnostic
   // union across the obs (`s.`) and trace (`ts.`) score columns (LFE-10596),

@@ -317,7 +317,7 @@ const PostHogIntegrationSettings = ({
                     >
                       {exportSourceOptions.map((option) => (
                         <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
+                          <div className="font-bold">{option.label}</div>
                           <div className="text-muted-foreground text-xs">
                             {option.description}
                           </div>

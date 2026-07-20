@@ -35,6 +35,7 @@ import {
   BatchActionType,
   ActionId,
   RESOURCE_LIMIT_ERROR_MESSAGE,
+  type TracingSearchType,
 } from "@langfuse/shared";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import { cn } from "@/src/utils/tailwind";
@@ -120,7 +121,16 @@ import {
 } from "@/src/features/search-bar/lib/observed-options";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import {
+  chartFilterExclusionReason,
+  chartSearchFieldReason,
+  CHART_SEARCH_QUERY_REASON,
+} from "@/src/features/chart-view/lib/chartFilterCompatibility";
 import { withMetadataPathOptions } from "@/src/features/search-bar/lib/metadata-paths";
+import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
 import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
@@ -199,6 +209,8 @@ export type EventsTableRow = {
 export type EventsTableProps = {
   projectId: string;
   userId?: string;
+  promptName?: string;
+  promptVersion?: number;
   omittedFilter?: ObservationEventsOmittableFilterColumn[];
   hideControls?: boolean;
   // External control props for embedded preview tables
@@ -215,6 +227,11 @@ export type EventsTableProps = {
   showControlsInPageHeader?: boolean;
   /** Explicit signal from the Fast Preview/v4 page routes. */
   enableAppRootDefault?: boolean;
+  /**
+   * Keep an embedded table's filters, search, and saved views independent from
+   * the project-wide observations page. The project date range remains shared.
+   */
+  isolateTableState?: boolean;
 };
 
 // Build the start-time `FilterState` for an absolute date range (lower bound
@@ -245,6 +262,8 @@ const toStartTimeFilterState = (range?: TableDateRange): FilterState =>
 export default function ObservationsEventsTable({
   projectId,
   userId,
+  promptName,
+  promptVersion,
   omittedFilter = [],
   hideControls = false,
   externalFilterState,
@@ -253,6 +272,7 @@ export default function ObservationsEventsTable({
   sessionId,
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
+  isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -264,8 +284,31 @@ export default function ObservationsEventsTable({
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
+  const urlSearch = useFullTextSearch();
+  const [isolatedSearchQuery, setIsolatedSearchQuery] = useState<string | null>(
+    null,
+  );
+  const [isolatedSearchType, setIsolatedSearchType] = useState<
+    TracingSearchType[]
+  >(["id"]);
+  const tableStatePolicy = getEventsTableStatePolicy({
+    hideControls,
+    isolateTableState,
+  });
+  const searchQuery = tableStatePolicy.useIsolatedSearch
+    ? isolatedSearchQuery
+    : urlSearch.searchQuery;
+  const searchType = tableStatePolicy.useIsolatedSearch
+    ? isolatedSearchType
+    : urlSearch.searchType;
+  const setSearchQuery: (query: string | null) => void =
+    tableStatePolicy.useIsolatedSearch
+      ? setIsolatedSearchQuery
+      : urlSearch.setSearchQuery;
+  const setSearchType: (type: TracingSearchType[]) => void =
+    tableStatePolicy.useIsolatedSearch
+      ? setIsolatedSearchType
+      : urlSearch.setSearchType;
 
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
@@ -379,26 +422,42 @@ export default function ObservationsEventsTable({
   // never bumps.
   const [filterOptionsRefreshTick, setFilterOptionsRefreshTick] = useState(0);
 
-  // Auto-increment refresh tick to force date range recalculation
-  useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(() => {
-      setRefreshTick((t) => t + 1);
-    }, refreshInterval);
-    return () => clearInterval(id);
-  }, [refreshInterval]);
+  // Tick-safe refresh: table rows + counts + the chart query, WITHOUT
+  // re-anchoring facet options (their values don't change tick-to-tick, so
+  // re-fetching open high-cardinality facets every tick is wasteful). The auto
+  // interval uses this. The chart runs dashboard.executeQuery; for absolute
+  // time ranges its query key is stable across refreshes, so invalidate it too.
+  const handleAutoRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+    Promise.all([
+      utils.events.all.invalidate(),
+      utils.events.countAll.invalidate(),
+      utils.dashboard.executeQuery.invalidate(),
+    ]);
+  }, [utils]);
 
+  // Explicit refresh (manual button): everything the auto tick does, PLUS
+  // re-anchoring the facet options — the one place their values are re-read.
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
-    // An explicit refresh re-anchors the facets too (and invalidate refetches
-    // whatever is already open); the auto interval above does not.
     setFilterOptionsRefreshTick((t) => t + 1);
     Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
+      utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
+
+  // Auto-refresh runs the tick-safe set (rows + chart), NOT the facet
+  // re-anchor — otherwise every tick re-issues facet queries for open columns.
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      handleAutoRefresh();
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval, handleAutoRefresh]);
 
   // Convert timeRange to absolute date range for compatibility
   // Include refreshTick to force recalculation on refresh
@@ -419,12 +478,34 @@ export default function ObservationsEventsTable({
   const filterOptionsDateRange =
     externalDateRange ?? filterOptionsTableDateRange;
 
+  // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
+  // Only offered on the full (non-embedded) events surface, which is already
+  // v4-only (the page mounts this table only for v4 users), so v1/legacy users
+  // never see it. `chartEnabled` (computed below, once filterState exists) also
+  // gates the chart off whenever the table's data can't be faithfully
+  // reproduced by the aggregate query — free-text search, or any filter column
+  // the query can't model — so the chart never silently disagrees with the
+  // table.
+  const {
+    viewMode: chartViewMode,
+    setViewMode: setChartViewMode,
+    config: chartConfig,
+    setConfig: setChartConfig,
+  } = useChartViewState();
+  const chartTimeWindow = useMemo(
+    () => ({
+      from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
+      to: dateRange?.to ?? new Date(),
+    }),
+    [dateRange],
+  );
+
   const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
   // Facet options are scoped only by the time window (the facet hook reads just
   // the start-time filters); use the tick-decoupled range so the auto refresh
   // leaves them alone.
-  const oldFilterState = inputFilterState.concat(
+  const oldFilterState = (isolateTableState ? [] : inputFilterState).concat(
     toStartTimeFilterState(filterOptionsDateRange),
   );
 
@@ -467,7 +548,7 @@ export default function ObservationsEventsTable({
       };
     }
 
-    if (hideControls) {
+    if (tableStatePolicy.filterStateLocation === "memory") {
       return {
         ...baseOptions,
         stateLocation: "memory",
@@ -480,7 +561,7 @@ export default function ObservationsEventsTable({
       sessionFilterContextId: projectId,
     };
   }, [
-    hideControls,
+    tableStatePolicy.filterStateLocation,
     isFilterOptionsPending,
     loadingColumns,
     peekContext,
@@ -516,6 +597,7 @@ export default function ObservationsEventsTable({
     !hideControls &&
     !externalFilterState &&
     !peekContext &&
+    tableStatePolicy.allowGrammarSearch &&
     // Embedded user/session-detail tables are page-scoped (a userId/sessionId
     // filter is AND-combined into the query); the bar reads the full FIELDS
     // registry and would let e.g. `userId:other` fight that scope. Keep it to
@@ -629,12 +711,36 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  const promptNameFilter: FilterState = promptName
+    ? [
+        {
+          column: "promptName",
+          type: "string",
+          operator: "=",
+          value: promptName,
+        },
+      ]
+    : [];
+
+  const promptVersionFilter: FilterState = promptVersion
+    ? [
+        {
+          column: "promptVersion",
+          type: "number",
+          operator: "=",
+          value: promptVersion,
+        },
+      ]
+    : [];
+
   // The sidebar's effective filter state is the single source of truth in both
   // modes — the search bar syncs into it rather than replacing it.
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
-    .concat(sessionIdFilter);
+    .concat(sessionIdFilter)
+    .concat(promptNameFilter)
+    .concat(promptVersionFilter);
 
   // Use external filter state if provided, otherwise use combined filter
   // state. Even with an external filter, still apply the date-range bound so
@@ -643,6 +749,21 @@ export default function ObservationsEventsTable({
   const filterState = externalFilterState
     ? externalFilterState.concat(dateRangeFilter)
     : combinedFilterState;
+
+  // Offer the chart on the full (v4) surface — not embedded, not user/session
+  // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
+  // chart: the chart forwards what it can and the sidebar + search bar mark the
+  // rest as "not applied" (see chartFilterExclusions below).
+  const chartEnabled = !hideControls && !userId && !sessionId;
+
+  // The chart is actually on screen (not just enabled). Only then do we mark
+  // the filters it can't honour as "not applied", so table mode stays untouched.
+  // Both surfaces use the stateless per-column / per-field reason resolvers
+  // (chartFilterExclusionReason / chartSearchFieldReason) — a filter deactivates
+  // in the sidebar and its search-bar pill identically.
+  const chartActive = chartEnabled && chartViewMode === "chart";
+  // Free-text search is never applied to the chart (it has no aggregate form).
+  const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
 
   // Use the custom hook for observations data fetching
   const {
@@ -670,6 +791,9 @@ export default function ObservationsEventsTable({
     selectAll,
     setSelectedRows,
     appRootFallbackEnabled: appRootDefault.isAutoManaged,
+    // In chart mode the table is hidden and the chart runs its own aggregate
+    // query — don't also run the expensive row + batched-I/O fetches.
+    rowsEnabled: !chartActive,
   });
 
   useApplyAppRootFallback({
@@ -1586,7 +1710,7 @@ export default function ObservationsEventsTable({
       appRootDefault.isAutoManaged,
     ),
     currentExpandedFilters: queryFilter.expanded,
-    disabled: hideControls,
+    disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
   });
 
@@ -1730,6 +1854,10 @@ export default function ObservationsEventsTable({
                 commit={searchBarCommit}
                 observed={observedOptions}
                 erroredColumns={erroredColumns}
+                fieldReason={chartActive ? chartSearchFieldReason : undefined}
+                freeTextReason={
+                  chartFreeTextIgnored ? CHART_SEARCH_QUERY_REASON : undefined
+                }
                 onApplyFilters={searchBarApplyFilters}
                 onRequestColumns={requestColumns}
                 aiDataContext={aiDataContext}
@@ -1781,14 +1909,14 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              // Disabled, for now moved to filter sidebar
-              // TODO: remove this toggle once v4 looks good as is
-              // viewModeToggle={
-              //   <EventsViewModeToggle
-              //     viewMode={viewMode}
-              //     onViewModeChange={setViewMode}
-              //   />
-              // }
+              viewModeToggle={
+                chartEnabled ? (
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
+                ) : undefined
+              }
               refreshConfig={
                 showControlsInPageHeader ? undefined : refreshConfig
               }
@@ -1804,7 +1932,8 @@ export default function ObservationsEventsTable({
                   tableName={BatchExportTableName.Events}
                   key="batchExport"
                 />,
-                selectedObservationIds.length > 0 || selectAll ? (
+                !chartActive &&
+                (selectedObservationIds.length > 0 || selectAll) ? (
                   <TableActionMenu
                     key="observations-multi-select-actions"
                     projectId={projectId}
@@ -1826,19 +1955,27 @@ export default function ObservationsEventsTable({
                   />
                 ) : null,
               ]}
-              multiSelect={{
-                selectAll,
-                setSelectAll,
-                selectedRowIds: selectedObservationIds,
-                setRowSelection: setSelectedRows,
-                totalCount,
-                // totalCount stays null until select-all triggers the lazy
-                // count query; hasNextPage lets the select-all banner show
-                // without an eager count over the events table.
-                hasNextPage: hasMore,
-                pageSize: paginationState.limit,
-                pageIndex: paginationState.page - 1,
-              }}
+              // No row selection in chart mode — the table (and its select-all
+              // banner) is hidden, so a stale selection must not keep the batch
+              // menu (incl. Delete) operable. The selection is preserved and
+              // reappears on switching back to Table.
+              multiSelect={
+                chartActive
+                  ? undefined
+                  : {
+                      selectAll,
+                      setSelectAll,
+                      selectedRowIds: selectedObservationIds,
+                      setRowSelection: setSelectedRows,
+                      totalCount,
+                      // totalCount stays null until select-all triggers the lazy
+                      // count query; hasNextPage lets the select-all banner show
+                      // without an eager count over the events table.
+                      hasNextPage: hasMore,
+                      pageSize: paginationState.limit,
+                      pageIndex: paginationState.page - 1,
+                    }
+              }
               // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
@@ -1846,32 +1983,34 @@ export default function ObservationsEventsTable({
               // left-aligned, so they sit on the same line as the right-aligned
               // Columns/Export controls.
               leadingControls={
-                <div className="flex flex-wrap items-center gap-2">
-                  <CategoryPresetChips
-                    projectId={projectId}
-                    activeViewId={
-                      viewControllers.appliedViewId ??
-                      viewControllers.selectedViewId
-                    }
-                    onApplyView={viewControllers.handleSetViewId}
-                    applyViewState={viewControllers.applyViewState}
-                    onPreviewView={previewViewInSearchBar}
-                  />
-                  <TableViewPresetsDrawer
-                    viewConfig={{
-                      tableName: TableViewPresetTableName.ObservationsEvents,
-                      projectId,
-                      controllers: viewControllers,
-                    }}
-                    currentState={{
-                      orderBy: orderByState ?? null,
-                      filters: queryFilter.explicitFilterState ?? [],
-                      columnOrder,
-                      columnVisibility,
-                      searchQuery: searchQuery ?? "",
-                    }}
-                  />
-                </div>
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CategoryPresetChips
+                      projectId={projectId}
+                      activeViewId={
+                        viewControllers.appliedViewId ??
+                        viewControllers.selectedViewId
+                      }
+                      onApplyView={viewControllers.handleSetViewId}
+                      applyViewState={viewControllers.applyViewState}
+                      onPreviewView={previewViewInSearchBar}
+                    />
+                    <TableViewPresetsDrawer
+                      viewConfig={{
+                        tableName: TableViewPresetTableName.ObservationsEvents,
+                        projectId,
+                        controllers: viewControllers,
+                      }}
+                      currentState={{
+                        orderBy: orderByState ?? null,
+                        filters: queryFilter.explicitFilterState ?? [],
+                        columnOrder,
+                        columnVisibility,
+                        searchQuery: searchQuery ?? "",
+                      }}
+                    />
+                  </div>
+                )
               }
             />
           </div>
@@ -1888,109 +2027,126 @@ export default function ObservationsEventsTable({
               // In bar mode AI filtering lives in the search bar; only offer the
               // sidebar wand on non-bar surfaces (embedded scoped tables).
               filterWithAI={!searchBarMode}
+              // In chart mode, block filters the chart can't apply — active or
+              // not — dimmed + hover reason. Stateless per-column resolver,
+              // matching the search bar.
+              blockedColumnReason={
+                chartActive ? chartFilterExclusionReason : undefined
+              }
             />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
-              tableName="observations"
-              columns={columns}
-              peekView={peekConfig}
-              data={
-                observations.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : observations.status === "error"
-                    ? isSilencedError
-                      ? {
-                          isLoading: false,
-                          isError: false,
-                          data: [],
-                        }
+            {chartEnabled && chartViewMode === "chart" ? (
+              <EventsChartView
+                projectId={projectId}
+                filterState={filterState}
+                fromTimestamp={chartTimeWindow.from}
+                toTimestamp={chartTimeWindow.to}
+                config={chartConfig}
+                onConfigChange={setChartConfig}
+              />
+            ) : (
+              <DataTable
+                key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
+                tableName="observations"
+                columns={columns}
+                peekView={peekConfig}
+                data={
+                  observations.status === "loading" || isViewLoading
+                    ? { isLoading: true, isError: false }
+                    : observations.status === "error"
+                      ? isSilencedError
+                        ? {
+                            isLoading: false,
+                            isError: false,
+                            data: [],
+                          }
+                        : {
+                            isLoading: false,
+                            isError: true,
+                            error: "",
+                          }
                       : {
                           isLoading: false,
-                          isError: true,
-                          error: "",
+                          isError: false,
+                          data: rows,
                         }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
-              noResultsMessage={
-                isSilencedError ? (
-                  <span className="text-muted-foreground">
-                    {RESOURCE_LIMIT_ERROR_MESSAGE}
-                  </span>
-                ) : undefined
-              }
-              pagination={
-                limitRows
-                  ? undefined
-                  : {
-                      totalCount,
-                      hasNextPage: hasMore,
-                      hideTotalCount: true,
-                      canJumpPages: false,
-                      onChange: (updater) => {
-                        const newState =
-                          typeof updater === "function"
-                            ? updater({
-                                pageIndex: paginationState.page - 1,
-                                pageSize: paginationState.limit,
-                              })
-                            : updater;
-                        setPaginationState({
-                          page: newState.pageIndex + 1,
-                          limit: newState.pageSize,
-                        });
-                      },
-                      state: {
-                        pageIndex: paginationState.page - 1,
-                        pageSize: paginationState.limit,
-                      },
-                    }
-              }
-              rowSelection={selectedRows}
-              highlightAllRows={selectAll}
-              setRowSelection={setSelectedRows}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibilityState}
-              rowHeight={rowHeight}
-              onRowClick={(row, event) => {
-                // Handle Command/Ctrl+click to open observation in new tab
-                if (event && (event.metaKey || event.ctrlKey)) {
-                  // Prevent the default peek behavior
-                  event.preventDefault();
-
-                  // Construct the observation URL directly to avoid race conditions
-                  const observationId = row.id;
-                  const traceId = row.traceId;
-                  const timestamp = row.timestamp;
-
-                  if (traceId) {
-                    const observationUrl = buildTraceDetailPath({
-                      projectId,
-                      traceId,
-                      observationId,
-                      timestamp,
-                    });
-
-                    window.open(
-                      getSafeRedirectPath(observationUrl),
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }
                 }
-                // For normal clicks, let the data-table handle opening the peek view
-              }}
-            />
+                noResultsMessage={
+                  isSilencedError ? (
+                    <span className="text-muted-foreground">
+                      {RESOURCE_LIMIT_ERROR_MESSAGE}
+                    </span>
+                  ) : undefined
+                }
+                pagination={
+                  limitRows
+                    ? undefined
+                    : {
+                        totalCount,
+                        hasNextPage: hasMore,
+                        hideTotalCount: true,
+                        canJumpPages: false,
+                        onChange: (updater) => {
+                          const newState =
+                            typeof updater === "function"
+                              ? updater({
+                                  pageIndex: paginationState.page - 1,
+                                  pageSize: paginationState.limit,
+                                })
+                              : updater;
+                          setPaginationState({
+                            page: newState.pageIndex + 1,
+                            limit: newState.pageSize,
+                          });
+                        },
+                        state: {
+                          pageIndex: paginationState.page - 1,
+                          pageSize: paginationState.limit,
+                        },
+                      }
+                }
+                rowSelection={selectedRows}
+                highlightAllRows={selectAll}
+                setRowSelection={setSelectedRows}
+                setOrderBy={setOrderByState}
+                orderBy={orderByState}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibilityState}
+                rowHeight={rowHeight}
+                onRowClick={(row, event) => {
+                  // Handle Command/Ctrl+click to open observation in new tab
+                  if (event && (event.metaKey || event.ctrlKey)) {
+                    // Prevent the default peek behavior
+                    event.preventDefault();
+
+                    // Construct the observation URL directly to avoid race conditions
+                    const observationId = row.id;
+                    const traceId = row.traceId;
+                    const timestamp = row.timestamp;
+
+                    if (traceId) {
+                      const observationUrl = buildTraceDetailPath({
+                        projectId,
+                        traceId,
+                        observationId,
+                        timestamp,
+                      });
+
+                      window.open(
+                        getSafeRedirectPath(observationUrl),
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }
+                  }
+                  // For normal clicks, let the data-table handle opening the peek view
+                }}
+              />
+            )}
           </div>
         </ResizableFilterLayout>
         {peekConfig && (

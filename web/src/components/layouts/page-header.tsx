@@ -2,6 +2,7 @@ import { EnvLabel } from "@/src/components/EnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -121,12 +122,13 @@ const PageHeader = ({
                 Empty on pages that don't use it. */}
             <div className="flex flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
+              <InAppAiAgentButton />
             </div>
           </div>
         </div>
 
         {/* Bottom Row */}
-        <div className="bg-header">
+        <div>
           <div
             className={cn(
               "flex min-h-11 w-full flex-wrap items-center justify-between gap-1 px-3 py-1 md:flex-nowrap",
@@ -142,7 +144,12 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
+                  {/* Explicit color: the SidebarProvider shell sets
+                      text-sidebar-foreground (60% grey in dark) on the whole
+                      app, so unstyled text here would inherit the dimmed
+                      sidebar tint. text-primary is the emphasis tier —
+                      brighter than body text-foreground in dark. */}
+                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (
@@ -213,7 +220,7 @@ const PageHeader = ({
               >
                 {tabsProps.tabs.map((tab) => {
                   const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                     tab.value === tabsProps.activeTab
                       ? "border-primary-accent text-foreground bg-transparent shadow-none"
                       : "",
