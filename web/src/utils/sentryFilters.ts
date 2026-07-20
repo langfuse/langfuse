@@ -67,3 +67,140 @@ export function isNoisyHttpClientPollEvent(event: ErrorEvent): boolean {
 
   return HTTP_CLIENT_NOISE_PATHS.some((noisePath) => path.endsWith(noisePath));
 }
+
+/**
+ * Browser/transport messages that mean the client could not complete a network
+ * request at the transport layer: offline, flaky wifi, a throttled/backgrounded
+ * tab, a CORS rejection, or a proxy/infra 5xx that returned an HTML page. Each
+ * is just one engine's name for "the fetch never completed" — none is Langfuse
+ * application logic.
+ *
+ * Matched as the WHOLE (normalized) exception message, never as a substring: a
+ * genuine failure does not surface as one of these bare strings. Real API
+ * failures surface server-side (request tracing / logs) and, on the client, as
+ * a *handled* error carrying the server's real message (e.g. `UNAUTHORIZED`).
+ * App code that merely quotes a phrase — e.g. `Failed to fetch created model`,
+ * `Failed to fetch channels. Please check your Slack connection` — is longer
+ * than the bare string and is therefore KEPT. See the negative fixtures in
+ * `sentryFilters.clienttest.ts`.
+ */
+const TRANSPORT_FAILURE_MESSAGES: readonly string[] = [
+  "Failed to fetch", // Chrome / Chromium fetch network failure
+  "NetworkError when attempting to fetch resource", // Firefox fetch network failure
+  "Load failed", // Safari / WebKit fetch network failure
+];
+
+/**
+ * Message prefixes emitted by non-Langfuse code (framework / vendor). These are
+ * unambiguous, vendor-namespaced strings that our own code cannot produce, so
+ * matching them by prefix cannot swallow a real app error.
+ */
+const NOISE_MESSAGE_PREFIXES: readonly string[] = [
+  // NextAuth's client `SessionProvider` logs this via `console.error` (picked up
+  // by `captureConsoleIntegration`) when its 5-min / on-focus session poll fails
+  // transiently — same transient root as the httpClient poll already filtered by
+  // `isNoisyHttpClientPollEvent`. The `[next-auth]` namespace can only come from
+  // the library, never from app code.
+  "[next-auth][error][CLIENT_FETCH_ERROR]",
+  // PostHog analytics SDK notices / client-side rate-limit logs. Third-party.
+  "[PostHog.js]",
+  // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
+  // JSON was expected). This is the response not being ours-as-JSON, i.e. a
+  // transport/infra artifact, not app logic.
+  "Failed to execute 'json' on 'Response'",
+];
+
+/**
+ * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
+ * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
+ * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
+ * one known wrapper prefix and match the inner phrase, because the raw
+ * `TRPCClientError:` prefix also fronts real, must-keep errors.
+ */
+const TRPC_CLIENT_ERROR_PREFIX = "TRPCClientError: ";
+
+function coreMessage(value: string): string {
+  const withoutWrapper = value.startsWith(TRPC_CLIENT_ERROR_PREFIX)
+    ? value.slice(TRPC_CLIENT_ERROR_PREFIX.length)
+    : value;
+  // Normalize a single trailing period (Firefox appends one to its transport
+  // message) so the whole-message comparison stays exact but engine-agnostic.
+  return withoutWrapper.trim().replace(/\.$/, "");
+}
+
+/**
+ * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
+ * bug: browser-level network/transport failures, transient framework/vendor
+ * poll logs, and expected browser-permission / cancellation artifacts. Returning
+ * `true` drops the event in `beforeSend`.
+ *
+ * Design rule (safety first): only signatures that CANNOT represent a real app
+ * error are listed, each keyed on an unambiguous signature (whole-message match,
+ * vendor-namespaced prefix, or exception `type` + a required message guard) so a
+ * real error that merely quotes a phrase still flows to Sentry. When in doubt, a
+ * signature is left out. Real outages behind these client amplifications remain
+ * observable server-side (request tracing / logs).
+ *
+ * DELIBERATELY NOT dropped here (needs separate, verified handling — do not add
+ * without confirming the real error is still captured elsewhere):
+ *  - the generic prod error-boundary string `A client-side exception has
+ *    occurred` — it aggregates real exceptions with no stack; hard-dropping it
+ *    could blind us if the underlying exceptions are not captured separately.
+ *  - `OAuthCallback` sign-in errors — could be a genuine auth-config break.
+ *  - auth/permission (`UNAUTHORIZED`, not-a-member), query-timeout,
+ *    chunk-load / stale-deploy `SyntaxError`, and Sentry perf detectors /
+ *    third-party scripts — handled as UX or in Sentry project settings, not by a
+ *    blind client-side drop.
+ */
+export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
+  const exception = event.exception?.values?.[0];
+  const value = exception?.value;
+  if (typeof value !== "string" || value.length === 0) return false;
+  const type = exception?.type;
+
+  // --- A. Transport / connectivity (whole-message match after unwrapping) ---
+  const core = coreMessage(value);
+  if (TRANSPORT_FAILURE_MESSAGES.includes(core)) return true;
+
+  // --- A + B + C(vendor). Unambiguous framework/vendor/transport prefixes. ---
+  if (NOISE_MESSAGE_PREFIXES.some((prefix) => core.startsWith(prefix))) {
+    return true;
+  }
+
+  // --- A. Server returned an HTML error page where JSON was expected. ---
+  // Requires the JSON-parse signature (`is not valid JSON`) AND an HTML body
+  // marker, so it stays a "parsed an HTML error page as JSON" transport artifact
+  // and does NOT overlap the chunk-load / stale-deploy `SyntaxError` family
+  // (script parsing an HTML page), which is handled separately, not dropped.
+  if (
+    value.includes("Unexpected token '<'") &&
+    value.includes("<html") &&
+    value.includes("is not valid JSON")
+  ) {
+    return true;
+  }
+
+  // --- C. Expected clipboard permission denial (we already fall back). ---
+  // `NotAllowedError` is generic (autoplay, fullscreen, ...), so a clipboard
+  // marker is REQUIRED alongside the type.
+  if (
+    type === "NotAllowedError" &&
+    (value.includes("Clipboard") || value.includes("writeText"))
+  ) {
+    return true;
+  }
+
+  // --- C. Intentional request cancellation (nav away / superseded query). ---
+  if (
+    type === "AbortError" &&
+    (value.includes("signal is aborted") ||
+      value.includes("The operation was aborted"))
+  ) {
+    return true;
+  }
+
+  // --- C. Next.js internal artifact: error boundary handed a falsy error. ---
+  if (value.includes("_error.js called with falsy error")) return true;
+
+  return false;
+}
