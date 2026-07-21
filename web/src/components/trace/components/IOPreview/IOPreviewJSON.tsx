@@ -347,13 +347,18 @@ function IOPreviewJSONInner({
   // header shows the field name, so the fallback hides its own title.
   const sections = useMemo(() => {
     const gatedSection = (
-      key: string,
+      fieldKey: string,
       title: string,
       backgroundColor: string,
       probe: ReturnType<typeof probeJsonField> | null,
       rowCount: number,
     ) => ({
-      key,
+      // Use a key distinct from the field's normal section key so the fallback
+      // does not inherit a persisted collapsed state from an earlier trace
+      // where the same field rendered normally — that would silently hide the
+      // download escape hatch (its collapse persists per section key). A gated
+      // field gets its own key, so it always defaults to expanded.
+      key: `${fieldKey}__oversized`,
       title,
       data: null,
       hideData: true,
@@ -368,7 +373,7 @@ function IOPreviewJSONInner({
             isString={probe.isString}
             charCount={probe.size}
             rowCount={rowCount}
-            downloadFileBase={`${key}-${downloadName}`}
+            downloadFileBase={`${fieldKey}-${downloadName}`}
           />
         ) : null,
     });
@@ -418,6 +423,7 @@ function IOPreviewJSONInner({
         renderFooter: () => (
           <CorrectedOutputField
             actualOutput={effectiveOutput}
+            actualOutputTooLarge={outputTooLarge}
             existingCorrection={outputCorrection}
             observationId={observationId}
             projectId={projectId}

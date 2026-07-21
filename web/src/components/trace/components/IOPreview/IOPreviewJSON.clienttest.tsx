@@ -101,11 +101,34 @@ describe("IOPreviewJSON node-count gating", () => {
       screen.getByRole("button", { name: /Download Input/i }),
     ).toBeInTheDocument();
     // ...and its section carries NO data, so the viewer builds no tree for it.
-    expect(screen.getByTestId("section-input")).toHaveAttribute(
+    // The gated section uses a collapse-isolated key (`__oversized`), never the
+    // plain field key, so it cannot inherit a persisted collapsed state.
+    expect(screen.getByTestId("section-input__oversized")).toHaveAttribute(
       "data-hide-data",
       "true",
     );
     expect(screen.queryByTestId("data-input")).not.toBeInTheDocument();
+  });
+
+  it("gates under a collapse-isolated key, not the plain field key", () => {
+    // The fallback's download escape hatch lives in the section footer, which
+    // the viewer hides when the section is collapsed and persists that collapse
+    // per section key. Reusing the plain field key would let a collapse from an
+    // earlier trace (where the field rendered normally) silently hide the
+    // fallback here. A distinct `__oversized` key keeps the two states separate.
+    render(
+      <IOPreviewJSON
+        input={manyRows()}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    expect(screen.getByTestId("section-input__oversized")).toBeInTheDocument();
+    expect(screen.queryByTestId("section-input")).not.toBeInTheDocument();
   });
 
   it("reports the node/row count as the reason, not a character count", () => {
@@ -165,7 +188,7 @@ describe("IOPreviewJSON node-count gating", () => {
     expect(
       screen.getByRole("button", { name: /Download Input/i }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("section-input")).toHaveAttribute(
+    expect(screen.getByTestId("section-input__oversized")).toHaveAttribute(
       "data-hide-data",
       "true",
     );
@@ -173,7 +196,7 @@ describe("IOPreviewJSON node-count gating", () => {
     expect(screen.getByTestId("data-output")).toBeInTheDocument();
     const sections = screen.getAllByTestId(/^section-/);
     expect(sections.map((el) => el.getAttribute("data-testid"))).toEqual([
-      "section-input",
+      "section-input__oversized",
       "section-output",
     ]);
   });
