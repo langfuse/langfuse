@@ -43,6 +43,7 @@ export function MultiSelect({
   disabled,
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
+  chipsOnly = false,
 }: {
   title?: string;
   label?: string;
@@ -53,6 +54,8 @@ export function MultiSelect({
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
+  /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
+  chipsOnly?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -134,6 +137,31 @@ export function MultiSelect({
     return [...selectedOptions, ...customOption];
   }
 
+  const selectedBadges =
+    selectedValues.size > labelTruncateCutOff ? (
+      <Badge variant="secondary" className="rounded-sm px-1 font-normal">
+        {selectedValues.size} selected
+      </Badge>
+    ) : (
+      getSelectedOptions().map((option) => {
+        const displayValue =
+          option.displayValue ??
+          (option.value === "" ? "(empty)" : option.value);
+        return (
+          <Badge
+            variant="secondary"
+            key={option.value}
+            className={cn(
+              "rounded-sm px-1 font-normal",
+              option.value === "" && "italic",
+            )}
+          >
+            {displayValue}
+          </Badge>
+        );
+      })
+    );
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -145,45 +173,31 @@ export function MultiSelect({
           )}
           disabled={disabled}
         >
-          {label ?? "Select"}
-          <ChevronDown className="h-4 w-4 opacity-50" />
-          {selectedValues.size > 0 && (
+          {chipsOnly && selectedValues.size > 0 ? (
             <>
-              <Separator orientation="vertical" className="mr-auto h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {selectedValues.size}
-              </Badge>
-              <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > labelTruncateCutOff ? (
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                {selectedBadges}
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </>
+          ) : (
+            <>
+              {label ?? "Select"}
+              <ChevronDown className="h-4 w-4 opacity-50" />
+              {selectedValues.size > 0 && (
+                <>
+                  <Separator orientation="vertical" className="mr-auto h-4" />
                   <Badge
                     variant="secondary"
-                    className="rounded-sm px-1 font-normal"
+                    className="rounded-sm px-1 font-normal lg:hidden"
                   >
-                    {selectedValues.size} selected
+                    {selectedValues.size}
                   </Badge>
-                ) : (
-                  getSelectedOptions().map((option) => {
-                    const displayValue =
-                      option.displayValue ??
-                      (option.value === "" ? "(empty)" : option.value);
-                    return (
-                      <Badge
-                        variant="secondary"
-                        key={option.value}
-                        className={cn(
-                          "rounded-sm px-1 font-normal",
-                          option.value === "" && "italic",
-                        )}
-                      >
-                        {displayValue}
-                      </Badge>
-                    );
-                  })
-                )}
-              </div>
+                  <div className="hidden space-x-1 lg:flex">
+                    {selectedBadges}
+                  </div>
+                </>
+              )}
             </>
           )}
         </Button>

@@ -21,6 +21,8 @@ import {
   getEventList,
   getEventCount,
   getEventFilterOptions,
+  getEventMetadataKeys,
+  getEventMetadataValues,
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
@@ -67,6 +69,17 @@ const GetEventFilterOptionsInput = zodSchema.object({
 export type GetEventFilterOptionsInput = z.infer<
   typeof GetEventFilterOptionsInput
 >;
+
+const GetEventMetadataKeysInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  startTimeFilter: zodSchema.array(timeFilter).optional(),
+});
+
+const GetEventMetadataValuesInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  key: zodSchema.string().min(1),
+  startTimeFilter: zodSchema.array(timeFilter).optional(),
+});
 
 export const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
@@ -181,6 +194,35 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+          });
+        },
+      );
+    }),
+  metadataKeys: protectedProjectProcedure
+    .input(GetEventMetadataKeysInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-metadata-keys-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getEventMetadataKeys({
+            projectId: input.projectId,
+            startTimeFilter: input.startTimeFilter,
+          });
+        },
+      );
+    }),
+  metadataValues: protectedProjectProcedure
+    .input(GetEventMetadataValuesInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-metadata-values-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getEventMetadataValues({
+            projectId: input.projectId,
+            key: input.key,
+            startTimeFilter: input.startTimeFilter,
           });
         },
       );

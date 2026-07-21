@@ -11,6 +11,8 @@ import {
   getCategoricalScoresGroupedByName,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  getEventsMetadataKeys,
+  getEventsMetadataValues,
   getEventsNumericStatsByFilterColumn,
   getNumericScoresGroupedByName,
   getBooleanScoresGroupedByName,
@@ -88,6 +90,7 @@ interface GetObservationsFilterOptionsParams {
 type EventFilterValueOption = {
   value: string;
   count?: number;
+  displayValue?: string;
 };
 
 // Subset of event filter option columns returned by the bulk filter-options response.
@@ -101,6 +104,7 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "type",
   "userId",
   "version",
+  "release",
   "sessionId",
   "level",
   "environment",
@@ -358,7 +362,13 @@ const toFilterValueOptions = (
 ): EventFilterValueOption[] =>
   items
     .filter((item) => item.column === column)
-    .map((item) => ({ value: item.value, count: item.count }));
+    .map((item) => ({
+      value: item.value,
+      count: item.count,
+      ...(item.displayValue && item.displayValue.length > 0
+        ? { displayValue: item.displayValue }
+        : {}),
+    }));
 
 const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "traceTags",
@@ -648,6 +658,36 @@ export async function getEventFilterOptions(
         }
       : {}),
   };
+}
+
+/** getEventMetadataKeys returns the most common metadata key names for the events filter builder. */
+export async function getEventMetadataKeys(
+  params: GetObservationsFilterOptionsParams,
+): Promise<EventFilterValueOption[]> {
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
+
+  const rows = await getEventsMetadataKeys({ projectId, filter: eventsFilter });
+
+  return rows.map((row) => ({ value: row.value, count: row.count }));
+}
+
+/** getEventMetadataValues returns the most common values observed for one metadata key. */
+export async function getEventMetadataValues(
+  params: GetObservationsFilterOptionsParams & { key: string },
+): Promise<EventFilterValueOption[]> {
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, key } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
+
+  const rows = await getEventsMetadataValues({
+    projectId,
+    filter: eventsFilter,
+    key,
+  });
+
+  return rows.map((row) => ({ value: row.value, count: row.count }));
 }
 
 interface GetEventBatchIOParams<

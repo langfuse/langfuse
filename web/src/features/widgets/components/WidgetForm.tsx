@@ -7,7 +7,8 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { importWidgetFile } from "@/src/features/widgets/utils/import-export-utils";
+import { WidgetImporter } from "@/src/features/widgets/components/WidgetImporter";
+import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/import-export-utils";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -22,11 +23,6 @@ import {
   type ViewVersion,
   type metricAggregations,
 } from "@langfuse/shared/query";
-import {
-  mapWidgetUiTableFilterToView,
-  normalizeStoredWidgetFiltersForEditor,
-  partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Select,
@@ -47,25 +43,19 @@ import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
-import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import {
-  type FilterState,
-  type TimeFilter,
-  ObservationLevelDomain,
-  ObservationTypeDomain,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
   BarChart,
@@ -78,7 +68,6 @@ import {
   Plus,
   X,
   AlertCircle,
-  Upload,
   Sparkles,
 } from "lucide-react";
 import {
@@ -105,10 +94,6 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import {
-  getWidgetColumnsWithCustomSelect,
-  getWidgetFilterColumns,
-} from "./widgetFilterColumns";
 import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
 
 type ChartType = {
@@ -120,17 +105,6 @@ type ChartType = {
 };
 
 type ChartConfig = WidgetChartConfig;
-
-const getDateRangeFilter = (
-  column: "timestamp" | "startTime",
-  dateRange?: { from: Date; to: Date },
-): TimeFilter[] | undefined =>
-  dateRange
-    ? [
-        { column, type: "datetime", operator: ">=", value: dateRange.from },
-        { column, type: "datetime", operator: "<=", value: dateRange.to },
-      ]
-    : undefined;
 
 const chartTypes: ChartType[] = [
   {
@@ -190,13 +164,6 @@ const chartTypes: ChartType[] = [
     supportsBreakdown: true,
   },
 ];
-
-const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
-  value,
-}));
-const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
-  value,
-}));
 
 /**
  * Pure function that resolves the correct aggregation and chart type given the
@@ -329,7 +296,6 @@ export function WidgetForm({
 
   // Disables further auto-updates once the user edits name or description
   const [autoLocked, setAutoLocked] = useState<boolean>(isExistingWidget);
-  const importInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedView, setSelectedView] = useState<z.infer<typeof views>>(
     initialValues.view,
@@ -476,17 +442,13 @@ export function WidgetForm({
       setTimeRange({ range: option });
     }
   };
+  // Filter state speaks canonical view-dimension space (what the query needs
+  // and what is persisted); MetricsFilterBuilder owns the UI-table translation.
   const [userFilterState, setUserFilterState] = useState<FilterState>(
-    () =>
-      normalizeStoredWidgetFiltersForEditor(
-        initialValues.view,
-        initialValues.filters ?? [],
-      ).editorFilters,
+    () => initialValues.filters ?? [],
   );
-  const unsupportedFilters = useMemo(
-    () =>
-      partitionWidgetUiTableFiltersToView(selectedView, userFilterState)
-        .unsupportedFilters,
+  const { mappedFilters: normalizedUserFilters, unsupportedFilters } = useMemo(
+    () => partitionWidgetUiTableFiltersToView(selectedView, userFilterState),
     [selectedView, userFilterState],
   );
   const unsupportedFilterColumns = useMemo(
@@ -495,10 +457,6 @@ export function WidgetForm({
         new Set(unsupportedFilters.map((filter) => filter.column)),
       ).join(", "),
     [unsupportedFilters],
-  );
-  const normalizedUserFilters = useMemo(
-    () => mapWidgetUiTableFilterToView(selectedView, userFilterState),
-    [selectedView, userFilterState],
   );
 
   // When beta is toggled on while "traces" is selected (and not editing an
@@ -656,192 +614,6 @@ export function WidgetForm({
       newMetrics.splice(index, 1); // Remove only the metric at this index
       setSelectedMetrics(newMetrics);
     }
-  };
-
-  // v1: Use traces/generations filter options (old normalized tables)
-  const traceFilterOptions = api.traces.filterOptions.useQuery(
-    {
-      projectId,
-      timestampFilter: getDateRangeFilter("timestamp", dateRange),
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      enabled: viewVersion === "v1",
-    },
-  );
-
-  const generationsFilterOptions = api.generations.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter: getDateRangeFilter("startTime", dateRange),
-      observationType: "ALL",
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      enabled: viewVersion === "v1",
-    },
-  );
-
-  const eventsFilterOptions = api.events.filterOptions.useQuery(
-    {
-      projectId,
-      startTimeFilter: getDateRangeFilter("startTime", dateRange),
-    },
-    {
-      trpc: {
-        context: {
-          skipBatch: true,
-        },
-      },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-      enabled: viewVersion === "v2",
-    },
-  );
-
-  // v1: Use project environment filter options (queries from Postgres)
-  const environmentFilterOptions =
-    api.projects.environmentFilterOptions.useQuery(
-      {
-        projectId,
-        fromTimestamp: dateRange?.from,
-      },
-      {
-        trpc: {
-          context: {
-            skipBatch: true,
-          },
-        },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-        enabled: viewVersion === "v1",
-      },
-    );
-
-  const datasets = api.datasets.allDatasetMeta.useQuery(
-    {
-      projectId,
-    },
-    { enabled: viewVersion === "v2" },
-  );
-
-  // Resolve filter options based on viewVersion
-  const environmentOptions =
-    viewVersion === "v2"
-      ? eventsFilterOptions.data?.environment || []
-      : environmentFilterOptions.data?.map((value) => ({
-          value: value.environment,
-        })) || [];
-  const nameOptions =
-    viewVersion === "v2"
-      ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
-      : normalizeSingleValueOptions(traceFilterOptions.data?.name);
-  const observationNameOptions =
-    viewVersion === "v2"
-      ? normalizeSingleValueOptions(eventsFilterOptions.data?.name)
-      : normalizeSingleValueOptions(generationsFilterOptions.data?.name);
-  const tagsOptions =
-    viewVersion === "v2"
-      ? eventsFilterOptions.data?.traceTags || []
-      : traceFilterOptions.data?.tags || [];
-  const modelOptions =
-    viewVersion === "v2"
-      ? eventsFilterOptions.data?.providedModelName || []
-      : generationsFilterOptions.data?.model || [];
-  const toolNamesOptions =
-    viewVersion === "v2"
-      ? eventsFilterOptions.data?.toolNames || []
-      : generationsFilterOptions.data?.toolNames || [];
-  const calledToolNamesOptions =
-    viewVersion === "v2"
-      ? eventsFilterOptions.data?.calledToolNames || []
-      : generationsFilterOptions.data?.calledToolNames || [];
-  // Experiment options only available in v2 (from events table)
-  const experimentNameOptions =
-    viewVersion === "v2" ? eventsFilterOptions.data?.experimentName || [] : [];
-  const experimentDatasetIdSet = new Set(
-    eventsFilterOptions.data?.experimentDatasetId?.map((e) => e.value),
-  );
-  const experimentDatasetIdOptions =
-    datasets.data
-      ?.filter((d) => experimentDatasetIdSet.has(d.id))
-      .map((d) => ({
-        value: d.id,
-        displayValue: d.name,
-      })) ?? [];
-
-  const filterColumns = getWidgetFilterColumns({
-    selectedView,
-    viewVersion,
-    environmentOptions,
-    nameOptions,
-    observationNameOptions,
-    tagsOptions,
-    modelOptions,
-    toolNamesOptions,
-    calledToolNamesOptions,
-    observationLevelOptions,
-    experimentNameOptions,
-    experimentDatasetOptions: experimentDatasetIdOptions,
-    observationTypeOptions,
-  });
-  const columnsWithCustomSelect = getWidgetColumnsWithCustomSelect({
-    selectedView,
-    viewVersion,
-    environmentOptions,
-    nameOptions,
-    observationNameOptions,
-    tagsOptions,
-    modelOptions,
-    toolNamesOptions,
-    calledToolNamesOptions,
-    observationLevelOptions,
-    experimentNameOptions,
-    experimentDatasetOptions: experimentDatasetIdOptions,
-    observationTypeOptions,
-  });
-
-  // Helper to get valid filter column identifiers for a given view
-  const getValidFilterColumnIds = (
-    view: z.infer<typeof views>,
-  ): Set<string> => {
-    const columns = getWidgetFilterColumns({
-      selectedView: view,
-      viewVersion,
-      environmentOptions,
-      nameOptions,
-      observationNameOptions,
-      tagsOptions,
-      modelOptions,
-      toolNamesOptions,
-      calledToolNamesOptions,
-      observationLevelOptions,
-      observationTypeOptions,
-      experimentNameOptions,
-      experimentDatasetOptions: experimentDatasetIdOptions,
-    });
-    // Include both column id and name since filters may use either
-    return new Set(columns.flatMap((col) => [col.id, col.name]));
   };
 
   // When chart type does not support breakdown, wipe the breakdown dimension
@@ -1244,90 +1016,28 @@ export function WidgetForm({
     ],
   );
 
-  const handleImportWidget = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    const showMalformedImportToast = () =>
-      showErrorToast(
-        "Malformed input",
-        "This operation can't be done due to the malformed input",
-        "WARNING",
-      );
-
-    try {
-      const result = await importWidgetFile({
-        file,
-        optionSets: {
-          environmentValues: environmentFilterOptions.data?.map(
-            (option) => option.environment,
-          ),
-          traceNames: traceFilterOptions.data
-            ? normalizeSingleValueOptions(traceFilterOptions.data.name).map(
-                (option) => option.value,
-              )
-            : undefined,
-          tags: traceFilterOptions.data
-            ? traceFilterOptions.data.tags.map((option) => option.value)
-            : undefined,
-          toolNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.toolNames.map(
-                (option) => option.value,
-              )
-            : undefined,
-          calledToolNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.calledToolNames.map(
-                (option) => option.value,
-              )
-            : undefined,
-          modelNames: generationsFilterOptions.data
-            ? generationsFilterOptions.data.model.map((option) => option.value)
-            : undefined,
-          observationLevels: observationLevelOptions.map(
-            (option) => option.value,
-          ),
-        },
-        isBetaEnabled,
-      });
-
-      setAutoLocked(true);
-      setWidgetMinVersion(result.snapshot.widgetMinVersion);
-      setWidgetName(result.snapshot.widgetName);
-      setWidgetDescription(result.snapshot.widgetDescription);
-      setSelectedView(result.snapshot.selectedView);
-      setSelectedChartType(result.snapshot.selectedChartType);
-      setSelectedMeasure(result.snapshot.selectedMeasure);
-      setSelectedAggregation(result.snapshot.selectedAggregation);
-      setSelectedMetrics(result.snapshot.selectedMetrics);
-      setSelectedDimension(result.snapshot.selectedDimension);
-      setPivotDimensions(result.snapshot.pivotDimensions);
-      setUserFilterState(result.snapshot.userFilterState);
-      setRowLimit(result.snapshot.rowLimit);
-      setHistogramBins(result.snapshot.histogramBins);
-      setDefaultSortColumn(result.snapshot.defaultSortColumn);
-      setDefaultSortOrder(result.snapshot.defaultSortOrder);
-
-      showSuccessToast({
-        title: "Widget uploaded successfully",
-        description: "Widget configuration has been loaded.",
-      });
-
-      if (result.removedValues || result.removedFilters) {
-        showErrorToast(
-          "Widget filters were adjusted",
-          "Some imported filters or filter values were removed because they are not available in this project.",
-          "WARNING",
-        );
-      }
-    } catch {
-      showMalformedImportToast();
-    }
+  const handleImportedWidget = (snapshot: ImportedWidgetFormSnapshot) => {
+    setAutoLocked(true);
+    setWidgetMinVersion(snapshot.widgetMinVersion);
+    setWidgetName(snapshot.widgetName);
+    setWidgetDescription(snapshot.widgetDescription);
+    setSelectedView(snapshot.selectedView);
+    setSelectedChartType(snapshot.selectedChartType);
+    setSelectedMeasure(snapshot.selectedMeasure);
+    setSelectedAggregation(snapshot.selectedAggregation);
+    setSelectedMetrics(snapshot.selectedMetrics);
+    setSelectedDimension(snapshot.selectedDimension);
+    setPivotDimensions(snapshot.pivotDimensions);
+    setUserFilterState(
+      partitionWidgetUiTableFiltersToView(
+        snapshot.selectedView,
+        snapshot.userFilterState,
+      ).mappedFilters,
+    );
+    setRowLimit(snapshot.rowLimit);
+    setHistogramBins(snapshot.histogramBins);
+    setDefaultSortColumn(snapshot.defaultSortColumn);
+    setDefaultSortOrder(snapshot.defaultSortOrder);
   };
 
   const chartPresentation = useMemo(() => {
@@ -1377,12 +1087,8 @@ export function WidgetForm({
       );
       setPivotDimensions(validDimensions);
     }
-
-    // Remove filters that are not valid for the new view
-    const validColumns = getValidFilterColumnIds(newView);
-    setUserFilterState((prev) =>
-      prev.filter((filter) => validColumns.has(filter.column)),
-    );
+    // Filters are kept across view changes; MetricsFilterBuilder surfaces any
+    // now-invalid rows in its banner rather than silently dropping them.
   };
 
   const handleSaveWidget = () => {
@@ -1565,23 +1271,13 @@ export function WidgetForm({
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Widget Configuration</CardTitle>
               {!widgetId && isBetaEnabled && (
-                <>
-                  <input
-                    ref={importInputRef}
-                    type="file"
-                    accept="application/json,.json"
-                    className="hidden"
-                    onChange={handleImportWidget}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => importInputRef.current?.click()}
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    Import
-                  </Button>
-                </>
+                <WidgetImporter
+                  projectId={projectId}
+                  viewVersion={viewVersion}
+                  dateRange={dateRange}
+                  isBetaEnabled={isBetaEnabled}
+                  onImport={handleImportedWidget}
+                />
               )}
             </div>
             <CardDescription>
@@ -1889,28 +1585,14 @@ export function WidgetForm({
               {/* Filters Section */}
               <div className="space-y-2">
                 <Label>Filters</Label>
-                <div className="space-y-2">
-                  {unsupportedFilters.length > 0 && (
-                    <Alert
-                      variant="default"
-                      className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20"
-                    >
-                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-                      <AlertTitle className="text-yellow-800 dark:text-yellow-400">
-                        Unsupported legacy filters
-                      </AlertTitle>
-                      <AlertDescription className="text-yellow-700 dark:text-yellow-500">
-                        {`This widget still contains filter columns that are not supported for ${startCase(selectedView)}: ${unsupportedFilterColumns}. Remove them or switch to a compatible view before saving.`}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  <InlineFilterBuilder
-                    columns={filterColumns}
-                    filterState={userFilterState}
-                    onChange={setUserFilterState}
-                    columnsWithCustomSelect={columnsWithCustomSelect}
-                  />
-                </div>
+                <MetricsFilterBuilder
+                  version={viewVersion}
+                  view={selectedView}
+                  projectId={projectId}
+                  dateRange={dateRange}
+                  filters={userFilterState}
+                  onChange={setUserFilterState}
+                />
               </div>
 
               {/* Dimension Selection - Regular charts (Breakdown) */}
