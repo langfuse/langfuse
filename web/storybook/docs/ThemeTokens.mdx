@@ -3,22 +3,22 @@ import { Meta } from "@storybook/addon-docs/blocks";
 <Meta title="Theme Tokens" />
 
 export const Swatch = ({ token, css }) => (
-  <div className="flex w-36 flex-col gap-1">
+  <div className="flex min-w-0 flex-col gap-1">
     <div
       className="border-border h-12 w-full rounded-md border"
       style={{ backgroundColor: css ?? `hsl(var(--${token}))` }}
     />
-    <code
+    <div
       className="text-muted-foreground font-mono text-xs leading-tight"
-      style={{ backgroundColor: "transparent", fontSize: "0.75rem" }}
+      style={{ fontSize: "0.75rem" }}
     >
       --{token}
-    </code>
+    </div>
   </div>
 );
 
 export const PairChip = ({ bg, fg, label = "Aa — sample text" }) => (
-  <div className="flex w-52 flex-col gap-1">
+  <div className="flex min-w-0 flex-col gap-1">
     <div
       className="border-border flex h-12 items-center justify-center rounded-md border px-2 text-xs font-bold"
       style={{
@@ -28,17 +28,17 @@ export const PairChip = ({ bg, fg, label = "Aa — sample text" }) => (
     >
       {label}
     </div>
-    <code
+    <div
       className="text-muted-foreground font-mono text-xs leading-tight"
-      style={{ backgroundColor: "transparent", fontSize: "0.75rem" }}
+      style={{ fontSize: "0.75rem" }}
     >
       --{bg} / --{fg}
-    </code>
+    </div>
   </div>
 );
 
 export const TokenGrid = ({ children }) => (
-  <div className="my-4 flex flex-wrap gap-3">{children}</div>
+  <div className="storybook-token-grid">{children}</div>
 );
 
 export const semanticPairs = [
