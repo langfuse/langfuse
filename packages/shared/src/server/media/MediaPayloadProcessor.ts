@@ -29,7 +29,9 @@ export type MediaDetectionPath =
   | "structured_payload";
 
 export type TransformMediaPayloadResult = {
+  /** Transformed string, or the original structured value mutated in place. */
   value: unknown;
+  /** UTF-8 bytes removed by successful media-reference replacements. */
   bytesRemoved: number;
 };
 
@@ -89,6 +91,15 @@ const STRUCTURED_MEDIA_SHAPES = [
   },
 ] as const;
 
+/**
+ * Finds embedded media in a normalized input, output, or metadata value and
+ * delegates each valid candidate to `processCandidate`.
+ *
+ * String inputs are immutable and return a replacement string when changed.
+ * Object and array inputs are traversed and mutated in place only after a
+ * candidate is processed successfully. Unsupported values, invalid media, and
+ * candidates for which `processCandidate` returns `undefined` stay unchanged.
+ */
 export async function transformMediaPayload(
   value: unknown,
   params: TransformParams,
@@ -106,6 +117,8 @@ export async function transformMediaPayload(
 
   let valueToParse = value;
   let dataUriResult: Awaited<ReturnType<typeof replaceDataUris>> | undefined;
+  // `;base64,` is a substantially narrower and cheaper precondition than
+  // `data:`. Most ordinary strings therefore avoid the full Data URI scan.
   if (value.includes(BASE64_MARKER)) {
     dataUriResult = await replaceDataUris(value, params);
     valueToParse = dataUriResult.value;
@@ -148,6 +161,10 @@ export async function transformMediaPayload(
   };
 }
 
+/**
+ * Replaces every successfully processed Data URI in a string while preserving
+ * invalid occurrences and all surrounding text. Does not mutate its input.
+ */
 async function replaceDataUris(
   value: string,
   params: TransformParams,
@@ -190,6 +207,11 @@ async function replaceDataUris(
   return { value: output + value.slice(cursor), bytesRemoved };
 }
 
+/**
+ * Locates Data URIs with a forward-only scanner. The cursor never moves
+ * backwards, keeping adversarial inputs linear rather than relying on a large
+ * backtracking regular expression.
+ */
 function findDataUris(value: string): DataUriOccurrence[] {
   const occurrences: DataUriOccurrence[] = [];
   let cursor = 0;
@@ -269,6 +291,11 @@ function findDataUris(value: string): DataUriOccurrence[] {
   return occurrences;
 }
 
+/**
+ * Traverses a structured payload and mutates it in place for every successful
+ * media replacement. Candidate operations run sequentially after discovery to
+ * keep traversal stable and peak decoded-media memory bounded.
+ */
 async function transformStructuredValue(
   value: Record<string, unknown> | unknown[],
   params: TransformParams,
@@ -279,8 +306,12 @@ async function transformStructuredValue(
     bytesRemoved: 0,
     checkedBytes: 0,
   };
+  // Discover candidates before mutating the tree. This keeps traversal stable
+  // even when a successful operation replaces a node that was just inspected.
   const operations: Array<() => Promise<void>> = [];
   const root: Record<string, unknown> = { value };
+  // Use an explicit stack and depth limit so deeply nested user payloads cannot
+  // exhaust the JavaScript call stack.
   const stack: TraversalNode[] = [
     { value, depth: 1, parent: root, key: "value" },
   ];
@@ -364,6 +395,8 @@ function defineOwnValue(
   property: PropertyKey,
   value: unknown,
 ): void {
+  // Avoid invoking user-controlled setters such as an own `__proto__` setter
+  // when replacing values inside parsed or SDK-provided payloads.
   Object.defineProperty(target, property, {
     configurable: true,
     enumerable: true,
@@ -427,6 +460,10 @@ function matchStructuredMedia(
   }
 }
 
+/**
+ * Processes one recognized provider media object and mutates its media property
+ * in place only when the candidate resolves to a media reference.
+ */
 async function replaceStructuredMedia(
   media: StructuredMedia,
   params: TransformParams,
@@ -483,6 +520,11 @@ function parseRawBase64(
     : undefined;
 }
 
+/**
+ * Cheaply requires a complete provider-specific key combination before the
+ * more expensive JSON.parse and structured traversal. A common `data` key by
+ * itself is deliberately insufficient.
+ */
 function mayContainSerializedMedia(value: string): boolean {
   const hasData = value.includes('"data"');
   const hasMimeType = value.includes('"mime_type"');

@@ -327,6 +327,9 @@ export const otelIngestionQueueProcessorBuilder = (
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
       const skipLegacyWrites = !v4WritesToLegacyTables(env);
 
+      // Only mutate the normalized legacy representation when it will be
+      // persisted. Processing discarded representations would waste scans and
+      // could create media links with no corresponding stored reference.
       if (mediaUploadEnabled && !skipLegacyWrites) {
         const mediaTargets = createOtelMediaTargets({
           ingestionEvents: events,
@@ -531,6 +534,9 @@ export const otelIngestionQueueProcessorBuilder = (
         return;
       }
 
+      // eventInputs are a separate normalized representation. Process them
+      // only for direct persistence; eval-only use must not create attachments
+      // that are absent from the stored observation payload.
       if (mediaUploadEnabled && shouldWriteToEventsTable) {
         const mediaTargets = createOtelMediaTargets({
           ingestionEvents: [],

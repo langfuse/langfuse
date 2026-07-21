@@ -12,12 +12,14 @@ import { recordHistogram, recordIncrement } from "../instrumentation";
 import { getS3MediaStorageClient } from "../s3";
 import { summarizeS3Error } from "../services/s3SigningDiagnostics";
 
+/** Derives the stable, URL-safe public media ID from a full SHA-256 hash. */
 export function getMediaId(sha256Hash: string): string {
   const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
 
   return urlSafeHash.slice(0, 22);
 }
 
+/** Builds the project-scoped object key used in the configured media bucket. */
 export function getMediaBucketPath(params: {
   projectId: string;
   mediaId: string;
@@ -30,6 +32,10 @@ export function getMediaBucketPath(params: {
   return `${prefix}${projectId}/${mediaId}.${fileExtension}`;
 }
 
+/**
+ * Creates or refreshes a media row while guarding against truncated media-ID
+ * collisions. This mutates database state but does not upload or link media.
+ */
 export async function upsertMediaRecord(params: {
   mediaId: string;
   projectId: string;
@@ -95,6 +101,11 @@ export async function upsertMediaRecord(params: {
   }
 }
 
+/**
+ * Idempotently links an uploaded media row to either an observation or trace.
+ * An `observationId` selects `observation_media`; otherwise `trace_media` is
+ * used. This mutates database state only.
+ */
 export async function linkMediaToTraceOrObservation(params: {
   projectId: string;
   traceId: string;
@@ -147,10 +158,21 @@ export async function linkMediaToTraceOrObservation(params: {
 }
 
 export type UploadMediaForTraceResult = {
+  /** Stable ID referenced from normalized input, output, or metadata. */
   mediaId: string;
+  /** Whether this call uploaded new bytes or reused an uploaded media row. */
   outcome: "uploaded" | "reused";
 };
 
+/**
+ * Persists binary media and links it to a trace or observation.
+ *
+ * Content is deduplicated per project by its full SHA-256 hash. For new media,
+ * the link is created only after S3 upload and the media row's upload status
+ * are confirmed, preventing failed uploads from leaving dangling links. This
+ * function mutates PostgreSQL and media storage; it does not mutate its input
+ * parameters or the caller's normalized OTEL payload.
+ */
 export async function uploadMediaForTrace(params: {
   projectId: string;
   traceId: string;

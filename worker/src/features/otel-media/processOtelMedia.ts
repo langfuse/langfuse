@@ -11,6 +11,12 @@ import {
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
+/**
+ * Builds mutable field references for the normalized OTEL representations that
+ * the caller intends to persist. This function does not mutate the supplied
+ * events, but each target retains its original `body` reference so subsequent
+ * media processing updates the payload consumed by downstream ingestion.
+ */
 export function createOtelMediaTargets(params: {
   ingestionEvents: IngestionEventType[];
   eventInputs: unknown[];
@@ -82,6 +88,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Runs instrumented OTEL media processing when configured.
+ *
+ * Successful replacements mutate each target body in place. Missing storage
+ * configuration or unexpected processing errors are logged and swallowed so
+ * media extraction cannot reject the enclosing OTEL ingestion job.
+ */
 export async function processOtelMediaIfEnabled(params: {
   enabled: boolean;
   targets: OtelMediaTarget[];
