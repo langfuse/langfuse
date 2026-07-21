@@ -1553,6 +1553,7 @@ enum DashboardWidgetViews {
   TRACES
   OBSERVATIONS
   SCORES_NUMERIC
+  SCORES_BOOLEAN
   SCORES_CATEGORICAL
 }
 
@@ -1765,6 +1766,7 @@ enum MonitorThresholdOperator {
 enum MonitorView {
   OBSERVATIONS
   SCORES_NUMERIC
+  SCORES_BOOLEAN
   SCORES_CATEGORICAL
 }
 

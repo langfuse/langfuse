@@ -106,6 +106,15 @@ const VIEW_DIMENSION_TO_TABLE_COL: Record<
     traceRelease: "release",
     traceVersion: "version",
   },
+  // scores-boolean view -> traces table (same trace-derived dimensions).
+  "scores-boolean": {
+    traceName: "traceName",
+    tags: "traceTags",
+    userId: "userId",
+    sessionId: "sessionId",
+    traceRelease: "release",
+    traceVersion: "version",
+  },
   // scores-categorical view -> traces table (same trace-derived dimensions).
   "scores-categorical": {
     traceName: "traceName",
@@ -149,6 +158,17 @@ const DROPPED_REASONS: Partial<
     name: "Score name has no equivalent column on the traces table.",
     source: "Score source has no equivalent column on the traces table.",
     value: "Score value has no equivalent column on the traces table.",
+    dataType: "Score data type has no equivalent column on the traces table.",
+    metadata: "Score metadata does not map to trace metadata.",
+    environment:
+      "Score environment does not map to the trace environment column.",
+    observationName:
+      "Observation name has no equivalent column on the traces table.",
+  },
+  "scores-boolean": {
+    name: "Score name has no equivalent column on the traces table.",
+    source: "Score source has no equivalent column on the traces table.",
+    booleanValue: "Score value has no equivalent column on the traces table.",
     dataType: "Score data type has no equivalent column on the traces table.",
     metadata: "Score metadata does not map to trace metadata.",
     environment:
