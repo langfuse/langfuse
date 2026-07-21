@@ -21,6 +21,8 @@ vi.mock("@langfuse/shared/src/db", async () => {
       },
       jobConfiguration: {
         count: vi.fn(),
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
         groupBy: vi.fn(),
       },
     },
@@ -31,6 +33,9 @@ import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   countActiveEvaluationRules,
   countEvaluationRulesForEvaluatorIds,
+  findPublicEvaluationRuleOrThrow,
+  findReadablePublicEvaluationRuleOrThrow,
+  listPublicEvaluationRuleConfigs,
   loadEvaluatorForEvaluationRule,
   listPublicEvaluatorTemplates,
 } from "@/src/features/evals/server/unstable-public-api/queries";
@@ -39,6 +44,8 @@ const mockQueryRaw = prisma.$queryRaw as Mock;
 const mockEvalTemplateFindMany = prisma.evalTemplate.findMany as Mock;
 const mockEvalTemplateFindFirst = prisma.evalTemplate.findFirst as Mock;
 const mockJobConfigurationCount = prisma.jobConfiguration.count as Mock;
+const mockJobConfigurationFindFirst = prisma.jobConfiguration.findFirst as Mock;
+const mockJobConfigurationFindMany = prisma.jobConfiguration.findMany as Mock;
 const mockJobConfigurationGroupBy = prisma.jobConfiguration.groupBy as Mock;
 
 describe("unstable public eval queries", () => {
@@ -161,6 +168,68 @@ describe("unstable public eval queries", () => {
       },
     });
     expect(result).toBe(17);
+  });
+
+  it("lists legacy trace rules alongside evaluation rules", async () => {
+    mockJobConfigurationFindMany.mockResolvedValueOnce([]);
+    mockJobConfigurationCount.mockResolvedValueOnce(0);
+
+    await listPublicEvaluationRuleConfigs({
+      projectId: "project_123",
+      page: 1,
+      limit: 50,
+    });
+
+    expect(mockJobConfigurationFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetObject: {
+            in: ["event", "experiment", "trace"],
+          },
+        }),
+      }),
+    );
+    expect(mockJobConfigurationCount).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        targetObject: {
+          in: ["event", "experiment", "trace"],
+        },
+      }),
+    });
+  });
+
+  it("exposes legacy trace rules only through read operations", async () => {
+    mockJobConfigurationFindFirst.mockResolvedValue({ id: "trace_rule_123" });
+
+    await findReadablePublicEvaluationRuleOrThrow({
+      projectId: "project_123",
+      evaluationRuleId: "trace_rule_123",
+    });
+    await findPublicEvaluationRuleOrThrow({
+      projectId: "project_123",
+      evaluationRuleId: "trace_rule_123",
+    });
+
+    expect(mockJobConfigurationFindFirst).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetObject: {
+            in: ["event", "experiment", "trace"],
+          },
+        }),
+      }),
+    );
+    expect(mockJobConfigurationFindFirst).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          targetObject: {
+            in: ["event", "experiment"],
+          },
+        }),
+      }),
+    );
   });
 
   it("resolves project evaluator families to the latest version by name and scope", async () => {

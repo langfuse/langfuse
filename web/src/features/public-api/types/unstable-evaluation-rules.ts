@@ -1,7 +1,9 @@
+import { JobTimeScopeZod, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 import {
   ExperimentEvaluationRuleFilter,
   ExperimentEvaluationRuleMapping,
+  LegacyEvaluationRuleMapping,
   ObservationEvaluationRuleFilter,
   ObservationEvaluationRuleMapping,
   PUBLIC_EVALUATOR_TYPE_CODE,
@@ -16,29 +18,49 @@ import {
   UnstablePublicApiPaginationResponse,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 
+const APIEvaluationRuleBase = {
+  id: z.string(),
+  name: z.string(),
+  evaluator: PublicEvaluationRuleEvaluator,
+  enabled: z.boolean(),
+  status: PublicEvaluationRuleStatus,
+  pausedReason: z.string().nullable(),
+  pausedMessage: z.string().nullable(),
+  sampling: z.number().gt(0).lte(1),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+};
+
 export const APIEvaluationRule = z
   .object({
-    id: z.string(),
-    name: z.string(),
-    evaluator: PublicEvaluationRuleEvaluator,
+    ...APIEvaluationRuleBase,
     target: PublicEvaluationRuleTarget,
-    enabled: z.boolean(),
-    status: PublicEvaluationRuleStatus,
-    pausedReason: z.string().nullable(),
-    pausedMessage: z.string().nullable(),
-    sampling: z.number().gt(0).lte(1),
     filter: z.array(PublicEvaluationRuleFilter),
     mapping: z.array(PublicEvaluationRuleMapping),
-    createdAt: z.coerce.date(),
-    updatedAt: z.coerce.date(),
   })
   .strict();
+
+export const APILegacyEvaluationRule = z
+  .object({
+    ...APIEvaluationRuleBase,
+    target: z.literal("trace"),
+    delay: z.number().int().nonnegative(),
+    timeScope: z.array(JobTimeScopeZod),
+    filter: z.array(singleFilter),
+    mapping: z.array(LegacyEvaluationRuleMapping),
+  })
+  .strict();
+
+export const APIReadableEvaluationRule = z.union([
+  APIEvaluationRule,
+  APILegacyEvaluationRule,
+]);
 
 export const GetUnstableEvaluationRulesQuery = UnstablePublicApiPaginationQuery;
 
 export const GetUnstableEvaluationRulesResponse = z
   .object({
-    data: z.array(APIEvaluationRule),
+    data: z.array(APIReadableEvaluationRule),
     meta: UnstablePublicApiPaginationResponse,
   })
   .strict();
@@ -47,7 +69,7 @@ export const GetUnstableEvaluationRuleQuery = z.object({
   evaluationRuleId: z.string(),
 });
 
-export const GetUnstableEvaluationRuleResponse = APIEvaluationRule;
+export const GetUnstableEvaluationRuleResponse = APIReadableEvaluationRule;
 
 export const EvaluationRuleCreateBase = {
   name: z.string().min(1),

@@ -1,10 +1,12 @@
 import type { EvalTemplate } from "@langfuse/shared/src/db";
+import type { FilterCondition, JobTimeScope } from "@langfuse/shared";
 import type {
   JobConfiguration,
   Prisma as PrismaNamespace,
   prisma,
 } from "@langfuse/shared/src/db";
 import type {
+  LegacyEvaluationRuleMappingType,
   PublicEvaluationRuleEvaluatorReferenceType,
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
@@ -53,21 +55,36 @@ export type ApiEvaluatorRecord =
   | ApiLlmAsJudgeEvaluatorRecord
   | ApiCodeEvaluatorRecord;
 
-export type ApiEvaluationRuleRecord = {
+type ApiEvaluationRuleRecordBase = {
   id: string;
   name: string;
   evaluator: PublicEvaluationRuleEvaluatorType;
-  target: PublicEvaluationRuleTargetType;
   enabled: boolean;
   status: PublicEvaluationRuleStatusType;
   pausedReason: string | null;
   pausedMessage: string | null;
   sampling: number;
-  filter: PublicEvaluationRuleFilterType[];
-  mapping: PublicEvaluationRuleMappingType[];
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+  target: PublicEvaluationRuleTargetType;
+  filter: PublicEvaluationRuleFilterType[];
+  mapping: PublicEvaluationRuleMappingType[];
+};
+
+export type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
+  target: "trace";
+  delay: number;
+  timeScope: JobTimeScope[];
+  filter: FilterCondition[];
+  mapping: LegacyEvaluationRuleMappingType[];
+};
+
+export type ApiEvaluationRuleRecord =
+  | ApiWritableEvaluationRuleRecord
+  | ApiLegacyEvaluationRuleRecord;
 
 export type EvaluationRuleEvaluatorFamilyReference =
   PublicEvaluationRuleEvaluatorReferenceType;
@@ -102,6 +119,8 @@ export type StoredPublicEvaluationRuleConfig = Pick<
   | "filter"
   | "variableMapping"
   | "sampling"
+  | "delay"
+  | "timeScope"
   | "status"
   | "blockedAt"
   | "blockReason"

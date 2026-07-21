@@ -4,11 +4,13 @@ import {
   createNumericEvalOutputDefinition,
   EvalTargetObject,
   extractVariables,
+  JobTimeScopeZod,
   JobConfigState,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
   resolvePersistedEvalOutputDefinition,
   singleFilter,
+  variableMappingList,
   type ObservationVariableMapping,
   type PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
@@ -18,11 +20,13 @@ import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import {
   ExperimentEvaluationRuleFilter,
+  type LegacyEvaluationRuleMappingType,
   ObservationEvaluationRuleFilter,
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
   type PublicEvaluationRuleFilterType,
   type PublicEvaluationRuleMappingType,
+  type PublicEvaluationRuleReadTargetType,
   type PublicEvaluationRuleTargetType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
@@ -33,6 +37,7 @@ import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval
 import type {
   ApiEvaluationRuleRecord,
   ApiEvaluatorRecord,
+  ApiWritableEvaluationRuleRecord,
   StoredPublicEvaluationRuleConfig,
   StoredPublicEvaluatorTemplate,
 } from "./types";
@@ -65,10 +70,11 @@ const PUBLIC_TARGET_TO_INTERNAL_TARGET_OBJECT: Record<
 
 const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
   string,
-  PublicEvaluationRuleTargetType
+  PublicEvaluationRuleReadTargetType
 > = {
   [EvalTargetObject.EVENT]: "observation",
   [EvalTargetObject.EXPERIMENT]: "experiment",
+  [EvalTargetObject.TRACE]: "trace",
 };
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
@@ -245,7 +251,7 @@ function toApiEvaluationRuleStatus(
 
 function assertPublicTarget(
   targetObject: string,
-): PublicEvaluationRuleTargetType {
+): PublicEvaluationRuleReadTargetType {
   const publicTarget = INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET[targetObject];
 
   if (!publicTarget) {
@@ -283,7 +289,7 @@ function toApiFilter(
   return filter as PublicEvaluationRuleFilterType;
 }
 
-function toApiMappings(mappings: unknown): ApiEvaluationRuleRecord["mapping"] {
+function toApiMappings(mappings: unknown): PublicEvaluationRuleMappingType[] {
   const parsed = observationVariableMappingList.safeParse(mappings);
 
   if (!parsed.success) {
@@ -309,10 +315,31 @@ function toApiMappings(mappings: unknown): ApiEvaluationRuleRecord["mapping"] {
   });
 }
 
+function toApiTraceMappings(
+  mappings: unknown,
+): LegacyEvaluationRuleMappingType[] {
+  const parsed = variableMappingList.safeParse(mappings);
+
+  if (!parsed.success) {
+    logger.error("Failed to parse unstable public evaluation rule mappings", {
+      issues: parsed.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule mapping is corrupted");
+  }
+
+  return parsed.data.map((mapping) => ({
+    variable: mapping.templateVariable,
+    langfuseObject: mapping.langfuseObject,
+    objectName: mapping.objectName ?? null,
+    source: mapping.selectedColumnId,
+    ...(mapping.jsonSelector ? { jsonPath: mapping.jsonSelector } : {}),
+  }));
+}
+
 function toApiFilters(
   filters: unknown,
   target: PublicEvaluationRuleTargetType,
-): ApiEvaluationRuleRecord["filter"] {
+): PublicEvaluationRuleFilterType[] {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
@@ -336,6 +363,19 @@ function toApiFilters(
   }
 
   return parsedPublicFilters.data;
+}
+
+function toApiTraceFilters(filters: unknown) {
+  const storedFilters = z.array(singleFilter).safeParse(filters);
+
+  if (!storedFilters.success) {
+    logger.error("Failed to parse unstable public evaluation rule filters", {
+      issues: storedFilters.error.issues,
+    });
+    throw new InternalServerError("Evaluation rule filter is corrupted");
+  }
+
+  return storedFilters.data;
 }
 
 export function toApiEvaluator(params: {
@@ -389,8 +429,7 @@ export function toApiEvaluationRule(
   }
 
   const target = assertPublicTarget(config.targetObject);
-
-  return {
+  const base = {
     id: config.id,
     name: config.scoreName,
     evaluator: {
@@ -399,21 +438,63 @@ export function toApiEvaluationRule(
       scope: config.evalTemplate.projectId === null ? "managed" : "project",
       type: toPublicEvaluatorType(config.evalTemplate.type),
     },
-    target,
     enabled: config.status === JobConfigState.ACTIVE,
     status: toApiEvaluationRuleStatus(config),
     pausedReason: config.blockReason ?? null,
     pausedMessage: config.blockMessage ?? null,
     sampling: Number(config.sampling),
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt,
+  } as const;
+
+  if (target === "trace") {
+    const parsedTimeScope = z
+      .array(JobTimeScopeZod)
+      .safeParse(config.timeScope);
+
+    if (!parsedTimeScope.success) {
+      logger.error(
+        "Failed to parse unstable public evaluation rule time scope",
+        {
+          issues: parsedTimeScope.error.issues,
+          evaluationRuleId: config.id,
+        },
+      );
+      throw new InternalServerError("Evaluation rule time scope is corrupted");
+    }
+
+    return {
+      ...base,
+      target,
+      delay: config.delay,
+      timeScope: parsedTimeScope.data,
+      filter: toApiTraceFilters(config.filter),
+      mapping: toApiTraceMappings(config.variableMapping),
+    };
+  }
+
+  return {
+    ...base,
+    target,
     filter: toApiFilters(config.filter, target),
     mapping: toApiMappings(
       config.evalTemplate.type === EvalTemplateType.CODE
         ? getCodeEvalVariableMapping()
         : config.variableMapping,
     ),
-    createdAt: config.createdAt,
-    updatedAt: config.updatedAt,
   };
+}
+
+export function toApiWritableEvaluationRule(
+  config: StoredPublicEvaluationRuleConfig,
+): ApiWritableEvaluationRuleRecord {
+  const evaluationRule = toApiEvaluationRule(config);
+
+  if (evaluationRule.target === "trace") {
+    throw new InternalServerError("Evaluation rule target is corrupted");
+  }
+
+  return evaluationRule;
 }
 
 export function toJobConfigurationInput(params: {
