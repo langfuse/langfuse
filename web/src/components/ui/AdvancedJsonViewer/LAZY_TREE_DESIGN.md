@@ -41,13 +41,22 @@ raw UTF-8 bytes ──▶ ByteJsonIndexEngine ──▶ AsyncJsonSource ──�
   passthrough.
 - **`rowModel.ts`** — the renderer-facing contract the renderer is built against
   exactly once.
+- **`react/`** — the async virtualized renderer over the seam (see
+  `react/README.md`). A per-mount vanilla Zustand store (`rowModelStore.ts`) owns
+  the model lifecycle and all async actions; `LazyJsonList` only positions row
+  shells and reports the visible range back; `LazyJsonRow` is view-only.
+  `LazyJsonViewer` is the in-memory entry (gate-render on the model, one
+  integration-boundary effect). The identical renderer will run over the Worker
+  source unchanged.
 
 ## Status / next
 
-- Done: engine (LFE-11082), source + model + hardened contract (this commit),
-  backend streaming endpoint (PR #15239).
+- Done: engine (LFE-11082), source + model + hardened contract, backend streaming
+  endpoint (PR #15239), **async virtualized renderer over the in-memory source
+  (this commit)** — demoable via `LazyJsonViewer.stories.tsx`.
 - Next: the byte-engine **blockers** for the _streamed_ (non-JSON-guaranteed)
   path — B1 non-JSON/raw root → string-leaf fallback, B2 empty-doc, B3 strict
-  truncation detection; endpoint `stream.pipeline` + integrity header. Then the
-  async virtualized renderer, then wire the Worker source. (In-memory bytes come
-  from `JSON.stringify`, so they're always valid JSON — B1/B2/B3 are stream-only.)
+  truncation detection; endpoint integrity header. Then wire the Worker source
+  behind `AsyncJsonSource` (the renderer does not change), then integrate into the
+  trace view and retire the gate. (In-memory bytes come from `JSON.stringify`, so
+  they're always valid JSON — B1/B2/B3 are stream-only.)
