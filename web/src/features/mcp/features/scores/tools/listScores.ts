@@ -40,7 +40,10 @@ const ListScoresBaseSchema = z
     traceId: z.array(z.string()).optional(),
     sessionId: z.array(z.string()).optional(),
     observationId: z.array(z.string()).optional().describe("requires traceId"),
-    experimentId: z.array(z.string()).optional().describe("dataset run IDs"),
+    experimentId: z
+      .array(z.string())
+      .optional()
+      .describe("same ID as datasetRunId in createScore"),
     fromTimestamp: z.iso.datetime({ offset: true }).optional(),
     toTimestamp: z.iso.datetime({ offset: true }).optional(),
   })
