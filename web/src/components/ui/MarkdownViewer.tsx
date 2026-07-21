@@ -10,7 +10,6 @@ import {
   createElement,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
-import Link from "next/link";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
@@ -283,18 +282,26 @@ function MarkdownRenderer({
                 );
               }
 
-              // Handle regular links
+              // Handle regular links. These are user-content URLs opened in a
+              // new tab (target="_blank"), so a native <a> is correct: a Next.js
+              // <Link> gives no client-routing benefit for an external new-tab
+              // navigation, but it DOES run the router's href validation, which
+              // throws "Invalid href '…' passed to next/router" for the many
+              // malformed URLs embedded in trace content (e.g. a URL containing
+              // a second `https://`). That was a top Sentry noise family
+              // (LANGFUSE-5DZ / 5EA / 5ER, ~40k lifetime events). getSafeLinkUrl
+              // already gates the protocol/shape; a native <a> never validates.
               const safeHref = getSafeLinkUrl(href);
               if (safeHref) {
                 return (
-                  <Link
+                  <a
                     href={safeHref}
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {children}
-                  </Link>
+                  </a>
                 );
               }
               return (
