@@ -155,10 +155,10 @@ describe("InAppAgentWindow tool approvals", () => {
       content: {
         type: "toolGroup",
         tools: tools.map(({ id, status }) => ({
-          type: "tool",
+          type: "tool" as const,
           name: `langfuse_createTextPrompt`,
           args: JSON.stringify({ name: id }),
-          status: "running",
+          status: "running" as const,
           approval: { id, status },
         })),
       },

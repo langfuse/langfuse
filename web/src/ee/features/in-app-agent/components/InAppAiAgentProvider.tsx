@@ -1055,12 +1055,19 @@ function InAppAiAgentProviderInner({
       approved: approval.status === "approved",
       approvalRequest: approval.approvalRequest,
     }));
+    // The continuation run can raise NEW approval interrupts while this batch
+    // is in flight; every state update below must touch only the submitted
+    // approvals so a freshly arrived card is not wiped or reverted.
+    const submittedApprovalIds = new Set(
+      approvals.map((approval) => approval.id),
+    );
 
     updatePendingToolApprovals((currentApprovals) =>
-      currentApprovals.map((currentApproval) => ({
-        ...currentApproval,
-        status: "submitting" as const,
-      })),
+      currentApprovals.map((currentApproval) =>
+        submittedApprovalIds.has(currentApproval.id)
+          ? { ...currentApproval, status: "submitting" as const }
+          : currentApproval,
+      ),
     );
     setError(null);
 
@@ -1077,21 +1084,30 @@ function InAppAiAgentProviderInner({
 
       if (!completed) {
         updatePendingToolApprovals((currentApprovals) =>
-          currentApprovals.map((currentApproval) => ({
-            ...currentApproval,
-            status: "pending" as const,
-          })),
+          currentApprovals.map((currentApproval) =>
+            submittedApprovalIds.has(currentApproval.id)
+              ? { ...currentApproval, status: "pending" as const }
+              : currentApproval,
+          ),
         );
         return;
       }
 
-      updatePendingToolApprovals(() => []);
+      updatePendingToolApprovals((currentApprovals) =>
+        currentApprovals.filter(
+          (currentApproval) => !submittedApprovalIds.has(currentApproval.id),
+        ),
+      );
     } catch (error) {
       const errorMessage = getAgentErrorMessage(error);
       if (errorMessage === "Invalid forwarded props") {
         // The batch is consumed all-or-nothing, so a stale entry invalidates
-        // the whole set.
-        updatePendingToolApprovals(() => []);
+        // the whole submitted set.
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.filter(
+            (currentApproval) => !submittedApprovalIds.has(currentApproval.id),
+          ),
+        );
         setError({
           type: "generic",
           message:
@@ -1102,10 +1118,11 @@ function InAppAiAgentProviderInner({
       }
 
       updatePendingToolApprovals((currentApprovals) =>
-        currentApprovals.map((currentApproval) => ({
-          ...currentApproval,
-          status: "pending" as const,
-        })),
+        currentApprovals.map((currentApproval) =>
+          submittedApprovalIds.has(currentApproval.id)
+            ? { ...currentApproval, status: "pending" as const }
+            : currentApproval,
+        ),
       );
       setError(getInAppAgentError(error));
       console.error("Failed to resume in-app agent tool calls", error);
