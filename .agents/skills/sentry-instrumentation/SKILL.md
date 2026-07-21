@@ -72,9 +72,9 @@ properly (below).
 
 ## The rules (each earned the hard way — cited to workstream PRs)
 
-> PR references name the **lever** that establishes each pattern; some are
-> in-flight (not yet on `main`). Treat them as "the PR that does X," and verify
-> against the current tree before assuming a symbol or swap already exists.
+> PR references name the **lever** that established each pattern. Verify a cited
+> symbol or swap against the current tree before relying on it — the code, not
+> this doc, is the source of truth.
 
 1. **An event is a promise a human acts — expected states are not events.**
    A `NOT_FOUND` / `FORBIDDEN` / `UNAUTHORIZED` the UI already renders is not a

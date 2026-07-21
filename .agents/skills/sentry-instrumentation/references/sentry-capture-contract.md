@@ -110,8 +110,8 @@ The recurring shapes and their correct disposition:
 
 ## Workstream levers (case studies)
 
-Each row names the PR that establishes the pattern; some are in-flight, not yet
-on `main` — verify against the current tree before assuming a swap/symbol exists.
+Each row names the PR that established the pattern; verify a cited symbol/swap
+against the current tree before relying on it.
 
 | PR | Family | Lever |
 |---|---|---|
@@ -119,7 +119,7 @@ on `main` — verify against the current tree before assuming a swap/symbol exis
 | #15173 | parse-worker `[object ErrorEvent]` | `reportParserWorkerError` (real Error) |
 | #15174 | JSON-viewer meta-root offsets (456) | fingerprint/render fix |
 | #15175 | opaque non-Error captures (5EX) | `captureUnknownError` (real Error) |
-| #15238 | transport / next-auth / benign (~1.9k/24h) | `beforeSend` denylist predicate — reads all event fields, negative fixtures |
+| #15238 | transport / next-auth / benign (~1.9k/24h) | `isDenylistedNoiseEvent` in `sentryFilters.ts` — reads all event fields, negative fixtures |
 | #15243 | expected tRPC codes (54F #2, ~30k) | `handleTrpcError` classify + breadcrumb + tags |
 | #15245 | `Invalid href` (5DZ/5EA/5ER, ~40k) | native `<a>` at the source |
 
