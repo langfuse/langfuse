@@ -1,5 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
-import { isNoisyHttpClientPollEvent } from "@/src/utils/sentryFilters";
+import {
+  isDenylistedNoiseEvent,
+  isNoisyHttpClientPollEvent,
+} from "@/src/utils/sentryFilters";
 
 const isEuOrUsRegionNonHipaa =
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
@@ -38,6 +41,17 @@ Sentry.init({
     // session outage is still observable server-side via request tracing/APM
     // spans and application logs.
     if (isNoisyHttpClientPollEvent(event)) {
+      return null;
+    }
+
+    // Drop known-benign client-side noise: browser/transport failures (offline,
+    // flaky network, CORS, proxy/infra HTML error pages), transient
+    // framework/vendor poll logs (NextAuth CLIENT_FETCH_ERROR, PostHog notices),
+    // and expected browser artifacts (clipboard permission denials, intentional
+    // request cancellations). Each signature is narrow and cannot represent a
+    // real Langfuse app bug; real errors that merely quote a phrase still flow
+    // to Sentry. See isDenylistedNoiseEvent for the per-rule rationale.
+    if (isDenylistedNoiseEvent(event)) {
       return null;
     }
 
