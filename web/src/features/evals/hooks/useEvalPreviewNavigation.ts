@@ -80,7 +80,8 @@ export function getEvalPreviewPointerFromUrlQuery(
   const timestamp =
     target === EvalTargetObject.TRACE
       ? parseTraceTimestampFromQuery(query.timestamp)
-      : (parseTraceTimestampFromQuery(query.startTime) ?? parseTraceTimestampFromQuery(query.timestamp));
+      : (parseTraceTimestampFromQuery(query.startTime) ??
+        parseTraceTimestampFromQuery(query.timestamp));
 
   if (target === EvalTargetObject.TRACE) {
     return { traceId, timestamp };
