@@ -336,6 +336,12 @@ const DropdownMenuItemWithSecondaryAction = (
             event.stopPropagation();
             secondaryAction.onBeforeAction?.();
           }}
+          onAuxClick={(event) => {
+            event.stopPropagation();
+            if (event.button === 1) {
+              secondaryAction.onBeforeAction?.();
+            }
+          }}
         >
           <SecondaryActionIcon size={12} />
         </Link>
@@ -367,6 +373,11 @@ const DropdownMenuItemWithSecondaryAction = (
             className={dropdownMenuItemPrimaryActionVariants()}
             onClick={() => {
               props.onBeforeAction?.();
+            }}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                props.onBeforeAction?.();
+              }
             }}
           >
             {primaryContent}
