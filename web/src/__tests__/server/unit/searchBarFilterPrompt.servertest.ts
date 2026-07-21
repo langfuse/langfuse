@@ -7,6 +7,7 @@ import {
   type FieldDef,
 } from "@/src/features/search-bar/lib/fields";
 import {
+  buildFilterContextMessage,
   buildFilterSystemPrompt,
   specForField,
 } from "@/src/features/search-bar/server/buildFilterPrompt";
@@ -75,21 +76,67 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain(SCORE_COLUMNS.trace.boolean);
   });
 
-  it("omits the refine section without a current query", () => {
+  it("never contains the refine or data section — those are a separate message", () => {
+    // The skeleton is request-independent instruction text only; injected,
+    // per-request VALUES (the query being refined, observed project data)
+    // live in `buildFilterContextMessage`'s own message so a trace can tell
+    // the prompt apart from the data it was handed.
     expect(prompt).not.toContain("Current filters");
+    expect(prompt).not.toContain("Observed project data");
+  });
+
+  it("no longer accepts currentQuery/dataContext — single-datetime signature", () => {
+    // Regression guard for the detangle: the skeleton takes only the anchor
+    // datetime now, so passing extra args would be a silent no-op if the
+    // signature ever regained them without a type error surfacing here.
+    expect(buildFilterSystemPrompt.length).toBe(1);
+  });
+});
+
+describe("buildFilterContextMessage", () => {
+  it("returns null when neither current query nor data context is given", () => {
+    expect(buildFilterContextMessage()).toBeNull();
+    expect(buildFilterContextMessage("", "")).toBeNull();
+    expect(buildFilterContextMessage("   ", undefined)).toBeNull();
   });
 
   it("includes the current query as refine context when provided", () => {
-    const refinePrompt = buildFilterSystemPrompt(
-      "Monday, 2026-06-15T00:00:00.000Z",
+    const message = buildFilterContextMessage(
       "environment:production level:ERROR",
     );
-    expect(refinePrompt).toContain("Current filters — REFINE, do not replace");
-    expect(refinePrompt).toContain("environment:production level:ERROR");
+    expect(message).not.toBeNull();
+    expect(message).toContain("Current filters — REFINE, do not replace");
+    expect(message).toContain("environment:production level:ERROR");
     // The preservation instruction + worked example are what stop the model
     // from replacing the whole set when the user says "only X".
-    expect(refinePrompt).toContain("ON TOP OF the current ones");
-    expect(refinePrompt).toContain("Worked example");
+    expect(message).toContain("ON TOP OF the current ones");
+    expect(message).toContain("Worked example");
+    // No data context was given, so that section should be absent.
+    expect(message).not.toContain("Observed project data");
+  });
+
+  it("includes observed project data when provided", () => {
+    const message = buildFilterContextMessage(
+      undefined,
+      "metadata keys: routing.queue, tenant",
+    );
+    expect(message).not.toBeNull();
+    expect(message).toContain("## Observed project data");
+    expect(message).toContain("metadata keys: routing.queue, tenant");
+    expect(message).not.toContain("Current filters");
+  });
+
+  it("includes both sections, refine before data, when both are provided", () => {
+    const message = buildFilterContextMessage(
+      "level:ERROR",
+      "metadata keys: routing.queue",
+    );
+    expect(message).not.toBeNull();
+    expect(message).toContain("Current filters — REFINE, do not replace");
+    expect(message).toContain("## Observed project data");
+    expect(message!.indexOf("Current filters")).toBeLessThan(
+      message!.indexOf("Observed project data"),
+    );
   });
 });
 

@@ -80,43 +80,20 @@ function fieldCatalogLine(field: FieldDef): string {
 }
 
 /**
- * Build the full system prompt. `currentDatetime` anchors relative time
- * expressions ("today", "last 24h") to the request time. `currentQuery`, when
- * present, is the user's existing filters (in this same syntax) so the model
- * REFINES them and returns the complete updated set.
+ * Build the STATIC system prompt: role, output format, column catalog, and
+ * all fixed rules/examples, anchored to `currentDatetime` (so relative time
+ * expressions like "today" / "last 24h" resolve against the request time).
+ *
+ * Deliberately holds no per-request DATA — the current query being refined
+ * and the observed project data are dynamic values, not instructions, so they
+ * travel in a separate message (`buildFilterContextMessage`). This keeps the
+ * self-traced generation legible (prompt vs. injected data are visibly
+ * different messages) and sets up the skeleton to become a managed prompt
+ * without dynamic values baked into its text.
  */
-export function buildFilterSystemPrompt(
-  currentDatetime: string,
-  currentQuery?: string,
-  dataContext?: string,
-): string {
+export function buildFilterSystemPrompt(currentDatetime: string): string {
   const catalog = FIELDS.map(fieldCatalogLine).join("\n");
   const nullableIds = FIELDS.filter((f) => f.nullable).map((f) => f.id);
-  const refine = (currentQuery ?? "").trim();
-  const data = (dataContext ?? "").trim();
-  const dataSection =
-    data.length > 0
-      ? `\n## Observed project data\n\nMap the request to the columns, values, and metadata keys that ACTUALLY appear below — prefer an observed value/metadata key over guessing a column. If a phrase matches a metadata key, use \`metadata.<key>\`. Do not invent values that aren't here unless the user gave a literal one.\n\n${data}\n`
-      : "";
-  const refineSection =
-    refine.length > 0
-      ? `\n## Current filters — REFINE, do not replace
-
-The user ALREADY has these filters applied (same syntax as your output):
-\`${refine}\`
-
-The new request is an EDIT to this set, not a fresh start. Rules:
-- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
-- ADD a filter for whatever the request narrows down to.
-- Only modify or drop a filter the request actually targets.
-
-A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
-
-Worked example — current filters \`level:ERROR\`, request "only in production":
-you return BOTH filters, not just environment:
-[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
-`
-      : "";
 
   return `## Role
 
@@ -230,7 +207,7 @@ traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" 
 
 The current datetime is: ${currentDatetime}
 Use it to resolve relative time expressions against the startTime column.
-${refineSection}${dataSection}
+
 ## Examples
 
 These span the full surface — comparisons, scores, metadata, content search,
@@ -260,4 +237,60 @@ Output: [{"type":"arrayOptions","column":"traceTags","operator":"all of","value"
 
 Input: "gpt-4 generations costing more than $0.50 that aren't errors"
 Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]`;
+}
+
+/**
+ * Build the INJECTED-CONTEXT message: the current filters being refined and
+ * the observed project data, as a SEPARATE message from the system skeleton
+ * (`buildFilterSystemPrompt`). Both are dynamic, request-specific values, not
+ * instructions — keeping them out of the system prompt is what lets a trace
+ * show "here is the prompt" and "here is the data we handed it" as distinct
+ * messages instead of one undifferentiated blob.
+ *
+ * Returns `null` when there is neither a current query nor data context, so
+ * the caller can omit the message entirely rather than sending an empty one.
+ * The section text below is reused VERBATIM from the prior single-message
+ * prompt — only its home (system string vs. a standalone user message)
+ * changed, not its wording.
+ */
+export function buildFilterContextMessage(
+  currentQuery?: string,
+  dataContext?: string,
+): string | null {
+  const refine = (currentQuery ?? "").trim();
+  const data = (dataContext ?? "").trim();
+  if (refine.length === 0 && data.length === 0) return null;
+
+  const refineSection =
+    refine.length > 0
+      ? `## Current filters — REFINE, do not replace
+
+The user ALREADY has these filters applied (same syntax as your output):
+\`${refine}\`
+
+The new request is an EDIT to this set, not a fresh start. Rules:
+- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
+- ADD a filter for whatever the request narrows down to.
+- Only modify or drop a filter the request actually targets.
+
+A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
+
+Worked example — current filters \`level:ERROR\`, request "only in production":
+you return BOTH filters, not just environment:
+[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
+`
+      : "";
+  const dataSection =
+    data.length > 0
+      ? `## Observed project data
+
+Map the request to the columns, values, and metadata keys that ACTUALLY appear below — prefer an observed value/metadata key over guessing a column. If a phrase matches a metadata key, use \`metadata.<key>\`. Do not invent values that aren't here unless the user gave a literal one.
+
+${data}
+`
+      : "";
+
+  return refineSection.length > 0 && dataSection.length > 0
+    ? `${refineSection}\n${dataSection}`
+    : `${refineSection}${dataSection}`;
 }
