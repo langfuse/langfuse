@@ -1824,8 +1824,8 @@ describe("MCP Read Tools", () => {
         supportedViews: [
           "observations",
           "scores-numeric",
-          "scores-boolean",
           "scores-categorical",
+          "scores-boolean",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {
