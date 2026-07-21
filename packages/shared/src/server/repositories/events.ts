@@ -58,6 +58,7 @@ import {
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
   promptEventsForMetrics,
+  promptEventsForNameCounts,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
   eventsTableNativeUiColumnDefinitions,
@@ -628,6 +629,47 @@ export const getObservationMetricsForPromptsFromEvents = async (
     medianOutputUsage: Number(row.median_output_usage),
     medianTotalCost: Number(row.median_total_cost),
     medianLatencyMs: Number(row.median_latency_ms),
+  }));
+};
+
+export const getObservationsWithPromptNameFromEvents = async (
+  projectId: string,
+  promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE(
+      "prompt_events",
+      promptEventsForNameCounts({
+        projectId,
+        promptNames,
+        ...(fromTimestamp
+          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
+          : {}),
+        ...(toTimestamp
+          ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
+          : {}),
+      }),
+    )
+    .from("prompt_events", "e")
+    .select("count(*) AS count", "e.prompt_name AS prompt_name")
+    .whereRaw("e.is_deleted = 0")
+    .groupBy("e.prompt_name");
+
+  const { query, params } = queryBuilder.buildWithParams();
+  const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    count: Number(row.count),
+    promptName: row.prompt_name,
   }));
 };
 

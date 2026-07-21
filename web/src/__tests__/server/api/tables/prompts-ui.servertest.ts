@@ -12,6 +12,7 @@ import {
   getObservationMetricsForPrompts,
   getObservationMetricsForPromptsFromEvents,
   getObservationsWithPromptName,
+  getObservationsWithPromptNameFromEvents,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { v4 } from "uuid";
@@ -234,6 +235,147 @@ describe("UI Prompts Table", () => {
       },
     ]);
   });
+
+  itIfEventsTable(
+    "should count the observations which belong to a prompt from events",
+    async () => {
+      const projectId = v4();
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          prompt_id: v4(),
+          prompt_name: "Test Prompt",
+          prompt_version: 1,
+        }),
+        createEvent({
+          project_id: projectId,
+          prompt_id: v4(),
+          prompt_name: "Test Prompt",
+          prompt_version: 2,
+        }),
+        createEvent({
+          project_id: projectId,
+          prompt_id: v4(),
+          prompt_name: "folder1/my-prompt",
+          prompt_version: 1,
+        }),
+        createEvent({
+          project_id: projectId,
+        }),
+      ]);
+
+      const result = await getObservationsWithPromptNameFromEvents(projectId, [
+        "Test Prompt",
+        "folder1/my-prompt",
+      ]);
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            promptName: "Test Prompt",
+            count: 2,
+          },
+          {
+            promptName: "folder1/my-prompt",
+            count: 1,
+          },
+        ]),
+      );
+    },
+  );
+
+  itIfEventsTable(
+    "should count only the latest event version for prompt counts",
+    async () => {
+      const projectId = v4();
+      const startTime = Date.parse("2026-07-16T13:42:33.028Z") * 1000;
+      const countedSpan = createEvent({
+        project_id: projectId,
+        trace_id: v4(),
+        span_id: v4(),
+        prompt_id: v4(),
+        prompt_name: "Test Prompt",
+        prompt_version: 1,
+        start_time: startTime,
+        event_ts: startTime,
+      });
+      const deletedSpan = createEvent({
+        project_id: projectId,
+        trace_id: v4(),
+        span_id: v4(),
+        prompt_id: v4(),
+        prompt_name: "Test Prompt",
+        prompt_version: 1,
+        start_time: startTime,
+        event_ts: startTime,
+      });
+
+      await createEventsCh([countedSpan, deletedSpan]);
+      await createEventsCh([
+        { ...countedSpan, event_ts: startTime + 1_000_000 },
+        { ...deletedSpan, event_ts: startTime + 1_000_000, is_deleted: 1 },
+      ]);
+
+      const result = await getObservationsWithPromptNameFromEvents(projectId, [
+        "Test Prompt",
+      ]);
+
+      expect(result).toEqual([
+        {
+          promptName: "Test Prompt",
+          count: 1,
+        },
+      ]);
+    },
+  );
+
+  itIfEventsTable(
+    "should filter prompt observation counts from events by date range",
+    async () => {
+      const projectId = v4();
+      const olderStart = Date.parse("2026-01-01T00:00:00.000Z") * 1000;
+      const newerStart = Date.parse("2026-01-03T00:00:00.000Z") * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          prompt_id: v4(),
+          prompt_name: "Test Prompt",
+          prompt_version: 1,
+          start_time: olderStart,
+          end_time: olderStart + 1_000_000,
+          event_ts: olderStart,
+        }),
+        createEvent({
+          project_id: projectId,
+          prompt_id: v4(),
+          prompt_name: "Test Prompt",
+          prompt_version: 1,
+          start_time: newerStart,
+          end_time: newerStart + 1_000_000,
+          event_ts: newerStart,
+        }),
+      ]);
+
+      const result = await getObservationsWithPromptNameFromEvents(
+        projectId,
+        ["Test Prompt"],
+        {
+          fromTimestamp: new Date("2026-01-02T00:00:00.000Z"),
+          toTimestamp: new Date("2026-01-04T00:00:00.000Z"),
+        },
+      );
+
+      expect(result).toEqual([
+        {
+          promptName: "Test Prompt",
+          count: 1,
+        },
+      ]);
+    },
+  );
 
   it("should correctly calculate prompt metrics", async () => {
     const projectId = v4();

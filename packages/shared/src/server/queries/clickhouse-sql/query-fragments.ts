@@ -85,6 +85,48 @@ export const promptEventsForMetrics = (params: {
   };
 };
 
+/**
+ * Prompt-linked events for per-prompt-name usage counts. Unlike
+ * promptEventsForMetrics this matches by prompt_name and keeps all event
+ * types, mirroring the legacy observations count. Deduplicates span versions
+ * via LIMIT BY; callers must still filter is_deleted = 0 on the latest row.
+ */
+export const promptEventsForNameCounts = (params: {
+  projectId: string;
+  promptNames: string[];
+  fromTimestamp?: string;
+  toTimestamp?: string;
+}): CTEWithSchema => {
+  const builder = new EventsQueryBuilder({ projectId: params.projectId })
+    .selectRaw(
+      "e.project_id AS project_id",
+      "e.span_id AS span_id",
+      "e.prompt_name AS prompt_name",
+      "e.is_deleted AS is_deleted",
+    )
+    .whereRaw("e.prompt_name IN ({promptNames: Array(String)})", {
+      promptNames: params.promptNames,
+    })
+    .whereRaw("e.prompt_name != ''")
+    .when(Boolean(params.fromTimestamp), (b) =>
+      b.whereRaw("e.start_time >= {fromTimestamp: DateTime64(6)}", {
+        fromTimestamp: params.fromTimestamp,
+      }),
+    )
+    .when(Boolean(params.toTimestamp), (b) =>
+      b.whereRaw("e.start_time <= {toTimestamp: DateTime64(6)}", {
+        toTimestamp: params.toTimestamp,
+      }),
+    )
+    .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+    .limitBy("e.span_id", "e.project_id");
+
+  return {
+    ...builder.buildWithParams(),
+    schema: ["project_id", "span_id", "prompt_name", "is_deleted"],
+  };
+};
+
 interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
