@@ -2244,7 +2244,7 @@ describe("MCP Read Tools", () => {
       const result = (await handleListScores(
         {
           limit: 10,
-          id: [numericScore.id, booleanScore.id, sessionScore.id],
+          scoreIds: [numericScore.id, booleanScore.id, sessionScore.id],
           dataType: ["NUMERIC"],
         },
         context,
@@ -2267,7 +2267,7 @@ describe("MCP Read Tools", () => {
       ]);
 
       const booleanResult = (await handleListScores(
-        { limit: 10, id: [booleanScore.id] },
+        { limit: 10, scoreIds: [booleanScore.id] },
         context,
       )) as any;
       expect(booleanResult.data).toEqual([
@@ -2279,7 +2279,7 @@ describe("MCP Read Tools", () => {
       ]);
 
       const sessionResult = (await handleListScores(
-        { limit: 10, id: [sessionScore.id] },
+        { limit: 10, scoreIds: [sessionScore.id] },
         context,
       )) as any;
       expect(sessionResult.data).toEqual([
@@ -2309,7 +2309,7 @@ describe("MCP Read Tools", () => {
       await createScoresCh([runScore]);
 
       const result = (await handleListScores(
-        { limit: 10, id: [runScore.id] },
+        { limit: 10, scoreIds: [runScore.id] },
         context,
       )) as any;
       expect(result.data).toEqual([

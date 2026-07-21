@@ -20,7 +20,10 @@ const ListScoresBaseSchema = z
       .describe(
         "Opaque pagination cursor from meta.cursor of a previous listScores response.",
       ),
-    id: z.array(z.string()).optional().describe("Score IDs to match."),
+    scoreIds: z
+      .array(z.string())
+      .optional()
+      .describe("IDs of the scores to fetch."),
     name: z.array(z.string()).optional().describe("Score names to match."),
     source: z.array(ScoreSourceDomain).optional(),
     dataType: z.array(ScoreDataTypeDomain).optional(),
@@ -183,7 +186,7 @@ export const [listScoresTool, handleListScores] = defineTool({
           cursor: input.cursor ? parseCursor(input.cursor) : undefined,
           // Always fetch every field group: subject feeds the url mapping below.
           fields: [...SCORE_FIELD_GROUPS_V3],
-          id: input.id,
+          id: input.scoreIds,
           name: input.name,
           source: input.source,
           dataType: input.dataType,
