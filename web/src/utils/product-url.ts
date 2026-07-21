@@ -1,4 +1,4 @@
-import type { FilterState } from "@langfuse/shared";
+import type { APIScoreV3, FilterState } from "@langfuse/shared";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -407,6 +407,28 @@ export const buildScoreTargetUrl = (params: {
   }
 
   return undefined;
+};
+
+export const buildScoreSubjectUrl = (
+  projectId: string,
+  subject: APIScoreV3["subject"],
+): string | undefined => {
+  if (!subject) return undefined;
+
+  switch (subject.kind) {
+    case "trace":
+      return buildScoreTargetUrl({ projectId, traceId: subject.id });
+    case "observation":
+      return buildScoreTargetUrl({
+        projectId,
+        traceId: subject.traceId,
+        observationId: subject.id,
+      });
+    case "session":
+      return buildScoreTargetUrl({ projectId, sessionId: subject.id });
+    case "experiment":
+      return buildExperimentUrl({ projectId, experimentId: subject.id });
+  }
 };
 
 export const buildPromptUrl = (params: {

@@ -9,7 +9,7 @@ import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
 import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
-import { buildScoreSubjectUrl } from "../lib/subject-url";
+import { buildScoreSubjectUrl } from "@/src/utils/product-url";
 
 const ListScoresBaseSchema = z
   .object({
