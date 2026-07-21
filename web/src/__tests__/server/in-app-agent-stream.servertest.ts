@@ -261,7 +261,11 @@ vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
 
-const createPatchedChunkProcessor = () => {
+const createPatchedChunkProcessor = (
+  approvalGatedToolNames: ReadonlySet<string> = new Set([
+    "langfuse_createScoreConfig",
+  ]),
+) => {
   const forwardedChunks: unknown[] = [];
   const onError = vi.fn();
   const flush = vi.fn();
@@ -275,7 +279,10 @@ const createPatchedChunkProcessor = () => {
     })),
   };
 
-  patchMastraApprovalChunks(adapter as unknown as MastraAgent);
+  patchMastraApprovalChunks(
+    adapter as unknown as MastraAgent,
+    approvalGatedToolNames,
+  );
 
   const processor = adapter.createChunkProcessor({ onError });
 
@@ -332,6 +339,73 @@ describe("patchMastraApprovalChunks", () => {
         },
       },
     ]);
+  });
+
+  it("suspends every proposed approval-gated tool call", () => {
+    // Mastra raises at most one approval per run: parallel siblings never
+    // reach their execution step. Their tool-call chunks must still surface
+    // as suspensions so all proposed calls get an approval card.
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-a" },
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-2",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-b" },
+      },
+    });
+    // The call Mastra does execute also emits its approval chunk; it must not
+    // suspend twice.
+    processor.handleChunk({
+      type: "tool-call-approval",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-a" },
+      },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(
+      forwardedChunks.map((chunk) => {
+        const { type, payload } = chunk as {
+          type: string;
+          payload: { toolCallId: string };
+        };
+        return { type, toolCallId: payload.toolCallId };
+      }),
+    ).toEqual([
+      { type: "tool-call-suspended", toolCallId: "tool-call-1" },
+      { type: "tool-call-suspended", toolCallId: "tool-call-2" },
+    ]);
+  });
+
+  it("passes tool calls without approval gating through unchanged", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+    const readToolCall = {
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_listPrompts",
+        args: {},
+      },
+    };
+
+    processor.handleChunk(readToolCall);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([readToolCall]);
   });
 
   it("reports malformed tool-call approvals", () => {

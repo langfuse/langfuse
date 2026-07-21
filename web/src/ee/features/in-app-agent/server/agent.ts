@@ -829,7 +829,14 @@ async function createMastraAdapter(params: {
       // events, so keep the pre-flag behavior.
       emitInterruptOutcome: false,
     });
-    patchMastraApprovalChunks(adapter);
+    const approvalGatedToolNames = new Set(
+      Object.entries(tools).flatMap(([toolName, tool]) =>
+        (tool as { requireApproval?: boolean }).requireApproval === true
+          ? [toolName]
+          : [],
+      ),
+    );
+    patchMastraApprovalChunks(adapter, approvalGatedToolNames);
 
     return {
       adapter,
@@ -931,13 +938,27 @@ type MastraApprovalStreamChunk = {
 // withInAppAgentToolApproval: Mastra emits a tool-call-approval chunk for
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
+//
+// Mastra also raises at most ONE approval per run: when the model proposes
+// several approval-gated calls in parallel, only the first reaches its
+// execution step before the run suspends — the siblings never execute, never
+// get an approval chunk, and their streamed lifecycles dangle. Since the
+// approval resume executes approved calls manually from (toolCallId, toolName,
+// args) and never touches Mastra's suspension state, a synthesized suspension
+// is exactly as good as a real one: every approval-gated `tool-call` chunk is
+// mapped onto the suspend protocol directly, so all proposed calls surface as
+// approval cards in the same run and resolve in one batch continuation.
+//
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
 // convert them to tool results carrying the error message as content. Note:
 // the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
 // failure renders with the error message in the result body but a "succeeded"
 // status; the model is unaffected (Mastra's loop feeds it the real error).
 // Status fidelity is tracked as a follow-up.
-export function patchMastraApprovalChunks(adapter: MastraAgent) {
+export function patchMastraApprovalChunks(
+  adapter: MastraAgent,
+  approvalGatedToolNames: ReadonlySet<string>,
+) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
 
@@ -951,10 +972,53 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
     ...rest: unknown[]
   ) {
     const processor = createChunkProcessor.call(this, callbacks, ...rest);
+    // The call that Mastra does execute emits BOTH a tool-call chunk and a
+    // tool-call-approval chunk; suspend it once.
+    const suspendedToolCallIds = new Set<string>();
+
+    const suspendToolCall = (
+      mastraChunk: MastraApprovalStreamChunk,
+      toolCallId: string,
+      toolName: string,
+      toolArgs: unknown,
+    ) => {
+      if (suspendedToolCallIds.has(toolCallId)) {
+        return false;
+      }
+
+      suspendedToolCallIds.add(toolCallId);
+      return processor.handleChunk({
+        ...mastraChunk,
+        type: "tool-call-suspended",
+        payload: {
+          ...mastraChunk.payload,
+          suspendPayload: {
+            type: "approval",
+            toolCallId,
+            toolName,
+            args: toolArgs,
+          },
+        },
+      });
+    };
 
     return {
       handleChunk(chunk: unknown) {
         const mastraChunk = chunk as MastraApprovalStreamChunk;
+
+        if (
+          mastraChunk?.type === "tool-call" &&
+          typeof mastraChunk.payload?.toolName === "string" &&
+          approvalGatedToolNames.has(mastraChunk.payload.toolName) &&
+          typeof mastraChunk.payload.toolCallId === "string"
+        ) {
+          return suspendToolCall(
+            mastraChunk,
+            mastraChunk.payload.toolCallId,
+            mastraChunk.payload.toolName,
+            mastraChunk.payload.args,
+          );
+        }
 
         if (mastraChunk?.type === "tool-call-approval") {
           const {
@@ -971,19 +1035,7 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
             return true;
           }
 
-          return processor.handleChunk({
-            ...mastraChunk,
-            type: "tool-call-suspended",
-            payload: {
-              ...mastraChunk.payload,
-              suspendPayload: {
-                type: "approval",
-                toolCallId,
-                toolName,
-                args: toolArgs,
-              },
-            },
-          });
+          return suspendToolCall(mastraChunk, toolCallId, toolName, toolArgs);
         }
 
         if (mastraChunk?.type === "tool-error") {
