@@ -3,6 +3,7 @@ import { describe, expect } from "vitest";
 import {
   createEvent,
   createEventsCh,
+  getObservationIOFieldByteLengthFromEventsTable,
   streamObservationIOFieldFromEventsTable,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -103,5 +104,46 @@ maybe("streamObservationIOFieldFromEventsTable", () => {
     }).then((r) => collectStream(r.stream));
 
     expect(crossProject).toBe("");
+  });
+
+  it("byte length is the field's UTF-8 byte count, and null for a foreign project", async () => {
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const startMs = Date.now();
+    // Contains a 4-byte emoji, so byte length > character length: verifies
+    // ClickHouse `length()` counts bytes (what Content-Length needs).
+    const input = JSON.stringify({ prompt: "hello 🌍", n: 42 });
+
+    await createEventsCh([
+      createEvent({
+        id: observationId,
+        span_id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        input,
+        start_time: startMs * 1000,
+      }),
+    ]);
+    const startTime = new Date(startMs);
+
+    const len = await getObservationIOFieldByteLengthFromEventsTable({
+      projectId,
+      traceId,
+      observationId,
+      field: "input",
+      startTime,
+    });
+    expect(len).toBe(Buffer.byteLength(input, "utf8"));
+
+    // No matching row → null (the route turns this into a 404, not empty 200).
+    const missing = await getObservationIOFieldByteLengthFromEventsTable({
+      projectId: randomUUID(),
+      traceId,
+      observationId,
+      field: "input",
+      startTime,
+    });
+    expect(missing).toBeNull();
   });
 });

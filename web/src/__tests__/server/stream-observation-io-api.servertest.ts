@@ -6,12 +6,17 @@ import { LangfuseNotFoundError, UnauthorizedError } from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import handler from "../../pages/api/traces/[traceId]/observations/[observationId]/io/[field]";
 
-const { mockGetServerAuthSession, mockGetAuthorizedTrace, mockStreamIOField } =
-  vi.hoisted(() => ({
-    mockGetServerAuthSession: vi.fn(),
-    mockGetAuthorizedTrace: vi.fn(),
-    mockStreamIOField: vi.fn(),
-  }));
+const {
+  mockGetServerAuthSession,
+  mockGetAuthorizedTrace,
+  mockStreamIOField,
+  mockByteLength,
+} = vi.hoisted(() => ({
+  mockGetServerAuthSession: vi.fn(),
+  mockGetAuthorizedTrace: vi.fn(),
+  mockStreamIOField: vi.fn(),
+  mockByteLength: vi.fn(),
+}));
 
 vi.mock("../../server/auth", () => ({
   getServerAuthSession: (...args: unknown[]) =>
@@ -28,6 +33,8 @@ vi.mock("../../features/traces/server/buildTraceExport", async () => ({
 // everything withMiddlewares needs from the barrel intact.
 vi.mock("@langfuse/shared/src/server", async () => ({
   ...(await vi.importActual("@langfuse/shared/src/server")),
+  getObservationIOFieldByteLengthFromEventsTable: (...args: unknown[]) =>
+    mockByteLength(...args),
   streamObservationIOFieldFromEventsTable: (...args: unknown[]) =>
     mockStreamIOField(...args),
 }));
@@ -62,20 +69,23 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
       id: traceId,
       timestamp: new Date(startTime),
     });
+    // Byte length matches the streamed body ('{"hello":"world"}' = 17 bytes).
+    mockByteLength.mockResolvedValue(17);
     mockStreamIOField.mockResolvedValue({
       stream: Readable.from(['{"hello":', '"world"}']),
     });
   });
 
-  it("streams the field bytes with a JSON content type for an authorized member", async () => {
+  it("streams the field as opaque bytes with a Content-Length for an authorized member", async () => {
     const { req, res } = createGetMocks(validQuery);
 
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res.getHeader("Content-Type")).toBe(
-      "application/json; charset=utf-8",
-    );
+    // Opaque bytes, not application/json (input/output may be a bare string).
+    expect(res.getHeader("Content-Type")).toBe("application/octet-stream");
+    // Exact byte count → the client can detect a truncated body.
+    expect(res.getHeader("Content-Length")).toBe("17");
     expect(res.getHeader("Cache-Control")).toBe("private, no-store");
     expect(res.getHeader("Accept-Ranges")).toBe("none");
     expect(res._getData()).toBe('{"hello":"world"}');
@@ -90,6 +100,30 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     });
   });
 
+  it("returns 404 (not a misleading empty 200) when the field/observation is not found", async () => {
+    // No matching row (e.g. a stale/skewed startTime) → the length pre-query
+    // returns null → clean 404, and the stream is never opened.
+    mockByteLength.mockResolvedValue(null);
+    const { req, res } = createGetMocks(validQuery);
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(404);
+    expect(mockStreamIOField).not.toHaveBeenCalled();
+  });
+
+  it("serves a genuinely empty field as 200 with Content-Length 0", async () => {
+    mockByteLength.mockResolvedValue(0);
+    mockStreamIOField.mockResolvedValue({ stream: Readable.from([]) });
+    const { req, res } = createGetMocks(validQuery);
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(res.getHeader("Content-Length")).toBe("0");
+    expect(res._getData()).toBe("");
+  });
+
   it("serves each supported field", async () => {
     for (const field of ["input", "output", "metadata"] as const) {
       vi.clearAllMocks();
@@ -101,6 +135,7 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
         },
       });
       mockGetAuthorizedTrace.mockResolvedValue({ id: traceId });
+      mockByteLength.mockResolvedValue(1);
       mockStreamIOField.mockResolvedValue({ stream: Readable.from(["x"]) });
 
       const { req, res } = createGetMocks({ ...validQuery, field });
