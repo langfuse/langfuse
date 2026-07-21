@@ -36,7 +36,7 @@ export type InAppAgentToolCallContent = {
   error?: string;
   approval?: {
     id: string;
-    status: "pending" | "submitting";
+    status: "pending" | "approved" | "rejected" | "submitting";
   };
 };
 

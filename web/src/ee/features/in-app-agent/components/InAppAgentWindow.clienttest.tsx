@@ -30,6 +30,7 @@ function windowElement(
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
+    onApproveAllToolCalls: vi.fn(),
     onDeleteConversation: vi.fn(),
     onExpandedChange: vi.fn(),
     onLoadMoreConversations: vi.fn(),
@@ -141,5 +142,59 @@ describe("InAppAgentWindow quick actions", () => {
     expect(
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("InAppAgentWindow tool approvals", () => {
+  const approvalToolGroupMessage = (
+    tools: Array<{ id: string; status: "pending" | "approved" }>,
+  ) =>
+    ({
+      id: "tools",
+      role: "assistant",
+      content: {
+        type: "toolGroup",
+        tools: tools.map(({ id, status }) => ({
+          type: "tool",
+          name: `langfuse_createTextPrompt`,
+          args: JSON.stringify({ name: id }),
+          status: "running",
+          approval: { id, status },
+        })),
+      },
+    }) as const;
+
+  it("offers approve-all only while several cards are undecided", () => {
+    const onApproveAllToolCalls = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      windowElement({
+        messages: [
+          approvalToolGroupMessage([
+            { id: "tool-call-1", status: "pending" },
+            { id: "tool-call-2", status: "pending" },
+          ]),
+        ],
+        onApproveAllToolCalls,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve all" }));
+    expect(onApproveAllToolCalls).toHaveBeenCalledTimes(1);
+
+    // One remaining undecided card no longer needs the shortcut.
+    rerender(
+      windowElement({
+        messages: [
+          approvalToolGroupMessage([
+            { id: "tool-call-1", status: "approved" },
+            { id: "tool-call-2", status: "pending" },
+          ]),
+        ],
+        onApproveAllToolCalls,
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Approve all" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
 import {
   ArrowRight,
   BotMessageSquare,
+  Check,
   History,
   Info,
   Maximize2,
@@ -270,6 +271,7 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
+  onApproveAllToolCalls: () => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -371,6 +373,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
+    onApproveAllToolCalls,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -805,6 +808,30 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 isExpanded && "mx-auto max-w-3xl",
               )}
             >
+              {pendingToolCalls.filter(
+                (tool) => tool.approval?.status === "pending",
+              ).length > 1 ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground text-xs">
+                    {pendingToolCalls.length} tool calls awaiting review
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline-success"
+                    className="h-7"
+                    disabled={
+                      isRateLimited || disablePendingToolApprovalActions
+                    }
+                    onClick={() => {
+                      onApproveAllToolCalls().catch(() => undefined);
+                    }}
+                  >
+                    <Check className="mr-1 size-3" />
+                    Approve all
+                  </Button>
+                </div>
+              ) : null}
               {pendingToolCalls.map((tool, index) => (
                 <InAppAgentToolCallCard
                   key={`${tool.approval?.id ?? tool.name}-${index}`}

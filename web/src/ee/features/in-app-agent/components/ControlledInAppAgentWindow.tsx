@@ -59,6 +59,7 @@ export function ControlledInAppAgentWindow(
     selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
+    approveAllToolCalls,
   } = useInAppAiAgent();
   const {
     isAnimating,
@@ -150,6 +151,7 @@ export function ControlledInAppAgentWindow(
       onSubmit={submit}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
+      onApproveAllToolCalls={approveAllToolCalls}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

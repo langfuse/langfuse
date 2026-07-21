@@ -600,6 +600,7 @@ const meta = preview.meta({
     onOpenConversationHistory: fn(),
     onNewConversation: fn(),
     onApproveToolCall: fn(),
+    onApproveAllToolCalls: fn(),
     onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
