@@ -14,7 +14,7 @@
  * by user events, never effects.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
@@ -22,7 +22,12 @@ import { LazyJsonList } from "./LazyJsonList";
 import { createRowModelStore } from "./rowModelStore";
 
 export interface LazyJsonViewerProps {
-  /** The already-parsed JSON value to display. */
+  /**
+   * The already-parsed JSON value to display. Must have a STABLE identity per
+   * document: re-init (rebuild + re-index) is keyed on `value` identity, so a
+   * caller that recreates it every render (inline `JSON.parse`, spread) would
+   * re-index on every parent render. Memoize it, or pass a stable reference.
+   */
   value: unknown;
   className?: string;
 }
@@ -32,11 +37,10 @@ export function LazyJsonViewer({ value, className }: LazyJsonViewerProps) {
   const [store] = useState(createRowModelStore);
 
   // Build the model over `value`, and tear it down on unmount / value change.
-  // This is the feature's only effect: an external-engine lifecycle boundary.
-  const valueRef = useRef(value);
-  valueRef.current = value;
+  // This is the feature's only effect: an external-engine lifecycle boundary
+  // (construct + dispose an async engine, with cleanup), keyed on the document.
   useEffect(() => {
-    store.getState().init(valueRef.current);
+    store.getState().init(value);
     return () => store.getState().dispose();
     // Re-run when the document identity changes; `store` is stable.
   }, [store, value]);

@@ -14,9 +14,14 @@
  * - Row views subscribe to narrow slices; the virtualizer only positions shells
  *   and reports the visible range back into `ensureRange`.
  *
- * Staleness is handled by the seam's revision stamp: a window that resolves
- * against a since-mutated model is dropped, and within one revision a visible
- * row is immutable, so scrolling re-fetches never churn stable row objects.
+ * Correctness under a REAL async source (the whole point) rests on three things:
+ * - each `ensureRange` merges at ITS OWN offset (captured locally), so a slow
+ *   window resolving after a later one can't land at the wrong indices;
+ * - the seam's revision stamp drops a window resolved against a since-mutated
+ *   model, and within one revision a visible row is immutable;
+ * - structural mutations (expand/collapse/load-more) are SERIALIZED, because the
+ *   model's tree mutation is not reentrant — two concurrent expands would
+ *   otherwise page in the same children twice.
  */
 
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -40,6 +45,8 @@ export interface RowModelState {
   rows: Map<number, JsonRow>;
   /** nodeId → materialized value (lazily populated by `materialize`). */
   values: Map<number, ValueResult>;
+  /** nodeIds (or load-more ids) with an in-flight structural mutation. */
+  pending: Set<number>;
 
   /** Build the model over an in-memory value and prefetch the first window. */
   init: (value: unknown) => Promise<void>;
@@ -57,7 +64,23 @@ export interface RowModelState {
 
 export type RowModelStore = StoreApi<RowModelState>;
 
-export function createRowModelStore(): RowModelStore {
+export interface RowModelStoreOptions {
+  /**
+   * How to build the model for a value. Defaults to the in-memory path
+   * (stringify → byte engine → TreeRowModel). The Worker-backed model for the
+   * streamed ~1 GB path will be injected here — the store and renderer do not
+   * change. Also the seam tests use to drive genuinely-async / out-of-order
+   * responses the in-process source cannot express.
+   */
+  buildModel?: (value: unknown) => Promise<RowModel>;
+}
+
+export function createRowModelStore(
+  options: RowModelStoreOptions = {},
+): RowModelStore {
+  const buildModel =
+    options.buildModel ??
+    ((value: unknown) => TreeRowModel.create(sourceFromValue(value)));
   // Non-reactive internals live in the factory closure, not in store state:
   // they must not trigger renders and must survive across actions.
   let model: RowModel | null = null;
@@ -69,8 +92,28 @@ export function createRowModelStore(): RowModelStore {
   // permanent "disposed" flag, this lets the SAME store be re-`init`ed when the
   // controller's value prop changes.
   let gen = 0;
+  // Serializes structural mutations — see the class comment on reentrancy.
+  let mutationChain: Promise<void> = Promise.resolve();
 
   return createStore<RowModelState>((set, get) => {
+    const setPending = (id: number, on: boolean) => {
+      const pending = new Set(get().pending);
+      if (on) pending.add(id);
+      else pending.delete(id);
+      set({ pending });
+    };
+
+    /** Run a structural mutation after any in-flight one completes. */
+    const serialize = (fn: () => Promise<void>): Promise<void> => {
+      const next = mutationChain.then(fn, fn);
+      // Keep the chain alive regardless of individual failures.
+      mutationChain = next.then(
+        () => undefined,
+        () => undefined,
+      );
+      return next;
+    };
+
     /**
      * After a structural mutation, re-read the model's cheap sync facts and
      * drop the now-stale row cache, then re-fetch the last visible window so
@@ -93,23 +136,32 @@ export function createRowModelStore(): RowModelStore {
       totalVisible: 0,
       rows: new Map(),
       values: new Map(),
+      pending: new Set(),
 
       init: async (value) => {
         const myGen = ++gen;
         model = null;
-        set({ status: "loading", error: null });
+        set({
+          status: "loading",
+          error: null,
+          rows: new Map(),
+          values: new Map(),
+          pending: new Set(),
+        });
         try {
-          const built = await TreeRowModel.create(sourceFromValue(value));
+          const built = await buildModel(value);
           if (gen !== myGen) return;
           model = built;
+          // Publish the model's facts, but stay in "loading" until the first
+          // window is fetched, so the gate never drops the spinner onto empty
+          // shells under real (worker) latency.
           set({
-            status: "ready",
             revision: built.getRevision(),
             totalVisible: built.getTotalVisible(),
-            rows: new Map(),
-            values: new Map(),
           });
           await get().ensureRange(0, INITIAL_ROW_COUNT);
+          if (gen !== myGen) return;
+          set({ status: "ready" });
         } catch (e) {
           if (gen !== myGen) return;
           set({
@@ -122,14 +174,20 @@ export function createRowModelStore(): RowModelStore {
       ensureRange: async (start, count) => {
         if (!model) return;
         const myGen = gen;
-        lastStart = Math.max(0, start);
-        lastCount = Math.max(0, count);
-        const end = lastStart + lastCount;
+        // Capture THIS request's window locally. `lastStart`/`lastCount` are
+        // shared closure state (used to refetch after a mutation), and a
+        // concurrent ensureRange moves them — so the merge after the await must
+        // key off the offset this call actually fetched, never the shared one.
+        const s = Math.max(0, start);
+        const c = Math.max(0, count);
+        lastStart = s;
+        lastCount = c;
+        const end = s + c;
 
         // Skip if every requested index is already cached at this revision.
         const current = get().rows;
         let hasGap = false;
-        for (let i = lastStart; i < end; i++) {
+        for (let i = s; i < end; i++) {
           if (!current.has(i)) {
             hasGap = true;
             break;
@@ -137,52 +195,64 @@ export function createRowModelStore(): RowModelStore {
         }
         if (!hasGap) return;
 
-        const revBefore = get().revision;
-        const window = await model.getRows(lastStart, lastCount);
+        const window = await model.getRows(s, c);
         if (gen !== myGen) return;
-        // Drop a window computed against a since-mutated model, and one whose
-        // revision no longer matches what the store is rendering.
-        if (
-          window.revision !== get().revision ||
-          revBefore !== get().revision
-        ) {
-          return;
-        }
+        // Drop a window whose revision no longer matches what we render. Within
+        // a revision a row is immutable, so an out-of-order same-revision window
+        // is safe to merge at its own offset below.
+        // NOTE: this drops a window from a NEWER revision too. That's correct
+        // for the current model (revision only advances via our own mutations,
+        // which refetch). A future self-advancing source (streaming append)
+        // would need to notify the store so it resyncs forward instead of
+        // dropping — a seam concern, out of scope here.
+        if (window.revision !== get().revision) return;
 
-        // Merge only missing indices: within a revision a row is immutable, so
-        // preserving existing objects keeps scroll re-fetches from re-rendering
-        // unchanged rows. Only allocate a new Map if something was added.
+        // Merge only missing indices: preserving existing objects keeps scroll
+        // re-fetches from re-rendering unchanged rows. Only allocate a new Map
+        // if something was added.
         const existing = get().rows;
-        let next: Map<number, JsonRow> | null = null;
+        let nextRows: Map<number, JsonRow> | null = null;
         window.rows.forEach((row, k) => {
-          const index = lastStart + k;
+          const index = s + k;
           if (!existing.has(index)) {
-            if (!next) next = new Map(existing);
-            next.set(index, row);
+            if (!nextRows) nextRows = new Map(existing);
+            nextRows.set(index, row);
           }
         });
-        if (next) set({ rows: next });
+        if (nextRows) set({ rows: nextRows });
       },
 
-      toggle: async (nodeId, currentlyExpanded) => {
-        if (!model) return;
-        const myGen = gen;
-        if (currentlyExpanded) {
-          await model.collapse(nodeId);
-        } else {
-          await model.expand(nodeId);
-        }
-        if (gen !== myGen) return;
-        await refreshAfterMutation();
-      },
+      toggle: (nodeId, currentlyExpanded) =>
+        serialize(async () => {
+          if (!model) return;
+          const myGen = gen;
+          setPending(nodeId, true);
+          try {
+            if (currentlyExpanded) {
+              await model.collapse(nodeId);
+            } else {
+              await model.expand(nodeId);
+            }
+            if (gen !== myGen) return;
+            await refreshAfterMutation();
+          } finally {
+            if (gen === myGen) setPending(nodeId, false);
+          }
+        }),
 
-      loadMore: async (loadMoreId) => {
-        if (!model) return;
-        const myGen = gen;
-        await model.loadMore(loadMoreId);
-        if (gen !== myGen) return;
-        await refreshAfterMutation();
-      },
+      loadMore: (loadMoreId) =>
+        serialize(async () => {
+          if (!model) return;
+          const myGen = gen;
+          setPending(loadMoreId, true);
+          try {
+            await model.loadMore(loadMoreId);
+            if (gen !== myGen) return;
+            await refreshAfterMutation();
+          } finally {
+            if (gen === myGen) setPending(loadMoreId, false);
+          }
+        }),
 
       materialize: async (nodeId) => {
         if (!model) return;

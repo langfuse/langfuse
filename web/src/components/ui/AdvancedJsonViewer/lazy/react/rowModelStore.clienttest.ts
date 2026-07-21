@@ -7,7 +7,7 @@
  */
 import { createRowModelStore } from "./rowModelStore";
 import { PAGE_SIZE } from "../treeRowModel";
-import type { JsonRow } from "../rowModel";
+import type { JsonRow, RowModel, RowWindow } from "../rowModel";
 
 const visibleRows = (
   store: ReturnType<typeof createRowModelStore>,
@@ -104,5 +104,117 @@ describe("rowModelStore", () => {
     const a = { nodeId: 0, expanded: false } as JsonRow;
     await store.getState().toggle(a.nodeId, false);
     expect(store.getState().revision).toBe(revBefore);
+  });
+});
+
+// The in-process source resolves in one microtask, so it can't express the
+// async races the store must survive under a real Worker source. These use a
+// controllable model injected via `buildModel` to force out-of-order responses
+// and overlapping mutations.
+function makeRow(index: number): JsonRow {
+  return {
+    nodeId: index,
+    depth: 1,
+    keyOrIndex: index,
+    type: "number",
+    preview: `row-${index}`,
+    truncatedPreview: false,
+    expandable: false,
+    expanded: false,
+  };
+}
+
+function makeControllableModel(total: number) {
+  let revision = 0;
+  let gated = false;
+  const gatedCalls: Array<{ start: number; resolve: () => void }> = [];
+  let expandActive = 0;
+  let maxExpandConcurrency = 0;
+
+  const model: RowModel = {
+    getRevision: () => revision,
+    getTotalVisible: () => total,
+    getRows: (start, count) => {
+      const rows: JsonRow[] = [];
+      const n = Math.max(0, Math.min(count, total - start));
+      for (let k = 0; k < n; k++) rows.push(makeRow(start + k));
+      const win: RowWindow = { revision, rows };
+      if (!gated) return Promise.resolve(win);
+      return new Promise<RowWindow>((resolve) => {
+        gatedCalls.push({ start, resolve: () => resolve(win) });
+      });
+    },
+    expand: async () => {
+      expandActive += 1;
+      maxExpandConcurrency = Math.max(maxExpandConcurrency, expandActive);
+      await Promise.resolve();
+      revision += 1;
+      expandActive -= 1;
+    },
+    collapse: async () => {
+      revision += 1;
+    },
+    loadMore: async () => {
+      revision += 1;
+    },
+    getValue: async (nodeId) => ({
+      ok: true as const,
+      value: {
+        nodeId,
+        type: "number" as const,
+        value: nodeId,
+        lossyNumber: false,
+        truncated: false,
+        byteLength: 1,
+      },
+    }),
+  };
+
+  return {
+    model,
+    gate: () => {
+      gated = true;
+    },
+    resolveGated: (start: number) => {
+      const i = gatedCalls.findIndex((c) => c.start === start);
+      if (i >= 0) gatedCalls.splice(i, 1)[0]!.resolve();
+    },
+    getMaxExpandConcurrency: () => maxExpandConcurrency,
+  };
+}
+
+describe("rowModelStore async correctness", () => {
+  it("merges an out-of-order window at its OWN offset, not the latest requested", async () => {
+    const fake = makeControllableModel(10_000);
+    const store = createRowModelStore({ buildModel: async () => fake.model });
+    await store.getState().init(null); // prefetches [0,200) while ungated
+
+    fake.gate();
+    // Two overlapping requests for uncached ranges; the second moves the shared
+    // lastStart. Resolve the FIRST after the second was issued.
+    const pA = store.getState().ensureRange(300, 100);
+    const pB = store.getState().ensureRange(5000, 100);
+    fake.resolveGated(300);
+    fake.resolveGated(5000);
+    await Promise.all([pA, pB]);
+
+    expect(store.getState().rows.get(300)?.nodeId).toBe(300);
+    expect(store.getState().rows.get(5000)?.nodeId).toBe(5000);
+    // The 300-window must NOT have landed at index 5000.
+    expect(store.getState().rows.get(5000)?.nodeId).not.toBe(300);
+  });
+
+  it("serializes concurrent structural mutations (no double-page)", async () => {
+    const fake = makeControllableModel(10);
+    const store = createRowModelStore({ buildModel: async () => fake.model });
+    await store.getState().init(null);
+
+    // Fire two expands without awaiting the first — unserialized, both would be
+    // active at once (the reentrancy that double-pages children).
+    const t1 = store.getState().toggle(0, false);
+    const t2 = store.getState().toggle(1, false);
+    await Promise.all([t1, t2]);
+
+    expect(fake.getMaxExpandConcurrency()).toBe(1);
   });
 });

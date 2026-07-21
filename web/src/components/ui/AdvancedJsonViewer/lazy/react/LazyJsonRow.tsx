@@ -6,11 +6,16 @@
  */
 
 import React from "react";
-import { ChevronRight, Copy } from "lucide-react";
+import { ChevronRight, Copy, Loader2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import type { JsonNodeType, JsonRow } from "../rowModel";
 
 const INDENT_PX = 14;
+// Past this nesting level the indent stops growing, so a very deep chain stays
+// readable instead of pushing every value off the right edge (same failure mode
+// as the deep-trace layout collapse, LFE-10959). The tree is still conveyed by
+// the chevrons and keys; only the horizontal offset is capped.
+const MAX_VISUAL_DEPTH = 24;
 
 /** Tailwind text color per JSON scalar type (containers use the muted key color). */
 const TYPE_CLASS: Record<JsonNodeType, string> = {
@@ -24,6 +29,8 @@ const TYPE_CLASS: Record<JsonNodeType, string> = {
 
 export interface LazyJsonRowProps {
   row: JsonRow;
+  /** True while this node has an in-flight expand/collapse/load-more. */
+  pending?: boolean;
   onToggle: (nodeId: number, currentlyExpanded: boolean) => void;
   onLoadMore: (loadMoreId: number) => void;
   onCopyValue: (nodeId: number) => void;
@@ -36,26 +43,29 @@ function keyLabel(keyOrIndex: string | number | null): string | null {
 
 function LazyJsonRowImpl({
   row,
+  pending = false,
   onToggle,
   onLoadMore,
   onCopyValue,
 }: LazyJsonRowProps) {
-  const paddingLeft = row.depth * INDENT_PX;
+  const paddingLeft = Math.min(row.depth, MAX_VISUAL_DEPTH) * INDENT_PX;
 
   // Synthetic "reveal next page" row for a paginated wide container.
   if (row.isLoadMore) {
     return (
       <div
-        className="flex h-full items-center font-mono text-xs"
+        className="flex h-full items-center gap-1 font-mono text-xs"
         style={{ paddingLeft: paddingLeft + INDENT_PX }}
       >
         <button
           type="button"
-          className="text-muted-foreground hover:text-foreground rounded px-1 underline decoration-dotted underline-offset-2"
+          disabled={pending}
+          className="text-muted-foreground hover:text-foreground rounded px-1 underline decoration-dotted underline-offset-2 disabled:opacity-60"
           onClick={() => onLoadMore(row.nodeId)}
         >
           {row.preview}
         </button>
+        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
       </div>
     );
   }
@@ -71,19 +81,23 @@ function LazyJsonRowImpl({
       {/* Chevron gutter — reserved even for leaves so keys align by depth. */}
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {isContainer ? (
-          <button
-            type="button"
-            aria-label={row.expanded ? "Collapse" : "Expand"}
-            className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
-            onClick={() => onToggle(row.nodeId, row.expanded)}
-          >
-            <ChevronRight
-              className={cn(
-                "h-3 w-3 transition-transform",
-                row.expanded && "rotate-90",
-              )}
-            />
-          </button>
+          pending ? (
+            <Loader2 className="text-muted-foreground h-3 w-3 animate-spin" />
+          ) : (
+            <button
+              type="button"
+              aria-label={row.expanded ? "Collapse" : "Expand"}
+              className="text-muted-foreground hover:text-foreground flex h-4 w-4 items-center justify-center"
+              onClick={() => onToggle(row.nodeId, row.expanded)}
+            >
+              <ChevronRight
+                className={cn(
+                  "h-3 w-3 transition-transform",
+                  row.expanded && "rotate-90",
+                )}
+              />
+            </button>
+          )
         ) : null}
       </span>
 

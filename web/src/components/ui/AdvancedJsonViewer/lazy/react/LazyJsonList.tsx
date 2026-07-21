@@ -1,10 +1,11 @@
 /**
  * LazyJsonList — the virtualized body of the lazy JSON viewer. It positions row
- * shells and reports the visible range back to the store; it owns no document
- * state. Row content comes from the store's per-revision cache (LFE-11080).
+ * shells and keeps the store's loaded window in sync with the visible range; it
+ * owns no document state. Row content comes from the store's per-revision cache
+ * (LFE-11080).
  */
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LazyJsonRow } from "./LazyJsonRow";
@@ -17,13 +18,38 @@ async function copyFullValue(store: RowModelStore, nodeId: number) {
   await store.getState().materialize(nodeId);
   const result = store.getState().values.get(nodeId);
   if (!result || !result.ok) return;
-  const { value } = result.value;
-  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const { value, truncated } = result.value;
+  // When the value exceeds the engine's byte cap, `value` is the raw decoded
+  // text PREFIX (not a parsed value), so emit it as-is rather than JSON-encoding
+  // a partial string. (Full-payload retrieval for >cap leaves is the streamed
+  // path's job, not the clipboard's.) Out-of-double integers come back as
+  // bigint, which JSON.stringify cannot serialize — handle both.
+  const text = truncated
+    ? typeof value === "string"
+      ? value
+      : String(value)
+    : typeof value === "string"
+      ? value
+      : typeof value === "bigint"
+        ? value.toString()
+        : safeStringify(value);
   try {
     await navigator.clipboard.writeText(text);
   } catch {
     // Clipboard denied (permissions / insecure context) — nothing to do here;
     // a production caller would surface a toast.
+  }
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(
+      value,
+      (_k, v) => (typeof v === "bigint" ? v.toString() : v),
+      2,
+    );
+  } catch {
+    return String(value);
   }
 }
 
@@ -37,9 +63,10 @@ export function LazyJsonList({ store, className }: LazyJsonListProps) {
 
   const totalVisible = useStore(store, (s) => s.totalVisible);
   const rows = useStore(store, (s) => s.rows);
+  const pending = useStore(store, (s) => s.pending);
   // Subscribe to revision so a structural change (which swaps `rows` for a new
   // empty Map, then refills) reliably repaints even before the refill lands.
-  useStore(store, (s) => s.revision);
+  const revision = useStore(store, (s) => s.revision);
 
   // Stable action bag — bound once to the store, so memoized rows never see a
   // changed callback identity on scroll.
@@ -68,18 +95,24 @@ export function LazyJsonList({ store, className }: LazyJsonListProps) {
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 40,
-    // Scroll/resize/mount fire onChange — the external event that drives which
-    // window the store must have loaded. Fetching happens here, not in render.
-    onChange: (instance) => {
-      const items = instance.getVirtualItems();
-      if (items.length === 0) return;
-      const start = items[0]!.index;
-      const end = items[items.length - 1]!.index;
-      store.getState().ensureRange(start, end - start + 1);
-    },
   });
 
   const virtualItems = virtualizer.getVirtualItems();
+  const firstIndex = virtualItems.length > 0 ? virtualItems[0]!.index : 0;
+  const lastIndex =
+    virtualItems.length > 0 ? virtualItems[virtualItems.length - 1]!.index : 0;
+
+  // Keep the store's loaded window in sync with the virtualizer's visible range.
+  // This is the windowed-loading integration boundary: it must react both to
+  // SCROLL (virtual indices change) and to a structural change that GROWS the
+  // range in place (revision bumps, count grows, but no scroll/resize event
+  // fires — so the virtualizer's own onChange would miss it). Depending on the
+  // computed range + revision covers both. `ensureRange` no-ops when the range
+  // is already cached, so scroll ticks are cheap.
+  useEffect(() => {
+    if (totalVisible === 0) return;
+    store.getState().ensureRange(firstIndex, lastIndex - firstIndex + 1);
+  }, [store, firstIndex, lastIndex, revision, totalVisible]);
 
   return (
     <div
@@ -112,6 +145,7 @@ export function LazyJsonList({ store, className }: LazyJsonListProps) {
               {row ? (
                 <LazyJsonRow
                   row={row}
+                  pending={pending.has(row.nodeId)}
                   onToggle={actions.toggle}
                   onLoadMore={actions.loadMore}
                   onCopyValue={actions.copyValue}
