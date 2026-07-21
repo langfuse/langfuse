@@ -492,9 +492,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
+  // Submitting approvals are excluded: once the last decision is made the
+  // batch is committed and nothing is actionable — the pager closes and the
+  // streaming continuation is the feedback. On failure the statuses revert to
+  // "pending" and the pager reappears.
   const pendingToolCalls = messages.flatMap((message) =>
     message.content.type === "toolGroup"
-      ? message.content.tools.filter((tool) => tool.approval)
+      ? message.content.tools.filter(
+          (tool) => tool.approval && tool.approval.status !== "submitting",
+        )
       : [],
   );
   const visibleMessages = messages

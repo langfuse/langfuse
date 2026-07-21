@@ -146,7 +146,7 @@ describe("InAppAgentWindow quick actions", () => {
 
 describe("InAppAgentWindow tool approvals", () => {
   const approvalToolGroupMessage = (
-    tools: Array<{ id: string; status: "pending" | "approved" }>,
+    tools: Array<{ id: string; status: "pending" | "approved" | "submitting" }>,
   ) =>
     ({
       id: "tools",
@@ -197,5 +197,23 @@ describe("InAppAgentWindow tool approvals", () => {
     fireEvent.click(screen.getByRole("button", { name: /Confirm/ }));
     expect(onApproveToolCall).toHaveBeenCalledWith("tool-call-1");
     expect(screen.getByText(/tool-call-2/)).toBeInTheDocument();
+  });
+
+  it("closes the pager once the batch is submitting", () => {
+    render(
+      windowElement({
+        messages: [
+          approvalToolGroupMessage([
+            { id: "tool-call-1", status: "submitting" },
+            { id: "tool-call-2", status: "submitting" },
+          ]),
+        ],
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Confirm/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/awaiting review/)).not.toBeInTheDocument();
   });
 });
