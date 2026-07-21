@@ -282,11 +282,12 @@ function ThemedDocsContainer({
           }
 
           .sbdocs-content hr {
-            height: 0.25em;
+            height: 0;
             margin: 1.5rem 0;
             padding: 0;
-            background: hsl(var(--border));
+            background: transparent;
             border: 0;
+            border-top: 1px solid hsl(var(--border));
           }
 
           .sbdocs-content table {

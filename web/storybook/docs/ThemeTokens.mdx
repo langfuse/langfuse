@@ -1,0 +1,168 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Theme Tokens" />
+
+export const Swatch = ({ token, css }) => (
+  <div className="flex w-36 flex-col gap-1">
+    <div
+      className="border-border h-12 w-full rounded-md border"
+      style={{ backgroundColor: css ?? `hsl(var(--${token}))` }}
+    />
+    <code
+      className="text-muted-foreground font-mono text-xs leading-tight"
+      style={{ backgroundColor: "transparent", fontSize: "0.75rem" }}
+    >
+      --{token}
+    </code>
+  </div>
+);
+
+export const PairChip = ({ bg, fg, label = "Aa — sample text" }) => (
+  <div className="flex w-52 flex-col gap-1">
+    <div
+      className="border-border flex h-12 items-center justify-center rounded-md border px-2 text-xs font-bold"
+      style={{
+        backgroundColor: `hsl(var(--${bg}))`,
+        color: `hsl(var(--${fg}))`,
+      }}
+    >
+      {label}
+    </div>
+    <code
+      className="text-muted-foreground font-mono text-xs leading-tight"
+      style={{ backgroundColor: "transparent", fontSize: "0.75rem" }}
+    >
+      --{bg} / --{fg}
+    </code>
+  </div>
+);
+
+export const TokenGrid = ({ children }) => (
+  <div className="my-4 flex flex-wrap gap-3">{children}</div>
+);
+
+export const semanticPairs = [
+  "primary",
+  "secondary",
+  "tertiary",
+  "accent",
+  "destructive",
+];
+
+export const statusPairs = [
+  ["light-red", "dark-red"],
+  ["light-yellow", "dark-yellow"],
+  ["light-green", "dark-green"],
+  ["light-blue", "dark-blue"],
+  ["accent-light-green", "accent-dark-green"],
+  ["accent-light-blue", "accent-dark-blue"],
+];
+
+# Theme Tokens
+
+## Surfaces
+
+<TokenGrid>
+  <PairChip bg="background" fg="foreground" />
+  <PairChip bg="card" fg="card-foreground" />
+  <PairChip bg="popover" fg="popover-foreground" />
+  <PairChip bg="header" fg="header-foreground" />
+  <PairChip bg="muted" fg="muted-foreground" />
+  <PairChip bg="background" fg="foreground-tertiary" label="faint text" />
+  <Swatch token="border" />
+  <Swatch token="border-contrast" />
+  <Swatch token="input" />
+  <Swatch token="ring" />
+  <Swatch token="surface-code" />
+</TokenGrid>
+
+## Semantic
+
+<TokenGrid>
+  {semanticPairs.map((name) => (
+    <PairChip key={name} bg={name} fg={`${name}-foreground`} label={name} />
+  ))}
+</TokenGrid>
+
+## Langfuse Accents
+
+<TokenGrid>
+  {[
+    "primary-accent",
+    "link",
+    "link-hover",
+    "control-fill",
+    "control-track",
+    "muted-blue",
+    "muted-green",
+    "muted-magenta",
+    "muted-gray",
+  ].map((token) => (
+    <Swatch key={token} token={token} />
+  ))}
+</TokenGrid>
+
+## Status and Accent Pairs
+
+<TokenGrid>
+  {statusPairs.map(([bg, fg]) => (
+    <PairChip key={bg} bg={bg} fg={fg} label={bg.replace("light-", "")} />
+  ))}
+</TokenGrid>
+
+## Search Grammar
+
+<TokenGrid>
+  {["qlang-field", "qlang-value", "qlang-number", "qlang-keyword"].map(
+    (token) => (
+      <Swatch key={token} token={token} />
+    ),
+  )}
+</TokenGrid>
+
+## Sidebar
+
+<TokenGrid>
+  <PairChip bg="sidebar-background" fg="sidebar-foreground" />
+  <PairChip bg="sidebar-primary" fg="sidebar-primary-foreground" />
+  <PairChip bg="sidebar-accent" fg="sidebar-accent-foreground" />
+  <Swatch token="sidebar-border" />
+  <Swatch token="sidebar-ring" />
+</TokenGrid>
+
+## Find Match
+
+<TokenGrid>
+  <PairChip bg="find-match-background" fg="foreground" label="match" />
+  <PairChip
+    bg="find-match-selected-background"
+    fg="find-match-selected-foreground"
+    label="selected match"
+  />
+</TokenGrid>
+
+## Charts
+
+<TokenGrid>
+  {Array.from({ length: 8 }, (_, index) => (
+    <Swatch key={index} token={`chart-${index + 1}`} />
+  ))}
+  <Swatch token="chart-grid" />
+</TokenGrid>
+
+## Heatmap
+
+<TokenGrid>
+  {Array.from({ length: 5 }, (_, index) => (
+    <Swatch
+      key={index}
+      token={`color-${index + 1}`}
+      css={`var(--color-${index + 1})`}
+    />
+  ))}
+</TokenGrid>
+
+---
+
+Tokens live in `web/src/styles/globals.css`. This page reads them directly, so
+the reference stays aligned with the application theme.
