@@ -324,12 +324,7 @@ function InAppAgentReasoningBlock({
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary
-        className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
-          isCompact && "px-0.5",
-        )}
-      >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
             "min-w-0 flex-1",

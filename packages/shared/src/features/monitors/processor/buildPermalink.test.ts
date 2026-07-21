@@ -49,7 +49,7 @@ describe("buildDataWindowPermalink", () => {
     );
   });
 
-  it.each(["scores-numeric", "scores-categorical"] as const)(
+  it.each(["scores-numeric", "scores-boolean", "scores-categorical"] as const)(
     "links a %s monitor to the traces table windowed by dateRange",
     (view) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
