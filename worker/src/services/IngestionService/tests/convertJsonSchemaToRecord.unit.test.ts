@@ -35,7 +35,7 @@ describe("convertJsonSchemaToRecord", () => {
   // Pins CURRENT behavior per acceptance criteria ("object inputs
   // unchanged"): objects pass through as-is. Note this deliberately does NOT
   // mirror convertPostgresJsonToMetadataRecord, which stringifies non-string
-  // values — see AMBIGUITY finding in the test-author report.
+  // values.
   it("passes object inputs through unchanged", () => {
     expect(convertJsonSchemaToRecord({ a: "x", b: 2, c: { d: true } })).toEqual(
       {
