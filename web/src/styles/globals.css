@@ -109,6 +109,7 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
   --color-modal: hsl(var(--modal));
@@ -242,6 +243,7 @@
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
+    --popover-border: var(--border);
 
     --card: 0 0% 100%;
     --card-foreground: var(--foreground);
@@ -372,7 +374,8 @@
        follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
        is the darkest tier; the content canvas sits one step above it, and
        every stacked layer steps up from there:
-         chrome 2% < canvas 6% < card 7.5% < modal 9% < popover 12%.
+         chrome 2% < canvas 5% < card 7.5% < modal 9% < popover 11%.
+       (canvas tuned live 2026-07-20: 6% → 5%)
        The bottom step is the widest (chrome→canvas) — equal pp steps read
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
@@ -386,7 +389,7 @@
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
-    --background: 0 0% 6%;
+    --background: 0 0% 5%;
     --foreground: 0 0% 60%;
 
     --muted: 0 0% 11.6%;
@@ -394,8 +397,11 @@
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
 
-    --popover: 0 0% 12%;
+    --popover: 0 0% 11%;
     --popover-foreground: var(--foreground);
+    /* Popover edge: the 15% hairline is near-invisible on the 11%+ tier,
+       so the top layer carries its own faint border. */
+    --popover-border: 0 0% 18%;
 
     --card: 0 0% 7.5%;
     --card-foreground: var(--foreground);
