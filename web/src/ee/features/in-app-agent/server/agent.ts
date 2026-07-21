@@ -32,8 +32,11 @@ import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/ser
 import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
+import {
+  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_MCP_USER_AGENT,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -737,6 +740,7 @@ async function createMastraAdapter(params: {
         requestInit: {
           headers: {
             Authorization: params.langfuseMcpAuthHeader,
+            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
             ...(params.options.langfuseMcp.runOverride
               ? {
                   [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]:
@@ -748,6 +752,11 @@ async function createMastraAdapter(params: {
       },
       langfuseDocs: {
         url: new URL(LANGFUSE_DOCS_MCP_URL),
+        requestInit: {
+          headers: {
+            "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
+          },
+        },
       },
     },
   });
