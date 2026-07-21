@@ -639,11 +639,6 @@ export const getObservationsWithPromptNameFromEvents = async (
     toTimestamp,
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
-  // uniq(span_id) instead of count(*): dual-write propagation can insert
-  // multiple event_ts versions of one span (staging partitions are 3 minutes,
-  // so create/update pairs straddle batches), and un-merged
-  // ReplacingMergeTree rows would otherwise double-count. Same idiom as the
-  // legacy getObservationsWithPromptName (uniq without FINAL).
   const query = `
   SELECT uniq(span_id) as count, prompt_name
   FROM events_core
