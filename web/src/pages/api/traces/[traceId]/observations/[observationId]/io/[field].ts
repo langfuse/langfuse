@@ -103,10 +103,12 @@ export default withMiddlewares({
     );
     await getAuthorizedTrace({ traceId, projectId, session });
 
-    // Cheap pre-query BEFORE any bytes: the exact field byte length. Two jobs —
-    // (1) a null (no matching row, e.g. a stale/skewed startTime) becomes a clean
-    // 404 instead of a misleading empty 200; (2) the length drives a
-    // Content-Length header so a truncated body is detectable at the HTTP layer.
+    // Cheap existence pre-query BEFORE any bytes: a null (no matching row, e.g.
+    // a stale/skewed startTime) becomes a clean 404 instead of a misleading
+    // empty 200. We deliberately do NOT derive a Content-Length from it: the
+    // body is streamed from a *separate* read, and a new event landing between
+    // the two would make a length-vs-body mismatch (truncation is instead
+    // signaled by aborting the socket in the catch below — see there).
     const byteLength = await getObservationIOFieldByteLengthFromEventsTable({
       projectId,
       traceId,
@@ -136,9 +138,11 @@ export default withMiddlewares({
     // than JSON, so we do NOT claim application/json. The consumer knows it is an
     // IO field and parses accordingly.
     res.setHeader("Content-Type", "application/octet-stream");
-    // Exact byte count: lets the client detect a truncated body (mid-stream
-    // ClickHouse failure) at the HTTP layer, on any ClickHouse version.
-    res.setHeader("Content-Length", String(byteLength));
+    // No Content-Length: the exact size would have to come from a second,
+    // independent read that can diverge from the body under concurrent
+    // ingestion. Streamed with chunked transfer-encoding instead; a truncated
+    // body is signaled by a socket abort (catch below), which fails the
+    // client's fetch — no false "clean" short read.
     // Tenant data: never cache in shared/proxy caches.
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -171,9 +175,9 @@ export default withMiddlewares({
       if (!clientClosed) res.end();
     } catch (error) {
       // Mid-stream ClickHouse/transport failure after headers were sent. Abort
-      // the socket (not a clean end) so the body ends SHORT of the declared
-      // Content-Length → the client's fetch errors, instead of a clean truncated
-      // 200 that looks like success. Do not rethrow (headers already sent).
+      // the socket (res.destroy, not a clean res.end) so the client's fetch
+      // rejects with a connection error instead of seeing a clean 200 whose
+      // body was silently truncated. Do not rethrow (headers already sent).
       logger.error("[stream-observation-io] mid-stream failure", {
         error: error instanceof Error ? error.message : String(error),
         projectId,

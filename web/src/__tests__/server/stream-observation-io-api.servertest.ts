@@ -76,7 +76,7 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     });
   });
 
-  it("streams the field as opaque bytes with a Content-Length for an authorized member", async () => {
+  it("streams the field as opaque bytes for an authorized member", async () => {
     const { req, res } = createGetMocks(validQuery);
 
     await handler(req, res);
@@ -84,8 +84,9 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     expect(res._getStatusCode()).toBe(200);
     // Opaque bytes, not application/json (input/output may be a bare string).
     expect(res.getHeader("Content-Type")).toBe("application/octet-stream");
-    // Exact byte count → the client can detect a truncated body.
-    expect(res.getHeader("Content-Length")).toBe("17");
+    // No Content-Length: the body streams chunked, so its size is never derived
+    // from a second read that could diverge from it.
+    expect(res.getHeader("Content-Length")).toBeUndefined();
     expect(res.getHeader("Cache-Control")).toBe("private, no-store");
     expect(res.getHeader("Accept-Ranges")).toBe("none");
     expect(res._getData()).toBe('{"hello":"world"}');
@@ -112,7 +113,7 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     expect(mockStreamIOField).not.toHaveBeenCalled();
   });
 
-  it("serves a genuinely empty field as 200 with Content-Length 0", async () => {
+  it("serves a genuinely empty field (length 0, row exists) as an empty 200", async () => {
     mockByteLength.mockResolvedValue(0);
     mockStreamIOField.mockResolvedValue({ stream: Readable.from([]) });
     const { req, res } = createGetMocks(validQuery);
@@ -120,7 +121,6 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(200);
-    expect(res.getHeader("Content-Length")).toBe("0");
     expect(res._getData()).toBe("");
   });
 
@@ -201,7 +201,7 @@ describe("GET /api/traces/[traceId]/observations/[observationId]/io/[field]", ()
     expect(mockGetAuthorizedTrace).not.toHaveBeenCalled();
   });
 
-  it("returns 400 for an unparseable startTime", async () => {
+  it("returns 400 for an unparsable startTime", async () => {
     const { req, res } = createGetMocks({
       ...validQuery,
       startTime: "not-a-date",
