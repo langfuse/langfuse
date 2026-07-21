@@ -56,6 +56,14 @@ const DUAL_CATEGORICAL_SCORE = "verdict";
 const DUAL_OBSERVATION_CATEGORIES = ["fail", "borderline"] as const;
 const DUAL_TRACE_CATEGORIES = ["pass", "borderline"] as const;
 
+// Cross-TYPE name collision: the same name used for a NUMERIC score at
+// observation level and an unrelated CATEGORICAL score at trace level. Level
+// provenance is data-type-scoped (LFE-10596): the Numeric facet must tag
+// "grade" Observation-only, the Categorical facet Trace-only, while the
+// search bar's merged `scores.grade` suggestion shows both.
+const CROSS_TYPE_SCORE = "grade";
+const CROSS_TYPE_TRACE_CATEGORIES = ["A", "B", "C"] as const;
+
 const TRACE_NAMES = [
   "qa-eval-run",
   "summarize-doc",
@@ -98,10 +106,11 @@ const run = async (
       counts: {
         traces: traceCount,
         observations: traceCount,
-        // 5 observation-level + 5 trace-level scores per trace (incl. the
-        // dual-level `confidence`/`verdict` pair present at both levels),
-        // plus one obs-level score on the v4 root span (mixed-level root)
-        scores: traceCount * (withV4 ? 11 : 10),
+        // 6 observation-level + 6 trace-level scores per trace (incl. the
+        // dual-level `confidence`/`verdict` pair present at both levels and
+        // the cross-type `grade` collision), plus one obs-level score on the
+        // v4 root span (mixed-level root)
+        scores: traceCount * (withV4 ? 13 : 12),
         events: withV4 ? traceCount * 2 : 0,
       },
       verified: {},
@@ -196,6 +205,39 @@ const run = async (
         name: OBSERVATION_CATEGORICAL_SCORE,
         value: 0,
         string_value: rng.pick(OBSERVATION_CATEGORIES),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+    );
+
+    // Cross-type collision, observation side: NUMERIC "grade".
+    scores.push(
+      createTraceScore({
+        id: `${obsId}-score-${CROSS_TYPE_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        observation_id: obsId,
+        environment: ctx.environment,
+        name: CROSS_TYPE_SCORE,
+        value: Math.round(rng.next() * 100) / 100,
+        data_type: "NUMERIC",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+      // Cross-type collision, trace side: CATEGORICAL "grade".
+      createTraceScore({
+        id: `${traceId}-score-${CROSS_TYPE_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        environment: ctx.environment,
+        name: CROSS_TYPE_SCORE,
+        value: 0,
+        string_value: rng.pick(CROSS_TYPE_TRACE_CATEGORIES),
         data_type: "CATEGORICAL",
         source: "EVAL",
         comment: null,
