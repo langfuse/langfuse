@@ -88,7 +88,10 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
-import { UNKNOWN_INGESTION_SDK_VALUE } from "../ingestion/ingestionAttribution";
+import {
+  type IngestionSdkUsageRow,
+  UNKNOWN_INGESTION_SDK_VALUE,
+} from "../ingestion/ingestionAttribution";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
   getObservationByIdFromObservationsTable,
@@ -3338,6 +3341,62 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     }),
   };
 }
+
+/**
+ * Aggregates Langfuse SDK ingestion attribution (name, version, event count)
+ * from events_core in the given creation interval. Returns null when the
+ * events_core table does not exist — the v4 events pipeline is not
+ * migration-managed yet, so most self-hosted deployments do not have it and
+ * callers must treat null as a no-op.
+ */
+export const getIngestionSdkUsageInCreationInterval = async ({
+  start,
+  end,
+}: {
+  start: Date;
+  end: Date;
+}): Promise<IngestionSdkUsageRow[] | null> => {
+  const tableExists = await queryClickhouse<{ result: number }>({
+    query: "EXISTS TABLE events_core",
+    tags: { route: "telemetry" },
+  });
+  if (Number(tableExists[0]?.result) !== 1) {
+    return null;
+  }
+
+  const rows = await queryClickhouse<{
+    sdk_name: string;
+    sdk_version: string;
+    count: string;
+  }>({
+    query: `
+      SELECT
+        ingestion_sdk_name AS sdk_name,
+        ingestion_sdk_version AS sdk_version,
+        count(*) AS count
+      FROM events_core
+      WHERE created_at >= {start: DateTime64(3)}
+        AND created_at < {end: DateTime64(3)}
+        AND ingestion_sdk_name != {unknown: String}
+        AND ingestion_sdk_version != {unknown: String}
+      GROUP BY sdk_name, sdk_version
+      ORDER BY count DESC
+      LIMIT 1000
+    `,
+    params: {
+      start: convertDateToClickhouseDateTime(start),
+      end: convertDateToClickhouseDateTime(end),
+      unknown: UNKNOWN_INGESTION_SDK_VALUE,
+    },
+    tags: { route: "telemetry" },
+  });
+
+  return rows.map((row) => ({
+    sdkName: row.sdk_name,
+    sdkVersion: row.sdk_version,
+    count: Number(row.count),
+  }));
+};
 
 export const getTracesIdentifierForSessionFromEvents = async (
   projectId: string,
