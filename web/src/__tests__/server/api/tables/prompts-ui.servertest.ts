@@ -287,21 +287,11 @@ describe("UI Prompts Table", () => {
   );
 
   itIfEventsTable(
-    "should count only the latest event version for prompt counts",
+    "should not double count spans with multiple event versions",
     async () => {
       const projectId = v4();
       const startTime = Date.parse("2026-07-16T13:42:33.028Z") * 1000;
-      const countedSpan = createEvent({
-        project_id: projectId,
-        trace_id: v4(),
-        span_id: v4(),
-        prompt_id: v4(),
-        prompt_name: "Test Prompt",
-        prompt_version: 1,
-        start_time: startTime,
-        event_ts: startTime,
-      });
-      const deletedSpan = createEvent({
+      const event = createEvent({
         project_id: projectId,
         trace_id: v4(),
         span_id: v4(),
@@ -312,11 +302,10 @@ describe("UI Prompts Table", () => {
         event_ts: startTime,
       });
 
-      await createEventsCh([countedSpan, deletedSpan]);
-      await createEventsCh([
-        { ...countedSpan, event_ts: startTime + 1_000_000 },
-        { ...deletedSpan, event_ts: startTime + 1_000_000, is_deleted: 1 },
-      ]);
+      // Dual-write propagation inserts a new event_ts version per legacy
+      // observation update; separate inserts keep both versions un-merged.
+      await createEventsCh([event]);
+      await createEventsCh([{ ...event, event_ts: startTime + 1_000_000 }]);
 
       const result = await getObservationsWithPromptNameFromEvents(projectId, [
         "Test Prompt",

@@ -58,7 +58,6 @@ import {
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
   promptEventsForMetrics,
-  promptEventsForNameCounts,
 } from "../queries/clickhouse-sql/query-fragments";
 import {
   eventsTableNativeUiColumnDefinitions,
@@ -640,29 +639,34 @@ export const getObservationsWithPromptNameFromEvents = async (
     toTimestamp,
   }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
 ) => {
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTE(
-      "prompt_events",
-      promptEventsForNameCounts({
-        projectId,
-        promptNames,
-        ...(fromTimestamp
-          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-          : {}),
-        ...(toTimestamp
-          ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
-          : {}),
-      }),
-    )
-    .from("prompt_events", "e")
-    .select("count(*) AS count", "e.prompt_name AS prompt_name")
-    .whereRaw("e.is_deleted = 0")
-    .groupBy("e.prompt_name");
-
-  const { query, params } = queryBuilder.buildWithParams();
+  // uniq(span_id) instead of count(*): dual-write propagation can insert
+  // multiple event_ts versions of one span (staging partitions are 3 minutes,
+  // so create/update pairs straddle batches), and un-merged
+  // ReplacingMergeTree rows would otherwise double-count. Same idiom as the
+  // legacy getObservationsWithPromptName (uniq without FINAL).
+  const query = `
+  SELECT uniq(span_id) as count, prompt_name
+  FROM events_core
+  WHERE project_id = {projectId: String}
+  AND prompt_name IN ({promptNames: Array(String)})
+  AND prompt_name != ''
+  AND is_deleted = 0
+  ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(6)}" : ""}
+  ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(6)}" : ""}
+  GROUP BY prompt_name
+`;
   const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
     query,
-    params,
+    params: {
+      projectId,
+      promptNames,
+      fromTimestamp: fromTimestamp
+        ? convertDateToClickhouseDateTime(fromTimestamp)
+        : undefined,
+      toTimestamp: toTimestamp
+        ? convertDateToClickhouseDateTime(toTimestamp)
+        : undefined,
+    },
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
