@@ -165,9 +165,11 @@ export class OtelIngestionProcessor {
   private static readonly OTEL_CONVERSION_FAILURE_METRIC =
     "langfuse.ingestion.otel.conversion_failure";
 
+  private static readonly METADATA_DROP_WARN_CAP = 10;
+
   private seenTraces: Set<string> = new Set();
   private reportedMetadataDrops = new WeakMap<object, Set<string>>();
-  private readonly resourceMetadataDropScope: object = {};
+  private metadataDropWarnCount = 0;
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -823,7 +825,7 @@ export class OtelIngestionProcessor {
     const resourceAttributeMetadata = this.extractMetadata(
       resourceAttributes,
       "trace",
-      this.resourceMetadataDropScope,
+      resourceAttributes,
     );
     const { startTimeISO, endTimeISO } =
       OtelIngestionProcessor.resolveSpanTimestamps({
@@ -2171,13 +2173,22 @@ export class OtelIngestionProcessor {
         ? LangfuseOtelSpanAttributes.OBSERVATION_METADATA
         : LangfuseOtelSpanAttributes.TRACE_METADATA;
 
+    // A falsy-present primary key dies at the `||` fallback below and never
+    // reaches the parser: count it here, emission-only. Falsy compat values
+    // survive the fallback and are counted by the parser itself.
+    const primaryValue = attributes[metadataKeyPrefix];
+    if (primaryValue !== undefined && primaryValue !== null && !primaryValue) {
+      this.recordMetadataDropped(
+        typeof primaryValue === "string" ? "parse_failure" : "primitive",
+        { domain, attributeKey: metadataKeyPrefix, dropScope },
+      );
+    }
+
     const topLevelMetadata = this.parseMetadataAttribute(
-      attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
+      primaryValue || attributes["langfuse.metadata"],
       {
         domain,
-        attributeKey: attributes[metadataKeyPrefix]
-          ? metadataKeyPrefix
-          : "langfuse.metadata",
+        attributeKey: primaryValue ? metadataKeyPrefix : "langfuse.metadata",
         dropScope,
       },
     );
@@ -2842,9 +2853,12 @@ export class OtelIngestionProcessor {
     return [];
   }
 
-  // One increment per dropped attribute value per job: deduped per drop
-  // scope (span object, shared across both worker pipelines) on
-  // (attribute key, reason); the first-seen domain wins the tag.
+  // One increment per dropped attribute VALUE: deduped per drop scope —
+  // the span object for span attributes (shared across both worker
+  // pipelines) or the per-resourceSpan attributes object for resource
+  // attributes — on (attribute key, reason). Distinct spans/resourceSpans
+  // in one job count separately; the first-seen domain wins the tag.
+  // Warns are capped per instance, increments are not.
   private recordMetadataDropped(
     reason: string,
     context: MetadataDropContext,
@@ -2866,12 +2880,17 @@ export class OtelIngestionProcessor {
       source: "otel",
       domain,
     });
-    logger.warn("OTEL metadata attribute dropped", {
-      projectId: this.projectId,
-      reason,
-      domain,
-      attributeKey,
-    });
+    if (
+      this.metadataDropWarnCount < OtelIngestionProcessor.METADATA_DROP_WARN_CAP
+    ) {
+      this.metadataDropWarnCount += 1;
+      logger.warn("OTEL metadata attribute dropped", {
+        projectId: this.projectId,
+        reason,
+        domain,
+        attributeKey,
+      });
+    }
   }
 
   private parseMetadataAttribute(
