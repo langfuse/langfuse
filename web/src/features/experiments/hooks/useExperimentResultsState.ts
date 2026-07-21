@@ -39,9 +39,11 @@ export function useExperimentResultsState(
 
   // Parse comparison IDs - filter out null values and cast to string[]
   const rawIds = state.c as (string | null)[] | undefined;
-  const comparisonIds: string[] = (rawIds ?? []).filter(
-    (id): id is string => typeof id === "string" && id.length > 0,
-  );
+  const comparisonIds: string[] = isSingleExperiment
+    ? []
+    : (rawIds ?? []).filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      );
 
   // Set baseline with reconciliation: remove from comparison if present
   const setBaseline = (id: string | undefined) => {
