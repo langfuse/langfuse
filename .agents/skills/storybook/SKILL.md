@@ -59,6 +59,8 @@ For example, a `Button` with a `size: "sm" | "md" | "lg"` prop may have a story 
 
 If the button also has a `variant: "primary" | "secondary"` prop, consider using a matrix-like UI that showcases all possible combinations.
 
+Name a story that renders this kind of variant grid `VariantMatrix` so it appears as **Variant Matrix** in Storybook. Do not use generic names such as `AllVariants`.
+
 These compositional stories **should not** contain Storybook play functions. They should also not allow the Storybook user to customize the predefined args, such as `size` and `variant`, via Storybook args. Having an arg for non-bound props, such as `text`, may be acceptable.
 
 ## Authoring MDX Docs
