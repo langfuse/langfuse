@@ -9,7 +9,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, read session data via GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read session data via GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>."
       docs: |
         Get sessions.
 
@@ -42,7 +42,7 @@ service:
     get:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, read session data via GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, read session data via GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>."
       docs: |
         Get a session.
 

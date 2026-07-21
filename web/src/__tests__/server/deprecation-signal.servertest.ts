@@ -18,7 +18,6 @@ import {
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
   TRACES_DEPRECATION,
-  V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
@@ -51,7 +50,7 @@ describe("public API deprecation signal", () => {
     );
   });
 
-  it("carries the docs URL and the committed sunset date", async () => {
+  it("carries the docs URL", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,
       "GET",
@@ -64,8 +63,6 @@ describe("public API deprecation signal", () => {
     expect(response.body._deprecation?.docsUrl).toBe(
       OBSERVATIONS_API_V2_DOCS_URL,
     );
-    // sunsetAt is committed → present.
-    expect(response.body._deprecation?.sunsetAt).toBe(V3_SUNSET_DATE);
   });
 
   // Single-item response: `_deprecation` is added via `.extend()` at the
