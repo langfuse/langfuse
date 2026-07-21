@@ -40,7 +40,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 
 import { IngestionService } from "../../IngestionService";
 import { logger, type ScoreEventType } from "@langfuse/shared/src/server";
-import { LangfuseNotFoundError } from "@langfuse/shared";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import { TableName } from "../../ClickhouseWriter";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
@@ -210,6 +210,31 @@ describe("score validation drop metric (LFE-14345)", () => {
       processScores(ingestionService, [validScoreEvent()]),
     ).rejects.toThrow("Unexpected error(s) validating score batch");
 
+    expect(addToQueue).not.toHaveBeenCalled();
+    expect(droppedCalls()).toHaveLength(0);
+  });
+
+  it("does not emit when a rethrowing batch also contains an expected validation failure (retry overcount)", async () => {
+    // Greptile finding on PR #15269 / extended ruling: a batch containing
+    // ANY unexpected error rejects and gets redelivered — counting the
+    // expected drop on such an attempt inflates the metric once per retry.
+    // Drops are counted only on the attempt that completes.
+    const { ingestionService, addToQueue } = createService();
+
+    let validationCall = 0;
+    mocks.validateAndInflateScoreOverride = () => {
+      validationCall += 1;
+      return validationCall === 1
+        ? Promise.reject(new InvalidRequestError("expected validation drop"))
+        : Promise.reject(new Error("unexpected validation crash"));
+    };
+
+    await expect(
+      processScores(ingestionService, [validScoreEvent(), validScoreEvent()]),
+    ).rejects.toThrow("Unexpected error(s) validating score batch");
+
+    // Both events were validated: one expected drop + one unexpected error.
+    expect(validationCall).toBe(2);
     expect(addToQueue).not.toHaveBeenCalled();
     expect(droppedCalls()).toHaveLength(0);
   });
