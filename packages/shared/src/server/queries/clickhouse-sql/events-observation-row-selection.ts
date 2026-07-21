@@ -202,46 +202,6 @@ export const toLevelAgnosticScoreFilter = (filter: Filter): Filter => {
   return filter;
 };
 
-/**
- * True when the FilterState carries an observation-scoped score filter
- * (`scores_avg` / `score_categories` / `score_booleans`, incl. legacy
- * aliases). These are rewritten into the level-agnostic union by
- * `toLevelAgnosticScoreFilter`, so both the obs (`s.`) and trace (`ts.`)
- * score CTEs must be joined (LFE-10596). Shared so the events list and the
- * batch export/action stream stay in sync.
- */
-export const filterHasObservationScores = (
-  filter: Array<{ column: string }>,
-): boolean =>
-  filter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "scores" ||
-      column === "scores_avg" ||
-      column === "score_categories" ||
-      column === "score_booleans" ||
-      column === "scores (numeric)" ||
-      column === "scores (categorical)" ||
-      column === "scores (boolean)"
-    );
-  });
-
-/** True when the FilterState carries an explicit trace-only score filter. */
-export const filterHasTraceScores = (
-  filter: Array<{ column: string }>,
-): boolean =>
-  filter.some((f) => {
-    const column = f.column.toLowerCase();
-    return (
-      column === "trace_scores_avg" ||
-      column === "trace_score_categories" ||
-      column === "trace_score_booleans" ||
-      column === "trace scores (numeric)" ||
-      column === "trace scores (categorical)" ||
-      column === "trace scores (boolean)"
-    );
-  });
-
 const classifyFilter = (filter: FilterCondition): EventFilterGroup => {
   const filterColumn = resolveLegacyScoreFilterColumn(
     filter,

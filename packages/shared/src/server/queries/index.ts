@@ -99,8 +99,6 @@ export {
 export {
   buildEventsObservationRowSelection,
   eventSearchCondition,
-  filterHasObservationScores,
-  filterHasTraceScores,
   groupEventsObservationFilters,
   toLevelAgnosticScoreFilter,
   type EventsObservationFilterGroups,
