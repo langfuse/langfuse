@@ -9,7 +9,7 @@ service:
     batch:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. Send data via the OpenTelemetry endpoint at POST /api/public/otel/v1/traces instead. Learn more: https://langfuse.com/integrations/native/opentelemetry"
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. Send data via the OpenTelemetry endpoint at POST /api/public/otel/v1/traces instead. Learn more: https://langfuse.com/integrations/native/opentelemetry"
       docs: |
         **Legacy endpoint for batch ingestion for Langfuse Observability.**
 

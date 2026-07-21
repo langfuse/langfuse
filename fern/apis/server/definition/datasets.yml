@@ -36,7 +36,7 @@ service:
     getRun:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
       docs: Get a dataset run and its items
       path: /datasets/{datasetName}/runs/{runName}
@@ -47,7 +47,7 @@ service:
     deleteRun:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, dataset runs are replaced by experiments."
       method: DELETE
       docs: Delete a dataset run and all its run items. This action is irreversible.
       path: /datasets/{datasetName}/runs/{runName}
@@ -58,7 +58,7 @@ service:
     getRuns:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, dataset runs are replaced by experiments; use GET /api/public/experiments instead."
       method: GET
       docs: Get dataset runs
       path: /datasets/{datasetName}/runs
