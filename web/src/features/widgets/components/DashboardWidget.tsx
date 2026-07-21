@@ -470,14 +470,23 @@ export function DashboardWidget({
   // global) translated to the traces/observations table's applicable filters,
   // plus the widget's time range. Filters the table can't express are dropped
   // (surfaced as a hint), never errored. The widget-filter merge mirrors the
-  // query build above (widget.data.filters + dashboard filterState).
+  // query build above via mergeWidgetAndDashboardFilters, so the environment
+  // override applies here too: a widget with its own environment filter must
+  // deep-link to a table scoped to ITS environment, not one carrying both the
+  // widget's and the dashboard selector's contradictory environment filters
+  // (which the table treats as applicable → empty table). (LFE-14333)
+  // buildTableFilterHref maps to view space again internally; that re-map is
+  // idempotent for the already-canonical columns this helper returns
+  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
+  // double-mapped or dropped.
   const tableView = useMemo(() => {
     const view = widget.data?.view;
     if (!view) return undefined;
-    const mergedFilters: FilterState = [
-      ...(widget.data?.filters ?? []),
-      ...filterState,
-    ];
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view: view as z.infer<typeof views>,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
     return buildTableFilterHref(
       projectId,
       view as z.infer<typeof views>,
