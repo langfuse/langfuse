@@ -1,5 +1,8 @@
 import { render } from "@testing-library/react";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import {
+  MarkdownView,
+  prependBasePathToInternalHref,
+} from "@/src/components/ui/MarkdownViewer";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 
 vi.mock("next/router", () => ({
@@ -55,5 +58,39 @@ describe("MarkdownView link rendering", () => {
 
     expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).toContain("x");
+  });
+});
+
+describe("prependBasePathToInternalHref", () => {
+  // A native <a> loses the NEXT_PUBLIC_BASE_PATH that <Link> used to prepend to
+  // root-relative internal hrefs; this helper restores it for subpath deploys.
+  it("prepends the base path to a root-relative internal href", () => {
+    expect(
+      prependBasePathToInternalHref("/project/abc/traces/def", "/lf"),
+    ).toBe("/lf/project/abc/traces/def");
+  });
+
+  it("is a no-op when no base path is configured", () => {
+    expect(prependBasePathToInternalHref("/project/abc", "")).toBe(
+      "/project/abc",
+    );
+  });
+
+  it("leaves absolute URLs untouched", () => {
+    expect(
+      prependBasePathToInternalHref("https://example.com/page", "/lf"),
+    ).toBe("https://example.com/page");
+    expect(prependBasePathToInternalHref("mailto:a@b.com", "/lf")).toBe(
+      "mailto:a@b.com",
+    );
+  });
+
+  it("leaves protocol-relative, hash, search and dot-relative refs untouched", () => {
+    expect(prependBasePathToInternalHref("//evil.example.com", "/lf")).toBe(
+      "//evil.example.com",
+    );
+    expect(prependBasePathToInternalHref("#section", "/lf")).toBe("#section");
+    expect(prependBasePathToInternalHref("?tab=io", "/lf")).toBe("?tab=io");
+    expect(prependBasePathToInternalHref("./sibling", "/lf")).toBe("./sibling");
   });
 });
