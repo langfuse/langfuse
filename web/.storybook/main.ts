@@ -7,6 +7,12 @@ import { fileURLToPath } from "url";
 import * as ts from "typescript";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
+const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
+const DESIGN_COMPONENT_STORIES = [
+  "LangfuseIcon/LangfuseIcon",
+  "Spinner/Spinner",
+  "Switch/Switch",
+] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -65,19 +71,30 @@ function addInferredStoryTitle(code: string, fileName: string) {
 
 const config: StorybookConfig = {
   stories: [
+    // Curated design-system documentation shown under Design.
     {
       directory: "../storybook/docs",
       files: "**/*.mdx",
       titlePrefix: "Design",
     },
+    // Technical MDX documents colocated with implementation code.
     {
       directory: "../src",
       files: "**/*.mdx",
       titlePrefix: "Playground/Docs",
     },
+    // Reviewed components that are part of the design-system reference.
+    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design/Components",
+    })),
+    // All other component stories belong to the flat Playground by default.
     {
       directory: "../src",
-      files: "**/*.stories.@(js|jsx|mjs|ts|tsx)",
+      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
+        basename(storyPath),
+      ).join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],
