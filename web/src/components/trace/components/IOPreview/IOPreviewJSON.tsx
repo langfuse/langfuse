@@ -364,6 +364,17 @@ function IOPreviewJSONInner({
       hideData: true,
       backgroundColor,
       minHeight: "4px",
+      // A gated field has no tree to expand/collapse — only the download escape
+      // hatch below. Render a header WITHOUT a collapse toggle, so the section
+      // can never be collapsed: its collapse is therefore never persisted, and
+      // the download can't be hidden — not silently (inherited state) and not
+      // by a user collapsing one gated field then viewing another of the same
+      // name (the gated→gated leak the plain key still allowed).
+      renderHeader: () => (
+        <div className="flex items-center px-2 py-1.5">
+          <span className="text-xs font-bold">{title}</span>
+        </div>
+      ),
       renderFooter: () =>
         probe ? (
           <LargeJsonFieldFallback
