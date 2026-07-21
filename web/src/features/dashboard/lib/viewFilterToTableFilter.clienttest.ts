@@ -46,6 +46,7 @@ describe("tableTargetForView", () => {
   it("routes traces and every scores-* view to the traces table", () => {
     expect(tableTargetForView("traces")).toBe("traces");
     expect(tableTargetForView("scores-numeric")).toBe("traces");
+    expect(tableTargetForView("scores-boolean")).toBe("traces");
     expect(tableTargetForView("scores-categorical")).toBe("traces");
   });
 });
@@ -215,6 +216,14 @@ describe("classifyViewFiltersForTable", () => {
         stringFilter("parentObservationId"),
       ],
       "scores-numeric": [
+        stringOptionsFilter("traceName"),
+        arrayOptionsFilter("tags"),
+        stringFilter("userId"),
+        stringFilter("sessionId"),
+        stringFilter("traceRelease"),
+        stringFilter("traceVersion"),
+      ],
+      "scores-boolean": [
         stringOptionsFilter("traceName"),
         arrayOptionsFilter("tags"),
         stringFilter("userId"),

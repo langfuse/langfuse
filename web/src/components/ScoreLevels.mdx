@@ -1,0 +1,46 @@
+import { Meta, Canvas } from "@storybook/addon-docs/blocks";
+import * as ScoreTagStories from "./score-tag.stories";
+
+<Meta title="components/ScoreTag/Guidance" />
+
+# Score levels & the `ScoreTag` color coding
+
+A score's meaning depends on the **context it was created in** — its _level_.
+Most users don't understand the distinction, so the platform surfaces it
+everywhere a score appears: **if you show a score in the UI, tag its level
+with `<ScoreTag>`.**
+
+## The four levels
+
+| Level           | The evaluation context      | Color  | Status                                         |
+| --------------- | --------------------------- | ------ | ---------------------------------------------- |
+| **Observation** | a single observation (span) | blue   | live                                           |
+| **Trace**       | the whole trace             | violet | live — most scores today are trace-level       |
+| **Session**     | a session of traces         | teal   | future — session ids not yet written on scores |
+| **Experiment**  | an experiment / dataset run | yellow | future — experiment ids not yet written        |
+
+The coding is **global**: one hue per level, identical on every surface
+(filter bar, sidebar facets, trace Scores tab, tree/timeline, tables). The
+hues are theme tokens in `globals.css` (light + dark) and live only in
+`score-tag.tsx` — never restate them at a call site.
+
+<Canvas of={ScoreTagStories.AllLevels} />
+
+## Full vs compact
+
+- **Full** (`<ScoreTag level="trace" />`) — colored pill with the level word.
+  Use in lists, option rows, and tables where a word fits.
+- **Compact** (`<ScoreTag level="trace" compact />`) — color dot with the
+  level in a tooltip + `aria-label`. Use only in dense views (trace tree /
+  timeline rows).
+
+Never rely on color alone: the full variant carries the word, the compact
+variant carries it via tooltip and `aria-label`.
+
+<Canvas of={ScoreTagStories.InContext} />
+
+## Deriving the level
+
+Stored scores have no explicit level field. Use `scoreLevelFromScore(score)`
+(exported next to `ScoreTag`): `observationId` set → observation, otherwise
+trace. Extend it there when session/experiment ids land on scores.
