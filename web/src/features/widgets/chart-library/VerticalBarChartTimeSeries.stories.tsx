@@ -41,13 +41,7 @@ const data: DataPoint[] = [
 
 const meta = preview.meta({
   component: VerticalBarChartTimeSeriesDemo,
-  decorators: [
-    (Story) => (
-      <div className="bg-background h-[320px] w-[640px] rounded-md border p-3">
-        <Story />
-      </div>
-    ),
-  ],
+  parameters: { layout: "fullscreen" },
 });
 
 export const Default = meta.story({

@@ -107,24 +107,33 @@ const longNameData = buildSeries(
   (bucket) => isoDay(bucket, 0),
 );
 
+const syncedLabelAt = (bucket: number) => {
+  const hour = 13 + Math.floor(bucket / 2);
+  return `${hour}:${bucket % 2 === 0 ? "00" : "30"}`;
+};
+const syncedRequestsData = buildSeries(
+  [
+    { name: "web", base: 14_000, amp: 6_000 },
+    { name: "worker", base: 9_000, amp: 4_000 },
+  ],
+  8,
+  syncedLabelAt,
+);
+const syncedLatencyData = buildSeries(
+  [
+    { name: "post /api/chat-completion", base: 800, amp: 700 },
+    { name: "get /api/traces", base: 300, amp: 200 },
+  ],
+  8,
+  syncedLabelAt,
+);
+
 const msFormatter: MetricFormatterFunction = (value, options) =>
   formatMetric(value, { ...options, unit: "millisecond" });
 
 const meta = preview.meta({
   component: LineChartTimeSeriesDemo,
-  args: {
-    data: latencyData,
-    legendPosition: "below",
-    metricFormatter: msFormatter,
-  },
-  // Host in a card-sized box so ResponsiveContainer has room (the widget shape).
-  decorators: [
-    (Story) => (
-      <div className="bg-background h-[320px] w-[640px] rounded-md border p-3">
-        <Story />
-      </div>
-    ),
-  ],
+  parameters: { layout: "fullscreen" },
 });
 
 // ── Legend summary ───────────────────────────────────────────────────────────
@@ -133,11 +142,20 @@ const meta = preview.meta({
 // an unlabeled non-sum number reads ambiguously. (LFE-10549)
 
 export const LegendNoneOnLatency = meta.story({
-  args: { data: latencyData, legendSummary: "none" },
+  args: {
+    data: latencyData,
+    legendPosition: "below",
+    legendSummary: "none",
+    metricFormatter: msFormatter,
+  },
 });
 
 export const LegendSumOnAdditive = meta.story({
-  args: { data: tokenData, legendSummary: "sum", metricFormatter: undefined },
+  args: {
+    data: tokenData,
+    legendPosition: "below",
+    legendSummary: "sum",
+  },
 });
 
 // ── Overload handling (decide the de-clutter approach here) ───────────────────
@@ -146,25 +164,31 @@ export const LegendSumOnAdditive = meta.story({
 export const OverloadAllSeriesHighlight = meta.story({
   args: {
     data: manySeriesData,
+    legendPosition: "below",
     legendSummary: "none",
     legendInteraction: "highlight",
+    metricFormatter: msFormatter,
   },
 });
 
 export const OverloadToggleVisibility = meta.story({
   args: {
     data: manySeriesData,
+    legendPosition: "below",
     legendSummary: "none",
     legendInteraction: "toggle",
+    metricFormatter: msFormatter,
   },
 });
 
 export const OverloadTopFive = meta.story({
   args: {
     data: manySeriesData,
+    legendPosition: "below",
     legendSummary: "none",
     legendInteraction: "toggle",
     maxVisibleSeries: 5,
+    metricFormatter: msFormatter,
   },
 });
 
@@ -172,7 +196,6 @@ export const DailyTimeScale = meta.story({
   args: {
     data: dailyData,
     legendPosition: "none",
-    metricFormatter: undefined,
   },
 });
 
@@ -180,7 +203,6 @@ export const HourlyTimeScale = meta.story({
   args: {
     data: hourlyData,
     legendPosition: "none",
-    metricFormatter: undefined,
   },
 });
 
@@ -188,7 +210,6 @@ export const SingleSeriesAutomaticLegend = meta.story({
   args: {
     data: singleSeriesData,
     legendPosition: "auto",
-    metricFormatter: undefined,
   },
 });
 
@@ -196,7 +217,6 @@ export const MultipleSeriesAutomaticLegend = meta.story({
   args: {
     data: dailyData,
     legendPosition: "auto",
-    metricFormatter: undefined,
   },
 });
 
@@ -204,6 +224,35 @@ export const WithLongSeriesNames = meta.story({
   args: {
     data: longNameData,
     legendPosition: "below",
-    metricFormatter: undefined,
   },
+});
+
+export const SyncedTimeline = meta.story({
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex w-[640px] flex-col gap-4 p-4">
+      <p className="text-muted-foreground text-xs">
+        Hover either chart to move the shared timeline across both.
+      </p>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChartTimeSeries
+          data={syncedRequestsData}
+          syncId="synced-timeline"
+          legendPosition="below"
+          legendSummary="none"
+          showDataPointDots={false}
+        />
+      </div>
+      <div className="bg-background h-[220px] rounded-md border p-3">
+        <LineChartTimeSeries
+          data={syncedLatencyData}
+          syncId="synced-timeline"
+          legendPosition="below"
+          legendSummary="none"
+          showDataPointDots={false}
+          metricFormatter={msFormatter}
+        />
+      </div>
+    </div>
+  ),
 });
