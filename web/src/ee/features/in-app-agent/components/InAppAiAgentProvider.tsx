@@ -113,7 +113,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   submit: async () => false,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
-  approveAllToolCalls: async () => undefined,
   submitFeedback: async () => undefined,
 };
 
@@ -172,7 +171,6 @@ type InAppAiAgentContextType = {
   ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
-  approveAllToolCalls: () => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -1201,29 +1199,6 @@ function InAppAiAgentProviderInner({
     [recordToolApprovalDecision],
   );
 
-  const approveAllToolCalls = useCallback(async () => {
-    if (
-      pendingToolApprovalsRef.current.length === 0 ||
-      !canDecideToolApprovals()
-    ) {
-      return;
-    }
-
-    updatePendingToolApprovals((currentApprovals) =>
-      currentApprovals.map((currentApproval) =>
-        currentApproval.status === "pending"
-          ? { ...currentApproval, status: "approved" as const }
-          : currentApproval,
-      ),
-    );
-
-    await submitToolApprovalDecisions();
-  }, [
-    canDecideToolApprovals,
-    submitToolApprovalDecisions,
-    updatePendingToolApprovals,
-  ]);
-
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
@@ -1253,12 +1228,10 @@ function InAppAiAgentProviderInner({
       submit,
       approveToolCall,
       rejectToolCall,
-      approveAllToolCalls,
       submitFeedback,
     }),
     [
       approveToolCall,
-      approveAllToolCalls,
       isExpanded,
       conversations,
       error,

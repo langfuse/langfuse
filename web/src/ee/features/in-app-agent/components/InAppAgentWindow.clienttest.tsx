@@ -30,7 +30,6 @@ function windowElement(
     isLoadingMoreConversations: false,
     messages: [],
     onApproveToolCall: vi.fn(),
-    onApproveAllToolCalls: vi.fn(),
     onDeleteConversation: vi.fn(),
     onExpandedChange: vi.fn(),
     onLoadMoreConversations: vi.fn(),
@@ -164,9 +163,9 @@ describe("InAppAgentWindow tool approvals", () => {
       },
     }) as const;
 
-  it("offers approve-all only while several cards are undecided", () => {
-    const onApproveAllToolCalls = vi.fn().mockResolvedValue(undefined);
-    const { rerender } = render(
+  it("pages through approvals one card at a time and advances on decision", () => {
+    const onApproveToolCall = vi.fn().mockResolvedValue(undefined);
+    render(
       windowElement({
         messages: [
           approvalToolGroupMessage([
@@ -174,27 +173,29 @@ describe("InAppAgentWindow tool approvals", () => {
             { id: "tool-call-2", status: "pending" },
           ]),
         ],
-        onApproveAllToolCalls,
+        onApproveToolCall,
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve all" }));
-    expect(onApproveAllToolCalls).toHaveBeenCalledTimes(1);
-
-    // One remaining undecided card no longer needs the shortcut.
-    rerender(
-      windowElement({
-        messages: [
-          approvalToolGroupMessage([
-            { id: "tool-call-1", status: "approved" },
-            { id: "tool-call-2", status: "pending" },
-          ]),
-        ],
-        onApproveAllToolCalls,
-      }),
-    );
+    // Only the active card renders.
+    expect(screen.getAllByRole("button", { name: /Confirm/ })).toHaveLength(1);
     expect(
-      screen.queryByRole("button", { name: "Approve all" }),
-    ).not.toBeInTheDocument();
+      screen.getByText("Tool call 1 of 2 awaiting review"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/tool-call-1/)).toBeInTheDocument();
+
+    // Manual navigation reaches the sibling card.
+    fireEvent.click(screen.getByRole("button", { name: "Next tool call" }));
+    expect(
+      screen.getByText("Tool call 2 of 2 awaiting review"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/tool-call-2/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Previous tool call" }));
+    expect(screen.getByText(/tool-call-1/)).toBeInTheDocument();
+
+    // Deciding records the decision and advances to the next undecided card.
+    fireEvent.click(screen.getByRole("button", { name: /Confirm/ }));
+    expect(onApproveToolCall).toHaveBeenCalledWith("tool-call-1");
+    expect(screen.getByText(/tool-call-2/)).toBeInTheDocument();
   });
 });

@@ -10,7 +10,8 @@ import {
 import {
   ArrowRight,
   BotMessageSquare,
-  Check,
+  ChevronLeft,
+  ChevronRight,
   History,
   Info,
   Maximize2,
@@ -46,6 +47,7 @@ import type { InAppAgentScreenContextDescription } from "@/src/ee/features/in-ap
 import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
   type InAppAgentError,
+  type InAppAgentToolCallContent,
   isInAppAgentRateLimited,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import styles from "./InAppAgentWindow.module.css";
@@ -173,6 +175,99 @@ function InAppAgentQuickActionPicker({
   );
 }
 
+// One approval card at a time: several cards stacked in the pinned section
+// take over the whole window. The pager shows the active card with prev/next
+// navigation and jumps to the next undecided card after each decision; the
+// batch resume still fires once every card is decided.
+function InAppAgentToolApprovalPager({
+  pendingToolCalls,
+  isExpanded,
+  isDisabled,
+  onApproveToolCall,
+  onRejectToolCall,
+}: {
+  pendingToolCalls: InAppAgentToolCallContent[];
+  isExpanded: boolean;
+  isDisabled: boolean;
+  onApproveToolCall: (approvalId: string) => Promise<void>;
+  onRejectToolCall: (approvalId: string) => Promise<void>;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const cardCount = pendingToolCalls.length;
+  const safeIndex = Math.min(activeIndex, cardCount - 1);
+  const activeTool = pendingToolCalls[safeIndex];
+
+  if (!activeTool) {
+    return null;
+  }
+
+  // The just-decided card's status only flips after the provider processes the
+  // decision, so search forward from it (wrapping) for the next undecided one.
+  const advanceToNextPending = () => {
+    for (let offset = 1; offset < cardCount; offset += 1) {
+      const index = (safeIndex + offset) % cardCount;
+      if (pendingToolCalls[index]?.approval?.status === "pending") {
+        setActiveIndex(index);
+        return;
+      }
+    }
+  };
+
+  return (
+    <div
+      className={cn("flex flex-col gap-1.5", isExpanded && "mx-auto max-w-3xl")}
+    >
+      {cardCount > 1 ? (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground text-xs">
+            Tool call {safeIndex + 1} of {cardCount} awaiting review
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="size-7 p-0"
+              aria-label="Previous tool call"
+              onClick={() => {
+                setActiveIndex((safeIndex - 1 + cardCount) % cardCount);
+              }}
+            >
+              <ChevronLeft className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="size-7 p-0"
+              aria-label="Next tool call"
+              onClick={() => {
+                setActiveIndex((safeIndex + 1) % cardCount);
+              }}
+            >
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      <InAppAgentToolCallCard
+        key={activeTool.approval?.id ?? activeTool.name}
+        tool={activeTool}
+        isCompact={!isExpanded}
+        isDisabled={isDisabled}
+        onApproveToolCall={(approvalId) => {
+          advanceToNextPending();
+          return onApproveToolCall(approvalId);
+        }}
+        onRejectToolCall={(approvalId) => {
+          advanceToNextPending();
+          return onRejectToolCall(approvalId);
+        }}
+      />
+    </div>
+  );
+}
+
 function formatScreenContextNotice(
   description: InAppAgentScreenContextDescription,
 ) {
@@ -271,7 +366,6 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onApproveToolCall: (approvalId: string) => Promise<void>;
   onRejectToolCall: (approvalId: string) => Promise<void>;
-  onApproveAllToolCalls: () => Promise<void>;
   onOpenConversationHistory: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (
@@ -373,7 +467,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onApproveToolCall,
     onRejectToolCall,
-    onApproveAllToolCalls,
     onOpenConversationHistory,
     onSelectConversation,
     onSubmit,
@@ -802,49 +895,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
             )}
           >
-            <div
-              className={cn(
-                "flex flex-col gap-2",
-                isExpanded && "mx-auto max-w-3xl",
-              )}
-            >
-              {pendingToolCalls.filter(
-                (tool) => tool.approval?.status === "pending",
-              ).length > 1 ? (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-muted-foreground text-xs">
-                    {pendingToolCalls.length} tool calls awaiting review
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline-success"
-                    className="h-7"
-                    disabled={
-                      isRateLimited || disablePendingToolApprovalActions
-                    }
-                    onClick={() => {
-                      onApproveAllToolCalls().catch(() => undefined);
-                    }}
-                  >
-                    <Check className="mr-1 size-3" />
-                    Approve all
-                  </Button>
-                </div>
-              ) : null}
-              {pendingToolCalls.map((tool, index) => (
-                <InAppAgentToolCallCard
-                  key={`${tool.approval?.id ?? tool.name}-${index}`}
-                  tool={tool}
-                  isCompact={!isExpanded}
-                  isDisabled={
-                    isRateLimited || disablePendingToolApprovalActions
-                  }
-                  onApproveToolCall={onApproveToolCall}
-                  onRejectToolCall={onRejectToolCall}
-                />
-              ))}
-            </div>
+            <InAppAgentToolApprovalPager
+              // Remount (and reset the pager position) when the set of open
+              // approvals changes, but not when a card's status changes.
+              key={pendingToolCalls
+                .map((tool) => tool.approval?.id ?? tool.name)
+                .join(",")}
+              pendingToolCalls={pendingToolCalls}
+              isExpanded={isExpanded}
+              isDisabled={isRateLimited || disablePendingToolApprovalActions}
+              onApproveToolCall={onApproveToolCall}
+              onRejectToolCall={onRejectToolCall}
+            />
           </div>
         ) : null}
         <div
