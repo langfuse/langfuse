@@ -191,7 +191,7 @@ const ChartPolishDemo = (props: ChartProps) => (
 );
 
 const meta = preview.meta({
-  title: "Design System/Charts/Polish (LFE-10576)",
+  title: "Polish (LFE-10576)",
   component: ChartPolishDemo,
 });
 

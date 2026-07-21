@@ -85,7 +85,7 @@ const axes = (
 );
 
 const meta = preview.meta({
-  title: "Design System/Charts/Illustrations",
+  title: "Illustrations",
   component: LineChartTimeSeries,
 });
 

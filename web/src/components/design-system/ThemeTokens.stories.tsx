@@ -239,7 +239,7 @@ function ThemeTokensDoc() {
 }
 
 const meta = preview.meta({
-  title: "Design System/Theme Tokens",
+  title: "Theme Tokens",
   component: ThemeTokensDoc,
   parameters: { layout: "fullscreen" },
 });

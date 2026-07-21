@@ -366,7 +366,6 @@ function ComponentGalleryDoc() {
 }
 
 const meta = preview.meta({
-  title: "Design System/Component Gallery",
   component: ComponentGalleryDoc,
   parameters: { layout: "fullscreen" },
 });
