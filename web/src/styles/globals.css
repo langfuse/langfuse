@@ -374,8 +374,8 @@
        follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
        is the darkest tier; the content canvas sits one step above it, and
        every stacked layer steps up from there:
-         chrome 2% < canvas 5% < card 7.5% < modal 9% < popover 11%.
-       (canvas tuned live 2026-07-20: 6% → 5%)
+         chrome 2% < canvas 4.5% < card 7.5% < modal 9% < popover 11%.
+       (canvas tuned live: 6% → 5% → 4.5%)
        The bottom step is the widest (chrome→canvas) — equal pp steps read
        smaller near black, and the frame/content split carries the layout.
        Popovers outrank modals because menus/tooltips open on top of dialogs.
@@ -389,7 +389,7 @@
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
-    --background: 0 0% 5%;
+    --background: 0 0% 4.5%;
     --foreground: 0 0% 60%;
 
     --muted: 0 0% 11.6%;
