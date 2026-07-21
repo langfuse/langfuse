@@ -144,6 +144,29 @@ function coreMessage(value: string): string {
 }
 
 /**
+ * True for React DevTools' internal probes against React's private fiber
+ * properties (`__reactContextDevtoolDebugId` and similar). These are benign:
+ * DevTools reads properties React does not guarantee exist, and the resulting
+ * failure is DevTools' own instrumentation, not a Langfuse app bug — it fires
+ * only when the extension is attached and installs its own probes.
+ *
+ * Matched against ALL text fields (exception value, message-event text, and
+ * the `logentry` fallback) because these can arrive as either an exception or
+ * a message event depending on how DevTools triggers the failure.
+ */
+export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
+  const messageText =
+    event.exception?.values?.[0]?.value ??
+    event.message ??
+    event.logentry?.message;
+
+  return (
+    typeof messageText === "string" &&
+    messageText.includes("__reactContextDevtoolDebugId")
+  );
+}
+
+/**
  * True for known-benign CLIENT-side noise that cannot be a real Langfuse app
  * bug: browser-level network/transport failures, transient framework/vendor
  * poll logs, and expected browser-permission / cancellation artifacts. Returning
