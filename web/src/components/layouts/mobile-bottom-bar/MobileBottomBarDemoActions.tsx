@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { BotMessageSquare, ListFilter, RefreshCw, Clock } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -59,7 +60,11 @@ export function MobileBottomBarDemoActions() {
         </Button>
       </MobileBottomBarPortal>
 
-      {/* Expanded sheet: the fuller, labelled action set. */}
+      {/* Expanded sheet: the fuller, labelled action set. "Ask AI" is live; the
+          rest are disabled placeholders for the per-page controls a later slice
+          migrates here — rendered as visibly `disabled` with a "Soon" badge so a
+          mobile user never taps a live-looking button that silently does
+          nothing. */}
       <MobileBottomBarPortal region="sheet">
         {canUseAgent ? (
           <Button
@@ -72,44 +77,41 @@ export function MobileBottomBarDemoActions() {
             Ask Langfuse AI
           </Button>
         ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => {
-            /* placeholder — the per-table filter UI migrates here in a later slice */
-          }}
-        >
-          <ListFilter className="h-4 w-4" />
+        <PlaceholderAction icon={<ListFilter className="h-4 w-4" />}>
           Filters
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => {
-            /* placeholder — time-range picker migrates here in a later slice */
-          }}
-        >
-          <Clock className="h-4 w-4" />
+        </PlaceholderAction>
+        <PlaceholderAction icon={<Clock className="h-4 w-4" />}>
           Time range
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start gap-2"
-          onClick={() => {
-            /* placeholder — refresh handler migrates here in a later slice */
-          }}
-        >
-          <RefreshCw className="h-4 w-4" />
+        </PlaceholderAction>
+        <PlaceholderAction icon={<RefreshCw className="h-4 w-4" />}>
           Refresh
-        </Button>
-        <p className="text-muted-foreground px-1 pt-1 text-xs">
-          Filters, time range and refresh are placeholders for this preview —
-          per-page controls move here in a later slice.
-        </p>
+        </PlaceholderAction>
       </MobileBottomBarPortal>
     </>
+  );
+}
+
+/** A not-yet-wired sheet action: visibly disabled with a "Soon" badge so it
+ * reads as upcoming rather than broken, and cannot be tapped to a no-op. */
+function PlaceholderAction({
+  icon,
+  children,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full justify-start gap-2"
+      disabled
+    >
+      {icon}
+      {children}
+      <span className="bg-muted text-muted-foreground ml-auto rounded-full px-2 py-0.5 text-xs">
+        Soon
+      </span>
+    </Button>
   );
 }

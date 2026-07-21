@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useRouter } from "next/router";
 import { ChevronUp } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
@@ -9,6 +11,7 @@ import {
   DrawerTitle,
 } from "@/src/components/ui/drawer";
 import { Layer } from "@/src/components/ui/layer";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 import {
   MobileBottomBarSlotTarget,
@@ -58,8 +61,35 @@ export function MobileBottomBar({
   className,
 }: MobileBottomBarProps) {
   const ctx = useMobileBottomBar();
+  const isMobile = useIsMobile();
+  const router = useRouter();
+  const forceVisible = visibility === "always";
+  // useState setters are referentially stable, so this is a stable dep for the
+  // route-change effect below even though the surrounding context value object
+  // is not.
+  const setExpanded = ctx?.setExpanded;
+
+  // External system: Pages Router navigation. The provider lives in the
+  // persistent app shell, so without this the ~85svh sheet would stay open on
+  // the next page after a navigation (incl. a back-nav). Close it when a route
+  // change starts.
+  useEffect(() => {
+    const events = router.events;
+    const closeSheet = () => setExpanded?.(false);
+    events.on("routeChangeStart", closeSheet);
+    return () => events.off("routeChangeStart", closeSheet);
+  }, [router.events, setExpanded]);
+
   if (!ctx) return null;
-  const { expanded, setExpanded } = ctx;
+  const { expanded } = ctx;
+  // Gate the sheet to mobile. The collapsed pill is CSS-gated (`md:hidden`), but
+  // the vaul sheet is a portal that ignores that class — so without this a sheet
+  // opened on a small device and then rotated/resized across the `md` (768px)
+  // breakpoint would strand a full-width sheet over the desktop layout with no
+  // desktop control to close it. Folding `isMobile` into `open` auto-closes it
+  // the moment the viewport is desktop-width. `forceVisible` (Storybook) opts
+  // out so the Expanded story stays open at any canvas width.
+  const mobileActive = forceVisible || isMobile;
 
   return (
     <>
@@ -84,7 +114,7 @@ export function MobileBottomBar({
               className="rounded-full"
               aria-label="More actions"
               aria-expanded={expanded}
-              onClick={() => setExpanded(true)}
+              onClick={() => setExpanded?.(true)}
             >
               <ChevronUp className="h-5 w-5" />
             </Button>
@@ -97,7 +127,7 @@ export function MobileBottomBar({
           aria-modal; we only supply the content. h-auto lets it fit content up
           to a max, with the body scrolling past that. */}
       <Drawer
-        open={expanded}
+        open={expanded && mobileActive}
         onOpenChange={setExpanded}
         forceDirection="bottom"
       >

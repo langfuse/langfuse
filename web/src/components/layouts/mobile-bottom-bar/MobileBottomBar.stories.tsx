@@ -10,13 +10,17 @@ import {
 
 /**
  * `MobileBottomBar` is the app-shell mobile action bar (below `md`). Stories
- * force `visibility="always"` so the bar shows at any Storybook canvas width;
- * in the app it is gated to mobile by a CSS breakpoint. The bar and its
- * expanded sheet are `position: fixed`, so they anchor to the bottom of the
- * canvas viewport (exactly as in the app).
+ * default the `visibility` arg to `"always"` so the bar shows at any Storybook
+ * canvas width; in the app it defaults to `"responsive"` (mobile-only). Flip the
+ * `visibility` control (or `&args=visibility:responsive` in the URL) and load
+ * the story in `iframe.html` to exercise the real mobile gate: below 768px the
+ * pill shows and the sheet can open; at/above 768px the pill hides and an open
+ * sheet auto-closes. The bar and its expanded sheet are `position: fixed`, so
+ * they anchor to the bottom of the canvas viewport (exactly as in the app).
  */
 const meta = preview.meta({
   component: MobileBottomBar,
+  args: { visibility: "always" },
 });
 
 /** Icon-first quick actions for the collapsed pill (the `"bar"` region). */
@@ -71,10 +75,9 @@ function SampleSheetActions() {
 
 /** Collapsed pill with two sample quick actions + the expand handle. */
 export const Collapsed = meta.story({
-  parameters: { controls: { disable: true } },
-  render: () => (
+  render: (args) => (
     <MobileBottomBarProvider>
-      <MobileBottomBar visibility="always" />
+      <MobileBottomBar {...args} />
       <SampleBarActions />
       <SampleSheetActions />
     </MobileBottomBarProvider>
@@ -83,10 +86,9 @@ export const Collapsed = meta.story({
 
 /** Expanded bottom sheet (opened on mount) with the fuller action set. */
 export const Expanded = meta.story({
-  parameters: { controls: { disable: true } },
-  render: () => (
+  render: (args) => (
     <MobileBottomBarProvider defaultExpanded>
-      <MobileBottomBar visibility="always" />
+      <MobileBottomBar {...args} />
       <SampleBarActions />
       <SampleSheetActions />
     </MobileBottomBarProvider>
@@ -96,10 +98,9 @@ export const Expanded = meta.story({
 /** The shell chrome with no page actions registered — just the expand handle,
  * and an empty sheet. Documents the "nothing to show" baseline. */
 export const NoActions = meta.story({
-  parameters: { controls: { disable: true } },
-  render: () => (
+  render: (args) => (
     <MobileBottomBarProvider>
-      <MobileBottomBar visibility="always" />
+      <MobileBottomBar {...args} />
     </MobileBottomBarProvider>
   ),
 });
