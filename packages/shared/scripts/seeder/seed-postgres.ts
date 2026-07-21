@@ -137,7 +137,12 @@ async function main() {
   });
 
   await upsertInAppAgentSystemPrompt(project1.id);
-  await upsertNaturalLanguageFilterPrompt(project1.id);
+  // Skip on examples/load: those paths seed this prompt via generatePrompts
+  // (SEED_PROMPT_VERSIONS), whose upsert takes the create branch against a
+  // pre-existing row and violates the (projectId, name, version) constraint.
+  if (environment !== "examples" && environment !== "load") {
+    await upsertNaturalLanguageFilterPrompt(project1.id);
+  }
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
