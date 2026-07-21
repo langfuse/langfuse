@@ -152,6 +152,46 @@ describe("parseAndNormalizeImportedWidget", () => {
     expect(result.snapshot.widgetMinVersion).toBe(1);
   });
 
+  it("imports boolean score widgets with boolean filters intact", async () => {
+    const result = await importWidgetFile({
+      file: {
+        text: async () =>
+          JSON.stringify({
+            ...baseWidget,
+            view: "scores-boolean",
+            dimensions: [{ field: "booleanValue" }],
+            metrics: [{ measure: "value", agg: "avg" }],
+            filters: [
+              {
+                column: "booleanValue",
+                type: "boolean",
+                operator: "=",
+                value: true,
+              },
+            ],
+            minVersion: 2,
+          }),
+      } as File,
+      optionSets: { observationLevels: [] },
+      isBetaEnabled: true,
+    });
+
+    expect(result.snapshot).toMatchObject({
+      selectedView: "scores-boolean",
+      selectedDimension: "booleanValue",
+      selectedMeasure: "value",
+      selectedAggregation: "avg",
+      userFilterState: [
+        {
+          column: "Boolean Value",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+  });
+
   it("accepts an enveloped export file (round-trip)", async () => {
     const result = await importWidgetFile({
       file: {

@@ -83,6 +83,9 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),

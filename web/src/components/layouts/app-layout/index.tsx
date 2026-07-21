@@ -14,7 +14,7 @@ import { useRouter } from "next/router";
 import { signOut } from "next-auth/react";
 import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { ErrorPageWithSentry } from "@/src/components/error-page";
+import { ErrorPage } from "@/src/components/error-page";
 
 // Layout variants
 import { LoadingLayout } from "./variants/LoadingLayout";
@@ -88,9 +88,13 @@ export function AppLayout(props: PropsWithChildren) {
       return <MinimalLayout>{props.children}</MinimalLayout>;
     }
 
-    // For non-publishable paths, show error page
+    // For non-publishable paths, show error page. This is an EXPECTED state (an
+    // authenticated user opened a project they can't access or that no longer
+    // exists) that the UI already renders — so use the non-capturing ErrorPage
+    // rather than ErrorPageWithSentry, which otherwise mints a Sentry issue on
+    // every mount (thousands of events / hundreds of users of pure noise).
     return (
-      <ErrorPageWithSentry
+      <ErrorPage
         title="Project Not Found"
         message="The project you are trying to access does not exist or you do not have access to it."
         additionalButton={{
