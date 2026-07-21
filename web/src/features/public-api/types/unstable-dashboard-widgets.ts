@@ -11,12 +11,14 @@ import { metricAggregations } from "@langfuse/shared/query";
 export const PostUnstableDashboardWidgetView = z.enum([
   "observations",
   "scores-numeric",
+  "scores-boolean",
   "scores-categorical",
 ]);
 
 export const DashboardWidgetViewOutput = z.enum([
   "observations",
   "scores-numeric",
+  "scores-boolean",
   "scores-categorical",
   "traces",
 ]);

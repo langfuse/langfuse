@@ -1825,6 +1825,7 @@ describe("MCP Read Tools", () => {
           "observations",
           "scores-numeric",
           "scores-categorical",
+          "scores-boolean",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {
@@ -1842,8 +1843,19 @@ describe("MCP Read Tools", () => {
               },
             },
           },
+          "scores-boolean": {
+            dimensions: {
+              booleanValue: { type: "boolean" },
+            },
+            measures: {
+              value: {
+                validAggregations: expect.arrayContaining(["avg"]),
+              },
+            },
+          },
         },
       });
+      expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
     });
 
