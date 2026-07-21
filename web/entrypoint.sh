@@ -124,5 +124,17 @@ if [ $status -ne 0 ]; then
     exit $status
 fi
 
+# On ECS, resolve the task id from the container metadata endpoint and append
+# it to DD_TAGS so dd-trace stamps tracer telemetry (runtime metrics, spans)
+# with task_id.  Best-effort: on any failure DD_TAGS is left untouched and
+# startup proceeds.
+if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
+    _task_arn=$(wget -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    _task_id="${_task_arn##*/}"
+    if [ -n "$_task_id" ]; then
+        export DD_TAGS="${DD_TAGS:+${DD_TAGS},}task_id:${_task_id}"
+    fi
+fi
+
 # Run the command passed to the docker image on start
 exec "$@"
