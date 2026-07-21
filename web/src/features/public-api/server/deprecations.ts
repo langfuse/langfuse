@@ -24,6 +24,8 @@ const REPLACEMENT = {
   scoresV3: "GET /api/public/v3/scores",
   metricsV2: "GET /api/public/v2/metrics?query=<urlencoded json query>",
   otelTraces: "POST /api/public/otel/v1/traces",
+  experimentItems:
+    "GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>",
 } as const;
 
 // Migration guidance pages; each family points at the page that documents its
@@ -79,6 +81,15 @@ export const LEGACY_INGESTION_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} Send data via the OpenTelemetry endpoint at ${REPLACEMENT.otelTraces} instead.`,
   replacement: REPLACEMENT.otelTraces,
   docsUrl: DOCS.otel,
+  sunsetAt: V3_SUNSET_DATE,
+};
+
+// Legacy dataset-run-items reads → experiment items (dataset runs are replaced
+// by experiments in v4).
+export const DATASET_RUN_ITEMS_DEPRECATION: ApiDeprecationInfo = {
+  message: `${V3_NOTICE} In Langfuse v4, dataset run items are replaced by experiment items; use ${REPLACEMENT.experimentItems} instead.`,
+  replacement: REPLACEMENT.experimentItems,
+  docsUrl: DOCS.compatibility,
   sunsetAt: V3_SUNSET_DATE,
 };
 

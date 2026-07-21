@@ -1,4 +1,5 @@
 import {
+  deprecationResponseZod,
   jsonSchema,
   publicApiPaginationZod,
   paginationZod,
@@ -282,6 +283,7 @@ export const GetDatasetRunItemsV1Response = z
   .object({
     data: z.array(APIDatasetRunItem),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 

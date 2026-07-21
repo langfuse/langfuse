@@ -3,6 +3,7 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
@@ -12,6 +13,7 @@ import {
   GetObservationV1Response,
 } from "@/src/features/public-api/types/observations";
 import {
+  DATASET_RUN_ITEMS_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
@@ -138,6 +140,29 @@ describe("public API deprecation signal", () => {
     expect(deprecation).toEqual(SESSIONS_DEPRECATION);
     expect((deprecation as Record<string, unknown>)?.replacement).toBe(
       "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
+    );
+  });
+
+  // Dataset run items (Group C) → experiment items. Needs a real dataset + run
+  // (the endpoint 404s otherwise); an empty run returns an empty list + signal.
+  it("attaches `_deprecation` to the legacy GET /dataset-run-items list response", async () => {
+    const dataset = await prisma.dataset.create({
+      data: { name: `deprecation-test-${randomUUID()}`, projectId },
+    });
+    const run = await prisma.datasetRuns.create({
+      data: { name: `run-${randomUUID()}`, datasetId: dataset.id, projectId },
+    });
+
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/dataset-run-items?datasetId=${dataset.id}&runName=${run.name}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      DATASET_RUN_ITEMS_DEPRECATION,
     );
   });
 });
