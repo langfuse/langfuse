@@ -60,7 +60,7 @@ export interface ServerContext {
 
 /**
  * In-app-agent MCP access is explicit: `read` allows only tools annotated with `readOnlyHint`.
- * To allow mutating operations, `single-tool-override` can include a specific MCP registry tool name that the in-app agent is allowed to invoke.
+ * To allow mutating operations, `tool-override` names the MCP registry tools the in-app agent is allowed to invoke — one entry per individually approved tool call.
  * Human approval is enforced earlier in the in-app agent runtime before any override is minted.
  */
 export type InAppAgentContext =
@@ -68,6 +68,6 @@ export type InAppAgentContext =
       permissions: "read";
     }
   | {
-      permissions: "single-tool-override";
-      allowedToolName: McpToolName;
+      permissions: "tool-override";
+      allowedToolNames: McpToolName[];
     };

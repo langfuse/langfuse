@@ -298,6 +298,70 @@ describe("in-app agent public API route auth", () => {
     }
   });
 
+  it("consumes batch decisions all-or-nothing", async () => {
+    await withInAppAgentCloudEnv(async () => {
+      const { project, userId } = await setupInAppAgentProjectSession();
+      const conversationId = `conversation-${randomUUID()}`;
+      const seededApproval =
+        createResumeForwardedProps().command.resume.approvalRequest;
+      const forgedApproval =
+        createResumeForwardedProps().command.resume.approvalRequest;
+
+      await seedPendingToolApproval({
+        projectId: project.id,
+        conversationId,
+        userId,
+        approvalRequest: seededApproval,
+      });
+
+      const { default: handler } =
+        await import("@/src/ee/features/in-app-agent/server/handler");
+      const response = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: conversationId,
+            runId: "client-run-1",
+            messages: [],
+            tools: [],
+            context: [],
+            state: {
+              type: "existingConversation",
+              projectId: project.id,
+              conversationId,
+            },
+            forwardedProps: {
+              command: {
+                resume: {
+                  decisions: [
+                    { approved: true, approvalRequest: seededApproval },
+                    { approved: true, approvalRequest: forgedApproval },
+                  ],
+                },
+              },
+            },
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "Invalid forwarded props",
+      });
+      // The forged decision invalidates the whole batch: the seeded approval
+      // must survive untouched so the user can retry.
+      await expect(
+        pendingToolApprovalExists({
+          projectId: project.id,
+          conversationId,
+          toolCallId: seededApproval.toolCallId,
+        }),
+      ).resolves.toBe(true);
+      expect(agentMocks.createAgUiStream).not.toHaveBeenCalled();
+    });
+  });
+
   it("rejects forged resume forwarded props without a pending approval", async () => {
     await withInAppAgentCloudEnv(async () => {
       const { project } = await setupInAppAgentProjectSession();

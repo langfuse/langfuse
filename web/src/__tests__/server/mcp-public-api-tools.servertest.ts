@@ -204,8 +204,8 @@ describe("MCP public API tools", () => {
   it("resolves only the overridden mutating tool for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "upsertDataset",
+        permissions: "tool-override",
+        allowedToolNames: ["upsertDataset"],
       },
     });
 
@@ -223,8 +223,8 @@ describe("MCP public API tools", () => {
   it("resolves the dashboard widget creation override for in-app agent keys", async () => {
     const context = mockServerContext({
       inAppAgent: {
-        permissions: "single-tool-override",
-        allowedToolName: "createDashboardWidget",
+        permissions: "tool-override",
+        allowedToolNames: ["createDashboardWidget"],
       },
     });
 

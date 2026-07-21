@@ -237,16 +237,37 @@ export type InAppAgentToolApprovalRequest = z.infer<
   typeof InAppAgentToolApprovalRequestSchema
 >;
 
+export const InAppAgentToolApprovalDecisionSchema = z.object({
+  approved: z.boolean(),
+  approvalRequest: InAppAgentToolApprovalRequestSchema,
+});
+
+export type InAppAgentToolApprovalDecision = z.infer<
+  typeof InAppAgentToolApprovalDecisionSchema
+>;
+
 export const ResumeForwardedPropsSchema = z.object({
   command: z.object({
-    resume: z.object({
-      approved: z.boolean(),
-      approvalRequest: InAppAgentToolApprovalRequestSchema,
-    }),
+    resume: z.union([
+      z.object({
+        decisions: z.array(InAppAgentToolApprovalDecisionSchema).min(1),
+      }),
+      // Legacy single-decision shape, kept for browser tabs that stay open
+      // across a deploy. Normalize via getResumeDecisions.
+      InAppAgentToolApprovalDecisionSchema,
+    ]),
   }),
 });
 
 export type ResumeForwardedProps = z.infer<typeof ResumeForwardedPropsSchema>;
+
+export function getResumeDecisions(
+  forwardedProps: ResumeForwardedProps,
+): InAppAgentToolApprovalDecision[] {
+  const resume = forwardedProps.command.resume;
+
+  return "decisions" in resume ? resume.decisions : [resume];
+}
 
 export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
   z.object({

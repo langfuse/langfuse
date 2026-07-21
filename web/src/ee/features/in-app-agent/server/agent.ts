@@ -10,6 +10,7 @@ import { MCPClient } from "@mastra/mcp";
 import type { Langfuse } from "langfuse";
 
 import {
+  getResumeDecisions,
   type AgUiEvent,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
@@ -155,7 +156,7 @@ export function getBedrockReasoningProviderOptions(modelId: string) {
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
-  onApprovedToolCallExecuted?: () => void | Promise<void>;
+  onApprovedToolCallExecuted?: (toolCallId: string) => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
@@ -493,13 +494,18 @@ export async function createAgUiStream(params: {
               params.options.onApprovedToolCallExecuted,
           });
           const pendingSyntheticEvents = [...runInput.syntheticEvents];
+          const hasApprovedResumeDecision =
+            forwardedProps?.command?.resume !== undefined &&
+            getResumeDecisions(forwardedProps).some(
+              (decision) => decision.approved,
+            );
 
           if (
-            forwardedProps?.command?.resume?.approved === true &&
+            hasApprovedResumeDecision &&
             params.options.langfuseMcp.runOverride
           ) {
             // The override is intentionally single-use: execute the approved
-            // mutating MCP tool with the first client, then rebuild the MCP
+            // mutating MCP tools with the first client, then rebuild the MCP
             // client without the override so the continuation returns to the
             // normal read-only in-app-agent policy.
 
@@ -575,9 +581,9 @@ export async function createAgUiStream(params: {
                   agUiEvent.type === EventType.RUN_STARTED &&
                   pendingSyntheticEvents.length > 0
                 ) {
-                  instrumentation?.recordToolCallApproval(
-                    runInput.toolCallApproval,
-                  );
+                  for (const toolCallApproval of runInput.toolCallApprovals) {
+                    instrumentation?.recordToolCallApproval(toolCallApproval);
+                  }
                   instrumentation?.recordEvents(pendingSyntheticEvents);
                   for (const syntheticEvent of pendingSyntheticEvents) {
                     enqueueEvent(syntheticEvent);

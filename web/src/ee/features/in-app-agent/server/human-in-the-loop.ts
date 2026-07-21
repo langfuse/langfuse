@@ -8,9 +8,11 @@ import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@/src/ee/features/in-app
 import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
+  getResumeDecisions,
   type AgUiEvent,
   type AgUiMessage,
   type AgUiRunAgentInput,
+  type InAppAgentToolApprovalDecision,
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
@@ -38,9 +40,22 @@ const McpToolNameSchema = z.custom<McpToolName>(
   { message: "Invalid MCP tool name" },
 );
 
-export const InAppAgentMcpRunOverrideSchema = z.object({
-  toolName: McpToolNameSchema,
-});
+export const InAppAgentMcpRunOverrideSchema = z.union([
+  z.object({ toolNames: z.array(McpToolNameSchema).min(1) }),
+  // Legacy single-tool shape, still minted for single-tool overrides and
+  // parsed for rolling-deploy compatibility.
+  z.object({ toolName: McpToolNameSchema }),
+]);
+
+export type InAppAgentMcpRunOverride = z.infer<
+  typeof InAppAgentMcpRunOverrideSchema
+>;
+
+export function getInAppAgentMcpOverrideToolNames(
+  override: InAppAgentMcpRunOverride,
+): McpToolName[] {
+  return "toolNames" in override ? override.toolNames : [override.toolName];
+}
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -84,6 +99,33 @@ export async function storePendingToolApproval(params: {
   });
 }
 
+// Every decision must reference a distinct pending approval; a duplicated
+// toolCallId would let one row satisfy two decisions in the count checks below.
+function getValidatedDecisions(forwardedProps: ResumeForwardedProps) {
+  const decisions = getResumeDecisions(forwardedProps);
+  const toolCallIds = new Set(
+    decisions.map((decision) => decision.approvalRequest.toolCallId),
+  );
+
+  if (toolCallIds.size !== decisions.length) {
+    throw new InvalidRequestError("Invalid forwarded props");
+  }
+
+  return decisions;
+}
+
+function createPendingToolApprovalConditions(
+  decisions: InAppAgentToolApprovalDecision[],
+) {
+  const now = new Date();
+
+  return decisions.map(({ approvalRequest }) => ({
+    toolCallId: approvalRequest.toolCallId,
+    approvalFingerprint: createPendingToolApprovalFingerprint(approvalRequest),
+    expiresAt: { gt: now },
+  }));
+}
+
 // Check early, before stream setup, so malformed or forged resume payloads fail
 // without starting another model/tool execution attempt.
 export async function validatePendingToolApproval(params: {
@@ -91,54 +133,55 @@ export async function validatePendingToolApproval(params: {
   conversationId: string;
   forwardedProps: ResumeForwardedProps;
 }) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const pendingApproval = await prisma.inAppAgentPendingToolApproval.findFirst({
+  const decisions = getValidatedDecisions(params.forwardedProps);
+  const pendingCount = await prisma.inAppAgentPendingToolApproval.count({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
+      OR: createPendingToolApprovalConditions(decisions),
     },
-    select: { toolCallId: true },
   });
 
-  if (!pendingApproval) {
+  if (pendingCount !== decisions.length) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
 }
 
-// Atomically consume before stream setup so a pending approval can start at most
-// one resumed tool call attempt.
+// Atomically consume before stream setup so every pending approval can start at
+// most one resumed tool call attempt. All-or-nothing: if any decision does not
+// match a live pending approval, nothing is consumed.
 export async function consumeAndValidatePendingToolApproval(params: {
   projectId: string;
   conversationId: string;
   forwardedProps: ResumeForwardedProps;
 }) {
-  const approvalRequest = params.forwardedProps.command.resume.approvalRequest;
-  const consumeResult = await prisma.inAppAgentPendingToolApproval.deleteMany({
-    where: {
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      toolCallId: approvalRequest.toolCallId,
-      approvalFingerprint:
-        createPendingToolApprovalFingerprint(approvalRequest),
-      expiresAt: { gt: new Date() },
-    },
-  });
+  const decisions = getValidatedDecisions(params.forwardedProps);
 
-  if (consumeResult.count !== 1) {
-    throw new InvalidRequestError("Invalid forwarded props");
-  }
+  await prisma.$transaction(async (tx) => {
+    const consumeResult = await tx.inAppAgentPendingToolApproval.deleteMany({
+      where: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        OR: createPendingToolApprovalConditions(decisions),
+      },
+    });
+
+    if (consumeResult.count !== decisions.length) {
+      throw new InvalidRequestError("Invalid forwarded props");
+    }
+  });
 }
 
 export async function createInAppAgentMcpRunOverride(params: {
-  toolName: McpToolName;
+  toolNames: McpToolName[];
 }) {
-  return JSON.stringify({
-    toolName: params.toolName,
-  });
+  // Single-tool overrides keep the legacy shape so web instances that predate
+  // the batch contract still parse them during a rolling deploy.
+  return JSON.stringify(
+    params.toolNames.length === 1
+      ? { toolName: params.toolNames[0] }
+      : { toolNames: params.toolNames },
+  );
 }
 
 export function parseInAppAgentInterruptEvent(
@@ -161,10 +204,10 @@ export function parseInAppAgentInterruptEvent(
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];
-  toolCallApproval?: {
+  toolCallApprovals: Array<{
     toolCallId: string;
     status: "approved" | "rejected";
-  };
+  }>;
 };
 
 export async function createManualToolApprovalRunInput(params: {
@@ -172,93 +215,90 @@ export async function createManualToolApprovalRunInput(params: {
   executeToolCall: (
     approvalRequest: InAppAgentToolApprovalRequest,
   ) => Promise<unknown>;
-  onApprovedToolCallExecuted?: () => void | Promise<void>;
+  onApprovedToolCallExecuted?: (toolCallId: string) => void | Promise<void>;
 }): Promise<ManualToolApprovalRunInput> {
   const forwardedProps = getResumeForwardedProps(params.input);
 
   if (!forwardedProps) {
-    return { input: params.input, syntheticEvents: [] };
+    return { input: params.input, syntheticEvents: [], toolCallApprovals: [] };
   }
 
-  const { approved, approvalRequest } = forwardedProps.command.resume;
-  if (!approved) {
-    const assistantMessage =
-      createManualToolCallAssistantMessage(approvalRequest);
-    const toolMessage: AgUiMessage = {
-      id: createManualToolResultMessageId(approvalRequest),
-      role: "tool",
-      content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
-      toolCallId: approvalRequest.toolCallId,
-      error: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
-    };
+  const decisions = getResumeDecisions(forwardedProps);
+  const messages: AgUiMessage[] = [...params.input.messages];
+  const syntheticEvents: AgUiEvent[] = [];
+  const toolCallApprovals: ManualToolApprovalRunInput["toolCallApprovals"] = [];
 
-    return {
-      input: {
-        ...params.input,
-        messages: [
-          ...params.input.messages,
-          assistantMessage,
-          toolMessage,
-          createToolRejectionGuidanceMessage(approvalRequest),
-        ],
-        forwardedProps: {},
-      },
-      syntheticEvents: createManualToolApprovalEvents({
-        approvalRequest,
-        toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
-        toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
-      }),
-      toolCallApproval: {
+  // Decision order is the order the tool calls were proposed in; approved
+  // calls execute sequentially so their effects and transcript entries match
+  // what the user reviewed.
+  for (const { approved, approvalRequest } of decisions) {
+    if (!approved) {
+      messages.push(
+        createManualToolCallAssistantMessage(approvalRequest),
+        {
+          id: createManualToolResultMessageId(approvalRequest),
+          role: "tool",
+          content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+          toolCallId: approvalRequest.toolCallId,
+          error: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
+        },
+        createToolRejectionGuidanceMessage(approvalRequest),
+      );
+      syntheticEvents.push(
+        ...createManualToolApprovalEvents({
+          approvalRequest,
+          toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+          toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
+        }),
+      );
+      toolCallApprovals.push({
         toolCallId: approvalRequest.toolCallId,
         status: "rejected",
-      },
-    };
-  }
+      });
+      continue;
+    }
 
-  const { toolResult, toolError } = await executeApprovedToolCall({
-    approvalRequest,
-    executeToolCall: params.executeToolCall,
-  });
-  await params.onApprovedToolCallExecuted?.();
-  const toolResultContent = serializeToolResultContent(toolResult);
-  const assistantMessage =
-    createManualToolCallAssistantMessage(approvalRequest);
-  const toolMessage: AgUiMessage = {
-    id: createManualToolResultMessageId(approvalRequest),
-    role: "tool",
-    content: toolResultContent,
-    toolCallId: approvalRequest.toolCallId,
-    ...(toolError ? { error: toolError } : {}),
-  };
-  const syntheticEvents = createManualToolApprovalEvents({
-    approvalRequest,
-    toolResultContent,
-    toolError,
-  });
+    const { toolResult, toolError } = await executeApprovedToolCall({
+      approvalRequest,
+      executeToolCall: params.executeToolCall,
+    });
+    await params.onApprovedToolCallExecuted?.(approvalRequest.toolCallId);
+    const toolResultContent = serializeToolResultContent(toolResult);
+
+    messages.push(
+      createManualToolCallAssistantMessage(approvalRequest),
+      {
+        id: createManualToolResultMessageId(approvalRequest),
+        role: "tool",
+        content: toolResultContent,
+        toolCallId: approvalRequest.toolCallId,
+        ...(toolError ? { error: toolError } : {}),
+      },
+      ...(toolError
+        ? [createToolExecutionErrorGuidanceMessage(approvalRequest, toolError)]
+        : []),
+    );
+    syntheticEvents.push(
+      ...createManualToolApprovalEvents({
+        approvalRequest,
+        toolResultContent,
+        toolError,
+      }),
+    );
+    toolCallApprovals.push({
+      toolCallId: approvalRequest.toolCallId,
+      status: "approved",
+    });
+  }
 
   return {
     input: {
       ...params.input,
-      messages: [
-        ...params.input.messages,
-        assistantMessage,
-        toolMessage,
-        ...(toolError
-          ? [
-              createToolExecutionErrorGuidanceMessage(
-                approvalRequest,
-                toolError,
-              ),
-            ]
-          : []),
-      ],
+      messages,
       forwardedProps: {},
     },
     syntheticEvents,
-    toolCallApproval: {
-      toolCallId: approvalRequest.toolCallId,
-      status: "approved",
-    },
+    toolCallApprovals,
   };
 }
 
