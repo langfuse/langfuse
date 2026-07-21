@@ -304,25 +304,25 @@ const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
   );
 
 // The level-agnostic score facet columns whose name pickers carry ScoreTag
-// level provenance (LFE-10596). Other keyValue facets (metadata) never do.
-const SCORE_LEVEL_TAGGED_COLUMNS: ReadonlySet<string> = new Set([
-  "scores_avg",
-  "score_categories",
-  "score_booleans",
-]);
+// level provenance (LFE-10596), each reading its OWN data-type-scoped level
+// map — a name reused across types at different levels must not inherit the
+// other type's level. Other keyValue facets (metadata) never carry levels.
+const SCORE_LEVEL_TAGGED_COLUMNS: Readonly<Record<string, string>> = {
+  scores_avg: "score_name_levels_numeric",
+  score_categories: "score_name_levels_categorical",
+  score_booleans: "score_name_levels_boolean",
+};
 
 const resolveKeyScoreLevels = (
   column: string,
-  scoreNameLevels:
-    | (string | SingleValueOption)[]
-    | Record<string, string[]>
-    | undefined,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
 ): KeyScoreLevels | undefined => {
-  if (
-    !SCORE_LEVEL_TAGGED_COLUMNS.has(column) ||
-    scoreNameLevels === undefined ||
-    Array.isArray(scoreNameLevels)
-  ) {
+  const levelsKey = SCORE_LEVEL_TAGGED_COLUMNS[column];
+  const scoreNameLevels = levelsKey ? options[levelsKey] : undefined;
+  if (scoreNameLevels === undefined || Array.isArray(scoreNameLevels)) {
     return undefined;
   }
   const out: Record<string, ("observation" | "trace")[]> = {};
@@ -1342,10 +1342,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            keyLevels: resolveKeyScoreLevels(
-              facet.column,
-              options["score_name_levels"],
-            ),
+            keyLevels: resolveKeyScoreLevels(facet.column, options),
             availableValues: mergedAvailableValues,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
@@ -1427,10 +1424,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            keyLevels: resolveKeyScoreLevels(
-              facet.column,
-              options["score_name_levels"],
-            ),
+            keyLevels: resolveKeyScoreLevels(facet.column, options),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1482,10 +1476,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            keyLevels: resolveKeyScoreLevels(
-              facet.column,
-              options["score_name_levels"],
-            ),
+            keyLevels: resolveKeyScoreLevels(facet.column, options),
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,

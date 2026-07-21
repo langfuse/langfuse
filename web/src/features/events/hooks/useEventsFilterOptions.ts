@@ -301,8 +301,12 @@ export function useEventsFilterOptions({
       trace_scores_avg: traceScoresNumeric,
       trace_score_booleans: rawData.trace_score_booleans ?? undefined,
       // Level provenance for the level-agnostic score groups (ScoreTag,
-      // LFE-10596): name → the level(s) it exists at.
-      score_name_levels: rawData.score_name_levels ?? undefined,
+      // LFE-10596): name → the level(s) it exists at, per data-type class so
+      // a name reused across types never inherits the other type's level.
+      score_name_levels_numeric: rawData.score_name_levels_numeric ?? undefined,
+      score_name_levels_categorical:
+        rawData.score_name_levels_categorical ?? undefined,
+      score_name_levels_boolean: rawData.score_name_levels_boolean ?? undefined,
     };
   }, [rawData]);
 

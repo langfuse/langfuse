@@ -670,22 +670,34 @@ export async function getEventFilterOptions(
     eventColumns,
   );
 
-  // name → the level(s) the name actually exists at. Discovery rows are
-  // grouped by (name, source, dataType), so names repeat — dedupe per level.
-  const scoreNameLevels: Record<string, ("observation" | "trace")[]> = {};
+  // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
+  // class: a name can be reused across types at different levels (a NUMERIC
+  // observation-level "accuracy" next to an unrelated CATEGORICAL trace-level
+  // "accuracy"), and a name-only map would mislabel both. Each type-scoped
+  // facet reads its own map; the search bar's merged suggestion unions them.
+  // Discovery rows are grouped by (name, source, dataType) — dedupe per level.
+  const scoreNameLevelsByType = {
+    numeric: {} as Record<string, ("observation" | "trace")[]>,
+    categorical: {} as Record<string, ("observation" | "trace")[]>,
+    boolean: {} as Record<string, ("observation" | "trace")[]>,
+  };
   const addScoreNameLevel = (
-    name: string,
+    score: { name: string; dataType: string },
     level: "observation" | "trace",
   ): void => {
-    const levels = (scoreNameLevels[name] ??= []);
+    const typeClass =
+      score.dataType === "NUMERIC"
+        ? "numeric"
+        : score.dataType === "BOOLEAN"
+          ? "boolean"
+          : "categorical"; // CATEGORICAL + TEXT
+    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
     if (!levels.includes(level)) levels.push(level);
   };
   observationLevelScoreNames.forEach((score) =>
-    addScoreNameLevel(score.name, "observation"),
+    addScoreNameLevel(score, "observation"),
   );
-  traceLevelScoreNames.forEach((score) =>
-    addScoreNameLevel(score.name, "trace"),
-  );
+  traceLevelScoreNames.forEach((score) => addScoreNameLevel(score, "trace"));
 
   // Only include a score key when its column was requested, so an unrequested
   // (lazily-loadable) score facet stays absent from the payload rather than
@@ -718,7 +730,11 @@ export async function getEventFilterOptions(
         }
       : {}),
     ...(shouldLoadScoreNameLevels
-      ? { score_name_levels: scoreNameLevels }
+      ? {
+          score_name_levels_numeric: scoreNameLevelsByType.numeric,
+          score_name_levels_categorical: scoreNameLevelsByType.categorical,
+          score_name_levels_boolean: scoreNameLevelsByType.boolean,
+        }
       : {}),
   };
 }
