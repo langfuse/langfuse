@@ -100,6 +100,10 @@ action should emit an analytics event.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
+- When you surface a score in the UI, always show its level
+  (trace/observation/session/experiment) with the `<ScoreTag>` component
+  (`src/components/score-tag.tsx`) and its global color coding (see the
+  ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
 - Do not add `useEffect` by default. Use it only when a component must
