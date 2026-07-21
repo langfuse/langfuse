@@ -12,7 +12,6 @@ import {
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -54,6 +53,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
+  mergeWidgetAndDashboardFilters,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
@@ -238,24 +238,26 @@ export function DashboardWidget({
         })
       : { type: chartType };
 
+    const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
+
+    // A widget's own environment filter overrides the dashboard's global
+    // environment selector; other dashboard-global filters still merge in.
+    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+
     return {
-      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      view,
       dimensions: widget.data?.dimensions ?? [],
       metrics:
         widget.data?.metrics.map((metric) => ({
           measure: metric.measure,
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
-      filters: [
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          widget.data?.filters ?? [],
-        ),
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          filterState,
-        ),
-      ],
+      filters: mergedFilters,
       timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
