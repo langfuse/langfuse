@@ -225,30 +225,26 @@ describe("shouldProcessOtelEventInputMedia", () => {
   it.each([
     {
       enabled: false,
-      hasEvalConfigs: true,
       shouldWriteToEventsTable: true,
       expected: false,
     },
     {
       enabled: true,
-      hasEvalConfigs: true,
       shouldWriteToEventsTable: false,
-      expected: true,
+      expected: false,
     },
     {
       enabled: true,
-      hasEvalConfigs: false,
       shouldWriteToEventsTable: true,
       expected: true,
     },
     {
       enabled: true,
-      hasEvalConfigs: false,
       shouldWriteToEventsTable: false,
       expected: false,
     },
   ])(
-    "returns $expected for enabled=$enabled, evals=$hasEvalConfigs, directWrite=$shouldWriteToEventsTable",
+    "returns $expected for enabled=$enabled and directWrite=$shouldWriteToEventsTable",
     ({ expected, ...params }) => {
       expect(shouldProcessOtelEventInputMedia(params)).toBe(expected);
     },

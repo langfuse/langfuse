@@ -39,6 +39,7 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ForbiddenError,
   convertEventRecordToObservationForEval,
+  type ObservationForEval,
 } from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
@@ -48,6 +49,7 @@ import {
 } from "../features/evaluation/observationEval";
 import {
   createOtelMediaTargets,
+  createOtelMediaTargetsForBody,
   processOtelMediaIfEnabled,
   shouldProcessOtelEventInputMedia,
 } from "../features/otel-media/processOtelMedia";
@@ -535,12 +537,12 @@ export const otelIngestionQueueProcessorBuilder = (
         return;
       }
 
-      // eventInputs are a separate normalized representation consumed by both
-      // direct persistence and observation evals, which upload it to eval S3.
+      // Direct writes consume every eventInput, so prepare the full batch once
+      // before event records are created. Eval-only inputs are prepared later,
+      // after the scheduler confirms that a filter/sampling match exists.
       if (
         shouldProcessOtelEventInputMedia({
           enabled: mediaUploadEnabled,
-          hasEvalConfigs,
           shouldWriteToEventsTable,
         })
       ) {
@@ -563,6 +565,25 @@ export const otelIngestionQueueProcessorBuilder = (
       const evalSchedulerDeps = hasEvalConfigs
         ? createObservationEvalSchedulerDeps()
         : null;
+      // Reuse one callback across the batch. It is invoked only when the eval
+      // scheduler has a matching config and is about to upload the observation.
+      const prepareObservationForEvalUpload =
+        mediaUploadEnabled && !shouldWriteToEventsTable
+          ? async (observationToUpload: ObservationForEval) => {
+              await processOtelMediaIfEnabled({
+                enabled: true,
+                targets: createOtelMediaTargetsForBody({
+                  body: observationToUpload,
+                  traceId: observationToUpload.trace_id,
+                  observationId: observationToUpload.span_id,
+                }),
+                projectId,
+                fileKey,
+                mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+                mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+              });
+            }
+          : undefined;
 
       await Promise.all(
         // Process each event independently
@@ -598,6 +619,7 @@ export const otelIngestionQueueProcessorBuilder = (
                   observation,
                   configs: evalConfigs,
                   schedulerDeps: evalSchedulerDeps,
+                  prepareObservationForUpload: prepareObservationForEvalUpload,
                 });
               }
             } catch (error) {

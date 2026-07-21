@@ -12,18 +12,16 @@ import {
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Returns whether the normalized direct-event representation will be consumed
- * and therefore needs media replacement. Besides direct ClickHouse writes,
- * observation eval scheduling serializes this representation to eval S3.
+ * Returns whether the normalized event representation will be persisted
+ * directly and therefore needs media replacement before event records are
+ * created. Eval-only payloads are prepared later, after filter and sampling
+ * checks confirm that the observation will be uploaded.
  */
 export function shouldProcessOtelEventInputMedia(params: {
   enabled: boolean;
-  hasEvalConfigs: boolean;
   shouldWriteToEventsTable: boolean;
 }): boolean {
-  return (
-    params.enabled && (params.hasEvalConfigs || params.shouldWriteToEventsTable)
-  );
+  return params.enabled && params.shouldWriteToEventsTable;
 }
 
 /**
@@ -79,6 +77,21 @@ export function createOtelMediaTargets(params: {
     });
   }
 
+  return targets;
+}
+
+/**
+ * Builds media targets for one already-normalized body. The function itself
+ * does not mutate `body`; returned targets retain its reference, so processing
+ * those targets later mutates the body's input, output, and metadata fields.
+ */
+export function createOtelMediaTargetsForBody(params: {
+  body: Record<string, unknown>;
+  traceId: string;
+  observationId?: string;
+}): OtelMediaTarget[] {
+  const targets: OtelMediaTarget[] = [];
+  addMediaTargets({ targets, ...params });
   return targets;
 }
 

@@ -187,6 +187,55 @@ describe("scheduleObservationEvals", () => {
   });
 
   describe("S3 upload", () => {
+    it("prepares an observation only when it will be uploaded", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const prepareObservationForUpload = vi.fn(async (value) => {
+        value.input = "prepared-input";
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [createMockConfig({ id: "config-1" })],
+        schedulerDeps,
+        prepareObservationForUpload,
+      });
+
+      expect(prepareObservationForUpload).toHaveBeenCalledOnce();
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ input: "prepared-input" }),
+        }),
+      );
+    });
+
+    it("does not prepare an observation when no config matches", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const prepareObservationForUpload = vi.fn();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [
+          createMockConfig({
+            id: "non-matching-config",
+            filter: [
+              {
+                column: "name",
+                operator: "=",
+                value: "does-not-match",
+                type: "string",
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+        prepareObservationForUpload,
+      });
+
+      expect(prepareObservationForUpload).not.toHaveBeenCalled();
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
+    });
+
     it("should upload observation to S3 once when configs exist", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
