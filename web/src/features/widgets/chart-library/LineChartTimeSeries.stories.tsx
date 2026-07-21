@@ -21,14 +21,15 @@ const LineChartTimeSeriesDemo = (props: ChartProps) => (
  */
 const buildSeries = (
   series: { name: string; base: number; amp: number }[],
-  days = 14,
+  buckets: number,
+  labelAt: (bucket: number) => string,
 ): DataPoint[] => {
   const points: DataPoint[] = [];
-  for (let day = 0; day < days; day++) {
-    const label = `6/${day + 1}`;
+  for (let bucket = 0; bucket < buckets; bucket++) {
+    const label = labelAt(bucket);
     series.forEach(({ name, base, amp }, seed) => {
-      const wave = 0.5 + 0.5 * Math.sin((day + seed * 1.7) / 2.3);
-      const jitter = ((seed * 37 + day * 13) % 17) / 17;
+      const wave = 0.5 + 0.5 * Math.sin((bucket + seed * 1.7) / 2.3);
+      const jitter = ((seed * 37 + bucket * 13) % 17) / 17;
       points.push({
         time_dimension: label,
         dimension: name,
@@ -39,20 +40,32 @@ const buildSeries = (
   return points;
 };
 
+const categoryLabelAt = (bucket: number) => `6/${bucket + 1}`;
+const isoDay = (day: number, hour: number) =>
+  new Date(Date.UTC(2026, 5, 22 + day, hour)).toISOString();
+
 // Non-additive latencies (ms) — summing these is nonsense; avg/median/last read well.
-const latencyData = buildSeries([
-  { name: "gpt-4o", base: 800, amp: 600 },
-  { name: "claude-3-5-sonnet", base: 1200, amp: 900 },
-  { name: "gpt-4o-mini", base: 300, amp: 250 },
-  { name: "<synthetic>", base: 1500, amp: 1100 },
-]);
+const latencyData = buildSeries(
+  [
+    { name: "gpt-4o", base: 800, amp: 600 },
+    { name: "claude-3-5-sonnet", base: 1200, amp: 900 },
+    { name: "gpt-4o-mini", base: 300, amp: 250 },
+    { name: "<synthetic>", base: 1500, amp: 1100 },
+  ],
+  14,
+  categoryLabelAt,
+);
 
 // Additive token counts — "sum" reconciles with a headline total.
-const tokenData = buildSeries([
-  { name: "gpt-4o", base: 40_000, amp: 30_000 },
-  { name: "claude-3-5-sonnet", base: 25_000, amp: 18_000 },
-  { name: "gpt-4o-mini", base: 90_000, amp: 60_000 },
-]);
+const tokenData = buildSeries(
+  [
+    { name: "gpt-4o", base: 40_000, amp: 30_000 },
+    { name: "claude-3-5-sonnet", base: 25_000, amp: 18_000 },
+    { name: "gpt-4o-mini", base: 90_000, amp: 60_000 },
+  ],
+  14,
+  categoryLabelAt,
+);
 
 // Overloaded: many models at once (the Model-latencies failure case).
 const manySeriesData = buildSeries(
@@ -61,6 +74,37 @@ const manySeriesData = buildSeries(
     base: 200 + i * 90,
     amp: 150 + i * 60,
   })),
+  14,
+  categoryLabelAt,
+);
+
+const temporalModels = [
+  { name: "gpt-4o", base: 40_000, amp: 30_000 },
+  { name: "claude-3-5-sonnet", base: 25_000, amp: 18_000 },
+  { name: "gpt-4o-mini", base: 90_000, amp: 60_000 },
+];
+const dailyData = buildSeries(temporalModels, 14, (bucket) =>
+  isoDay(bucket, 0),
+);
+const hourlyData = buildSeries(temporalModels, 24, (bucket) =>
+  isoDay(0, bucket),
+);
+const singleSeriesData = dailyData.filter(
+  (point) => point.dimension === "gpt-4o-mini",
+);
+const longNameData = buildSeries(
+  [
+    { name: "sa-investigation:sa-evidence-verifier", base: 4_000, amp: 2_500 },
+    { name: "tool-bash-loghouse-querylog-reader", base: 28_000, amp: 9_000 },
+    {
+      name: "step-loghouse-cplogs-aggregation-pass",
+      base: 2_600,
+      amp: 1_400,
+    },
+    { name: "answer", base: 11_000, amp: 4_000 },
+  ],
+  14,
+  (bucket) => isoDay(bucket, 0),
 );
 
 const msFormatter: MetricFormatterFunction = (value, options) =>
@@ -121,5 +165,45 @@ export const OverloadTopFive = meta.story({
     legendSummary: "none",
     legendInteraction: "toggle",
     maxVisibleSeries: 5,
+  },
+});
+
+export const DailyTimeScale = meta.story({
+  args: {
+    data: dailyData,
+    legendPosition: "none",
+    metricFormatter: undefined,
+  },
+});
+
+export const HourlyTimeScale = meta.story({
+  args: {
+    data: hourlyData,
+    legendPosition: "none",
+    metricFormatter: undefined,
+  },
+});
+
+export const SingleSeriesAutomaticLegend = meta.story({
+  args: {
+    data: singleSeriesData,
+    legendPosition: "auto",
+    metricFormatter: undefined,
+  },
+});
+
+export const MultipleSeriesAutomaticLegend = meta.story({
+  args: {
+    data: dailyData,
+    legendPosition: "auto",
+    metricFormatter: undefined,
+  },
+});
+
+export const WithLongSeriesNames = meta.story({
+  args: {
+    data: longNameData,
+    legendPosition: "below",
+    metricFormatter: undefined,
   },
 });
