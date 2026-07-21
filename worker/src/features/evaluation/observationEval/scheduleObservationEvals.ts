@@ -24,13 +24,6 @@ interface ScheduleObservationEvalsParams {
   configs: ObservationEvalConfig[];
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: JobConfigExecutionMode;
-  /**
-   * Optional preparation performed only after at least one config matches and
-   * immediately before S3 upload. The callback may mutate `observation`.
-   */
-  prepareObservationForUpload?: (
-    observation: ObservationForEval,
-  ) => Promise<void>;
 }
 
 /**
@@ -86,13 +79,7 @@ export function isObservationAllowedForQueuedObservationEvals(
 export async function scheduleObservationEvals(
   params: ScheduleObservationEvalsParams,
 ): Promise<void> {
-  const {
-    observation,
-    configs,
-    schedulerDeps,
-    executionMode,
-    prepareObservationForUpload,
-  } = params;
+  const { observation, configs, schedulerDeps, executionMode } = params;
 
   // Early return if no configs
   if (configs.length === 0) {
@@ -138,11 +125,6 @@ export async function scheduleObservationEvals(
 
   // Early return if no configs match - no S3 upload needed
   if (matchingConfigs.length === 0) return;
-
-  // Defer potentially expensive payload preparation until we know the
-  // observation will be uploaded. In OTEL ingestion this prevents media scans
-  // and uploads for observations rejected by eval filters or sampling.
-  await prepareObservationForUpload?.(observation);
 
   // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({

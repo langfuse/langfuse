@@ -11,24 +11,19 @@ import type { UploadMediaForTraceResult } from "../media/mediaService";
 
 export type OtelMediaKind = MediaPayloadKind;
 
-/**
- * Points at one normalized OTEL field that may contain embedded media.
- *
- * `body` is intentionally retained by reference. {@link processOtelMedia}
- * mutates `body[field]` in place after each embedded media item has been
- * uploaded successfully, so downstream ingestion persists media references.
- */
-export type OtelMediaTarget = {
+/** A normalized OTEL observation destined for direct events-table storage. */
+export type OtelMediaEvent = {
   traceId: string;
-  observationId?: string;
-  field: MediaField;
-  body: Record<string, unknown>;
+  spanId: string;
+  input?: unknown;
+  output?: unknown;
+  metadata?: unknown;
 };
 
 export type UploadOtelMedia = (params: {
   projectId: string;
   traceId: string;
-  observationId?: string;
+  observationId: string;
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
@@ -68,7 +63,7 @@ export type OtelMediaProcessResult = {
 type ProcessContext = {
   projectId: string;
   traceId: string;
-  observationId?: string;
+  observationId: string;
   field: MediaField;
   mediaBucket: string;
   mediaPrefix: string;
@@ -77,21 +72,22 @@ type ProcessContext = {
 };
 
 /**
- * Detects and uploads embedded media for a set of normalized OTEL fields.
+ * Detects and uploads embedded media for normalized OTEL events that are
+ * destined for direct persistence in the events table.
  *
- * Targets and candidates are processed sequentially to bound peak decoded
- * media memory. Successful replacements mutate each target's `body` in place.
+ * Events, fields, and candidates are processed sequentially to bound peak
+ * decoded media memory. Successful replacements mutate each event in place.
  * Invalid values and failed uploads are left unchanged; their outcomes are
  * reflected in the returned counters instead of failing the whole run.
  */
 export async function processOtelMedia(params: {
-  targets: OtelMediaTarget[];
+  events: OtelMediaEvent[];
   projectId: string;
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
 }): Promise<OtelMediaProcessResult> {
-  const { targets, projectId, mediaBucket, mediaPrefix, uploadMedia } = params;
+  const { events, projectId, mediaBucket, mediaPrefix, uploadMedia } = params;
   const result: OtelMediaProcessResult = {
     uploaded: 0,
     reused: 0,
@@ -111,38 +107,40 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  for (const target of targets) {
-    const originalValue = target.body[target.field];
-    if (originalValue == null) continue;
+  for (const event of events) {
+    for (const field of ["input", "output", "metadata"] as const) {
+      const originalValue = event[field];
+      if (originalValue == null) continue;
 
-    const context: ProcessContext = {
-      projectId,
-      traceId: target.traceId,
-      observationId: target.observationId,
-      field: target.field,
-      mediaBucket,
-      mediaPrefix,
-      uploadMedia,
-      result,
-    };
-    const transformed = await transformMediaPayload(originalValue, {
-      processCandidate: (candidate) => processCandidate(candidate, context),
-      onInvalidCandidate: (kind) => recordInvalidCandidate(kind, context),
-      onDetectionPath: (path, checkedBytes) =>
-        recordDetectionCheck(path, checkedBytes, context),
-    });
+      const context: ProcessContext = {
+        projectId,
+        traceId: event.traceId,
+        observationId: event.spanId,
+        field,
+        mediaBucket,
+        mediaPrefix,
+        uploadMedia,
+        result,
+      };
+      const transformed = await transformMediaPayload(originalValue, {
+        processCandidate: (candidate) => processCandidate(candidate, context),
+        onInvalidCandidate: (kind) => recordInvalidCandidate(kind, context),
+        onDetectionPath: (path, checkedBytes) =>
+          recordDetectionCheck(path, checkedBytes, context),
+      });
 
-    // Structured objects are mutated by transformMediaPayload itself and keep
-    // their identity. Strings instead return a new value that must be assigned.
-    if (transformed.value !== originalValue) {
-      target.body[target.field] = transformed.value;
-    }
-    if (transformed.bytesRemoved > 0) {
-      result.bytesRemoved += transformed.bytesRemoved;
-      recordDistribution(
-        "langfuse.ingestion.otel.media.bytes_removed",
-        transformed.bytesRemoved,
-      );
+      // Structured objects are mutated by transformMediaPayload itself and keep
+      // their identity. Strings instead return a new value that must be assigned.
+      if (transformed.value !== originalValue) {
+        event[field] = transformed.value;
+      }
+      if (transformed.bytesRemoved > 0) {
+        result.bytesRemoved += transformed.bytesRemoved;
+        recordDistribution(
+          "langfuse.ingestion.otel.media.bytes_removed",
+          transformed.bytesRemoved,
+        );
+      }
     }
   }
 

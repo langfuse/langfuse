@@ -39,7 +39,6 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ForbiddenError,
   convertEventRecordToObservationForEval,
-  type ObservationForEval,
 } from "@langfuse/shared";
 import {
   fetchObservationEvalConfigs,
@@ -47,12 +46,7 @@ import {
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
-import {
-  createOtelMediaTargets,
-  createOtelMediaTargetsForBody,
-  processOtelMediaIfEnabled,
-  shouldProcessOtelEventInputMedia,
-} from "../features/otel-media/processOtelMedia";
+import { processOtelEventMedia } from "../features/otel-media/processOtelMedia";
 
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
@@ -325,29 +319,6 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      const eventInputs = processor.processToEvent(parsedSpans);
-      const mediaUploadEnabled =
-        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
-      const skipLegacyWrites = !v4WritesToLegacyTables(env);
-
-      // Only mutate the normalized legacy representation when it will be
-      // persisted. Processing discarded representations would waste scans and
-      // could create media links with no corresponding stored reference.
-      if (mediaUploadEnabled && !skipLegacyWrites) {
-        const mediaTargets = createOtelMediaTargets({
-          ingestionEvents: events,
-          eventInputs: [],
-        });
-
-        await processOtelMediaIfEnabled({
-          enabled: true,
-          targets: mediaTargets,
-          projectId,
-          fileKey,
-          mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-          mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-        });
-      }
 
       // Here, we split the events into observations and non-observations.
       // Observations go into the IngestionService directly whereas the non-observations make another run through the processEventBatch method.
@@ -462,6 +433,8 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
+      const skipLegacyWrites = !v4WritesToLegacyTables(env);
+
       if (skipLegacyWrites) {
         span?.setAttribute(
           "langfuse.ingestion.otel.skipped_legacy_writes",
@@ -511,6 +484,8 @@ export const otelIngestionQueueProcessorBuilder = (
       //
       // Both require enriched event records with trace-level attributes
       // (userId, sessionId, tags, release) that processToEvent provides.
+      const eventInputs = processor.processToEvent(parsedSpans);
+
       if (eventInputs.length === 0) {
         return;
       }
@@ -537,23 +512,12 @@ export const otelIngestionQueueProcessorBuilder = (
         return;
       }
 
-      // Direct writes consume every eventInput, so prepare the full batch once
-      // before event records are created. Eval-only inputs are prepared later,
-      // after the scheduler confirms that a filter/sampling match exists.
       if (
-        shouldProcessOtelEventInputMedia({
-          enabled: mediaUploadEnabled,
-          shouldWriteToEventsTable,
-        })
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+        shouldWriteToEventsTable
       ) {
-        const mediaTargets = createOtelMediaTargets({
-          ingestionEvents: [],
+        await processOtelEventMedia({
           eventInputs,
-        });
-
-        await processOtelMediaIfEnabled({
-          enabled: true,
-          targets: mediaTargets,
           projectId,
           fileKey,
           mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
@@ -565,25 +529,6 @@ export const otelIngestionQueueProcessorBuilder = (
       const evalSchedulerDeps = hasEvalConfigs
         ? createObservationEvalSchedulerDeps()
         : null;
-      // Reuse one callback across the batch. It is invoked only when the eval
-      // scheduler has a matching config and is about to upload the observation.
-      const prepareObservationForEvalUpload =
-        mediaUploadEnabled && !shouldWriteToEventsTable
-          ? async (observationToUpload: ObservationForEval) => {
-              await processOtelMediaIfEnabled({
-                enabled: true,
-                targets: createOtelMediaTargetsForBody({
-                  body: observationToUpload,
-                  traceId: observationToUpload.trace_id,
-                  observationId: observationToUpload.span_id,
-                }),
-                projectId,
-                fileKey,
-                mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-                mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
-              });
-            }
-          : undefined;
 
       await Promise.all(
         // Process each event independently
@@ -619,7 +564,6 @@ export const otelIngestionQueueProcessorBuilder = (
                   observation,
                   configs: evalConfigs,
                   schedulerDeps: evalSchedulerDeps,
-                  prepareObservationForUpload: prepareObservationForEvalUpload,
                 });
               }
             } catch (error) {

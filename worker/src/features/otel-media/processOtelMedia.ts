@@ -1,131 +1,24 @@
 import {
-  getClickhouseEntityType,
   instrumentAsync,
   logger,
   processOtelMedia,
   recordDistribution,
-  type IngestionEventType,
-  type OtelMediaTarget,
+  type OtelMediaEvent,
   uploadMediaForTrace,
 } from "@langfuse/shared/src/server";
 
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Returns whether the normalized event representation will be persisted
- * directly and therefore needs media replacement before event records are
- * created. Eval-only payloads are prepared later, after filter and sampling
- * checks confirm that the observation will be uploaded.
- */
-export function shouldProcessOtelEventInputMedia(params: {
-  enabled: boolean;
-  shouldWriteToEventsTable: boolean;
-}): boolean {
-  return params.enabled && params.shouldWriteToEventsTable;
-}
-
-/**
- * Builds mutable field references for the normalized OTEL representations that
- * the caller intends to persist. This function does not mutate the supplied
- * events, but each target retains its original `body` reference so subsequent
- * media processing updates the payload consumed by downstream ingestion.
- */
-export function createOtelMediaTargets(params: {
-  ingestionEvents: IngestionEventType[];
-  eventInputs: unknown[];
-}): OtelMediaTarget[] {
-  const targets: OtelMediaTarget[] = [];
-
-  for (const event of params.ingestionEvents) {
-    const body: unknown = event.body;
-    if (!isObject(body)) continue;
-
-    const entityType = getClickhouseEntityType(event.type);
-    if (entityType !== "trace" && entityType !== "observation") continue;
-
-    const traceId = entityType === "trace" ? body.id : body.traceId;
-    const observationId = entityType === "observation" ? body.id : undefined;
-    if (
-      typeof traceId !== "string" ||
-      (observationId !== undefined && typeof observationId !== "string")
-    ) {
-      continue;
-    }
-
-    addMediaTargets({
-      targets,
-      body,
-      traceId,
-      observationId,
-    });
-  }
-
-  for (const eventInput of params.eventInputs) {
-    if (
-      !isObject(eventInput) ||
-      typeof eventInput.traceId !== "string" ||
-      typeof eventInput.spanId !== "string"
-    ) {
-      continue;
-    }
-
-    addMediaTargets({
-      targets,
-      body: eventInput,
-      traceId: eventInput.traceId,
-      observationId: eventInput.spanId,
-    });
-  }
-
-  return targets;
-}
-
-/**
- * Builds media targets for one already-normalized body. The function itself
- * does not mutate `body`; returned targets retain its reference, so processing
- * those targets later mutates the body's input, output, and metadata fields.
- */
-export function createOtelMediaTargetsForBody(params: {
-  body: Record<string, unknown>;
-  traceId: string;
-  observationId?: string;
-}): OtelMediaTarget[] {
-  const targets: OtelMediaTarget[] = [];
-  addMediaTargets({ targets, ...params });
-  return targets;
-}
-
-function addMediaTargets(params: {
-  targets: OtelMediaTarget[];
-  body: Record<string, unknown>;
-  traceId: string;
-  observationId?: string;
-}): void {
-  for (const field of MEDIA_FIELDS) {
-    if (params.body[field] == null) continue;
-    params.targets.push({
-      traceId: params.traceId,
-      observationId: params.observationId,
-      field,
-      body: params.body,
-    });
-  }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Runs instrumented OTEL media processing when configured.
+ * Runs instrumented media processing for normalized OTEL events that will be
+ * written directly to the events table.
  *
- * Successful replacements mutate each target body in place. Missing storage
+ * Successful replacements mutate each event in place. Missing storage
  * configuration or unexpected processing errors are logged and swallowed so
  * media extraction cannot reject the enclosing OTEL ingestion job.
  */
-export async function processOtelMediaIfEnabled(params: {
-  enabled: boolean;
-  targets: OtelMediaTarget[];
+export async function processOtelEventMedia(params: {
+  eventInputs: unknown[];
   projectId: string;
   fileKey: string;
   mediaBucket?: string;
@@ -133,16 +26,13 @@ export async function processOtelMediaIfEnabled(params: {
   processMedia?: typeof processOtelMedia;
 }): Promise<void> {
   const {
-    enabled,
-    targets,
+    eventInputs,
     projectId,
     fileKey,
     mediaBucket,
     mediaPrefix,
     processMedia = processOtelMedia,
   } = params;
-
-  if (!enabled) return;
 
   if (!mediaBucket) {
     logger.warn(
@@ -152,6 +42,9 @@ export async function processOtelMediaIfEnabled(params: {
     return;
   }
 
+  const events = eventInputs.filter(isOtelMediaEvent);
+  if (events.length === 0) return;
+
   try {
     await instrumentAsync(
       { name: "langfuse.ingestion.otel.media.process" },
@@ -159,7 +52,7 @@ export async function processOtelMediaIfEnabled(params: {
         const startedAt = Date.now();
         try {
           const result = await processMedia({
-            targets,
+            events,
             projectId,
             mediaBucket,
             mediaPrefix,
@@ -214,4 +107,17 @@ export async function processOtelMediaIfEnabled(params: {
       { projectId, fileKey, error },
     );
   }
+}
+
+function isOtelMediaEvent(value: unknown): value is OtelMediaEvent {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const event = value as Record<string, unknown>;
+  return (
+    typeof event.traceId === "string" &&
+    typeof event.spanId === "string" &&
+    MEDIA_FIELDS.some((field) => event[field] != null)
+  );
 }
