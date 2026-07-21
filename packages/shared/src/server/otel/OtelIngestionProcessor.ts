@@ -60,6 +60,12 @@ export interface OtelIngestionProcessorConfig {
   fileKey?: string;
 }
 
+interface MetadataDropContext {
+  domain: string;
+  attributeKey: string;
+  dropScope: object;
+}
+
 interface CreateTraceEventParams {
   traceId: string;
   startTimeISO: string;
@@ -160,6 +166,8 @@ export class OtelIngestionProcessor {
     "langfuse.ingestion.otel.conversion_failure";
 
   private seenTraces: Set<string> = new Set();
+  private reportedMetadataDrops = new WeakMap<object, Set<string>>();
+  private readonly resourceMetadataDropScope: object = {};
   private isInitialized = false;
   private traceEventCounts = {
     shallow: 0,
@@ -296,10 +304,12 @@ export class OtelIngestionProcessor {
                 const spanMetadata = this.extractMetadata(
                   spanAttributes,
                   "observation",
+                  span,
                 );
                 const traceMetadata = this.extractMetadata(
                   spanAttributes,
                   "trace",
+                  span,
                 );
 
                 const { input, output, filteredAttributes } =
@@ -369,8 +379,10 @@ export class OtelIngestionProcessor {
                   eventBytes,
                 });
 
-                const experimentFields =
-                  this.extractExperimentFields(spanAttributes);
+                const experimentFields = this.extractExperimentFields(
+                  spanAttributes,
+                  span,
+                );
 
                 const spanContext = {
                   spanId,
@@ -806,10 +818,12 @@ export class OtelIngestionProcessor {
     const spanAttributeMetadata = this.extractMetadata(
       attributes,
       "observation",
+      span,
     );
     const resourceAttributeMetadata = this.extractMetadata(
       resourceAttributes,
       "trace",
+      this.resourceMetadataDropScope,
     );
     const { startTimeISO, endTimeISO } =
       OtelIngestionProcessor.resolveSpanTimestamps({
@@ -908,7 +922,7 @@ export class OtelIngestionProcessor {
           this.extractName(span.name, attributes),
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "trace", span),
           ...spanAttributeMetadata,
           ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
           resourceAttributes,
@@ -941,7 +955,7 @@ export class OtelIngestionProcessor {
         name: attributes[LangfuseOtelSpanAttributes.TRACE_NAME] as string,
         metadata: {
           ...resourceAttributeMetadata,
-          ...this.extractMetadata(attributes, "trace"),
+          ...this.extractMetadata(attributes, "trace", span),
           // removed to not remove trace metadata->attributes through subsequent observations
           // ...(isLangfuseSDKSpans
           //   ? {}
@@ -2150,6 +2164,7 @@ export class OtelIngestionProcessor {
   private extractMetadata(
     attributes: Record<string, unknown>,
     domain: "trace" | "observation",
+    dropScope: object,
   ): Record<string, unknown> {
     const metadataKeyPrefix =
       domain === "observation"
@@ -2158,7 +2173,13 @@ export class OtelIngestionProcessor {
 
     const topLevelMetadata = this.parseMetadataAttribute(
       attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
-      domain,
+      {
+        domain,
+        attributeKey: attributes[metadataKeyPrefix]
+          ? metadataKeyPrefix
+          : "langfuse.metadata",
+        dropScope,
+      },
     );
     const langfuseMetadata = this.extractPrefixedMetadataAttributes({
       attributes,
@@ -2821,7 +2842,25 @@ export class OtelIngestionProcessor {
     return [];
   }
 
-  private recordMetadataDropped(reason: string, domain: string): void {
+  // One increment per dropped attribute value per job: deduped per drop
+  // scope (span object, shared across both worker pipelines) on
+  // (attribute key, reason); the first-seen domain wins the tag.
+  private recordMetadataDropped(
+    reason: string,
+    context: MetadataDropContext,
+  ): void {
+    const { domain, attributeKey, dropScope } = context;
+    let seen = this.reportedMetadataDrops.get(dropScope);
+    if (!seen) {
+      seen = new Set();
+      this.reportedMetadataDrops.set(dropScope, seen);
+    }
+    const dedupeKey = `${attributeKey}|${reason}`;
+    if (seen.has(dedupeKey)) {
+      return;
+    }
+    seen.add(dedupeKey);
+
     recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
       reason,
       source: "otel",
@@ -2831,14 +2870,15 @@ export class OtelIngestionProcessor {
       projectId: this.projectId,
       reason,
       domain,
+      attributeKey,
     });
   }
 
   private parseMetadataAttribute(
     value: unknown,
-    domain: string,
+    context: MetadataDropContext,
   ): Record<string, unknown> {
-    if (!value) {
+    if (value === undefined || value === null) {
       return {};
     }
 
@@ -2848,10 +2888,10 @@ export class OtelIngestionProcessor {
         if (parsed && typeof parsed === "object") {
           return parsed as Record<string, unknown>;
         }
-        this.recordMetadataDropped("non_object_top_level", domain);
+        this.recordMetadataDropped("non_object_top_level", context);
         return {};
       } catch {
-        this.recordMetadataDropped("parse_failure", domain);
+        this.recordMetadataDropped("parse_failure", context);
         return {};
       }
     }
@@ -2860,7 +2900,7 @@ export class OtelIngestionProcessor {
       return value as Record<string, unknown>;
     }
 
-    this.recordMetadataDropped("primitive", domain);
+    this.recordMetadataDropped("primitive", context);
     return {};
   }
 
@@ -2893,10 +2933,15 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>;
     prefix: string;
     domain: string;
+    dropScope: object;
   }): Record<string, unknown> {
-    const { attributes, prefix, domain } = params;
+    const { attributes, prefix, domain, dropScope } = params;
     return {
-      ...this.parseMetadataAttribute(attributes[prefix], domain),
+      ...this.parseMetadataAttribute(attributes[prefix], {
+        domain,
+        attributeKey: prefix,
+        dropScope,
+      }),
       ...this.extractPrefixedMetadataAttributes({
         attributes,
         prefixes: [prefix],
@@ -2908,7 +2953,10 @@ export class OtelIngestionProcessor {
    * Extracts experiment-related fields from span attributes.
    * Returns undefined for fields that are not present.
    */
-  private extractExperimentFields(attributes: Record<string, unknown>): {
+  private extractExperimentFields(
+    attributes: Record<string, unknown>,
+    dropScope: object,
+  ): {
     experimentId?: string;
     experimentName?: string;
     experimentDescription?: string;
@@ -2946,6 +2994,7 @@ export class OtelIngestionProcessor {
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
         domain: "experiment",
+        dropScope,
       }),
     );
 
@@ -2955,6 +3004,7 @@ export class OtelIngestionProcessor {
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
         domain: "experiment_item",
+        dropScope,
       }),
     );
 
