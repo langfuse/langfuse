@@ -27,7 +27,10 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import {
+  type EventsTableFilterState,
+  type FilterCondition,
+} from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -2188,6 +2191,129 @@ describe("Clickhouse Events Repository Test", () => {
         expect(result.length).toBe(0);
       });
     });
+
+    describe("Truncation-sensitive filters (must read events_full)", () => {
+      // events_core stores input/output/metadata_values truncated to 200 chars
+      // (events_core_mv). Filters on these fields must run against events_full,
+      // otherwise matches beyond the truncation point are silently dropped.
+
+      it("metadata 'contains' matches a value beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const needle = `needle-${randomUUID()}`;
+        const longValue = "x".repeat(220) + needle;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-metadata-value",
+            metadata_names: ["payload"],
+            metadata_values: [longValue],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "contains",
+            key: "payload",
+            value: needle,
+          },
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: filterTime,
+          },
+          {
+            type: "string",
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+          },
+        ];
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter,
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-metadata-value");
+
+        const count = await getObservationsCountFromEventsTable({
+          projectId,
+          filter,
+        });
+        expect(count).toBe(1);
+      });
+
+      it("input 'matches' finds a token beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const token = `needletoken${randomUUID().replaceAll("-", "")}`;
+        const longInput = "x".repeat(220) + " " + token;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-input-value",
+            input: longInput,
+            start_time: now * 1000,
+          }),
+        ]);
+
+        // "matches" belongs to the events-table filter grammar
+        // (EventsTableFilterState); the events service passes it through the
+        // FilterState-typed repository signature untyped, so mirror that here.
+        const matchesFilter = {
+          type: "string",
+          column: "input",
+          operator: "matches",
+          value: token,
+        } satisfies EventsTableFilterState[number] as unknown as FilterCondition;
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            matchesFilter,
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-input-value");
+      });
+    });
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
@@ -3582,14 +3708,21 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
-  // LFE-10596: trace-level score filtering returned empty in v4. The events
-  // table splits scores into observation-scoped (`scores_avg`, joined on
-  // span_id) and trace-scoped (`trace_scores_avg`, joined on trace_id). A
-  // trace-level score (observation_id NULL) can only match the trace-scoped
-  // column, so its NAME must be offered under `trace_scores_avg` only — never
-  // under `scores_avg`, where a filter on it can never match.
-  maybe("LFE-10596 trace-level score filtering", () => {
-    it("trace-level score matches trace_scores_avg but not scores_avg", async () => {
+  // LFE-10596: in v4 the traces/observations list is served from the events
+  // table, which splits scores into an observation-scoped column (`scores_avg`
+  // / `score_categories`, joined on span_id) and a trace-scoped column
+  // (`trace_scores_avg` / `trace_score_categories`, joined on trace_id). A
+  // trace-level score (observation_id NULL) only ever lands in the trace
+  // column, so the customer's saved `scores_avg;CSAT=1` filter returned empty.
+  //
+  // The fix makes the `scores_avg` / `score_categories` columns LEVEL-AGNOSTIC:
+  // they match if the score is found at observation OR trace level (a
+  // server-side union), restoring v3 "has it anywhere" semantics.
+  // `trace_scores_avg` / `trace_score_categories` stay an explicit trace-only
+  // escape hatch, and both levels' names are offered under the single
+  // `scores_avg` / `score_categories` groups.
+  maybe("LFE-10596 level-agnostic score filtering", () => {
+    it("scores_avg matches a trace-level score (union), and trace_scores_avg still does", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
       const spanId = randomUUID();
@@ -3648,11 +3781,192 @@ describe("Clickhouse Events Repository Test", () => {
         ]);
 
       expect(noFilterCount).toBe(1);
+      // Level-agnostic union: a trace-level score now matches via scores_avg,
+      // not only via trace_scores_avg. Before the fix scoresAvgCount was 0.
+      expect(scoresAvgCount).toBe(1);
       expect(traceScoresAvgCount).toBe(1);
-      expect(scoresAvgCount).toBe(0);
     });
 
-    it("offers a trace-level numeric score under trace_scores_avg, not scores_avg", async () => {
+    it("scores_avg still matches an observation-level score", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Observation-level score keyed to the span (scores_avg joins on span_id).
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgCount = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            operator: "=",
+            key: "CSAT",
+            value: 1,
+          },
+        ],
+      });
+
+      expect(scoresAvgCount).toBe(1);
+    });
+
+    it("trace_scores_avg stays trace-only (does not match an observation-level score)", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Observation-level score keyed to the span.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const [scoresAvgCount, traceScoresAvgCount] = await Promise.all([
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "numberObject",
+              column: "scores_avg",
+              operator: "=",
+              key: "CSAT",
+              value: 1,
+            },
+          ],
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "numberObject",
+              column: "trace_scores_avg",
+              operator: "=",
+              key: "CSAT",
+              value: 1,
+            },
+          ],
+        }),
+      ]);
+
+      // scores_avg is level-agnostic (matches the obs score); trace_scores_avg
+      // is the explicit trace-only escape hatch and must not match it.
+      expect(scoresAvgCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(0);
+    });
+
+    it("categorical score_categories unions any-of and excludes none-of correctly (De Morgan)", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceWithScore = randomUUID();
+      const spanWithScore = randomUUID();
+      const traceWithoutScore = randomUUID();
+      const spanWithoutScore = randomUUID();
+      const scoreName = `sentiment-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanWithScore,
+          span_id: spanWithScore,
+          project_id: uniqueProjectId,
+          trace_id: traceWithScore,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+        createEvent({
+          id: spanWithoutScore,
+          span_id: spanWithoutScore,
+          project_id: uniqueProjectId,
+          trace_id: traceWithoutScore,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) on the first trace only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceWithScore,
+          observation_id: null,
+          name: scoreName,
+          value: 0,
+          string_value: "positive",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const [anyOfCount, noneOfCount] = await Promise.all([
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "categoryOptions",
+              column: "score_categories",
+              operator: "any of",
+              key: scoreName,
+              value: ["positive"],
+            },
+          ],
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "categoryOptions",
+              column: "score_categories",
+              operator: "none of",
+              key: scoreName,
+              value: ["positive"],
+            },
+          ],
+        }),
+      ]);
+
+      // any of: union OR -> only the trace that has the trace-level value.
+      expect(anyOfCount).toBe(1);
+      // none of: union AND (De Morgan) -> the trace WITH the value is excluded,
+      // the trace without it is kept.
+      expect(noneOfCount).toBe(1);
+    });
+
+    it("offers all numeric score names under scores_avg, trace-only names under trace_scores_avg", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
       const spanId = randomUUID();
@@ -3672,7 +3986,7 @@ describe("Clickhouse Events Repository Test", () => {
       ]);
 
       await createScoresCh([
-        // Trace-level score (observation_id NULL) -> trace_scores_avg only.
+        // Trace-level score (observation_id NULL).
         createTraceScore({
           project_id: uniqueProjectId,
           trace_id: traceId,
@@ -3681,7 +3995,7 @@ describe("Clickhouse Events Repository Test", () => {
           value: 1,
           data_type: "NUMERIC",
         }),
-        // Observation-level score -> scores_avg only.
+        // Observation-level score.
         createTraceScore({
           project_id: uniqueProjectId,
           trace_id: traceId,
@@ -3696,10 +4010,13 @@ describe("Clickhouse Events Repository Test", () => {
         projectId: uniqueProjectId,
       });
 
-      expect(options.trace_scores_avg).toContain(traceScoreName);
-      expect(options.scores_avg).not.toContain(traceScoreName);
-
+      // Single "Scores" group offers BOTH levels' names (level-agnostic union).
       expect(options.scores_avg).toContain(observationScoreName);
+      expect(options.scores_avg).toContain(traceScoreName);
+
+      // trace_scores_avg remains the trace-only escape hatch (search bar
+      // traceScores.): trace-level names only.
+      expect(options.trace_scores_avg).toContain(traceScoreName);
       expect(options.trace_scores_avg).not.toContain(observationScoreName);
     });
 
@@ -3754,10 +4071,12 @@ describe("Clickhouse Events Repository Test", () => {
         (c) => c.label,
       );
 
-      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
-      expect(scoreCategoryLabels).not.toContain(traceCategoryName);
-
+      // Single "Scores" group offers BOTH levels' categorical names.
       expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(scoreCategoryLabels).toContain(traceCategoryName);
+
+      // trace_score_categories remains the trace-only escape hatch.
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
   });

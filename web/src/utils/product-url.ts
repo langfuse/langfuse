@@ -488,6 +488,14 @@ export const buildDashboardWidgetUrl = (params: {
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
 
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  buildProductUrl(
+    `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`,
+  );
+
 export const buildEvaluatorUrl = (params: {
   projectId: string;
   evaluatorId: string;

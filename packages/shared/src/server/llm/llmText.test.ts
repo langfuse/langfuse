@@ -408,22 +408,26 @@ describe("legacy compatibility boundary", () => {
     });
   });
 
-  it("preserves explicit non-reasoning OpenAI gpt-5.4 mini/nano handling", () => {
-    const mapped = mapLegacyLLMCompletionParams({
-      messages: legacyMessages,
-      modelParams: {
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-5.4-mini",
-        providerOptions: { service_tier: "flex" },
-      },
-      connection: encryptedConnection,
-    });
+  it.each(["gpt-5.4-mini", "gpt-5.4-nano"])(
+    "uses portable non-reasoning defaults for OpenAI %s",
+    (model) => {
+      const mapped = mapLegacyLLMCompletionParams({
+        messages: legacyMessages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          providerOptions: { service_tier: "flex" },
+        },
+        connection: encryptedConnection,
+      });
 
-    expect(mapped.providerOptions).toEqual({
-      openai: { serviceTier: "flex", forceReasoning: false },
-    });
-  });
+      expect(mapped).toMatchObject({
+        reasoning: "none",
+        providerOptions: { openai: { serviceTier: "flex" } },
+      });
+    },
+  );
 
   it("passes unknown OpenAI provider options through for OpenAI-compatible endpoints", () => {
     const mapped = mapLegacyLLMCompletionParams({

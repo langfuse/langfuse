@@ -48,6 +48,7 @@ export * from "./llm/llmText";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/promptToolConfig";
 export * from "./llm/internalTraceEvents";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";

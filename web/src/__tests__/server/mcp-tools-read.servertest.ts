@@ -57,12 +57,26 @@ import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import {
+  buildDashboardUrl,
+  buildDashboardWidgetUrl,
   buildEvaluatorUrl,
   buildMonitorUrl,
   buildObservationUrl,
   buildPromptUrl,
   buildTraceUrl,
 } from "@/src/utils/product-url";
+import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import {
+  getDashboardTool,
+  getDashboardWidgetTool,
+  handleCreateDashboard,
+  handleGetDashboard,
+  handleGetDashboardWidget,
+  handleListDashboards,
+  handleListDashboardWidgets,
+  listDashboardsTool,
+  listDashboardWidgetsTool,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
 
 // Import MCP tool handlers directly
 import {
@@ -1811,6 +1825,7 @@ describe("MCP Read Tools", () => {
           "observations",
           "scores-numeric",
           "scores-categorical",
+          "scores-boolean",
         ],
         granularities: expect.arrayContaining(["day"]),
         config: {
@@ -1828,8 +1843,19 @@ describe("MCP Read Tools", () => {
               },
             },
           },
+          "scores-boolean": {
+            dimensions: {
+              booleanValue: { type: "boolean" },
+            },
+            measures: {
+              value: {
+                validAggregations: expect.arrayContaining(["avg"]),
+              },
+            },
+          },
         },
       });
+      expect(views["scores-boolean"].dimensions.value).toBeUndefined();
       expect(Reflect.get(Object(views), "traces")).toBeUndefined();
     });
 
@@ -3674,6 +3700,80 @@ describe("MCP Read Tools", () => {
       expect(result.prompt[0].content).toContain(
         "@@@langfusePrompt:name=system-base|label=production@@@",
       );
+    });
+  });
+
+  describe("dashboard read tools", () => {
+    const dashboardReadTools = [
+      listDashboardsTool,
+      getDashboardTool,
+      listDashboardWidgetsTool,
+      getDashboardWidgetTool,
+    ];
+
+    it("should have readOnlyHint annotations", () => {
+      for (const tool of dashboardReadTools) {
+        verifyToolAnnotations(tool, { readOnlyHint: true });
+      }
+    });
+
+    it("should list and get dashboards and widgets with product URLs", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+      const widget = (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+        },
+        setup.context,
+      )) as { id: string };
+
+      const listedDashboards = (await handleListDashboards(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string; url: string }> };
+      expect(listedDashboards.data.map((item) => item.id)).toContain(
+        dashboard.id,
+      );
+
+      const fetchedDashboard = (await handleGetDashboard(
+        { dashboardId: dashboard.id },
+        setup.context,
+      )) as { id: string; url: string };
+      expect(fetchedDashboard).toMatchObject({
+        id: dashboard.id,
+        url: buildDashboardUrl({
+          projectId: setup.projectId,
+          dashboardId: dashboard.id,
+        }),
+      });
+
+      const listedWidgets = (await handleListDashboardWidgets(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string; url: string }> };
+      expect(listedWidgets.data.map((item) => item.id)).toContain(widget.id);
+
+      const fetchedWidget = (await handleGetDashboardWidget(
+        { widgetId: widget.id },
+        setup.context,
+      )) as { id: string; url: string };
+      expect(fetchedWidget).toMatchObject({
+        id: widget.id,
+        url: buildDashboardWidgetUrl({
+          projectId: setup.projectId,
+          widgetId: widget.id,
+        }),
+      });
     });
   });
 });

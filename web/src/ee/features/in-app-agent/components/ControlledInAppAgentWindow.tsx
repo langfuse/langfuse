@@ -5,8 +5,16 @@ import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
+import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
+import {
+  getInAppAgentFocusedQuickActions,
+  getInAppAgentQuickActionContext,
+} from "@/src/ee/features/in-app-agent/quickActions";
+
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
@@ -41,34 +49,70 @@ export function ControlledInAppAgentWindow(
     isSubmitting,
     invalidateConversations,
     loadMoreConversations,
+    liveMessageVersion,
     messages,
     pendingToolApprovals,
     approveToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
+    selectedConversationIsWriteLocked,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
+  const {
+    isAnimating,
+    messages: displayedMessages,
+    pendingToolApprovals: displayedPendingToolApprovals,
+    runningToolCallIds,
+  } = useSmoothStreamingMessages({
+    messages,
+    liveMessageVersion,
+    pendingToolApprovals,
+    shouldFlush: error !== null,
+  });
   const isInputDisabled =
     isRunning ||
+    isAnimating ||
     isSubmitting ||
+    selectedConversationIsWriteLocked ||
     isSelectedConversationHydrating ||
     pendingToolApprovals.length > 0;
+  const displayError = selectedConversationIsWriteLocked
+    ? ({
+        type: "generic",
+        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      } as const)
+    : error;
   const screenContextDescription = useMemo(
     () => getInAppAgentScreenContextDescription(router.asPath),
     [router.asPath],
   );
+  const quickActionContext = getInAppAgentQuickActionContext(router.asPath);
+  const focusedQuickActions = getInAppAgentFocusedQuickActions(
+    screenContextDescription.type,
+  );
+  // Strip query and hash so peek views and filter changes on the same page do
+  // not reset the quick-action picker.
+  const quickActionResetKey = router.asPath.replace(/[?#].*$/, "");
 
   const drawerMessages = useMemo(
     () =>
       getDrawerMessages({
         error,
-        isRunning,
-        messages,
-        pendingToolApprovals,
+        isRunning: isRunning || isAnimating,
+        messages: displayedMessages,
+        pendingToolApprovals: displayedPendingToolApprovals,
+        runningToolCallIds,
       }),
-    [error, isRunning, messages, pendingToolApprovals],
+    [
+      displayedMessages,
+      displayedPendingToolApprovals,
+      error,
+      isAnimating,
+      isRunning,
+      runningToolCallIds,
+    ],
   );
 
   const closeButtonProps =
@@ -78,12 +122,18 @@ export function ControlledInAppAgentWindow(
 
   return (
     <InAppAgentWindow
-      error={error}
-      isAssistantTurnInProgress={isRunning || pendingToolApprovals.length > 0}
+      error={displayError}
+      isAssistantTurnInProgress={
+        isRunning || isAnimating || displayedPendingToolApprovals.length > 0
+      }
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
+      disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
+      quickActionContext={quickActionContext}
+      focusedQuickActions={focusedQuickActions}
+      quickActionResetKey={quickActionResetKey}
       screenContextDescription={screenContextDescription}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}

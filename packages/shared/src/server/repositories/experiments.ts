@@ -2,6 +2,7 @@ import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
+import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   FilterList,
@@ -11,20 +12,24 @@ import {
   CTEWithSchema,
   EventsAggQueryBuilder,
   StringFilter,
+  extractTimeFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
+  eventsExperimentsForItems,
   eventsExperiments,
   eventsExperimentsAggregation,
   eventsScoresAggregation,
   eventsTracesScoresAggregation,
   scoreBooleansAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { extractTimeFilter, queryClickhouse } from "../repositories";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import {
+  parseClickhouseUTCDateTimeFormat,
+  queryClickhouse,
+} from "../repositories/clickhouse";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
@@ -972,7 +977,10 @@ const getExperimentItemsFromEventsGeneric = (params: {
   const queryBuilder = new EventsAggQueryBuilder({
     projectId,
     groupByColumn: "e.experiment_item_id",
-    selectExpression: "e.experiment_item_id as item_id",
+    // min(start_time) is the item's root start_time (WHERE below restricts
+    // to root rows), used as a coarse partition-prune lower bound for Query 2.
+    selectExpression:
+      "e.experiment_item_id as item_id, min(e.start_time) as start_time",
   })
     .whereRaw("e.span_id = e.experiment_item_root_span_id")
     .when(hasScoreFilters, (b) =>
@@ -1051,7 +1059,10 @@ export const getExperimentItemsFromEvents = async (
       offset,
     });
 
-  const itemIdsResult = await queryClickhouse<{ item_id: string }>({
+  const itemIdsResult = await queryClickhouse<{
+    item_id: string;
+    start_time: string;
+  }>({
     query: itemIdsQuery,
     params: itemIdsParams,
     tags: { projectId },
@@ -1069,24 +1080,53 @@ export const getExperimentItemsFromEvents = async (
     ...compExperimentIds,
   ];
 
+  // Earliest root start_time among the qualified items - a coarse partition
+  // prune for Query 2. Children always start at or after their own root, so
+  // this bound can't exclude a legitimate descendant.
+  const minStartTime = new Date(
+    Math.min(
+      ...itemIdsResult.map((r) =>
+        parseClickhouseUTCDateTimeFormat(r.start_time).getTime(),
+      ),
+    ),
+  );
+
   // ========== QUERY 2: Fetch data for ALL experiments ==========
-  const queryBuilderData = eventsExperimentsRootSpans({
+  // total_cost is summed across the item's full observation subtree via a
+  // window function - the root span itself usually carries no cost of its
+  // own, so reading e.total_cost directly would just return 0. WHERE only
+  // scopes to project/experiment/item; root-row selection happens in
+  // ORDER BY/LIMIT BY below, so the window function still sees sibling rows.
+  // The partition includes trace_id so items with multiple repetitions
+  // (until we model them properly, LFE-8965) sum only the selected
+  // iteration's own subtree, not every repetition's cost combined.
+  const queryBuilderData = eventsExperimentsForItems({
     projectId,
     experimentItemIds: itemIds,
     experimentIds: allExperimentIds,
   })
+    .whereRaw("e.start_time >= {itemsMinStartTime: DateTime64(3)}", {
+      itemsMinStartTime: convertDateToClickhouseDateTime(minStartTime),
+    })
     .selectRaw(
       "e.experiment_item_id as item_id",
       "e.experiment_id as experiment_id",
       "e.level as level",
       "e.start_time as start_time",
-      "e.total_cost as total_cost",
+      "sum(e.total_cost) OVER (PARTITION BY e.experiment_item_id, e.experiment_id, e.trace_id) as total_cost",
       "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
       "e.span_id as observation_id",
       "e.trace_id as trace_id",
     )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
+    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965).
+    // Uses raw orderBy() rather than orderByColumns(), which auto-prepends a
+    // toStartOfMinute(start_time) primary-key-read-order prefix whenever a
+    // start_time entry is present - that prefix would outrank the root-flag
+    // tiebreak below whenever a child observation starts in a later minute
+    // bucket than its root, causing LIMIT BY to keep the child row instead.
+    .orderBy(
+      "ORDER BY (e.span_id = e.experiment_item_root_span_id) DESC, e.start_time DESC",
+    )
     .limitBy("e.experiment_item_id, e.experiment_id");
 
   const { query: dataQuery, params: dataParams } =

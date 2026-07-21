@@ -41,7 +41,7 @@ export const ErrorNotification: React.FC<ErrorNotificationProps> = ({
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
           <AlertTriangle size={20} className={textColor} />
-          <div className={`m-0 text-sm leading-tight font-medium ${textColor}`}>
+          <div className={`m-0 text-sm leading-tight font-bold ${textColor}`}>
             {error}
           </div>
         </div>

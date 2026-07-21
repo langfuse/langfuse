@@ -2,7 +2,11 @@ import { type UseFormReturn } from "react-hook-form";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { type UIModelParams } from "@langfuse/shared/src/server";
 import { type ModelParamsContext } from "@/src/components/ModelParameters";
-import { type EvalTemplate, type PromptType } from "@langfuse/shared";
+import {
+  type EvalTemplate,
+  type PromptToolConfig,
+  type PromptType,
+} from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
 
 type ValidationResult =
@@ -45,6 +49,7 @@ export type PromptModelState = {
   promptsByName:
     | Record<string, Array<{ id: string; version: number; labels: string[] }>>
     | undefined;
+  selectedPromptToolConfig: PromptToolConfig;
 };
 
 export type ModelState = {

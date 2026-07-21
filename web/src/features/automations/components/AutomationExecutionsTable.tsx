@@ -41,12 +41,17 @@ export const AutomationExecutionsTable: React.FC<
   );
 
   const { data, isLoading, isError, error } =
-    api.automations.getAutomationExecutions.useQuery({
-      projectId,
-      automationId,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    });
+    api.automations.getAutomationExecutions.useQuery(
+      {
+        projectId,
+        automationId,
+        page: paginationState.pageIndex,
+        limit: paginationState.pageSize,
+      },
+      // Suppress 404 toast: invalidation after deletion can refetch this query
+      // before the component unmounts.
+      { meta: { silentHttpCodes: [404] } },
+    );
 
   const columns: LangfuseColumnDef<ActionExecutionRow>[] = [
     {

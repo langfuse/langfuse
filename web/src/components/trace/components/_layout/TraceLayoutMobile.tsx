@@ -70,7 +70,7 @@ TraceLayoutMobile.NavigationPanel = function Navigation({
         className="flex w-full justify-between rounded-none px-4 py-3 text-left"
         onClick={() => setIsNavigationExpanded(!isNavigationExpanded)}
       >
-        <span className="font-medium">Navigation</span>
+        <span className="font-bold">Navigation</span>
         {isNavigationExpanded ? (
           <ChevronUp className="h-4 w-4" />
         ) : (

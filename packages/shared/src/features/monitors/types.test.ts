@@ -212,6 +212,33 @@ describe("MonitorAlertSchema", () => {
     expect(MonitorAlertSchema.safeParse(withoutPermalink).success).toBe(true);
   });
 
+  it("round-trips an optional dataPermalink", () => {
+    const withDataPermalink = {
+      ...validAlert,
+      dataPermalink:
+        "https://cloud.langfuse.com/project/proj_01/traces?dateRange=1779450930000-1779451230000",
+    };
+    const result = MonitorAlertSchema.safeParse(withDataPermalink);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.dataPermalink).toBe(withDataPermalink.dataPermalink);
+    }
+  });
+
+  it("accepts an alert without dataPermalink (backward-compatible in-flight message)", () => {
+    // validAlert already omits dataPermalink.
+    expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
+  });
+
+  it("rejects a relative (path-only) dataPermalink", () => {
+    expect(
+      MonitorAlertSchema.safeParse({
+        ...validAlert,
+        dataPermalink: "/project/proj_01/traces?dateRange=1-2",
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects a relative (path-only) permalink", () => {
     expect(
       MonitorAlertSchema.safeParse({

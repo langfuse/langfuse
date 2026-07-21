@@ -89,6 +89,13 @@ Always fetch pricing from the provider's official docs before editing.
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
   July 2026. The threshold of 272K is unique to this family; most other models use 200K.
+- **gpt-5-chat-latest confirmed pricing** — This alias has confirmed pricing at $1.25/MTok
+  input, $0.125/MTok cached input, $10.00/MTok output, verified via its specific model page
+  `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` (July 2026 audit).
+  A prior audit WebFetch of the overview pricing page returned an artifact suggesting
+  "$5/$30", which was confusion with gpt-5.6-sol pricing. When a pricing summary for a
+  model alias appears inconsistent with what the file holds, always fetch the specific
+  model page (`https://developers.openai.com/api/docs/models/<model-id>`) to confirm.
 
 Capture:
 

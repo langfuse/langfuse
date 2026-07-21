@@ -6,11 +6,11 @@ import { cn } from "@/src/utils/tailwind";
 export function InAppAgentToolPayload({
   label,
   value,
-  isError = false,
+  variant,
 }: {
   label: string;
   value: string;
-  isError?: boolean;
+  variant: "default" | "failed" | "denied";
 }) {
   const toolPayload = useMemo(() => {
     const trimmedValue = value.trim();
@@ -28,11 +28,22 @@ export function InAppAgentToolPayload({
 
   return (
     <div className="space-y-1">
-      <p className="text-muted-foreground text-xs font-medium">{label}</p>
+      <p
+        className={cn(
+          "text-xs font-bold",
+          variant === "default" && "text-muted-foreground",
+          variant === "failed" && "text-destructive",
+          variant === "denied" && "text-dark-yellow",
+        )}
+      >
+        {label}
+      </p>
       <pre
         className={cn(
-          "bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
-          isError && "text-destructive",
+          "max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
+          variant === "default" && "bg-muted text-muted-foreground",
+          variant === "failed" && "bg-destructive/10 text-destructive",
+          variant === "denied" && "bg-light-yellow text-dark-yellow",
         )}
       >
         {toolPayload}

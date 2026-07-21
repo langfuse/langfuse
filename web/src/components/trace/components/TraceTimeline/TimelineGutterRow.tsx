@@ -30,12 +30,19 @@ export function TimelineGutterRow({
   onToggleCollapse,
   hasChildren,
   isCollapsed,
+  maxVisualDepth = Infinity,
 }: TimelineGutterRowProps) {
   const { node, depth, treeLines, isLastSibling } = item;
 
-  const ownRailX = depth * INDENT + RAIL;
-  const parentRailX = (depth - 1) * INDENT + RAIL;
-  const showsChildSpine = hasChildren && !isCollapsed;
+  // Visual depth: real depth capped to the gutter width (see visual-depth.ts)
+  // so extremely deep traces keep names readable — rows past the cap render
+  // flat at the cap level (LFE-10959).
+  const visualDepth = Math.min(depth, maxVisualDepth);
+  const ownRailX = visualDepth * INDENT + RAIL;
+  const parentRailX = (visualDepth - 1) * INDENT + RAIL;
+  // A capped node's children render at the SAME indent (not one level right),
+  // so its child spine would dangle next to nothing — suppress it.
+  const showsChildSpine = hasChildren && !isCollapsed && depth < maxVisualDepth;
   const contentLeft = ownRailX + ICON_GAP;
 
   return (
@@ -57,7 +64,7 @@ export function TimelineGutterRow({
       )}
       {/* Ancestor rails: continue through this row for ancestors with a sibling below. */}
       {treeLines
-        .slice(0, Math.max(0, depth - 1))
+        .slice(0, Math.max(0, visualDepth - 1))
         .map((continues, level) =>
           continues ? (
             <div
@@ -68,7 +75,7 @@ export function TimelineGutterRow({
           ) : null,
         )}
 
-      {depth > 0 && (
+      {visualDepth > 0 && (
         <>
           {/* This node's vertical off the parent rail: top→center (last) or full. */}
           <div
@@ -110,7 +117,7 @@ export function TimelineGutterRow({
         </div>
         <span
           className={cn(
-            "min-w-0 flex-1 truncate text-xs font-medium",
+            "min-w-0 flex-1 truncate text-xs font-bold",
             isSelected ? "text-foreground" : "dark:text-muted-foreground",
           )}
           title={node.name}
