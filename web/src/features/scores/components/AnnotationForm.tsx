@@ -65,14 +65,13 @@ import { transformToAnnotationScores } from "@/src/features/scores/lib/transform
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   hasBlockingOverlay,
   hasModifier,
 } from "@/src/features/scores/lib/keyboardShortcuts";
-import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -234,7 +233,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   configControl,
 }: InnerAnnotationFormProps<Target>) {
   const capture = usePostHogClientCapture();
-  const router = useRouter();
   const { configs, allowManualSelection } = configControl;
 
   // Initialize form with initial data (never updates)
@@ -853,19 +851,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                   }),
                 }))}
               controlButtons={
-                <DropdownMenuItem
-                  onSelect={() => {
+                <DropdownMenuItemWithSecondaryAction
+                  title="Manage score configs"
+                  href={`/project/${scoreMetadata.projectId}/settings/scores`}
+                  onBeforeAction={() => {
                     capture(
                       "score_configs:manage_configs_item_click",
                       analyticsData,
                     );
-                    router.push(
-                      `/project/${scoreMetadata.projectId}/settings/scores`,
-                    );
                   }}
-                >
-                  Manage score configs
-                </DropdownMenuItem>
+                />
               }
             />
           </div>
