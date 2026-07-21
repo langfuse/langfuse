@@ -27,9 +27,16 @@ export const TopbarBrand = ({
   className?: string;
   variant?: "icon" | "wordmark";
 }) => {
+  const hasAppSidebar = useHasAppSidebar();
   const uiCustomization = useUiCustomization();
   const logoLight = uiCustomization?.logoLightModeHref;
   const logoDark = uiCustomization?.logoDarkModeHref;
+
+  // Only brand where a real sidebar exists to mirror. On the sidebar-less
+  // MinimalLayout (public/shared trace & session views) the page supplies its
+  // own "Sign in / Back to Langfuse" leadingControl, so an extra brand mark
+  // here would be redundant.
+  if (!hasAppSidebar) return null;
 
   return (
     <Link
@@ -77,6 +84,3 @@ export const TopbarBrand = ({
     </Link>
   );
 };
-
-/** True when a real AppSidebar exists to mirror — see {@link useHasAppSidebar}. */
-export { useHasAppSidebar };

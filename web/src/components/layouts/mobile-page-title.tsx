@@ -38,16 +38,17 @@ export const MobilePageTitle = ({
     actionButtonsLeft,
     actionButtonsRight,
     titleBadges,
+    breadcrumb,
     breadcrumbBadges,
     tabsProps,
   } = headerProps;
 
   return (
     <div className="bg-background border-b px-3 pt-2 pb-3">
-      {/* Context line: org / project switcher (no page items — the title says
-          the page). */}
+      {/* Context line: org / project switcher plus any page-supplied
+          breadcrumb items (detail pages rely on these for back-navigation). */}
       <div className="flex items-center gap-2">
-        <BreadcrumbComponent />
+        <BreadcrumbComponent items={breadcrumb} />
         {breadcrumbBadges}
       </div>
 
