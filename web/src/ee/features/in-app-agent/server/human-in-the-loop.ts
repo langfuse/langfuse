@@ -21,6 +21,16 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
   code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
   message: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
 });
+// Guidance for the model travels inside the tool-result content: the
+// AG-UI -> Mastra message conversion forwards only assistant/user/tool roles
+// (a separate developer message would be dropped silently), and the tool
+// result is persisted, so the guidance survives replay on later turns.
+const MANUAL_TOOL_APPROVAL_REJECTION_CONTENT = [
+  MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+  "The action was not completed.",
+  "Do not retry this tool call or attempt an equivalent action unless the user explicitly requests it.",
+  "Briefly acknowledge that the action was not completed and ask the user how they would like to continue.",
+].join("\n");
 
 export const IN_APP_AGENT_PENDING_TOOL_APPROVAL_TTL_SECONDS = 60 * 60;
 
@@ -187,7 +197,7 @@ export async function createManualToolApprovalRunInput(params: {
     const toolMessage: AgUiMessage = {
       id: createManualToolResultMessageId(approvalRequest),
       role: "tool",
-      content: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+      content: MANUAL_TOOL_APPROVAL_REJECTION_CONTENT,
       toolCallId: approvalRequest.toolCallId,
       error: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
     };
@@ -195,17 +205,12 @@ export async function createManualToolApprovalRunInput(params: {
     return {
       input: {
         ...params.input,
-        messages: [
-          ...params.input.messages,
-          assistantMessage,
-          toolMessage,
-          createToolRejectionGuidanceMessage(approvalRequest),
-        ],
+        messages: [...params.input.messages, assistantMessage, toolMessage],
         forwardedProps: {},
       },
       syntheticEvents: createManualToolApprovalEvents({
         approvalRequest,
-        toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE,
+        toolResultContent: MANUAL_TOOL_APPROVAL_REJECTION_CONTENT,
         toolError: MANUAL_TOOL_APPROVAL_REJECTION_ERROR,
       }),
       toolCallApproval: {
@@ -220,7 +225,9 @@ export async function createManualToolApprovalRunInput(params: {
     executeToolCall: params.executeToolCall,
   });
   await params.onApprovedToolCallExecuted?.();
-  const toolResultContent = serializeToolResultContent(toolResult);
+  const toolResultContent = toolError
+    ? createToolExecutionErrorContent(approvalRequest, toolError)
+    : serializeToolResultContent(toolResult);
   const assistantMessage =
     createManualToolCallAssistantMessage(approvalRequest);
   const toolMessage: AgUiMessage = {
@@ -239,19 +246,7 @@ export async function createManualToolApprovalRunInput(params: {
   return {
     input: {
       ...params.input,
-      messages: [
-        ...params.input.messages,
-        assistantMessage,
-        toolMessage,
-        ...(toolError
-          ? [
-              createToolExecutionErrorGuidanceMessage(
-                approvalRequest,
-                toolError,
-              ),
-            ]
-          : []),
-      ],
+      messages: [...params.input.messages, assistantMessage, toolMessage],
       forwardedProps: {},
     },
     syntheticEvents,
@@ -259,21 +254,6 @@ export async function createManualToolApprovalRunInput(params: {
       toolCallId: approvalRequest.toolCallId,
       status: "approved",
     },
-  };
-}
-
-function createToolRejectionGuidanceMessage(
-  approvalRequest: InAppAgentToolApprovalRequest,
-): AgUiMessage {
-  return {
-    id: `${approvalRequest.toolCallId}-approval-rejection-guidance`,
-    role: "developer",
-    content: [
-      `The user declined the proposed tool call ${approvalRequest.toolName}.`,
-      "The action was not completed.",
-      "Do not retry this tool call or attempt an equivalent action unless the user explicitly requests it.",
-      "Briefly acknowledge that the action was not completed and ask the user how they would like to continue.",
-    ].join("\n"),
   };
 }
 
@@ -326,23 +306,16 @@ export function createManualToolCallAssistantMessage(
   };
 }
 
-function createToolExecutionErrorGuidanceMessage(
+function createToolExecutionErrorContent(
   approvalRequest: InAppAgentToolApprovalRequest,
   toolError: string,
-): AgUiMessage {
-  const args = serializeToolCallArgs(approvalRequest.args);
-
-  return {
-    id: `${approvalRequest.toolCallId}-approval-tool-error-guidance`,
-    role: "developer",
-    content: [
-      `The approved tool call ${approvalRequest.toolName} failed during execution.`,
-      `Rejected arguments: ${args}`,
-      `Tool error: ${toolError}`,
-      "Do not call the same tool again with identical arguments.",
-      "Correct the arguments based on the tool error and retry only if a valid correction is clear. If you cannot infer a valid correction, ask the user for clarification or explain why the action could not be completed.",
-    ].join("\n"),
-  };
+): string {
+  return [
+    `The approved tool call ${approvalRequest.toolName} failed during execution.`,
+    `Tool error: ${toolError}`,
+    "Do not call the same tool again with identical arguments.",
+    "Correct the arguments based on the tool error and retry only if a valid correction is clear. If you cannot infer a valid correction, ask the user for clarification or explain why the action could not be completed.",
+  ].join("\n");
 }
 
 export function createManualToolApprovalEvents(params: {
