@@ -626,26 +626,26 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         }),
       );
 
-      return candidates.map((candidate) => {
+      return candidates.flatMap((candidate) => {
         const resultForProject = resultByProjectId.get(candidate.projectId);
         if (
           !resultForProject ||
           resultForProject.oldestTimestamp.getTime() >=
             candidate.cutoffDate.getTime()
         ) {
-          throw new Error(
-            `Exact enrichment did not find expired data for project ${candidate.projectId}`,
-          );
+          return [];
         }
 
-        return {
-          ...candidate,
-          rowCount: resultForProject.rowCount,
-          secondsPastCutoff:
-            (candidate.cutoffDate.getTime() -
-              resultForProject.oldestTimestamp.getTime()) /
-            1000,
-        };
+        return [
+          {
+            ...candidate,
+            rowCount: resultForProject.rowCount,
+            secondsPastCutoff:
+              (candidate.cutoffDate.getTime() -
+                resultForProject.oldestTimestamp.getTime()) /
+              1000,
+          },
+        ];
       });
     };
 
