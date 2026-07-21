@@ -70,6 +70,23 @@ These compositional stories **should not** contain Storybook play functions. The
 - Keep illustrative examples in `.stories.tsx`; keep narrative and explanation in `.mdx`.
 - If an example needs a small wrapper in a story, keep it minimal and focused on presenting the example rather than recreating page design inside Storybook.
 
+### Docs-Only Backing Stories
+
+When a CSF file exists only to provide examples for `Canvas` blocks in a
+manually authored MDX page, remove the built-in `dev` tag at meta level:
+
+```tsx
+const meta = preview.meta({
+  component: ExampleComponent,
+  tags: ["!dev"],
+});
+```
+
+This keeps the stories indexed and renderable from MDX while hiding them from
+the Storybook sidebar. They remain eligible for Storybook tests by default.
+Do not create a separate sidebar section for these backing stories, and do not
+add `autodocs` when the MDX page is manually authored.
+
 ## Additional Information
 
 - We do not use MSW and are not planning to add it.
