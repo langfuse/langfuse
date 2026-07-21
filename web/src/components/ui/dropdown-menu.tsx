@@ -270,7 +270,13 @@ const DropdownMenuItem = React.forwardRef<
 ));
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
-type DropdownMenuItemAction =
+type DropdownMenuItemAction = {
+  /**
+   * Use `onBeforeAction` to perform minor side effects such as capturing an event.
+   * Do not use `onBeforeAction` to perform the main action or prevent the default action.
+   */
+  onBeforeAction?: () => void;
+} & (
   | {
       href: React.ComponentProps<typeof Link>["href"];
       onClick?: never;
@@ -278,7 +284,8 @@ type DropdownMenuItemAction =
   | {
       href?: never;
       onClick: () => void;
-    };
+    }
+);
 
 type DropdownMenuItemWithSecondaryActionProps = {
   icon?: LucideIcon;
@@ -325,7 +332,16 @@ const DropdownMenuItemWithSecondaryAction = (
           href={secondaryAction.href}
           aria-label={secondaryAction.ariaLabel}
           className={dropdownMenuItemSecondaryActionVariants()}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            secondaryAction.onBeforeAction?.();
+          }}
+          onAuxClick={(event) => {
+            event.stopPropagation();
+            if (event.button === 1) {
+              secondaryAction.onBeforeAction?.();
+            }
+          }}
         >
           <SecondaryActionIcon size={12} />
         </Link>
@@ -338,6 +354,7 @@ const DropdownMenuItemWithSecondaryAction = (
           className={dropdownMenuItemSecondaryActionVariants()}
           onClick={(event) => {
             event.stopPropagation();
+            secondaryAction.onBeforeAction?.();
             secondaryAction.onClick();
           }}
         >
@@ -354,6 +371,14 @@ const DropdownMenuItemWithSecondaryAction = (
           <Link
             href={props.href}
             className={dropdownMenuItemPrimaryActionVariants()}
+            onClick={() => {
+              props.onBeforeAction?.();
+            }}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                props.onBeforeAction?.();
+              }
+            }}
           >
             {primaryContent}
           </Link>
@@ -363,7 +388,10 @@ const DropdownMenuItemWithSecondaryAction = (
           <button
             type="button"
             className={dropdownMenuItemPrimaryActionVariants()}
-            onClick={props.onClick}
+            onClick={() => {
+              props.onBeforeAction?.();
+              props.onClick();
+            }}
           >
             {primaryContent}
           </button>
