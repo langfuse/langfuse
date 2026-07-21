@@ -268,4 +268,124 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
       expect(droppedCalls()).toHaveLength(0);
     });
   });
+
+  // Reviewer ruling 1 (round 1): one increment per dropped attribute VALUE
+  // per job — deduped across the two pipelines the worker runs on the SAME
+  // processor instance, and across domain extractions of a shared attribute
+  // key. Domain tag of a shared key is the first-seen domain.
+  describe("exactly-once semantics across pipelines and domains", () => {
+    const expectSingleDrop = (expectedReason: string) => {
+      const calls = droppedCalls();
+      expect(calls).toHaveLength(1);
+      const [, value, tags] = calls[0] as [
+        string,
+        number | undefined,
+        Record<string, string | number>,
+      ];
+      expect(value ?? 1).toBe(1);
+      expect(tags).toEqual(
+        expect.objectContaining({ reason: expectedReason, source: "otel" }),
+      );
+      expect(["trace", "observation"]).toContain(tags?.domain);
+      expect(Object.keys(tags ?? {})).not.toContain("project_id");
+      expect(Object.keys(tags ?? {})).not.toContain("projectId");
+    };
+
+    it("counts a dropped attribute once when both pipelines run on one processor instance", async () => {
+      // Mirrors the worker job: processToIngestionEvents then processToEvent
+      // with the same parsed spans on the same instance.
+      const processor = createProcessor();
+      const batch = buildBatch([
+        {
+          key: "langfuse.observation.metadata",
+          value: { stringValue: "{invalid json" },
+        },
+      ]);
+
+      const ingestionEvents = await processor.processToIngestionEvents(batch);
+      const events = processor.processToEvent(batch);
+
+      expect(ingestionEvents.length).toBeGreaterThan(0);
+      expect(events.length).toBeGreaterThan(0);
+
+      const calls = droppedCalls();
+      expect(calls).toHaveLength(1);
+      expectDropTags(calls[0], {
+        reason: "parse_failure",
+        source: "otel",
+        domain: "observation",
+      });
+    });
+
+    it("counts the shared langfuse.metadata compat key once across trace and observation extraction", async () => {
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([
+          {
+            key: "langfuse.metadata",
+            value: { stringValue: "{invalid json" },
+          },
+        ]),
+      );
+
+      expect(events.length).toBeGreaterThan(0);
+      expectSingleDrop("parse_failure");
+    });
+
+    // Reviewer ruling 2 (round 1): falsy-but-present values on the compat
+    // key are drops — non-string primitives as reason=primitive, "" as
+    // reason=parse_failure (JSON.parse("") throws). Returned values stay
+    // unchanged; a truly absent attribute stays increment-free.
+    it("counts langfuse.metadata = false as a primitive drop", async () => {
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([{ key: "langfuse.metadata", value: { boolValue: false } }]),
+      );
+
+      expect(events.length).toBeGreaterThan(0);
+      expectSingleDrop("primitive");
+    });
+
+    it("counts langfuse.metadata = 0 as a primitive drop", async () => {
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([{ key: "langfuse.metadata", value: { intValue: 0 } }]),
+      );
+
+      expect(events.length).toBeGreaterThan(0);
+      expectSingleDrop("primitive");
+    });
+
+    it('counts langfuse.metadata = "" as a parse_failure drop', async () => {
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([{ key: "langfuse.metadata", value: { stringValue: "" } }]),
+      );
+
+      expect(events.length).toBeGreaterThan(0);
+      expectSingleDrop("parse_failure");
+    });
+
+    it("does not increment when no metadata attribute is present at all", async () => {
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([]),
+      );
+
+      expect(events.length).toBeGreaterThan(0);
+      expect(droppedCalls()).toHaveLength(0);
+    });
+
+    it("does not increment for a valid JSON object on the langfuse.metadata compat key", async () => {
+      // Fixture proof that the compat key reaches metadata extraction at
+      // all — if this fails, the falsy-value fixtures above cannot reach
+      // the parser either (report as a finding, not a test problem).
+      const events = await createProcessor().processToIngestionEvents(
+        buildBatch([
+          {
+            key: "langfuse.metadata",
+            value: { stringValue: JSON.stringify({ env: "compat-prod" }) },
+          },
+        ]),
+      );
+
+      expect(JSON.stringify(events)).toContain("compat-prod");
+      expect(droppedCalls()).toHaveLength(0);
+    });
+  });
 });
