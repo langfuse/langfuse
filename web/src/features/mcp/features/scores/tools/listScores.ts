@@ -14,57 +14,33 @@ import { buildScoreSubjectUrl } from "@/src/utils/product-url";
 const ListScoresBaseSchema = z
   .object({
     limit: z.number().int().gte(1).lte(100).default(50),
-    cursor: z
-      .string()
-      .optional()
-      .describe(
-        "Opaque pagination cursor from meta.cursor of a previous listScores response.",
-      ),
-    scoreIds: z
-      .array(z.string())
-      .optional()
-      .describe("IDs of the scores to fetch."),
-    name: z.array(z.string()).optional().describe("Score names to match."),
+    cursor: z.string().optional(),
+    scoreIds: z.array(z.string()).optional(),
+    name: z.array(z.string()).optional(),
     source: z.array(ScoreSourceDomain).optional(),
     dataType: z.array(ScoreDataTypeDomain).optional(),
     environment: z.array(z.string()).optional(),
     configId: z.array(z.string()).optional(),
-    queueId: z
-      .array(z.string())
-      .optional()
-      .describe("Annotation queue IDs to match."),
-    authorUserId: z
-      .array(z.string())
-      .optional()
-      .describe("Author (annotator) user IDs to match."),
+    queueId: z.array(z.string()).optional(),
+    authorUserId: z.array(z.string()).optional(),
     value: z
       .array(z.coerce.string())
       .optional()
       .describe(
-        'Exact score values to match, encoded as strings (e.g. "0.5", "true", "good"). Requires a single dataType of NUMERIC, BOOLEAN, or CATEGORICAL.',
+        "string-encoded, requires a single dataType (NUMERIC, BOOLEAN, or CATEGORICAL)",
       ),
     valueMin: z
       .number()
       .optional()
-      .describe(
-        'Minimum score value (inclusive). Requires dataType: ["NUMERIC"].',
-      ),
+      .describe('inclusive, requires dataType: ["NUMERIC"]'),
     valueMax: z
       .number()
       .optional()
-      .describe(
-        'Maximum score value (inclusive). Requires dataType: ["NUMERIC"].',
-      ),
-    traceId: z.array(z.string()).optional().describe("Trace IDs to match."),
-    sessionId: z.array(z.string()).optional().describe("Session IDs to match."),
-    observationId: z
-      .array(z.string())
-      .optional()
-      .describe("Observation IDs to match. Requires traceId."),
-    experimentId: z
-      .array(z.string())
-      .optional()
-      .describe("Experiment (dataset run) IDs to match."),
+      .describe('inclusive, requires dataType: ["NUMERIC"]'),
+    traceId: z.array(z.string()).optional(),
+    sessionId: z.array(z.string()).optional(),
+    observationId: z.array(z.string()).optional().describe("requires traceId"),
+    experimentId: z.array(z.string()).optional().describe("dataset run IDs"),
     fromTimestamp: z.iso.datetime({ offset: true }).optional(),
     toTimestamp: z.iso.datetime({ offset: true }).optional(),
   })
