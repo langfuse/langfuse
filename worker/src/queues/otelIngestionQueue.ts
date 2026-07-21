@@ -322,8 +322,6 @@ export const otelIngestionQueueProcessorBuilder = (
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
-      // This also records original OTEL span-size telemetry before media
-      // references replace any inline data.
       const eventInputs = processor.processToEvent(parsedSpans);
       const mediaUploadEnabled =
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true";
