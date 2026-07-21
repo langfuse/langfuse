@@ -43,6 +43,27 @@ const TRACE_NUMERIC_CONTROL_SCORE = "accuracy"; // no space — control
 const TRACE_CATEGORICAL_SCORE = "Hallucination Check";
 const TRACE_CATEGORIES = ["faithful", "hallucinated"] as const;
 
+// Dual-level names: the SAME score name exists at BOTH observation and trace
+// level on every trace (LFE-10596 edge case — one `scores.<name>` entry with
+// both level tags; the level-agnostic filter matches either level). Values are
+// split by level so a threshold demonstrates the union: observation-level
+// `confidence` stays < 0.5 while trace-level is >= 0.5, so
+// `scores.confidence:>0.5` matches ONLY via the trace side; likewise
+// `scores.verdict:pass` exists only at trace level while "fail" is
+// observation-only ("borderline" occurs at both).
+const DUAL_NUMERIC_SCORE = "confidence";
+const DUAL_CATEGORICAL_SCORE = "verdict";
+const DUAL_OBSERVATION_CATEGORIES = ["fail", "borderline"] as const;
+const DUAL_TRACE_CATEGORIES = ["pass", "borderline"] as const;
+
+// Cross-TYPE name collision: the same name used for a NUMERIC score at
+// observation level and an unrelated CATEGORICAL score at trace level. Level
+// provenance is data-type-scoped (LFE-10596): the Numeric facet must tag
+// "grade" Observation-only, the Categorical facet Trace-only, while the
+// search bar's merged `scores.grade` suggestion shows both.
+const CROSS_TYPE_SCORE = "grade";
+const CROSS_TYPE_TRACE_CATEGORIES = ["A", "B", "C"] as const;
+
 const TRACE_NAMES = [
   "qa-eval-run",
   "summarize-doc",
@@ -85,8 +106,11 @@ const run = async (
       counts: {
         traces: traceCount,
         observations: traceCount,
-        // 3 observation-level + 3 trace-level scores per trace
-        scores: traceCount * 6,
+        // 6 observation-level + 6 trace-level scores per trace (incl. the
+        // dual-level `confidence`/`verdict` pair present at both levels and
+        // the cross-type `grade` collision), plus one obs-level score on the
+        // v4 root span (mixed-level root)
+        scores: traceCount * (withV4 ? 13 : 12),
         events: withV4 ? traceCount * 2 : 0,
       },
       verified: {},
@@ -189,6 +213,72 @@ const run = async (
       }),
     );
 
+    // Cross-type collision, observation side: NUMERIC "grade".
+    scores.push(
+      createTraceScore({
+        id: `${obsId}-score-${CROSS_TYPE_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        observation_id: obsId,
+        environment: ctx.environment,
+        name: CROSS_TYPE_SCORE,
+        value: Math.round(rng.next() * 100) / 100,
+        data_type: "NUMERIC",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+      // Cross-type collision, trace side: CATEGORICAL "grade".
+      createTraceScore({
+        id: `${traceId}-score-${CROSS_TYPE_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        environment: ctx.environment,
+        name: CROSS_TYPE_SCORE,
+        value: 0,
+        string_value: rng.pick(CROSS_TYPE_TRACE_CATEGORIES),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+    );
+
+    // Dual-level pair, observation side: confidence < 0.5; verdict never "pass".
+    scores.push(
+      createTraceScore({
+        id: `${obsId}-score-${DUAL_NUMERIC_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        observation_id: obsId,
+        environment: ctx.environment,
+        name: DUAL_NUMERIC_SCORE,
+        value: Math.round(rng.next() * 49) / 100,
+        data_type: "NUMERIC",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+      createTraceScore({
+        id: `${obsId}-score-${DUAL_CATEGORICAL_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        observation_id: obsId,
+        environment: ctx.environment,
+        name: DUAL_CATEGORICAL_SCORE,
+        value: 0,
+        string_value: rng.pick(DUAL_OBSERVATION_CATEGORIES),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+    );
+
     // Trace-level scores (-> `traceScores.<name>` in the grammar). These are the
     // eval-style scores attached to the whole trace (observation_id stays null).
     for (const name of [TRACE_NUMERIC_SCORE, TRACE_NUMERIC_CONTROL_SCORE]) {
@@ -225,9 +315,63 @@ const run = async (
       }),
     );
 
+    // Dual-level pair, trace side: confidence >= 0.5; verdict can be "pass".
+    scores.push(
+      createTraceScore({
+        id: `${traceId}-score-${DUAL_NUMERIC_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        environment: ctx.environment,
+        name: DUAL_NUMERIC_SCORE,
+        value: (50 + Math.round(rng.next() * 50)) / 100,
+        data_type: "NUMERIC",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+      createTraceScore({
+        id: `${traceId}-score-${DUAL_CATEGORICAL_SCORE}`,
+        project_id: ctx.projectId,
+        trace_id: traceId,
+        environment: ctx.environment,
+        name: DUAL_CATEGORICAL_SCORE,
+        value: 0,
+        string_value: rng.pick(DUAL_TRACE_CATEGORIES),
+        data_type: "CATEGORICAL",
+        source: "EVAL",
+        comment: null,
+        metadata: {},
+        timestamp,
+      }),
+    );
+
     if (withV4) {
-      events.push(traceToEvent(trace));
+      const traceEvent = traceToEvent(trace);
+      events.push(traceEvent);
       events.push(observationToEvent(observation, trace));
+
+      // Observation-level score attached to the v4 ROOT span (`t-<traceId>`):
+      // the root's inline chips then MIX trace-level and observation-level
+      // scores — the shape where per-chip level tags must appear (a
+      // single-level node shows none). v4-only: in the v3 rendering no
+      // observation has this id, so the score would simply not display there.
+      scores.push(
+        createTraceScore({
+          id: `${traceId}-root-score-${DUAL_NUMERIC_SCORE}`,
+          project_id: ctx.projectId,
+          trace_id: traceId,
+          observation_id: traceEvent.span_id,
+          environment: ctx.environment,
+          name: DUAL_NUMERIC_SCORE,
+          value: Math.round(rng.next() * 49) / 100,
+          data_type: "NUMERIC",
+          source: "EVAL",
+          comment: null,
+          metadata: {},
+          timestamp,
+        }),
+      );
     }
   }
 
@@ -318,7 +462,7 @@ const run = async (
 export const scoredTracesScenario: ScenarioDefinition = {
   name: "scored-traces",
   description:
-    'Standalone traces each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score", "Score With A Space") at both observation level (scores.) and trace level (traceScores.). For exercising the score filter sidebar and the grammar search bar with quoted score names.',
+    'Standalone traces each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus DUAL-LEVEL names ("confidence", "verdict") that exist at BOTH levels on the same trace — observation confidence < 0.5 <= trace confidence, verdict "pass" trace-only — for the level-agnostic scores filter + ScoreTag edge case (LFE-10596).',
   supportsV4: true,
   flags: [
     {

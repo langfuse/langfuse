@@ -37,7 +37,7 @@ export const InAppAiAgentButton = () => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.repeat ||
-        event.key.toLowerCase() !== "i" ||
+        event.key?.toLowerCase() !== "i" ||
         (!event.metaKey && !event.ctrlKey) ||
         event.altKey ||
         event.shiftKey

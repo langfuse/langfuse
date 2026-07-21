@@ -45,6 +45,9 @@ export type CompletionOption =
       label: string;
       detail?: string;
       fieldId: string;
+      /** Score-name options only: the level(s) the name exists at, rendered as
+       *  ScoreTag(s) in the listbox (global score-level coding, LFE-10596). */
+      scoreLevels?: readonly ("observation" | "trace")[];
     }
   | {
       id: string;
@@ -191,6 +194,10 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         detail: "metadata key path, e.g. metadata.region:eu",
         fieldId: "metadata.",
       },
+      // `scores.` is level-agnostic (LFE-10596): one entry point for every
+      // score. The legacy `traceScores.` namespace still parses and lowers
+      // (saved queries/URLs keep working) but is no longer offered — two
+      // score entry points confused users.
       {
         id: "field:scores.",
         kind: "field",
@@ -198,13 +205,6 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         detail:
           "score by name, e.g. scores.accuracy:>0.8 or scores.feedback:positive",
         fieldId: "scores.",
-      },
-      {
-        id: "field:traceScores.",
-        kind: "field",
-        label: "traceScores.",
-        detail: "trace-level score by name, e.g. traceScores.nps:>8",
-        fieldId: "traceScores.",
       },
       {
         id: "field:has",
@@ -594,12 +594,36 @@ function keyPathOptions(
         : "boolean score",
     );
   }
+  // Level provenance for the ScoreTag on each option (LFE-10596): the
+  // `traceScores.` namespace is trace-only by construction; `scores.` is
+  // level-agnostic, so tag the level(s) the name actually exists at (from the
+  // per-data-type `score_name_levels_*` payloads — absent levels mean no tag,
+  // never a guess). One suggestion covers every data type the name has, so
+  // its tags are the union across those type-scoped maps.
+  const levelsOf = (
+    name: string,
+  ): readonly ("observation" | "trace")[] | undefined => {
+    if (kind.level === "trace") return ["trace"];
+    const levels = [
+      ...observedValues(observed, `score_name_levels_numeric.${name}`),
+      ...observedValues(observed, `score_name_levels_categorical.${name}`),
+      ...observedValues(observed, `score_name_levels_boolean.${name}`),
+    ]
+      .map((o) => o.value)
+      .filter((v) => v === "observation" || v === "trace") as (
+      | "observation"
+      | "trace"
+    )[];
+    const unique = Array.from(new Set(levels));
+    return unique.length > 0 ? unique : undefined;
+  };
   const options = [...seen.entries()].map(([name, detail]) => ({
     id: `key:${kind.canonical}${name}`,
     kind: "field" as const,
     label: `${kind.canonical}${name}`,
     detail,
     fieldId: keyText(name),
+    scoreLevels: levelsOf(name),
   }));
   return {
     title: SECTION_SCORE_NAMES,
