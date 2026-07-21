@@ -80,7 +80,11 @@ export function TracesSetupOnboardingCard({
   });
 
   const createApiKey = async () => {
-    capture("onboarding:tracing_api_key_create_clicked");
+    try {
+      capture("onboarding:tracing_api_key_create_clicked");
+    } catch (error) {
+      console.error("Error capturing API key creation click:", error);
+    }
 
     try {
       await mutCreateApiKey.mutateAsync({ projectId });
