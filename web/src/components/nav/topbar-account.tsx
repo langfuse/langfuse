@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutCleanly } from "@/src/features/auth/lib/signOut";
 import {
   Avatar,
   AvatarFallback,
@@ -81,7 +82,7 @@ export const TopbarAccount = ({ className }: { className?: string }) => {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
-            signOut({ callbackUrl: "/" }).catch(() => {});
+            signOutCleanly().catch(() => {});
           }}
         >
           Sign out
