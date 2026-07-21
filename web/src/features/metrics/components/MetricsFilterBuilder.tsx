@@ -211,6 +211,7 @@ const MetricsFilterView = ({
         columnsWithCustomSelect={columnsWithCustomSelect}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
+        compact
       />
     </div>
   );

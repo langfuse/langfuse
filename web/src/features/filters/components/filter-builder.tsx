@@ -385,6 +385,7 @@ export function InlineFilterBuilder({
   filterWithAI = false,
   stringObjectValueOptions,
   onStringObjectKeyChange,
+  compact = false,
 }: {
   columns: ColumnDefinitionWithAlert[];
   filterState: FilterState;
@@ -400,6 +401,8 @@ export function InlineFilterBuilder({
   stringObjectValueOptions?: Record<string, SingleValueOption[]>;
   /** Fires when a suggestion-enabled stringObject key changes, so the parent can load its values. */
   onStringObjectKeyChange?: (key: string) => void;
+  /** compact renders the width-constrained two-line layout instead of the legacy single-row table. */
+  compact?: boolean;
 }) {
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
@@ -448,7 +451,7 @@ export function InlineFilterBuilder({
         filterWithAI={filterWithAI}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
-        compact
+        compact={compact}
       />
     </div>
   );
@@ -1149,7 +1152,7 @@ function FilterBuilderForm({
             <Button
               onClick={() => addNewFilter()}
               type="button" // required as it will otherwise submit forms where this component is used
-              className={cn("mt-2", compact && "mt-4")}
+              className={cn("mt-2", compact && "mt-4 self-start")}
               variant="outline"
               size="sm"
             >
