@@ -64,6 +64,56 @@ export const ApprovalRequired = meta.story({
   },
 });
 
+export const ApprovalApproved = meta.story({
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_upsertDataset",
+      status: "running",
+      args: JSON.stringify(
+        {
+          name: "regression-examples",
+          description: "Examples used for release regression tests",
+        },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "approved",
+      },
+    },
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+});
+
+export const ApprovalRejected = meta.story({
+  args: {
+    isCompact: true,
+    tool: {
+      type: "tool",
+      name: "langfuse_upsertDataset",
+      status: "running",
+      args: JSON.stringify(
+        {
+          name: "regression-examples",
+          description: "Examples used for release regression tests",
+        },
+        null,
+        2,
+      ),
+      approval: {
+        id: "approval-1",
+        status: "rejected",
+      },
+    },
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
+  },
+});
+
 export const ApprovalSubmitting = meta.story({
   args: {
     isCompact: true,
