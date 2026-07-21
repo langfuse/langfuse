@@ -62,6 +62,10 @@ export default function Dataset() {
       enabled: isExperimentsBetaActive && Boolean(runId),
     },
   );
+  const details = isExperimentsBetaActive ? experiment.data : run.data;
+  const isDetailsPending = isExperimentsBetaActive
+    ? experiment.isPending
+    : run.isPending;
   const breadcrumb = getDatasetBreadcrumb(
     projectId,
     datasetId,
@@ -144,7 +148,7 @@ export default function Dataset() {
             <SidePanelTitle>Experiment run details</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
-            {run.isPending ? (
+            {isDetailsPending ? (
               <Skeleton className="h-full w-full" />
             ) : (
               <>
@@ -159,21 +163,21 @@ export default function Dataset() {
                     </Link>
                   </div>
                 )}
-                {!!run.data?.description && (
+                {!!details?.description && (
                   <JSONView
-                    json={run.data.description}
+                    json={details.description}
                     title="Description"
                     className="w-full overflow-y-auto"
                   />
                 )}
-                {!!run.data?.metadata && (
+                {!!details?.metadata && (
                   <JSONView
-                    json={run.data.metadata}
+                    json={details.metadata}
                     title="Metadata"
                     className="w-full overflow-y-auto"
                   />
                 )}
-                {!run.data?.description && !run.data?.metadata && (
+                {!details?.description && !details?.metadata && (
                   <div className="text-muted-foreground mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
