@@ -52,16 +52,20 @@ properly (below).
   - [`reportParserWorkerError(hook, event)`](../../../web/src/hooks/parserWorkerError.ts)
     — extracts the real fields from a Worker `ErrorEvent` (message/filename/lineno)
     instead of stringifying it to `[object ErrorEvent]`.
-- **All Sentry config is reviewed code in one place:**
-  [`web/src/utils/sentryFilters.ts`](../../../web/src/utils/sentryFilters.ts)
-  (documented, unit-tested filter predicates) called from `beforeSend` in
+- **Filter predicates belong in
+  [`web/src/utils/sentryFilters.ts`](../../../web/src/utils/sentryFilters.ts)**
+  (documented, unit-tested), called from `beforeSend` in
   [`web/instrumentation-client.ts`](../../../web/instrumentation-client.ts) (the
-  only `Sentry.init` in the codebase — `beforeSend`, `captureConsoleIntegration`,
-  `denyUrls`, replay masking). Add a filter as a named predicate here, never as
-  an ad-hoc inline check.
+  only `Sentry.init` in the codebase — `beforeSend`,
+  `captureConsoleIntegration`, `denyUrls`, replay masking). Add every new filter
+  as a named predicate there, never as an ad-hoc inline check. `beforeSend`
+  still carries a couple of legacy inline checks (invalid-href, React-devtools)
+  that predate this convention and read only the exception value — migrate those
+  into named, all-field predicates; do not add more inline checks.
 - **Classify tRPC errors at the seam,** not per call site: `handleTrpcError`
-  ([`web/src/utils/api.ts`](../../../web/src/utils/api.ts)) drops expected codes
-  and tags the rest — every query/mutation error flows through it.
+  ([`web/src/utils/api.ts`](../../../web/src/utils/api.ts)) is the single
+  chokepoint every query/mutation error flows through — the place to drop
+  expected codes and tag the rest (the seam-classification lever, PR #15243).
 - **Tag `area`, keep the message static.** `captureException(err, { tags: { area },
   extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
   never in the message string.
@@ -71,8 +75,8 @@ properly (below).
 1. **An event is a promise a human acts — expected states are not events.**
    A `NOT_FOUND` / `FORBIDDEN` / `UNAUTHORIZED` the UI already renders is not a
    regression. ⚠ `TRPCClientError: Trace not found` was the #2 issue by volume
-   (~30k events); the tRPC seam now drops those (PR #15243). "Project Not Found"
-   captured on every mount until it rendered the non-capturing `ErrorPage`.
+   (~30k events); PR #15243 drops those at the tRPC seam. "Project Not Found"
+   captured on every mount until it was switched to the non-capturing `ErrorPage`.
 
 2. **Capture a REAL `Error`, never a string / object / `SyntheticEvent` /
    `ErrorEvent`.** Those collapse to opaque `[object Object]` / `[object
@@ -95,8 +99,10 @@ properly (below).
 5. **Root-cause at the source beats a filter.** Prefer eliminating the emission
    over suppressing the event. ⚠ User-content markdown URLs rendered through a
    Next.js `<Link>` logged `Invalid href … passed to next/router` (~40k events);
-   a native `<a>` (which never runs the router's href validation) removed the
-   family at the source (PR #15245) — no filter needed.
+   a native `<a>` (which never runs the router's href validation) removes the
+   family at the source (PR #15245) — no new filter needed. (The older inline
+   `beforeSend` invalid-href check is now redundant and never fired anyway — it
+   read the wrong field, Rule 6 — so it can be retired.)
 
 6. **Every `beforeSend` / denylist rule: narrow signature + written rationale +
    a NEGATIVE fixture proving a real error still passes.** This is the MANDATORY

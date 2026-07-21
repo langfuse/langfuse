@@ -24,11 +24,15 @@ the detail behind its rules.
   reaches Sentry; it does not. (Treat "Sentry = frontend-only" until a decision
   says otherwise.)
 - **Filter predicates** live in [`web/src/utils/sentryFilters.ts`](../../../../web/src/utils/sentryFilters.ts)
-  with unit tests in `sentryFilters.clienttest.ts`. `beforeSend` calls them; it
-  holds no ad-hoc logic of its own.
+  with unit tests in `sentryFilters.clienttest.ts`; `beforeSend` calls them.
+  `beforeSend` also still carries two legacy inline checks (invalid-href,
+  React-devtools) that predate this convention and read only
+  `event.exception.values[0].value` — a known gap to migrate into named,
+  all-field predicates. Add new filters only as predicates here, never inline.
 - **The tRPC seam** is `handleTrpcError` in [`web/src/utils/api.ts`](../../../../web/src/utils/api.ts):
-  every query/mutation error flows through it. It drops expected `data.code`s
-  (`NOT_FOUND` / `FORBIDDEN` / `UNAUTHORIZED`) with a breadcrumb and tags the rest
+  every query/mutation error flows through it — the single place to classify.
+  PR #15243 drops expected `data.code`s (`NOT_FOUND` / `FORBIDDEN` /
+  `UNAUTHORIZED`) there with a breadcrumb and tags the rest
   (`trpc.code` / `trpc.path`).
 
 ## The shared capture helpers
@@ -112,7 +116,7 @@ The recurring shapes and their correct disposition:
 | #15173 | parse-worker `[object ErrorEvent]` | `reportParserWorkerError` (real Error) |
 | #15174 | JSON-viewer meta-root offsets (456) | fingerprint/render fix |
 | #15175 | opaque non-Error captures (5EX) | `captureUnknownError` (real Error) |
-| #15238 | transport / next-auth / benign (~1.9k/24h) | `isDenylistedNoiseEvent` (reads all fields, negative fixtures) |
+| #15238 | transport / next-auth / benign (~1.9k/24h) | `beforeSend` denylist predicate — reads all event fields, negative fixtures |
 | #15243 | expected tRPC codes (54F #2, ~30k) | `handleTrpcError` classify + breadcrumb + tags |
 | #15245 | `Invalid href` (5DZ/5EA/5ER, ~40k) | native `<a>` at the source |
 
