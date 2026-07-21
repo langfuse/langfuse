@@ -49,6 +49,7 @@ import {
 import {
   createOtelMediaTargets,
   processOtelMediaIfEnabled,
+  shouldProcessOtelEventInputMedia,
 } from "../features/otel-media/processOtelMedia";
 
 /**
@@ -534,10 +535,15 @@ export const otelIngestionQueueProcessorBuilder = (
         return;
       }
 
-      // eventInputs are a separate normalized representation. Process them
-      // only for direct persistence; eval-only use must not create attachments
-      // that are absent from the stored observation payload.
-      if (mediaUploadEnabled && shouldWriteToEventsTable) {
+      // eventInputs are a separate normalized representation consumed by both
+      // direct persistence and observation evals, which upload it to eval S3.
+      if (
+        shouldProcessOtelEventInputMedia({
+          enabled: mediaUploadEnabled,
+          hasEvalConfigs,
+          shouldWriteToEventsTable,
+        })
+      ) {
         const mediaTargets = createOtelMediaTargets({
           ingestionEvents: [],
           eventInputs,

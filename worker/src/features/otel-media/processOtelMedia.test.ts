@@ -28,6 +28,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 import {
   createOtelMediaTargets,
   processOtelMediaIfEnabled,
+  shouldProcessOtelEventInputMedia,
 } from "./processOtelMedia";
 
 describe("createOtelMediaTargets", () => {
@@ -218,4 +219,38 @@ describe("processOtelMediaIfEnabled", () => {
       expect.any(Number),
     );
   });
+});
+
+describe("shouldProcessOtelEventInputMedia", () => {
+  it.each([
+    {
+      enabled: false,
+      hasEvalConfigs: true,
+      shouldWriteToEventsTable: true,
+      expected: false,
+    },
+    {
+      enabled: true,
+      hasEvalConfigs: true,
+      shouldWriteToEventsTable: false,
+      expected: true,
+    },
+    {
+      enabled: true,
+      hasEvalConfigs: false,
+      shouldWriteToEventsTable: true,
+      expected: true,
+    },
+    {
+      enabled: true,
+      hasEvalConfigs: false,
+      shouldWriteToEventsTable: false,
+      expected: false,
+    },
+  ])(
+    "returns $expected for enabled=$enabled, evals=$hasEvalConfigs, directWrite=$shouldWriteToEventsTable",
+    ({ expected, ...params }) => {
+      expect(shouldProcessOtelEventInputMedia(params)).toBe(expected);
+    },
+  );
 });

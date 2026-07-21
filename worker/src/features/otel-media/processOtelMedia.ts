@@ -12,6 +12,21 @@ import {
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
+ * Returns whether the normalized direct-event representation will be consumed
+ * and therefore needs media replacement. Besides direct ClickHouse writes,
+ * observation eval scheduling serializes this representation to eval S3.
+ */
+export function shouldProcessOtelEventInputMedia(params: {
+  enabled: boolean;
+  hasEvalConfigs: boolean;
+  shouldWriteToEventsTable: boolean;
+}): boolean {
+  return (
+    params.enabled && (params.hasEvalConfigs || params.shouldWriteToEventsTable)
+  );
+}
+
+/**
  * Builds mutable field references for the normalized OTEL representations that
  * the caller intends to persist. This function does not mutate the supplied
  * events, but each target retains its original `body` reference so subsequent
