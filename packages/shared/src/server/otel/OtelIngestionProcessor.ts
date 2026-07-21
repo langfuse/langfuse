@@ -66,6 +66,7 @@ interface CreateTraceEventParams {
   attributes: Record<string, unknown>;
   resourceAttributes: Record<string, unknown>;
   resourceAttributeMetadata: Record<string, unknown>;
+  spanAttributeMetadata: Record<string, unknown>;
   scopeSpan: any;
   scopeAttributes: Record<string, unknown>;
   isLangfuseSDKSpans: boolean;
@@ -830,6 +831,7 @@ export class OtelIngestionProcessor {
         attributes,
         resourceAttributes,
         resourceAttributeMetadata,
+        spanAttributeMetadata,
         scopeSpan,
         scopeAttributes,
         isLangfuseSDKSpans,
@@ -871,6 +873,7 @@ export class OtelIngestionProcessor {
       attributes,
       resourceAttributes,
       resourceAttributeMetadata,
+      spanAttributeMetadata,
       scopeSpan,
       scopeAttributes,
       isLangfuseSDKSpans,
@@ -906,7 +909,7 @@ export class OtelIngestionProcessor {
         metadata: {
           ...resourceAttributeMetadata,
           ...this.extractMetadata(attributes, "trace"),
-          ...this.extractMetadata(attributes, "observation"),
+          ...spanAttributeMetadata,
           ...(isLangfuseSDKSpans ? {} : { attributes: filteredAttributes }),
           resourceAttributes,
           scope: {
@@ -2155,6 +2158,7 @@ export class OtelIngestionProcessor {
 
     const topLevelMetadata = this.parseMetadataAttribute(
       attributes[metadataKeyPrefix] || attributes["langfuse.metadata"],
+      domain,
     );
     const langfuseMetadata = this.extractPrefixedMetadataAttributes({
       attributes,
@@ -2817,7 +2821,23 @@ export class OtelIngestionProcessor {
     return [];
   }
 
-  private parseMetadataAttribute(value: unknown): Record<string, unknown> {
+  private recordMetadataDropped(reason: string, domain: string): void {
+    recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+      reason,
+      source: "otel",
+      domain,
+    });
+    logger.warn("OTEL metadata attribute dropped", {
+      projectId: this.projectId,
+      reason,
+      domain,
+    });
+  }
+
+  private parseMetadataAttribute(
+    value: unknown,
+    domain: string,
+  ): Record<string, unknown> {
     if (!value) {
       return {};
     }
@@ -2825,10 +2845,13 @@ export class OtelIngestionProcessor {
     if (typeof value === "string") {
       try {
         const parsed = JSON.parse(value);
-        return parsed && typeof parsed === "object"
-          ? (parsed as Record<string, unknown>)
-          : {};
+        if (parsed && typeof parsed === "object") {
+          return parsed as Record<string, unknown>;
+        }
+        this.recordMetadataDropped("non_object_top_level", domain);
+        return {};
       } catch {
+        this.recordMetadataDropped("parse_failure", domain);
         return {};
       }
     }
@@ -2837,6 +2860,7 @@ export class OtelIngestionProcessor {
       return value as Record<string, unknown>;
     }
 
+    this.recordMetadataDropped("primitive", domain);
     return {};
   }
 
@@ -2868,10 +2892,11 @@ export class OtelIngestionProcessor {
   private extractMetadataFromPrefix(params: {
     attributes: Record<string, unknown>;
     prefix: string;
+    domain: string;
   }): Record<string, unknown> {
-    const { attributes, prefix } = params;
+    const { attributes, prefix, domain } = params;
     return {
-      ...this.parseMetadataAttribute(attributes[prefix]),
+      ...this.parseMetadataAttribute(attributes[prefix], domain),
       ...this.extractPrefixedMetadataAttributes({
         attributes,
         prefixes: [prefix],
@@ -2920,6 +2945,7 @@ export class OtelIngestionProcessor {
       this.extractMetadataFromPrefix({
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_METADATA,
+        domain: "experiment",
       }),
     );
 
@@ -2928,6 +2954,7 @@ export class OtelIngestionProcessor {
       this.extractMetadataFromPrefix({
         attributes,
         prefix: LangfuseOtelSpanAttributes.EXPERIMENT_ITEM_METADATA,
+        domain: "experiment_item",
       }),
     );
 

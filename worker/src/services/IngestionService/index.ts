@@ -599,9 +599,15 @@ export class IngestionService {
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
             if (
-              !(error instanceof InvalidRequestError) &&
-              !(error instanceof LangfuseNotFoundError)
+              error instanceof InvalidRequestError ||
+              error instanceof LangfuseNotFoundError
             ) {
+              recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+                reason: "score_validation_dropped",
+                source: "api",
+                domain: "score",
+              });
+            } else {
               unexpectedScoreValidationErrors.push(error);
             }
 
