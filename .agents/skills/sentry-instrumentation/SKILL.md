@@ -70,13 +70,18 @@ properly (below).
   extra })`. Fingerprints group on the message, so put variable IDs in `extra`,
   never in the message string.
 
-## The rules (each earned the hard way — cited to shipped PRs)
+## The rules (each earned the hard way — cited to workstream PRs)
+
+> PR references name the **lever** that establishes each pattern; some are
+> in-flight (not yet on `main`). Treat them as "the PR that does X," and verify
+> against the current tree before assuming a symbol or swap already exists.
 
 1. **An event is a promise a human acts — expected states are not events.**
    A `NOT_FOUND` / `FORBIDDEN` / `UNAUTHORIZED` the UI already renders is not a
    regression. ⚠ `TRPCClientError: Trace not found` was the #2 issue by volume
-   (~30k events); PR #15243 drops those at the tRPC seam. "Project Not Found"
-   captured on every mount until it was switched to the non-capturing `ErrorPage`.
+   (~30k events); PR #15243 drops those at the tRPC seam and switches the
+   "Project Not Found" state (which captured on every mount via
+   `ErrorPageWithSentry`) to the non-capturing `ErrorPage`.
 
 2. **Capture a REAL `Error`, never a string / object / `SyntheticEvent` /
    `ErrorEvent`.** Those collapse to opaque `[object Object]` / `[object
@@ -98,11 +103,14 @@ properly (below).
 
 5. **Root-cause at the source beats a filter.** Prefer eliminating the emission
    over suppressing the event. ⚠ User-content markdown URLs rendered through a
-   Next.js `<Link>` logged `Invalid href … passed to next/router` (~40k events);
-   a native `<a>` (which never runs the router's href validation) removes the
-   family at the source (PR #15245) — no new filter needed. (The older inline
-   `beforeSend` invalid-href check is now redundant and never fired anyway — it
-   read the wrong field, Rule 6 — so it can be retired.)
+   Next.js `<Link>` logged `Invalid href … passed to next/router` (~40k events)
+   — note `getSafeLinkUrl` does NOT prevent this: a malformed-but-parseable URL
+   (a second `https://` → repeated `//`) passes validation and `<Link>`'s router
+   still rejects it. PR #15245 renders these as a native `<a>` (which never runs
+   the router's href validation), removing the family at the source — no new
+   filter needed. (The older inline `beforeSend` invalid-href check is redundant
+   and never fired anyway — it read the wrong field, Rule 6 — so it can be
+   retired.)
 
 6. **Every `beforeSend` / denylist rule: narrow signature + written rationale +
    a NEGATIVE fixture proving a real error still passes.** This is the MANDATORY
@@ -125,8 +133,8 @@ properly (below).
    validations run only in the **real client runtime, not jsdom** — a green unit
    test does NOT prove the console error is gone. Reproduce it in a browser
    against the running app (Playwright), do an A/B, and confirm the event
-   disappears. ⚠ The #15245 invalid-href fix was verified this way (old `<Link>`
-   fired the error ×12; new `<a>` fired 0). Unit tests lock the *contract*; the
+   disappears. ⚠ PR #15245 was verified this way — its native `<a>` fired 0
+   where the prior `<Link>` fired the error ×12. Unit tests lock the *contract*; the
    browser proves the *noise removal*.
 
 ## Workflow

@@ -11,7 +11,7 @@ the detail behind its rules.
 - [beforeSend / denylist authoring protocol](#beforesend--denylist-authoring-protocol)
 - [Fingerprinting, tagging, messages](#fingerprinting-tagging-messages)
 - [Known noise families](#known-noise-families)
-- [Shipped-PR case studies](#shipped-pr-case-studies)
+- [Workstream levers (case studies)](#workstream-levers-case-studies)
 
 ## Where Sentry is wired
 
@@ -108,7 +108,10 @@ The recurring shapes and their correct disposition:
 - **Stale-deploy** — chunk 404s, `importScripts` failures, version-skew. → a
   reload-on-new-version prompt + release-aware handling (open work).
 
-## Shipped-PR case studies
+## Workstream levers (case studies)
+
+Each row names the PR that establishes the pattern; some are in-flight, not yet
+on `main` — verify against the current tree before assuming a swap/symbol exists.
 
 | PR | Family | Lever |
 |---|---|---|
