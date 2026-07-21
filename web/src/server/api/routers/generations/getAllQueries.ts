@@ -7,7 +7,7 @@ import { getObservationsTableCount } from "@langfuse/shared/src/server";
 import { applyCommentFilters } from "@langfuse/shared/src/server";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 
-const GetAllGenerationsInput = GenerationTableOptions.extend({
+const GetAllGenerationsInput = GenerationTableOptions.safeExtend({
   ...paginationZod,
 });
 
