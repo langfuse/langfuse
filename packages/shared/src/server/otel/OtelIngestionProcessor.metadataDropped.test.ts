@@ -388,4 +388,253 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
       expect(droppedCalls()).toHaveLength(0);
     });
   });
+
+  // Adversarial-gate rulings (round 2). Shared fixture builders for
+  // multi-resourceSpan / multi-span batches.
+  describe("adversarial rulings", () => {
+    const makeSpan = (attributes: OtelAttribute[], spanIdHex: string) => ({
+      traceId: Buffer.from("0123456789abcdef0123456789abcdef", "hex"),
+      spanId: Buffer.from(spanIdHex, "hex"),
+      name: "test-span",
+      kind: 1,
+      startTimeUnixNano: "1752384000000000000",
+      endTimeUnixNano: "1752384001000000000",
+      attributes: [
+        { key: "langfuse.observation.type", value: { stringValue: "span" } },
+        ...attributes,
+      ],
+      status: {},
+    });
+
+    const makeResourceSpan = (
+      resourceAttrs: OtelAttribute[],
+      spans: ReturnType<typeof makeSpan>[],
+    ): ResourceSpan => ({
+      resource: {
+        attributes: [
+          { key: "service.name", value: { stringValue: "test-svc" } },
+          ...resourceAttrs,
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "langfuse-sdk",
+            version: "3.8.1",
+            attributes: [
+              { key: "public_key", value: { stringValue: "pk-test" } },
+            ],
+          },
+          spans,
+        },
+      ],
+    });
+
+    const expectDropReasons = (expectedReasons: string[]) => {
+      const calls = droppedCalls();
+      expect(
+        calls
+          .map(
+            ([, , tags]) =>
+              (tags as Record<string, string> | undefined)?.reason,
+          )
+          .sort(),
+      ).toEqual([...expectedReasons].sort());
+      for (const [, value, tags] of calls) {
+        expect((value as number | undefined) ?? 1).toBe(1);
+        expect(tags).toEqual(expect.objectContaining({ source: "otel" }));
+        expect(["trace", "observation"]).toContain(
+          (tags as Record<string, string>)?.domain,
+        );
+        expect(Object.keys(tags ?? {})).not.toContain("project_id");
+        expect(Object.keys(tags ?? {})).not.toContain("projectId");
+      }
+    };
+
+    // RULING A: dedup is scoped per resourceSpan, not per processor
+    // instance — distinct resourceSpans in one job count separately.
+    describe("resource-scope dedup", () => {
+      it("counts bad resource-level metadata once per resourceSpan, not once per job", async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [{ key: "langfuse.metadata", value: { stringValue: "{bad-one" } }],
+            [makeSpan([], "0000000000000001")],
+          ),
+          makeResourceSpan(
+            [{ key: "langfuse.metadata", value: { stringValue: "{bad-two" } }],
+            [makeSpan([], "0000000000000002")],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        expectDropReasons(["parse_failure", "parse_failure"]);
+      });
+
+      it("counts one resourceSpan's bad resource-level metadata once even with multiple spans", async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [{ key: "langfuse.metadata", value: { stringValue: "{bad-one" } }],
+            [
+              makeSpan([], "0000000000000001"),
+              makeSpan([], "0000000000000002"),
+            ],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        expectDropReasons(["parse_failure"]);
+      });
+    });
+
+    // RULING B: falsy-but-present PRIMARY keys count (supersedes the
+    // compat-key-only scoping of round-1 ruling 2). Truly-absent stays
+    // zero — pinned by "does not increment when no metadata attribute is
+    // present at all" above.
+    describe("falsy-present primary keys", () => {
+      it("counts langfuse.observation.metadata = false as a primitive drop", async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [],
+            [
+              makeSpan(
+                [
+                  {
+                    key: "langfuse.observation.metadata",
+                    value: { boolValue: false },
+                  },
+                ],
+                "0000000000000001",
+              ),
+            ],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        const calls = droppedCalls();
+        expect(calls).toHaveLength(1);
+        expectDropTags(calls[0], {
+          reason: "primitive",
+          source: "otel",
+          domain: "observation",
+        });
+      });
+
+      it("counts langfuse.observation.metadata = 0 as a primitive drop", async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [],
+            [
+              makeSpan(
+                [
+                  {
+                    key: "langfuse.observation.metadata",
+                    value: { intValue: 0 },
+                  },
+                ],
+                "0000000000000001",
+              ),
+            ],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        const calls = droppedCalls();
+        expect(calls).toHaveLength(1);
+        expectDropTags(calls[0], {
+          reason: "primitive",
+          source: "otel",
+          domain: "observation",
+        });
+      });
+
+      it('counts langfuse.observation.metadata = "" as a parse_failure drop', async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [],
+            [
+              makeSpan(
+                [
+                  {
+                    key: "langfuse.observation.metadata",
+                    value: { stringValue: "" },
+                  },
+                ],
+                "0000000000000001",
+              ),
+            ],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        const calls = droppedCalls();
+        expect(calls).toHaveLength(1);
+        expectDropTags(calls[0], {
+          reason: "parse_failure",
+          source: "otel",
+          domain: "observation",
+        });
+      });
+
+      it("counts a falsy-present primary key AND a malformed compat key as two drops", async () => {
+        const events = await createProcessor().processToIngestionEvents([
+          makeResourceSpan(
+            [],
+            [
+              makeSpan(
+                [
+                  {
+                    key: "langfuse.observation.metadata",
+                    value: { boolValue: false },
+                  },
+                  {
+                    key: "langfuse.metadata",
+                    value: { stringValue: "{bad" },
+                  },
+                ],
+                "0000000000000001",
+              ),
+            ],
+          ),
+        ]);
+
+        expect(events.length).toBeGreaterThan(0);
+        expectDropReasons(["parse_failure", "primitive"]);
+      });
+    });
+
+    // RULING C: logger.warn from the drop path is capped at 10 per
+    // processor instance (per job); the metric keeps counting past the cap.
+    describe("warn cap", () => {
+      it("caps drop-path warns at 10 per instance while increments keep counting", async () => {
+        const warnSpy = vi
+          .spyOn(serverBarrel.logger, "warn")
+          .mockImplementation(() => serverBarrel.logger);
+
+        try {
+          const spans = Array.from({ length: 12 }, (_, i) =>
+            makeSpan(
+              [
+                {
+                  key: "langfuse.observation.metadata",
+                  // Distinct malformed values so per-value dedup keeps all 12.
+                  value: { stringValue: `{bad-${i}` },
+                },
+              ],
+              `00000000000000${(i + 1).toString(16).padStart(2, "0")}`,
+            ),
+          );
+
+          const events = await createProcessor().processToIngestionEvents([
+            makeResourceSpan([], spans),
+          ]);
+
+          expect(events.length).toBeGreaterThan(0);
+          expect(droppedCalls().length).toBeGreaterThan(10);
+          expect(warnSpy).toHaveBeenCalledTimes(10);
+        } finally {
+          warnSpy.mockRestore();
+        }
+      });
+    });
+  });
 });
