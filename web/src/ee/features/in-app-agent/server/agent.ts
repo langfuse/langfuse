@@ -895,7 +895,10 @@ type MastraStreamCallbacks = {
 };
 
 type PatchableMastraAgent = {
-  createChunkProcessor?: (...args: unknown[]) => MastraChunkProcessor;
+  createChunkProcessor?: (
+    callbacks: MastraStreamCallbacks,
+    ...rest: unknown[]
+  ) => MastraChunkProcessor;
 };
 
 type MastraApprovalStreamChunk = {
@@ -923,8 +926,11 @@ type MastraApprovalStreamChunk = {
 // those tools and the bridge has no case for it, so approvals would never
 // surface as on_interrupt events. Map approvals onto the suspend protocol.
 // Non-background tool-error chunks are likewise swallowed by the bridge, so
-// convert them to error tool results to keep the failure visible in the
-// transcript and to the model.
+// convert them to tool results carrying the error message as content. Note:
+// the bridge emits TOOL_CALL_RESULT without a top-level `error` field, so the
+// failure renders with the error message in the result body but a "succeeded"
+// status; the model is unaffected (Mastra's loop feeds it the real error).
+// Status fidelity is tracked as a follow-up.
 export function patchMastraApprovalChunks(adapter: MastraAgent) {
   const patchableAdapter = adapter as unknown as PatchableMastraAgent;
   const createChunkProcessor = patchableAdapter.createChunkProcessor;
@@ -935,10 +941,10 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
 
   patchableAdapter.createChunkProcessor = function patchedCreateChunkProcessor(
     this: PatchableMastraAgent,
-    ...args: unknown[]
+    callbacks: MastraStreamCallbacks,
+    ...rest: unknown[]
   ) {
-    const processor = createChunkProcessor.apply(this, args);
-    const callbacks = args[0] as MastraStreamCallbacks;
+    const processor = createChunkProcessor.call(this, callbacks, ...rest);
 
     return {
       handleChunk(chunk: unknown) {
@@ -997,11 +1003,10 @@ export function patchMastraApprovalChunks(adapter: MastraAgent) {
               toolName,
               args: toolArgs,
               isError: true,
-              result: JSON.stringify(
-                { error: getToolErrorMessage(mastraChunk) },
-                null,
-                2,
-              ),
+              // Raw object, not pre-stringified: the bridge JSON-stringifies
+              // payload.result into the event content, so a string here would
+              // double-encode.
+              result: { error: getToolErrorMessage(mastraChunk) },
             },
           });
         }

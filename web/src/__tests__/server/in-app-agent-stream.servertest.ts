@@ -382,13 +382,7 @@ describe("patchMastraApprovalChunks", () => {
           toolName: "bash",
           args: { command: "date" },
           isError: true,
-          result: JSON.stringify(
-            {
-              error: "Error: Region is missing",
-            },
-            null,
-            2,
-          ),
+          result: { error: "Error: Region is missing" },
         },
       },
     ]);
