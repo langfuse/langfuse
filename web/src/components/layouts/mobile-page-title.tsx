@@ -1,60 +1,49 @@
-import { type ReactNode } from "react";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import {
-  PageTabs,
-  type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+import { PageTabs } from "@/src/components/layouts/page-tabs";
+import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { cn } from "@/src/utils/tailwind";
-
-type MobilePageTitleProps = {
-  title: string;
-  titleContent?: ReactNode;
-  titleTooltip?: string;
-  help?: { description: ReactNode; href?: string; className?: string };
-  itemType?: LangfuseItemType;
-  actionButtonsLeft?: ReactNode;
-  actionButtonsRight?: ReactNode;
-  titleBadges?: ReactNode;
-  breadcrumbBadges?: ReactNode;
-  tabsProps?: PageTabsProps;
-  className?: string;
-};
 
 /**
- * The page-specific block for the minimal-chrome mobile shell. Rendered at the
- * top of the scrollable content (not in the sticky chrome), so the title reads
- * as part of the page and scrolls away as you go. Holds the org/project context
- * switcher, the large page title, page actions, the hoisted controls slot
- * (time range / refresh), the agent launcher, and the section tabs.
+ * The page-specific block for the minimal-chrome mobile shell. Rendered between
+ * the slim sticky chrome and the page content (not inside the sticky bar), so
+ * the title reads as part of the page and scrolls with it. Holds the
+ * org/project context switcher, the large page title, page actions, the hoisted
+ * controls slot (time range / refresh), the agent launcher, and the section
+ * tabs.
  *
- * Controls + agent live here for now; they migrate into the expandable bottom
- * bar as that lands.
+ * Takes the same `headerProps` the desktop PageHeader gets, so any Page-style
+ * wrapper renders it consistently. Controls + agent live here for now; they
+ * migrate into the expandable bottom bar as that lands.
  */
 export const MobilePageTitle = ({
-  title,
-  titleContent,
-  titleTooltip,
-  help,
-  itemType,
-  actionButtonsLeft,
-  actionButtonsRight,
-  titleBadges,
-  breadcrumbBadges,
-  tabsProps,
-  className,
-}: MobilePageTitleProps) => {
+  headerProps,
+}: {
+  headerProps: Omit<PageHeaderProps, "container">;
+}) => {
+  const {
+    title,
+    titleContent,
+    titleTooltip,
+    help,
+    itemType,
+    actionButtonsLeft,
+    actionButtonsRight,
+    titleBadges,
+    breadcrumbBadges,
+    tabsProps,
+  } = headerProps;
+
   return (
-    <div className={cn("bg-background border-b px-3 pt-2 pb-3", className)}>
+    <div className="bg-background border-b px-3 pt-2 pb-3">
       {/* Context line: org / project switcher (no page items — the title says
           the page). */}
       <div className="flex items-center gap-2">

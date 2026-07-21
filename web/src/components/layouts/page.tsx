@@ -48,6 +48,7 @@ const Page = ({
             <PageHeader {...headerProps} container={false} className="top-0" />
           )}
         </header>
+        {isMobile && <MobilePageTitle headerProps={headerProps} />}
         <main
           className={cn(
             "flex flex-1 flex-col",
@@ -57,20 +58,6 @@ const Page = ({
             withPadding && "p-3",
           )}
         >
-          {isMobile && (
-            <MobilePageTitle
-              title={headerProps.title}
-              titleContent={headerProps.titleContent}
-              titleTooltip={headerProps.titleTooltip}
-              help={headerProps.help}
-              itemType={headerProps.itemType}
-              actionButtonsLeft={headerProps.actionButtonsLeft}
-              actionButtonsRight={headerProps.actionButtonsRight}
-              titleBadges={headerProps.titleBadges}
-              breadcrumbBadges={headerProps.breadcrumbBadges}
-              tabsProps={headerProps.tabsProps}
-            />
-          )}
           {children}
         </main>
       </div>

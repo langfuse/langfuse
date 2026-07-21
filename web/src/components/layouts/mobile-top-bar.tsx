@@ -45,7 +45,9 @@ export const MobileTopBar = ({
         ) : (
           leadingControl
         )}
-        <EnvLabel />
+        {/* EnvLabel defaults to self-stretch (to fill the desktop header row);
+            keep it centered here so it doesn't span the full bar height. */}
+        <EnvLabel className="self-center" />
       </div>
 
       {/* Center: the Langfuse wordmark. */}
