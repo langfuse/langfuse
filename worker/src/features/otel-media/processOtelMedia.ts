@@ -10,8 +10,17 @@ import {
 const MEDIA_FIELDS = ["input", "output", "metadata"] as const;
 
 /**
- * Runs instrumented media processing for normalized OTEL events that will be
- * written directly to the events table.
+ * Worker integration point for media in normalized OTEL events. The ingestion
+ * queue calls this only for enabled direct events-table writes.
+ *
+ * Responsibilities are split across three layers:
+ * - This adapter filters event shapes and owns storage configuration,
+ *   instrumentation, and fail-open behavior.
+ * - `processOtelMedia` iterates input/output/metadata, supplies OTEL upload
+ *   context, and aggregates processing results.
+ * - `transformMediaPayload`, called by `processOtelMedia`, contains the generic
+ *   Data URI/provider-shape detection and replacement algorithm. It has no
+ *   knowledge of OTEL, storage, projects, or tracing.
  *
  * Successful replacements mutate each event in place. Missing storage
  * configuration or unexpected processing errors are logged and swallowed so
