@@ -179,6 +179,7 @@ export const GetDatasetRunsV1Response = z
   .object({
     data: z.array(APIDatasetRun),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -189,6 +190,7 @@ export const GetDatasetRunV1Query = z.object({
 });
 export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();
 
 export const publicApiIdSchema = z

@@ -21,6 +21,7 @@ const REPLACEMENT = {
   otelTraces: "POST /api/public/otel/v1/traces",
   experimentItems:
     "GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to>",
+  experiments: "GET /api/public/experiments",
 } as const;
 
 // Migration guidance pages; each family points at the page that documents its
@@ -71,6 +72,14 @@ export const METRICS_DEPRECATION: ApiDeprecationInfo = {
 export const DATASET_RUN_ITEMS_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} In Langfuse v4, dataset run items are replaced by experiment items; use ${REPLACEMENT.experimentItems} instead.`,
   replacement: REPLACEMENT.experimentItems,
+  docsUrl: DOCS.compatibility,
+};
+
+// Legacy dataset-run reads → experiments (dataset runs are replaced by
+// experiments in v4).
+export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
+  message: `${V3_NOTICE} In Langfuse v4, dataset runs are replaced by experiments; use ${REPLACEMENT.experiments} instead.`,
+  replacement: REPLACEMENT.experiments,
   docsUrl: DOCS.compatibility,
 };
 

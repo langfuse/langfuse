@@ -755,6 +755,7 @@ types:
     extends: DatasetRun
     properties:
       datasetRunItems: list<DatasetRunItem>
+      _deprecation: optional<Deprecation>
   # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |

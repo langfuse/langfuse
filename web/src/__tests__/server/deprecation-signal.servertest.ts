@@ -14,6 +14,7 @@ import {
 } from "@/src/features/public-api/types/observations";
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
+  DATASET_RUNS_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
@@ -170,6 +171,48 @@ maybeDescribe("public API deprecation signal", () => {
     expect(response.status).toBe(200);
     expect((response.body as Record<string, unknown>)._deprecation).toEqual(
       DATASET_RUN_ITEMS_DEPRECATION,
+    );
+  });
+
+  it("attaches `_deprecation` to the legacy GET /datasets/{name}/runs list response", async () => {
+    const dataset = await prisma.dataset.create({
+      data: { name: `deprecation-test-${randomUUID()}`, projectId },
+    });
+    await prisma.datasetRuns.create({
+      data: { name: `run-${randomUUID()}`, datasetId: dataset.id, projectId },
+    });
+
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(dataset.name)}/runs`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      DATASET_RUNS_DEPRECATION,
+    );
+  });
+
+  it("attaches `_deprecation` to the legacy single GET /datasets/{name}/runs/{runName}", async () => {
+    const dataset = await prisma.dataset.create({
+      data: { name: `deprecation-test-${randomUUID()}`, projectId },
+    });
+    const run = await prisma.datasetRuns.create({
+      data: { name: `run-${randomUUID()}`, datasetId: dataset.id, projectId },
+    });
+
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/datasets/${encodeURIComponent(dataset.name)}/runs/${encodeURIComponent(run.name)}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(200);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      DATASET_RUNS_DEPRECATION,
     );
   });
 });
