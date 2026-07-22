@@ -1,8 +1,8 @@
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   useV4MigrationPanel,
   type V4MigrationTargetProject,
 } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -14,13 +14,13 @@ export function V4MigrationProjectChip({
 }: {
   project: V4MigrationTargetProject;
 }) {
-  const { canToggleV4 } = useV4Beta();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { openForProject } = useV4MigrationPanel();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const capture = usePostHogClientCapture();
 
-  if (!canToggleV4) {
+  if (!v4UpgradeUiEnabled) {
     return null;
   }
 

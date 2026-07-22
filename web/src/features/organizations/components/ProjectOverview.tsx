@@ -37,6 +37,7 @@ import { AgentToolsBanner } from "@/src/features/developer-tools/components/Agen
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const OrganizationProjectTiles = ({
   org,
@@ -45,59 +46,92 @@ const OrganizationProjectTiles = ({
   org: NonNullable<Session["user"]>["organizations"][number];
   search?: string;
 }) => {
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { data: lastTraceTimes } =
-    api.organizations.lastTraceByProject.useQuery({ orgId: org.id });
+    api.organizations.lastTraceByProject.useQuery(
+      { orgId: org.id },
+      { enabled: v4UpgradeUiEnabled },
+    );
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {org.projects
         .filter(
           (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
         )
-        .map((project) => (
-          <Card
-            key={project.id}
-            className="group hover:bg-muted/50 relative transition-colors"
-          >
-            {!project.deletedAt && (
-              <Link
-                href={`/project/${project.id}`}
-                className="absolute inset-0"
-                aria-label={`Go to project ${project.name}`}
-              />
-            )}
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2">
+        .map((project) =>
+          v4UpgradeUiEnabled ? (
+            <Card
+              key={project.id}
+              className="group hover:bg-muted/50 relative transition-colors"
+            >
+              {!project.deletedAt && (
+                <Link
+                  href={`/project/${project.id}`}
+                  className="absolute inset-0"
+                  aria-label={`Go to project ${project.name}`}
+                />
+              )}
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle
+                    className="truncate text-base"
+                    title={project.name}
+                  >
+                    {project.name}
+                  </CardTitle>
+                  {!project.deletedAt && (
+                    <V4MigrationProjectChip
+                      project={{ id: project.id, name: project.name }}
+                    />
+                  )}
+                </div>
+              </CardHeader>
+              {!project.deletedAt && lastTraceTimes && (
+                <CardContent className="pb-3">
+                  <p className="text-muted-foreground text-xs">
+                    {(() => {
+                      const lastTraceAt = lastTraceTimes.find(
+                        (t) => t.projectId === project.id,
+                      )?.lastTraceAt;
+                      return lastTraceAt
+                        ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+                        : "No traces in the last 30d";
+                    })()}
+                  </p>
+                </CardContent>
+              )}
+              {project.deletedAt && (
+                <CardContent>
+                  <CardDescription>Project is being deleted</CardDescription>
+                </CardContent>
+              )}
+            </Card>
+          ) : (
+            <Card key={project.id}>
+              <CardHeader>
                 <CardTitle className="truncate text-base" title={project.name}>
                   {project.name}
                 </CardTitle>
-                {!project.deletedAt && (
-                  <V4MigrationProjectChip
-                    project={{ id: project.id, name: project.name }}
-                  />
-                )}
-              </div>
-            </CardHeader>
-            {!project.deletedAt && lastTraceTimes && (
-              <CardContent className="pb-3">
-                <p className="text-muted-foreground text-xs">
-                  {(() => {
-                    const lastTraceAt = lastTraceTimes.find(
-                      (t) => t.projectId === project.id,
-                    )?.lastTraceAt;
-                    return lastTraceAt
-                      ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                      : "No traces in the last 30d";
-                  })()}
-                </p>
-              </CardContent>
-            )}
-            {project.deletedAt && (
-              <CardContent>
-                <CardDescription>Project is being deleted</CardDescription>
-              </CardContent>
-            )}
-          </Card>
-        ))}
+              </CardHeader>
+              {!project.deletedAt ? (
+                <CardFooter className="gap-2">
+                  <Button asChild variant="secondary">
+                    <Link href={`/project/${project.id}`}>Go to project</Link>
+                  </Button>
+                  <Button asChild variant="ghost">
+                    <Link href={`/project/${project.id}/settings`}>
+                      <Settings size={16} />
+                    </Link>
+                  </Button>
+                </CardFooter>
+              ) : (
+                <CardContent>
+                  <CardDescription>Project is being deleted</CardDescription>
+                </CardContent>
+              )}
+            </Card>
+          ),
+        )}
     </div>
   );
 };

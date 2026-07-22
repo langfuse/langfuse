@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -10,14 +10,14 @@ import { useQueryProject } from "@/src/features/projects/hooks";
 // v4 migration side panel on click. Delay copy is hardcoded until the backend
 // reports per-project ingestion mode.
 export function V4MigrationDelayBadge() {
-  const { canToggleV4 } = useV4Beta();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { openForProject } = useV4MigrationPanel();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
 
-  if (!canToggleV4 || !project) {
+  if (!v4UpgradeUiEnabled || !project) {
     return null;
   }
 

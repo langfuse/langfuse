@@ -226,7 +226,7 @@ export const ROUTES: Route[] = [
     title: "Update",
     pathname: "",
     section: RouteSection.Secondary,
-    featureFlag: "v4BetaToggleVisible",
+    featureFlag: "v4UpgradeUi",
     show: ({ projectId }) => projectId !== undefined,
     menuNode: <V4MigrationNavItem />,
   },

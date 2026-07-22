@@ -1,10 +1,10 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useState,
   type PropsWithChildren,
 } from "react";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 export type V4MigrationTargetProject = { id: string; name: string };
 
@@ -28,14 +28,20 @@ export function V4MigrationPanelProvider({
   children,
   defaultOpen = false,
 }: V4MigrationPanelProviderProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const [requestedOpen, setRequestedOpen] = useState(defaultOpen);
   const [targetProject, setTargetProject] =
     useState<V4MigrationTargetProject | null>(null);
 
-  const openForProject = useCallback((project: V4MigrationTargetProject) => {
+  const open = v4UpgradeUiEnabled && requestedOpen;
+  const setOpen = (nextOpen: boolean) => {
+    setRequestedOpen(v4UpgradeUiEnabled && nextOpen);
+  };
+  const openForProject = (project: V4MigrationTargetProject) => {
+    if (!v4UpgradeUiEnabled) return;
     setTargetProject(project);
-    setOpen(true);
-  }, []);
+    setRequestedOpen(true);
+  };
 
   return (
     <V4MigrationPanelContext.Provider

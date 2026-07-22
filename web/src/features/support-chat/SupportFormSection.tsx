@@ -64,6 +64,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -205,6 +206,10 @@ export function SupportFormSection({
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
   const { initialTopic } = useSupportDrawer();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const productFeatureTopics = TopicGroups["Product Features"].filter(
+    (topic) => topic !== "V4 Migration" || v4UpgradeUiEnabled,
+  );
 
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
@@ -499,7 +504,7 @@ export function SupportFormSection({
                         <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Product Features
                         </div>
-                        {TopicGroups["Product Features"].map((t) => (
+                        {productFeatureTopics.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>

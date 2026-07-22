@@ -11,15 +11,15 @@ import {
   V4MigrationDetailsContent,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 // Modal variant of the migration panel (experiment): mounted on pages that
 // use deprecated features (currently Evals) and opens on arrival.
 export function V4MigrationModal() {
   const { project } = useQueryProject();
-  const { canToggleV4 } = useV4Beta();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
-  if (!canToggleV4 || !project) {
+  if (!v4UpgradeUiEnabled || !project) {
     return null;
   }
 

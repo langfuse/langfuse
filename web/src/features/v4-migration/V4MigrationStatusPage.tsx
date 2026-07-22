@@ -21,7 +21,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -418,11 +418,11 @@ function OrgStatusSection({
 export default function V4MigrationStatusPage() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
-  const { canToggleV4 } = useV4Beta();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
   // Same eligibility gate as every other v4-migration surface; the page is
   // reachable by URL regardless of whether the nav entry is shown.
-  if (!canToggleV4) {
+  if (!v4UpgradeUiEnabled) {
     return null;
   }
 

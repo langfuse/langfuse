@@ -42,13 +42,16 @@ export const organizationsRouter = createTRPCRouter({
     }),
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
-    .query(async ({ input, ctx }) => {
-      const projects = await ctx.prisma.project.findMany({
-        where: { orgId: input.orgId, deletedAt: null },
-        select: { id: true },
-      });
+    .query(async ({ ctx }) => {
+      const organization =
+        ctx.session.user.admin === true
+          ? await buildAdminOrgContext(ctx)
+          : ctx.session.user.organizations.find(
+              (org) => org.id === ctx.session.orgId,
+            );
+
       return getLastTraceTimestampsByProjects({
-        projectIds: projects.map((p) => p.id),
+        projectIds: organization?.projects.map((project) => project.id) ?? [],
       });
     }),
   create: authenticatedProcedure
