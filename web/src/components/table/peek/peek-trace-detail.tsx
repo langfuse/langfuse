@@ -10,7 +10,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
-import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
+import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -23,18 +23,22 @@ export const TablePeekViewTraceDetail = (
   const { projectId } = props;
 
   const router = useRouter();
-  const peekId = router.query.peek as string | undefined;
-  const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
+  const { traceId, timestamp } = resolvePeekTraceParams({
+    reader: "trace",
+    peek: router.query.peek as string | undefined,
+    traceId: router.query.traceId as string | undefined,
+    timestamp: router.query.timestamp,
+  });
 
   // Live handle on the peeked trace id: an in-flight delete that resolves after
   // K/J-navigation reads the CURRENT peek here (not the stale value captured
   // when the delete was fired), so it only closes the peek it actually deleted.
-  const peekIdRef = useRef(peekId);
-  peekIdRef.current = peekId;
+  const peekIdRef = useRef(traceId);
+  peekIdRef.current = traceId;
 
   const trace = usePeekData({
     projectId,
-    traceId: peekId,
+    traceId,
     timestamp,
   });
 
@@ -57,7 +61,7 @@ export const TablePeekViewTraceDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, peekId)}
+      title={traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
