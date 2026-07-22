@@ -1,9 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Layer } from "@/src/components/ui/layer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { versionUpdateStore } from "./versionUpdateStore";
 import { useVersionUpdateAvailable } from "./useVersionUpdateAvailable";
 import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
+
+// Hold the banner back until the app has settled after first render. During the
+// initial mount/hydration window the layout flickers and React StrictMode
+// double-invokes mounts — and because the banner renders through an overlay
+// portal, a mount during that churn gets torn down and recreated, replaying the
+// entrance animation (a visible "jump"/double-start). Appearing only after the
+// app is quiet means the banner mounts exactly once, cleanly. It also reads
+// better: no banner flashing in during startup. A build-id mismatch seen later
+// (a deploy while the tab is open) still shows immediately — the gate has long
+// since opened.
+const APP_SETTLE_DELAY_MS = 5000;
+
+/**
+ * `false` until {@link APP_SETTLE_DELAY_MS} after mount, then `true`. The timer
+ * is the external system this effect owns (setup starts it, cleanup clears it).
+ */
+function useAppSettled(): boolean {
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(true), APP_SETTLE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return settled;
+}
 
 /**
  * App-wide notification prompting the user to reload when a newer build has
@@ -16,7 +40,13 @@ import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
  * appearance, plus the reload / dismiss actions.
  */
 export function VersionUpdateBanner() {
-  const isVisible = useVersionUpdateAvailable();
+  // Show only once a build mismatch exists AND the app has settled after first
+  // render — the grace period keeps the banner out of the noisy startup window
+  // so its entrance plays cleanly (see `useAppSettled`). Both hooks run
+  // unconditionally; the gate is the boolean AND of their results.
+  const updateAvailable = useVersionUpdateAvailable();
+  const appSettled = useAppSettled();
+  const isVisible = updateAvailable && appSettled;
   const capture = usePostHogClientCapture();
 
   // Analytics side-effect (external system = PostHog): report `banner_shown`

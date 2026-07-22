@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VersionUpdateBanner } from "./VersionUpdateBanner";
 import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
@@ -51,6 +51,9 @@ describe("VersionUpdateBannerView", () => {
 
 describe("VersionUpdateBanner (connected)", () => {
   beforeEach(() => {
+    // The banner is gated behind a startup grace period (setTimeout); fake
+    // timers let us fast-forward past it deterministically.
+    vi.useFakeTimers();
     h.capture.mockClear();
     h.dismiss.mockClear();
     h.visible = true;
@@ -62,11 +65,30 @@ describe("VersionUpdateBanner (connected)", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  // Advance past the app-settle grace period so the banner is allowed to render.
+  const settle = () =>
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+  it("stays hidden during the startup grace period, then appears", () => {
+    render(<VersionUpdateBanner />);
+    expect(
+      screen.queryByRole("button", { name: "Reload" }),
+    ).not.toBeInTheDocument();
+    expect(h.capture).not.toHaveBeenCalled();
+
+    settle();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 
   it("reports banner_shown once when it appears", () => {
     render(<VersionUpdateBanner />);
+    settle();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(h.capture).toHaveBeenCalledWith("version_update:banner_shown");
     expect(
@@ -78,6 +100,7 @@ describe("VersionUpdateBanner (connected)", () => {
 
   it("captures reload_clicked and reloads on Reload", () => {
     render(<VersionUpdateBanner />);
+    settle();
     fireEvent.click(screen.getByRole("button", { name: "Reload" }));
     expect(h.capture).toHaveBeenCalledWith("version_update:reload_clicked");
     expect(window.location.reload).toHaveBeenCalledTimes(1);
@@ -85,6 +108,7 @@ describe("VersionUpdateBanner (connected)", () => {
 
   it("captures dismissed and calls the store on Dismiss", () => {
     render(<VersionUpdateBanner />);
+    settle();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(h.capture).toHaveBeenCalledWith("version_update:dismissed");
     expect(h.dismiss).toHaveBeenCalledTimes(1);
@@ -93,6 +117,7 @@ describe("VersionUpdateBanner (connected)", () => {
   it("renders nothing when no update is available", () => {
     h.visible = false;
     render(<VersionUpdateBanner />);
+    settle();
     expect(
       screen.queryByRole("button", { name: "Reload" }),
     ).not.toBeInTheDocument();
