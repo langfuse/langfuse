@@ -59,6 +59,7 @@ export type FeedbackSlackMessage = SlackPayload;
 
 const SLACK_SECTION_TEXT_LIMIT = 3000;
 const SLACK_FIELD_TEXT_LIMIT = 2000;
+const SLACK_HEADER_TEXT_LIMIT = 150;
 const FEEDBACK_SLACK_TIMEOUT_MS = 5_000;
 
 const truncateForSlack = (value: string, maxLength: number): string => {
@@ -121,47 +122,53 @@ export const buildFeedbackSlackMessage = ({
       type: "header",
       text: {
         type: "plain_text",
-        text: "New Langfuse feedback",
-        emoji: false,
+        text: truncateForSlack(
+          "💬 New Langfuse feedback",
+          SLACK_HEADER_TEXT_LIMIT,
+        ),
+        emoji: true,
       },
     },
     {
       type: "section",
       fields: [
         plainText(
-          `Source\n${feedbackSourceLabel[source]}`,
+          `📬 SOURCE:\n${feedbackSourceLabel[source]}`,
           SLACK_FIELD_TEXT_LIMIT,
         ),
-        plainText(`Target type\n${input.targetType}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`Target\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`Intake region\n${getDataRegion()}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(`🎯 TARGET:\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(`🧩 TYPE:\n${input.targetType}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(`🌍 REGION:\n${getDataRegion()}`, SLACK_FIELD_TEXT_LIMIT),
       ],
     },
     { type: "divider" },
   ];
 
-  appendPlainTextSection(blocks, "Feedback", input.feedback);
-  appendPlainTextSection(blocks, "Goal / use case", input.goal);
-  appendPlainTextSection(blocks, "Reference URL", input.referenceUrl);
+  appendPlainTextSection(blocks, "💬 Feedback:", input.feedback);
+  appendPlainTextSection(blocks, "🎯 Goal / use case:", input.goal);
+  appendPlainTextSection(blocks, "🔗 Reference URL:", input.referenceUrl);
 
-  blocks.push({
-    type: "context",
-    elements: [
-      plainText(`Feedback ID: ${id}`, SLACK_FIELD_TEXT_LIMIT),
-      ...(context
-        ? [
-            plainText(`Org ID: ${context.orgId}`, SLACK_FIELD_TEXT_LIMIT),
-            plainText(
-              `Project ID: ${context.projectId}`,
-              SLACK_FIELD_TEXT_LIMIT,
-            ),
-          ]
-        : []),
-    ],
-  });
+  blocks.push(
+    { type: "divider" },
+    {
+      type: "context",
+      elements: [
+        plainText(`🧾 Receipt: ${id}`, SLACK_FIELD_TEXT_LIMIT),
+        ...(context
+          ? [
+              plainText(`🏢 Org: ${context.orgId}`, SLACK_FIELD_TEXT_LIMIT),
+              plainText(
+                `📁 Project: ${context.projectId}`,
+                SLACK_FIELD_TEXT_LIMIT,
+              ),
+            ]
+          : []),
+      ],
+    },
+  );
 
   return {
-    text: `New Langfuse feedback ${id}`,
+    text: `New Langfuse feedback · ${feedbackSourceLabel[source]} · ${input.targetType} · ${id}`,
     blocks,
     unfurl_links: false,
     unfurl_media: false,

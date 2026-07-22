@@ -113,23 +113,25 @@ describe("FeedbackService", () => {
       unfurl_media: boolean;
       blocks: SlackBlockForTest[];
     };
-    expect(body.text).toBe(`New Langfuse feedback ${result.id}`);
+    expect(body.text).toBe(
+      `New Langfuse feedback · Langfuse MCP · mcp-tool · ${result.id}`,
+    );
     expect(body.text).not.toContain("@here");
     expect(body.unfurl_links).toBe(false);
     expect(body.unfurl_media).toBe(false);
-    expect(body.blocks[0]?.text?.text).toBe("New Langfuse feedback");
+    expect(body.blocks[0]?.text?.text).toBe("💬 New Langfuse feedback");
     expect(body.blocks[1]?.fields?.map((field) => field.text)).toEqual([
-      "Source\nLangfuse MCP",
-      "Target type\nmcp-tool",
-      "Target\nsubmitFeedback",
-      "Intake region\nself-hosted",
+      "📬 SOURCE:\nLangfuse MCP",
+      "🎯 TARGET:\nsubmitFeedback",
+      "🧩 TYPE:\nmcp-tool",
+      "🌍 REGION:\nself-hosted",
     ]);
     expect(
       body.blocks.at(-1)?.elements?.map((element) => element.text),
     ).toEqual([
-      `Feedback ID: ${result.id}`,
-      "Org ID: org-1",
-      "Project ID: project-1",
+      `🧾 Receipt: ${result.id}`,
+      "🏢 Org: org-1",
+      "📁 Project: project-1",
     ]);
 
     const feedbackBlock = body.blocks.find(
@@ -161,7 +163,7 @@ describe("FeedbackService", () => {
 
     const footer = message.blocks.at(-1) as SlackBlockForTest;
     expect(footer.elements?.map((element) => element.text)).toEqual([
-      "Feedback ID: 11111111-1111-4111-8111-111111111111",
+      "🧾 Receipt: 11111111-1111-4111-8111-111111111111",
     ]);
     expect(
       PostFeedbackBody.safeParse({
