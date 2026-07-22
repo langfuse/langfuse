@@ -67,9 +67,9 @@ export function isObservationAllowedForQueuedObservationEvals(
  * Schedule observation evals for a given observation.
  *
  * This function receives pre-fetched configs (already filtered by targetObject: "event" or "experiment"
- * and project). It evaluates each attached scope's filter and sampling against
- * the observation, then creates one job execution per matching evaluator-scope
- * pair. Evaluators without scope assignments retain the legacy config-level
+ * and project). It evaluates each attached rule's filter and sampling against
+ * the observation, then creates one job execution per matching evaluator-rule
+ * pair. Evaluators without rule assignments retain the legacy config-level
  * execution behavior.
  *
  * The observation is uploaded to S3 once (not per config) for efficiency.
@@ -88,9 +88,9 @@ export async function scheduleObservationEvals(
     return;
   }
 
-  // Resolve every matching evaluator-scope pair before uploading the input.
-  // Separate executions preserve which shared scope caused each run.
-  const matchingConfigScopes = configs.flatMap((config) => {
+  // Resolve every matching evaluator-rule pair before uploading the input.
+  // Separate executions preserve which shared rule caused each run.
+  const matchingConfigRules = configs.flatMap((config) => {
     if (!isJobConfigExecutableForExecutionMode(config, executionMode)) {
       logger.debug("Skipping non-executable observation eval config", {
         configId: config.id,
@@ -99,16 +99,16 @@ export async function scheduleObservationEvals(
       return [];
     }
 
-    const hasAttachedScopes = Boolean(config.targetingScopes?.length);
-    const targetingScopes = hasAttachedScopes
-      ? config.targetingScopes!
+    const hasAttachedRules = Boolean(config.evaluationRules?.length);
+    const evaluationRules = hasAttachedRules
+      ? config.evaluationRules!
       : [config];
-    const matchingScopes = targetingScopes.flatMap((scope) => {
-      if ("enabled" in scope && !scope.enabled) return [];
-      if (!evaluateFilter(observation, scope)) return [];
+    const matchingRules = evaluationRules.flatMap((rule) => {
+      if ("enabled" in rule && !rule.enabled) return [];
+      if (!evaluateFilter(observation, rule)) return [];
       if (
         !shouldSampleObservation({
-          samplingRate: scope.sampling.toNumber(),
+          samplingRate: rule.sampling.toNumber(),
         })
       ) {
         return [];
@@ -117,23 +117,23 @@ export async function scheduleObservationEvals(
       return [
         {
           matchingConfig: config,
-          ...(hasAttachedScopes ? { runScopeId: scope.id } : {}),
+          ...(hasAttachedRules ? { ruleId: rule.id } : {}),
         },
       ];
     });
 
-    if (matchingScopes.length === 0) {
+    if (matchingRules.length === 0) {
       logger.debug("Observation does not match eval config filter", {
         configId: config.id,
         observationId: observation.span_id,
       });
     }
 
-    return matchingScopes;
+    return matchingRules;
   });
 
   // Early return if no configs match - no S3 upload needed
-  if (matchingConfigScopes.length === 0) return;
+  if (matchingConfigRules.length === 0) return;
 
   // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
@@ -145,11 +145,11 @@ export async function scheduleObservationEvals(
 
   // Process each matching config
   await Promise.all(
-    matchingConfigScopes.map(({ matchingConfig, runScopeId }) =>
+    matchingConfigRules.map(({ matchingConfig, ruleId }) =>
       processMatchingConfig({
         observation,
         matchingConfig,
-        runScopeId,
+        ruleId,
         observationS3Path,
         schedulerDeps,
         executionMode,
@@ -168,7 +168,7 @@ export async function scheduleObservationEvals(
 interface ProcessConfigParams {
   observation: ObservationForEval;
   matchingConfig: ObservationEvalConfig;
-  runScopeId?: string;
+  ruleId?: string;
   observationS3Path: string;
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: JobConfigExecutionMode;
@@ -180,17 +180,17 @@ async function processMatchingConfig(
   const {
     observation,
     matchingConfig,
-    runScopeId,
+    ruleId,
     observationS3Path,
     schedulerDeps,
     executionMode,
   } = params;
 
-  const jobExecutionIdentity = runScopeId
+  const jobExecutionIdentity = ruleId
     ? [
         "observation-eval",
         matchingConfig.id,
-        runScopeId,
+        ruleId,
         observation.trace_id,
         observation.span_id,
       ]
@@ -207,7 +207,7 @@ async function processMatchingConfig(
     id: jobExecutionId,
     projectId: observation.project_id,
     jobConfigurationId: matchingConfig.id,
-    ...(runScopeId ? { runScopeId } : {}),
+    ...(ruleId ? { ruleId } : {}),
     jobInputTraceId: observation.trace_id,
     jobInputObservationId: observation.span_id,
     jobTemplateId: matchingConfig.evalTemplateId,
@@ -226,7 +226,7 @@ async function processMatchingConfig(
 
   logger.debug("Scheduled observation eval job", {
     configId: matchingConfig.id,
-    runScopeId,
+    ruleId,
     observationId: observation.span_id,
     jobExecutionId,
   });

@@ -8,9 +8,9 @@ import {
   singleFilter,
 } from "@langfuse/shared";
 
-export const EvaluatorActivationScopeSchema = z.discriminatedUnion("mode", [
+export const EvaluatorActivationRuleSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("setup") }),
-  z.object({ mode: z.literal("existing"), runScopeId: z.string() }),
+  z.object({ mode: z.literal("existing"), ruleId: z.string() }),
 ]);
 
 export async function activateEvaluator({
@@ -18,14 +18,14 @@ export async function activateEvaluator({
   projectId,
   createdByUserId,
   evaluatorId,
-  scope,
+  rule,
   now = new Date(),
 }: {
   prisma: PrismaClient;
   projectId: string;
   createdByUserId: string;
   evaluatorId: string;
-  scope: z.infer<typeof EvaluatorActivationScopeSchema>;
+  rule: z.infer<typeof EvaluatorActivationRuleSchema>;
   now?: Date;
 }) {
   return prisma.$transaction(async (tx) => {
@@ -40,16 +40,16 @@ export async function activateEvaluator({
       throw new InvalidRequestError("Evaluator is already active");
     }
 
-    const runScope =
-      scope.mode === "existing"
+    const evaluationRule =
+      rule.mode === "existing"
         ? await tx.evalRunScope.findFirst({
-            where: { id: scope.runScopeId, projectId },
+            where: { id: rule.ruleId, projectId },
           })
         : await tx.evalRunScope.create({
             data: {
               projectId,
               createdByUserId,
-              name: `Evaluator scope ${now.toISOString()}`,
+              name: `Evaluator rule ${now.toISOString()}`,
               targetObject: evaluator.targetObject,
               filter: z.array(singleFilter).parse(evaluator.filter),
               sampling: evaluator.sampling,
@@ -57,26 +57,28 @@ export async function activateEvaluator({
             },
           });
 
-    if (!runScope) {
-      throw new LangfuseNotFoundError("Run scope not found");
+    if (!evaluationRule) {
+      throw new LangfuseNotFoundError("Evaluation rule not found");
     }
-    if (runScope.targetObject !== evaluator.targetObject) {
+    if (evaluationRule.targetObject !== evaluator.targetObject) {
       throw new InvalidRequestError(
-        "The selected scope targets a different data type",
+        "The selected rule uses a different data type",
       );
     }
-    const runScopeFilter = z.array(singleFilter).parse(runScope.filter);
+    const evaluationRuleFilter = z
+      .array(singleFilter)
+      .parse(evaluationRule.filter);
 
     await tx.evalRunScopeAssignment.upsert({
       where: {
         jobConfigurationId_runScopeId: {
           jobConfigurationId: evaluator.id,
-          runScopeId: runScope.id,
+          runScopeId: evaluationRule.id,
         },
       },
       create: {
         jobConfigurationId: evaluator.id,
-        runScopeId: runScope.id,
+        runScopeId: evaluationRule.id,
       },
       update: {},
     });
@@ -84,10 +86,10 @@ export async function activateEvaluator({
     const updated = await tx.jobConfiguration.update({
       where: { id: evaluator.id, projectId },
       data: {
-        targetObject: runScope.targetObject,
-        filter: runScopeFilter,
-        sampling: runScope.sampling,
-        delay: runScope.delay,
+        targetObject: evaluationRule.targetObject,
+        filter: evaluationRuleFilter,
+        sampling: evaluationRule.sampling,
+        delay: evaluationRule.delay,
         status: JobConfigState.ACTIVE,
         timeScope: ["NEW"],
         blockedAt: null,
@@ -96,6 +98,6 @@ export async function activateEvaluator({
       },
     });
 
-    return { id: updated.id, runScopeId: runScope.id };
+    return { id: updated.id, ruleId: evaluationRule.id };
   });
 }

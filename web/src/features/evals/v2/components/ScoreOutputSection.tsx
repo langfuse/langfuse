@@ -208,18 +208,20 @@ function LabelWithTooltip({
   children,
 }: {
   htmlFor?: string;
-  tooltip: ReactNode;
+  tooltip: ReactNode | null;
   children: ReactNode;
 }) {
   return (
     <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
       {children}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
-      </Tooltip>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : null}
     </Label>
   );
 }
@@ -396,7 +398,13 @@ export function ScoreOutputSection({
   return (
     <div className="@container flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <LabelWithTooltip tooltip="Choose the value the evaluator returns and how that value is constrained or mapped.">
+        <LabelWithTooltip
+          tooltip={
+            readOnly
+              ? null
+              : "Choose the value the evaluator returns and how that value is constrained or mapped."
+          }
+        >
           Score output
         </LabelWithTooltip>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -582,7 +590,13 @@ export function ScoreOutputSection({
         {advancedOpen && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <LabelWithTooltip tooltip="How the score field is described to the judge. Leave empty to use the text generated from the settings above.">
+              <LabelWithTooltip
+                tooltip={
+                  readOnly
+                    ? null
+                    : "How the score field is described to the judge. Leave empty to use the text generated from the settings above."
+                }
+              >
                 Score description
               </LabelWithTooltip>
               <Textarea
@@ -597,7 +611,13 @@ export function ScoreOutputSection({
             </div>
 
             <div className="flex flex-col gap-2">
-              <LabelWithTooltip tooltip="Tells the judge what its written reasoning should cover.">
+              <LabelWithTooltip
+                tooltip={
+                  readOnly
+                    ? null
+                    : "Tells the judge what its written reasoning should cover."
+                }
+              >
                 Reasoning description
               </LabelWithTooltip>
               <Textarea

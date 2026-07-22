@@ -82,7 +82,7 @@ describe("Production Dependency Factories Integration Tests", () => {
             variableMapping: [],
           },
         });
-        const runScope = await prisma.evalRunScope.create({
+        const rule = await prisma.evalRunScope.create({
           data: {
             projectId,
             name: `scope-${randomUUID()}`,
@@ -104,7 +104,7 @@ describe("Production Dependency Factories Integration Tests", () => {
           id: jobExecutionId,
           projectId,
           jobConfigurationId: jobConfig.id,
-          runScopeId: runScope.id,
+          ruleId: rule.id,
           jobInputTraceId: traceId,
           jobInputObservationId: observationId,
           jobTemplateId: null,
@@ -123,7 +123,7 @@ describe("Production Dependency Factories Integration Tests", () => {
         expect(dbRecord).not.toBeNull();
         expect(dbRecord?.projectId).toBe(projectId);
         expect(dbRecord?.jobConfigurationId).toBe(jobConfig.id);
-        expect(dbRecord?.runScopeId).toBe(runScope.id);
+        expect(dbRecord?.runScopeId).toBe(rule.id);
         expect(dbRecord?.jobInputTraceId).toBe(traceId);
         expect(dbRecord?.jobInputObservationId).toBe(observationId);
         expect(dbRecord?.status).toBe("PENDING");

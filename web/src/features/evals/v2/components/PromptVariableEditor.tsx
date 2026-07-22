@@ -12,12 +12,9 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { cn } from "@/src/utils/tailwind";
 
-// Prompts are prose, not code: use the app font instead of the editor's
-// monospace default (which lives on .cm-scroller), and match the text inset
-// of the neighboring form controls (px-3 triggers) instead of the editor's
-// narrow code gutter padding.
+// Match the text inset of the neighboring form controls (px-3 triggers)
+// instead of the editor's narrow code gutter padding.
 const promptFontTheme = EditorView.theme({
-  ".cm-scroller": { fontFamily: "inherit" },
   ".cm-content": { padding: "8px 0" },
   ".cm-line": { padding: "0 12px" },
 });
@@ -36,7 +33,7 @@ function truncateLabel(label: string, max = 36): string {
 }
 
 // Linter-style token highlighting for {{variable}}: healthy variables are
-// plain accent-colored mono text, broken/unmapped ones get an amber wavy
+// accent-colored prose text, broken/unmapped ones get an amber wavy
 // underline (the universal "there's a problem here" editor idiom). The
 // binding itself lives in the variable mapping panel — here it only appears in the
 // hover title, plus click-to-jump.
@@ -84,11 +81,10 @@ function createVariableHighlighter(
 }
 
 const variableTheme = EditorView.baseTheme({
-  // Syntax-highlighted token, not a widget: mono accent text that stays in
+  // Syntax-highlighted token, not a widget: accent text that stays in
   // the prose flow. The pointer cursor is the only hint it's clickable.
   ".cm-eval-variable": {
-    fontFamily:
-      "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+    fontFamily: "inherit",
     fontSize: "0.8125rem",
     fontWeight: "600",
     color: "hsl(var(--primary-accent))",
@@ -259,6 +255,7 @@ export function PromptVariableEditor({
           minHeight={140}
           maxHeight="50dvh"
           lineNumbers={false}
+          fontFamily="sans"
           extensions={extensions}
           className={cn(!readOnly && "rounded-t-none", "text-sm")}
         />

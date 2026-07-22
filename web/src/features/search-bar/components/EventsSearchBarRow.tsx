@@ -43,6 +43,7 @@ export function EventsSearchBarRow({
   onRequestColumns,
   aiDataContext,
   className,
+  composerSurfaceClassName,
   savedQueries,
   onPickSavedQuery,
   aiScoreNames,
@@ -81,6 +82,8 @@ export function EventsSearchBarRow({
   /** Overrides the wrapper padding when the row is embedded outside a table
    *  toolbar (e.g. inside a form), where the toolbar-aligned inset is off. */
   className?: string;
+  /** Overrides the composer surface spacing for embedded form layouts. */
+  composerSurfaceClassName?: string;
   /** Host-provided saved queries shown as an empty-bar autocomplete section;
    *  picking one calls onPickSavedQuery(id). See SearchComposer. */
   savedQueries?: {
@@ -129,6 +132,7 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            surfaceClassName={composerSurfaceClassName}
             savedQueries={savedQueries}
             onPickSavedQuery={onPickSavedQuery}
           />

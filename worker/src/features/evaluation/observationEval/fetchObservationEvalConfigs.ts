@@ -97,7 +97,7 @@ export async function fetchObservationEvalConfigs(
     return {
       ...config,
       evalTemplate: config.evalTemplate,
-      targetingScopes: config.runScopeAssignments.map(
+      evaluationRules: config.runScopeAssignments.map(
         (assignment) => assignment.runScope,
       ),
     };

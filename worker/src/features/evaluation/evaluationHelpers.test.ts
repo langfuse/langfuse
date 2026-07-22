@@ -348,7 +348,7 @@ describe("evaluation helpers", () => {
       const params = {
         jobExecutionId: "exec-123",
         jobConfigurationId: "config-456",
-        runScopeId: "scope-789",
+        ruleId: "scope-789",
         targetTraceId: "trace-789",
         targetObservationId: "obs-abc",
         targetDatasetItemId: "dataset-def",

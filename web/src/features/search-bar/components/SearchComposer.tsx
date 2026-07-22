@@ -297,6 +297,7 @@ export function SearchComposer({
   onPickSavedQuery,
   fieldReason,
   freeTextReason,
+  surfaceClassName,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -329,6 +330,8 @@ export function SearchComposer({
   fieldReason?: (field: string) => string | null;
   /** Reason free-text tokens are not applied on the current surface, or null. */
   freeTextReason?: string | null;
+  /** Host-specific spacing for the composer surface. */
+  surfaceClassName?: string;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -1314,6 +1317,7 @@ export function SearchComposer({
           onActivateAi !== undefined && !showGlobalDiagnostics
             ? "pr-20"
             : "pr-8",
+          surfaceClassName,
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",

@@ -290,7 +290,7 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
 
-    it("should record the attached scope that matched", async () => {
+    it("should record the attached rule that matched", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation({ environment: "production" });
       const sampling = {
@@ -301,9 +301,9 @@ describe("scheduleObservationEvals", () => {
         observation,
         configs: [
           createMockConfig({
-            targetingScopes: [
+            evaluationRules: [
               {
-                id: "staging-scope",
+                id: "staging-rule",
                 enabled: true,
                 targetObject: EvalTargetObject.EVENT,
                 sampling,
@@ -317,7 +317,7 @@ describe("scheduleObservationEvals", () => {
                 ],
               },
               {
-                id: "production-scope",
+                id: "production-rule",
                 enabled: true,
                 targetObject: EvalTargetObject.EVENT,
                 sampling,
@@ -338,18 +338,18 @@ describe("scheduleObservationEvals", () => {
 
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
-        expect.objectContaining({ runScopeId: "production-scope" }),
+        expect.objectContaining({ ruleId: "production-rule" }),
       );
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
     });
 
-    it("should schedule one execution per matching evaluator-scope pair", async () => {
+    it("should schedule one execution per matching evaluator-rule pair", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
       const config = createMockConfig({
-        targetingScopes: [
+        evaluationRules: [
           {
-            id: "scope-a",
+            id: "rule-a",
             enabled: true,
             targetObject: EvalTargetObject.EVENT,
             sampling: {
@@ -358,7 +358,7 @@ describe("scheduleObservationEvals", () => {
             filter: [],
           },
           {
-            id: "scope-b",
+            id: "rule-b",
             enabled: true,
             targetObject: EvalTargetObject.EVENT,
             sampling: {
@@ -379,19 +379,19 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
 
-      for (const [index, runScopeId] of ["scope-a", "scope-b"].entries()) {
+      for (const [index, ruleId] of ["rule-a", "rule-b"].entries()) {
         const jobExecutionId = createW3CTraceId(
           JSON.stringify([
             "observation-eval",
             config.id,
-            runScopeId,
+            ruleId,
             observation.trace_id,
             observation.span_id,
           ]),
         );
         expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
           index + 1,
-          expect.objectContaining({ id: jobExecutionId, runScopeId }),
+          expect.objectContaining({ id: jobExecutionId, ruleId }),
         );
         expect(schedulerDeps.enqueueEvalJob).toHaveBeenNthCalledWith(
           index + 1,
@@ -400,7 +400,7 @@ describe("scheduleObservationEvals", () => {
       }
     });
 
-    it("should skip disabled scopes without falling back to the evaluator config", async () => {
+    it("should skip disabled rules without falling back to the evaluator config", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       const observation = createMockObservation();
 
@@ -408,9 +408,9 @@ describe("scheduleObservationEvals", () => {
         observation,
         configs: [
           createMockConfig({
-            targetingScopes: [
+            evaluationRules: [
               {
-                id: "disabled-scope",
+                id: "disabled-rule",
                 enabled: false,
                 targetObject: EvalTargetObject.EVENT,
                 sampling: {

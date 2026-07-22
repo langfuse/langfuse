@@ -39,7 +39,7 @@ export type ObservationEvalConfig = Pick<
   | "blockedAt"
 > & {
   evalTemplate: Pick<EvalTemplate, "type">;
-  targetingScopes?: Array<
+  evaluationRules?: Array<
     Pick<
       EvalRunScope,
       "id" | "enabled" | "filter" | "sampling" | "targetObject"
@@ -57,7 +57,7 @@ export interface ObservationEvalSchedulerDeps {
     id: string;
     projectId: string;
     jobConfigurationId: string;
-    runScopeId?: string;
+    ruleId?: string;
     jobInputTraceId: string;
     jobInputObservationId: string;
     jobTemplateId: string | null;

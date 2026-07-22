@@ -1,91 +1,66 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronsUpDown, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronsUpDown, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
-  RuleSetupForm,
+  EvaluatorSetupForm,
   type CatalogTemplate,
-  type RuleSetupScopeControls,
-} from "@/src/features/evals/v2/components/RuleSetupForm";
-import { generateRunScopeName } from "@/src/features/evals/v2/components/RunScopeSection";
+  type EvaluatorSetupRuleControls,
+} from "@/src/features/evals/v2/components/EvaluatorSetupForm";
+import {
+  ConfirmEvaluationRuleAttachmentDialog,
+  ConfirmEvaluationRuleDetachmentDialog,
+} from "@/src/features/evals/v2/components/EvaluatorEditRuleDialogs";
+import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
+import { EvaluationRulePicker } from "@/src/features/evals/v2/components/EvaluationRulePicker";
 import { api } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type ObservationVariableMapping } from "@langfuse/shared";
 
-type RunScope = {
+type EvaluationRule = {
   id: string;
   name: string;
-  filter: RuleSetupScopeControls["filterState"];
+  filter: EvaluatorSetupRuleControls["filterState"];
   sampling: number;
 };
 
-type ScopeControlsProps = RuleSetupScopeControls & {
-  customFiltersDirty: boolean;
-  initiallyAttachedScopeIds: string[];
-  pendingAttachedScopeIds: string[];
-  selectedScopeId: string | null;
-  scopes: RunScope[];
-  onSelectScope: (scopeId: string) => void;
-  onSelectCustomFilters: () => void;
+type RuleControlsProps = EvaluatorSetupRuleControls & {
+  attachedRuleIds: string[];
+  selectedRuleId: string | null;
+  rules: EvaluationRule[];
+  onSelectRule: (rule: EvaluationRule) => void;
+  onRequestAttach: (rule: EvaluationRule) => void;
+  onCreateRule: () => void;
   onSelectOverview: () => void;
 };
 
 function FilterSourcePicker({
-  customFiltersDirty,
-  initiallyAttachedScopeIds,
-  pendingAttachedScopeIds,
-  selectedScopeId,
-  scopes,
+  attachedRuleIds,
+  selectedRuleId,
+  rules,
   setFilterState,
   setSampling,
-  onSelectScope,
-  onSelectCustomFilters,
+  onSelectRule,
+  onRequestAttach,
+  onCreateRule,
   onSelectOverview,
-}: ScopeControlsProps) {
-  const [open, setOpen] = useState(false);
-  const attachedScopes = scopes.filter((scope) =>
-    pendingAttachedScopeIds.includes(scope.id),
+}: RuleControlsProps) {
+  const attachedRules = rules.filter((rule) =>
+    attachedRuleIds.includes(rule.id),
   );
-  const availableScopes = scopes.filter(
-    (scope) => !pendingAttachedScopeIds.includes(scope.id),
+  const availableRules = rules.filter(
+    (rule) => !attachedRuleIds.includes(rule.id),
   );
-  const selectedScopeLabel =
-    scopes.find((scope) => scope.id === selectedScopeId)?.name ??
-    (selectedScopeId === null && customFiltersDirty ? "New scope" : null);
-  const attachedScopeCountLabel = `${pendingAttachedScopeIds.length} attached scope${pendingAttachedScopeIds.length === 1 ? "" : "s"}`;
+  const selectedRuleLabel =
+    rules.find((rule) => rule.id === selectedRuleId)?.name ?? null;
+  const attachedRuleCountLabel = `${attachedRuleIds.length} rule${attachedRuleIds.length === 1 ? "" : "s"}`;
 
-  const selectScope = (scope: RunScope) => {
-    setFilterState(scope.filter);
-    setSampling(scope.sampling);
-    onSelectScope(scope.id);
-    setOpen(false);
+  const selectRule = (rule: EvaluationRule) => {
+    setFilterState(rule.filter);
+    setSampling(rule.sampling);
+    onSelectRule(rule);
   };
 
   const selectOverview = () => {
@@ -95,203 +70,43 @@ function FilterSourcePicker({
   };
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            role="combobox"
-            aria-expanded={open}
-            className="h-8 w-fit max-w-full min-w-0 justify-between font-normal"
-            title={selectedScopeLabel ?? attachedScopeCountLabel}
-          >
-            {selectedScopeLabel ? (
-              <span className="max-w-64 truncate" title={selectedScopeLabel}>
-                {selectedScopeLabel}
+    <EvaluationRulePicker
+      trigger={(open) => (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-label="Select evaluation rule"
+          aria-expanded={open}
+          className="h-8 w-fit max-w-full min-w-0 justify-between font-normal"
+          title={selectedRuleLabel ?? attachedRuleCountLabel}
+        >
+          <span className="flex min-w-0 items-center">
+            {selectedRuleLabel ? (
+              <span className="max-w-64 truncate" title={selectedRuleLabel}>
+                {selectedRuleLabel}
               </span>
             ) : (
               <>
-                <span className="whitespace-nowrap">Attached scopes</span>
+                <span className="whitespace-nowrap">Rules</span>
                 <span className="bg-muted ml-2 rounded-sm px-1.5 py-0.5 text-xs tabular-nums">
-                  {pendingAttachedScopeIds.length}
+                  {attachedRuleIds.length}
                 </span>
               </>
             )}
             <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-96 p-0">
-          <Command>
-            <CommandInput placeholder="Find or attach a run scope..." />
-            <CommandList>
-              <CommandEmpty>No run scope found.</CommandEmpty>
-              <CommandGroup>
-                <CommandItem
-                  value="new scope custom filters"
-                  onSelect={() => {
-                    if (selectedScopeId === null && customFiltersDirty) {
-                      setOpen(false);
-                      return;
-                    }
-                    setFilterState([]);
-                    setSampling(1);
-                    onSelectCustomFilters();
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "h-4 w-4",
-                      selectedScopeId === null && customFiltersDirty
-                        ? "opacity-100"
-                        : "opacity-0",
-                    )}
-                  />
-                  New scope
-                </CommandItem>
-              </CommandGroup>
-              {attachedScopes.length > 0 ? (
-                <CommandGroup heading="Attached run scopes">
-                  {attachedScopes.map((scope) => (
-                    <CommandItem
-                      key={scope.id}
-                      value={`${scope.name} ${scope.id}`}
-                      onSelect={() => selectScope(scope)}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          selectedScopeId === scope.id
-                            ? "opacity-100"
-                            : "opacity-0",
-                        )}
-                      />
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        title={scope.name}
-                      >
-                        {scope.name}
-                      </span>
-                      {!initiallyAttachedScopeIds.includes(scope.id) ? (
-                        <span className="text-muted-foreground text-xs">
-                          New
-                        </span>
-                      ) : null}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              ) : null}
-              <CommandGroup heading="Attach a run scope">
-                {availableScopes.map((scope) => (
-                  <CommandItem
-                    key={scope.id}
-                    value={`${scope.name} ${scope.id}`}
-                    onSelect={() => selectScope(scope)}
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span className="truncate" title={scope.name}>
-                      {scope.name}
-                    </span>
-                  </CommandItem>
-                ))}
-                {availableScopes.length === 0 ? (
-                  <div className="text-muted-foreground px-2 py-1.5 text-sm">
-                    All run scopes are attached
-                  </div>
-                ) : null}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      {selectedScopeLabel ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          aria-label="Clear scope selection"
-          title="Back to attached scopes"
-          onClick={selectOverview}
-        >
-          <X className="h-4 w-4" />
+          </span>
         </Button>
-      ) : null}
-    </div>
-  );
-}
-
-type ScopeSaveDecision =
-  | { type: "create"; name: string }
-  | { type: "discard" }
-  | { type: "cancel" };
-
-function SaveCustomFiltersDialog({
-  open,
-  scopeName,
-  onScopeNameChange,
-  onResolve,
-}: {
-  open: boolean;
-  scopeName: string;
-  onScopeNameChange: (name: string) => void;
-  onResolve: (decision: ScopeSaveDecision) => void;
-}) {
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen) onResolve({ type: "cancel" });
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Save test filters?</DialogTitle>
-          <DialogDescription>
-            These custom filters currently only affect the observation preview
-            and test. Save them as a new run scope to use them with this
-            evaluator.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="new-run-scope-name">Run scope name</Label>
-            <Input
-              id="new-run-scope-name"
-              value={scopeName}
-              onChange={(event) => onScopeNameChange(event.target.value)}
-            />
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onResolve({ type: "cancel" })}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onResolve({ type: "discard" })}
-          >
-            Don’t save filters
-          </Button>
-          <Button
-            type="button"
-            disabled={!scopeName.trim()}
-            onClick={() =>
-              onResolve({ type: "create", name: scopeName.trim() })
-            }
-          >
-            Save as new and attach
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+      attachedRules={attachedRules}
+      availableRules={availableRules}
+      selectedRuleId={selectedRuleId}
+      onSelectAttachedRule={selectRule}
+      onSelectAvailableRule={onRequestAttach}
+      onCreateRule={onCreateRule}
+      onClearSelection={selectedRuleLabel ? selectOverview : undefined}
+    />
   );
 }
 
@@ -302,10 +117,9 @@ export function EvaluatorEditView({
   initialMapping,
   scoreName,
   description,
-  attachedScopeIds,
-  initialRunScopeId,
-  initialNewScope,
-  scopeControlsContainer,
+  attachedRuleIds,
+  initialEvaluationRuleId,
+  ruleControlsContainer,
   onSaved,
   onCancel,
 }: {
@@ -315,142 +129,57 @@ export function EvaluatorEditView({
   initialMapping: ObservationVariableMapping[];
   scoreName: string;
   description: string;
-  attachedScopeIds: string[];
-  initialRunScopeId?: string;
-  initialNewScope?: boolean;
-  scopeControlsContainer?: HTMLElement | null;
+  attachedRuleIds: string[];
+  initialEvaluationRuleId?: string;
+  ruleControlsContainer?: HTMLElement | null;
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const utils = api.useUtils();
-  const runScopes = api.evalsV2.runScopes.useQuery({ projectId });
-  const attachScope = api.evalsV2.attachEvaluatorToRunScope.useMutation({
+  const rules = api.evalsV2.rules.useQuery({ projectId });
+  const attachRule = api.evalsV2.attachEvaluatorToRule.useMutation({
     onError: (error) => trpcErrorToast(error),
   });
-  const detachScope = api.evalsV2.detachEvaluatorFromRunScope.useMutation({
+  const detachRule = api.evalsV2.detachEvaluatorFromRule.useMutation({
     onError: (error) => trpcErrorToast(error),
   });
-  const createScope = api.evalsV2.createRunScope.useMutation({
-    onError: (error) => trpcErrorToast(error),
-  });
-  const [selectedScopeId, setSelectedScopeId] = useState<string | null>(
-    initialNewScope ? null : (initialRunScopeId ?? null),
+  const initialRuleIsAttached = initialEvaluationRuleId
+    ? attachedRuleIds.includes(initialEvaluationRuleId)
+    : false;
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(
+    initialRuleIsAttached ? (initialEvaluationRuleId ?? null) : null,
   );
-  const [pendingAttachedScopeIds, setPendingAttachedScopeIds] =
-    useState(attachedScopeIds);
-  const [selectedScopeFiltersEditable, setSelectedScopeFiltersEditable] =
-    useState(false);
-  const [customFiltersDirty, setCustomFiltersDirty] = useState(
-    Boolean(initialNewScope),
+  const [currentAttachedRuleIds, setCurrentAttachedRuleIds] =
+    useState(attachedRuleIds);
+  const [ruleToAttachId, setRuleToAttachId] = useState<string | null>(
+    initialEvaluationRuleId && !initialRuleIsAttached
+      ? initialEvaluationRuleId
+      : null,
   );
-  const [saveScopeDialogOpen, setSaveScopeDialogOpen] = useState(false);
-  const [newScopeName, setNewScopeName] = useState("");
-  const saveDecisionResolver = useRef<
-    ((decision: ScopeSaveDecision) => void) | null
-  >(null);
+  const [ruleToDetach, setRuleToDetach] = useState<EvaluationRule | null>(null);
+  const [createRuleDialogOpen, setCreateRuleDialogOpen] = useState(false);
 
-  if (runScopes.isPending) {
+  if (rules.isPending) {
     return <Skeleton className="m-6 h-96 w-auto" />;
   }
 
-  const compatibleScopes = (runScopes.data ?? []).filter(
-    (scope) => scope.targetObject === "event",
+  const compatibleRules = (rules.data ?? []).filter(
+    (rule) => rule.targetObject === "event",
   );
-  const selectedScope = compatibleScopes.find(
-    (scope) => scope.id === selectedScopeId,
+  const selectedRule = compatibleRules.find(
+    (rule) => rule.id === selectedRuleId,
+  );
+  const ruleToAttach = compatibleRules.find(
+    (rule) => rule.id === ruleToAttachId,
   );
 
-  const resolveScopeSaveDecision = (decision: ScopeSaveDecision) => {
-    const resolver = saveDecisionResolver.current;
-    if (!resolver) return;
-    saveDecisionResolver.current = null;
-    setSaveScopeDialogOpen(false);
-    resolver(decision);
-  };
-
-  const requestScopeSaveDecision = (
-    filterState: RuleSetupScopeControls["filterState"],
-  ) => {
-    setNewScopeName(
-      generateRunScopeName({
-        filter: filterState,
-        targetObject: "event",
-        existingNames: compatibleScopes.map((scope) => scope.name),
-      }),
-    );
-    setSaveScopeDialogOpen(true);
-    return new Promise<ScopeSaveDecision>((resolve) => {
-      saveDecisionResolver.current = resolve;
-    });
-  };
-
-  const handleBeforeSave = async ({
-    filterState,
-    sampling,
-  }: RuleSetupScopeControls) => {
-    if (customFiltersDirty) {
-      const decision = await requestScopeSaveDecision(filterState);
-      if (decision.type === "cancel") return false;
-      if (decision.type === "create") {
-        await createScope.mutateAsync({
-          projectId,
-          evaluatorId,
-          name: decision.name,
-          targetObject: "event",
-          filter: filterState,
-          sampling,
-        });
-      }
-      setCustomFiltersDirty(false);
-    }
-
-    const scopesToAttach = pendingAttachedScopeIds.filter(
-      (scopeId) => !attachedScopeIds.includes(scopeId),
-    );
-    const scopesToDetach = attachedScopeIds.filter(
-      (scopeId) => !pendingAttachedScopeIds.includes(scopeId),
-    );
-    await Promise.all([
-      ...scopesToAttach.map((runScopeId) =>
-        attachScope.mutateAsync({ projectId, evaluatorId, runScopeId }),
-      ),
-      ...scopesToDetach.map((runScopeId) =>
-        detachScope.mutateAsync({ projectId, evaluatorId, runScopeId }),
-      ),
-    ]);
-    await Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]);
-    return true;
-  };
-
-  const handleSelectNewScope = () => {
-    if (selectedScopeId && !attachedScopeIds.includes(selectedScopeId)) {
-      setPendingAttachedScopeIds((current) =>
-        current.filter((scopeId) => scopeId !== selectedScopeId),
-      );
-    }
-    setSelectedScopeId(null);
-    setSelectedScopeFiltersEditable(false);
-    setCustomFiltersDirty(true);
-  };
-
-  const handleSelectScopeOverview = () => {
-    if (selectedScopeId && !attachedScopeIds.includes(selectedScopeId)) {
-      setPendingAttachedScopeIds((current) =>
-        current.filter((scopeId) => scopeId !== selectedScopeId),
-      );
-    }
-    setSelectedScopeId(null);
-    setSelectedScopeFiltersEditable(false);
-    setCustomFiltersDirty(false);
-  };
-
-  const handleFiltersEdited = () => {
-    setCustomFiltersDirty(true);
+  const handleSelectRuleOverview = () => {
+    setSelectedRuleId(null);
   };
 
   return (
     <>
-      <RuleSetupForm
+      <EvaluatorSetupForm
         projectId={projectId}
         sourceTemplate={sourceTemplate}
         initialEvaluatorType={sourceTemplate.type === "CODE" ? "code" : "llm"}
@@ -459,98 +188,128 @@ export function EvaluatorEditView({
         mode="edit"
         evaluatorId={evaluatorId}
         initialMapping={initialMapping}
-        initialFilterState={selectedScope?.filter ?? []}
-        initialSampling={selectedScope?.sampling ?? 1}
-        filterEditingDisabled={
-          selectedScopeId !== null && !selectedScopeFiltersEditable
-        }
-        activeFilterSourceLabel={selectedScope?.name}
-        renderScopeControls={(controls) =>
-          scopeControlsContainer
+        initialFilterState={selectedRule?.filter ?? []}
+        initialSampling={selectedRule?.sampling ?? 1}
+        filterEditingDisabled={selectedRuleId !== null}
+        activeFilterSourceLabel={selectedRule?.name}
+        ruleEditorExpanded={!createRuleDialogOpen}
+        renderRuleControls={(controls) =>
+          ruleControlsContainer
             ? createPortal(
                 <>
                   <FilterSourcePicker
                     {...controls}
-                    customFiltersDirty={customFiltersDirty}
-                    initiallyAttachedScopeIds={attachedScopeIds}
-                    pendingAttachedScopeIds={pendingAttachedScopeIds}
-                    selectedScopeId={selectedScopeId}
-                    scopes={compatibleScopes}
-                    onSelectScope={(scopeId) => {
-                      setSelectedScopeId(scopeId);
-                      setPendingAttachedScopeIds((current) =>
-                        current.includes(scopeId)
-                          ? current
-                          : [...current, scopeId],
-                      );
-                      setSelectedScopeFiltersEditable(false);
-                      setCustomFiltersDirty(false);
+                    attachedRuleIds={currentAttachedRuleIds}
+                    selectedRuleId={selectedRuleId}
+                    rules={compatibleRules}
+                    onSelectRule={(rule) => {
+                      setSelectedRuleId(rule.id);
                     }}
-                    onSelectCustomFilters={handleSelectNewScope}
-                    onSelectOverview={handleSelectScopeOverview}
+                    onRequestAttach={(rule) => setRuleToAttachId(rule.id)}
+                    onCreateRule={() => setCreateRuleDialogOpen(true)}
+                    onSelectOverview={handleSelectRuleOverview}
+                  />
+                  <ConfirmEvaluationRuleAttachmentDialog
+                    projectId={projectId}
+                    evaluatorId={evaluatorId}
+                    rule={ruleToAttach ?? null}
+                    isCodeEvaluator={sourceTemplate.type === "CODE"}
+                    open={ruleToAttach !== undefined}
+                    onOpenChange={(open) => {
+                      if (!open) setRuleToAttachId(null);
+                    }}
+                    loading={attachRule.isPending}
+                    onConfirm={async () => {
+                      if (!ruleToAttach) return;
+                      try {
+                        await attachRule.mutateAsync({
+                          projectId,
+                          evaluatorId,
+                          ruleId: ruleToAttach.id,
+                        });
+                      } catch {
+                        return;
+                      }
+                      controls.setFilterState(ruleToAttach.filter);
+                      controls.setSampling(ruleToAttach.sampling);
+                      setSelectedRuleId(ruleToAttach.id);
+                      setCurrentAttachedRuleIds((current) =>
+                        current.includes(ruleToAttach.id)
+                          ? current
+                          : [...current, ruleToAttach.id],
+                      );
+                      setRuleToAttachId(null);
+                      await Promise.all([
+                        utils.evals.invalidate(),
+                        utils.evalsV2.invalidate(),
+                      ]).catch(() => undefined);
+                    }}
                   />
                 </>,
-                scopeControlsContainer,
+                ruleControlsContainer,
               )
             : null
         }
         renderFilterActions={({ setFilterState, setSampling }) =>
-          selectedScopeId ? (
-            <div className="flex shrink-0 items-center gap-0">
+          selectedRuleId ? (
+            <>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-xs"
                 className="shrink-0"
-                aria-label="Edit run scope filters"
-                title="Edit run scope filters"
-                onClick={() => setSelectedScopeFiltersEditable(true)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="shrink-0"
-                aria-label={
-                  attachedScopeIds.includes(selectedScopeId)
-                    ? "Detach run scope"
-                    : "Cancel run scope attachment"
-                }
-                title={
-                  attachedScopeIds.includes(selectedScopeId)
-                    ? "Detach run scope"
-                    : "Cancel run scope attachment"
-                }
-                onClick={() => {
-                  setPendingAttachedScopeIds((current) =>
-                    current.filter((id) => id !== selectedScopeId),
-                  );
-                  setSelectedScopeId(null);
-                  setSelectedScopeFiltersEditable(false);
-                  setFilterState([]);
-                  setSampling(1);
-                  setCustomFiltersDirty(false);
-                }}
+                aria-label="Detach evaluator from rule"
+                title="Detach evaluator from rule"
+                onClick={() => setRuleToDetach(selectedRule ?? null)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
-            </div>
+              <ConfirmEvaluationRuleDetachmentDialog
+                rule={ruleToDetach}
+                isOnlyAttachedRule={currentAttachedRuleIds.length === 1}
+                open={ruleToDetach !== null}
+                onOpenChange={(open) => {
+                  if (!open) setRuleToDetach(null);
+                }}
+                loading={detachRule.isPending}
+                onConfirm={async () => {
+                  if (!ruleToDetach) return;
+                  try {
+                    await detachRule.mutateAsync({
+                      projectId,
+                      evaluatorId,
+                      ruleId: ruleToDetach.id,
+                    });
+                  } catch {
+                    return;
+                  }
+                  setCurrentAttachedRuleIds((current) =>
+                    current.filter((id) => id !== ruleToDetach.id),
+                  );
+                  setSelectedRuleId(null);
+                  setFilterState([]);
+                  setSampling(1);
+                  setRuleToDetach(null);
+                  await Promise.all([
+                    utils.evals.invalidate(),
+                    utils.evalsV2.invalidate(),
+                  ]).catch(() => undefined);
+                }}
+              />
+            </>
           ) : null
         }
-        onFiltersEdited={handleFiltersEdited}
-        onBeforeSave={handleBeforeSave}
         onSaved={onSaved}
         onCancel={onCancel}
       />
 
-      <SaveCustomFiltersDialog
-        open={saveScopeDialogOpen}
-        scopeName={newScopeName}
-        onScopeNameChange={setNewScopeName}
-        onResolve={resolveScopeSaveDecision}
-      />
+      {createRuleDialogOpen ? (
+        <CreateEvaluationRuleDialog
+          projectId={projectId}
+          open
+          onOpenChange={setCreateRuleDialogOpen}
+        />
+      ) : null}
     </>
   );
 }

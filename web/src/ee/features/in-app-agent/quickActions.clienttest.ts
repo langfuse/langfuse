@@ -18,6 +18,14 @@ describe("contextual assistant quick actions", () => {
 
   it("returns focused actions only for entity screen context types", () => {
     expect(getInAppAgentFocusedQuickActions("trace")).toBeDefined();
+    expect(
+      getInAppAgentFocusedQuickActions("evaluators-list")?.map(
+        (action) => action.label,
+      ),
+    ).toEqual([
+      "Suggest evaluators based on my traces",
+      "Build an evaluator I have in mind",
+    ]);
     expect(getInAppAgentFocusedQuickActions("trace-list")).toBeUndefined();
     expect(getInAppAgentFocusedQuickActions("page")).toBeUndefined();
   });

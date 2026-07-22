@@ -1,7 +1,7 @@
 export const EVALS_TABS = {
   CONFIGS: "configs",
   TEMPLATES: "templates",
-  SCOPES: "scopes",
+  RULES: "rules",
 } as const;
 
 export type EvalsTab = (typeof EVALS_TABS)[keyof typeof EVALS_TABS];
@@ -13,8 +13,8 @@ export const getEvalsTabs = (projectId: string) => [
     href: `/project/${projectId}/evals`,
   },
   {
-    value: EVALS_TABS.SCOPES,
-    label: "Run Scopes",
-    href: `/project/${projectId}/evals/v2/scopes`,
+    value: EVALS_TABS.RULES,
+    label: "Rules",
+    href: `/project/${projectId}/evals/v2/rules`,
   },
 ];

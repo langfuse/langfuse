@@ -303,7 +303,7 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
 ## Host-provided saved queries (the `saved` section)
 
 Embedding hosts can offer their own saved-query entries as an autocomplete
-section (e.g. the evaluator form's "Shared filters" — reusable run scopes).
+section (e.g. the evaluator form's "Shared filters" — reusable evaluation targets).
 The seam is `InputCompletionContext.saved` (title + items), threaded as
 `savedQueries`/`onPickSavedQuery` through `EventsSearchBarRow` →
 `SearchComposer`. Two rules keep it inside the bar's contract:

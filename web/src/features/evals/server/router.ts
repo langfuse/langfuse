@@ -642,6 +642,8 @@ export const evalRouter = createTRPCRouter({
 
       if (!config) return null;
 
+      const { runScopeAssignments, ...configWithoutRuleAssignments } = config;
+
       const displayStatus = deriveEvaluatorDisplayStateFromExecutionCounts({
         status: config.status,
         blockedAt: config.blockedAt,
@@ -649,7 +651,13 @@ export const evalRouter = createTRPCRouter({
       });
 
       return {
-        ...config,
+        ...configWithoutRuleAssignments,
+        ruleAssignments: runScopeAssignments.map(
+          ({ runScope, ...assignment }) => ({
+            ...assignment,
+            rule: runScope,
+          }),
+        ),
         displayStatus,
       };
     }),

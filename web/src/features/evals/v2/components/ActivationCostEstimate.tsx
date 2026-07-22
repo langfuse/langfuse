@@ -31,7 +31,7 @@ export function ActivationCostEstimate({
   enabled: boolean;
 }) {
   // Keep the 24-hour comparison stable while the modal is open so changing
-  // scopes does not also move the time window underneath the estimate.
+  // rules does not also move the time window underneath the estimate.
   const [since] = useState(() => new Date(Date.now() - ONE_DAY_MS));
   const countFilter = useMemo<FilterState>(
     () => [

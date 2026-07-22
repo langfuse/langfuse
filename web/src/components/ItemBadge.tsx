@@ -39,7 +39,7 @@ export type LangfuseItemType =
   | "PROMPT"
   | "EVALUATOR"
   | "RUNNING_EVALUATOR"
-  | "RUN_SCOPE"
+  | "EVALUATION_RULE"
   | "EXPERIMENT";
 
 const iconMap = {
@@ -62,7 +62,7 @@ const iconMap = {
   ANNOTATION_QUEUE: ListTodo,
   PROMPT: FileText,
   RUNNING_EVALUATOR: Bot,
-  RUN_SCOPE: ListFilter,
+  EVALUATION_RULE: ListFilter,
   EVALUATOR: WandSparkles,
   EXPERIMENT: FlaskConical,
 } as const;
@@ -90,7 +90,7 @@ const iconVariants = cva("h-4 w-4", {
       PROMPT: "text-primary-accent",
       EVALUATOR: "text-primary-accent", // usually text-indigo-600
       RUNNING_EVALUATOR: "text-primary-accent",
-      RUN_SCOPE: "text-primary-accent",
+      EVALUATION_RULE: "text-primary-accent",
       EXPERIMENT: "text-primary-accent",
     },
   },

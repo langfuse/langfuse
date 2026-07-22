@@ -9,7 +9,7 @@ import {
   ResizablePanelGroup,
 } from "@/src/components/ui/resizable";
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
-import { EvaluatorRunScopeAssignments } from "@/src/features/evals/v2/components/EvaluatorRunScopeAssignments";
+import { EvaluatorRuleAssignments } from "@/src/features/evals/v2/components/EvaluatorRuleAssignments";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/PromptVariableEditor";
 import { MAPPABLE_COLUMNS } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import {
@@ -89,6 +89,8 @@ export function EvaluatorDefinitionView({
   usesProjectDefaultModel,
   outputDefinition,
   mappings,
+  showMappings = true,
+  showType = true,
 }: {
   evaluatorType: "LLM_AS_JUDGE" | "CODE";
   sourceCode: string | null;
@@ -98,36 +100,42 @@ export function EvaluatorDefinitionView({
   usesProjectDefaultModel: boolean;
   outputDefinition: unknown;
   mappings: ObservationVariableMapping[];
+  showMappings?: boolean;
+  showType?: boolean;
 }) {
   const isCode = evaluatorType === "CODE";
-  const variableMappings = Object.fromEntries(
-    mappings.map((mapping) => [
-      mapping.templateVariable,
-      mappingLabel(mapping),
-    ]),
-  );
+  const variableMappings = showMappings
+    ? Object.fromEntries(
+        mappings.map((mapping) => [
+          mapping.templateVariable,
+          mappingLabel(mapping),
+        ]),
+      )
+    : {};
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <section className="flex flex-col gap-2">
-        <Label>Evaluator type</Label>
-        <div className="bg-muted flex h-8 w-fit items-center gap-1.5 rounded-md border px-3 text-sm font-bold">
-          {isCode ? (
-            sourceCodeLanguage === "TYPESCRIPT" ? (
-              <SiTypescript className="h-3.5 w-3.5" />
+      {showType ? (
+        <section className="flex flex-col gap-2">
+          <Label>Evaluator type</Label>
+          <div className="bg-muted flex h-8 w-fit items-center gap-1.5 rounded-md border px-3 text-sm font-bold">
+            {isCode ? (
+              sourceCodeLanguage === "TYPESCRIPT" ? (
+                <SiTypescript className="h-3.5 w-3.5" />
+              ) : (
+                <SiPython className="h-3.5 w-3.5" />
+              )
             ) : (
-              <SiPython className="h-3.5 w-3.5" />
-            )
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          {isCode
-            ? sourceCodeLanguage === "TYPESCRIPT"
-              ? "TypeScript"
-              : "Python"
-            : "LLM-as-a-judge"}
-        </div>
-      </section>
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            {isCode
+              ? sourceCodeLanguage === "TYPESCRIPT"
+                ? "TypeScript"
+                : "Python"
+              : "LLM-as-a-judge"}
+          </div>
+        </section>
+      ) : null}
 
       {isCode && sourceCodeLanguage ? (
         <section className="flex flex-col gap-2">
@@ -164,7 +172,7 @@ export function EvaluatorDefinitionView({
               readOnly
             />
           </section>
-          <ReadOnlyMappings mappings={mappings} />
+          {showMappings ? <ReadOnlyMappings mappings={mappings} /> : null}
           <ReadOnlyScoreOutput outputDefinition={outputDefinition} />
         </>
       )}
@@ -183,9 +191,11 @@ export function EvaluatorConfigurationView({
   mappings,
   projectId,
   evaluatorId,
-  attachedRunScopes,
+  evaluatorName,
+  attachedEvaluationRules,
   hasWriteAccess,
-  onAttachRunScope,
+  onViewEvaluationRule,
+  onEditEvaluationRule,
 }: {
   evaluatorType: "LLM_AS_JUDGE" | "CODE";
   sourceCode: string | null;
@@ -197,13 +207,15 @@ export function EvaluatorConfigurationView({
   mappings: ObservationVariableMapping[];
   projectId: string;
   evaluatorId: string;
-  attachedRunScopes: Array<{
+  evaluatorName: string;
+  attachedEvaluationRules: Array<{
     id: string;
     name: string;
     filter: FilterState;
   }>;
   hasWriteAccess: boolean;
-  onAttachRunScope: (runScopeId?: string, createNew?: boolean) => void;
+  onViewEvaluationRule: (ruleId: string) => void;
+  onEditEvaluationRule: (ruleId: string) => void;
 }) {
   return (
     <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
@@ -230,18 +242,21 @@ export function EvaluatorConfigurationView({
       <ResizableHandle withHandle />
 
       <ResizablePanel
-        id="attached-run-scopes"
+        id="attached-evaluation-rules"
         defaultSize="35%"
         minSize="25%"
         className="min-h-0 min-w-0 overflow-y-auto"
       >
         <div className="px-6 py-6">
-          <EvaluatorRunScopeAssignments
+          <EvaluatorRuleAssignments
             projectId={projectId}
             evaluatorId={evaluatorId}
-            runScopes={attachedRunScopes}
+            evaluatorName={evaluatorName}
+            isCodeEvaluator={evaluatorType === "CODE"}
+            rules={attachedEvaluationRules}
             hasWriteAccess={hasWriteAccess}
-            onAttach={onAttachRunScope}
+            onView={onViewEvaluationRule}
+            onEdit={onEditEvaluationRule}
           />
         </div>
       </ResizablePanel>

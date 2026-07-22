@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { History, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, History, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 import Page from "@/src/components/layouts/page";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
@@ -22,9 +23,13 @@ import {
 } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ActivateEvaluatorDialog } from "@/src/features/evals/v2/components/ActivateEvaluatorDialog";
-import { EvaluatorConfigurationView } from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
+import {
+  EvaluatorConfigurationView,
+  EvaluatorDefinitionView,
+} from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
 import { EvaluatorEditView } from "@/src/features/evals/v2/components/EvaluatorEditView";
 import { EvaluatorTitleEditor } from "@/src/features/evals/v2/components/EvaluatorTitleEditor";
+import { TablePeekViewEvaluationRuleDetail } from "@/src/features/evals/v2/components/EvaluationRulePeekView";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -32,16 +37,38 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
+const EVALUATION_RULE_PEEK_CONFIG = {
+  queryParams: ["editRule"],
+  extractParamsValuesFromRow: (row: {
+    openEdit?: boolean;
+  }): Record<string, string> => (row.openEdit ? { editRule: "1" } : {}),
+};
+
+const EVALUATOR_DETAIL_PEEK_QUERY_PARAMS = [
+  "peek",
+  "peekView",
+  "editRule",
+  "observation",
+  "display",
+  "timestamp",
+] as const;
+
 export default function EvaluatorDetailPage() {
   const router = useRouter();
+  const evaluationRulePeekNavigation = usePeekNavigation(
+    EVALUATION_RULE_PEEK_CONFIG,
+  );
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
   const [scoreName, setScoreName] = useState("");
   const [description, setDescription] = useState("");
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
+    null,
+  );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [scopeControlsContainer, setScopeControlsContainer] =
+  const [ruleControlsContainer, setRuleControlsContainer] =
     useState<HTMLDivElement | null>(null);
   const utils = api.useUtils();
   const evaluator = api.evals.configById.useQuery(
@@ -72,11 +99,8 @@ export default function EvaluatorDetailPage() {
 
   const activationDialogOpen = router.query.activate === "1";
   const editMode = router.query.edit === "1";
-  const initialRunScopeId =
-    typeof router.query.runScopeId === "string"
-      ? router.query.runScopeId
-      : undefined;
-  const initialNewScope = router.query.newScope === "1";
+  const initialEvaluationRuleId =
+    typeof router.query.ruleId === "string" ? router.query.ruleId : undefined;
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
@@ -116,22 +140,21 @@ export default function EvaluatorDetailPage() {
       })
       .catch(() => undefined);
   };
-  const setEditMode = (
-    editing: boolean,
-    runScopeId?: string,
-    createNewScope = false,
-  ) => {
+  const redirectToEvaluatorOverview = () => {
+    router.replace(`/project/${projectId}/evals/v2`).catch(() => undefined);
+  };
+  const setEditMode = (editing: boolean, ruleId?: string) => {
     const query = { ...router.query };
+    EVALUATOR_DETAIL_PEEK_QUERY_PARAMS.forEach((param) => delete query[param]);
     if (editing) {
       query.edit = "1";
-      delete query.runScopeId;
-      delete query.newScope;
-      if (runScopeId) query.runScopeId = runScopeId;
-      else if (createNewScope) query.newScope = "1";
+      delete query.ruleId;
+      delete query.newRule;
+      if (ruleId) query.ruleId = ruleId;
     } else {
       delete query.edit;
-      delete query.runScopeId;
-      delete query.newScope;
+      delete query.ruleId;
+      delete query.newRule;
     }
     router
       .replace({ pathname: router.pathname, query }, undefined, {
@@ -182,11 +205,24 @@ export default function EvaluatorDetailPage() {
       : "Project default model"
     : `${template.provider} / ${template.model}`;
   const versions = evaluatorVersions.data?.templates ?? [];
+  const selectedVersion = versions.find(
+    (version) => version.id === selectedVersionId,
+  );
+  const selectedVersionUsesProjectDefaultModel = Boolean(
+    selectedVersion && (!selectedVersion.provider || !selectedVersion.model),
+  );
+  const selectedVersionModelLabel = selectedVersionUsesProjectDefaultModel
+    ? defaultModel.data
+      ? `${defaultModel.data.provider} / ${defaultModel.data.model}`
+      : "Project default model"
+    : selectedVersion
+      ? `${selectedVersion.provider} / ${selectedVersion.model}`
+      : "";
 
   return (
     <Page
       headerProps={{
-        title: `Evaluator: ${scoreName || data.scoreName}`,
+        title: editMode ? "Evaluator:" : `Evaluator: ${data.scoreName}`,
         fitTitleToContent: true,
         titleBadges: editMode ? (
           <EvaluatorTitleEditor
@@ -211,7 +247,7 @@ export default function EvaluatorDetailPage() {
         actionButtonsRight: (
           <div className="flex items-center gap-2">
             {editMode ? (
-              <div className="contents" ref={setScopeControlsContainer} />
+              <div className="contents" ref={setRuleControlsContainer} />
             ) : null}
             <Button
               type="button"
@@ -248,6 +284,7 @@ export default function EvaluatorDetailPage() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     disabled={!hasWriteAccess}
+                    className="text-destructive focus:text-destructive"
                     onSelect={() => setDeleteDialogOpen(true)}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -269,12 +306,9 @@ export default function EvaluatorDetailPage() {
             initialMapping={mappings}
             scoreName={scoreName}
             description={description}
-            attachedScopeIds={data.runScopeAssignments.map(
-              ({ runScope }) => runScope.id,
-            )}
-            initialRunScopeId={initialRunScopeId}
-            initialNewScope={initialNewScope}
-            scopeControlsContainer={scopeControlsContainer}
+            attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
+            initialEvaluationRuleId={initialEvaluationRuleId}
+            ruleControlsContainer={ruleControlsContainer}
             onSaved={() => setEditMode(false)}
             onCancel={() => {
               setScoreName(data.scoreName);
@@ -294,30 +328,44 @@ export default function EvaluatorDetailPage() {
             mappings={mappings}
             projectId={projectId}
             evaluatorId={data.id}
-            attachedRunScopes={data.runScopeAssignments.map(({ runScope }) => ({
-              id: runScope.id,
-              name: runScope.name,
-              filter: z.array(singleFilter).catch([]).parse(runScope.filter),
+            evaluatorName={data.scoreName}
+            attachedEvaluationRules={data.ruleAssignments.map(({ rule }) => ({
+              id: rule.id,
+              name: rule.name,
+              filter: z.array(singleFilter).catch([]).parse(rule.filter),
             }))}
             hasWriteAccess={hasWriteAccess}
-            onAttachRunScope={(runScopeId, createNewScope) =>
-              setEditMode(true, runScopeId, createNewScope)
+            onViewEvaluationRule={(ruleId) =>
+              evaluationRulePeekNavigation.openPeek(ruleId)
+            }
+            onEditEvaluationRule={(ruleId) =>
+              evaluationRulePeekNavigation.openPeek(ruleId, {
+                openEdit: true,
+              })
             }
           />
         )}
       </div>
 
+      {!editMode ? (
+        <TablePeekViewEvaluationRuleDetail
+          itemType="EVALUATION_RULE"
+          projectId={projectId}
+          closePeek={evaluationRulePeekNavigation.closePeek}
+        />
+      ) : null}
+
       <ActivateEvaluatorDialog
         projectId={projectId}
         evaluatorId={data.id}
         evaluatorName={data.scoreName}
-        targetObject={data.targetObject}
         setupFilter={filter}
         setupSampling={sampling}
         testRunCostUsd={testRunCostUsd}
         isCodeEvaluator={template.type === "CODE"}
         open={activationDialogOpen}
         onOpenChange={setActivationDialogOpen}
+        onComplete={redirectToEvaluatorOverview}
       />
 
       <ConfirmDialog
@@ -350,52 +398,99 @@ export default function EvaluatorDetailPage() {
         </div>
       </ConfirmDialog>
 
-      <Sheet open={versionHistoryOpen} onOpenChange={setVersionHistoryOpen}>
-        <SheetContent className="flex flex-col gap-5 overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Evaluator versions</SheetTitle>
-            <SheetDescription>
-              Saved definition versions for {data.scoreName}. Version history is
-              read-only.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-col gap-2">
-            {evaluatorVersions.isPending ? (
-              <>
-                <Skeleton className="h-20 w-full" />
-                <Skeleton className="h-20 w-full" />
-              </>
-            ) : versions.length > 0 ? (
-              versions.map((version) => (
-                <div
-                  key={version.id}
-                  className="flex items-start justify-between gap-3 rounded-md border p-3"
-                >
-                  <div className="min-w-0">
-                    <p
-                      className="truncate text-sm font-bold"
-                      title={`Version ${version.version}`}
+      <Sheet
+        open={versionHistoryOpen}
+        onOpenChange={(open) => {
+          setVersionHistoryOpen(open);
+          if (!open) setSelectedVersionId(null);
+        }}
+      >
+        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-2xl">
+          {selectedVersion ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-fit px-2"
+                onClick={() => setSelectedVersionId(null)}
+              >
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                All versions
+              </Button>
+              <SheetHeader>
+                <SheetTitle>Version {selectedVersion.version}</SheetTitle>
+                <SheetDescription>
+                  Saved {selectedVersion.createdAt.toLocaleString()}. This
+                  definition is read-only.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="pb-6">
+                <EvaluatorDefinitionView
+                  evaluatorType={selectedVersion.type}
+                  sourceCode={selectedVersion.sourceCode}
+                  sourceCodeLanguage={selectedVersion.sourceCodeLanguage}
+                  prompt={selectedVersion.prompt}
+                  modelLabel={selectedVersionModelLabel}
+                  usesProjectDefaultModel={
+                    selectedVersionUsesProjectDefaultModel
+                  }
+                  outputDefinition={selectedVersion.outputDefinition}
+                  mappings={[]}
+                  showMappings={false}
+                  showType={false}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <SheetHeader>
+                <SheetTitle>Evaluator versions</SheetTitle>
+                <SheetDescription>
+                  Saved definition versions for {data.scoreName}. Version
+                  history is read-only.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="flex flex-col gap-2">
+                {evaluatorVersions.isPending ? (
+                  <>
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </>
+                ) : versions.length > 0 ? (
+                  versions.map((version) => (
+                    <button
+                      key={version.id}
+                      type="button"
+                      className="hover:bg-muted/50 flex w-full items-start justify-between gap-3 rounded-md border p-3 text-left transition-colors"
+                      onClick={() => setSelectedVersionId(version.id)}
                     >
-                      Version {version.version}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {version.createdAt.toLocaleString()} ·{" "}
-                      {version.type === "CODE" ? "Code" : "LLM-as-a-judge"}
-                    </p>
-                  </div>
-                  {version.id === template.id ? (
-                    <span className="bg-light-green text-dark-green rounded-md px-2 py-0.5 text-xs font-bold">
-                      Current
-                    </span>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No saved versions found.
-              </p>
-            )}
-          </div>
+                      <div className="min-w-0">
+                        <p
+                          className="truncate text-sm font-bold"
+                          title={`Version ${version.version}`}
+                        >
+                          Version {version.version}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {version.createdAt.toLocaleString()}
+                        </p>
+                      </div>
+                      {version.id === template.id ? (
+                        <span className="bg-light-green text-dark-green rounded-md px-2 py-0.5 text-xs font-bold">
+                          Current
+                        </span>
+                      ) : null}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    No saved versions found.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </SheetContent>
       </Sheet>
     </Page>

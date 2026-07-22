@@ -800,7 +800,7 @@ export function VariableMappingTree({
           <div className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-sm">
             {hasMatchingObservations
               ? "Loading sample data…"
-              : "No observations match the current scope — adjust the filters in step 2."}
+              : "No observations match the current rule — adjust the filters in step 2."}
           </div>
         ) : (
           <div

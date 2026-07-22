@@ -1,8 +1,9 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { type RowSelectionState } from "@tanstack/react-table";
+import { type FilterState } from "@langfuse/shared";
 
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -15,10 +16,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
+import { RelationshipPills } from "@/src/features/evals/v2/components/RelationshipPills";
+import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
+import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { api, type RouterOutputs } from "@/src/utils/api";
+import { usdFormatter } from "@/src/utils/numbers";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type EvaluatorRow = RouterOutputs["evalsV2"]["evaluators"][number];
@@ -32,6 +43,34 @@ function RelativeDate({ date }: { date: Date }) {
       {formatDistanceToNowStrict(date, { addSuffix: true })}
     </span>
   );
+}
+
+export function getEvaluatorScoresHref({
+  projectId,
+  scoreName,
+}: {
+  projectId: string;
+  scoreName: string;
+}) {
+  const filter: FilterState = [
+    {
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: [scoreName],
+    },
+    {
+      column: "source",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["EVAL"],
+    },
+  ];
+
+  return {
+    pathname: `/project/${projectId}/scores`,
+    query: { filter: encodeFiltersGeneric(filter) },
+  };
 }
 
 export function EvaluatorOverviewTable({
@@ -50,6 +89,17 @@ export function EvaluatorOverviewTable({
     { projectId },
     { enabled: Boolean(projectId) },
   );
+  const evaluatorIds = useMemo(
+    () => evaluators.data?.map((evaluator) => evaluator.id) ?? [],
+    [evaluators.data],
+  );
+  const evaluatorCosts = api.evals.costByEvaluatorIds.useQuery(
+    { projectId, evaluatorIds },
+    {
+      enabled: Boolean(projectId) && evaluators.isSuccess,
+      staleTime: 60_000,
+    },
+  );
   const deleteMutation = api.evalsV2.deleteEvaluators.useMutation({
     onError: (error) => trpcErrorToast(error),
     onSuccess: async ({ ids }) => {
@@ -61,7 +111,7 @@ export function EvaluatorOverviewTable({
       });
       await Promise.all([
         utils.evalsV2.evaluators.invalidate({ projectId }),
-        utils.evalsV2.runScopes.invalidate({ projectId }),
+        utils.evalsV2.rules.invalidate({ projectId }),
         utils.evals.invalidate(),
       ]);
     },
@@ -79,7 +129,13 @@ export function EvaluatorOverviewTable({
 
   const columns = useMemo<LangfuseColumnDef<EvaluatorRow>[]>(
     () => [
-      selectActionColumn,
+      {
+        ...selectActionColumn,
+        size: 35,
+        minSize: 35,
+        maxSize: 35,
+        enableResizing: false,
+      },
       {
         accessorKey: "scoreName",
         id: "scoreName",
@@ -108,9 +164,23 @@ export function EvaluatorOverviewTable({
         ),
       },
       {
+        accessorKey: "totalCost",
+        id: "totalCost",
+        header: "Total cost (7d)",
+        size: 120,
+        cell: ({ row }) => {
+          if (evaluatorCosts.isPending) {
+            return <Skeleton className="h-4 w-16" />;
+          }
+
+          const totalCost = evaluatorCosts.data?.[row.original.id];
+          return totalCost == null ? "–" : usdFormatter(totalCost, 2, 4);
+        },
+      },
+      {
         accessorKey: "creator",
         id: "creator",
-        header: "Creator",
+        header: "Created by",
         size: 180,
         cell: ({ row }) => {
           const creator =
@@ -134,34 +204,74 @@ export function EvaluatorOverviewTable({
       {
         accessorKey: "updatedAt",
         id: "updatedAt",
-        header: "Last update",
+        header: "Updated at",
         size: 150,
         cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
-        accessorKey: "usedByCount",
-        id: "usedByCount",
+        accessorKey: "rules",
+        id: "rules",
         header: "Used by",
-        size: 90,
+        size: 220,
+        isFlexWidth: true,
         cell: ({ row }) => (
-          <span className="tabular-nums">
-            {row.original.usedByCount} run scope
-            {row.original.usedByCount === 1 ? "" : "s"}
-          </span>
+          <RelationshipPills
+            items={row.original.rules}
+            totalCount={row.original.ruleCount}
+            emptyLabel="No rules"
+          />
         ),
       },
       {
         accessorKey: "actions",
         id: "actions",
         header: "",
-        size: 52,
+        size: 170,
+        minSize: 170,
+        maxSize: 170,
         enableSorting: false,
         enableResizing: false,
         cell: ({ row }) => (
           <div
-            className="flex justify-end"
+            className="flex justify-end gap-1"
             onClick={(event) => event.stopPropagation()}
           >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                router.push(
+                  getEvaluatorScoresHref({
+                    projectId,
+                    scoreName: row.original.scoreName,
+                  }),
+                )
+              }
+            >
+              View scores
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="View traces"
+                  onClick={() =>
+                    router.push(
+                      getEvaluationRuleTracesHref({
+                        projectId,
+                        evaluatorId: row.original.id,
+                      }),
+                    )
+                  }
+                >
+                  <ListTree className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>View traces</TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -187,7 +297,6 @@ export function EvaluatorOverviewTable({
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!hasWriteAccess}
-                  className="text-destructive focus:text-destructive"
                   onSelect={() => setDeleteIds([row.original.id])}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -199,7 +308,14 @@ export function EvaluatorOverviewTable({
         ),
       },
     ],
-    [hasWriteAccess, projectId, router, selectActionColumn],
+    [
+      evaluatorCosts.data,
+      evaluatorCosts.isPending,
+      hasWriteAccess,
+      projectId,
+      router,
+      selectActionColumn,
+    ],
   );
 
   return (
@@ -256,7 +372,7 @@ export function EvaluatorOverviewTable({
         title={
           deleteIds.length === 1 ? "Delete evaluator?" : "Delete evaluators?"
         }
-        description={`This permanently deletes ${deleteIds.length} evaluator${deleteIds.length === 1 ? "" : "s"} and disconnects their run scopes. This action cannot be undone.`}
+        description={`This permanently deletes ${deleteIds.length} evaluator${deleteIds.length === 1 ? "" : "s"} and detaches ${deleteIds.length === 1 ? "it" : "them"} from every evaluation rule. This action cannot be undone.`}
         confirmLabel={
           deleteIds.length === 1 ? "Delete evaluator" : "Delete evaluators"
         }

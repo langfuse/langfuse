@@ -237,7 +237,7 @@ function TreeSelectorBody({
       <p className="text-muted-foreground p-4 text-center text-sm">
         {hasMatchingObservations
           ? "Loading sample data…"
-          : "No observations match the current scope — adjust the filters in the right pane."}
+          : "No observations match the current rule — adjust the filters in the right pane."}
       </p>
     );
   }
@@ -609,7 +609,7 @@ export function VariableMappingList({
   onDeleteVariable: (variable: string) => void;
   /** The sample observation every variable maps against. */
   sourceObject: Record<string, unknown> | null;
-  /** False when the scope matches nothing — drives the empty state. */
+  /** False when the rule matches nothing — drives the empty state. */
   hasMatchingObservations: boolean;
 }) {
   if (overview.length === 0) {

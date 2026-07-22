@@ -23,7 +23,9 @@ import {
 } from "@langfuse/shared";
 import {
   BatchActionQueue,
-  getCostByRunScopeIds,
+  getCostByEvaluationRuleIds,
+  getExecutionTraceHistoryByEvaluationRuleId,
+  getRecentExecutionTracesByEvaluationRuleIds,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
   invalidateProjectEvalConfigCaches,
@@ -47,48 +49,48 @@ import {
 import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
 import {
   activateEvaluator,
-  EvaluatorActivationScopeSchema,
+  EvaluatorActivationRuleSchema,
 } from "@/src/features/evals/v2/server/evaluatorActivationService";
 import {
-  attachEvaluatorToRunScope,
-  createRunScope,
-  deleteRunScope,
-  deleteRunScopes as deleteRunScopesService,
-  detachEvaluatorFromRunScope,
-  setRunScopesEnabled,
-} from "@/src/features/evals/v2/server/runScopeService";
+  attachEvaluatorToRule,
+  createRule,
+  deleteRule,
+  deleteRules as deleteRulesService,
+  detachEvaluatorFromRule,
+  setRulesEnabled,
+} from "@/src/features/evals/v2/server/evaluationRuleService";
 import { deleteEvaluators } from "@/src/features/evals/v2/server/evaluatorOverviewService";
 
-// "trace" remains readable for scopes saved by the earlier prototype; new
-// scopes are observation ("event") or experiment based.
-const ScopeTargetObjectSchema = z
+// "trace" remains readable for rules saved by the earlier prototype; new
+// rules are observation ("event") or experiment based.
+const EvaluationRuleObjectSchema = z
   .enum(["trace", "event", "experiment"])
   .default("event");
 
-const RunScopeInputSchema = z.discriminatedUnion("mode", [
+const EvaluationRuleInputSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("existing"),
-    runScopeId: z.string(),
+    ruleId: z.string(),
   }),
   z.object({
     mode: z.literal("new"),
     name: z.string().min(1),
-    targetObject: ScopeTargetObjectSchema,
+    targetObject: EvaluationRuleObjectSchema,
     filter: z.array(singleFilter).nullable(),
     sampling: z.number().gt(0).lte(1),
     delay: z.number().gte(0).default(30_000),
   }),
-  // Draft save: the evaluator keeps its scope config on the job row but no
-  // shared scope is created and nothing runs (status is forced INACTIVE).
+  // Draft save: the evaluator keeps its rule config on the job row but no
+  // shared rule is created and nothing runs (status is forced INACTIVE).
   z.object({
     mode: z.literal("none"),
-    targetObject: ScopeTargetObjectSchema,
+    targetObject: EvaluationRuleObjectSchema,
     filter: z.array(singleFilter).nullable(),
     sampling: z.number().gt(0).lte(1),
   }),
 ]);
 
-const CreateRuleSchema = z.object({
+const CreateEvaluatorSchema = z.object({
   projectId: z.string(),
   scoreName: z.string().min(1),
   description: z.string().nullish(),
@@ -107,10 +109,10 @@ const CreateRuleSchema = z.object({
     z.array(variableMapping),
     z.array(observationVariableMapping),
   ]),
-  scope: RunScopeInputSchema,
+  rule: EvaluationRuleInputSchema,
   // Keep evaluating new data as it arrives (timeScope NEW).
   runContinuously: z.boolean().default(true),
-  // One-time backfill (timeScope EXISTING) over the scope's existing matches
+  // One-time backfill (timeScope EXISTING) over the rule's existing matches
   // within [from, to], via an observation batch-evaluation action. maxCount
   // caps how many observations the pass evaluates.
   backfill: z
@@ -213,17 +215,30 @@ export const evalsV2Router = createTRPCRouter({
           updatedAt: true,
           createdByUser: { select: { name: true, email: true } },
           evalTemplate: { select: { type: true } },
+          runScopeAssignments: {
+            orderBy: { createdAt: "asc" },
+            take: 5,
+            select: {
+              runScope: { select: { id: true, name: true } },
+            },
+          },
           _count: { select: { runScopeAssignments: true } },
         },
       });
 
-      return evaluators.map(({ _count, ...evaluator }) => ({
-        ...evaluator,
-        usedByCount: _count.runScopeAssignments,
-      }));
+      return evaluators.map(
+        ({ _count, evalTemplate, runScopeAssignments, ...evaluator }) => {
+          return {
+            ...evaluator,
+            evalTemplate: evalTemplate ? { type: evalTemplate.type } : null,
+            rules: runScopeAssignments.map((assignment) => assignment.runScope),
+            ruleCount: _count.runScopeAssignments,
+          };
+        },
+      );
     }),
 
-  runScopes: protectedProjectProcedure
+  rules: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -232,53 +247,58 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const scopes = await ctx.prisma.evalRunScope.findMany({
+      const rules = await ctx.prisma.evalRunScope.findMany({
         where: { projectId: input.projectId },
         orderBy: { createdAt: "desc" },
         include: {
           createdByUser: { select: { name: true, email: true } },
           _count: { select: { evaluatorAssignments: true } },
           evaluatorAssignments: {
+            orderBy: { createdAt: "asc" },
             select: {
               jobConfiguration: {
                 select: { id: true, scoreName: true },
               },
             },
             take: 5,
-          },
-          jobExecutions: {
-            orderBy: { createdAt: "desc" },
-            take: 5,
-            select: {
-              id: true,
-              status: true,
-              createdAt: true,
-              updatedAt: true,
-              executionTraceId: true,
-              jobConfiguration: {
-                select: { id: true, scoreName: true },
-              },
-            },
           },
         },
       });
 
-      return scopes.map((scope) => ({
-        ...scope,
-        sampling: scope.sampling.toNumber(),
-        filter: z.array(singleFilter).catch([]).parse(scope.filter),
-        evaluators: scope.evaluatorAssignments.map(
+      const executionTraces = await getRecentExecutionTracesByEvaluationRuleIds(
+        input.projectId,
+        rules.map((rule) => rule.id),
+      ).catch((error) => {
+        logger.warn(
+          "Could not load evaluation-rule execution traces for overview",
+          { projectId: input.projectId, error },
+        );
+        return [];
+      });
+      const executionTracesByRule = executionTraces.reduce((byRule, trace) => {
+        const traces = byRule.get(trace.ruleId) ?? [];
+        traces.push(trace);
+        byRule.set(trace.ruleId, traces);
+        return byRule;
+      }, new Map<string, typeof executionTraces>());
+
+      return rules.map((rule) => ({
+        ...rule,
+        sampling: rule.sampling.toNumber(),
+        filter: z.array(singleFilter).catch([]).parse(rule.filter),
+        evaluators: rule.evaluatorAssignments.map(
           (assignment) => assignment.jobConfiguration,
         ),
-        evaluatorCount: scope._count.evaluatorAssignments,
+        executionTraces: executionTracesByRule.get(rule.id) ?? [],
+        evaluatorCount: rule._count.evaluatorAssignments,
       }));
     }),
 
-  runScopeCosts: protectedProjectProcedure
+  ruleCosts: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        runScopeIds: z.array(z.string()).max(1_000),
+        ruleIds: z.array(z.string()).max(1_000),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -288,18 +308,18 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const costs = await getCostByRunScopeIds(
+      const costs = await getCostByEvaluationRuleIds(
         input.projectId,
-        input.runScopeIds,
+        input.ruleIds,
       );
 
       return Object.fromEntries(
-        costs.map(({ runScopeId, totalCost }) => [runScopeId, totalCost]),
+        costs.map(({ ruleId, totalCost }) => [ruleId, totalCost]),
       );
     }),
 
-  runScopeById: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), runScopeId: z.string() }))
+  ruleById: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), ruleId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -307,9 +327,10 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:read",
       });
 
-      const runScope = await ctx.prisma.evalRunScope.findFirst({
-        where: { id: input.runScopeId, projectId: input.projectId },
+      const evaluationRule = await ctx.prisma.evalRunScope.findFirst({
+        where: { id: input.ruleId, projectId: input.projectId },
         include: {
+          createdByUser: { select: { name: true, email: true } },
           evaluatorAssignments: {
             orderBy: { createdAt: "asc" },
             select: {
@@ -320,15 +341,48 @@ export const evalsV2Router = createTRPCRouter({
           },
         },
       });
-      if (!runScope) {
-        throw new LangfuseNotFoundError("Run scope not found");
+      if (!evaluationRule) {
+        throw new LangfuseNotFoundError("Evaluation rule not found");
       }
 
+      const now = new Date();
+      const historyStart = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6),
+      );
+      const executionHistoryRows =
+        await getExecutionTraceHistoryByEvaluationRuleId(
+          input.projectId,
+          input.ruleId,
+        ).catch((error) => {
+          logger.warn(
+            "Could not load evaluation-rule execution trace history",
+            {
+              projectId: input.projectId,
+              ruleId: input.ruleId,
+              error,
+            },
+          );
+          return [];
+        });
+      const executionHistory = Array.from({ length: 7 }, (_, index) => {
+        const day = new Date(historyStart);
+        day.setUTCDate(historyStart.getUTCDate() + index);
+        const dayKey = day.toISOString().slice(0, 10);
+        const counts = Object.fromEntries(
+          executionHistoryRows
+            .filter((row) => row.day.toISOString().slice(0, 10) === dayKey)
+            .map((row) => [row.level, row.executionCount]),
+        );
+
+        return { day, counts };
+      });
+
       return {
-        ...runScope,
-        sampling: runScope.sampling.toNumber(),
-        filter: z.array(singleFilter).catch([]).parse(runScope.filter),
-        evaluators: runScope.evaluatorAssignments.map(
+        ...evaluationRule,
+        sampling: evaluationRule.sampling.toNumber(),
+        filter: z.array(singleFilter).catch([]).parse(evaluationRule.filter),
+        executionHistory,
+        evaluators: evaluationRule.evaluatorAssignments.map(
           (assignment) => assignment.jobConfiguration,
         ),
       };
@@ -501,13 +555,13 @@ export const evalsV2Router = createTRPCRouter({
       return { id: evaluator.id };
     }),
 
-  // Assignments read targeting from the scope, so one update applies to every
+  // Assignments read targeting from the rule, so one update applies to every
   // attached evaluator without duplicating the filter onto every job row.
-  updateRunScope: protectedProjectProcedure
+  updateRule: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        runScopeId: z.string(),
+        ruleId: z.string(),
         name: z.string().trim().min(1),
         filter: z.array(singleFilter).nullable(),
         sampling: z.number().gt(0).lte(1),
@@ -520,16 +574,16 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const scope = await ctx.prisma.evalRunScope.findFirst({
-        where: { id: input.runScopeId, projectId: input.projectId },
+      const rule = await ctx.prisma.evalRunScope.findFirst({
+        where: { id: input.ruleId, projectId: input.projectId },
       });
-      if (!scope) {
-        throw new LangfuseNotFoundError("Run scope not found");
+      if (!rule) {
+        throw new LangfuseNotFoundError("Evaluation rule not found");
       }
 
       try {
         await ctx.prisma.evalRunScope.update({
-          where: { id: scope.id, projectId: input.projectId },
+          where: { id: rule.id, projectId: input.projectId },
           data: {
             name: input.name,
             filter: input.filter ?? [],
@@ -542,7 +596,7 @@ export const evalsV2Router = createTRPCRouter({
           error.code === "P2002"
         ) {
           throw new LangfuseConflictError(
-            `A run scope named "${input.name}" already exists.`,
+            `An evaluation rule named "${input.name}" already exists.`,
           );
         }
         throw error;
@@ -550,16 +604,16 @@ export const evalsV2Router = createTRPCRouter({
       await auditLog({
         session: ctx.session,
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: scope.id,
+        resourceId: rule.id,
         action: "update",
       });
       await invalidateProjectEvalConfigCaches(input.projectId);
 
-      return { id: scope.id };
+      return { id: rule.id };
     }),
 
-  deleteRunScope: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), runScopeId: z.string() }))
+  deleteRule: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), ruleId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -567,7 +621,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const result = await deleteRunScope({
+      const result = await deleteRule({
         prisma: ctx.prisma,
         ...input,
       });
@@ -582,11 +636,11 @@ export const evalsV2Router = createTRPCRouter({
       return result;
     }),
 
-  setRunScopesEnabled: protectedProjectProcedure
+  setRulesEnabled: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        runScopeIds: z.array(z.string()).min(1),
+        ruleIds: z.array(z.string()).min(1),
         enabled: z.boolean(),
       }),
     )
@@ -597,7 +651,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const ids = await setRunScopesEnabled({
+      const ids = await setRulesEnabled({
         prisma: ctx.prisma,
         ...input,
       });
@@ -616,11 +670,11 @@ export const evalsV2Router = createTRPCRouter({
       return { ids };
     }),
 
-  deleteRunScopes: protectedProjectProcedure
+  deleteRules: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
-        runScopeIds: z.array(z.string()).min(1),
+        ruleIds: z.array(z.string()).min(1),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -630,7 +684,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const ids = await deleteRunScopesService({
+      const ids = await deleteRulesService({
         prisma: ctx.prisma,
         ...input,
       });
@@ -682,14 +736,15 @@ export const evalsV2Router = createTRPCRouter({
       return { ids };
     }),
 
-  createRunScope: protectedProjectProcedure
+  createRule: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         name: z.string().trim().min(1),
-        targetObject: ScopeTargetObjectSchema,
+        targetObject: EvaluationRuleObjectSchema,
         filter: z.array(singleFilter).nullable(),
         sampling: z.number().gt(0).lte(1),
+        enabled: z.boolean(),
         evaluatorId: z.string().optional(),
       }),
     )
@@ -700,7 +755,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const runScope = await createRunScope({
+      const evaluationRule = await createRule({
         prisma: ctx.prisma,
         projectId: input.projectId,
         createdByUserId: ctx.session.user.id,
@@ -708,25 +763,26 @@ export const evalsV2Router = createTRPCRouter({
         targetObject: input.targetObject,
         filter: input.filter ?? [],
         sampling: input.sampling,
+        enabled: input.enabled,
         evaluatorId: input.evaluatorId,
       });
       await auditLog({
         session: ctx.session,
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: input.evaluatorId ?? runScope.id,
+        resourceId: input.evaluatorId ?? evaluationRule.id,
         action: "create",
       });
       await invalidateProjectEvalConfigCaches(input.projectId);
 
-      return { id: runScope.id };
+      return { id: evaluationRule.id };
     }),
 
-  attachEvaluatorToRunScope: protectedProjectProcedure
+  attachEvaluatorToRule: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         evaluatorId: z.string(),
-        runScopeId: z.string(),
+        ruleId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -736,7 +792,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const result = await attachEvaluatorToRunScope({
+      const result = await attachEvaluatorToRule({
         prisma: ctx.prisma,
         ...input,
       });
@@ -750,12 +806,12 @@ export const evalsV2Router = createTRPCRouter({
       return result;
     }),
 
-  detachEvaluatorFromRunScope: protectedProjectProcedure
+  detachEvaluatorFromRule: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         evaluatorId: z.string(),
-        runScopeId: z.string(),
+        ruleId: z.string(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -765,7 +821,7 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      const result = await detachEvaluatorFromRunScope({
+      const result = await detachEvaluatorFromRule({
         prisma: ctx.prisma,
         ...input,
       });
@@ -779,12 +835,12 @@ export const evalsV2Router = createTRPCRouter({
       return result;
     }),
 
-  activateRule: protectedProjectProcedure
+  activateEvaluator: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         evaluatorId: z.string(),
-        scope: EvaluatorActivationScopeSchema,
+        rule: EvaluatorActivationRuleSchema,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -806,15 +862,15 @@ export const evalsV2Router = createTRPCRouter({
         projectId: input.projectId,
         createdByUserId: ctx.session.user.id,
         evaluatorId: input.evaluatorId,
-        scope: input.scope,
+        rule: input.rule,
       });
       await invalidateProjectEvalConfigCaches(input.projectId);
 
       return result;
     }),
 
-  createRule: protectedProjectProcedure
-    .input(CreateRuleSchema)
+  createEvaluator: protectedProjectProcedure
+    .input(CreateEvaluatorSchema)
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -822,97 +878,97 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      // 1. Resolve the run scope (reused or newly saved)
-      let runScopeId: string | null = null;
-      let scopeValues: {
+      // 1. Resolve the evaluation rule (reused or newly saved)
+      let ruleId: string | null = null;
+      let ruleValues: {
         targetObject: string;
         filter: z.infer<typeof singleFilter>[];
         sampling: number;
         delay: number;
       };
 
-      if (input.scope.mode === "existing") {
-        const existingScope = await ctx.prisma.evalRunScope.findFirst({
-          where: { id: input.scope.runScopeId, projectId: input.projectId },
+      if (input.rule.mode === "existing") {
+        const existingRule = await ctx.prisma.evalRunScope.findFirst({
+          where: { id: input.rule.ruleId, projectId: input.projectId },
         });
-        if (!existingScope) {
-          throw new LangfuseNotFoundError("Run scope not found");
+        if (!existingRule) {
+          throw new LangfuseNotFoundError("Evaluation rule not found");
         }
-        runScopeId = existingScope.id;
-        scopeValues = {
-          targetObject: existingScope.targetObject,
-          filter: z.array(singleFilter).parse(existingScope.filter),
-          sampling: existingScope.sampling.toNumber(),
-          delay: existingScope.delay,
+        ruleId = existingRule.id;
+        ruleValues = {
+          targetObject: existingRule.targetObject,
+          filter: z.array(singleFilter).parse(existingRule.filter),
+          sampling: existingRule.sampling.toNumber(),
+          delay: existingRule.delay,
         };
-      } else if (input.scope.mode === "none") {
-        // Draft: keep the config on the job so it isn't lost, create no scope.
-        scopeValues = {
-          targetObject: input.scope.targetObject,
-          filter: input.scope.filter ?? [],
-          sampling: input.scope.sampling,
+      } else if (input.rule.mode === "none") {
+        // Draft: keep the config on the job so it isn't lost, create no rule.
+        ruleValues = {
+          targetObject: input.rule.targetObject,
+          filter: input.rule.filter ?? [],
+          sampling: input.rule.sampling,
           delay: 30_000,
         };
       } else {
         // Prototype: keep search-bar-produced filters as-is when they don't
         // pass strict trace-column validation.
         const filterValidation = validateEvaluatorFiltersForTarget({
-          targetObject: input.scope.targetObject,
-          filter: input.scope.filter ?? [],
+          targetObject: input.rule.targetObject,
+          filter: input.rule.filter ?? [],
         });
         const filter = filterValidation.isValid
           ? (filterValidation.validatedFilters ?? [])
-          : (input.scope.filter ?? []);
+          : (input.rule.filter ?? []);
         if (!filterValidation.isValid) {
           logger.info(
-            "evalsV2.createRule: storing filter without strict validation",
+            "evalsV2.createEvaluator: storing filter without strict validation",
             { issues: filterValidation.issues },
           );
         }
 
-        scopeValues = {
-          targetObject: input.scope.targetObject,
+        ruleValues = {
+          targetObject: input.rule.targetObject,
           filter,
-          sampling: input.scope.sampling,
-          delay: input.scope.delay,
+          sampling: input.rule.sampling,
+          delay: input.rule.delay,
         };
 
         try {
-          const scope = await ctx.prisma.evalRunScope.create({
+          const rule = await ctx.prisma.evalRunScope.create({
             data: {
               projectId: input.projectId,
               createdByUserId: ctx.session.user.id,
-              name: input.scope.name,
-              targetObject: input.scope.targetObject,
+              name: input.rule.name,
+              targetObject: input.rule.targetObject,
               filter: filter,
-              sampling: input.scope.sampling,
-              delay: input.scope.delay,
+              sampling: input.rule.sampling,
+              delay: input.rule.delay,
             },
           });
-          runScopeId = scope.id;
+          ruleId = rule.id;
         } catch (error) {
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === "P2002"
           ) {
             throw new LangfuseConflictError(
-              `A run scope named "${input.scope.name}" already exists — reuse it instead.`,
+              `An evaluation rule named "${input.rule.name}" already exists — reuse it instead.`,
             );
           }
           throw error;
         }
       }
 
-      // A scope-less draft can never run — force it inactive.
+      // A rule-less draft can never run — force it inactive.
       const status =
-        input.scope.mode === "none" ? JobConfigState.INACTIVE : input.status;
+        input.rule.mode === "none" ? JobConfigState.INACTIVE : input.status;
 
-      // Backfill only applies to live observation-target rules. Count the
+      // Backfill only applies to live observation-rule rules. Count the
       // matches first so an over-limit request fails before anything exists.
       const backfill =
         input.backfill &&
         status === JobConfigState.ACTIVE &&
-        scopeValues.targetObject === "event"
+        ruleValues.targetObject === "event"
           ? input.backfill
           : null;
       if (
@@ -926,7 +982,7 @@ export const evalsV2Router = createTRPCRouter({
       }
       const backfillFilter: z.infer<typeof singleFilter>[] = backfill
         ? [
-            ...scopeValues.filter,
+            ...ruleValues.filter,
             {
               column: "startTime",
               type: "datetime",
@@ -940,7 +996,7 @@ export const evalsV2Router = createTRPCRouter({
               value: backfill.to,
             },
           ]
-        : scopeValues.filter;
+        : ruleValues.filter;
       if (backfill) {
         const matchCount = await getObservationsCountFromEventsTable({
           projectId: input.projectId,
@@ -1068,11 +1124,11 @@ export const evalsV2Router = createTRPCRouter({
             evalTemplateId,
             scoreName: input.scoreName,
             description: input.description ?? null,
-            targetObject: scopeValues.targetObject,
-            filter: scopeValues.filter,
+            targetObject: ruleValues.targetObject,
+            filter: ruleValues.filter,
             variableMapping: input.mapping,
-            sampling: scopeValues.sampling,
-            delay: scopeValues.delay,
+            sampling: ruleValues.sampling,
+            delay: ruleValues.delay,
             status,
             timeScope: [
               // Drafts keep NEW so activating them later behaves normally.
@@ -1084,11 +1140,11 @@ export const evalsV2Router = createTRPCRouter({
           },
         });
 
-        if (runScopeId) {
+        if (ruleId) {
           await tx.evalRunScopeAssignment.create({
             data: {
               jobConfigurationId: createdJob.id,
-              runScopeId,
+              runScopeId: ruleId,
             },
           });
         }
@@ -1099,7 +1155,7 @@ export const evalsV2Router = createTRPCRouter({
         await invalidateProjectEvalConfigCaches(input.projectId);
       }
 
-      // 4. Backfill: evaluate the scope's existing matches in [from, to] once,
+      // 4. Backfill: evaluate the rule's existing matches in [from, to] once,
       // via the same batch action the events table's "Run Evaluation" uses.
       if (backfill) {
         const backfillQuery = {
@@ -1145,11 +1201,11 @@ export const evalsV2Router = createTRPCRouter({
         );
       }
 
-      return { id: job.id, runScopeId };
+      return { id: job.id, ruleId };
     }),
 
   // Sample observation for the setup form, read from the events table — the
-  // same store the scope preview lists, so every previewed row resolves.
+  // same store the rule preview lists, so every previewed row resolves.
   sampleObservation: protectedProjectProcedure
     .input(
       z.object({

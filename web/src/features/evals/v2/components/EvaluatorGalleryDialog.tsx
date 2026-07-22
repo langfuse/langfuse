@@ -519,7 +519,7 @@ export function EvaluatorGalleryDialog({
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex flex-1 flex-col gap-4 overflow-y-auto py-4"
+              className="flex flex-1 flex-col gap-6 overflow-y-auto py-4"
             >
               {catalog.isLoading ? (
                 <GallerySkeleton />
