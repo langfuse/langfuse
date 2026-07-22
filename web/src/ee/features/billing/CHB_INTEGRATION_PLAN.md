@@ -1,6 +1,6 @@
 # ClickHouse Billing (CHB) Integration — Implementation Plan
 
-Status: draft for review · Owner: Steffen Schmitz · Last updated: 2026-07-15
+Status: draft for review · Owner: Steffen Schmitz · Last updated: 2026-07-22
 
 ## 1. Context and goal
 
@@ -20,9 +20,11 @@ Source specs:
   (webhook emitters), BIL-5910 (409 on mutations without active payment),
   BIL-5957 (CHB consumes project events — done).
 
-**Goal of this iteration:** every **new customer** whose organization is
-created on or after a configurable cutoff date uses the CHB flow. Every
-existing customer keeps the current Stripe flow, byte-for-byte unchanged.
+**Goal of this iteration:** every **new customer** — any organization that
+starts its **first paid subscription** on or after a configurable cutoff
+date, regardless of when the org itself was created — uses the CHB flow.
+Every existing customer keeps the current Stripe flow, byte-for-byte
+unchanged.
 
 **Non-goals (explicitly out of scope here):**
 
@@ -80,9 +82,11 @@ function getBillingProvider(org: ParsedOrganization): BillingProvider {
     org.cloudConfig?.stripe?.activeSubscriptionId
   )
     return "stripe";
-  // 3. Otherwise the cutoff decides: new orgs → CHB.
-  const cutoff = env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE; // ISO date | undefined
-  if (cutoff && org.createdAt >= new Date(cutoff)) return "clickhouse";
+  // 3. Otherwise the org has never been billed: the cutoff decides at
+  //    upgrade time — first checkouts on/after the cutoff instant go to
+  //    CHB, regardless of when the org was created.
+  const cutoff = env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE; // ISO datetime | undefined
+  if (cutoff && Date.now() >= new Date(cutoff).getTime()) return "clickhouse";
   return "stripe";
 }
 ```
@@ -93,17 +97,18 @@ Properties:
   unless it already carries a `clickhouse` block, which nothing writes until
   the feature is live. This is the kill switch for enabling; see §7 for the
   post-enable kill-switch story.
-- The date check only ever applies to orgs with **no Stripe billing state** —
-  an existing billed customer can never flip providers via config.
+- The cutoff keys on **upgrade time, not org age**: once the cutoff instant
+  passes, every org without existing billing state — including long-standing
+  hobby orgs — starts its first checkout on CHB. "New customer" means *first
+  paid subscription after X*, which also stops the future migration set from
+  growing after X. There is no backward-compat risk in routing old hobby orgs
+  this way: they have no billing state to break.
+- The cutoff branch only ever applies to orgs with **no Stripe billing
+  state** — an existing billed customer can never flip providers via config.
 - The decision becomes **sticky** the moment CHB state is written (first
   checkout stores `clickhouse.organizationId`), so later changes to the cutoff
-  env cannot strand an org mid-flow.
-- Pre-cutoff **hobby** orgs (no Stripe state) stay on the Stripe path and can
-  still check out via Stripe. This matches the "new customer = signs up after
-  X" requirement. Decision knob: we could instead route *any first-ever
-  checkout* after the cutoff to CHB (shrinks the future migration set, no
-  backward-compat risk since these orgs have no billing state). Recommended
-  follow-up once CHB is proven; not in this iteration.
+  env cannot strand an org mid-flow. Until then, resolving to `clickhouse` has
+  no side effects — an org that never checks out never touches CHB.
 
 Interlocks (defense in depth, mirroring the existing manual-`plan`-override
 interlock in `createCheckoutSession`/`changePlan`):
@@ -123,11 +128,17 @@ field (`organizationId`) written by checkout-session creation:
 ```ts
 clickhouse: z
   .object({
-    organizationId: z.string().nullish(), // ClickHouse Organization ID
+    // ClickHouse Organization ID. Required — the block is only ever created
+    // together with it (checkout response / webhook), and it is a uuid.
+    organizationId: z.string().uuid(),
     bundleId: z.string().nullish(),
     planCode: z.string().nullish(),       // "core" | "pro" | "team" | "enterprise"
     paymentStatus: z.string().nullish(),  // "active" | "failed" | ... (kept loose like stripe.subscriptionStatus)
     nextPaymentDate: z.string().nullish(),
+    // Stripe customer behind the CHB bundle (payment.provider.customerId on
+    // bundle.* events). Support tooling only — routing, plan resolution, and
+    // the worker jobs never read it.
+    stripeCustomerId: z.string().nullish(),
     // Snapshot of a pending scheduled change (downgrade/cancel) for the UI.
     scheduled: z
       .object({
@@ -143,6 +154,16 @@ clickhouse: z
   .nullish(),
 ```
 
+`organizationId` is required and uuid-validated, with one failure-semantics
+caveat to respect: `parseDbOrg` `safeParse`s the whole `cloudConfig` and
+silently nulls it on any parse failure, which would drop the org to
+`cloud:hobby` (and, for a Stripe org, erase its plan). Strictness on *stored*
+data is therefore only safe for fields we fully control at write time — both
+writers of this block (checkout-session response, webhook handler) validate
+the uuid before persisting, so no organically-written row can fail the
+read-path parse. Any future loosening/change of the id format must update the
+stored schema first, writers second.
+
 Deliberate deviation from BIL-5791 §3.1: the spec sketches mirroring the CHB
 Stripe `customerId` into the legacy `stripe` block ("new orgs: only
 customerId") and mapping `bundleStatus → stripe.subscriptionStatus`. We do
@@ -150,8 +171,11 @@ customerId") and mapping `bundleStatus → stripe.subscriptionStatus`. We do
 invariant *"presence of Stripe state ⇔ Stripe-billed org"*, which is what
 makes provider routing and the worker-job exclusions (§3.7) fall out for free.
 The spec explicitly allows this ("Langfuse is entitled to model this the way
-it fits better"). If we ever need the underlying Stripe customer id (e.g. for
-support tooling), it goes in `clickhouse.stripeCustomerId`.
+it fits better"). The underlying Stripe customer id is still captured — as
+`clickhouse.stripeCustomerId` in the schema above, populated from
+`payment.provider.customerId` on `bundle.*` events — so support tooling keeps
+a handle on the Stripe side without the id living in the `stripe` block that
+routing keys on.
 
 No Prisma schema change is needed: `cloudBillingCycleAnchor`,
 `cloudCurrentCycleUsage`, `cloudFreeTierUsageThresholdState`, and
@@ -184,7 +208,14 @@ entitlement matrix, rate limits, and UI gating work unchanged. On
 
 ### 3.4 Outbound: CHB API client + service
 
-New directory `web/src/ee/features/billing/server/chb/`:
+New directory `web/src/ee/features/billing/server/chb/`. Alongside it, the
+Stripe-specific server modules (`stripeBillingService.ts`,
+`stripeWebhookHandler.ts`) move to a sibling `server/stripe/` directory so
+that `server/` keeps only provider-neutral pieces (`cloudBillingRouter.ts`,
+the dispatching factory, `spendAlertRouter.ts`). This is a **mechanical
+move-only commit** in Phase 0 — imports updated, zero logic edits, history
+preserved via `git log --follow` — and is the sole carve-out from invariant
+§4.2. Contents of `server/chb/`:
 
 - **`chbApiClient.ts`** — thin fetch wrapper for the CHB REST API
   (BIL-5791 §2.1). `Authorization: Bearer ${CLICKHOUSE_BILLING_SERVICE_TOKEN}`,
@@ -291,7 +322,11 @@ execute scheduled changes on a timer.
 These are required by CHB's metering pipeline (LF BMP milestone) regardless of
 the cutoff and are additive/read-only, so they ship first.
 
-**Metrics API** — new route `web/src/app/api/billing/metrics/route.ts`:
+**Metrics API** — handler `web/src/ee/features/billing/server/chb/chbMetricsApiHandler.ts`
+(all logic, auth included, lives in `ee`), exposed through a narrow wrapper
+route `web/src/app/api/billing/metrics/route.ts` that only re-exports the
+handler — the same pattern the Stripe webhook route uses today, and the same
+split the CHB webhook route follows (§3.5):
 
 - `GET /api/billing/metrics?startTime=...&endTime=...&resourceId={projectId}`
 - Auth: `Authorization: Bearer ${CLICKHOUSE_BILLING_METRICS_API_KEY}`,
@@ -323,36 +358,44 @@ the cutoff and are additive/read-only, so they ship first.
   receives `LANGFUSE_PROJECT_DELETED` at soft-delete time, stops metering,
   and polls short trailing windows, so it never needs deep history for a
   deleted project.
-- Perf note: unbounded `created_at` scans on `observations` have hit
-  the 125 s ClickHouse ceiling in prod before — CHB's poller uses short
-  (hourly/daily) windows, and the window cap keeps ad-hoc calls from
-  triggering full scans; if wide-window calls become a requirement, add a
-  minmax index on `created_at` first.
+- Perf note: a minmax skip index on `created_at` is already present on all
+  three tables, so interval counts prune granules efficiently. The window cap
+  stays as belt-and-braces — unbounded `created_at` count scans on
+  `observations` have hit the 125 s ClickHouse ceiling in prod before, and
+  the cap keeps a misbehaving caller from issuing full-history scans.
 
-**Project lifecycle events** — new queue + processor (do **not** reuse the
-per-project automation `WebhookQueue`; that system routes to user-configured
-destinations):
+**Project lifecycle events** — direct best-effort HTTP from web, **no
+queue** (decision: CHB's event bus is an always-on managed endpoint; if it is
+briefly unavailable, absorbing that is CHB's responsibility, not ours to
+buffer):
 
-- `QueueName.CloudBillingProjectEventQueue` + payload schema in
-  `packages/shared/src/server/queues.ts` (payload:
-  `{eventType, projectId, orgId, createdAt}`); queue class in
-  `packages/shared/src/server/redis/`; processor
-  `worker/src/queues/cloudBillingProjectEventQueue.ts` POSTs
-  `LANGFUSE_PROJECT_CREATED` / `LANGFUSE_PROJECT_DELETED` (exact BIL-5794
-  payloads, `organizationId` = `cloudConfig.clickhouse.organizationId`,
-  `regionId` = `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`) to
-  `CLICKHOUSE_BILLING_EVENT_BUS_URL` with the service token. BullMQ retries
-  with exponential backoff; reuse the secure outbound fetch primitives
-  (`packages/shared/src/server/outbound-url/`).
+- `emitChbProjectEvent` helper in `web/src/ee/features/billing/server/chb/`
+  POSTs the exact BIL-5794 payloads (`LANGFUSE_PROJECT_CREATED` /
+  `LANGFUSE_PROJECT_DELETED`, `organizationId` =
+  `cloudConfig.clickhouse.organizationId`, `regionId` =
+  `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`) to `CLICKHOUSE_BILLING_EVENT_BUS_URL`
+  with the service token, wrapped in `backOff` (~3 attempts over a few
+  seconds), reusing the secure outbound fetch primitives
+  (`packages/shared/src/server/outbound-url/`). Called fire-and-forget from
+  the request path (not awaited — project create/delete latency is
+  unaffected); a final failure logs at error level and increments
+  `langfuse.billing_events.emit_failed`.
 - Emit points:
   - created: `projectsRouter.create` and admin-API `handleCreateProject`,
     right after the DB write.
   - deleted: at **soft-delete** time (`projectsRouter.delete` and admin-API
     project delete) — that is when the customer stops being billable; the
     async hard-delete worker is not the billing-relevant moment.
-  - Enqueue only when the org has `clickhouse.organizationId` (CHB has nothing
+  - Emit only when the org has `clickhouse.organizationId` (CHB has nothing
     to meter otherwise); the `bundle.created` backfill (§3.5) covers projects
     that predate checkout.
+- Why at-most-once delivery is acceptable: a lost `PROJECT_DELETED` is benign
+  — the metrics API returns zeros for deleted projects by contract, so CHB's
+  poller sees usage stop either way. A lost `PROJECT_CREATED` delays metering
+  for that one project; backstops are the `bundle.created` backfill-emit
+  (§3.5) and CHB's backfill pipeline (BIL-6038). If the failure metric ever
+  shows real loss, swapping the helper's internals for a queue is a contained
+  change — call sites keep the same signature.
 
 ### 3.7 Worker changes
 
@@ -394,17 +437,18 @@ providers through the same components. Required deltas:
 
 ### 3.9 Configuration
 
-New env vars (all optional; web unless noted — declared in `web/src/env.mjs`,
-worker vars in `worker/src/env.ts`, and added to every `.env.*.example`):
+New env vars (all optional; declared in `web/src/env.mjs`; the cutoff date is
+also declared in `worker/src/env.ts` because the shared provider resolver runs
+in the worker's defensive metering guard; all added to every `.env.*.example`):
 
 | Var | Purpose |
 | --- | --- |
-| `LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE` | ISO date; orgs created ≥ this date route to CHB. Unset = feature off |
+| `LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE` | ISO datetime; first-time upgrades on/after this instant route to CHB. Unset = feature off (web + worker) |
 | `CLICKHOUSE_BILLING_BASE_URL` | CHB REST base URL (web) |
-| `CLICKHOUSE_BILLING_SERVICE_TOKEN` | Bearer token for CHB REST + event bus (web + worker) |
+| `CLICKHOUSE_BILLING_SERVICE_TOKEN` | Bearer token for CHB REST + event bus (web) |
 | `CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET` | HMAC secret for inbound CHB webhooks (web) |
 | `CLICKHOUSE_BILLING_METRICS_API_KEY` | Bearer token CHB uses to call our metrics API (web) |
-| `CLICKHOUSE_BILLING_EVENT_BUS_URL` | Event-bus endpoint for project events (worker) |
+| `CLICKHOUSE_BILLING_EVENT_BUS_URL` | Event-bus endpoint for project events (web) |
 
 Sanity guard at boot: if the cutoff date is set but any of the CHB
 URL/token/secret vars are missing, log an error and treat the cutoff as unset
@@ -419,12 +463,15 @@ Invariants, each enforced in code and covered by tests (§6):
    `stripe` in `getBillingProvider` *before* the date check is reached. There
    is no code path that flips a Stripe org to CHB (migration is a separate,
    explicit project).
-2. **The Stripe implementation is not modified.** `stripeBillingService.ts`,
-   `stripeWebhookHandler.ts`, `stripeCatalogue.ts`, and the Stripe webhook
-   route are untouched except: (a) `createDefaultSpendAlerts` gets an
-   additive plan-based overload, (b) the router swaps
-   `createBillingServiceFromContext` for the provider-dispatching factory —
-   which returns the identical Stripe service for Stripe orgs.
+2. **The Stripe implementation is not behaviorally modified.**
+   `stripeBillingService.ts`, `stripeWebhookHandler.ts`, `stripeCatalogue.ts`,
+   and the Stripe webhook route are untouched except: (a)
+   `createDefaultSpendAlerts` gets an additive plan-based overload, (b) the
+   router swaps `createBillingServiceFromContext` for the
+   provider-dispatching factory — which returns the identical Stripe service
+   for Stripe orgs, (c) the Stripe server modules are relocated to
+   `server/stripe/` in a mechanical move-only commit (§3.4) — file moves and
+   import updates only, verified by the unchanged test suites.
 3. **Changes to shared logic are strictly additive OR-branches**: plan
    resolution (`clickhouse.planCode` branch inserted; Stripe branch and
    precedence of the manual override unchanged), threshold paid-gate
@@ -435,9 +482,9 @@ Invariants, each enforced in code and covered by tests (§6):
    structurally, not by convention.
 5. **Everything is dark until the cutoff env is set**, and the cutoff can be
    set to a future date to arm the flow in staging first. Post-enable
-   rollback: clearing the cutoff stops *new* org routing; orgs already carrying
-   CHB state keep working through the webhook/REST path (they must — they hold
-   active bundles). See §7.
+   rollback: clearing the cutoff instantly stops routing *new first-time
+   upgrades* to CHB; orgs already carrying CHB state keep working through the
+   webhook/REST path (they must — they hold active bundles). See §7.
 6. **The tRPC and UI contract is provider-agnostic**, so no client-side
    version skew: an old web client works against the dispatching router.
 7. **Cache correctness**: every CHB webhook write ends in
@@ -451,13 +498,16 @@ Each phase is independently shippable and dark until the cutoff is set.
 **Phase 0 — plumbing (shared):**
 `cloudConfigSchema.ts` `clickhouse` block · `billingProvider.ts` resolver +
 `hasPaidBillingState` · env vars (web/worker + `.env.*.example`) ·
-`chbCatalogue.ts` · `getPlan.ts` branch · threshold paid-gate.
+`chbCatalogue.ts` · `getPlan.ts` branch · threshold paid-gate · move-only
+relocation of Stripe server modules to `server/stripe/` (separate commit,
+§3.4/§4.2).
 *Verification: `pnpm run lint`, `pnpm tc`, existing web + worker billing/threshold tests green.*
 
 **Phase 1 — Langfuse-built surfaces for CHB (BIL-5794):**
-metrics API route + auth · project-event queue/payload/processor · emit points
-in `projectsRouter` + admin API. Coordinates with CHB's LF BMP tickets
-(BIL-5786–5790); they can UAT against staging as soon as this lands.
+metrics API handler (ee) + wrapper route + auth · `emitChbProjectEvent`
+helper · emit points in `projectsRouter` + admin API. Coordinates with CHB's
+LF BMP tickets (BIL-5786–5790); they can UAT against staging as soon as this
+lands.
 
 **Phase 2 — CHB client + inbound webhook:**
 `chbApiClient.ts` · `chbBillingService.ts` · webhook route + handler (HMAC,
@@ -477,9 +527,11 @@ orgs · org-deletion path dispatches `cancelImmediatelyAndInvoice`.
 ## 6. Testing & verification
 
 - **Unit**: `getBillingProvider` matrix (stripe state / clickhouse state /
-  cutoff set-unset × org age / both-state conflict) · CHB plan-code mapping
-  incl. unknown codes · HMAC verify (valid, bad sig, skew) · webhook ordering
-  + dedupe · each event handler's cloudConfig writes.
+  cutoff set-unset × now before/after cutoff / both-state conflict) · CHB
+  plan-code mapping incl. unknown codes · HMAC verify (valid, bad sig, skew) ·
+  webhook ordering + dedupe · each event handler's cloudConfig writes ·
+  `emitChbProjectEvent` (retry over a few seconds, terminal-failure metric,
+  fire-and-forget; mock event bus).
 - **Server integration** (`pnpm --filter web run test`): webhook route
   end-to-end with signed fixtures (region-miss → 200-ignore; created →
   anchor + spend alerts + cache invalidation) · metrics API (auth failure,
@@ -490,8 +542,7 @@ orgs · org-deletion path dispatches `cancelImmediatelyAndInvoice`.
   metrics-API count tests must seed via the standard ingestion path, not raw
   CH inserts.
 - **Worker** (`pnpm --filter worker run test`): threshold paid-gate for a CHB
-  org (not blocked at 250 k) · metering job skips CHB orgs · project-event
-  processor POST + retry behavior (mock event bus).
+  org (not blocked at 250 k) · metering job skips CHB orgs.
 - **Regression**: full existing billing test suites must pass **unmodified** —
   that is the executable form of invariant §4.2.
 - **Manual/browser** (per repo policy for `web/**` flows): seed a local org,
@@ -506,7 +557,8 @@ orgs · org-deletion path dispatches `cancelImmediatelyAndInvoice`.
 2. Staging: set all CHB env vars + cutoff in the past; run UAT (BIL-6031/6032).
 3. Prod: set env vars with **cutoff = agreed future date X**, announce
    internally; verify webhook connectivity with CHB before X.
-4. From X: new orgs route to CHB (BIL-6034 tracks the CHB-side toggle).
+4. From X: all first-time upgrades route to CHB (BIL-6034 tracks the CHB-side
+   toggle).
 5. Kill switch semantics: unsetting the cutoff reverts **routing of
    not-yet-committed orgs** to Stripe instantly. Orgs that already hold CHB
    state continue on CHB (they have live bundles; flipping them is a
@@ -532,6 +584,3 @@ orgs · org-deletion path dispatches `cancelImmediatelyAndInvoice`.
 6. **Usage display source of truth** — v1 uses local
    `cloudCurrentCycleUsage`; decide whether the billing page should switch to
    CHB bundle-period usage once available (hourly-export lag per spec).
-7. **Pre-cutoff hobby orgs** — remain Stripe-routed here; decide whether
-   first-checkout-after-X should route to CHB instead (§3.1 knob) to shrink
-   the migration set.
