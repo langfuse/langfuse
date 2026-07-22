@@ -141,6 +141,7 @@ const getWidgetFilterColumnSpecs = ({
 
   if (
     selectedView === "scores-numeric" ||
+    selectedView === "scores-boolean" ||
     selectedView === "scores-categorical"
   ) {
     filterColumns.push(
@@ -292,6 +293,17 @@ const getWidgetFilterColumnSpecs = ({
         name: "Score Value",
         id: "value",
         type: "number",
+        internal: "internalValue",
+      },
+    });
+  }
+
+  if (selectedView === "scores-boolean") {
+    filterColumns.push({
+      column: {
+        name: "Boolean Value",
+        id: "booleanValue",
+        type: "boolean",
         internal: "internalValue",
       },
     });

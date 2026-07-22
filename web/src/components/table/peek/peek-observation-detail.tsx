@@ -8,6 +8,7 @@ import {
   traceDetailTitle,
 } from "@/src/components/trace/TraceDetailBody";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
+import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 
@@ -23,14 +24,7 @@ export const TablePeekViewObservationDetail = (
 
   const { projectId } = props;
   const peekId = router.query.peek as string | undefined;
-  const timestampParam = router.query.timestamp as string | undefined;
-
-  // Decode the timestamp parameter before parsing as Date
-  // This handles cases where the timestamp might be URL-encoded
-  const timestamp = timestampParam
-    ? new Date(decodeURIComponent(timestampParam))
-    : undefined;
-
+  const timestamp = parseTraceTimestampFromQuery(router.query.timestamp);
   const traceId = router.query.traceId as string | undefined;
 
   // Live handle on the peeked observation's trace id: an in-flight delete that

@@ -5,7 +5,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { type ChartConfig } from "@/src/components/ui/chart";
-import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { cn } from "@/src/utils/tailwind";
 

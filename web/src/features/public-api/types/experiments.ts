@@ -161,6 +161,7 @@ export const GetExperimentItemsV1ParsedQueryBase = z.object({
   filter: experimentItemFilterState.optional(),
 });
 
+/** @alias */
 export const GetExperimentItemsV1ParsedQuery =
   GetExperimentItemsV1ParsedQueryBase;
 

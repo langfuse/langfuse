@@ -92,10 +92,7 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import {
-  addPrefixToScoreKeys,
-  scoreFilters,
-} from "@/src/features/scores/lib/scoreColumns";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -216,9 +213,8 @@ export type EventsTableRow = {
   traceTags?: string[];
   traceName?: string;
 
-  // Scores
+  // Scores (level-agnostic: observation- and trace-level rolled up together)
   scores: ScoreAggregate;
-  traceScores: ScoreAggregate;
 };
 
 export type EventsTableProps = {
@@ -963,21 +959,17 @@ export default function ObservationsEventsTable({
     [searchBarMode, observedOptions],
   );
 
+  // Level-agnostic "Scores": one column group covering every score attached to
+  // the trace (observation- AND trace-level). The row's `scores` aggregate is
+  // rolled up server-side across both levels, so a trace-level score (e.g.
+  // CSAT) shows here even on observation rows — matching the level-agnostic
+  // score filter (LFE-10596). No separate "Trace Scores" group.
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
       scoreColumnKey: "scores",
       projectId,
-      filter: scoreFilters.forObservations(),
+      filter: scoreFilters.forTraceScopedAggregates(),
       fromTimestamp: dateRange?.from,
-      defaultHidden: true,
-    });
-  const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
-    useScoreColumns<EventsTableRow>({
-      scoreColumnKey: "traceScores",
-      projectId,
-      filter: scoreFilters.forTraceLevel(),
-      fromTimestamp: dateRange?.from,
-      prefix: "Trace",
       defaultHidden: true,
     });
 
@@ -1739,17 +1731,6 @@ export default function ObservationsEventsTable({
       columns: scoreColumns,
     },
     {
-      accessorKey: "traceScores",
-      header: "Trace Scores",
-      id: "traceScores",
-      enableHiding: true,
-      defaultHidden: true,
-      cell: () => {
-        return isTraceColumnLoading ? <TableTextLoadingCell /> : null;
-      },
-      columns: traceScoreColumns,
-    },
-    {
       accessorKey: "endTime",
       id: "endTime",
       header: getEventsColumnName("endTime"),
@@ -1938,10 +1919,6 @@ export default function ObservationsEventsTable({
               endTime: observation.endTime ?? undefined,
               timeToFirstToken: observation.timeToFirstToken ?? undefined,
               scores: observation.scores ?? {},
-              traceScores: addPrefixToScoreKeys(
-                observation.traceScores ?? {},
-                "Trace",
-              ),
               latency: observation.latency ?? undefined,
               totalCost: observation.totalCost ?? undefined,
               cost: {

@@ -74,6 +74,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
 - PostHog product analytics — when and how to instrument user actions:
   [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
+- Sentry error capture — whether and how an error path should report:
+  [`../.agents/skills/sentry-instrumentation/SKILL.md`](../.agents/skills/sentry-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
@@ -84,7 +86,11 @@ from loaded data, read the frontend-large-feature-architecture skill first —
 most effects that derive or sync state should not exist. When adding a
 meaningful user action (button, handler, form, mutation, feature surface),
 read the PostHog instrumentation skill and decide explicitly whether the
-action should emit an analytics event.
+action should emit an analytics event. When adding or touching an error path —
+a `captureException` or `console.error` call, an error boundary, a `catch`
+block, a Worker `onerror`, or a Sentry `beforeSend`/denylist filter — read the
+Sentry instrumentation skill first and decide whether it should capture at all
+(and, for any suppression change, answer "does this rule hide a real error?").
 
 ## Web Conventions
 
@@ -101,6 +107,10 @@ action should emit an analytics event.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
+- When you surface a score in the UI, always show its level
+  (trace/observation/session/experiment) with the `<ScoreTag>` component
+  (`src/components/score-tag.tsx`) and its global color coding (see the
+  ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
 - Do not add `useEffect` by default. Use it only when a component must

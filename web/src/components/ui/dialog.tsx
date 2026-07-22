@@ -78,13 +78,16 @@ const dialogContentVariants = cva(
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    confirmCloseOnEscape?: string;
-    overlayMode?: DialogOverlayMode;
-    showCloseButton?: boolean;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      showCloseButton?: boolean;
+      stopPropagationOnEnterSpace?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {

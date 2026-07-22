@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "lucide-react";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -288,14 +288,20 @@ const SidebarTrigger = React.forwardRef<
       data-sidebar="trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-5 w-5", className)}
+      // A real hamburger tap target on mobile (where it opens the off-canvas
+      // nav sheet); compact on desktop where it's just a panel-collapse toggle
+      // next to the docked sidebar.
+      className={cn("h-9 w-9 md:h-5 md:w-5", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
       {...props}
     >
-      <PanelLeft />
+      {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
+          desktop (toggles the docked sidebar). */}
+      <Menu className="size-5 md:hidden" />
+      <PanelLeft className="hidden md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
