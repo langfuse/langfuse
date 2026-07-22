@@ -59,9 +59,9 @@ properly (below).
   only `Sentry.init` in the codebase — `beforeSend`,
   `captureConsoleIntegration`, `denyUrls`, replay masking). Add every new filter
   as a named predicate there, never as an ad-hoc inline check. `beforeSend`
-  still carries a couple of legacy inline checks (invalid-href, React-devtools)
-  that predate this convention and read only the exception value — migrate those
-  into named, all-field predicates; do not add more inline checks.
+  now holds NO inline checks — every filter routes through a named predicate
+  (`isNoisyHttpClientPollEvent`, `isDenylistedNoiseEvent`,
+  `isReactDevtoolsInternalEvent`). Keep it that way.
 - **Classify tRPC errors at the seam,** not per call site: `handleTrpcError`
   ([`web/src/utils/api.ts`](../../../web/src/utils/api.ts)) is the single
   chokepoint every query/mutation error flows through — the place to drop
@@ -108,9 +108,8 @@ properly (below).
    (a second `https://` → repeated `//`) passes validation and `<Link>`'s router
    still rejects it. PR #15245 renders these as a native `<a>` (which never runs
    the router's href validation), removing the family at the source — no new
-   filter needed. (The older inline `beforeSend` invalid-href check is redundant
-   and never fired anyway — it read the wrong field, Rule 6 — so it can be
-   retired.)
+   filter needed. (The older inline `beforeSend` invalid-href check — which
+   never fired anyway, wrong field, Rule 6 — was removed in #15276.)
 
 6. **Every `beforeSend` / denylist rule: narrow signature + written rationale +
    a NEGATIVE fixture proving a real error still passes.** This is the MANDATORY
