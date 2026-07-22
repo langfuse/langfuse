@@ -46,6 +46,8 @@ describe("IngestionService unit tests", () => {
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
     const { event_bytes: eventBytes, ...eventWithoutSize } = queuedRecord;
 
+    expect(queuedRecord).not.toBe(eventRecord);
+    expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
     expect(eventBytes).toBe(
       Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
     );

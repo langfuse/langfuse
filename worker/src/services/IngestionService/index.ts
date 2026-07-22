@@ -96,15 +96,19 @@ type MergeAndWriteParams = {
 };
 
 /**
- * Returns the UTF-8 size of the final JSONEachRow event payload, excluding the
- * self-referential `event_bytes` accounting field.
+ * Returns a new event record whose `event_bytes` value is the UTF-8 size of
+ * the final JSONEachRow payload, excluding the self-referential accounting
+ * field. The supplied record is not mutated.
  */
-function getSerializedEventByteLength(
+function withSerializedEventByteLength(
   eventRecord: EventRecordInsertType,
-): number {
+): EventRecordInsertType {
   const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
 
-  return Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8");
+  return {
+    ...eventWithoutSize,
+    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+  };
 }
 
 const immutableEntityKeys: {
@@ -428,15 +432,17 @@ export class IngestionService {
    * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * Mutates `eventRecord.event_bytes` immediately before enqueueing so the
-   * persisted value describes the final normalized event rather than the raw
-   * OTEL span measured before media processing.
+   * Enqueues a new record whose `event_bytes` describes the final normalized
+   * event rather than the raw OTEL span measured before media processing. The
+   * supplied record is not mutated.
    *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    eventRecord.event_bytes = getSerializedEventByteLength(eventRecord);
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
+    this.clickHouseWriter.addToQueue(
+      TableName.EventsFull,
+      withSerializedEventByteLength(eventRecord),
+    );
   }
 
   private async processDatasetRunItemEventList(params: {
