@@ -559,26 +559,6 @@ describe("Dataset Item Media Associations", () => {
       const pendingMedia = await createMediaRow(); // pending row only -> deleted
 
       await createItemWithMedia(datasetId, associatedMedia.referenceString);
-      const reusedTraceId = v4();
-      await prisma.traceMedia.create({
-        data: {
-          id: v4(),
-          projectId,
-          mediaId: associatedMedia.mediaId,
-          traceId: reusedTraceId,
-          field: "input",
-        },
-      });
-      await prisma.observationMedia.create({
-        data: {
-          id: v4(),
-          projectId,
-          mediaId: associatedMedia.mediaId,
-          traceId: reusedTraceId,
-          observationId: v4(),
-          field: "input",
-        },
-      });
       // A pending association: declared at upload, the item was never written.
       await prisma.datasetItemMedia.create({
         data: {
@@ -642,16 +622,6 @@ describe("Dataset Item Media Associations", () => {
           where: { projectId_id: { projectId, id: associatedMedia.mediaId } },
         }),
       ).resolves.not.toBeNull();
-      await expect(
-        prisma.traceMedia.count({
-          where: { projectId, mediaId: associatedMedia.mediaId },
-        }),
-      ).resolves.toBe(1);
-      await expect(
-        prisma.observationMedia.count({
-          where: { projectId, mediaId: associatedMedia.mediaId },
-        }),
-      ).resolves.toBe(1);
       await expect(
         prisma.media.findUnique({
           where: { projectId_id: { projectId, id: unassociatedMedia.mediaId } },

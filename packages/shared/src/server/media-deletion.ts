@@ -17,18 +17,32 @@ export interface MediaRetentionProject {
   secondsPastCutoff: number;
 }
 
-const expiredDeletableMediaCondition = (params: {
+const expiredMediaWorkCondition = (params: {
   projectId: Prisma.Sql;
   cutoffDate: Prisma.Sql;
 }) => Prisma.sql`
   m.project_id = ${params.projectId}
   AND m.created_at <= ${params.cutoffDate}
-  AND NOT EXISTS (
-    SELECT 1
-    FROM dataset_item_media dim
-    WHERE dim.project_id = ${params.projectId}
-      AND dim.media_id = m.id
-      AND dim.dataset_item_valid_from IS NOT NULL
+  AND (
+    NOT EXISTS (
+      SELECT 1
+      FROM dataset_item_media dim
+      WHERE dim.project_id = ${params.projectId}
+        AND dim.media_id = m.id
+        AND dim.dataset_item_valid_from IS NOT NULL
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM trace_media tm
+      WHERE tm.project_id = ${params.projectId}
+        AND tm.media_id = m.id
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM observation_media om
+      WHERE om.project_id = ${params.projectId}
+        AND om.media_id = m.id
+    )
   )
 `;
 
@@ -64,15 +78,15 @@ export async function findExpiredMediaByProjectId(params: {
 }
 
 /**
- * Find the oldest bounded retention batch. Claimed dataset media is excluded
- * before applying the limit so every returned row can be deleted.
+ * Find the oldest bounded retention batch. Each returned row either deletes
+ * media or removes stale trace/observation links, so every batch progresses.
  */
 export async function findExpiredMediaBatchByProjectId(params: {
   projectId: string;
   cutoffDate: Date;
   limit: number;
 }): Promise<MediaFileRef[]> {
-  const condition = expiredDeletableMediaCondition({
+  const condition = expiredMediaWorkCondition({
     projectId: Prisma.sql`${params.projectId}`,
     cutoffDate: Prisma.sql`${params.cutoffDate}`,
   });
@@ -87,14 +101,14 @@ export async function findExpiredMediaBatchByProjectId(params: {
 }
 
 /**
- * Find the project whose oldest deletable media is furthest past retention.
- * The lateral lookup stops at the first deletable row per project.
+ * Find the project whose oldest actionable media is furthest past retention.
+ * The lateral lookup stops at the first actionable row per project.
  */
 export async function findNextMediaRetentionProject(): Promise<MediaRetentionProject | null> {
   const cutoffDate = Prisma.sql`
     NOW() - p.retention_days * INTERVAL '1 day'
   `;
-  const condition = expiredDeletableMediaCondition({
+  const condition = expiredMediaWorkCondition({
     projectId: Prisma.sql`p.id`,
     cutoffDate,
   });
@@ -197,20 +211,26 @@ export async function deleteMediaFiles(params: {
     );
     const deletableMediaIds = deletableBatch.map((f) => f.id);
 
+    // Trace/observation links are cleaned up even for an all-protected batch, so
+    // only the S3 delete is skipped when nothing is deletable.
     if (deletableBatch.length > 0) {
       await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
     }
     await prisma.$transaction([
+      // Trace/observation links are removed for every media in the batch, not
+      // just the deletable ones: their traces/observations are deleted by the
+      // same retention job, so the links go even when the media itself is kept
+      // for a dataset item.
       prisma.traceMedia.deleteMany({
         where: {
           projectId,
-          mediaId: { in: deletableMediaIds },
+          mediaId: { in: mediaIds },
         },
       }),
       prisma.observationMedia.deleteMany({
         where: {
           projectId,
-          mediaId: { in: deletableMediaIds },
+          mediaId: { in: mediaIds },
         },
       }),
       // Sweep leftover pending rows for the deleted media (claimed rows can't

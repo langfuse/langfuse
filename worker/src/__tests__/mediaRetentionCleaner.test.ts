@@ -2,6 +2,7 @@ import { expect, describe, it, vi, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import {
   createOrgProjectAndApiKey,
+  findNextMediaRetentionProject,
   getS3MediaStorageClient,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -85,12 +86,9 @@ async function processUntilProjectComplete(
  */
 async function drainExpiredMedia(maxIterations = 20): Promise<void> {
   for (let i = 0; i < maxIterations; i++) {
-    const countBefore = mockDeleteFiles.mock.calls.length;
+    if (!(await findNextMediaRetentionProject())) return;
     const cleaner = new MediaRetentionCleaner();
     await cleaner.processBatch();
-    const countAfter = mockDeleteFiles.mock.calls.length;
-    // No new deletions means no more work
-    if (countAfter === countBefore) return;
   }
 }
 
@@ -135,10 +133,12 @@ describe("MediaRetentionCleaner", () => {
       expect(allDeletedPaths).toContain(media.bucketPath);
     });
 
-    it("protects claimed-associated media but sweeps pending associations", async () => {
+    it("cleans claimed media links and continues an over-limit project", async () => {
       await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
       const now = Date.now();
-      const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
+      const daysAgo = (days: number) =>
+        new Date(now - days * 24 * 60 * 60 * 1000);
 
       const { projectId } = await createOrgProjectAndApiKey();
       await prisma.project.update({
@@ -147,7 +147,7 @@ describe("MediaRetentionCleaner", () => {
       });
 
       // Claimed association (validFrom set) protects its media from retention.
-      const claimedMedia = await createTestMedia(projectId, tenDaysAgo);
+      const claimedMedia = await createTestMedia(projectId, daysAgo(12));
       await prisma.datasetItemMedia.create({
         data: {
           id: randomUUID(),
@@ -161,11 +161,31 @@ describe("MediaRetentionCleaner", () => {
           referenceString: `@@@langfuseMedia:type=image/png|id=${claimedMedia.id}|source=base64@@@`,
         },
       });
+      const traceId = randomUUID();
+      await prisma.traceMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          mediaId: claimedMedia.id,
+          traceId,
+          field: "input",
+        },
+      });
+      await prisma.observationMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          mediaId: claimedMedia.id,
+          traceId,
+          observationId: randomUUID(),
+          field: "input",
+        },
+      });
 
       // Pending association (null validFrom): an abandoned upload that never
       // claimed an item. It must not shield the project from the picker, and is
       // swept along with its media.
-      const pendingMedia = await createTestMedia(projectId, tenDaysAgo);
+      const pendingMedia = await createTestMedia(projectId, daysAgo(11));
       await prisma.datasetItemMedia.create({
         data: {
           id: randomUUID(),
@@ -179,8 +199,34 @@ describe("MediaRetentionCleaner", () => {
           referenceString: null,
         },
       });
+      const unassociatedMedia = await createTestMedia(projectId, daysAgo(10));
 
-      await processUntilProjectComplete(projectId);
+      await new MediaRetentionCleaner().processBatch();
+
+      expect(mockDeleteFiles).toHaveBeenCalledWith([pendingMedia.bucketPath]);
+      await expect(
+        prisma.traceMedia.count({
+          where: { projectId, mediaId: claimedMedia.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.observationMedia.count({
+          where: { projectId, mediaId: claimedMedia.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.media.findUnique({
+          where: {
+            projectId_id: { projectId, id: unassociatedMedia.id },
+          },
+        }),
+      ).resolves.not.toBeNull();
+
+      await new MediaRetentionCleaner().processBatch();
+
+      expect(mockDeleteFiles).toHaveBeenLastCalledWith([
+        unassociatedMedia.bucketPath,
+      ]);
 
       // Claimed media (and its row) survive; pending media (and its row) are gone.
       await expect(
@@ -194,6 +240,13 @@ describe("MediaRetentionCleaner", () => {
         }),
       ).resolves.toBeNull();
       await expect(
+        prisma.media.findUnique({
+          where: {
+            projectId_id: { projectId, id: unassociatedMedia.id },
+          },
+        }),
+      ).resolves.toBeNull();
+      await expect(
         prisma.datasetItemMedia.count({
           where: { projectId, datasetItemValidFrom: { not: null } },
         }),
@@ -203,106 +256,6 @@ describe("MediaRetentionCleaner", () => {
           where: { projectId, datasetItemValidFrom: null },
         }),
       ).resolves.toBe(0);
-    });
-
-    it("skips claimed media without consuming the batch limit", async () => {
-      await drainExpiredMedia();
-      mockDeleteFiles.mockClear();
-
-      const now = Date.now();
-      const daysAgo = (days: number) =>
-        new Date(now - days * 24 * 60 * 60 * 1000);
-
-      const { projectId } = await createOrgProjectAndApiKey();
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { retentionDays: 7 },
-      });
-
-      // Claimed media remains stored and may be reused by recent traces. It
-      // must not consume the limit or lose those links.
-      const protectedMediaIds: string[] = [];
-      for (const ageInDays of [300, 299]) {
-        const protectedMedia = await createTestMedia(
-          projectId,
-          daysAgo(ageInDays),
-        );
-        protectedMediaIds.push(protectedMedia.id);
-        const traceId = randomUUID();
-        await prisma.datasetItemMedia.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            datasetId: randomUUID(),
-            datasetItemId: randomUUID(),
-            datasetItemValidFrom: new Date(),
-            mediaId: protectedMedia.id,
-            field: "input",
-            jsonPath: "$['image']",
-            referenceString: `@@@langfuseMedia:type=image/png|id=${protectedMedia.id}|source=base64@@@`,
-          },
-        });
-        await prisma.traceMedia.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            mediaId: protectedMedia.id,
-            traceId,
-            field: "input",
-          },
-        });
-        await prisma.observationMedia.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            mediaId: protectedMedia.id,
-            traceId,
-            observationId: randomUUID(),
-            field: "input",
-          },
-        });
-      }
-
-      const deletableMedia = await Promise.all([
-        createTestMedia(projectId, daysAgo(200)),
-        createTestMedia(projectId, daysAgo(199)),
-        createTestMedia(projectId, daysAgo(198)),
-      ]);
-
-      const firstCleaner = new MediaRetentionCleaner();
-      await firstCleaner.processBatch();
-
-      expect(mockDeleteFiles).toHaveBeenCalledTimes(1);
-      expect(mockDeleteFiles).toHaveBeenLastCalledWith(
-        deletableMedia.slice(0, 2).map((media) => media.bucketPath),
-      );
-      await expect(
-        prisma.traceMedia.count({
-          where: { projectId, mediaId: { in: protectedMediaIds } },
-        }),
-      ).resolves.toBe(2);
-      await expect(
-        prisma.observationMedia.count({
-          where: { projectId, mediaId: { in: protectedMediaIds } },
-        }),
-      ).resolves.toBe(2);
-      await expect(
-        prisma.media.count({
-          where: {
-            projectId,
-            id: { in: deletableMedia.map((media) => media.id) },
-          },
-        }),
-      ).resolves.toBe(1);
-
-      const secondCleaner = new MediaRetentionCleaner();
-      await secondCleaner.processBatch();
-
-      expect(mockDeleteFiles).toHaveBeenCalledTimes(2);
-      expect(mockDeleteFiles).toHaveBeenLastCalledWith([
-        deletableMedia[2].bucketPath,
-      ]);
-      await expect(getMediaCount(projectId)).resolves.toBe(2);
     });
 
     it("should NOT delete media within retention period", async () => {
