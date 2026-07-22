@@ -28,6 +28,7 @@ import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
+import { LazyJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
 import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
@@ -352,6 +353,7 @@ function IOPreviewJSONInner({
       backgroundColor: string,
       probe: ReturnType<typeof probeJsonField> | null,
       rowCount: number,
+      value: unknown,
     ) => ({
       // Use a key distinct from the field's normal section key so the fallback
       // does not inherit a persisted collapsed state from an earlier trace
@@ -375,25 +377,62 @@ function IOPreviewJSONInner({
           <span className="text-xs font-bold">{title}</span>
         </div>
       ),
-      renderFooter: () =>
-        probe ? (
-          <LargeJsonFieldFallback
-            title={title}
-            hideTitle
-            serialized={probe.serialized}
-            isString={probe.isString}
-            charCount={probe.size}
-            rowCount={rowCount}
-            downloadFileBase={`${fieldKey}-${downloadName}`}
-          />
-        ) : null,
+      renderFooter: () => {
+        if (!probe) return null;
+        // A huge STRING (e.g. a base64 image) is a single leaf — the lazy tree
+        // adds nothing, so keep the bounded preview + download. A huge
+        // STRUCTURED value is where the eager tree-build froze the tab: render
+        // it through the lazy byte-engine viewer (main thread, no eager tree,
+        // cost proportional to what's expanded), with download as a secondary
+        // escape hatch.
+        if (probe.isString) {
+          return (
+            <LargeJsonFieldFallback
+              title={title}
+              hideTitle
+              serialized={probe.serialized}
+              isString={probe.isString}
+              charCount={probe.size}
+              rowCount={rowCount}
+              downloadFileBase={`${fieldKey}-${downloadName}`}
+            />
+          );
+        }
+        return (
+          <div className="io-message-content flex flex-col gap-1">
+            <div
+              style={{ height: 400 }}
+              className="overflow-hidden rounded-md border"
+            >
+              <LazyJsonViewer value={value} />
+            </div>
+            <LargeJsonFieldFallback
+              title={title}
+              hideTitle
+              serialized={probe.serialized}
+              isString={probe.isString}
+              charCount={probe.size}
+              rowCount={rowCount}
+              downloadFileBase={`${fieldKey}-${downloadName}`}
+              downloadOnly
+            />
+          </div>
+        );
+      },
     });
 
     const result = [];
     if (showInput) {
       result.push(
         inputTooLarge
-          ? gatedSection("input", "Input", inputBgColor, inputProbe, inputRows)
+          ? gatedSection(
+              "input",
+              "Input",
+              inputBgColor,
+              inputProbe,
+              inputRows,
+              inputParsed,
+            )
           : {
               key: "input",
               title: "Input",
@@ -412,6 +451,7 @@ function IOPreviewJSONInner({
               outputBgColor,
               outputProbe,
               outputRows,
+              outputParsed,
             )
           : {
               key: "output",
@@ -454,6 +494,7 @@ function IOPreviewJSONInner({
               metadataBgColor,
               metadataProbe,
               metadataRows,
+              metadataParsed,
             )
           : {
               key: "metadata",
@@ -475,6 +516,9 @@ function IOPreviewJSONInner({
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
+    inputParsed,
+    outputParsed,
+    metadataParsed,
     inputProbe,
     outputProbe,
     metadataProbe,

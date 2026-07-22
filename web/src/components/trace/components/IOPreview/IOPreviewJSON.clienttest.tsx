@@ -1,11 +1,13 @@
 /**
- * The JSON Beta viewer virtualizes the DOM but still builds the full node tree
- * on the main thread, so a field with too many nodes (a large conversation /
- * deeply nested JSON) freezes the tab even here (LFE-10847). These tests pin the
- * node-count gate in IOPreviewJSON: over-limit fields render as a `hideData`
- * section (so the viewer builds no tree) whose footer is the bounded fallback,
- * while normal fields (including a huge single string, which is only one node)
- * render with their data as before.
+ * The eager JSON Beta viewer builds the full node tree on the main thread, so a
+ * field with too many nodes freezes the tab (LFE-10847). These tests pin the
+ * node-count gate + its P2 resolution: an over-limit field renders as a
+ * `hideData` section (the eager viewer builds no tree for it) whose footer is
+ * the **lazy** byte-engine viewer (main thread, cost proportional to what's
+ * expanded) plus a download escape hatch — NOT the old "too large" dead-end.
+ * Normal fields (including a huge single string, which is only one node) render
+ * with their data as before. (A string is 1 node, so it is never node-gated
+ * here; gated ⟹ structured.)
  */
 import { render, screen } from "@testing-library/react";
 
@@ -41,6 +43,15 @@ vi.mock(
 vi.mock("./components/CorrectedOutputField", () => ({
   CorrectedOutputField: () => <div data-testid="corrected-output" />,
 }));
+
+// The lazy renderer runs a byte engine + virtualizer; stub it to a marker so
+// these tests assert the gated field is routed to it, not its internals.
+vi.mock(
+  "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer",
+  () => ({
+    LazyJsonViewer: () => <div data-testid="lazy-json-viewer" />,
+  }),
+);
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -83,7 +94,7 @@ const manyRows = () =>
   Array.from({ length: JSON_VIEW_RENDER_ROW_LIMIT }, (_, i) => i);
 
 describe("IOPreviewJSON node-count gating", () => {
-  it("renders an over-limit field as a hideData section with the fallback footer", () => {
+  it("renders an over-limit field lazily with a download hatch (no dead-end)", () => {
     render(
       <IOPreviewJSON
         input={manyRows()}
@@ -95,14 +106,16 @@ describe("IOPreviewJSON node-count gating", () => {
       />,
     );
 
-    // Fallback (with download) shown for the gated field...
-    expect(screen.getByText(FALLBACK_TEXT)).toBeInTheDocument();
+    // The gated structured field is now RENDERED via the lazy viewer, with the
+    // download as a secondary escape hatch — not the old "too large" dead-end.
+    expect(screen.getByTestId("lazy-json-viewer")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Download Input/i }),
     ).toBeInTheDocument();
-    // ...and its section carries NO data, so the viewer builds no tree for it.
-    // The gated section uses a collapse-isolated key (`__oversized`), never the
-    // plain field key, so it cannot inherit a persisted collapsed state.
+    expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
+    // Its section still carries NO data, so the EAGER viewer builds no tree for
+    // it. The gated section uses a collapse-isolated key (`__oversized`), never
+    // the plain field key, so it cannot inherit a persisted collapsed state.
     expect(screen.getByTestId("section-input__oversized")).toHaveAttribute(
       "data-hide-data",
       "true",
@@ -131,7 +144,7 @@ describe("IOPreviewJSON node-count gating", () => {
     expect(screen.queryByTestId("section-input")).not.toBeInTheDocument();
   });
 
-  it("reports the node/row count as the reason, not a character count", () => {
+  it("names the download-hatch size in rows (node-count gate), not characters", () => {
     render(
       <IOPreviewJSON
         input={manyRows()}
@@ -142,11 +155,9 @@ describe("IOPreviewJSON node-count gating", () => {
         traceId="t"
       />,
     );
-    // Node-count gate → the summary names rows, not characters.
-    expect(screen.getByText(/rows — too large to render/i)).toBeInTheDocument();
-    expect(
-      screen.queryByText(/characters — too large to render/i),
-    ).not.toBeInTheDocument();
+    // Node-count gate → the download hatch's size note names rows, not chars.
+    expect(screen.getByText(/\brows\b/i)).toBeInTheDocument();
+    expect(screen.queryByText(/\bcharacters\b/i)).not.toBeInTheDocument();
   });
 
   it("lets a huge single STRING through (one node) — no fallback, data rendered", () => {

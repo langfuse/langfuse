@@ -28,6 +28,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { TreeRowModel } from "../treeRowModel";
 import { sourceFromValue } from "../asyncJsonSource";
 import type { JsonRow, RowModel, ValueResult } from "../rowModel";
+import { reportError } from "@/src/utils/reportError";
 
 /** Rows fetched for the first paint before the virtualizer reports a range. */
 export const INITIAL_ROW_COUNT = 200;
@@ -164,6 +165,10 @@ export function createRowModelStore(
           set({ status: "ready" });
         } catch (e) {
           if (gen !== myGen) return;
+          // Our-code failure: the byte engine / model build threw (a malformed
+          // index, an unexpected shape). That is a real bug a human should see,
+          // not an expected state — capture it (skill: sentry-instrumentation).
+          reportError(e, { area: "json-viewer" });
           set({
             status: "error",
             error: e instanceof Error ? e.message : String(e),
