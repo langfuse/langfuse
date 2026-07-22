@@ -2,7 +2,7 @@ import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
 import addonDocs from "@storybook/addon-docs";
 import { DocsContainer } from "@storybook/addon-docs/blocks";
-import { GLOBALS_UPDATED } from "storybook/internal/core-events";
+import { GLOBALS_UPDATED, SET_GLOBALS } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
 import { themes } from "storybook/theming";
 import {
@@ -76,14 +76,13 @@ function StorybookThemeProvider({
   );
 }
 
-addons
-  .getChannel()
-  .on(GLOBALS_UPDATED, ({ globals }: { globals?: { theme?: unknown } }) => {
-    document.documentElement.classList.toggle(
-      "dark",
-      globals?.theme === "dark",
-    );
-  });
+const syncTheme = ({ globals }: { globals?: { theme?: unknown } }) => {
+  document.documentElement.classList.toggle("dark", globals?.theme === "dark");
+};
+
+const channel = addons.getChannel();
+channel.on(SET_GLOBALS, syncTheme);
+channel.on(GLOBALS_UPDATED, syncTheme);
 
 /**
  * Docs/guide pages render outside the story decorator, so they don't get our
