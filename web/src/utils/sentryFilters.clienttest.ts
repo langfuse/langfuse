@@ -568,6 +568,19 @@ describe("isReactDevtoolsInternalEvent", () => {
         ),
       ).toBe(true);
     });
+
+    it("drops a mixed event: EMPTY exception value but text on message", () => {
+      // An empty-string exception value is not nullish, so a naive `??` chain
+      // would keep it and never look at `message`. `eventText` treats it as
+      // absent, so this still matches.
+      expect(
+        isReactDevtoolsInternalEvent({
+          exception: { values: [{ value: "" }] },
+          message:
+            "Cannot read properties of undefined (reading '__reactContextDevtoolDebugId')",
+        } as unknown as Parameters<typeof isReactDevtoolsInternalEvent>[0]),
+      ).toBe(true);
+    });
   });
 
   // The safety contract: a suppression predicate must not swallow real errors.
