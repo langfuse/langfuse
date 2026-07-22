@@ -55,7 +55,10 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
             <SheetContent
               side="bottom"
               aria-describedby={undefined}
-              className="flex h-[85svh] flex-col gap-0 p-0"
+              // Hide the Sheet's own close button — the filter panel header
+              // renders its own close (X), so a second one just collides with
+              // the panel's controls.
+              className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
             >
               <SheetTitle className="sr-only">Filters</SheetTitle>
               {filterSidebar}
