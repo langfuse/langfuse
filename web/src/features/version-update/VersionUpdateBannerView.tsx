@@ -34,13 +34,14 @@ export function VersionUpdateBannerView({
       role="status"
       aria-live="polite"
       className={cn(
-        // Float center-top, a little below the edge — over content, not pushing it.
         "fixed top-4 left-1/2 -translate-x-1/2",
-        // Frosted-glass pill: translucent + blurred, with a soft glow.
         "flex items-center gap-3 rounded-full py-1.5 pr-1.5 pl-4",
         "border-border/60 bg-background/80 border shadow-xl ring-1 ring-black/5 backdrop-blur-xl dark:ring-white/10",
-        // Beautiful entrance: fade in + slide down from the top + a gentle zoom.
-        "animate-in fade-in-0 slide-in-from-top-4 zoom-in-95 duration-500 ease-out",
+        // `fill-mode-both` holds the entrance keyframes' start state on the
+        // mount frame, before the animation's first tick — without it the pill
+        // can paint one frame at its final position/opacity and then snap back
+        // to animate (a flash that reads as a "jump"; Firefox is most prone).
+        "animate-in fade-in-0 slide-in-from-top-4 zoom-in-95 fill-mode-both duration-500 ease-out",
         className,
       )}
     >
