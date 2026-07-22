@@ -58,7 +58,7 @@ const validBody = {
   referenceUrl: "https://langfuse.com/docs",
 };
 
-const createRequest = (body: unknown, client?: string) =>
+const createRequest = (body: Record<string, unknown> | null, client?: string) =>
   createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
     headers: {

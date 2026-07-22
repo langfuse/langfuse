@@ -1,6 +1,9 @@
 const { mockSubmitFeedback, mockRunMcpTool } = vi.hoisted(() => ({
   mockSubmitFeedback: vi.fn(),
-  mockRunMcpTool: vi.fn(async ({ fn }: { fn: () => Promise<unknown> }) => fn()),
+  mockRunMcpTool: vi.fn(
+    async ({ fn }: { fn: () => Promise<unknown>; attributes?: unknown }) =>
+      fn(),
+  ),
 }));
 
 vi.mock("@/src/features/feedback/server/FeedbackService", () => ({

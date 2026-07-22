@@ -136,7 +136,7 @@ describe("FeedbackService", () => {
       (block) =>
         block.type === "section" &&
         block.text?.type === "plain_text" &&
-        block.text.text.includes("@here"),
+        block.text.text?.includes("@here"),
     );
     expect(feedbackBlock).toBeTruthy();
 
