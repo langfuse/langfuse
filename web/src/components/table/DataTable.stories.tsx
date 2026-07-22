@@ -723,7 +723,6 @@ function DataTableDemo(props: DataTableDemoProps) {
 }
 
 const meta = preview.meta({
-  title: "DataTable",
   component: DataTableDemo,
   parameters: {
     layout: "fullscreen",

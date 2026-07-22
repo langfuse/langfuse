@@ -1,12 +1,13 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 import { storyNameFromExport, toId } from "storybook/internal/csf";
 import type { Plugin } from "vite";
+import { readFile } from "node:fs/promises";
 import { basename } from "path";
 import * as ts from "typescript";
 
 const STORY_FILE_PATTERN = /\.stories\.[cm]?[jt]sx?$/;
 
-function addFlatStoryTitle(code: string, fileName: string) {
+function findMetaObject(code: string, fileName: string) {
   const sourceFile = ts.createSourceFile(
     fileName,
     code,
@@ -28,17 +29,7 @@ function addFlatStoryTitle(code: string, fileName: string) {
       node.expression.name.text === "meta" &&
       ts.isObjectLiteralExpression(node.arguments[0])
     ) {
-      const candidate = node.arguments[0];
-      const hasTitle = candidate.properties.some(
-        (property) =>
-          (ts.isPropertyAssignment(property) ||
-            ts.isShorthandPropertyAssignment(property)) &&
-          (ts.isIdentifier(property.name) ||
-            ts.isStringLiteral(property.name)) &&
-          property.name.text === "title",
-      );
-
-      if (!hasTitle) metaObject = candidate;
+      metaObject = node.arguments[0];
       return;
     }
 
@@ -46,10 +37,36 @@ function addFlatStoryTitle(code: string, fileName: string) {
   };
 
   visit(sourceFile);
+  return metaObject;
+}
+
+function hasTitleProperty(metaObject: ts.ObjectLiteralExpression) {
+  return metaObject.properties.some(
+    (property) =>
+      (ts.isPropertyAssignment(property) ||
+        ts.isShorthandPropertyAssignment(property)) &&
+      (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) &&
+      property.name.text === "title",
+  );
+}
+
+export function assertNoExplicitStoryTitle(code: string, fileName: string) {
+  const metaObject = findMetaObject(code, fileName);
+  if (metaObject && hasTitleProperty(metaObject)) {
+    throw new Error(
+      `Explicit Storybook titles are not allowed in ${fileName}. Rename the story file to set its title.`,
+    );
+  }
+
+  return metaObject;
+}
+
+function addFlatStoryTitle(code: string, fileName: string) {
+  const metaObject = assertNoExplicitStoryTitle(code, fileName);
   if (!metaObject) return null;
 
   const componentTitle = basename(fileName).replace(STORY_FILE_PATTERN, "");
-  const insertionPoint = metaObject.getStart(sourceFile) + 1;
+  const insertionPoint = metaObject.getStart() + 1;
 
   return `${code.slice(0, insertionPoint)}\n  title: ${JSON.stringify(componentTitle)},${code.slice(insertionPoint)}`;
 }
@@ -62,8 +79,12 @@ export const flattenStoryIndexTitles: NonNullable<
   indexers?.map((indexer) => ({
     ...indexer,
     createIndex: async (fileName, options) => {
+      if (!STORY_FILE_PATTERN.test(fileName)) {
+        return indexer.createIndex(fileName, options);
+      }
+
+      assertNoExplicitStoryTitle(await readFile(fileName, "utf8"), fileName);
       const entries = await indexer.createIndex(fileName, options);
-      if (!STORY_FILE_PATTERN.test(fileName)) return entries;
 
       return entries.map((entry) => {
         const componentTitle = entry.title?.split("/").at(-1);

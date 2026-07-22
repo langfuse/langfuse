@@ -4,7 +4,6 @@ import preview from "../../.storybook/preview";
 import { ScoreTag, SCORE_LEVEL_LABELS, type ScoreLevel } from "./score-tag";
 
 const meta = preview.meta({
-  title: "components/ScoreTag",
   component: ScoreTag,
 });
 
