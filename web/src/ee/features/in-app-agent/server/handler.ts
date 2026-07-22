@@ -13,6 +13,7 @@ import {
   sanitizeInAppAgentContext,
 } from "@/src/ee/features/in-app-agent/context";
 import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
+import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -68,7 +69,9 @@ import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
+  type FilterState,
   InvalidRequestError,
+  LangfuseNotFoundError,
   type RateLimitResult,
   UnauthorizedError,
   CloudConfigSchema,
@@ -77,6 +80,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   redis,
+  TableViewService,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import {
@@ -197,7 +201,7 @@ export default async function handler(request: Request) {
       );
     }
 
-    const sanitizedInput = sanitizeAgentInput(input, projectId);
+    const sanitizedInput = await prepareAgentInput(input, projectId);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -856,10 +860,10 @@ function isResumeAgentInput(
   return "command" in input.forwardedProps;
 }
 
-function sanitizeAgentInput(
+async function prepareAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
-): SanitizedAgentInput {
+): Promise<SanitizedAgentInput> {
   const forwardedProps: unknown = input.forwardedProps;
 
   if (
@@ -870,6 +874,34 @@ function sanitizeAgentInput(
   ) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
+
+  const currentUrlContext = input.context.find(
+    (item) => item.description === "current_url",
+  );
+  const currentProjectRoute = currentUrlContext
+    ? getInAppAgentProjectRoute(currentUrlContext.value)
+    : undefined;
+  const savedViewId = currentProjectRoute?.parsedUrl.searchParams.get("viewId");
+  let viewFilters: FilterState | undefined;
+
+  if (savedViewId) {
+    try {
+      viewFilters = (
+        await TableViewService.getTableViewPresetsById(savedViewId, projectId)
+      ).filters;
+    } catch (error) {
+      // Saved views can be deleted while their URLs remain open or shared.
+      if (!(error instanceof LangfuseNotFoundError)) {
+        throw error;
+      }
+    }
+  }
+
+  const context = sanitizeInAppAgentContext(
+    input.context,
+    projectId,
+    viewFilters,
+  );
 
   if (forwardedProps && "command" in forwardedProps) {
     const resumeForwardedProps =
@@ -886,7 +918,7 @@ function sanitizeAgentInput(
       state: null,
       messages: [],
       tools: [],
-      context: sanitizeInAppAgentContext(input.context, projectId),
+      context,
       forwardedProps: resumeForwardedProps.data,
     };
   }
@@ -904,7 +936,7 @@ function sanitizeAgentInput(
     state: null,
     messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
-    context: sanitizeInAppAgentContext(input.context, projectId),
+    context,
     forwardedProps: {},
   };
 }
