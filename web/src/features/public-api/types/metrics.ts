@@ -155,6 +155,7 @@ export const GetMetricsV2Query = z.object({
     .pipe(MetricsQueryObjectV2),
 });
 
+/** @alias */
 export const GetMetricsV2Response = GetMetricsV1Response;
 
 // Get /metrics/daily

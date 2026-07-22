@@ -11,6 +11,7 @@ export const organizationFormSchema = z.object({
 });
 
 // Base schema for org creation, used for server-side validation too
+/** @alias */
 export const organizationNameSchema = organizationFormSchema;
 
 export const organizationOptionalNameSchema = z.object({

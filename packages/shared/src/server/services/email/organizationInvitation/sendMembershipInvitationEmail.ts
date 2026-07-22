@@ -1,7 +1,7 @@
 import { render } from "@react-email/render";
 import { createMailTransport } from "../transport";
 
-import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
+import { MembershipInvitationTemplate } from "./MembershipInvitationEmailTemplate";
 import { logger } from "../../../logger";
 
 const langfuseUrls = {
