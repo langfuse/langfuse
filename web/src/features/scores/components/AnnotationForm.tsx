@@ -1154,7 +1154,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                                   ) ?? -1) + 1;
                                                 return digit >= 1 &&
                                                   digit <= 9 ? (
-                                                  <KeyboardShortcut className="ml-0.5 hidden h-3.5 min-w-3.5 px-1 text-[9px] group-focus-within:inline-flex">
+                                                  <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:group-focus-within:inline-flex">
                                                     {digit}
                                                   </KeyboardShortcut>
                                                 ) : null;
@@ -1231,7 +1231,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
             />
           </div>
           {rowCount > 0 && (
-            <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px]">
+            // This legend only exists to advertise keyboard shortcuts, so hide
+            // the whole strip on touch viewports rather than just the kbd
+            // chips inside it (LFE-11067) — the shortcuts themselves still
+            // work if a physical keyboard is attached.
+            <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
                 <span className="flex items-center gap-1">
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
