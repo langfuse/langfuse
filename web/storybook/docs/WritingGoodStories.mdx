@@ -71,6 +71,20 @@ These compositional stories **should not** contain Storybook play functions. The
 - Keep illustrative examples in `.stories.tsx`; keep narrative and explanation in `.mdx`.
 - If an example needs a small wrapper in a story, keep it minimal and focused on presenting the example rather than recreating page design inside Storybook.
 
+### Placing MDX Docs
+
+Attach component-specific guidance to its stories:
+
+```mdx
+import * as ComponentStories from "./ComponentName.stories";
+
+<Meta of={ComponentStories} name="Guidance" />
+```
+
+Pass the full story module to `of` and colocate the MDX file with the component.
+Use a standalone page only when its guidance spans multiple components and has
+no single story file it naturally belongs to.
+
 ### Docs-Only Backing Stories
 
 When a CSF file exists only to provide examples for `Canvas` blocks in a
