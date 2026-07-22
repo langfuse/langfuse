@@ -111,7 +111,7 @@ column matches. You can filter on:
   **negation / exclusion**.
 
 Prefer values, metadata keys, and score names that appear in the observed
-project data below (when provided) over inventing your own. Use real catalog
+project data (when provided) over inventing your own. Use real catalog
 columns for standard fields; for anything custom or domain-specific, use
 \`metadata.<key>\`. Don't fall back to a vague column guess when metadata or
 content search expresses the intent better.
