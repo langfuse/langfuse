@@ -1,7 +1,9 @@
+import { mapChbPlanCodeToPlan } from "@/src/ee/features/billing/utils/chbCatalogue";
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { env } from "@/src/env.mjs";
 import { type Plan } from "@langfuse/shared";
 import { type CloudConfigSchema } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 /**
  * Get the plan of the organization based on the cloud configuration. Used to add this plan to the organization object in JWT via NextAuth.
@@ -33,6 +35,18 @@ export function getOrganizationPlanServerSide(
             throw new Error(`Unhandled plan case: ${exhaustiveCheck}`);
         }
       }
+      // ClickHouse Billing plan via plan code
+      if (cloudConfig.clickhouse?.planCode) {
+        const chbPlan = mapChbPlanCodeToPlan(cloudConfig.clickhouse.planCode);
+        if (chbPlan) {
+          return chbPlan;
+        }
+        // Unknown plan codes fail open to the free tier, never to a paid tier.
+        logger.error(
+          `getOrganizationPlanServerSide: unknown CHB plan code ${cloudConfig.clickhouse.planCode}, resolving to cloud:hobby`,
+        );
+      }
+
       // stripe plan via product id
       if (cloudConfig.stripe?.activeProductId) {
         const stripePlan = mapStripeProductIdToPlan(

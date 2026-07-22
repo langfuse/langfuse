@@ -4,7 +4,8 @@
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF"
+    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF",
+    "LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE"
   ],
   "envMode": "loose",
   "tasks": {

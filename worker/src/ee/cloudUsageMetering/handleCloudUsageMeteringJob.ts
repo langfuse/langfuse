@@ -1,4 +1,4 @@
-import { parseDbOrg, Prisma } from "@langfuse/shared";
+import { getBillingProvider, parseDbOrg, Prisma } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import Stripe from "stripe";
 import { env } from "../../env";
@@ -158,6 +158,27 @@ export const handleCloudUsageMeteringJob = async (job: Job) => {
   for (const org of organizations) {
     // update progress to prevent job from being stalled
     job.updateProgress(countProcessedOrgs / organizations.length);
+
+    // Defensive guard: the org selection above keys on stripe.customerId,
+    // which CHB-billed orgs never get (their `stripe` block stays empty).
+    // If that invariant ever breaks, skip + count instead of double-metering —
+    // CHB meters its orgs by polling our billing metrics API.
+    if (getBillingProvider(org) !== "stripe") {
+      traceException(
+        `[CLOUD USAGE METERING] Org ${org.id} resolves to a non-Stripe billing provider but carries a Stripe customer id, skipping`,
+      );
+      logger.error(
+        `[CLOUD USAGE METERING] Org ${org.id} resolves to a non-Stripe billing provider but carries a Stripe customer id, skipping`,
+      );
+      recordIncrement(
+        "langfuse.queue.cloud_usage_metering_queue.skipped_non_stripe_orgs",
+        1,
+        {
+          unit: "organizations",
+        },
+      );
+      continue;
+    }
 
     const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
     if (!stripeCustomerId) {
