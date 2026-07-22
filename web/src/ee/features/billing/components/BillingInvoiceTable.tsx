@@ -31,9 +31,15 @@ type InvoiceRow = {
 export function BillingInvoiceTable() {
   const { organization } = useBillingInformation();
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
-  const shouldShowTable =
-    isCloudBillingAvailable &&
-    Boolean(organization?.cloudConfig?.stripe?.customerId);
+  // Provider-agnostic: getInvoices dispatches to whichever provider bills the
+  // org, so the gate is "does this org have a billing identity at all", not
+  // "does it have a Stripe customer". A CHB org never populates
+  // stripe.customerId and would otherwise never see its invoice history.
+  const hasBillingIdentity = Boolean(
+    organization?.cloudConfig?.stripe?.customerId ??
+    organization?.cloudConfig?.clickhouse?.organizationId,
+  );
+  const shouldShowTable = isCloudBillingAvailable && hasBillingIdentity;
 
   const [virtualTotal, setVirtualTotal] = useState(9999);
   const [paginationState, setPaginationState] = useState<{
