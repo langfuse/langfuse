@@ -36,12 +36,14 @@ const expiredMediaWorkCondition = (params: {
       FROM trace_media tm
       WHERE tm.project_id = ${params.projectId}
         AND tm.media_id = m.id
+        AND tm.created_at <= ${params.cutoffDate}
     )
     OR EXISTS (
       SELECT 1
       FROM observation_media om
       WHERE om.project_id = ${params.projectId}
         AND om.media_id = m.id
+        AND om.created_at <= ${params.cutoffDate}
     )
   )
 `;
@@ -79,7 +81,7 @@ export async function findExpiredMediaByProjectId(params: {
 
 /**
  * Find the oldest bounded retention batch. Each returned row either deletes
- * media or removes stale trace/observation links, so every batch progresses.
+ * media or removes expired trace/observation links, so every batch progresses.
  */
 export async function findExpiredMediaBatchByProjectId(params: {
   projectId: string;
@@ -170,14 +172,17 @@ export async function deleteMediaLinkRowsByProjectId(params: {
 /**
  * Delete media files from S3 first, then from PostgreSQL.
  * S3 is deleted first to avoid orphaned files if PG deletion succeeds but S3 fails.
+ * A link cutoff preserves recent links when retention keeps dataset-protected media.
  * Returns the number of media files deleted.
  */
 export async function deleteMediaFiles(params: {
   projectId: string;
   mediaFiles: MediaFileRef[];
   storageClient: StorageClient;
+  linkCleanupCutoffDate?: Date;
 }): Promise<number> {
-  const { projectId, mediaFiles, storageClient } = params;
+  const { projectId, mediaFiles, storageClient, linkCleanupCutoffDate } =
+    params;
 
   if (mediaFiles.length === 0) {
     return 0;
@@ -210,27 +215,31 @@ export async function deleteMediaFiles(params: {
       (f) => !datasetAssociatedMediaIds.has(f.id),
     );
     const deletableMediaIds = deletableBatch.map((f) => f.id);
+    const linkCleanupFilter = linkCleanupCutoffDate
+      ? {
+          OR: [
+            { mediaId: { in: deletableMediaIds } },
+            { createdAt: { lte: linkCleanupCutoffDate } },
+          ],
+        }
+      : {};
 
-    // Trace/observation links are cleaned up even for an all-protected batch, so
-    // only the S3 delete is skipped when nothing is deletable.
     if (deletableBatch.length > 0) {
       await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
     }
     await prisma.$transaction([
-      // Trace/observation links are removed for every media in the batch, not
-      // just the deletable ones: their traces/observations are deleted by the
-      // same retention job, so the links go even when the media itself is kept
-      // for a dataset item.
       prisma.traceMedia.deleteMany({
         where: {
           projectId,
           mediaId: { in: mediaIds },
+          ...linkCleanupFilter,
         },
       }),
       prisma.observationMedia.deleteMany({
         where: {
           projectId,
           mediaId: { in: mediaIds },
+          ...linkCleanupFilter,
         },
       }),
       // Sweep leftover pending rows for the deleted media (claimed rows can't
