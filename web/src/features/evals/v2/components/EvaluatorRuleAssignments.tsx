@@ -54,6 +54,7 @@ export function EvaluatorRuleAssignments({
     id: string;
     name: string;
     filter: FilterState;
+    enabled: boolean;
   }>;
   hasWriteAccess: boolean;
   onView: (ruleId: string) => void;
@@ -105,12 +106,7 @@ export function EvaluatorRuleAssignments({
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Label>Rules</Label>
-          <Badge variant="secondary" size="sm">
-            {rules.length}
-          </Badge>
-        </div>
+        <Label>Rules</Label>
         <EvaluationRulePicker
           trigger={(open) => (
             <Button
@@ -159,6 +155,13 @@ export function EvaluatorRuleAssignments({
                   {rule.name}
                 </span>
               </Button>
+              <Badge
+                variant={rule.enabled ? "success" : "secondary"}
+                size="sm"
+                className="mr-1 shrink-0"
+              >
+                {rule.enabled ? "Active" : "Inactive"}
+              </Badge>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button type="button" variant="ghost" size="icon-xs" asChild>

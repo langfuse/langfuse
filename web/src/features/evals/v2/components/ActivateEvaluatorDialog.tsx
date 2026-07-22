@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -62,15 +63,16 @@ export function ActivateEvaluatorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Evaluator saved</DialogTitle>
+      <DialogContent className="sm:max-w-md" closeOnInteractionOutside>
+        <DialogHeader variant="action">
+          <DialogTitle>Run evaluator on incoming observations?</DialogTitle>
         </DialogHeader>
 
         <DialogBody className="gap-4">
-          <p className="text-sm">
-            Do you want to run this evaluator on incoming traces?
-          </p>
+          <DialogDescription>
+            This creates an evaluation rule using the filters you configured to
+            select sample observations.
+          </DialogDescription>
 
           <ActivationCostEstimate
             projectId={projectId}
@@ -83,7 +85,7 @@ export function ActivateEvaluatorDialog({
           />
         </DialogBody>
 
-        <DialogFooter className="py-4">
+        <DialogFooter variant="action">
           <Button
             type="button"
             variant="outline"
@@ -97,7 +99,7 @@ export function ActivateEvaluatorDialog({
             loading={activate.isPending}
             onClick={handleActivate}
           >
-            Run on incoming traces
+            Run on matching observations
           </Button>
         </DialogFooter>
       </DialogContent>

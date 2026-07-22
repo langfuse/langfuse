@@ -138,6 +138,7 @@ vi.mock("@/src/utils/api", () => ({
                   id: "rule-1",
                   name: "Production",
                   filter: [],
+                  enabled: true,
                 },
               },
             ],

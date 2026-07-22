@@ -11,17 +11,11 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import {
-  useCanUseInAppAgent,
-  useInAppAiAgent,
-} from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 
 export default function EvaluatorsV2Page() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
-  const canUseAssistant = useCanUseInAppAgent();
-  const { openAssistant, selectConversation } = useInAppAiAgent();
   const galleryOpen = router.query.gallery === "1";
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -45,10 +39,6 @@ export default function EvaluatorsV2Page() {
       .catch(() => undefined);
   };
 
-  const trackCreationPath = (source: "ai" | "template" | "scratch") => {
-    capture("eval_config:creation_path_selected", { source });
-  };
-
   return (
     <>
       <Page
@@ -64,21 +54,11 @@ export default function EvaluatorsV2Page() {
             actionButtonsRight: (
               <EvaluatorCreateButton
                 hasWriteAccess={hasWriteAccess}
-                canUseAssistant={canUseAssistant}
-                onCreateWithAi={() => {
-                  trackCreationPath("ai");
-                  selectConversation(null);
-                  openAssistant("evaluator_create");
-                }}
                 onStartFromTemplate={() => {
-                  trackCreationPath("template");
+                  capture("eval_config:creation_path_selected", {
+                    source: "template",
+                  });
                   setGalleryOpen(true);
-                }}
-                onStartFromScratch={() => {
-                  trackCreationPath("scratch");
-                  router
-                    .push(`/project/${projectId}/evals/v2/new?scratch=llm`)
-                    .catch(() => undefined);
                 }}
               />
             ),

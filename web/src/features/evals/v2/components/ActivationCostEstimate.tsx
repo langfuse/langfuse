@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Coins, Info, Loader2 } from "lucide-react";
+import { Coins, Info } from "lucide-react";
 
-import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -49,7 +48,7 @@ export function ActivationCostEstimate({
       searchType: [],
       orderBy: null,
     },
-    { enabled, refetchOnWindowFocus: false },
+    { enabled: enabled && !isCodeEvaluator, refetchOnWindowFocus: false },
   );
   const historicalCost = api.evals.avgCostByEvaluatorIds.useQuery(
     { projectId, evaluatorIds: [evaluatorId] },
@@ -59,11 +58,12 @@ export function ActivationCostEstimate({
     },
   );
 
+  if (isCodeEvaluator) return null;
+
   const matchingObservations = matchCount.data?.totalCount ?? null;
   const historicalCostEntry = historicalCost.data?.[evaluatorId];
-  const costPerEvaluation = isCodeEvaluator
-    ? 0
-    : (testRunCostUsd ?? historicalCostEntry?.avgCost ?? null);
+  const costPerEvaluation =
+    testRunCostUsd ?? historicalCostEntry?.avgCost ?? null;
   const evaluatedObservations =
     matchingObservations === null ? null : matchingObservations * sampling;
   const dailyCostUsd =
@@ -76,6 +76,16 @@ export function ActivationCostEstimate({
       ? "the evaluator test run"
       : "average evaluator execution cost over the last 7 days";
 
+  if (
+    loading ||
+    matchingObservations === null ||
+    matchingObservations === 0 ||
+    costPerEvaluation === null ||
+    dailyCostUsd === null
+  ) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-3 text-sm">
@@ -83,57 +93,30 @@ export function ActivationCostEstimate({
           <Coins className="text-muted-foreground h-4 w-4" />
           Estimated daily cost
         </span>
-        {loading ? (
-          <Skeleton className="h-5 w-24" />
-        ) : isCodeEvaluator ? (
-          <span className="text-muted-foreground">No LLM API cost</span>
-        ) : dailyCostUsd !== null ? (
-          <span className="font-bold tabular-nums">
-            ≈ {costFormatter(dailyCostUsd)} / day
-          </span>
-        ) : (
-          <span className="text-muted-foreground">Unavailable</span>
-        )}
+        <span className="font-bold tabular-nums">
+          ≈ {costFormatter(dailyCostUsd)} / day
+        </span>
       </div>
 
-      {loading ? (
-        <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Calculating from matches in the last 24 hours…
-        </div>
-      ) : matchingObservations === null ? (
-        <p className="text-muted-foreground text-xs">
-          Matching observation volume could not be loaded.
-        </p>
-      ) : isCodeEvaluator ? (
-        <p className="text-muted-foreground text-xs">
-          Code evaluators do not call an LLM model.
-        </p>
-      ) : costPerEvaluation === null ? (
-        <p className="text-muted-foreground text-xs">
-          Run a test or collect execution history to estimate the LLM API cost.
-        </p>
-      ) : (
-        <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
-          <span>
-            {`${compactNumberFormatter(matchingObservations)} matching observation${matchingObservations === 1 ? "" : "s"} in the last 24h`}
-            {sampling < 1 ? ` × ${Math.round(sampling * 100)}% sampling` : ""}
-            {` × ${costFormatter(costPerEvaluation)} per evaluation`}
-          </span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Info
-                className="h-3.5 w-3.5 shrink-0 cursor-help"
-                aria-label="How this estimate is calculated"
-              />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              The per-evaluation estimate comes from {costSource}. This is the
-              expected cost on your linked LLM API key, not a Langfuse charge.
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      )}
+      <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+        <span>
+          {`${compactNumberFormatter(matchingObservations)} matching observation${matchingObservations === 1 ? "" : "s"} in the last 24h`}
+          {sampling < 1 ? ` × ${Math.round(sampling * 100)}% sampling` : ""}
+          {` × ${costFormatter(costPerEvaluation)} per evaluation`}
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info
+              className="h-3.5 w-3.5 shrink-0 cursor-help"
+              aria-label="How this estimate is calculated"
+            />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            The per-evaluation estimate comes from {costSource}. This is the
+            expected cost on your linked LLM API key, not a Langfuse charge.
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }

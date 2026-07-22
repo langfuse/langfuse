@@ -38,6 +38,10 @@ export type ValidateAndAttachEvaluationRuleResult =
   | { attached: true }
   | ({ attached: false } & EvaluationRuleAttachmentValidationIssue);
 
+export type ValidateEvaluationRuleAttachmentResult =
+  | { valid: true }
+  | ({ valid: false } & EvaluationRuleAttachmentValidationIssue);
+
 type Dependencies = {
   getEvaluator: () => Promise<EvaluatorConfig | null>;
   getEvaluationRule: () => Promise<{
@@ -55,6 +59,8 @@ type Dependencies = {
   }) => void;
 };
 
+type ValidationDependencies = Omit<Dependencies, "attach">;
+
 const codeLanguageSchema = z.enum(["PYTHON", "TYPESCRIPT"]);
 
 function captureValidation(
@@ -69,13 +75,13 @@ function captureValidation(
 }
 
 function validationIssue(
-  dependencies: Pick<Dependencies, "captureValidation">,
+  dependencies: Pick<ValidationDependencies, "captureValidation">,
   evaluatorType: EvaluatorType,
   outcome: EvaluationRuleAttachmentValidationIssue["outcome"],
   message: string,
-): ValidateAndAttachEvaluationRuleResult {
+): ValidateEvaluationRuleAttachmentResult {
   captureValidation(dependencies, { outcome, evaluatorType });
-  return { attached: false, outcome, message };
+  return { valid: false, outcome, message };
 }
 
 function errorMessage(error: unknown): string {
@@ -107,10 +113,10 @@ function hasCompleteLlmVariableMappings(
  * Code evaluators run once against a matching observation before activation.
  * LLM-as-a-judge evaluators only need complete prompt variable mappings.
  */
-export async function validateAndAttachRule(
+export async function validateRuleAttachment(
   projectId: string,
-  dependencies: Dependencies,
-): Promise<ValidateAndAttachEvaluationRuleResult> {
+  dependencies: ValidationDependencies,
+): Promise<ValidateEvaluationRuleAttachmentResult> {
   const [evaluator, evaluationRule] = await Promise.all([
     dependencies.getEvaluator(),
     dependencies.getEvaluationRule(),
@@ -174,8 +180,7 @@ export async function validateAndAttachRule(
     }
 
     captureValidation(dependencies, { outcome: "passed", evaluatorType });
-    await dependencies.attach();
-    return { attached: true };
+    return { valid: true };
   }
 
   let sample: SampleObservation | null;
@@ -251,6 +256,22 @@ export async function validateAndAttachRule(
   }
 
   captureValidation(dependencies, { outcome: "passed", evaluatorType });
+  return { valid: true };
+}
+
+export async function validateAndAttachRule(
+  projectId: string,
+  dependencies: Dependencies,
+): Promise<ValidateAndAttachEvaluationRuleResult> {
+  const result = await validateRuleAttachment(projectId, dependencies);
+  if (!result.valid) {
+    return {
+      attached: false,
+      outcome: result.outcome,
+      message: result.message,
+    };
+  }
+
   await dependencies.attach();
   return { attached: true };
 }

@@ -4,9 +4,9 @@
 
 - `pages/evaluator-detail.tsx` owns evaluator detail/edit routing and header state.
 - `components/EvaluatorSetupForm.tsx` owns the shared create/edit definition form,
-  sample selection, and test workflow. `components/EvaluatorEditView.tsx`
-  supplies the edit-only rule disclosure state, attachment controls, and
-  independently saved rule mutations.
+  sample selection, test workflow, and reusable rule-filter suggestions.
+  `components/EvaluatorEditView.tsx` supplies attached rule IDs so those
+  suggestions can be prioritized without exposing relationship controls.
 - `actions/validateAndAttachRule.ts` owns the direct-attachment workflow:
   load one matching observation, test the saved evaluator, and only then
   activate the assignment. The two detail views only own pending and warning
@@ -40,11 +40,10 @@ The evaluator detail page exposes template versions in a read-only sheet. A
 definition change creates a new project template version; evaluator metadata
 changes keep the current definition version.
 
-Evaluator editing uses a list of rules the evaluator is attached to, with no
-detail open by default. Selecting one of those rules, an available rule, or the picker’s
-create action reveals one primary filter/preview/test inspector that explicitly
-names the active rule; rule changes are saved separately from the evaluator
-definition.
+Evaluator editing suggests filters from attached and existing rules in the
+filter search bar. Attached rules are ranked first and labeled, while selecting
+any suggestion copies its filter and sampling into the evaluator draft without
+changing rule relationships.
 
 The worker schedules each matching evaluator-rule pair as a distinct
 execution. The execution stores its rule ID so logs can be

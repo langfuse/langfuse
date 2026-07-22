@@ -78,7 +78,9 @@ import {
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
+import { estimateEvaluatorCost } from "@/src/features/evals/v2/actions/estimateEvaluatorCost";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
+import { buildEvaluationRuleFilterSuggestionSection } from "@/src/features/evals/v2/lib/evaluationRuleFilterSuggestions";
 import { removePromptVariable } from "@/src/features/evals/v2/lib/promptVariables";
 import { useRuleMatchCount } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
@@ -227,6 +229,7 @@ export function EvaluatorSetupForm({
   initialMapping = [],
   initialFilterState,
   initialSampling = 1,
+  attachedRuleIds = [],
   activeFilterSourceLabel,
   renderRuleControls,
   renderFilterActions,
@@ -247,6 +250,7 @@ export function EvaluatorSetupForm({
   initialMapping?: ObservationVariableMapping[];
   initialFilterState?: FilterState;
   initialSampling?: number;
+  attachedRuleIds?: string[];
   activeFilterSourceLabel?: string;
   renderRuleControls?: (controls: EvaluatorSetupRuleControls) => ReactNode;
   renderFilterActions?: (controls: EvaluatorSetupRuleControls) => ReactNode;
@@ -790,31 +794,10 @@ export function EvaluatorSetupForm({
     onFiltersEdited?.();
   };
 
-  // Detail: the names of the evaluators using the rule, "a, b and x more"
-  // past two. The query returns the first 5 names and the true total.
-  const evaluatorNamesDetail = (rule: {
-    evaluators: { scoreName: string }[];
-    evaluatorCount: number;
-  }): string => {
-    const total = rule.evaluatorCount;
-    if (total === 0) return "no evaluators yet";
-    const names = rule.evaluators.map((evaluator) => evaluator.scoreName);
-    const shown = names.slice(0, 2).join(", ");
-    const rest = total - Math.min(2, names.length);
-    return rest > 0 ? `${shown} and ${rest} more` : shown;
-  };
-
-  const sharedFilterSection =
-    reusableRules.length > 0
-      ? {
-          title: "Shared filters",
-          items: reusableRules.map((rule) => ({
-            id: rule.id,
-            label: rule.name,
-            detail: evaluatorNamesDetail(rule),
-          })),
-        }
-      : undefined;
+  const sharedFilterSection = buildEvaluationRuleFilterSuggestionSection({
+    rules: reusableRules,
+    attachedRuleIds,
+  });
 
   const testRunCostUsd =
     !isCodeMode && testRun.data?.success
@@ -823,20 +806,6 @@ export function EvaluatorSetupForm({
 
   const createEvaluator = api.evalsV2.createEvaluator.useMutation({
     onError: (error) => trpcErrorToast(error),
-    onSuccess: (data) => {
-      Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]).catch(
-        () => undefined,
-      );
-      const activationQuery = new URLSearchParams({ activate: "1" });
-      if (testRunCostUsd !== null) {
-        activationQuery.set("estimatedCostUsd", String(testRunCostUsd));
-      }
-      router
-        .push(
-          `/project/${projectId}/evals/v2/${data.id}?${activationQuery.toString()}`,
-        )
-        .catch(() => undefined);
-    },
   });
   const updateEvaluator = api.evalsV2.updateEvaluatorDefinition.useMutation({
     onError: (error) => trpcErrorToast(error),
@@ -917,18 +886,72 @@ export function EvaluatorSetupForm({
     const fields = buildRuleFields();
     if (!fields) return;
     if (mode === "create") {
-      createEvaluator.mutate({
-        ...fields,
-        rule: {
-          mode: "none",
-          targetObject: "event",
-          filter: filterState,
-          sampling,
-        },
-        runContinuously: false,
-        backfill: null,
-        status: "INACTIVE",
-      });
+      setIsSaveWorkflowPending(true);
+      let estimatedCostUsd = testRunCostUsd;
+      if (
+        fields.evaluatorType === "LLM_AS_JUDGE" &&
+        estimatedCostUsd === null
+      ) {
+        try {
+          estimatedCostUsd = await estimateEvaluatorCost({
+            testInput: {
+              projectId,
+              prompt: fields.prompt,
+              sourceTemplateId: fields.sourceTemplateId,
+              provider: fields.provider,
+              model: fields.model,
+              modelParams: fields.modelParams,
+              outputDefinition: fields.outputDefinition,
+              mapping: fields.mapping,
+            },
+            getSample: async () => {
+              const result = await utils.client.events.all.query({
+                projectId,
+                filter: filterState,
+                searchQuery: null,
+                searchType: [],
+                orderBy: { column: "startTime", order: "DESC" },
+                page: 1,
+                limit: 1,
+              });
+              return result.observations[0] ?? null;
+            },
+            runTest: (input) => testRun.mutateAsync(input),
+          });
+        } catch {
+          // Cost estimation is best-effort and must not block evaluator save.
+        }
+      }
+
+      try {
+        const data = await createEvaluator.mutateAsync({
+          ...fields,
+          rule: {
+            mode: "none",
+            targetObject: "event",
+            filter: filterState,
+            sampling,
+          },
+          runContinuously: false,
+          backfill: null,
+          status: "INACTIVE",
+        });
+        await Promise.all([
+          utils.evals.invalidate(),
+          utils.evalsV2.invalidate(),
+        ]);
+        const activationQuery = new URLSearchParams({ activate: "1" });
+        if (estimatedCostUsd !== null) {
+          activationQuery.set("estimatedCostUsd", String(estimatedCostUsd));
+        }
+        await router.push(
+          `/project/${projectId}/evals/v2/${data.id}?${activationQuery.toString()}`,
+        );
+      } catch {
+        // Mutation callbacks surface create errors.
+      } finally {
+        setIsSaveWorkflowPending(false);
+      }
       return;
     }
 
@@ -1290,7 +1313,9 @@ export function EvaluatorSetupForm({
                 <div className="flex min-w-0 flex-col gap-6 p-6">
                   <section className="flex min-w-0 flex-col gap-6">
                     <div className="flex flex-col gap-2">
-                      <Label>Filter observations</Label>
+                      <LabelWithTooltip tooltip="Only matching observations are evaluated. Add filters to narrow the incoming data included.">
+                        Filter observations
+                      </LabelWithTooltip>
                       <div
                         inert={filterEditingDisabled ? true : undefined}
                         aria-disabled={filterEditingDisabled}
@@ -1304,9 +1329,7 @@ export function EvaluatorSetupForm({
                           projectId={projectId}
                           filterState={filterState}
                           setFilterState={updateDraftFilters}
-                          savedQueries={
-                            renderRuleControls ? undefined : sharedFilterSection
-                          }
+                          savedQueries={sharedFilterSection}
                           onPickSavedQuery={selectSharedRule}
                         />
                       </div>

@@ -13,10 +13,11 @@ export function EvaluationRuleAttachmentValidationAlert({
 }: {
   projectId: string;
   evaluatorId: string;
-  ruleId: string;
+  ruleId?: string;
   issue: EvaluationRuleAttachmentValidationIssue;
 }) {
-  const query = new URLSearchParams({ edit: "1", ruleId });
+  const query = new URLSearchParams({ edit: "1" });
+  if (ruleId) query.set("ruleId", ruleId);
 
   return (
     <Alert variant={issue.outcome === "failed" ? "destructive" : "default"}>

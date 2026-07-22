@@ -5,9 +5,7 @@ import EvaluatorsV2Page from "@/src/features/evals/v2/pages/evaluators";
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
-  openAssistant: vi.fn(),
   push: vi.fn(),
-  selectConversation: vi.fn(),
 }));
 
 vi.mock("next/router", () => ({
@@ -46,36 +44,27 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => true,
 }));
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
-  () => ({
-    useCanUseInAppAgent: () => true,
-    useInAppAiAgent: () => ({
-      openAssistant: mocks.openAssistant,
-      selectConversation: mocks.selectConversation,
-    }),
-  }),
-);
-
 describe("EvaluatorsV2Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.push.mockResolvedValue(true);
   });
 
-  it("opens the assistant on the evaluator overview", () => {
+  it("opens the template gallery from the evaluator overview", () => {
     render(<EvaluatorsV2Page />);
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "New evaluator" }), {
-      key: "Enter",
-    });
-    fireEvent.click(screen.getByRole("menuitem", { name: /create with ai/i }));
+    fireEvent.click(screen.getByRole("button", { name: "New evaluator" }));
 
     expect(mocks.capture).toHaveBeenCalledWith(
       "eval_config:creation_path_selected",
-      { source: "ai" },
+      { source: "template" },
     );
-    expect(mocks.push).not.toHaveBeenCalled();
-    expect(mocks.selectConversation).toHaveBeenCalledWith(null);
-    expect(mocks.openAssistant).toHaveBeenCalledWith("evaluator_create");
+    expect(mocks.push).toHaveBeenCalledWith(
+      {
+        query: { projectId: "project-1", gallery: "1" },
+      },
+      undefined,
+      { shallow: true },
+    );
   });
 });

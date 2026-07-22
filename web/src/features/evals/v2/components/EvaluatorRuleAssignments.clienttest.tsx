@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 const mocks = vi.hoisted(() => ({
@@ -109,7 +109,20 @@ describe("EvaluatorRuleAssignments", () => {
         evaluatorId="evaluator-1"
         evaluatorName="Quality"
         isCodeEvaluator={false}
-        rules={[{ id: "rule-1", name: "Attached rule", filter: [] }]}
+        rules={[
+          {
+            id: "rule-1",
+            name: "Attached rule",
+            filter: [],
+            enabled: true,
+          },
+          {
+            id: "rule-disabled",
+            name: "Disabled rule",
+            filter: [],
+            enabled: false,
+          },
+        ]}
         hasWriteAccess
         onView={onView}
         onEdit={onEdit}
@@ -125,6 +138,9 @@ describe("EvaluatorRuleAssignments", () => {
     expect(
       screen.getByRole("list", { name: "Attached rules" }),
     ).toBeInTheDocument();
+    const ruleRows = screen.getAllByRole("listitem");
+    expect(within(ruleRows[0]).getByText("Active")).toBeInTheDocument();
+    expect(within(ruleRows[1]).getByText("Inactive")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Attached rule" }));
     expect(onView).toHaveBeenCalledWith("rule-1");
 

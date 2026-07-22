@@ -9,16 +9,20 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
-  ActivationCostEstimate: (props: unknown) => {
+  ActivationCostEstimate: (props: { testRunCostUsd: number | null }) => {
     mocks.costEstimate(props);
-    return <div>Estimated daily cost</div>;
+    return (
+      <div>
+        Estimated daily cost
+        <span data-testid="test-run-cost">{props.testRunCostUsd}</span>
+      </div>
+    );
   },
 }));
 
 vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
-
 vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: vi.fn(),
 }));
@@ -82,9 +86,13 @@ describe("ActivateEvaluatorDialog", () => {
   it("keeps the saved evaluator disabled when Keep disabled is chosen", () => {
     const { onOpenChange, onComplete } = renderDialog();
 
-    expect(screen.getByText("Evaluator saved")).toBeInTheDocument();
     expect(
-      screen.getByText("Do you want to run this evaluator on incoming traces?"),
+      screen.getByText("Run evaluator on incoming observations?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This creates an evaluation rule using the filters you configured to select sample observations.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Configured filters")).not.toBeInTheDocument();
     expect(screen.getByText("Estimated daily cost")).toBeInTheDocument();
@@ -108,7 +116,7 @@ describe("ActivateEvaluatorDialog", () => {
     const { onOpenChange, onComplete } = renderDialog();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Run on incoming traces" }),
+      screen.getByRole("button", { name: "Run on matching observations" }),
     );
 
     expect(mocks.activate).toHaveBeenCalledWith({

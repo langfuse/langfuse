@@ -68,8 +68,6 @@ export default function EvaluatorDetailPage() {
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [ruleControlsContainer, setRuleControlsContainer] =
-    useState<HTMLDivElement | null>(null);
   const utils = api.useUtils();
   const evaluator = api.evals.configById.useQuery(
     { projectId, id: evaluatorId },
@@ -246,9 +244,6 @@ export default function EvaluatorDetailPage() {
         ],
         actionButtonsRight: (
           <div className="flex items-center gap-2">
-            {editMode ? (
-              <div className="contents" ref={setRuleControlsContainer} />
-            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -308,7 +303,6 @@ export default function EvaluatorDetailPage() {
             description={description}
             attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
             initialEvaluationRuleId={initialEvaluationRuleId}
-            ruleControlsContainer={ruleControlsContainer}
             onSaved={() => setEditMode(false)}
             onCancel={() => {
               setScoreName(data.scoreName);
@@ -333,6 +327,7 @@ export default function EvaluatorDetailPage() {
               id: rule.id,
               name: rule.name,
               filter: z.array(singleFilter).catch([]).parse(rule.filter),
+              enabled: rule.enabled,
             }))}
             hasWriteAccess={hasWriteAccess}
             onViewEvaluationRule={(ruleId) =>

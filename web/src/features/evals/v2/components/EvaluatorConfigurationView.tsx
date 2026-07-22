@@ -212,6 +212,7 @@ export function EvaluatorConfigurationView({
     id: string;
     name: string;
     filter: FilterState;
+    enabled: boolean;
   }>;
   hasWriteAccess: boolean;
   onViewEvaluationRule: (ruleId: string) => void;

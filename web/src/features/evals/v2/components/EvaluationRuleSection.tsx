@@ -256,7 +256,6 @@ export function RuleFilterSearchBar({
       onRequestColumns={requestColumns}
       onApplyFilters={applyFilters}
       className="p-0"
-      composerSurfaceClassName="px-0"
       savedQueries={savedQueries}
       onPickSavedQuery={onPickSavedQuery}
     />
