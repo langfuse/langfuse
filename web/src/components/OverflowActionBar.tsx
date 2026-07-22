@@ -27,7 +27,7 @@ export type OverflowAction = {
 };
 
 const GAP_PX = 8; // matches gap-2
-const TRIGGER_WIDTH_PX = 40; // the "⋯" trigger + its gap budget
+const TRIGGER_WIDTH_PX = 52; // the "⋯ n" trigger + its gap budget
 
 /**
  * A single-line action bar that stays exactly one line: it measures itself and
@@ -109,7 +109,7 @@ export const OverflowActionBar = ({
       role="toolbar"
       aria-label={ariaLabel}
       className={cn(
-        "flex min-w-0 items-center gap-2 overflow-hidden",
+        "flex min-w-0 items-center gap-2",
         // Hide the row until the first measurement lands so users never see a
         // flash of the un-trimmed set.
         visibleCount === null && "invisible",
@@ -127,14 +127,12 @@ export const OverflowActionBar = ({
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              size="icon"
-              className="relative shrink-0"
+              size="sm"
+              className="shrink-0 gap-1"
               aria-label={`${overflowItems.length} more action${overflowItems.length === 1 ? "" : "s"}`}
             >
               <MoreHorizontal className="size-4" />
-              <span className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] leading-none font-bold">
-                {overflowItems.length}
-              </span>
+              {overflowItems.length}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
