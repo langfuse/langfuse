@@ -2037,9 +2037,11 @@ export const getAggregatedScoresForPrompts = async (
 export const getScoreCountsByProjectInCreationInterval = async ({
   start,
   end,
+  projectId,
 }: {
   start: Date;
   end: Date;
+  projectId?: string;
 }) => {
   const query = `
     SELECT
@@ -2048,6 +2050,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
     FROM scores
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    ${projectId ? "AND project_id = {projectId: String}" : ""}
     AND data_type IN ({dataTypes: Array(String)})
     GROUP BY project_id
   `;
@@ -2058,6 +2061,7 @@ export const getScoreCountsByProjectInCreationInterval = async ({
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...(projectId ? { projectId } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout

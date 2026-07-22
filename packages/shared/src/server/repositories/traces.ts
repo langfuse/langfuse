@@ -405,17 +405,20 @@ export const hasAnyTrace = async (projectId: string) => {
 export const getTraceCountsByProjectInCreationInterval = async ({
   start,
   end,
+  projectId,
 }: {
   start: Date;
   end: Date;
+  projectId?: string;
 }) => {
   return measureAndReturn({
     operationName: "getTraceCountsByProjectInCreationInterval",
-    projectId: "__CROSS_PROJECT__",
+    projectId: projectId ?? "__CROSS_PROJECT__",
     input: {
       params: {
         start: convertDateToClickhouseDateTime(start),
         end: convertDateToClickhouseDateTime(end),
+        ...(projectId ? { projectId } : {}),
       },
       timestamp: start,
     },
@@ -427,6 +430,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
         FROM traces
         WHERE created_at >= {start: DateTime64(3)}
         AND created_at < {end: DateTime64(3)}
+        ${projectId ? "AND project_id = {projectId: String}" : ""}
         GROUP BY project_id
       `;
 

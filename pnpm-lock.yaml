@@ -669,6 +669,9 @@ importers:
       elkjs:
         specifier: ^0.11.1
         version: 0.11.1
+      exponential-backoff:
+        specifier: ^3.1.2
+        version: 3.1.2
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
