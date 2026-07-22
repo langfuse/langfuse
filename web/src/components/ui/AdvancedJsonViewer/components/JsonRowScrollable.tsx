@@ -72,7 +72,7 @@ export function JsonRowScrollable({
         backgroundColor,
         fontSize: theme.fontSize,
         lineHeight: `${theme.lineHeight}px`,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
         transition: "background-color 0.15s ease",
       }}
     >

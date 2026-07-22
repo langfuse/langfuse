@@ -8,6 +8,7 @@ import {
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
 import {
+  getInAppAgentMessageEntryPointTraceMetadata,
   getInAppAgentQuickActionTraceMetadata,
   sanitizeInAppAgentContext,
 } from "@/src/ee/features/in-app-agent/context";
@@ -63,12 +64,16 @@ import {
 import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import { parseSavedViewFromURL } from "@/src/utils/product-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
+  type FilterState,
   InvalidRequestError,
+  LangfuseNotFoundError,
   type RateLimitResult,
+  TableViewPresetTableName,
   UnauthorizedError,
   CloudConfigSchema,
 } from "@langfuse/shared";
@@ -76,6 +81,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   redis,
+  TableViewService,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import {
@@ -196,7 +202,11 @@ export default async function handler(request: Request) {
       );
     }
 
-    const sanitizedInput = sanitizeAgentInput(input, projectId);
+    const sanitizedInput = await prepareAgentInput(
+      input,
+      projectId,
+      user.v4BetaEnabled ?? false,
+    );
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -551,6 +561,9 @@ export default async function handler(request: Request) {
                         ? "existing"
                         : "new",
                     ...getInAppAgentQuickActionTraceMetadata(input.context),
+                    ...getInAppAgentMessageEntryPointTraceMetadata(
+                      input.context,
+                    ),
                   },
                 });
 
@@ -852,10 +865,11 @@ function isResumeAgentInput(
   return "command" in input.forwardedProps;
 }
 
-function sanitizeAgentInput(
+async function prepareAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
-): SanitizedAgentInput {
+  isV4Enabled: boolean,
+): Promise<SanitizedAgentInput> {
   const forwardedProps: unknown = input.forwardedProps;
 
   if (
@@ -866,6 +880,48 @@ function sanitizeAgentInput(
   ) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
+
+  const currentUrlContext = input.context.find(
+    (item) => item.description === "current_url",
+  );
+  const selectedSavedView = currentUrlContext
+    ? parseSavedViewFromURL(currentUrlContext.value, isV4Enabled)
+    : undefined;
+  let viewFilters: FilterState | undefined;
+
+  if (selectedSavedView) {
+    try {
+      const { filters, tableName } =
+        await TableViewService.getTableViewPresetsById(
+          selectedSavedView.viewId,
+          projectId,
+        );
+
+      if (
+        tableName === selectedSavedView.tableName ||
+        (selectedSavedView.tableName ===
+          TableViewPresetTableName.ObservationsEvents &&
+          tableName === TableViewPresetTableName.Observations)
+      ) {
+        viewFilters = filters;
+      }
+    } catch (error) {
+      // Saved views can be deleted while their URLs remain open or shared.
+      if (!(error instanceof LangfuseNotFoundError)) {
+        logger.warn("Failed to resolve saved view for in-app agent context", {
+          error,
+          projectId,
+          savedViewId: selectedSavedView.viewId,
+        });
+      }
+    }
+  }
+
+  const context = sanitizeInAppAgentContext(
+    input.context,
+    projectId,
+    viewFilters,
+  );
 
   if (forwardedProps && "command" in forwardedProps) {
     const resumeForwardedProps =
@@ -882,7 +938,7 @@ function sanitizeAgentInput(
       state: null,
       messages: [],
       tools: [],
-      context: sanitizeInAppAgentContext(input.context, projectId),
+      context,
       forwardedProps: resumeForwardedProps.data,
     };
   }
@@ -900,7 +956,7 @@ function sanitizeAgentInput(
     state: null,
     messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
-    context: sanitizeInAppAgentContext(input.context, projectId),
+    context,
     forwardedProps: {},
   };
 }

@@ -4,6 +4,7 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LEGACY_BLOB_EXPORT_CUTOFF } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -426,6 +427,74 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(result.config?.exportSource).toBe("EVENTS");
+    });
+  });
+
+  // LFE-14384: the credential is write-only — get returns only a masked
+  // display value; a blank key on update keeps the persisted encrypted value.
+  describe("PostHog credential masking", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    it("get returns a masked display value, never the plaintext key", async () => {
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.posthogIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config).not.toHaveProperty("posthogApiKey");
+      // Last-4-only: leading characters of the key are real secret material.
+      expect(result.config?.posthogApiKeyDisplay).toBe(
+        "..." + baseConfig.posthogProjectApiKey.slice(-4),
+      );
+      expect(JSON.stringify(result)).not.toContain(
+        baseConfig.posthogProjectApiKey,
+      );
+    });
+
+    it("update with a blank key keeps the existing credential", async () => {
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        posthogProjectApiKey: "",
+        enabled: false,
+      });
+      const row = await prisma.posthogIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(decrypt(row.encryptedPosthogApiKey)).toBe(
+        baseConfig.posthogProjectApiKey,
+      );
+      expect(row.enabled).toBe(false);
+    });
+
+    it("create with a blank key → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          posthogProjectApiKey: "",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     });
   });
 });

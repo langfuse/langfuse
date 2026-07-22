@@ -229,7 +229,7 @@ export function TimeSeriesLegend({
               />
               <span className="text-muted-foreground">{item.label}</span>
               {item.summary !== null && (
-                <span className="text-foreground font-medium">
+                <span className="text-foreground font-bold">
                   {formatSummary(item.summary)}
                 </span>
               )}

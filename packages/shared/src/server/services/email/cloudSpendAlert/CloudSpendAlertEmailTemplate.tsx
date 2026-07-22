@@ -140,5 +140,3 @@ export const CloudSpendAlertEmailTemplate = ({
     </Html>
   );
 };
-
-export default CloudSpendAlertEmailTemplate;

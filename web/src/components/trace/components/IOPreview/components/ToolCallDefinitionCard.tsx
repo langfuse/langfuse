@@ -78,7 +78,7 @@ function ToolCallArgumentsList({
             className="min-w-0"
           >
             <div className="mb-1.5 flex min-w-0 items-center justify-between gap-2">
-              <div className="text-foreground font-mono text-xs font-medium">
+              <div className="text-foreground font-mono text-xs font-bold">
                 Call {toolCall.invocationNumber}
               </div>
               {toolCall.id && (
@@ -145,7 +145,7 @@ function ToolGroupHoverContent({
               <div className="flex min-w-0 items-center gap-2">
                 <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                 <span
-                  className="text-foreground block truncate font-mono text-xs font-medium"
+                  className="text-foreground block truncate font-mono text-xs font-bold"
                   title={tool.name}
                 >
                   {toolDefinitionNumber !== undefined && (
@@ -157,7 +157,7 @@ function ToolGroupHoverContent({
               <Badge
                 variant={callCount > 0 ? undefined : "secondary"}
                 className={cn(
-                  "shrink-0 text-xs font-medium",
+                  "shrink-0 text-xs font-bold",
                   callCount > 0 &&
                     "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
                 )}
@@ -212,7 +212,7 @@ function ToolGroupSummary({
         />
         <span
           className={cn(
-            "truncate text-sm font-medium",
+            "truncate text-sm font-bold",
             isCalledGroup ? "text-dark-green" : "text-foreground",
           )}
           title={summaryText}
@@ -224,7 +224,7 @@ function ToolGroupSummary({
         <Badge
           variant={isCalledGroup ? undefined : "secondary"}
           className={cn(
-            "text-xs font-medium",
+            "text-xs font-bold",
             isCalledGroup &&
               "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
           )}
@@ -269,7 +269,7 @@ function ToolCallStatusBadge({
     <Badge
       variant={isCalled ? undefined : "secondary"}
       className={cn(
-        "text-xs font-medium whitespace-nowrap",
+        "text-xs font-bold whitespace-nowrap",
         isCalled &&
           "bg-light-green text-dark-green hover:bg-light-green border-transparent select-none",
       )}
@@ -294,7 +294,7 @@ function ToolCallStatusBadge({
         className="max-h-96 w-96 max-w-[calc(100vw-2rem)] overflow-auto p-0"
       >
         <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground text-xs font-semibold">
+          <div className="text-foreground text-xs font-bold">
             Tool call arguments
           </div>
           <div className="text-muted-foreground text-xs">
@@ -340,7 +340,7 @@ function ToolDefinitionRow({
         <div className="flex min-w-0 items-center gap-2">
           <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
           <span
-            className="text-foreground block truncate font-mono text-xs font-medium"
+            className="text-foreground block truncate font-mono text-xs font-bold"
             title={tool.name}
           >
             {toolDefinitionNumber !== undefined && (
@@ -390,7 +390,7 @@ function ToolDefinitionRow({
             <div className="space-y-4">
               {tool.description && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-medium">
+                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                     Description
                   </div>
                   <div className="text-foreground text-sm">
@@ -401,7 +401,7 @@ function ToolDefinitionRow({
 
               {tool.parameters && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-medium">
+                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                     Parameters
                   </div>
                   <PrettyJsonView
@@ -414,7 +414,7 @@ function ToolDefinitionRow({
 
               {toolCalls.length > 0 && (
                 <div>
-                  <div className="text-muted-foreground mb-1.5 text-xs font-medium">
+                  <div className="text-muted-foreground mb-1.5 text-xs font-bold">
                     Tool call arguments
                   </div>
                   <ToolCallArgumentsList toolCalls={toolCalls} />

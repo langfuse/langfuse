@@ -100,7 +100,7 @@ export const ExportFieldGroupsField = ({
                       isCore ? "space-y-0.5" : "cursor-pointer space-y-0.5"
                     }
                   >
-                    <div className="text-sm leading-none font-medium">
+                    <div className="text-sm leading-none font-bold">
                       {option.label}
                       {isCore && (
                         <span className="text-muted-foreground ml-1 font-normal">

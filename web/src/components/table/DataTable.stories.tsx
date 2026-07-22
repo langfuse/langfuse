@@ -723,7 +723,6 @@ function DataTableDemo(props: DataTableDemoProps) {
 }
 
 const meta = preview.meta({
-  title: "Components/Table/DataTable",
   component: DataTableDemo,
   parameters: {
     layout: "fullscreen",
@@ -1007,7 +1006,7 @@ function DensityPanel({ rowHeight }: { rowHeight: RowHeight }) {
   const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="text-muted-foreground mb-1 text-xs font-medium">
+      <div className="text-muted-foreground mb-1 text-xs font-bold">
         rowHeight = {rowHeight} — {label}
       </div>
       <div className="flex min-h-0 flex-1 flex-col border">

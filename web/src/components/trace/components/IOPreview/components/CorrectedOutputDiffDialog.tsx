@@ -17,6 +17,11 @@ type CorrectedOutputDiffDialogProps = {
   actualOutput?: unknown;
   correctedOutput: string;
   strictJsonMode: boolean;
+  /**
+   * True when the original output exists but was too large to load into the
+   * view (gated). Distinguishes "too large to diff" from "no output at all".
+   */
+  actualOutputTooLarge?: boolean;
 };
 
 /**
@@ -55,7 +60,14 @@ const formatOutputForDiff = (
 
 export const CorrectedOutputDiffDialog: React.FC<
   CorrectedOutputDiffDialogProps
-> = ({ isOpen, setIsOpen, actualOutput, correctedOutput, strictJsonMode }) => {
+> = ({
+  isOpen,
+  setIsOpen,
+  actualOutput,
+  correctedOutput,
+  strictJsonMode,
+  actualOutputTooLarge = false,
+}) => {
   // Format both outputs for comparison
   const formattedActualOutput = formatOutputForDiff(
     actualOutput,
@@ -66,9 +78,12 @@ export const CorrectedOutputDiffDialog: React.FC<
     strictJsonMode,
   );
 
-  // Check if there's no original output to compare
+  // Check if there's no original output to compare. When the output exists but
+  // was too large to load into the view, we cannot diff it — but that is not
+  // the same as there being no original output.
   const hasNoOriginalOutput =
-    actualOutput === null || actualOutput === undefined;
+    !actualOutputTooLarge &&
+    (actualOutput === null || actualOutput === undefined);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -81,10 +96,29 @@ export const CorrectedOutputDiffDialog: React.FC<
         </DialogHeader>
 
         <DialogBody>
-          {hasNoOriginalOutput ? (
+          {actualOutputTooLarge ? (
+            <div className="space-y-4">
+              <div className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
+                <p className="text-foreground font-bold">
+                  Original output too large to diff
+                </p>
+                <p className="mt-1">
+                  The original output is too large to load here, so it cannot be
+                  compared side by side. Your correction is shown below and will
+                  be saved as-is.
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 text-sm font-bold">Corrected Output</p>
+                <pre className="bg-muted/30 max-h-[50vh] overflow-auto rounded-md border p-3 text-xs break-words whitespace-pre-wrap">
+                  {formattedCorrectedOutput}
+                </pre>
+              </div>
+            </div>
+          ) : hasNoOriginalOutput ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <div className="text-muted-foreground">
-                <p className="text-lg font-medium">No original output</p>
+                <p className="text-lg font-bold">No original output</p>
                 <p className="mt-2 text-sm">
                   There is no original output to compare with the correction.
                 </p>

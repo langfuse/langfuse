@@ -90,7 +90,7 @@ const SwitcherMenu = ({
         <Command filter={filterByName}>
           <Link
             href={headerLink.href}
-            className="block px-3 py-2 text-sm font-semibold hover:underline"
+            className="block px-3 py-2 text-sm font-bold hover:underline"
             onClick={() => setOpen(false)}
           >
             {headerLink.label}

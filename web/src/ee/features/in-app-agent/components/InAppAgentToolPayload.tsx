@@ -30,7 +30,7 @@ export function InAppAgentToolPayload({
     <div className="space-y-1">
       <p
         className={cn(
-          "text-xs font-medium",
+          "text-xs font-bold",
           variant === "default" && "text-muted-foreground",
           variant === "failed" && "text-destructive",
           variant === "denied" && "text-dark-yellow",

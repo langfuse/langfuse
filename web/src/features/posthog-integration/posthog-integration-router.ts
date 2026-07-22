@@ -12,6 +12,7 @@ import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
@@ -45,11 +46,14 @@ export const posthogIntegrationRouter = createTRPCRouter({
 
         const { encryptedPosthogApiKey, exportSource, ...config } = dbConfig;
 
+        // Write-only credential: never return the plaintext key (LFE-14384).
         return {
           config: {
             ...config,
             exportSource,
-            posthogApiKey: decrypt(encryptedPosthogApiKey),
+            posthogApiKeyDisplay: getDisplayCredential(
+              decrypt(encryptedPosthogApiKey),
+            ),
           },
           legacyWritesActive,
         };
@@ -114,8 +118,24 @@ export const posthogIntegrationRouter = createTRPCRouter({
       const existingIntegration =
         await ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true, createdAt: true },
+          select: {
+            exportSource: true,
+            createdAt: true,
+            encryptedPosthogApiKey: true,
+          },
         });
+
+      // Write-only credential: blank/omitted keeps the persisted encrypted
+      // value (LFE-14384).
+      const encryptedPosthogApiKey = input.posthogProjectApiKey
+        ? encrypt(input.posthogProjectApiKey)
+        : existingIntegration?.encryptedPosthogApiKey;
+      if (!encryptedPosthogApiKey) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "PostHog Project API Key is required",
+        });
+      }
       const createDefaultExportSource = legacyWritesActive
         ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
         : AnalyticsIntegrationExportSource.EVENTS;
@@ -149,9 +169,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
         resourceType: "posthogIntegration",
         resourceId: input.projectId,
       });
-      const { posthogProjectApiKey, ...config } = input;
-
-      const encryptedPosthogApiKey = encrypt(posthogProjectApiKey);
+      const { posthogProjectApiKey: _posthogProjectApiKey, ...config } = input;
 
       await ctx.prisma.$transaction(async (tx) => {
         const result = await tx.posthogIntegration.upsert({

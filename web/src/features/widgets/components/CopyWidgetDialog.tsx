@@ -43,7 +43,7 @@ export function CopyWidgetDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-muted-foreground py-4 text-sm">
-            <span className="text-foreground font-medium">
+            <span className="text-foreground font-bold">
               &ldquo;{widgetName}&rdquo;
             </span>{" "}
             is maintained by Langfuse and can&rsquo;t be edited directly.

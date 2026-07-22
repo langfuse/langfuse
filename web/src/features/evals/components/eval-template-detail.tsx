@@ -121,7 +121,7 @@ export const EvalTemplateDetail = () => {
                   icon={<TrashIcon className="h-4 w-4" />}
                   label="Delete"
                   aria-label="delete"
-                  variant="outline-solid"
+                  variant="outline"
                   size="icon"
                   disabledReason={
                     hasDeleteAccess
@@ -179,12 +179,12 @@ export const EvalTemplateDetail = () => {
           </div>
           <SidePanel mobileTitle="Change history" id="change-history">
             <SidePanelHeader>
-              <SidePanelTitle className="text-base font-semibold">
+              <SidePanelTitle className="text-base font-bold">
                 Change history
               </SidePanelTitle>
             </SidePanelHeader>
             <SidePanelContent>
-              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-bold focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
                 <div className="flex flex-col overflow-y-auto">
                   {allTemplates.data.templates.map((template, index) => (
                     <div
@@ -295,7 +295,7 @@ export function UpdateTemplate({
     return (
       <div className="flex items-center gap-2">
         <LangfuseIcon size={16} />
-        <span className="text-muted-foreground text-sm font-medium">
+        <span className="text-muted-foreground text-sm font-bold">
           View only
         </span>
       </div>
@@ -304,7 +304,7 @@ export function UpdateTemplate({
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium">Edit mode</span>
+      <span className="text-sm font-bold">Edit mode</span>
       <Switch
         checked={isEditing}
         onCheckedChange={handlePromptEdit}
