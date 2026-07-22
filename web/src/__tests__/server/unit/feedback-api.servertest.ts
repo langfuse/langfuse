@@ -58,16 +58,24 @@ const validBody = {
   referenceUrl: "https://langfuse.com/docs",
 };
 
-const createRequest = (body: Record<string, unknown> | null, client?: string) =>
-  createMocks<NextApiRequest, NextApiResponse>({
+const createRequest = (
+  body: Record<string, unknown> | null,
+  client?: string,
+) => {
+  const mocks = createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
     headers: {
       authorization: "Basic test",
       "content-type": "application/json",
       ...(client ? { "x-langfuse-client": client } : {}),
     },
-    body,
+    body: body ?? {},
   });
+
+  if (body === null) mocks.req.body = null;
+
+  return mocks;
+};
 
 describe("POST /api/public/feedback", () => {
   beforeEach(() => {
