@@ -49,14 +49,34 @@ raw UTF-8 bytes ──▶ ByteJsonIndexEngine ──▶ AsyncJsonSource ──�
   integration-boundary effect). The identical renderer will run over the Worker
   source unchanged.
 
-## Status / next
+## Key design constraint (from prod experience)
 
-- Done: engine (LFE-11082), source + model + hardened contract, backend streaming
-  endpoint (PR #15239), **async virtualized renderer over the in-memory source
-  (this commit)** — demoable via `LazyJsonViewer.stories.tsx`.
-- Next: the byte-engine **blockers** for the _streamed_ (non-JSON-guaranteed)
-  path — B1 non-JSON/raw root → string-leaf fallback, B2 empty-doc, B3 strict
-  truncation detection; endpoint integrity header. Then wire the Worker source
-  behind `AsyncJsonSource` (the renderer does not change), then integrate into the
-  trace view and retire the gate. (In-memory bytes come from `JSON.stringify`, so
-  they're always valid JSON — B1/B2/B3 are stream-only.)
+The prior viewers taught us that **the Worker itself is a cost**: always parsing
+in a Worker made *fast trace-flipping on small JSON* noticeably slower. So "use
+the byte engine" and "use a Worker" are **independent** decisions. Because
+`load()` is O(1) and each container is scanned once only on expand, the
+**main-thread** byte-engine path has near-zero upfront cost and handles the common
+large case (a base64 image = one giant string leaf, never materialized) with **no
+Worker**. The Worker is reserved for genuinely-huge *structured* payloads (rare),
+chosen at the `buildModel` seam by a size threshold. Virtualization also breaks
+browser Ctrl+F, so the viewer owns an in-viewer find.
+
+## Status / next (phased)
+
+- **P0 — interim gate (LFE-10847, #15230): MERGED.** Stops the crash today.
+- **P1 — byte engine + async seam + renderer: done** (#15265 draft). Demoable via
+  `LazyJsonViewer.stories.tsx`. Materialization + wide-container pagination
+  (LFE-11082) are built inside the engine; the streaming backend (LFE-11081,
+  #15239) is merged.
+- **P2 — integrate into IOPreview, MAIN-THREAD, no Worker (LFE-11084): NEXT.**
+  Replace the eager JSON Beta path with the lazy renderer; add in-viewer find
+  (Ctrl+F replacement, LFE-11083 main-thread slice); retire the gate for this
+  path; Sentry-instrument genuine failures + a rate-limited "default miscalibrated"
+  signal; size thresholds calibrated to an M1 MacBook Air 2020.
+- **P3 — Worker source + GB tail:** wire a Worker `AsyncJsonSource` (byte engine
+  off-thread) consuming #15239, behind the size threshold. Renderer unchanged.
+  Byte-engine stream blockers first (non-JSON/raw root, empty-doc, strict
+  truncation — stream-only; in-memory bytes from `JSON.stringify` are always valid
+  JSON). Seam needs dispose/cancel + a progress signal for this.
+- **P4 — chDB source:** when ClickHouse returns parsed JSON on demand (Valeriy),
+  swap the source behind `AsyncJsonSource`; renderer + RowModel unchanged.
