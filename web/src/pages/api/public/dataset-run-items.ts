@@ -13,8 +13,12 @@ import {
 import { DATASET_RUN_ITEMS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
-  // POST is a write → Fern availability: deprecated only (no _deprecation body
-  // field), consistent with the other legacy write endpoints.
+  // POST is a write: its deprecation signal is the Fern `availability: deprecated`
+  // marker (+ generated-SDK @deprecated), not a runtime `_deprecation` body field.
+  // Unlike the ingestion write siblings (which attach LEGACY_INGESTION_DEPRECATION),
+  // there is no create-appropriate replacement constant to wire here —
+  // DATASET_RUN_ITEMS_DEPRECATION is read-oriented (→ GET /experiment-items) and
+  // would be wrong guidance on a create endpoint.
   POST: createAuthedProjectAPIRoute({
     name: "Create Dataset Run Item",
     bodySchema: PostDatasetRunItemsV1Body,
