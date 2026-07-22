@@ -1,9 +1,15 @@
 import {
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  queryClickhouseWithProgress,
   ClickHouseResourceError,
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
+
+const QUERY_ID_PATTERN =
+  /\[query_id: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\]/;
 
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
@@ -16,7 +22,11 @@ describe("ClickHouse Resource Error Handling", () => {
             res = await queryClickhouse<any>({
               query: `SELECT throwIf(number >= 2, 'memory limit exceeded: would use 10.23 GiB') AS v FROM system.numbers LIMIT 2000`,
               clickhouseSettings: { max_block_size: `${blockSize}` },
-              tags: { test: "marker" },
+              tags: {
+                surface: "trpc",
+                route: "test.resource-error",
+                projectId: "project-1",
+              },
             });
             fail(
               "Should have thrown an error, observed instead " +
@@ -25,7 +35,12 @@ describe("ClickHouse Resource Error Handling", () => {
           } catch (error: any) {
             expect(error).toBeInstanceOf(ClickHouseResourceError);
             expect(error.errorType).toBe("MEMORY_LIMIT");
-            expect(error.tags?.test).toBe("marker");
+            expect(error.tags).toEqual({
+              tag_schema_version: "1",
+              surface: "trpc",
+              route: "test.resource-error",
+              projectId: "project-1",
+            });
           }
         });
       });
@@ -124,6 +139,96 @@ describe("ClickHouse Resource Error Handling", () => {
         expect(results[0]).toHaveProperty("number");
       });
     });
+
+    describe("query_id propagation (LFE-11043)", () => {
+      it("should include query_id in errors thrown mid-stream", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT throwIf(number = 2, 'memory limit exceeded: would use 10.23 GiB') as V FROM numbers(10)`,
+          clickhouseSettings: { max_block_size: "1" },
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error).toBeInstanceOf(ClickHouseResourceError);
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+        }
+      });
+
+      it("should include query_id in errors thrown before streaming starts", async () => {
+        const generator = queryClickhouseStream({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+        });
+
+        const rows: unknown[] = [];
+        try {
+          for await (const item of generator) {
+            rows.push(item);
+          }
+          fail("Should have thrown an error");
+        } catch (error: any) {
+          expect(error.message).toMatch(QUERY_ID_PATTERN);
+          expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+        }
+      });
+    });
+  });
+
+  describe("queryClickhouseStreamRawText", () => {
+    it("should include query_id in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseStreamRawText({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: string[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseWithProgress", () => {
+    it("should include query_id exactly once in errors thrown before streaming starts", async () => {
+      const generator = queryClickhouseWithProgress({
+        query: `SELECT * FROM non_existent_table_xyz123`,
+      });
+
+      const rows: unknown[] = [];
+      try {
+        for await (const item of generator) {
+          rows.push(item);
+        }
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
+  });
+
+  describe("queryClickhouseExecRaw", () => {
+    it("should include query_id exactly once in errors thrown before streaming", async () => {
+      try {
+        await queryClickhouseExecRaw({
+          query: `SELECT * FROM non_existent_table_xyz123`,
+          format: "Parquet",
+        });
+        fail("Should have thrown an error");
+      } catch (error: any) {
+        expect(error.message).toMatch(QUERY_ID_PATTERN);
+        expect(error.message.match(/\[query_id:/g)).toHaveLength(1);
+      }
+    });
   });
 
   describe("Error patterns documentation", () => {
@@ -178,9 +283,8 @@ describe("ClickHouse Resource Error Handling", () => {
           const isResourceError = ((err: Error) => {
             if (err instanceof ClickHouseResourceError) {
               return true;
-            } else {
-              return false;
             }
+            return false;
           })(wrappedError);
 
           expect(isResourceError).toBe(shouldBeResourceError);

@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { encrypt } from "../../../packages/shared/src/encryption";
 import { env } from "../../../packages/shared/src/env";
+import { LLMAdapter } from "../../../packages/shared/src/server/llm/types";
 import {
-  ChatMessageType,
-  LLMAdapter,
-} from "../../../packages/shared/src/server/llm/types";
-import { fetchLLMCompletion } from "../../../packages/shared/src/server/llm/fetchLLMCompletion";
+  generateLLMText,
+  streamLLMText,
+} from "../../../packages/shared/src/server/llm/llmText";
 import {
   createSecureLlmFetch,
   fetchSecureLlmUrl,
 } from "../../../packages/shared/src/server/llm/secureLlmFetch";
-import { RedirectValidationError } from "../../../packages/shared/src/server/outbound-url";
+import { LLMValidationError } from "../../../packages/shared/src/server/llm/errors";
 import {
   startLocalLlmServer,
   type LocalLlmServer,
@@ -84,6 +84,7 @@ const OPENAI_RESPONSES_RESPONSE = JSON.parse(OPENAI_RESPONSES_BODY);
 
 describe("secure LLM fetch", () => {
   const originalWhitelistedHosts = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST;
+  const originalWhitelistedIps = env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS;
   // env is the zod-validated object: read from process.env at module load and
   // not refreshed afterward. Mutating process.env later is a no-op for the
   // code under test, so we mutate `env.*` directly and restore in afterEach.
@@ -93,12 +94,14 @@ describe("secure LLM fetch", () => {
   beforeEach(() => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = ["127.0.0.1"];
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = ["127.0.0.1"];
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
     await Promise.all(servers.splice(0).map((s) => s.close()));
     env.LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST = originalWhitelistedHosts;
+    env.LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS = originalWhitelistedIps;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
@@ -120,29 +123,26 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSE_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -164,23 +164,20 @@ describe("secure LLM fetch", () => {
           res.end(OPENAI_RESPONSES_BODY);
         });
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -189,7 +186,7 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        expect(completion).toBe("4");
+        expect(completion.text).toBe("4");
         expect(server.requests).toHaveLength(1);
         const [request] = server.requests;
         expect(request.method).toBe("POST");
@@ -250,23 +247,20 @@ describe("secure LLM fetch", () => {
           res.end();
         });
 
-        const stream = await fetchLLMCompletion({
-          streaming: true,
+        const stream = await streamLLMText({
           messages: [
             {
               role: "user",
               content: "What is 2+2? Answer only with the number.",
-              type: ChatMessageType.PublicAPICreated,
             },
           ],
-          modelParams: {
-            provider: "openai",
+          model: {
             adapter: LLMAdapter.OpenAI,
-            model: "gpt-4o-mini",
-            temperature: 0,
-            max_tokens: 10,
+            id: "gpt-4o-mini",
           },
-          llmConnection: {
+          temperature: 0,
+          maxOutputTokens: 10,
+          connection: {
             secretKey: encrypt("openai-api-key"),
             baseURL: `${server.url}/v1`,
             config: {
@@ -275,15 +269,53 @@ describe("secure LLM fetch", () => {
           },
         });
 
-        const decoder = new TextDecoder();
         let text = "";
-        for await (const chunk of stream) {
-          text += decoder.decode(chunk);
+        for await (const chunk of stream.textStream) {
+          text += chunk;
         }
 
         expect(text).toBe("pong");
         expect(server.requests).toHaveLength(1);
         expect(server.requests[0].url).toBe("/v1/responses");
+      },
+    );
+
+    test(
+      "strips encrypted connection headers from cross-origin redirects",
+      { timeout: 30_000 },
+      async () => {
+        const target = await spinUp((_req, _body, res) => {
+          res.setHeader("content-type", "application/json");
+          res.end(OPENAI_RESPONSE_BODY);
+        });
+        const redirector = await spinUp((_req, _body, res) => {
+          res.statusCode = 307;
+          res.setHeader("location", `${target.url}/v1/chat/completions`);
+          res.end();
+        });
+
+        const completion = await generateLLMText({
+          messages: [{ role: "user", content: "Say 4" }],
+          model: {
+            adapter: LLMAdapter.OpenAI,
+            id: "gpt-4o-mini",
+          },
+          connection: {
+            secretKey: encrypt("openai-api-key"),
+            baseURL: `${redirector.url}/v1`,
+            extraHeaders: encrypt(
+              JSON.stringify({ "x-gateway-token": "gateway-secret" }),
+            ),
+          },
+        });
+
+        expect(completion.text).toBe("4");
+        expect(redirector.requests).toHaveLength(1);
+        expect(redirector.requests[0].headers["x-gateway-token"]).toBe(
+          "gateway-secret",
+        );
+        expect(target.requests).toHaveLength(1);
+        expect(target.requests[0].headers["x-gateway-token"]).toBeUndefined();
       },
     );
   });
@@ -366,7 +398,12 @@ describe("secure LLM fetch", () => {
           headers: { authorization: "Bearer leakable-token" },
           body: JSON.stringify({ messages: [] }),
         }),
-      ).rejects.toBeInstanceOf(RedirectValidationError);
+      ).rejects.toEqual(
+        expect.objectContaining<Partial<LLMValidationError>>({
+          name: "LLMValidationError",
+          code: "invalid-connection",
+        }),
+      );
     });
 
     test("strips additional sensitive headers on cross-origin redirects", async () => {
@@ -403,5 +440,68 @@ describe("secure LLM fetch", () => {
       // Non-sensitive headers survive the redirect.
       expect(forwarded.headers["x-non-sensitive"]).toBe("keep-me");
     });
+  });
+
+  describe("abort signal propagation", () => {
+    test("forwards the caller's signal instance to the underlying fetch", async () => {
+      // Identity matters, not just abort wiring: undici links init.signal to
+      // a derived request.signal through a WeakRef'd AbortController owned by
+      // the temporary Request used for input normalization. Once GC collects
+      // that Request, abort propagation silently stops and runtime timeouts
+      // (e.g. the AI SDK engine's native timeout) never cancel the HTTP
+      // request. Forwarding the caller's own signal is the only GC-safe wiring.
+      const receivedSignals: Array<AbortSignal | null | undefined> = [];
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (_input, init) => {
+          receivedSignals.push(init?.signal);
+          return new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        });
+
+      const controller = new AbortController();
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+
+      await secureFetch("http://127.0.0.1:65535/v1/chat/completions", {
+        method: "POST",
+        body: JSON.stringify({ messages: [] }),
+        signal: controller.signal,
+      });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(receivedSignals[0]).toBe(controller.signal);
+    });
+
+    test("aborting the caller's signal cancels an in-flight body read", async () => {
+      const server = await spinUp((_req, _body, res) => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.write('{"id":"chatcmpl-test","choices":[');
+        // Never end the body: only signal propagation can terminate the read.
+      });
+
+      const secureFetch = createSecureLlmFetch({
+        logContext: "Test LLM endpoint",
+      });
+
+      const start = Date.now();
+      await expect(async () => {
+        const response = await secureFetch(
+          `${server.url}/v1/chat/completions`,
+          {
+            method: "POST",
+            body: JSON.stringify({ messages: [] }),
+            signal: AbortSignal.timeout(1_000),
+          },
+        );
+        await response.text();
+      }).rejects.toThrow(/timeout|abort/i);
+      // Well below the 10s test timeout: proves the abort ended the read
+      // instead of the request running until the server gives up.
+      expect(Date.now() - start).toBeLessThan(5_000);
+    }, 10_000);
   });
 });

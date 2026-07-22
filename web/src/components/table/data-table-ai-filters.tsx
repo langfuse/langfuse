@@ -48,7 +48,10 @@ export function DataTableAIFilters({
           onFiltersGenerated(result.filters as FilterState);
           setAiPrompt("");
         } else {
-          console.error(result);
+          console.error(
+            "dataTable.aiFilters: invalid response format",
+            JSON.stringify(result),
+          );
           setAiError("Invalid response format from API");
         }
       } catch (error) {
@@ -74,7 +77,7 @@ export function DataTableAIFilters({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Filter with AI</span>
+        <span className="text-sm font-bold">Filter with AI</span>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

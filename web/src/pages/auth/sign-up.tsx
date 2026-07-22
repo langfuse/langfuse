@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useState } from "react";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import {
@@ -29,6 +29,7 @@ import { PasswordInput } from "@/src/components/ui/password-input";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
@@ -77,7 +78,7 @@ export default function SignUp({
 function StandardSignupFlow({
   authProviders,
 }: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
@@ -182,7 +183,7 @@ function StandardSignupFlow({
         }
       }, 100);
     } catch (error) {
-      console.error(error);
+      captureUnknownError("auth.signUp.checkSso", error);
       setFormError("Unable to check SSO configuration. Please try again.");
     } finally {
       setContinueLoading(false);
@@ -212,7 +213,7 @@ function StandardSignupFlow({
         password: values.password,
         callbackUrl:
           targetPath ??
-          (isLangfuseCloud && region !== "DEV"
+          (isLangfuseCloud
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
@@ -295,7 +296,7 @@ function StandardSignupFlow({
             {showPasswordStep ? "Sign up" : "Continue"}
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -407,13 +408,15 @@ function VerifiedSignupFlow({
         </Head>
         <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
           <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <LangfuseIcon className="mx-auto" />
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
             <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
               Check your email
             </h2>
             <p className="text-muted-foreground mt-2 text-center text-sm">
               We sent a verification code to{" "}
-              <span className="font-medium">{otpEmail}</span>
+              <span className="font-bold">{otpEmail}</span>
             </p>
           </div>
 
@@ -422,7 +425,7 @@ function VerifiedSignupFlow({
               <div>
                 <label
                   htmlFor="otp-code"
-                  className="mb-2 block text-sm font-medium"
+                  className="mb-2 block text-sm font-bold"
                 >
                   Verification code
                 </label>
@@ -447,7 +450,7 @@ function VerifiedSignupFlow({
                 Verify
               </Button>
               {otpError && (
-                <div className="text-destructive text-center text-sm font-medium">
+                <div className="text-destructive text-center text-sm font-bold">
                   {otpError}
                 </div>
               )}
@@ -455,7 +458,7 @@ function VerifiedSignupFlow({
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="text-primary-accent hover:text-hover-primary-accent font-medium"
+                  className="text-link hover:text-link-hover font-bold"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -520,7 +523,7 @@ function VerifiedSignupFlow({
             Continue
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -552,7 +555,9 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <div className="mx-auto w-fit">
+            <LangfuseIcon />
+          </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
           </h2>
@@ -581,7 +586,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
+        className="text-link hover:text-link-hover leading-6 font-bold"
       >
         Sign in
       </Link>

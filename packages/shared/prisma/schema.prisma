@@ -79,6 +79,7 @@ model User {
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
+  apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
 
   @@map("users")
 }
@@ -105,6 +106,11 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
+  // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
+  // between the stored value and a subsequently returned ID indicates an SFDC
+  // side merge — logged as an error but does not throw (no retry loop).
+  sfdcOrgId                        String?                  @map("sfdc_org_id")
   organizationMemberships          OrganizationMembership[]
   projects                         Project[]
   MembershipInvitation             MembershipInvitation[]
@@ -126,6 +132,10 @@ model Project {
   retentionDays             Int?                        @map("retention_days")
   hasTraces                 Boolean                     @default(false) @map("has_traces")
   metadata                  Json?
+  // Which dashboard renders on the project home page; null = the
+  // Langfuse-curated default (LANGFUSE_HOME_DASHBOARD_ID).
+  homeDashboardId           String?                     @map("home_dashboard_id")
+  homeDashboard             Dashboard?                  @relation("ProjectHomeDashboard", fields: [homeDashboardId], references: [id], onDelete: SetNull)
   projectMembers            ProjectMembership[]
   organization              Organization                @relation(fields: [orgId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   apiKeys                   ApiKey[]
@@ -175,6 +185,7 @@ model Project {
   InAppAgentConversation    InAppAgentConversation[]
   InAppAgentEvent           InAppAgentEvent[]
   InAppAgentRun             InAppAgentRun[]
+  InAppAgentPendingToolApproval InAppAgentPendingToolApproval[]
 
   @@index([orgId])
   @@map("projects")
@@ -201,9 +212,15 @@ model ApiKey {
   orgId               String?       @map("organization_id")
   organization        Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   scope               ApiKeyScope   @default(PROJECT) @map("scope")
+  createdByUserId     String?       @map("created_by_user_id")
+  createdByUser       User?         @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByApiKeyId   String?       @map("created_by_api_key_id")
+  createdByApiKey     ApiKey?       @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
+  apiKeysCreated      ApiKey[]      @relation("ApiKeyCreatedByApiKey")
 
   @@index(orgId)
   @@index(projectId)
+  @@index(createdByApiKeyId)
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
@@ -222,6 +239,7 @@ model InAppAgentConversation {
   createdByUserId   String?                               @map("created_by_user_id")
   createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   title             String?
+  renamedByUserAt   DateTime?                             @map("renamed_by_user_at")
   visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
   providerSessionId String?                               @map("provider_session_id")
   deletedAt         DateTime?                             @map("deleted_at")
@@ -230,6 +248,7 @@ model InAppAgentConversation {
 
   events InAppAgentEvent[]
   runs   InAppAgentRun[]
+  pendingToolApprovals InAppAgentPendingToolApproval[]
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
@@ -274,6 +293,22 @@ model InAppAgentRun {
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")
+}
+
+model InAppAgentPendingToolApproval {
+  projectId           String                 @map("project_id")
+  project             Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId      String                 @map("conversation_id")
+  conversation        InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  toolCallId          String                 @map("tool_call_id")
+  approvalFingerprint String                 @map("approval_fingerprint")
+  expiresAt           DateTime               @map("expires_at")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @default(now()) @updatedAt @map("updated_at")
+
+  @@id([projectId, conversationId, toolCallId])
+  @@index([expiresAt], map: "in_app_agent_pending_tool_approvals_expires_at_idx")
+  @@map("in_app_agent_pending_tool_approvals")
 }
 
 model BackgroundMigration {
@@ -1007,7 +1042,6 @@ model EvalTemplate {
   sourceCode         String?                         @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
   JobConfiguration   JobConfiguration[]
-  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -1037,6 +1071,8 @@ enum JobConfigState {
 
 enum EvaluatorBlockReason {
   LLM_CONNECTION_AUTH_INVALID
+  LLM_CONNECTION_BILLING_EXHAUSTED
+  LLM_CONNECTION_ENDPOINT_UNREACHABLE
   LLM_CONNECTION_MISSING
   DEFAULT_EVAL_MODEL_MISSING
   EVAL_MODEL_CONFIG_INVALID
@@ -1093,7 +1129,6 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -1229,6 +1264,14 @@ model BlobStorageIntegration {
   exportFieldGroups String[]                         @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
   compressed        Boolean                          @default(true) @map("compressed")
 
+  // Per-project blob-export tuning (set via DB directly for now; no UI/tRPC
+  // write path). Validated/clamped at job time; null/malformed → defaults.
+  // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
+  exportTuning Json? @map("export_tuning")
+
+  // Run tracking
+  runStartedAt DateTime? @map("run_started_at")
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
@@ -1266,6 +1309,7 @@ enum BlobStorageIntegrationFileType {
   JSON
   CSV
   JSONL
+  PARQUET
 
   @@map("BlobStorageIntegrationFileType")
 }
@@ -1397,6 +1441,34 @@ model ObservationMedia {
   @@map("observation_media")
 }
 
+model DatasetItemMedia {
+  id                   String   @id @default(cuid())
+  projectId            String   @map("project_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId              String   @map("media_id")
+  // dataset items cascade on dataset deletion, but these rows have no FK;
+  // datasetId lets the dataset-delete worker clean them up directly
+  datasetId            String   @map("dataset_id")
+  datasetItemId        String   @map("dataset_item_id")
+  // null while pending: the row is declared at media upload and stamped with
+  // the item version's validFrom when the item is written.
+  datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
+  // dataset item field containing the reference: input | expectedOutput | metadata
+  field                String   @map("field")
+  // null while pending; the dataset service fills it from the item JSON on claim.
+  // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
+  jsonPath             String?  @map("json_path")
+  // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
+  // claim so reads need no JSON parsing
+  referenceString      String?  @map("reference_string")
+
+  @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
+  @@index([projectId, mediaId])
+  @@index([projectId, datasetId])
+  @@map("dataset_item_media")
+}
+
 model BillingMeterBackup {
   // unique
   stripeCustomerId String   @map("stripe_customer_id")
@@ -1472,6 +1544,8 @@ model Dashboard {
   definition Json @map("definition")
   filters    Json @default("[]") @map("filters")
 
+  homeDashboardProjects Project[] @relation("ProjectHomeDashboard")
+
   @@map("dashboards")
 }
 
@@ -1480,6 +1554,7 @@ enum DashboardWidgetViews {
   OBSERVATIONS
   SCORES_NUMERIC
   SCORES_CATEGORICAL
+  SCORES_BOOLEAN
 }
 
 enum DashboardWidgetChartType {
@@ -1692,6 +1767,7 @@ enum MonitorView {
   OBSERVATIONS
   SCORES_NUMERIC
   SCORES_CATEGORICAL
+  SCORES_BOOLEAN
 }
 
 enum MonitorSeverity {

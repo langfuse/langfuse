@@ -1,6 +1,32 @@
 import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
+// Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
+// idSchema cap). Lower to 255 for MinIO on ext4. Affects only new writes —
+// existing objects are read by recorded path, not reconstructed.
+// Shared with worker/src/env.ts to keep validation rules identical.
+export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
+  .number()
+  .int()
+  .min(64)
+  .max(2048)
+  .default(2048);
+
+// Socket-level watchdog for all Redis connections: ioredis destroys and
+// reconnects a socket that received no data for this long, so a hung
+// connection cannot pin BullMQ concurrency slots forever. Must be 0 (disabled)
+// or >= 10s: BullMQ blocking commands (BZPOPMIN) legitimately idle ~5s between
+// packets, and lower values make healthy idle workers cycle through
+// reconnects (#12944).
+export const redisSocketTimeoutMsSchema = z.coerce
+  .number()
+  .int()
+  .refine((ms) => ms === 0 || ms >= 10_000, {
+    message:
+      "REDIS_SOCKET_TIMEOUT_MS must be 0 (disabled) or at least 10000; BullMQ blocking commands idle ~5s between packets",
+  })
+  .default(30_000);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -44,6 +70,7 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  REDIS_SOCKET_TIMEOUT_MS: redisSocketTimeoutMsSchema,
   LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
     .enum(["true", "false"])
     .default("false"),
@@ -56,6 +83,7 @@ const EnvSchema = z.object({
     .positive()
     .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
   REDIS_SENTINEL_USERNAME: z.string().optional(),
@@ -229,6 +257,8 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -267,6 +297,13 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+  // Max concurrent S3 deleteFiles requests the blob-storage cleanup consumer
+  // keeps in flight. Bounds memory and backpressures the ClickHouse ref stream.
+  LANGFUSE_BLOB_STORAGE_DELETE_S3_CONCURRENCY: z.coerce
+    .number()
+    .min(1)
+    .max(20)
+    .default(5),
 
   // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
   // public API routes that rely on the legacy traces/observations tables.
@@ -277,6 +314,15 @@ const EnvSchema = z.object({
     .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
+  // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
+  // default (CRC32). Some S3-compatible stores reject CRC32 with 400
+  // MissingContentMD5 and need "MD5" (sent as the legacy Content-MD5 header),
+  // e.g. MinIO before RELEASE.2025-02-03 (langfuse/langfuse-k8s#356). MD5 is
+  // unavailable on FIPS runtimes; stores that support it also accept e.g.
+  // SHA256 as a FIPS-approved alternative.
+  LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM: z
+    .enum(["MD5", "CRC32", "CRC32C", "CRC64NVME", "SHA1", "SHA256"])
+    .optional(),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -284,6 +330,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3600), // 1 hour
+  LANGFUSE_INGEST_FAILURE_PROJECT_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .gt(60)
+    .default(600), // 10 minutes
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -391,14 +442,6 @@ const EnvSchema = z.object({
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
-  SLACK_FETCH_LIMIT: z.coerce
-    .number()
-    .positive()
-    .optional()
-    .default(5_000)
-    .describe(
-      "How many records should be fetched from Slack, before we give up",
-    ),
   SLACK_PAGE_SIZE: z.coerce
     .number()
     .positive()
@@ -419,7 +462,7 @@ const EnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(600_000), // 10 minutes
+    .default(3_600_000), // 60 minutes
 
   LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
     .number()
@@ -433,6 +476,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags

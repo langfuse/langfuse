@@ -1,189 +1,88 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
-import { createPortal } from "react-dom";
-import { useSession } from "next-auth/react";
+import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+  useCanUseInAppAgent,
+  useInAppAiAgent,
+  type InAppAgentEntryPoint,
+} from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { cn } from "@/src/utils/tailwind";
 
-const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
-
+/** Launcher only — the assistant window itself is rendered by
+ * InAppAgentWindowHost from the persistent authenticated layout, so it
+ * survives the per-page remount of this button on navigation. */
 export const InAppAiAgentButton = () => {
-  const session = useSession();
-  const { organization } = useQueryProjectOrOrganization();
-  const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
-    useInAppAiAgent();
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const isInAppAgentEnabled =
-    session.data?.user?.featureFlags.inAppAgent === true;
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [anchorStyle, setAnchorStyle] = useState<CSSProperties>();
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
-    null,
+  const { open, setOpen, openAssistant } = useInAppAiAgent();
+  const canUseAssistant = useCanUseInAppAgent();
+
+  const toggleAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      if (open) {
+        setOpen(false);
+        return;
+      }
+
+      openAssistant(source);
+    },
+    [open, openAssistant, setOpen],
   );
-  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
-
-  const updateAnchorStyle = () => {
-    const button = buttonRef.current;
-
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-
-    setAnchorStyle({
-      left: rect.right - 6,
-    });
-  };
 
   useEffect(() => {
-    setPortalContainer(document.body);
-  }, []);
-
-  useLayoutEffect(() => {
-    const previousRect = previousPanelRectRef.current;
-    const panel = panelRef.current;
-
-    previousPanelRectRef.current = null;
-
-    if (!previousRect || !panel) {
+    if (!canUseAssistant) {
       return;
     }
 
-    const nextRect = panel.getBoundingClientRect();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.repeat ||
+        event.key?.toLowerCase() !== "i" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
 
-    panel.animate(
-      [
-        {
-          transform: `translate(${previousRect.left - nextRect.left}px, ${previousRect.top - nextRect.top}px) scale(${nextRect.width > 0 ? previousRect.width / nextRect.width : 1}, ${nextRect.height > 0 ? previousRect.height / nextRect.height : 1})`,
-        },
-        { transform: "translate(0, 0) scale(1, 1)" },
-      ],
-      {
-        duration: 180,
-        easing: "cubic-bezier(0.2, 0, 0, 1)",
-      },
-    );
-  }, [isExpanded]);
-
-  useEffect(() => {
-    if (!open || isExpanded) {
-      return;
-    }
-
-    updateAnchorStyle();
-
-    window.addEventListener("resize", updateAnchorStyle);
-    window.addEventListener("scroll", updateAnchorStyle, true);
-
-    return () => {
-      window.removeEventListener("resize", updateAnchorStyle);
-      window.removeEventListener("scroll", updateAnchorStyle, true);
+      event.preventDefault();
+      toggleAssistant("keyboard_shortcut");
     };
-  }, [isExpanded, open]);
 
-  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [canUseAssistant, toggleAssistant]);
+
+  if (!canUseAssistant) {
     return null;
   }
 
-  const handleClick = () => {
-    if (organization && !organization.aiFeaturesEnabled) {
-      setSupportDrawerOpen(false);
-      setEnableDialogOpen(true);
-      return;
-    }
-
-    updateAnchorStyle();
-    setSupportDrawerOpen(false);
-    setOpen((currentOpen) => !currentOpen);
-  };
-
   return (
-    <>
-      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
-        <BotMessageSquare className="h-4 w-4" />
-        Assistant
-      </SidebarMenuButton>
-      {open && portalContainer
-        ? createPortal(
-            <div
-              ref={panelRef}
-              data-ignore-outside-interaction
-              className={cn(
-                "fixed origin-top-left",
-                isExpanded
-                  ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
-                  : "bottom-2",
-              )}
-              style={
-                isExpanded
-                  ? { zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-                  : { ...anchorStyle, zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-              }
-            >
-              <ControlledInAppAgentWindow
-                zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-                isExpanded={isExpanded}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
-                onClose={() => setOpen(false)}
-              />
-            </div>,
-            portalContainer,
-          )
-        : null}
-      <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>AI features are disabled</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The assistant requires AI features to be enabled for this
-              organization.
-            </AIFeaturesDisabledNotice>
-          </DialogBody>
-          <DialogFooter>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEnableDialogOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Button
+      type="button"
+      variant="outline"
+      aria-label={open ? "Close assistant" : "Open assistant"}
+      aria-pressed={open}
+      data-ignore-outside-interaction
+      onClick={() => toggleAssistant("top_nav")}
+      className={cn(
+        "gap-2",
+        open &&
+          "border-primary-accent bg-primary-accent/10 hover:bg-primary-accent/15",
+      )}
+    >
+      <BotMessageSquare className="h-4 w-4" />
+      <span className="hidden sm:inline">Assistant</span>
+      <KeyboardShortcut
+        className="hidden bg-transparent shadow-none md:inline-flex"
+        keys={[
+          typeof navigator !== "undefined" &&
+          navigator.userAgent.includes("Mac")
+            ? "⌘"
+            : "Ctrl",
+          "I",
+        ]}
+      />
+    </Button>
   );
 };

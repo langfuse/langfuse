@@ -9,7 +9,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -66,6 +66,14 @@ export interface MultiSelect {
   pageSize: number;
   pageIndex: number;
   totalCount: number | null;
+  // Tables that only compute totalCount lazily (e.g. v4 events, where counting
+  // is expensive and runs once select-all is active) pass this keyset-pagination
+  // signal instead, so the select-all banner can show while the count is unknown.
+  hasNextPage?: boolean;
+  // When the displayed row count does not equal the number of affected entities
+  // (e.g. datasets where a folder row expands to many datasets on delete), the
+  // select-all banner drops the precise number and says "matching" instead.
+  approximateCount?: boolean;
 }
 
 interface SearchConfig {
@@ -90,6 +98,7 @@ interface SearchConfig {
 interface TableViewControllers {
   applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
+  appliedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
 
@@ -111,6 +120,10 @@ interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
+  /** Authoritative search query to persist into saved views. Use when the
+   * toolbar's own search field is hidden (e.g. search-bar mode) so the live
+   * query — not the toolbar's stale local mirror — is captured. */
+  currentSearchQuery?: string;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
@@ -134,9 +147,19 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  /** Analytics table identity (LFE-10781) for the popover filter builder's
+   * `filters:applied`/`filters:cleared` events. Tables with a `viewConfig`
+   * already supply it via `viewConfig.tableName`; tables WITHOUT one (users,
+   * dataset runs/items) must pass this so the event isn't labeled "unknown". */
+  tableName?: string;
   filterWithAI?: boolean;
   className?: string;
+  rowClassName?: string;
   viewModeToggle?: React.ReactNode;
+  /** Rendered at the start of the toolbar's control row (left-aligned), before
+   *  the filter toggle — e.g. the v4 events category-preset chips, so they
+   *  share the row with the right-aligned Columns/Export controls. */
+  leadingControls?: React.ReactNode;
 }
 
 // Helper function to get the description for DocPopup
@@ -181,6 +204,7 @@ export function DataTableToolbar<TData, TValue>({
   columns,
   filterColumnDefinition,
   searchConfig,
+  currentSearchQuery,
   actionButtons,
   filterState,
   setFilterState,
@@ -197,10 +221,13 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  rowClassName,
   orderByState,
   viewConfig,
+  tableName,
   filterWithAI = false,
   viewModeToggle,
+  leadingControls,
 }: DataTableToolbarProps<TData, TValue>) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
@@ -210,6 +237,18 @@ export function DataTableToolbar<TData, TValue>({
   const showSearchTypeSelector = Boolean(
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
+  const allVisibleRowsSelected = Boolean(
+    multiSelect &&
+    multiSelect.pageIndex === 0 &&
+    multiSelect.selectedRowIds.length > 0 &&
+    (multiSelect.totalCount !== null
+      ? multiSelect.totalCount > multiSelect.pageSize &&
+        multiSelect.selectedRowIds.length ===
+          Math.min(multiSelect.pageSize, multiSelect.totalCount)
+      : multiSelect.hasNextPage === true &&
+        multiSelect.selectedRowIds.length === multiSelect.pageSize),
+  );
+
   const submitSearch = (query: string) => {
     if (
       searchConfig?.setSearchType &&
@@ -221,12 +260,29 @@ export function DataTableToolbar<TData, TValue>({
     searchConfig?.updateQuery(query);
   };
 
+  const searchButtonLabel = searchConfig?.tableAllowsFullTextSearch
+    ? getSearchButtonLabel(
+        searchConfig.searchType,
+        searchConfig.customDropdownLabels?.metadata,
+      )
+    : undefined;
+
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
-      <div className="@container my-2 flex flex-wrap items-center gap-2">
-        {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
+      <div
+        className={cn(
+          "@container my-2 flex flex-wrap items-center gap-2",
+          rowClassName,
+        )}
+      >
+        {leadingControls}
+        {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
+            toolbar toggle only remains for the mobile stacked layout. */}
+        {hasNewSidebar && (
+          <FilterToggleButton filterState={filterState} className="md:hidden" />
+        )}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer
             viewConfig={viewConfig}
@@ -235,7 +291,7 @@ export function DataTableToolbar<TData, TValue>({
               filters: filterState ?? [],
               columnOrder,
               columnVisibility,
-              searchQuery: searchString,
+              searchQuery: currentSearchQuery ?? searchString,
             }}
             systemFilterPresets={viewConfig.systemFilterPresets}
           />
@@ -294,12 +350,11 @@ export function DataTableToolbar<TData, TValue>({
                     size="default"
                     className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
                   >
-                    <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                        getSearchButtonLabel(
-                          searchConfig.searchType,
-                          searchConfig.customDropdownLabels?.metadata,
-                        )}
+                    <span
+                      className="flex items-center gap-1 truncate"
+                      title={searchButtonLabel}
+                    >
+                      {searchButtonLabel}
                       <DocPopup
                         description={getSearchDescription(
                           searchConfig.searchType,
@@ -420,10 +475,22 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
             filterWithAI={filterWithAI}
+            // Analytics (LFE-10781): the table's own identity, so popover
+            // filters:applied/cleared events aren't mislabeled "unknown". Prefer
+            // an explicit `tableName` (tables without a viewConfig — users,
+            // dataset runs/items), else the view's table. The v4 events table
+            // filters via the grammar bar (it omits filterColumnDefinition here,
+            // so this popover is a v3/legacy surface); derive isV4 from the
+            // ObservationsEvents view for consistency + future-proofing.
+            tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
+            isV4={
+              viewConfig?.tableName ===
+              TableViewPresetTableName.ObservationsEvents
+            }
           />
         )}
 
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
@@ -442,11 +509,9 @@ export function DataTableToolbar<TData, TValue>({
           {actionButtons}
         </div>
       </div>
-      {multiSelect &&
-        multiSelect.pageIndex === 0 &&
-        multiSelect.selectedRowIds.length === multiSelect.pageSize && (
-          <DataTableSelectAllBanner {...multiSelect} />
-        )}
+      {multiSelect && allVisibleRowsSelected && (
+        <DataTableSelectAllBanner {...multiSelect} />
+      )}
     </div>
   );
 }

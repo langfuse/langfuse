@@ -1,27 +1,19 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  getCurrentSpan,
   logger,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
+  createIngestionAttribution,
+  getLangfuseHeaderValue,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-
-/** Read a Langfuse header that may arrive with hyphens or underscores. */
-function getLangfuseHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | undefined {
-  const hyphenVal = headers[name];
-  if (typeof hyphenVal === "string") return hyphenVal;
-  const underscoreVal = headers[name.replaceAll("-", "_")];
-  if (typeof underscoreVal === "string") return underscoreVal;
-  return undefined;
-}
 
 export const config = {
   api: {
@@ -95,6 +87,8 @@ export default withMiddlewares({
           resourceSpans =
             $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
               parsed,
+              // OTLP JSON encodes int64 fields as decimal strings.
+              { longs: String },
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
@@ -133,15 +127,20 @@ export default withMiddlewares({
       }
 
       // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
-      const sdkName = getLangfuseHeader(req.headers, "x-langfuse-sdk-name");
-      const sdkVersion = getLangfuseHeader(
-        req.headers,
-        "x-langfuse-sdk-version",
-      );
-      const ingestionVersion = getLangfuseHeader(
+      const attribution = createIngestionAttribution({
+        headers: req.headers,
+        authCheck: auth,
+      });
+      const ingestionVersion = getLangfuseHeaderValue(
         req.headers,
         "x-langfuse-ingestion-version",
       );
+      if (ingestionVersion) {
+        getCurrentSpan()?.setAttribute(
+          "langfuse.ingestion.version",
+          ingestionVersion,
+        );
+      }
 
       // Reject unsupported future ingestion versions (> 4)
       // Lower versions are valid but use dual write (path A)
@@ -177,14 +176,22 @@ export default withMiddlewares({
           Object.keys(propagatedHeaders).length > 0
             ? propagatedHeaders
             : undefined,
-        sdkName,
-        sdkVersion,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
         ingestionVersion,
       });
 
       // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
       // and the OtelIngestionProcessor logic will handle processing in the worker container.
-      return processor.publishToOtelIngestionQueue(resourceSpans);
+      try {
+        return await processor.publishToOtelIngestionQueue(resourceSpans);
+      } catch (error) {
+        markProjectIngestFailure(auth.scope.projectId, {
+          source: "public_otel_api",
+          reason: "publish_failed",
+        });
+        throw error;
+      }
     },
   }),
 });

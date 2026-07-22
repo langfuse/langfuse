@@ -44,7 +44,7 @@ export function TracePanelNavigationLayoutMobile({
             onClick={() => setIsGraphExpanded(!isGraphExpanded)}
             className="flex w-full items-center justify-between px-2 py-1"
           >
-            <span className="text-xs font-medium">Graph View</span>
+            <span className="text-xs font-bold">Graph View</span>
             {isGraphExpanded ? (
               <ChevronUp className="h-3.5 w-3.5" />
             ) : (

@@ -1,5 +1,5 @@
 import { JsonNested } from "./zod";
-import { parse, isSafeNumber, isNumber } from "lossless-json";
+import { isSafeNumber } from "lossless-json";
 
 // Dangerous keys that could lead to prototype pollution
 const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
@@ -34,7 +34,9 @@ function tryParsePythonDict(str: string): unknown {
       // therefore, the failure case is the default already.
       .replace(/'/g, '"');
 
-    return JSON.parse(jsonStr);
+    // parsePreservingPrecision (not JSON.parse) so big integers in Python-dict
+    // payloads (e.g. LangChain/LangGraph run IDs) keep their precision too.
+    return parsePreservingPrecision(jsonStr);
   } catch {
     return str;
   }
@@ -92,9 +94,12 @@ function deepParseJsonRecursive(
   }
 
   if (typeof json === "string") {
+    // A bare JSON number literal stays a string: this preserves user-provided
+    // numeric strings and, critically, big integers that would lose precision
+    // if coerced to a JS number (issue #6628).
+    if (isJsonNumberLiteral(json)) return json;
     try {
-      const parsed = JSON.parse(json);
-      if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
+      const parsed = parsePreservingPrecision(json);
       return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
     } catch {
       const pythonParsed = tryParsePythonDict(json);
@@ -208,15 +213,21 @@ export function deepParseJsonIterative(
 
     // Process strings - try to parse as JSON
     if (typeof input === "string") {
+      // A bare JSON number literal stays a string (see deepParseJsonRecursive):
+      // preserves numeric strings and big integers that would otherwise lose
+      // precision when coerced to a JS number (issue #6628).
+      if (isJsonNumberLiteral(input)) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+
       let parsed: unknown;
       let wasParsed = false;
 
       try {
-        parsed = JSON.parse(input);
-        // Numbers that were strings in the input should remain as strings
-        if (typeof parsed !== "number") {
-          wasParsed = true;
-        }
+        parsed = parsePreservingPrecision(input);
+        wasParsed = true;
       } catch {
         // Try Python dict parsing
         const pythonParsed = tryParsePythonDict(input);
@@ -264,7 +275,9 @@ export function deepParseJsonIterative(
           }
         }
       } else {
-        // Not JSON or parsed to number, use as-is
+        // Not valid JSON (and the Python-dict fallback also failed), keep as-is.
+        // Bare numeric literals never reach here — isJsonNumberLiteral above
+        // already short-circuits them to preserve big-int precision (#6628).
         entry.output = input;
         processed.add(entry);
         continue;
@@ -386,7 +399,7 @@ export function deepParseJsonIterative(
  *
  * Catches:
  * 1. [\d.]{13,} - 13+ characters of digits/dots (conservative threshold for ~12+ significant digits)
- * 2. \d[eE] - scientific notation (always use lossless-json for safety)
+ * 2. \d[eE] - scientific notation (always take the precision-preserving path for safety)
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
 const JSON_NUMBER_LITERAL_PATTERN =
@@ -395,29 +408,68 @@ const JSON_NUMBER_LITERAL_PATTERN =
 export const isJsonNumberLiteral = (value: string): boolean =>
   JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
 
+/**
+ * JSON.parse reviver with source-text access (TC39 json-parse-with-source,
+ * V8 in Node >= 21 and evergreen browsers). The `context` parameter is not
+ * yet part of the es2023 lib types, hence the local signature. `context` is
+ * optional so the function stays assignable to the classic reviver type.
+ */
+type ReviverWithSource = (
+  this: unknown,
+  key: string,
+  value: unknown,
+  context?: { source?: string },
+) => unknown;
+
+/**
+ * Keeps numbers that cannot round-trip through a JS double as their exact
+ * source token (a string) instead of the rounded double. `context.source` is
+ * only provided for primitive values, so objects/arrays pass through.
+ */
+const preserveUnsafeNumbers: ReviverWithSource = (_key, value, context) =>
+  typeof value === "number" &&
+  context?.source !== undefined &&
+  !isSafeNumber(context.source)
+    ? context.source
+    : value;
+
+/**
+ * Parses a JSON string like JSON.parse, but preserves integers beyond
+ * Number.MAX_SAFE_INTEGER (2^53-1) by emitting them as strings instead of
+ * rounding them to a JS double (issue #6628). Throws on invalid JSON, exactly
+ * like JSON.parse, so callers can fall back to other parsing strategies.
+ */
+const parsePreservingPrecision = (json: string): unknown => {
+  // Fast path: native JSON.parse when no number could lose precision.
+  if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+    return JSON.parse(json);
+  }
+
+  // Precision path: native JSON.parse with a source-access reviver. Safe
+  // numbers stay real numbers, unsafe ones keep their exact source token as
+  // a string. Native parsing here replaced lossless-json's pure-JS parser,
+  // which dominated heap allocation on large payloads (any 13+ digit run or
+  // digit-followed-by-e — e.g. ms timestamps or base64 — lands on this path).
+  // On runtimes without source access (Safari < 18.4, Firefox < 135) the
+  // reviver receives no context and unsafe numbers round like plain
+  // JSON.parse; the server (Node >= 21) always preserves them.
+  return JSON.parse(json, preserveUnsafeNumbers);
+};
+
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
-    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      return JSON.parse(json) as JsonNested;
-    }
-
-    // Slow path: use lossless-json to preserve precision
-    return parse(json, null, (value) => {
-      if (isNumber(value)) {
-        if (isSafeNumber(value)) {
-          // Safe numbers (integers and decimals) can be converted to Number
-          return Number(value.valueOf());
-        } else {
-          // For large integers beyond safe limits, preserve string representation
-          return value.toString();
-        }
-      }
-      return value;
-    }) as JsonNested;
+    return parsePreservingPrecision(json) as JsonNested;
   } catch {
     return json;
   }
 };
+
+/**
+ * Parses a value that may be a JSON string. Non-strings and unparsable
+ * strings pass through unchanged; parsing preserves big-integer precision
+ * (parseJsonPrioritised).
+ */
+export const parseJsonIfString = (value: unknown): unknown =>
+  typeof value === "string" ? parseJsonPrioritised(value) : value;

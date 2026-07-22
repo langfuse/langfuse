@@ -7,3 +7,4 @@ export * from "./automations";
 export * from "./webhooks";
 export * from "./prompts";
 export * from "./dataset-items";
+export * from "./media";

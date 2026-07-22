@@ -76,7 +76,27 @@ import {
   deleteEvaluationRuleTool,
   handleDeleteEvaluationRule,
 } from "@/src/features/mcp/features/evals/tools/deleteEvaluationRule";
+import {
+  deleteEvaluatorTool,
+  handleDeleteEvaluator,
+} from "@/src/features/mcp/features/evals/tools/deleteEvaluator";
 import { handleGetEvaluationRule } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+import {
+  createDashboardWidgetTool,
+  handleCreateDashboardWidget,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import {
+  handleAddDashboardPlacement,
+  handleCreateDashboard,
+  handleDeleteDashboard,
+  handleDeleteDashboardPlacement,
+  handleDeleteDashboardWidget,
+  handleGetDashboard,
+  handleGetDashboardWidget,
+  handleUpdateDashboardPlacement,
+  handleUpdateDashboard,
+  handleUpdateDashboardWidget,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -261,7 +281,7 @@ describe("MCP Write Tools", () => {
           enabled: false,
           target: "observation",
           filter: [],
-        },
+        } as unknown as Parameters<typeof handleCreateEvaluationRule>[0],
         context,
       )) as { id: string };
       expect(rule.id).toBeDefined();
@@ -332,6 +352,50 @@ describe("MCP Write Tools", () => {
     });
   });
 
+  describe("deleteEvaluator tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(deleteEvaluatorTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("should delete an evaluator and audit the write", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+      const evaluator = await createLlmEvaluatorForMcpWriteTest(setup);
+
+      await expect(
+        handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
+      ).resolves.toEqual({ message: "Evaluator successfully deleted" });
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "evalTemplate",
+          resourceId: evaluator.id,
+          action: "delete",
+        }),
+      ).resolves.toMatchObject({ resourceId: evaluator.id, action: "delete" });
+
+      await expect(
+        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
+      ).resolves.toBeNull();
+    });
+
+    it("should reject deletion while an evaluation rule references the evaluator", async () => {
+      const setup = await createMcpTestSetup();
+      const { evaluator } = await createLlmEvaluationRuleForMcpWriteTest(setup);
+
+      await expect(
+        handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
+      ).rejects.toThrow(/evaluation rule/);
+
+      await expect(
+        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
+      ).resolves.not.toBeNull();
+    });
+  });
+
   describe("createAnnotationQueue tool", () => {
     it("should create a basic annotation queue", async () => {
       const { context, projectId } = await createMcpTestSetup();
@@ -368,6 +432,232 @@ describe("MCP Write Tools", () => {
     });
   });
 
+  describe("createDashboardWidget tool", () => {
+    it("should have destructiveHint annotation", () => {
+      verifyToolAnnotations(createDashboardWidgetTool, {
+        destructiveHint: true,
+      });
+    });
+
+    it("should create a dashboard widget and audit the write", async () => {
+      const setup = await createMcpTestSetup();
+      const { projectId, apiKeyId } = setup;
+
+      const result = (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+        },
+        setup.context,
+      )) as { id: string; name: string; url: string };
+
+      expect(result).toMatchObject({
+        id: expect.any(String),
+        name: expect.stringContaining("mcp-widget-"),
+        url: expect.stringContaining(`/project/${projectId}/widgets/`),
+      });
+
+      await expect(
+        prisma.dashboardWidget.findFirst({
+          where: { id: result.id, projectId },
+        }),
+      ).resolves.toMatchObject({
+        id: result.id,
+        projectId,
+        view: "OBSERVATIONS",
+      });
+
+      await expect(
+        verifyAuditLog({
+          projectId,
+          apiKeyId,
+          resourceType: "dashboardWidget",
+          resourceId: result.id,
+          action: "create",
+        }),
+      ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
+    });
+  });
+
+  describe("dashboard CRUD tools", () => {
+    const createWidgetForTest = async (
+      setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+    ) =>
+      (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+        },
+        setup.context,
+      )) as { id: string };
+
+    it("runs the dashboard and placement write lifecycle", async () => {
+      const setup = await createMcpTestSetup();
+      const created = await createWidgetForTest(setup);
+      const newName = `mcp-widget-renamed-${nanoid()}`;
+
+      await expect(
+        handleUpdateDashboardWidget(
+          { widgetId: created.id, name: newName },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ id: created.id, name: newName });
+
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard(
+          { dashboardId: dashboard.id, name: "MCP dashboard updated" },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: dashboard.id,
+        name: "MCP dashboard updated",
+      });
+
+      const added = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
+        setup.context,
+      )) as { id: string } & Record<string, unknown>;
+
+      expect(added).toEqual({
+        type: "widget",
+        id: expect.any(String),
+        widgetId: created.id,
+        x: 0,
+        y: 0,
+        width: 6,
+        height: 6,
+      });
+
+      await expect(
+        handleUpdateDashboardPlacement(
+          {
+            dashboardId: dashboard.id,
+            placementId: added.id,
+            x: 4,
+            width: 4,
+          },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ id: added.id, x: 4, width: 4 });
+      await expect(
+        handleDeleteDashboardPlacement(
+          { dashboardId: dashboard.id, placementId: added.id },
+          setup.context,
+        ),
+      ).resolves.toEqual({ message: "Placement successfully deleted" });
+      await expect(
+        handleDeleteDashboardWidget({ widgetId: created.id }, setup.context),
+      ).resolves.toEqual({
+        message: "Dashboard widget successfully deleted",
+      });
+      await expect(
+        handleDeleteDashboard({ dashboardId: dashboard.id }, setup.context),
+      ).resolves.toEqual({ message: "Dashboard successfully deleted" });
+      await expect(
+        prisma.dashboardWidget.findUnique({ where: { id: created.id } }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.dashboard.findUnique({ where: { id: dashboard.id } }),
+      ).resolves.toBeNull();
+    });
+
+    it("uses context.projectId for dashboard write isolation", async () => {
+      const owner = await createMcpTestSetup();
+      const other = await createMcpTestSetup();
+      const created = await createWidgetForTest(owner);
+      const dashboard = (await handleCreateDashboard(
+        { name: `private-mcp-dashboard-${nanoid()}`, description: "" },
+        owner.context,
+      )) as { id: string };
+      const placement = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
+        owner.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard(
+          { dashboardId: dashboard.id, name: "Cross-project rename" },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleUpdateDashboardWidget(
+          { widgetId: created.id, name: "Cross-project widget rename" },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleUpdateDashboardPlacement(
+          {
+            dashboardId: dashboard.id,
+            placementId: placement.id,
+            x: 4,
+          },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+
+      await expect(
+        handleGetDashboard({ dashboardId: dashboard.id }, owner.context),
+      ).resolves.toMatchObject({
+        name: expect.stringContaining("private-mcp-dashboard-"),
+        definition: {
+          widgets: [expect.objectContaining({ id: placement.id, x: 0 })],
+        },
+      });
+      await expect(
+        handleGetDashboardWidget({ widgetId: created.id }, owner.context),
+      ).resolves.toMatchObject({
+        id: created.id,
+        name: expect.stringContaining("mcp-widget-"),
+      });
+    });
+
+    it("rejects widget placements without a widgetId", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleAddDashboardPlacement(
+          { dashboardId: dashboard.id, type: "widget", id: "placement-1" },
+          setup.context,
+        ),
+      ).rejects.toThrow(/widgetId is required/);
+    });
+
+    it("rejects dashboard updates without any patch field", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard({ dashboardId: dashboard.id }, setup.context),
+      ).rejects.toThrow(/at least one field/i);
+    });
+  });
+
   describe("createTextPrompt tool", () => {
     it("should create a simple text prompt", async () => {
       const { context } = await createMcpTestSetup();
@@ -397,15 +687,15 @@ describe("MCP Write Tools", () => {
       expect(result.message).toContain("Successfully created");
     });
 
-    it("should create text prompt with labels", async () => {
+    it("should create text prompt with non-production labels", async () => {
       const { context } = await createMcpTestSetup();
       const promptName = `text-prompt-${nanoid()}`;
 
       const result = (await handleCreateTextPrompt(
         {
           name: promptName,
-          prompt: "Production prompt",
-          labels: ["production", "stable"],
+          prompt: "Staged prompt",
+          labels: ["staged", "stable"],
         },
         context,
       )) as {
@@ -414,9 +704,25 @@ describe("MCP Write Tools", () => {
       };
 
       expect(result.labels).toEqual(
-        expect.arrayContaining(["production", "stable"]),
+        expect.arrayContaining(["staged", "stable"]),
       );
-      expect(result.message).toContain("production");
+      expect(result.message).toContain("staged");
+    });
+
+    it("should reject text prompt creation with the production label", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `text-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateTextPrompt(
+          {
+            name: promptName,
+            prompt: "Production prompt",
+            labels: ["production"],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/production.*cannot be assigned/i);
     });
 
     it("should create text prompt with config", async () => {
@@ -577,14 +883,14 @@ describe("MCP Write Tools", () => {
         {
           name: promptName,
           prompt: "Test",
-          labels: ["latest", "production"],
+          labels: ["latest", "stable"],
         },
         context,
       )) as { labels: string[] };
 
-      // Should have 'latest' (auto) and 'production' (user-provided)
+      // Should have 'latest' (auto) and 'stable' (user-provided)
       expect(result.labels).toContain("latest");
-      expect(result.labels).toContain("production");
+      expect(result.labels).toContain("stable");
     });
 
     it("should set createdBy to API", async () => {
@@ -635,7 +941,7 @@ describe("MCP Write Tools", () => {
       expect(result.message).toContain("Successfully created");
     });
 
-    it("should create chat prompt with labels", async () => {
+    it("should create chat prompt with non-production labels", async () => {
       const { context } = await createMcpTestSetup();
       const promptName = `chat-prompt-${nanoid()}`;
 
@@ -643,14 +949,30 @@ describe("MCP Write Tools", () => {
         {
           name: promptName,
           prompt: [{ role: "system", content: "System instruction" }],
-          labels: ["production"],
+          labels: ["staged"],
         },
         context,
       )) as {
         labels: string[];
       };
 
-      expect(result.labels).toContain("production");
+      expect(result.labels).toContain("staged");
+    });
+
+    it("should reject chat prompt creation with the production label", async () => {
+      const { context } = await createMcpTestSetup();
+      const promptName = `chat-prompt-${nanoid()}`;
+
+      await expect(
+        handleCreateChatPrompt(
+          {
+            name: promptName,
+            prompt: [{ role: "system", content: "System instruction" }],
+            labels: ["production"],
+          },
+          context,
+        ),
+      ).rejects.toThrow(/production.*cannot be assigned/i);
     });
 
     it("should create chat prompt with multiple message roles", async () => {
@@ -962,12 +1284,12 @@ describe("MCP Write Tools", () => {
         {
           name: promptName,
           prompt: "Test",
-          labels: ["production"],
+          labels: ["stable"],
         },
         context,
       )) as { version: number; labels: string[] };
 
-      expect(created.labels).toContain("production");
+      expect(created.labels).toContain("stable");
       expect(created.labels).toContain("latest");
 
       // The updatePromptLabels action ADDS labels, not replaces them
@@ -985,7 +1307,7 @@ describe("MCP Write Tools", () => {
 
       // Should have all labels: original + new
       expect(result.labels).toContain("latest");
-      expect(result.labels).toContain("production");
+      expect(result.labels).toContain("stable");
       expect(result.labels).toContain("staging");
     });
 

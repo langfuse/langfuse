@@ -86,7 +86,7 @@ export default function DatasetCompare() {
   return (
     <Page
       headerProps={{
-        title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+        title: `Compare experiments: ${dataset.data?.name ?? datasetId}`,
         tabsProps: {
           tabs: getDatasetRunCompareTabs(projectId, datasetId),
           activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
@@ -100,9 +100,13 @@ export default function DatasetCompare() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+          },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: "Compare your experiments side by side",
         },
         actionButtonsRight: (
           <>
@@ -205,7 +209,7 @@ export default function DatasetCompare() {
                         key={key}
                         className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -232,7 +236,7 @@ export default function DatasetCompare() {
                       key={key}
                       className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">
@@ -244,9 +248,9 @@ export default function DatasetCompare() {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
+                          // The x-axis is dataset-run names — long and cluttered;
+                          // show them on hover instead of on the axis.
+                          hideXAxisLabels
                         />
                       </div>
                     </div>

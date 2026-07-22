@@ -6,6 +6,7 @@ import {
   GetCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
+import { buildCommentObjectUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const ListCommentsBaseSchema = z
@@ -39,7 +40,20 @@ export const [listCommentsTool, handleListComments] = defineTool({
           projectId: context.projectId,
         });
 
-        return GetCommentsV1Response.parse(result);
+        const parsed = GetCommentsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((comment) => {
+            const url = buildCommentObjectUrl({
+              projectId: context.projectId,
+              objectType: comment.objectType,
+              objectId: comment.objectId,
+            });
+
+            return url ? { ...comment, url } : comment;
+          }),
+        };
       },
     }),
   readOnlyHint: true,

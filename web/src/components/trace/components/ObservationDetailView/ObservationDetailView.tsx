@@ -26,7 +26,7 @@ import {
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Tooltip,
   TooltipContent,
@@ -382,7 +382,7 @@ export function ObservationDetailView({
                             className="w-64 text-sm"
                             sideOffset={8}
                           >
-                            <p className="font-medium">JSON view unavailable</p>
+                            <p className="font-bold">JSON view unavailable</p>
                             <p className="text-muted-foreground mt-1">
                               Disabled for traces with{" "}
                               {
@@ -440,7 +440,7 @@ export function ObservationDetailView({
               observation.traceTags.length > 0 && (
                 <>
                   <div
-                    className={`px-2 pt-2 text-sm font-medium ${currentView !== "pretty" ? "shrink-0" : ""}`}
+                    className={`px-2 pt-2 text-sm font-bold ${currentView !== "pretty" ? "shrink-0" : ""}`}
                   >
                     Tags
                   </div>

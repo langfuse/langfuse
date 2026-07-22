@@ -1,13 +1,58 @@
 import { Rng } from "./rng";
 
-export type PayloadStyle = "json" | "text" | "malformed" | "unicode";
+export type PayloadStyle =
+  | "json"
+  | "text"
+  | "malformed"
+  | "unicode"
+  | "bignum"
+  | "base64";
 
 export const PAYLOAD_STYLES: PayloadStyle[] = [
   "json",
   "text",
   "malformed",
   "unicode",
+  "bignum",
+  "base64",
 ];
+
+export const GEN_INPUT_PRICE = 2e-6;
+export const GEN_OUTPUT_PRICE = 6e-6;
+
+/**
+ * The usage/cost field block every scenario attaches to GENERATION
+ * observations. Token counts stay caller-computed (usually from the rng
+ * stream) so extracting this shared shape cannot shift any scenario's rng
+ * consumption. Non-generations must keep their explicit empty `{}` fields at
+ * the call site — the createObservation factory would otherwise fill
+ * non-empty defaults.
+ */
+export const generationUsageCost = (
+  usageInput: number,
+  usageOutput: number,
+) => ({
+  provided_usage_details: {
+    input: usageInput,
+    output: usageOutput,
+    total: usageInput + usageOutput,
+  },
+  usage_details: {
+    input: usageInput,
+    output: usageOutput,
+    total: usageInput + usageOutput,
+  },
+  provided_cost_details: {
+    input: usageInput * GEN_INPUT_PRICE,
+    output: usageOutput * GEN_OUTPUT_PRICE,
+  },
+  cost_details: {
+    input: usageInput * GEN_INPUT_PRICE,
+    output: usageOutput * GEN_OUTPUT_PRICE,
+    total: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+  },
+  total_cost: usageInput * GEN_INPUT_PRICE + usageOutput * GEN_OUTPUT_PRICE,
+});
 
 const WORDS = [
   "retrieval",
@@ -105,8 +150,88 @@ const buildUnicodePayload = (rng: Rng, targetBytes: number): string => {
 };
 
 /**
+ * Builds a JSON payload containing integers that exceed JavaScript's
+ * Number.MAX_SAFE_INTEGER (2^53-1), to reproduce precision loss in the
+ * JSON/IO viewer (issue #6628). `as_number` is the exact value from that
+ * report; native JSON.parse rounds it to 107505301260286110.
+ *
+ * CRITICAL: every large integer is emitted as literal digit text, never as a
+ * JS number literal. A literal like `107505301260286111` in this source would
+ * be rounded to a double by V8 before it could be stringified, so the seeded
+ * payload would already be wrong on disk. Hand-build the string instead.
+ */
+const buildBignumPayload = (targetBytes: number): string => {
+  const entries: string[] = [
+    `"as_number": 107505301260286111`, // exact value from #6628 (unsafe int64)
+    `"as_string": "107505301260286111"`, // control: must always render verbatim
+    `"int64_max": 9223372036854775807`, // int64 max, far beyond 2^53-1
+    `"safe_number": 42`, // safe integer, must be unaffected
+    `"nested": {"big": 1234567890123456789, "ok": 7}`, // recursive parse path
+    `"array": [100000000000000001, 100000000000000002, "100000000000000003"]`,
+  ];
+  // Pad deterministically toward targetBytes with more unsafe integers. Each
+  // filler is a 17-digit number (> 2^53), derived purely from its index so the
+  // payload is reproducible and never touches the rng stream.
+  let index = 0;
+  let size = entries.reduce((n, e) => n + e.length + 1, 2);
+  while (size < targetBytes) {
+    const entry = `"filler_${index}": 90071992547${String(index).padStart(6, "0")}`;
+    entries.push(entry);
+    size += entry.length + 1;
+    index++;
+  }
+  return `{${entries.join(",")}}`;
+};
+
+const BASE64_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/**
+ * Builds a ChatML-shaped payload whose user message embeds one giant base64
+ * data-URI — the multimodal-trace shape (image/audio inlined instead of using
+ * the media SDK) that stresses IO viewers with a single unbroken multi-MB
+ * token: no whitespace to wrap on, no JSON structure to lazily expand.
+ */
+const buildBase64Payload = (rng: Rng, targetBytes: number): string => {
+  // Random 4KB blocks tiled to size: deterministic via the rng stream, and
+  // varied enough that ClickHouse compression doesn't collapse the payload
+  // into something unrealistically small on disk.
+  const blocks: string[] = [];
+  const blockCount = Math.ceil(targetBytes / 4096);
+  const distinctBlocks = Math.min(blockCount, 32);
+  for (let b = 0; b < distinctBlocks; b++) {
+    let block = "";
+    for (let i = 0; i < 4096; i++) block += BASE64_ALPHABET[rng.int(0, 63)];
+    blocks.push(block);
+  }
+  const parts: string[] = [];
+  for (let b = 0; b < blockCount; b++) {
+    parts.push(blocks[b % distinctBlocks]);
+  }
+  const b64 = parts.join("").slice(0, Math.max(targetBytes, 64));
+  return JSON.stringify({
+    messages: [
+      { role: "system", content: "You are a helpful vision assistant." },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "What is in this image?" },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${b64}` },
+          },
+        ],
+      },
+    ],
+  });
+};
+
+/**
  * Builds a payload string of approximately targetBytes. "malformed" returns
  * intentionally invalid JSON (truncated, unclosed) for JSON-viewer edge cases.
+ * "bignum" returns integers beyond 2^53-1 for number-precision edge cases.
+ * "base64" returns ChatML messages embedding one giant base64 data-URI for
+ * huge-single-string IO-viewer edge cases.
  */
 export const buildPayload = (
   style: PayloadStyle,
@@ -120,6 +245,10 @@ export const buildPayload = (
       return buildTextPayload(rng, targetBytes);
     case "unicode":
       return buildUnicodePayload(rng, targetBytes);
+    case "bignum":
+      return buildBignumPayload(targetBytes);
+    case "base64":
+      return buildBase64Payload(rng, targetBytes);
     case "malformed": {
       const valid = buildJsonPayload(rng, targetBytes);
       return `${valid.slice(0, Math.floor(valid.length * 0.9))},"unclosed":"tr`;

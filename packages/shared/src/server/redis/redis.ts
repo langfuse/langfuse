@@ -9,7 +9,13 @@ const defaultRedisOptions: Partial<RedisOptions> = {
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
   keepAlive: 10000, // 10s — prevents middleboxes from killing idle connections
-  socketTimeout: 30000, // 30s — forces reconnect if no data received, prevents hung moveToCompleted() from blocking concurrency slots forever
+  // Forces reconnect if no data received, prevents hung moveToCompleted() from
+  // blocking concurrency slots forever. ioredis arms the watchdog for any
+  // defined value (0 would time out instantly), so disabling requires omitting
+  // the option entirely.
+  ...(env.REDIS_SOCKET_TIMEOUT_MS > 0
+    ? { socketTimeout: env.REDIS_SOCKET_TIMEOUT_MS }
+    : {}),
 };
 
 const REDIS_SCAN_COUNT = 1000;
@@ -166,6 +172,14 @@ const createRedisSentinelInstance = (
 
   const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
   const tlsOptions = buildTlsOptions();
+  const sentinelTlsRequested = env.REDIS_SENTINEL_TLS_ENABLED === "true";
+  const redisTlsEnabled = env.REDIS_TLS_ENABLED === "true";
+
+  if (sentinelTlsRequested && !redisTlsEnabled) {
+    logger.warn(
+      "REDIS_SENTINEL_TLS_ENABLED is true but REDIS_TLS_ENABLED is false; sentinel TLS will not be applied",
+    );
+  }
 
   const instance = new Redis({
     sentinels,
@@ -174,6 +188,12 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    ...(sentinelTlsRequested && redisTlsEnabled && tlsOptions.tls
+      ? {
+          enableTLSForSentinelMode: true,
+          sentinelTLS: tlsOptions.tls,
+        }
+      : {}),
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
@@ -319,21 +339,39 @@ const scanKeysForNode = async (
   client: Redis,
   pattern: string,
   collector: Set<string>,
+  keyPrefix: string,
 ) => {
   let cursor = "0";
+  // ioredis keyPrefix is not applied to SCAN patterns, but it is applied to
+  // DEL/GET/SET keys. Scan physical keys and return logical keys to callers.
+  const scanPattern = keyPrefix ? `${keyPrefix}${pattern}` : pattern;
 
   do {
     const [nextCursor, keys]: [string, string[]] = await client.scan(
       cursor,
       "MATCH",
-      pattern,
+      scanPattern,
       "COUNT",
       REDIS_SCAN_COUNT,
     );
 
-    keys.forEach((key) => collector.add(key));
+    keys.forEach((key) =>
+      collector.add(
+        keyPrefix && key.startsWith(keyPrefix)
+          ? key.slice(keyPrefix.length)
+          : key,
+      ),
+    );
     cursor = nextCursor;
   } while (cursor !== "0");
+};
+
+const getRedisKeyPrefix = (redis: Redis | Cluster): string => {
+  const keyPrefix =
+    redis.options?.keyPrefix ??
+    (redis instanceof Cluster ? redis.options.redisOptions?.keyPrefix : "");
+
+  return keyPrefix?.toString() ?? "";
 };
 
 export const scanKeys = async (
@@ -343,15 +381,18 @@ export const scanKeys = async (
   if (!redis) return [];
 
   const collectedKeys = new Set<string>();
+  const keyPrefix = getRedisKeyPrefix(redis);
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     await Promise.all(
       (redis as Cluster)
         .nodes("master")
-        .map((node) => scanKeysForNode(node, pattern, collectedKeys)),
+        .map((node) =>
+          scanKeysForNode(node, pattern, collectedKeys, keyPrefix),
+        ),
     );
   } else {
-    await scanKeysForNode(redis as Redis, pattern, collectedKeys);
+    await scanKeysForNode(redis as Redis, pattern, collectedKeys, keyPrefix);
   }
 
   return Array.from(collectedKeys);

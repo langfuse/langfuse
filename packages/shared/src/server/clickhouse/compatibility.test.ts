@@ -7,12 +7,6 @@ const envMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../../env", () => envMock);
-vi.mock("../logger", () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
 
 import {
   isClickHouseVersionInBand,
@@ -61,21 +55,47 @@ describe("ClickHouse compatibility version parsing", () => {
 
 describe("resolveClickHouseCompatibility", () => {
   it("applies lazy materialization workaround in auto mode for affected versions", () => {
-    expect(
-      resolveClickHouseCompatibility({
-        version: "26.5.1.882",
-        overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
-      }).settings,
-    ).toEqual({ query_plan_optimize_lazy_materialization: 0 });
+    const resolved = resolveClickHouseCompatibility({
+      version: "26.5.1.882",
+      overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
+    });
+
+    expect(resolved.settings).toEqual({
+      query_plan_optimize_lazy_materialization: 0,
+    });
+    expect(resolved.parsedVersion).toMatchObject({
+      major: 26,
+      minor: 5,
+      patch: 1,
+      tuple: [26, 5, 1],
+    });
+    expect(resolved.flags).toEqual([
+      expect.objectContaining({
+        id: "disable-lazy-materialization",
+        setting: "query_plan_optimize_lazy_materialization",
+        value: 0,
+        override: "auto",
+        matchesVersionBand: true,
+        applied: true,
+      }),
+    ]);
   });
 
   it("does not apply lazy materialization workaround in auto mode before the affected band", () => {
-    expect(
-      resolveClickHouseCompatibility({
-        version: "25.3.99",
-        overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
-      }).settings,
-    ).toEqual({});
+    const resolved = resolveClickHouseCompatibility({
+      version: "25.3.99",
+      overrides: { CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto" },
+    });
+
+    expect(resolved.settings).toEqual({});
+    expect(resolved.flags).toEqual([
+      expect.objectContaining({
+        id: "disable-lazy-materialization",
+        override: "auto",
+        matchesVersionBand: false,
+        applied: false,
+      }),
+    ]);
   });
 
   it("allows forcing lazy materialization workaround on", () => {

@@ -8,7 +8,7 @@ import { useCorrectionEditor } from "./hooks/useCorrectionEditor";
 import { useMemo, useState } from "react";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { CorrectedOutputDiffDialog } from "./CorrectedOutputDiffDialog";
 import {
@@ -24,6 +24,12 @@ interface CorrectedOutputFieldProps {
   traceId: string;
   environment: string;
   actualOutput?: unknown;
+  /**
+   * True when the original output exists but was gated out of the view for
+   * being too large. It is then unavailable as `actualOutput`, but that must
+   * not be reported to the user as "no original output".
+   */
+  actualOutputTooLarge?: boolean;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
   compact?: boolean; // Use smaller font size for JSON Beta view
@@ -31,6 +37,7 @@ interface CorrectedOutputFieldProps {
 
 export function CorrectedOutputField({
   actualOutput,
+  actualOutputTooLarge = false,
   existingCorrection,
   observationId,
   projectId,
@@ -154,6 +161,7 @@ export function CorrectedOutputField({
         isOpen={isDiffDialogOpen}
         setIsOpen={setIsDiffDialogOpen}
         actualOutput={actualOutput}
+        actualOutputTooLarge={actualOutputTooLarge}
         correctedOutput={value}
         strictJsonMode={strictJsonMode}
       />
@@ -163,7 +171,7 @@ export function CorrectedOutputField({
             <div className="flex items-center gap-1">
               <span
                 className={cn(
-                  "text-sm font-medium",
+                  "text-sm font-bold",
                   compact ? "text-xs" : "text-sm",
                 )}
               >
@@ -222,7 +230,7 @@ export function CorrectedOutputField({
                       variant="ghost"
                       onClick={() => setIsDiffDialogOpen(true)}
                       className="hover:bg-border"
-                      title={"View diff between original and corrected output"}
+                      title="View diff between original and corrected output"
                     >
                       <FileDiff className="h-3 w-3" />
                     </Button>
@@ -252,12 +260,14 @@ export function CorrectedOutputField({
                 )}
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={strictJsonMode}
-                  onCheckedChange={handleStrictJsonModeChange}
-                  disabled={!isEditing}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={strictJsonMode}
+                    onCheckedChange={handleStrictJsonModeChange}
+                    disabled={!isEditing}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">JSON</span>
               </div>
             </div>
@@ -267,9 +277,7 @@ export function CorrectedOutputField({
             <button
               onClick={handleEdit}
               disabled={!hasAccess}
-              className={cn(
-                "text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors",
-              )}
+              className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
             >
               Click to add corrected output
             </button>

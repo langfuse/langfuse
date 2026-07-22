@@ -1,4 +1,9 @@
-import { TracingSearchType } from "../../../interfaces/search";
+import { InvalidRequestError } from "../../../errors";
+import {
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+  type TracingSearchType,
+} from "../../../interfaces/search";
 import { ftsTextTokenConjunct } from "./fts";
 
 const regexIndefiniteCharacters = "%";
@@ -49,12 +54,13 @@ export const clickhouseSearchCondition = ({
   searchColumns,
   useEventsTablePath = false,
 }: ClickhouseSearchConditionOptions) => {
+  if (!hasValidTracingSearchTypes({ searchQuery: query, searchType })) {
+    throw new InvalidRequestError(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
+  }
+
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
-  const ilikeWithPrefilter = (
-    col: string,
-    param: string = "{searchString: String}",
-  ) =>
+  const ilikeWithPrefilter = (col: string, param = "{searchString: String}") =>
     // Fast-mode UI search intentionally narrows IO search to token matches
     // before applying ILIKE. This gives ClickHouse an inverted-index lookup,
     // but drops embedded-word substring matches like "foobarneedle".

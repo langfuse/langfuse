@@ -18,6 +18,8 @@ import { Card } from "@/src/components/ui/card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -69,6 +71,12 @@ export const SessionAnnotationProcessor: React.FC<
       { enabled: isBetaEnabled },
     );
 
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery({
+    projectId,
+    objectId: item.objectId,
+    objectType: "SESSION",
+  });
+
   // Unify traces from both paths:
   // - v4 beta OFF: traces come from data.traces (byIdWithScores endpoint)
   // - v4 beta ON: traces come from separate tracesFromEvents query
@@ -90,8 +98,16 @@ export const SessionAnnotationProcessor: React.FC<
 
   // Stable callback to avoid creating new function reference on every render (defeats React.memo)
   const openPeek = useCallback(
-    (traceId: string) => {
-      window.open(`/project/${projectId}/traces/${traceId}`, "_blank");
+    (traceId: string, row?: { observationId?: string }) => {
+      // observationId: a truncated observation's "Open in trace view" deep-links
+      // to that observation (LFE-10958).
+      const observationParam = row?.observationId
+        ? `?observation=${encodeURIComponent(row.observationId)}`
+        : "";
+      window.open(
+        `/project/${projectId}/traces/${traceId}${observationParam}`,
+        "_blank",
+      );
     },
     [projectId],
   );
@@ -105,13 +121,24 @@ export const SessionAnnotationProcessor: React.FC<
             <div className="mt-1.5">
               <ItemBadge type="SESSION" isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+            <Link
+              href={`/project/${projectId}/sessions/${encodeURIComponent(item.objectId)}`}
+              target="_blank"
+              className="mb-0 ml-1 line-clamp-2 min-w-0 font-bold break-all hover:underline md:break-normal md:wrap-break-word"
+            >
               {item.objectId}
-            </span>
+            </Link>
             <CopyIdsPopover
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
+          <CommentDrawerButton
+            projectId={projectId}
+            variant="outline"
+            objectId={item.objectId}
+            objectType="SESSION"
+            count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
+          />
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">
@@ -168,6 +195,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
+                  viewLabel={null}
                   hideTracePanel
                   index={index}
                 />

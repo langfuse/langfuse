@@ -11,6 +11,7 @@ type GetWidgetFilterColumnsParams = {
   viewVersion: ViewVersion;
   environmentOptions: SingleValueOption[];
   nameOptions: SingleValueOption[];
+  observationNameOptions: SingleValueOption[];
   tagsOptions: SingleValueOption[];
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
@@ -31,6 +32,7 @@ const getWidgetFilterColumnSpecs = ({
   viewVersion,
   environmentOptions,
   nameOptions,
+  observationNameOptions,
   tagsOptions,
   modelOptions,
   toolNamesOptions,
@@ -129,14 +131,17 @@ const getWidgetFilterColumnSpecs = ({
       column: {
         name: "Observation Name",
         id: "observationName",
-        type: "string",
+        type: "stringOptions",
+        options: observationNameOptions,
         internal: "internalValue",
       },
+      customSelect: true,
     });
   }
 
   if (
     selectedView === "scores-numeric" ||
+    selectedView === "scores-boolean" ||
     selectedView === "scores-categorical"
   ) {
     filterColumns.push(
@@ -152,9 +157,11 @@ const getWidgetFilterColumnSpecs = ({
         column: {
           name: "Observation Name",
           id: "observationName",
-          type: "string",
+          type: "stringOptions",
+          options: observationNameOptions,
           internal: "internalValue",
         },
+        customSelect: true,
       },
     );
   }
@@ -286,6 +293,17 @@ const getWidgetFilterColumnSpecs = ({
         name: "Score Value",
         id: "value",
         type: "number",
+        internal: "internalValue",
+      },
+    });
+  }
+
+  if (selectedView === "scores-boolean") {
+    filterColumns.push({
+      column: {
+        name: "Boolean Value",
+        id: "booleanValue",
+        type: "boolean",
         internal: "internalValue",
       },
     });

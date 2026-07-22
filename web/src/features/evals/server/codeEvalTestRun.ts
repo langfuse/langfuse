@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
+  createUnknownSdkIngestionAttribution,
   eventTypes,
+  applyCommentFilters,
   createW3CTraceId,
   extractObservationVariables,
   getEventsStreamForEval,
@@ -105,6 +107,7 @@ export async function runCodeEvalTestForJobConfig(params: {
   filter: FilterCondition[] | null;
 }): Promise<CodeEvalTestRunResult | null> {
   const observation = await getObservationForEvalByFilter({
+    prisma: params.prisma,
     projectId: params.projectId,
     target: params.target,
     filter: params.filter,
@@ -219,6 +222,7 @@ function toCodeEvalTestRunError({
 }
 
 async function getObservationForEvalByFilter(params: {
+  prisma: PrismaClient;
   projectId: string;
   target: EvalTargetObject;
   filter: FilterCondition[] | null;
@@ -234,9 +238,20 @@ async function getObservationForEvalByFilter(params: {
     ? getExperimentEvalPreviewFilters(params.filter)
     : params.filter;
 
+  const { filterState, hasNoMatches } = await applyCommentFilters({
+    filterState: filter ?? [],
+    prisma: params.prisma,
+    projectId: params.projectId,
+    objectType: "OBSERVATION",
+  });
+
+  if (hasNoMatches) {
+    return null;
+  }
+
   const stream = await getEventsStreamForEval({
     projectId: params.projectId,
-    filter,
+    filter: filterState,
     rowLimit: 1,
   });
 
@@ -427,17 +442,19 @@ async function writeTraceViaIngestion(trace: InternalTraceWriteInput) {
     },
   }));
 
-  const result = await processEventBatch(
-    [traceEvent, ...spanEvents],
-    {
-      validKey: true,
-      scope: {
-        projectId: rootEventInput.projectId,
-        accessLevel: "project",
-      },
-    } satisfies Parameters<typeof processEventBatch>[1],
-    { delay: 0, isLangfuseInternal: true },
-  );
+  const auth = {
+    validKey: true,
+    scope: {
+      projectId: rootEventInput.projectId,
+      accessLevel: "project",
+    },
+  } satisfies Parameters<typeof processEventBatch>[1];
+
+  const result = await processEventBatch([traceEvent, ...spanEvents], auth, {
+    delay: 0,
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (result.errors.length > 0) {
     throw new Error(result.errors[0]?.error ?? "Failed to write trace");

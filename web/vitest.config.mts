@@ -1,5 +1,7 @@
 import { globSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import { config } from "dotenv";
 import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
@@ -47,14 +49,32 @@ const sharedContextServerTestFiles = serverTestFiles.filter(
   (file) => !isolatedServerTestFiles.includes(file),
 );
 
+function markdownRawPlugin() {
+  return {
+    name: "markdown-raw",
+    enforce: "pre",
+    load(id) {
+      const path = id.split("?", 1)[0];
+      if (!path?.endsWith(".md")) return null;
+
+      return `export default ${JSON.stringify(readFileSync(path, "utf8"))};`;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
   test: {
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
+    silent: "passed-only",
     globals: true,
     retry: process.env.CI ? 3 : 0,
+    // Servertests are DB-roundtrip bound, so hundreds cross the default 300ms
+    // slow threshold on CI and the default reporter prints a line for each.
+    // VitestCiReporter's top-10 slowest summary is unaffected (own accounting).
+    slowTestThreshold: process.env.CI ? 2_000 : 300,
     testTimeout: 30_000,
     server: {
       deps: {
@@ -122,6 +142,24 @@ export default defineConfig({
           exclude: sharedExclude,
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
+        },
+      },
+      {
+        extends: true,
+        plugins: [
+          storybookTest({
+            configDir: join(import.meta.dirname, ".storybook"),
+            storybookScript: "pnpm run storybook -- --ci --no-open",
+          }),
+        ],
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: "chromium" }],
+          },
         },
       },
       {

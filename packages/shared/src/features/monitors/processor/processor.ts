@@ -24,18 +24,20 @@ import {
 } from "../scheduler/types";
 import { monitorFromPrisma, windowToMs } from "../service/helpers";
 import {
+  monitorEvaluationOffsetMs,
   MonitorSeveritySchema,
   MonitorStatusSchema,
   type MonitorAlert,
+  type MonitorSeverity,
   type MonitorWindow,
+  type MonitorView,
   type Monitor,
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
 
-/** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
-export const monitorEvaluationOffsetMs = 30 * 1000;
+export { monitorEvaluationOffsetMs } from "../types";
 
 /** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
@@ -382,6 +384,17 @@ function buildAlert(args: {
     fromTimestamp,
     toTimestamp,
     permalink: buildPermalink(prev.projectId, prev.id),
+    // Only a threshold-cross (ALERT/WARNING) links to the breaching data window;
+    // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
+    // a recovered/empty window, so they carry no data link.
+    dataPermalink: isBreaching(next.severity)
+      ? buildDataWindowPermalink(
+          prev.projectId,
+          prev.view,
+          fromTimestamp,
+          toTimestamp,
+        )
+      : undefined,
     message: renderAlertMessage({ monitor: prev, completion: next }),
     view: prev.view,
     filters: prev.filters,
@@ -397,6 +410,37 @@ export function buildPermalink(
   if (!env.NEXTAUTH_URL) return undefined;
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
   return `${base}/project/${projectId}/monitors/${monitorId}`;
+}
+
+/** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
+export function isBreaching(severity: MonitorSeverity): boolean {
+  return (
+    severity === MonitorSeveritySchema.enum.ALERT ||
+    severity === MonitorSeveritySchema.enum.WARNING
+  );
+}
+
+/**
+ * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
+ * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
+ *
+ * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
+ * param (absolute epoch-ms range; the client date-range parser accepts custom
+ * ranges directly, bypassing the preset gating). An `observations` monitor
+ * links to the observations table; every other view (scores-*) links to the
+ * traces table, which is the row-level data users expect to inspect.
+ */
+export function buildDataWindowPermalink(
+  projectId: string,
+  view: MonitorView,
+  fromTimestamp: Date,
+  toTimestamp: Date,
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
+  const table = view === "observations" ? "observations" : "traces";
+  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
+  return `${base}/project/${projectId}/${table}?dateRange=${dateRange}`;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */

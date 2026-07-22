@@ -13,7 +13,15 @@ const DocsButton = ({ href }: { href: string }) => (
   </Button>
 );
 
-export function DeveloperToolsSettings() {
+const ManageApiKeysButton = ({ projectId }: { projectId: string }) => (
+  <Button asChild variant="secondary">
+    <Link href={`/project/${projectId}/settings/api-keys`}>
+      Manage API keys
+    </Link>
+  </Button>
+);
+
+export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
   return (
     <div>
       <Header title="MCP & CLI" />
@@ -26,7 +34,7 @@ export function DeveloperToolsSettings() {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="text-foreground h-5 w-5" />
-            <span className="font-semibold">Agent Skill</span>
+            <span className="font-bold">Agent Skill</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse Agent Skill is an open-source skill following
@@ -47,7 +55,7 @@ export function DeveloperToolsSettings() {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <Bot className="text-foreground h-5 w-5" />
-            <span className="font-semibold">MCP Server</span>
+            <span className="font-bold">MCP Server</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse MCP server lets AI assistants and agents interact with
@@ -63,6 +71,7 @@ export function DeveloperToolsSettings() {
   --header "Authorization: Basic {your-base64-token}"`}
           />
           <div className="mt-4 flex items-center gap-2">
+            <ManageApiKeysButton projectId={projectId} />
             <DocsButton href="https://langfuse.com/docs/api-and-data-platform/features/mcp-server" />
           </div>
         </Card>
@@ -70,7 +79,7 @@ export function DeveloperToolsSettings() {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <SquareTerminal className="text-foreground h-5 w-5" />
-            <span className="font-semibold">CLI</span>
+            <span className="font-bold">CLI</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse CLI provides terminal access to the full Langfuse API.
@@ -86,6 +95,7 @@ export LANGFUSE_SECRET_KEY="sk-lf-..."
 npx langfuse-cli api <resource> <action>`}
           />
           <div className="mt-4 flex items-center gap-2">
+            <ManageApiKeysButton projectId={projectId} />
             <DocsButton href="https://langfuse.com/docs/api-and-data-platform/features/cli" />
           </div>
         </Card>

@@ -13,6 +13,14 @@ import { prisma } from "@langfuse/shared/src/db";
 import { IngestionService } from "../../services/IngestionService";
 import * as clickhouseWriterExports from "../../services/ClickhouseWriter";
 
+const createTestOtelProcessor = () =>
+  new OtelIngestionProcessor({
+    projectId: "test-project",
+    publicKey: "",
+    sdkName: "",
+    sdkVersion: "",
+  });
+
 // vi.hoisted ensures this is declared before vi.mock's hoisted factory runs.
 // Without it, the variable would be undefined when the factory executes.
 const { mockAddToClickhouseWriter } = vi.hoisted(() => ({
@@ -118,7 +126,7 @@ function buildOtelSpan(params: {
 async function processAndCreateEvent(
   otelSpan: ReturnType<typeof buildOtelSpan>,
 ) {
-  const processor = new OtelIngestionProcessor({ projectId: "test-project" });
+  const processor = createTestOtelProcessor();
   const eventInputs = processor.processToEvent([otelSpan]);
   expect(eventInputs.length).toBeGreaterThan(0);
 
@@ -328,6 +336,31 @@ describe("OTel metadata processing", () => {
         continent: "Europe",
         position: "3",
       });
+    });
+  });
+
+  describe("experiment item version", () => {
+    it.each([
+      ["2026-04-24 15:22:36.622", "2026-04-24 15:22:36.622"],
+      ["2026-04-24T15:22:36.622Z", "2026-04-24 15:22:36.622"],
+      ["None", undefined],
+      ["v1", undefined],
+    ])("normalizes '%s' to %s", async (input, expected) => {
+      const otelSpan = buildOtelSpan({
+        scopeVersion: "4.5.0",
+        resourceAttrKey: "service.name",
+        resourceAttrValue: "svc",
+        scopeAttrKey: "public_key",
+        scopeAttrValue: "pk-test",
+        metadataAttrs: [],
+      });
+      otelSpan.scopeSpans[0].spans[0].attributes.push({
+        key: "langfuse.experiment.item.version",
+        value: { stringValue: input },
+      });
+
+      const { eventRecord } = await processAndCreateEvent(otelSpan);
+      expect(eventRecord.experiment_item_version).toBe(expected);
     });
   });
 });

@@ -5,6 +5,7 @@ import {
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { renderLevelIcon } from "@/src/components/level-colors";
 
 export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
@@ -46,9 +47,19 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Name",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
+    {
+      // Display relabel to "Status" (see traces-config); column id stays
+      // `level` until the cross-surface rename lands.
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "categorical" as const,
@@ -64,11 +75,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: "Prompt Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Trace Tags",
     },
     {
       type: "stringKeyValue" as const,
@@ -174,6 +180,11 @@ export const observationFilterConfig: FilterConfig = {
       type: "numericKeyValue" as const,
       column: "scores_avg",
       label: "Numeric Scores",
+    },
+    {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
     },
     {
       type: "numeric" as const,

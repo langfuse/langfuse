@@ -18,11 +18,19 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { Download, ExternalLinkIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  CopyIcon,
+  Download,
+  ExternalLinkIcon,
+} from "lucide-react";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -42,7 +50,7 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { LazyTraceRow } from "@/src/components/session/TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
@@ -65,26 +73,35 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
+  SESSION_DETAIL_LLM_CALL_PRESETS,
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
+  findSessionDetailViewByFilters,
+  SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
 import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { ModernSession } from "@/src/components/session/ModernSession";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useStore } from "zustand";
+import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
   asCommentCounts,
+  type EventSession,
   getStringFilterOptions,
   isMultiValueOptionRecord,
   type EventFilterOptions,
   type EventSessionTrace,
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
+import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 10;
+const INITIAL_USERS_DISPLAY_COUNT = 3;
 const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
@@ -105,19 +122,25 @@ export function SessionUsers({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {initialUsers.map((userId: string) => (
-        <Link
-          key={userId}
-          href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Badge className="max-w-[300px]">
-            <span className="truncate">User ID: {userId}</span>
-            <ExternalLinkIcon className="ml-1 h-3 w-3" />
-          </Badge>
-        </Link>
-      ))}
+      {initialUsers.map((userId: string) => {
+        const userBadgeText = `User ID: ${userId}`;
+
+        return (
+          <Link
+            key={userId}
+            href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge className="max-w-[300px]">
+              <span className="truncate" title={userBadgeText}>
+                {userBadgeText}
+              </span>
+              <ExternalLinkIcon className="ml-1 h-3 w-3" />
+            </Badge>
+          </Link>
+        );
+      })}
 
       {remainingUsers.length > 0 && (
         <Popover modal>
@@ -135,20 +158,26 @@ export function SessionUsers({
                     page * USERS_PER_PAGE_IN_POPOVER,
                     (page + 1) * USERS_PER_PAGE_IN_POPOVER,
                   )
-                  .map((userId: string) => (
-                    <Link
-                      key={userId}
-                      href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
-                      className="hover:bg-accent block"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Badge className="max-w-[260px]">
-                        <span className="truncate">User ID: {userId}</span>
-                        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-                      </Badge>
-                    </Link>
-                  ))}
+                  .map((userId: string) => {
+                    const userBadgeText = `User ID: ${userId}`;
+
+                    return (
+                      <Link
+                        key={userId}
+                        href={`/project/${projectId}/users/${encodeURIComponent(userId ?? "")}`}
+                        className="hover:bg-accent block"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Badge className="max-w-[260px]">
+                          <span className="truncate" title={userBadgeText}>
+                            {userBadgeText}
+                          </span>
+                          <ExternalLinkIcon className="ml-1 h-3 w-3" />
+                        </Badge>
+                      </Link>
+                    );
+                  })}
               </div>
             </ScrollArea>
             {remainingUsers.length > USERS_PER_PAGE_IN_POPOVER && (
@@ -196,6 +225,32 @@ const SessionScores = ({
     </div>
   );
 };
+const CopySessionIdButton: React.FC<{
+  sessionId: string;
+}> = ({ sessionId }) => {
+  const capture = usePostHogClientCapture();
+  const { copy, isCopied } = useCopyToClipboard();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title="Copy session ID"
+      aria-label="Copy session ID"
+      onClick={async () => {
+        capture("session_detail:copy_session_id_click");
+        await copy(sessionId);
+      }}
+    >
+      {isCopied ? (
+        <CheckIcon className="text-muted-green h-4 w-4" />
+      ) : (
+        <CopyIcon className="h-4 w-4" />
+      )}
+    </Button>
+  );
+};
+
 export const SessionPage: React.FC<{
   sessionId: string;
   projectId: string;
@@ -365,20 +420,11 @@ export const SessionPage: React.FC<{
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
             <>
-              {!router.query.peek && (
-                <DetailPageNav
-                  key="nav"
-                  currentId={encodeURIComponent(sessionId)}
-                  path={(entry) =>
-                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-                  }
-                  listKey="sessions"
-                />
-              )}
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -393,6 +439,16 @@ export const SessionPage: React.FC<{
               >
                 <Download className="h-4 w-4" />
               </Button>
+              {!router.query.peek && (
+                <DetailPageNav
+                  key="nav"
+                  currentId={encodeURIComponent(sessionId)}
+                  path={(entry) =>
+                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                  }
+                  listKey="sessions"
+                />
+              )}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -423,11 +479,13 @@ export const SessionPage: React.FC<{
                 />
               </div>
               <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </div>
                 <span className="text-muted-foreground text-xs">
                   Show corrections
                 </span>
@@ -504,23 +562,13 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
-  const router = useRouter();
-  const { setDetailPageList, detailPagelists } = useDetailPageLists();
-  const userSession = useSession();
-  const parentRef = useRef<HTMLDivElement>(null);
-  const defaultPresetAppliedRef = useRef(false);
-
-  // Reset default preset flag when session changes (e.g., navigating between sessions)
-  useEffect(() => {
-    defaultPresetAppliedRef.current = false;
-  }, [sessionId]);
-
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
       projectId: projectId,
     },
     {
+      enabled: !!projectId && !!sessionId,
       retry(failureCount, error) {
         if (
           error.data?.code === "UNAUTHORIZED" ||
@@ -532,6 +580,90 @@ export const SessionEventsPage: React.FC<{
     },
   );
 
+  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
+    { projectId, sessionId },
+    {
+      enabled: !!projectId && !!sessionId,
+      retry(failureCount, error) {
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  if (session.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this session." />;
+
+  if (session.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Session not found"
+        message="The session is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => window.location.reload(),
+        }}
+      />
+    );
+
+  if (!session.data) {
+    return (
+      <Page
+        headerProps={{
+          title: sessionId,
+          itemType: "SESSION",
+          breadcrumb: [
+            {
+              name: "Sessions",
+              href: `/project/${projectId}/sessions`,
+            },
+          ],
+        }}
+      >
+        <div className="h-full p-4">
+          <JsonSkeleton className="h-full w-full" numRows={8} />
+        </div>
+      </Page>
+    );
+  }
+
+  return (
+    <LoadedSessionEventsPage
+      sessionId={sessionId}
+      projectId={projectId}
+      session={session.data}
+      traces={tracesQuery.data}
+      isTracesSuccess={tracesQuery.isSuccess}
+    />
+  );
+};
+
+const LoadedSessionEventsPage: React.FC<{
+  sessionId: string;
+  projectId: string;
+  session: EventSession;
+  traces: EventSessionTrace[] | undefined;
+  isTracesSuccess: boolean;
+}> = ({ sessionId, projectId, session, traces, isTracesSuccess }) => {
+  const router = useRouter();
+  const { setDetailPageList, detailPagelists } = useDetailPageLists();
+  const userSession = useSession();
+  const capture = usePostHogClientCapture();
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+  });
+  const parentRef = useRef<HTMLDivElement>(null);
+  const defaultPresetAppliedRef = useRef(false);
+
+  // Reset default preset flag when session changes (e.g., navigating between sessions)
+  useEffect(() => {
+    defaultPresetAppliedRef.current = false;
+  }, [sessionId]);
+
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
     false,
@@ -541,6 +673,14 @@ export const SessionEventsPage: React.FC<{
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
     }),
+  );
+  const showInlineToolCalls = useStore(
+    sessionDetailStore,
+    (state) => state.showInlineToolCalls,
+  );
+  const showSystemPrompt = useStore(
+    sessionDetailStore,
+    (state) => state.showSystemPrompt,
   );
 
   useEffect(() => {
@@ -561,13 +701,44 @@ export const SessionEventsPage: React.FC<{
     [sessionDetailStore, setShowCorrections],
   );
 
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
+
+  const setShowSystemPromptForSession = (isEnabled: boolean) => {
+    capture("session_detail:system_prompt_toggled", {
+      isEnabled,
+      isV4: true,
+    });
+    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
+  };
+
+  const displayOptions = [
+    {
+      label: "corrections",
+      checked: showCorrections,
+      onCheckedChange: setShowCorrectionsForSession,
+    },
+    {
+      label: "tool calls",
+      checked: showInlineToolCalls,
+      onCheckedChange: setInlineToolCallsForSession,
+    },
+    {
+      label: "system prompt",
+      checked: showSystemPrompt,
+      onCheckedChange: setShowSystemPromptForSession,
+    },
+  ];
+
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
       projectId,
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: session.isSuccess && userSession.status === "authenticated" },
+    { enabled: userSession.status === "authenticated" },
   );
 
   const traceCommentCounts =
@@ -576,23 +747,8 @@ export const SessionEventsPage: React.FC<{
         projectId,
         sessionId,
       },
-      { enabled: session.isSuccess && userSession.status === "authenticated" },
+      { enabled: userSession.status === "authenticated" },
     );
-
-  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId },
-    {
-      enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
-    },
-  );
 
   const peekNavigationConfig = React.useMemo(
     () => ({
@@ -600,8 +756,11 @@ export const SessionEventsPage: React.FC<{
         basePath: `/project/${projectId}/traces`,
       },
       queryParams: ["observation", "display", "timestamp"],
+      // observationId: set by a card's "Open in trace view" on a truncated
+      // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -610,19 +769,14 @@ export const SessionEventsPage: React.FC<{
     usePeekNavigation(peekNavigationConfig);
 
   useEffect(() => {
-    if (!tracesQuery.isSuccess) return;
-    const nextList = tracesQuery.data.map((t: EventSessionTrace) => ({
+    if (!isTracesSuccess || !traces) return;
+    const nextList = traces.map((t: EventSessionTrace) => ({
       id: t.id,
       params: { timestamp: t.timestamp.toISOString() },
     }));
     if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
     setDetailPageList("traces", nextList);
-  }, [
-    tracesQuery.isSuccess,
-    tracesQuery.data,
-    setDetailPageList,
-    detailPagelists.traces,
-  ]);
+  }, [isTracesSuccess, traces, setDetailPageList, detailPagelists.traces]);
 
   const sessionEventsTableName = "session-events";
   const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
@@ -663,18 +817,14 @@ export const SessionEventsPage: React.FC<{
     [urlFiltersQuery, sessionFilterStorageKey, projectId],
   );
 
-  // Decode time filters from URL/session filter state for scoping filter options
-  const timeFiltersForOptions = React.useMemo(() => {
-    const allFilters = decodeAndNormalizeFilters(
+  const timeFiltersForOptions = getSessionFilterOptionsStartTimeFilters({
+    filterState: decodeAndNormalizeFilters(
       filtersQuery,
       sessionEventsFilterConfig.columnDefinitions,
-    );
-    return allFilters.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    );
-  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
+    ),
+    minTimestamp: session.minTimestamp,
+    maxTimestamp: session.maxTimestamp,
+  });
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
@@ -777,6 +927,25 @@ export const SessionEventsPage: React.FC<{
           return keyOptions ? { ...column, keyOptions } : column;
         }
 
+        if (column.type === "booleanObject" && column.id === "score_booleans") {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
+        if (
+          column.type === "booleanObject" &&
+          column.id === "trace_score_booleans"
+        ) {
+          const keyOptions = getStringFilterOptions(
+            typedFilterOptions.trace_score_booleans,
+          );
+
+          return keyOptions ? { ...column, keyOptions } : column;
+        }
+
         return column;
       });
   }, [typedFilterOptions, sessionEventsFilterConfig.columnDefinitions]);
@@ -855,58 +1024,148 @@ export const SessionEventsPage: React.FC<{
     currentExpandedFilters: queryFilter.expanded,
   });
 
+  // Auto-apply path only (the drawer's user-driven preset selection has its
+  // own handler). Writes with `replaceIn`: this is the page deciding its own
+  // default, not a user step — pushing would leave the pre-default URL as a
+  // history entry that Back lands on and that re-applies the default, making
+  // Back bounce forward (LFE-10715).
   const applySystemPreset = useCallback(
     (preset: SessionDetailSystemPreset) => {
-      viewControllers.handleSetViewId(preset.id);
-      queryFilter.setFilterState(preset.filters);
+      viewControllers.handleSetViewId(preset.id, { updateType: "replaceIn" });
+      queryFilter.setFilterState(preset.filters, { updateType: "replaceIn" });
     },
     [queryFilter, viewControllers],
   );
 
+  // The URL's viewId captured on first render, before the table view manager
+  // strips frontend system-preset ids — lets us restore a reloaded system view
+  // (incl. the empty-filter "All observations", otherwise indistinguishable
+  // from a fresh load) instead of silently replacing its FilterState. Read from
+  // window.location synchronously (not useQueryParam, which can lag a render on
+  // mount and miss the value before the strip).
+  const readUrlViewId = (): string | null =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("viewId");
+  const initialViewIdRef = useRef<string | null>(readUrlViewId());
+  // Navigating between sessions (DetailPageNav prev/next) can reuse this mounted
+  // component when the destination is already in the react-query cache — the
+  // useRef initializer wouldn't re-run, leaving a stale viewId that blocks the
+  // default-view effect on the new session. Re-read the URL during render (not
+  // an effect, which would race the view manager's strip on reload) whenever the
+  // sessionId changes, mirroring the defaultPresetAppliedRef reset above.
+  const initialViewIdSessionRef = useRef(sessionId);
+  if (initialViewIdSessionRef.current !== sessionId) {
+    initialViewIdSessionRef.current = sessionId;
+    initialViewIdRef.current = readUrlViewId();
+  }
+
+  const selectedViewId = viewControllers.selectedViewId;
+
+  // Which named view drives the empty-state notice. Derived from the applied
+  // FilterState (the single source of truth) so the label survives the manager
+  // stripping the viewId on reload, and drops to null the moment the filter is
+  // edited. Mirrors the drawer trigger's rule: only name a view when it also
+  // matches the selected view id — so a selected saved view, or a filter
+  // hand-edited into another preset's exact shape, doesn't make the notice and
+  // the drawer trigger disagree.
+  const filterMatchedView = findSessionDetailViewByFilters(visibleFilterState);
+  const matchedView =
+    filterMatchedView &&
+    (!selectedViewId || filterMatchedView.id === selectedViewId)
+      ? filterMatchedView
+      : null;
+  const viewLabel = matchedView?.name ?? null;
+  const isLlmCallPresetActive = SESSION_DETAIL_LLM_CALL_PRESETS.some(
+    (preset) => matchedView?.id === preset.id,
+  );
+
+  const applyLlmCallPreset = (preset: SessionDetailSystemPreset) => {
+    capture("saved_views:system_preset_selected", {
+      tableName: TableViewPresetTableName.SessionDetail,
+      presetId: preset.id,
+    });
+    viewControllers.handleSetViewId(preset.id);
+    viewControllers.applyViewState(
+      {
+        filters: preset.filters,
+        columnOrder: [],
+        columnVisibility: {},
+        orderBy: null,
+        searchQuery: "",
+      },
+      { trigger: "system_preset", viewId: preset.id },
+    );
+  };
+
+  // Recover the system-preset viewId the view manager strips from the URL on
+  // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
+  // (no one-shot guard) so it runs *after* the async strip, not before. Recovers
+  // when the surviving filter matches a preset AND either that preset was the
+  // URL's provenance viewId (captured before the strip — covers the empty-filter
+  // "All observations", otherwise indistinguishable from a fresh load) or the
+  // filter is non-empty (unambiguous). The filter itself is never changed.
+  useEffect(() => {
+    if (isViewLoading) return;
+    if (selectedViewId) return;
+    const filterMatchedView =
+      findSessionDetailViewByFilters(visibleFilterState);
+    if (!filterMatchedView) return;
+    const shouldRecover =
+      filterMatchedView.id === initialViewIdRef.current ||
+      visibleFilterState.length > 0;
+    // replaceIn: recovery is a programmatic correction of the current URL —
+    // pushing would mint a viewId-less history entry that Back re-triggers
+    // (the filter survives in sessionStorage, so this effect re-fires on any
+    // pop to a param-less URL — LFE-10715).
+    if (shouldRecover)
+      viewControllers.handleSetViewId(filterMatchedView.id, {
+        updateType: "replaceIn",
+      });
+  }, [isViewLoading, selectedViewId, visibleFilterState, viewControllers]);
+
+  // Whether this arrival is a Back/Forward revisit of an existing history
+  // entry rather than a fresh navigation. Keyed to sessionId so in-place
+  // prev/next session navigation re-decides, mirroring initialViewIdRef.
+  const arrivedOnVisitedHistoryEntry = useHistoryEntryRevisit(sessionId);
+
+  // Fresh load with nothing in the URL → apply the default view. Skipped on
+  // reload/shared-link (a viewId was in the URL) so the recovery effect above,
+  // not the default, decides the view — otherwise "All observations" would be
+  // silently replaced by the default on every reload. Also skipped when the
+  // user arrived via Back/Forward: a revisited entry's param-less URL is a
+  // recorded "no view" state, not a fresh arrival, and re-applying the
+  // default would overwrite what the user deliberately left there
+  // (LFE-10715).
   useEffect(() => {
     if (defaultPresetAppliedRef.current) return;
     if (isViewLoading) return; // Wait for view manager to initialize
-
+    if (selectedViewId) return;
+    if (initialViewIdRef.current) return;
+    if (arrivedOnVisitedHistoryEntry) return;
     const presetToApply = getSessionDetailPresetToApply({
-      selectedViewId: viewControllers.selectedViewId,
-      hasFilters: queryFilter.filterState.length > 0,
+      selectedViewId: null,
+      hasFilters: visibleFilterState.length > 0,
     });
     if (!presetToApply) return;
-
     defaultPresetAppliedRef.current = true;
-    // Sessions intentionally default to the first generation in each trace
-    // when opened without explicit filters or a saved view.
     applySystemPreset(presetToApply);
   }, [
     applySystemPreset,
-    queryFilter.filterState.length,
+    arrivedOnVisitedHistoryEntry,
     isViewLoading,
-    viewControllers.selectedViewId,
+    selectedViewId,
+    visibleFilterState,
   ]);
 
   const virtualizer = useVirtualizer({
-    count: tracesQuery.data?.length ?? 0,
+    count: traces?.length ?? 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 320,
     overscan: SESSION_VIRTUALIZER_OVERSCAN,
-    getItemKey: (index) => tracesQuery.data?.[index]?.id ?? index,
+    getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
-
-  if (session.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this session." />;
-
-  if (session.error?.data?.code === "NOT_FOUND")
-    return (
-      <ErrorPage
-        title="Session not found"
-        message="The session is either still being processed or has been deleted."
-        additionalButton={{
-          label: "Retry",
-          onClick: () => window.location.reload(),
-        }}
-      />
-    );
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -926,20 +1185,87 @@ export const SessionEventsPage: React.FC<{
                 key="star"
                 projectId={projectId}
                 sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
+                value={session.bookmarked}
                 size="icon-xs"
               />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
-                isPublic={session.data?.public ?? false}
+                isPublic={session.public}
                 key="publish"
                 size="icon-xs"
               />
+              <CopySessionIdButton key="copy-id" sessionId={sessionId} />
             </div>
           ),
           actionButtonsRight: (
             <>
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
+              {isModernSessionEnabled ? (
+                <>
+                  <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    {displayOptions.map(
+                      ({ label, checked, onCheckedChange }) => (
+                        <label
+                          key={label}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Switch
+                            checked={checked}
+                            onCheckedChange={onCheckedChange}
+                            size="sm"
+                          />
+                          <span className="text-muted-foreground text-xs">
+                            {label}
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 pr-2 min-[1900px]:hidden">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-2"
+                        >
+                          Options
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-52 p-2">
+                        <div className="flex flex-col gap-1">
+                          {displayOptions.map(
+                            ({ label, checked, onCheckedChange }) => (
+                              <label
+                                key={label}
+                                className="hover:bg-muted flex items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                              >
+                                <span className="text-sm capitalize">
+                                  {label}
+                                </span>
+                                <Switch
+                                  checked={checked}
+                                  onCheckedChange={onCheckedChange}
+                                  size="sm"
+                                />
+                              </label>
+                            ),
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              ) : null}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -950,12 +1276,6 @@ export const SessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -971,10 +1291,10 @@ export const SessionEventsPage: React.FC<{
                     type: "session",
                     sessionId,
                   }}
-                  scores={session.data?.scores ?? []}
+                  scores={session.scores}
                   scoreMetadata={{
                     projectId: projectId,
-                    environment: session.data?.environment,
+                    environment: session.environment,
                   }}
                   buttonVariant="outline"
                 />
@@ -985,22 +1305,81 @@ export const SessionEventsPage: React.FC<{
                   variant="outline"
                 />
               </div>
-              <div className="flex items-center">
-                <Switch
-                  checked={showCorrections}
-                  onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
-                />
-                <span className="text-muted-foreground text-xs">
-                  Show corrections
-                </span>
-              </div>
+              {!isModernSessionEnabled ? (
+                <label className="flex items-center gap-1.5">
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                  <span className="text-muted-foreground text-xs">
+                    Show corrections
+                  </span>
+                </label>
+              ) : null}
             </>
           ),
         }}
       >
-        <div className="flex h-full flex-col overflow-auto">
+        <div
+          className={
+            isModernSessionEnabled
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
+              : "flex h-full flex-col overflow-auto"
+          }
+        >
           <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
+            {isModernSessionEnabled ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-pressed={isLlmCallPresetActive}
+                    className={
+                      isLlmCallPresetActive ? "bg-primary/5" : undefined
+                    }
+                  >
+                    LLM Calls per Trace
+                    <ChevronDown className="ml-1 h-4 w-4" aria-hidden />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-1">
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+                    LLM Calls per Trace
+                  </div>
+                  {SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
+                    const isActive = matchedView?.id === preset.id;
+                    return (
+                      <PopoverClose asChild key={preset.id}>
+                        <button
+                          type="button"
+                          aria-current={isActive ? "true" : undefined}
+                          className="hover:bg-accent flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                          onClick={() => applyLlmCallPreset(preset)}
+                        >
+                          <span className="flex flex-col">
+                            <span className="font-bold">{preset.name}</span>
+                            {preset.description ? (
+                              <span className="text-muted-foreground text-xs">
+                                {preset.description}
+                              </span>
+                            ) : null}
+                          </span>
+                          {isActive ? (
+                            <CheckIcon
+                              className="mt-0.5 h-4 w-4 shrink-0"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </button>
+                      </PopoverClose>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            ) : null}
+
             {/* Saved Views */}
             <TableViewPresetsDrawer
               viewConfig={{
@@ -1016,74 +1395,102 @@ export const SessionEventsPage: React.FC<{
                 searchQuery: "",
               }}
               systemFilterPresets={SESSION_DETAIL_SYSTEM_PRESETS}
+              triggerId={SESSION_DETAIL_VIEW_TRIGGER_ID}
             />
 
-            {/* Filter Builder */}
+            {/* Refines the selected view by filtering observations within each
+                trace (it does not filter the list of traces) — labelled to say
+                so (LFE-10520). */}
             <PopoverFilterBuilder
               columns={filterColumns}
               filterState={visibleFilterState}
               onChange={queryFilter.setFilterState}
               columnsWithCustomSelect={filterColumnsWithCustomSelect}
+              label="Filter observations"
+              // Analytics (LFE-10781): session-detail observation refinement is a
+              // v3/legacy surface (the v4 events table filters via the grammar bar).
+              tableName="session-detail"
+              isV4={false}
             />
 
             {/* Separator */}
             <Separator orientation="vertical" className="h-6" />
 
-            {/* Stats */}
-            <Badge variant="outline">
-              Total traces: {session.data?.countTraces ?? 0}
-            </Badge>
-            {session.data && (
-              <Badge variant="outline">
-                Total cost: {usdFormatter(session.data.totalCost ?? 0, 2)}
-              </Badge>
-            )}
+            {/* Stats stay in the toolbar for the existing card layout. Modern
+                Session shows trace count and cost in its minimap header. */}
+            {!isModernSessionEnabled ? (
+              <>
+                <Badge variant="outline">
+                  Total traces: {session.countTraces}
+                </Badge>
+                <Badge variant="outline">
+                  Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                </Badge>
+              </>
+            ) : null}
 
             {/* Users */}
-            {session.data?.users?.length ? (
-              <SessionUsers projectId={projectId} users={session.data.users} />
+            {session.users?.length ? (
+              <SessionUsers projectId={projectId} users={session.users} />
             ) : null}
 
             {/* Scores */}
-            <SessionScores scores={session.data?.scores ?? []} />
+            <SessionScores scores={session.scores} />
           </div>
-          <div ref={parentRef} className="flex-1 overflow-auto p-4">
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualItems.map((virtualItem) => {
-                const trace = tracesQuery.data?.[virtualItem.index];
-                if (!trace) return null;
+          {!isModernSessionEnabled ? (
+            <div ref={parentRef} className="flex-1 overflow-auto p-4">
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const trace = traces?.[virtualItem.index];
+                  if (!trace) return null;
 
-                return (
-                  <SessionVirtualizedRow
-                    key={virtualItem.key}
-                    itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                    source="events"
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                  >
-                    <LazySessionTraceEventsRow
-                      trace={trace}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={asCommentCounts(
-                        traceCommentCounts.data,
-                      )}
-                      index={virtualItem.index}
-                      filterState={visibleFilterState}
-                    />
-                  </SessionVirtualizedRow>
-                );
-              })}
+                  return (
+                    <SessionVirtualizedRow
+                      key={virtualItem.key}
+                      itemKey={String(virtualItem.key)}
+                      measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                      source="events"
+                      virtualItem={virtualItem}
+                      virtualizer={virtualizer}
+                    >
+                      <LazySessionTraceEventsRow
+                        trace={trace}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        openPeek={openPeek}
+                        traceCommentCounts={asCommentCounts(
+                          traceCommentCounts.data,
+                        )}
+                        index={virtualItem.index}
+                        filterState={visibleFilterState}
+                        viewLabel={viewLabel}
+                      />
+                    </SessionVirtualizedRow>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <ModernSession
+              traces={traces ?? []}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
+              filterState={visibleFilterState}
+              filterMeasurementKey={visibleFilterMeasurementKey}
+              viewLabel={viewLabel}
+              totalCost={session.totalCost ?? 0}
+              showInlineToolCalls={showInlineToolCalls}
+              showSystemPrompt={showSystemPrompt}
+            />
+          )}
         </div>
         <TablePeekViewTraceDetail
           itemType="TRACE"

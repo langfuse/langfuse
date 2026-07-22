@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { type LucideIcon, Plus } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { startCase } from "lodash";
 
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import {
   Accordion,
@@ -75,11 +75,18 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { viewDeclarations, type FilterState } from "@langfuse/shared";
+import {
+  ObservationLevelDomain,
+  ObservationTypeDomain,
+  viewDeclarations,
+  type FilterState,
+  type TimeFilter,
+} from "@langfuse/shared";
 
 import TagManager from "@/src/features/tag/components/TagManager";
 
 import { MonitorChartPreview } from "./MonitorChartPreview";
+import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/ui/badge";
@@ -138,6 +145,58 @@ const nameOrPlaceholder = (
   name: string | undefined,
   placeholder: string,
 ): string => name || placeholder;
+
+// Observation Level and Type are closed enums, so their filter value pickers
+// list every domain value. Deriving them from the monitor's (short, default 5m)
+// evaluation window instead left them empty whenever that window happened to
+// contain no matching events — e.g. a fresh monitor whose lookback saw no errors
+// or tool calls yet — so the non-searchable "Level"/"Type" value dropdowns
+// showed "No results found" with no way to pick a value (LFE-10616). Mirrors
+// WidgetForm, which builds these two option lists from the domain enums too.
+const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
+  value,
+}));
+const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
+  value,
+}));
+
+/**
+ * buildFilterColumnsParams assembles the InlineFilterBuilder option dictionaries
+ * for the picked view. Open-ended facets (environment, model, tags, …) come from
+ * the time-windowed events filter-options discovery; the closed Type/Level enums
+ * come from the domain schemas so their value pickers are always complete.
+ */
+const buildFilterColumnsParams = ({
+  view,
+  filterOptions,
+  datasets,
+}: {
+  view: MonitorView;
+  filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
+  datasets: Array<{ id: string; name: string }> | undefined;
+}) => {
+  const datasetIds = new Set(
+    (filterOptions?.experimentDatasetId ?? []).map((e) => e.value),
+  );
+  return {
+    selectedView: view,
+    viewVersion: "v2" as const,
+    environmentOptions: filterOptions?.environment ?? [],
+    nameOptions: normalizeSingleValueOptions(filterOptions?.traceName),
+    observationNameOptions: normalizeSingleValueOptions(filterOptions?.name),
+    tagsOptions: filterOptions?.traceTags ?? [],
+    modelOptions: filterOptions?.providedModelName ?? [],
+    toolNamesOptions: filterOptions?.toolNames ?? [],
+    calledToolNamesOptions: filterOptions?.calledToolNames ?? [],
+    observationLevelOptions,
+    experimentNameOptions: filterOptions?.experimentName ?? [],
+    experimentDatasetOptions:
+      datasets
+        ?.filter((d) => datasetIds.has(d.id))
+        .map((d) => ({ value: d.id, displayValue: d.name })) ?? [],
+    observationTypeOptions,
+  };
+};
 
 /** MonitorForm renders the create/edit form for a Monitor. */
 export const MonitorForm = ({
@@ -254,19 +313,30 @@ export const MonitorForm = ({
 
   /** watched is the live snapshot of form values used to derive preview state, dropdown contents, and placeholders. */
   const watched = useWatch({ control: form.control });
+  const monitorWindow = (watched.window ?? "5m") as MonitorWindow;
 
-  // Push the live name up to the host (e.g. the edit page header) so the page
-  // title can mirror it as the user types instead of waiting for save.
-  useEffect(() => {
-    onNameChange?.(watched.name ?? "");
-  }, [watched.name, onNameChange]);
+  /** filterOptionsStartTimeFilter lower-bounds discovery at max(20×window, 7d) so even a small monitor window still yields value suggestions. */
+  const filterOptionsStartTimeFilter = useMemo<TimeFilter[]>(
+    () => [
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: getMonitorFilterOptionsLookbackFrom(monitorWindow, Date.now()),
+      },
+    ],
+    [monitorWindow],
+  );
 
   /** eventsFilterOptions loads the events v2 filter dictionary (environments, tags, models, …) for the picked view. */
   const eventsFilterOptions = api.events.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      startTimeFilter: filterOptionsStartTimeFilter,
+    },
     {
       trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
+      staleTime: 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
     },
@@ -282,39 +352,15 @@ export const MonitorForm = ({
   );
 
   /** filterColumnsParams collects the filter-column descriptor for InlineFilterBuilder, derived from the picked view and live option dictionaries. */
-  const filterColumnsParams = useMemo(() => {
-    const data = eventsFilterOptions.data;
-    return {
-      selectedView: (watched.view ?? "observations") as
-        | "traces"
-        | "observations"
-        | "scores-numeric"
-        | "scores-categorical",
-      viewVersion: "v2" as const,
-      environmentOptions: data?.environment ?? [],
-      nameOptions: normalizeSingleValueOptions(data?.traceName),
-      tagsOptions: data?.traceTags ?? [],
-      modelOptions: data?.providedModelName ?? [],
-      toolNamesOptions: data?.toolNames ?? [],
-      calledToolNamesOptions: data?.calledToolNames ?? [],
-      observationLevelOptions: [],
-      experimentNameOptions: data?.experimentName ?? [],
-      experimentDatasetOptions: (() => {
-        const ids = new Set(
-          (data?.experimentDatasetId ?? []).map((e) => e.value),
-        );
-        return (
-          datasets.data
-            ?.filter((d: { id: string }) => ids.has(d.id))
-            .map((d: { id: string; name: string }) => ({
-              value: d.id,
-              displayValue: d.name,
-            })) ?? []
-        );
-      })(),
-      observationTypeOptions: [],
-    };
-  }, [eventsFilterOptions.data, datasets.data, watched.view]);
+  const filterColumnsParams = useMemo(
+    () =>
+      buildFilterColumnsParams({
+        view: (watched.view ?? "observations") as MonitorView,
+        filterOptions: eventsFilterOptions.data,
+        datasets: datasets.data,
+      }),
+    [eventsFilterOptions.data, datasets.data, watched.view],
+  );
 
   /** filterColumns is the InlineFilterBuilder column schema for the picked view. */
   const filterColumns = useMemo(
@@ -635,7 +681,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -652,9 +698,7 @@ export const MonitorForm = ({
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              field.onChange(
-                                raw === "" ? undefined : Number(raw),
-                              );
+                              field.onChange(raw === "" ? null : Number(raw));
                             }}
                             disabled={!hasAccess}
                           />
@@ -681,7 +725,7 @@ export const MonitorForm = ({
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
-                        <span className="mr-1.5 ml-1 font-mono text-xs font-semibold">
+                        <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
@@ -744,7 +788,7 @@ export const MonitorForm = ({
                 />
                 <Accordion type="single" collapsible>
                   <AccordionItem value="advanced" className="border-b-0">
-                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
+                    <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                       Advanced Options
                     </AccordionTrigger>
                     <AccordionContent className="space-y-6 px-1 pt-2">
@@ -795,6 +839,10 @@ export const MonitorForm = ({
                           disabled={!hasAccess}
                           {...field}
                           value={field.value ?? ""}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            onNameChange?.(e.target.value ?? "");
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -859,7 +907,7 @@ export const MonitorForm = ({
               </Section>
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="flex-inherit w-full items-center pt-4">
+              <div className="w-full items-center pt-4">
                 <Button
                   type="submit"
                   size="lg"
@@ -910,7 +958,7 @@ const Header = ({
   <div className="bg-card sticky top-0 z-10">
     <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
       {step != null ? (
-        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
           {step}
         </span>
       ) : null}
@@ -983,7 +1031,7 @@ const NoDataField = ({
             Keep the previous
             <Badge
               variant="secondary"
-              className="w-20 justify-center bg-slate-500 py-1 text-slate-50 hover:bg-slate-500"
+              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
             >
               SEVERITY
             </Badge>
@@ -1090,4 +1138,5 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
+  buildFilterColumnsParams,
 };

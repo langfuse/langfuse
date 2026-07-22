@@ -4,6 +4,12 @@ import { Button } from "@/src/components/ui/button";
 import { ExperimentComparisonSelector } from "./ExperimentComparisonSelector";
 import { ExperimentBaselineControls } from "./ExperimentBaselineControls";
 import Link from "next/link";
+import { InfoIcon } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
 import {
   ExperimentOverviewField,
@@ -89,11 +95,28 @@ export function ExperimentOverviewPanel({
   return (
     <div className="space-y-4">
       <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
-        <h3 className="text-lg font-semibold">Experiment Details</h3>
+        <h3 className="text-lg font-bold">Experiment Details</h3>
 
         <div>
           <ExperimentOverviewSectionHeading>
-            Baseline
+            <span className="inline-flex items-center gap-1.5">
+              Baseline
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="What is a baseline experiment?"
+                    className="text-muted-foreground hover:text-primary"
+                  >
+                    <InfoIcon className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-[280px]">
+                  The baseline is the reference experiment run used to compare
+                  all other selected runs.
+                </TooltipContent>
+              </Tooltip>
+            </span>
           </ExperimentOverviewSectionHeading>
           <ExperimentBaselineControls
             projectId={projectId}
@@ -126,7 +149,7 @@ export function ExperimentOverviewPanel({
             </ExperimentOverviewSectionHeading>
             <div className="space-y-3 text-sm">
               <ExperimentOverviewField label="Name">
-                <div className="font-medium">{experiment.name}</div>
+                <div className="font-bold">{experiment.name}</div>
               </ExperimentOverviewField>
 
               {experiment.description && (

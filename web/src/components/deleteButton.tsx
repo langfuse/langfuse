@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
@@ -27,8 +29,12 @@ export type DeleteButtonProps = {
   icon?: boolean;
   enabled?: boolean;
   variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
   title?: string;
   className?: string;
+  // forwarded explicitly because the base component does not spread unknown
+  // props onto the rendered button
+  "aria-label"?: string;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -48,6 +54,9 @@ type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
   executeDeleteMutation: (onSuccess: () => void) => Promise<void>;
   isDeleteMutationLoading: boolean;
   itemId?: string;
+  // when set, the popover explains why deletion is blocked instead of asking for confirmation
+  deleteBlocker?: React.ReactNode;
+  onPopoverOpenChange?: (open: boolean) => void;
 };
 
 export function DeleteButton({
@@ -63,14 +72,19 @@ export function DeleteButton({
   enabled = true,
   title,
   className,
+  size,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
   executeDeleteMutation,
   isDeleteMutationLoading,
   customDeletePrompt,
+  deleteBlocker,
+  onPopoverOpenChange,
+  "aria-label": ariaLabel,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
+  const [open, setOpen] = useState(false);
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
@@ -95,71 +109,112 @@ export function DeleteButton({
   ]);
 
   return (
-    <Popover key={itemId ?? "delete-action"}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={variant ?? (icon ? "outline-solid" : "ghost")}
-          size={icon ? "icon" : "default"}
-          title={title}
-          className={className}
-          disabled={!hasAccess || !enabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            captureDeleteOpen(capture, isTableAction);
-          }}
-        >
-          {icon ? (
-            <TrashIcon className="h-4 w-4" />
-          ) : (
-            <>
-              {hasAccess ? (
-                <TrashIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <LockIcon className="mr-2 h-4 w-4" />
-              )}
-              Delete
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 max-w-72 text-sm">
-          {customDeletePrompt ??
-            `This action cannot be undone. It removes all the data associated with
-            this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`}
-        </p>
-        {deleteConfirmation && (
-          <div className="mb-4 grid w-full gap-1.5">
-            <Label htmlFor="delete-confirmation">
-              Type &quot;{deleteConfirmation}&quot; to confirm
-            </Label>
-            <Input
-              id="delete-confirmation"
-              value={deleteConfirmationInput}
-              onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-            />
-          </div>
-        )}
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="destructive"
-            loading={isDeleteMutationLoading || isDeleted}
-            onClick={() => {
-              if (
-                deleteConfirmation &&
-                deleteConfirmationInput !== deleteConfirmation
-              ) {
-                alert("Please type the correct confirmation");
-                return;
+    <Popover
+      key={itemId ?? "delete-action"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        // Reset the type-to-confirm input on close so the confirmation must be
+        // re-typed each time (the component now stays mounted per table row).
+        if (!o) setDeleteConfirmationInput("");
+        onPopoverOpenChange?.(o);
+      }}
+    >
+      {icon ? (
+        // Icon-only: a compact button with a built-in tooltip; the popover is
+        // opened from onClick since the tooltip wrapper can't be a trigger.
+        <PopoverAnchor asChild>
+          <span className="inline-flex">
+            <IconOnlyButton
+              icon={<TrashIcon className="h-4 w-4" />}
+              label={title ?? "Delete"}
+              aria-label={ariaLabel ?? "delete"}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
               }
-              executeDeleteMutation(onDeleteSuccess);
+              variant={variant ?? "outline"}
+              size={size ?? "icon"}
+              className={className}
+              disabled={!enabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                captureDeleteOpen(capture, isTableAction);
+                // Opening via controlled state (PopoverAnchor, not
+                // PopoverTrigger) means Radix never echoes onOpenChange, so
+                // notify consumers explicitly.
+                setOpen(true);
+                onPopoverOpenChange?.(true);
+              }}
+            />
+          </span>
+        </PopoverAnchor>
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            variant={variant ?? "ghost"}
+            size={size ?? "default"}
+            title={title}
+            aria-label={ariaLabel}
+            className={className}
+            disabled={!hasAccess || !enabled}
+            onClick={(e) => {
+              e.stopPropagation();
+              captureDeleteOpen(capture, isTableAction);
             }}
           >
-            Delete {entityToDeleteName}
+            {hasAccess ? (
+              <TrashIcon className="mr-2 h-4 w-4" />
+            ) : (
+              <LockIcon className="mr-2 h-4 w-4" />
+            )}
+            Delete
           </Button>
-        </div>
+        </PopoverTrigger>
+      )}
+      <PopoverContent onClick={(e) => e.stopPropagation()}>
+        {deleteBlocker ?? (
+          <>
+            <h2 className="mb-3 font-bold">Please confirm</h2>
+            <p className="mb-3 max-w-72 text-sm">
+              {customDeletePrompt ??
+                `This action cannot be undone. It removes all the data associated with
+            this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`}
+            </p>
+            {deleteConfirmation && (
+              <div className="mb-4 grid w-full gap-1.5">
+                <Label htmlFor="delete-confirmation">
+                  Type &quot;{deleteConfirmation}&quot; to confirm
+                </Label>
+                <Input
+                  id="delete-confirmation"
+                  value={deleteConfirmationInput}
+                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="flex justify-end space-x-4">
+              <Button
+                type="button"
+                variant="destructive"
+                loading={isDeleteMutationLoading || isDeleted}
+                onClick={() => {
+                  if (
+                    deleteConfirmation &&
+                    deleteConfirmationInput !== deleteConfirmation
+                  ) {
+                    alert("Please type the correct confirmation");
+                    return;
+                  }
+                  executeDeleteMutation(onDeleteSuccess);
+                }}
+              >
+                Delete {entityToDeleteName}
+              </Button>
+            </div>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );
@@ -461,48 +516,3 @@ export function DeleteEvaluationModelButton(
     />
   );
 }
-
-// TODO: Moved to LFE-4573
-// export function DeleteEvaluatorTemplateButton(props: DeleteButtonProps) {
-//   const utils = api.useUtils();
-//   const { itemId, projectId,
-//     scope = "evalTemplate:CUD",
-//     invalidateFunc = () => void utils.evals.invalidate(),
-//   } = props;
-//   const templateMutation = api.evals.deleteEvalTemplate.useMutation();
-//   const executeDeleteMutation = async (onSuccess: () => void) => {
-//     try {
-//       await templateMutation.mutateAsync({
-//         evalTemplateId: itemId,
-//         projectId,
-//       });
-//     } catch (error) {
-//       return Promise.reject(error);
-//     }
-//     onSuccess();
-//   };
-//   const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-//     "model-based-evaluations",
-//   );
-//   return (
-//     <DeleteButton
-//       {...props}
-//       scope={scope}
-//       invalidateFunc={invalidateFunc}
-//       captureDeleteOpen={(capture, isTableAction) =>
-//         capture("eval_templates:delete_form_open", {
-//           source: isTableAction ? "table-single-row" : "template",
-//         })
-//       }
-//       captureDeleteSuccess={(capture, isTableAction) =>
-//         capture("eval_templates:delete_template_button_click", {
-//           source: isTableAction ? "table-single-row" : "template",
-//         })
-//       }
-//       entityToDeleteName="template"
-//       executeDeleteMutation={executeDeleteMutation}
-//       isDeleteMutationLoading={templateMutation.isLoading}
-//       enabled={hasModelBasedEvaluationEntitlement}
-//     />
-//   );
-// }

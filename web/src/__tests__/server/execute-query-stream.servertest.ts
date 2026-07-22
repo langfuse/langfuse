@@ -1,5 +1,5 @@
 import { v4 } from "uuid";
-import { createMocks } from "node-mocks-http";
+import { createMocks, type Body } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createOrgProjectAndApiKey,
@@ -29,7 +29,7 @@ vi.mock("../../server/adminAccessWebhook", () => ({
 function createPostMocks(body: unknown) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
-    body,
+    body: body as Body,
   });
   // node-mocks-http doesn't implement flushHeaders
   res.flushHeaders = vi.fn();

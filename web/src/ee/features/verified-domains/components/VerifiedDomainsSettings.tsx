@@ -273,7 +273,7 @@ function DnsInstructions({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium">
+      <p className="text-sm font-bold">
         Add the following TXT record to your DNS provider:
       </p>
       <Card className="overflow-hidden">
@@ -306,7 +306,7 @@ function DnsInstructions({
       </Card>
       <p className="text-muted-foreground text-xs">
         DNS changes may take up to 24h to propagate. After adding the record,
-        click <span className="font-medium">Verify</span>.
+        click <span className="font-bold">Verify</span>.
       </p>
     </div>
   );

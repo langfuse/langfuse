@@ -17,18 +17,25 @@ function StatefulFeaturePreviewModal(args: FeaturePreviewModalProps) {
         updateArgs({ open });
         args.onOpenChange(open);
       }}
-      inAppAgent={{
-        ...args.inAppAgent,
-        onToggle: (enabled) => {
-          updateArgs({
-            inAppAgent: {
-              ...args.inAppAgent,
-              enabled,
-            },
-          });
-          args.inAppAgent.onToggle(enabled);
-        },
-      }}
+      state={Object.fromEntries(
+        Object.entries(args.state).map(([flag, item]) => [
+          flag,
+          item
+            ? {
+                ...item,
+                onToggle: (enabled: boolean) => {
+                  updateArgs({
+                    state: {
+                      ...args.state,
+                      [flag]: { ...item, enabled },
+                    },
+                  });
+                  item.onToggle(enabled);
+                },
+              }
+            : item,
+        ]),
+      )}
     />
   );
 }
@@ -48,10 +55,8 @@ const meta = preview.meta({
   args: {
     open: true,
     onOpenChange: fn(),
-    inAppAgent: {
-      enabled: true,
-      onToggle: fn(),
-      isToggling: false,
+    state: {
+      modernSession: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -61,21 +66,21 @@ export const Default = meta.story({});
 
 export const Warning = meta.story({
   args: {
-    inAppAgent: {
-      enabled: false,
-      warningReason:
-        "The Assistant button is only shown inside a project. Open a project to use it after enabling the preview.",
-      onToggle: fn(),
+    state: {
+      modernSession: {
+        enabled: false,
+        warningReason:
+          "This preview is enabled globally, so a per-user opt-out does not disable it.",
+        onToggle: fn(),
+      },
     },
   },
 });
 
 export const Loading = meta.story({
   args: {
-    inAppAgent: {
-      enabled: true,
-      onToggle: fn(),
-      isToggling: true,
+    state: {
+      modernSession: { enabled: false, onToggle: fn(), isToggling: true },
     },
   },
 });

@@ -1,37 +1,46 @@
 import { useSession } from "next-auth/react";
-import type { Session } from "next-auth";
-
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 
-import { FeaturePreviewModal } from "./FeaturePreviewModal";
+import {
+  FeaturePreviewModal,
+  type PreviewFlag,
+  type PreviewState,
+} from "./FeaturePreviewModal";
 
 type ControlledFeaturePreviewModalProps = {
-  session: Session;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
+const PREVIEW_LABEL: Record<PreviewFlag, string> = {
+  modernSession: "Compact Session View",
+  searchBar: "Filter Search Bar",
+};
+
 export function ControlledFeaturePreviewModal({
-  session,
   open,
   onOpenChange,
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
-  const { project, organization } = useQueryProjectOrOrganization();
-  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const setInAppAgentPreviewEnabled =
-    api.userAccount.setInAppAgentPreviewEnabled.useMutation({
+  const { isBetaEnabled } = useV4Beta();
+  const capture = usePostHogClientCapture();
+  const setFeaturePreviewEnabled =
+    api.userAccount.setFeaturePreviewEnabled.useMutation({
       onSuccess: async (_data, variables) => {
         await authSession.update();
+        capture("user_settings:feature_preview_toggled", {
+          feature: variables.flag,
+          isEnabled: variables.enabled,
+        });
         showSuccessToast({
           title: "Feature preview updated",
-          description: variables.enabled
-            ? "Langfuse Assistant preview has been enabled."
-            : "Langfuse Assistant preview has been disabled.",
+          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
+            variables.enabled ? "enabled" : "disabled"
+          }.`,
         });
       },
       onError: (error) => {
@@ -39,63 +48,40 @@ export function ControlledFeaturePreviewModal({
       },
     });
 
-  const user = authSession.data?.user ?? session.user;
-  if (!user) {
-    return null;
-  }
+  const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
+    setFeaturePreviewEnabled.mutate({ flag, enabled });
 
-  const inAppAgentEnabledByUser = user.featureFlags.inAppAgent === true;
-  const warningReason = getInAppAgentWarningReason({
-    hasOrganizationContext: Boolean(organization),
-    hasProjectContext: Boolean(project),
-    hasInAppAgentEntitlement,
-    organizationAiFeaturesEnabled: organization?.aiFeaturesEnabled,
-  });
+  const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    modernSession: {
+      enabled:
+        authSession.data?.user?.featureFlags.modernSession === true ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      disabled:
+        !isBetaEnabled ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isBetaEnabled
+        ? "Compact Session View is only available on the events-backed session view. Turn on Fast (Preview) to enable it."
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("modernSession"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    // The "Filter Search Bar" preview is retired — the bar is now generally
+    // available on the v4 events tables for everyone (see useSearchBarEnabled),
+    // so it no longer renders a tile here. The `searchBar` flag plumbing
+    // (PreviewFlag type, registry entry, the userAccount allowlist) is kept for
+    // now so a rollback is a one-line revert; restore the `searchBar: { ... }`
+    // state entry to bring the tile back.
+    // TODO(remove ~2026-06-19): delete the dead searchBar plumbing once the GA
+    // rollout is confirmed stable — see useSearchBarEnabled for the full list.
+  };
 
   return (
     <FeaturePreviewModal
       open={open}
       onOpenChange={onOpenChange}
-      inAppAgent={{
-        enabled: inAppAgentEnabledByUser,
-        warningReason,
-        onToggle: (enabled) => {
-          setInAppAgentPreviewEnabled.mutate({
-            enabled,
-          });
-        },
-        isToggling: setInAppAgentPreviewEnabled.isPending,
-      }}
+      state={state}
     />
   );
-}
-
-function getInAppAgentWarningReason({
-  hasOrganizationContext,
-  hasProjectContext,
-  hasInAppAgentEntitlement,
-  organizationAiFeaturesEnabled,
-}: {
-  hasOrganizationContext: boolean;
-  hasProjectContext: boolean;
-  hasInAppAgentEntitlement: boolean;
-  organizationAiFeaturesEnabled?: boolean;
-}) {
-  if (!hasOrganizationContext) {
-    return "The Assistant button is only shown inside a project. Enabling this preview may not have any visible effect until you open a project.";
-  }
-
-  if (!hasInAppAgentEntitlement) {
-    return "The Langfuse Assistant preview is not available on your current plan. You can enable the preview, but the Assistant button will not be shown here.";
-  }
-
-  if (organizationAiFeaturesEnabled === false) {
-    return "AI features are disabled for this organization. You can enable the preview, but the Assistant will not run here until AI features are enabled.";
-  }
-
-  if (!hasProjectContext) {
-    return "The Assistant button is only shown inside a project. Open a project to use it after enabling the preview.";
-  }
-
-  return undefined;
 }

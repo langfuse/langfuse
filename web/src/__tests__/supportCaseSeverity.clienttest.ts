@@ -13,32 +13,33 @@ import {
   SEVERITY_2,
   SEVERITY_3,
   isSeverityAllowedForPlan,
-  highestSupportPlan,
 } from "@/src/features/support-chat/formConstants";
 
-const HIGH_TIER = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
-const MID_TIER = "cloud:pro"; // may raise Sev-2, Sev-3
-const LOW_TIER = "cloud:hobby"; // may raise Sev-3 only
-const CORE = "cloud:core"; // may raise Sev-3 only
+const ENTERPRISE = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
+const SELF_HOSTED_ENTERPRISE = "self-hosted:enterprise"; // same as ENTERPRISE
+const TEAM = "cloud:team"; // may raise Sev-3 only
+const PRO = "cloud:pro"; // may raise Sev-3 only
+const LOW_TIER = "cloud:hobby"; // no case severity at all
+const CORE = "cloud:core"; // no case severity at all
 
 describe("mapToPylonCaseSeverity", () => {
-  it("maps Severity 1 to Sev-1 only on high-tier plans", () => {
+  it("maps Severity 1 to Sev-1 only on Enterprise plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: HIGH_TIER }),
+      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: ENTERPRISE }),
+    ).toBe("Sev-1");
+    expect(
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_1,
+        plan: SELF_HOSTED_ENTERPRISE,
+      }),
     ).toBe("Sev-1");
   });
 
-  it("downgrades Severity 1 to Sev-2 for Pro-tier plans", () => {
-    expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: MID_TIER }),
-    ).toBe("Sev-2");
-  });
-
-  it("downgrades Severity 1 to Sev-3 for Hobby/Core plans", () => {
-    expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: LOW_TIER }),
-    ).toBe("Sev-3");
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: CORE })).toBe(
+  it("downgrades Severity 1 to Sev-3 for non-Enterprise paid plans", () => {
+    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: TEAM })).toBe(
+      "Sev-3",
+    );
+    expect(mapToPylonCaseSeverity({ severity: SEVERITY_1, plan: PRO })).toBe(
       "Sev-3",
     );
   });
@@ -47,43 +48,63 @@ describe("mapToPylonCaseSeverity", () => {
     expect(mapToPylonCaseSeverity({ severity: SEVERITY_1 })).toBe("Sev-3");
   });
 
-  it("maps Severity 2 to Sev-2 for Pro tier and above", () => {
+  it("maps Severity 2 to Sev-2 only on Enterprise plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: HIGH_TIER }),
+      mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: ENTERPRISE }),
     ).toBe("Sev-2");
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: MID_TIER }),
+      mapToPylonCaseSeverity({
+        severity: SEVERITY_2,
+        plan: SELF_HOSTED_ENTERPRISE,
+      }),
     ).toBe("Sev-2");
   });
 
-  it("downgrades Severity 2 to Sev-3 for Hobby/Core plans", () => {
-    expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: LOW_TIER }),
-    ).toBe("Sev-3");
-    expect(mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: CORE })).toBe(
+  it("downgrades Severity 2 to Sev-3 for non-Enterprise paid plans", () => {
+    expect(mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: TEAM })).toBe(
+      "Sev-3",
+    );
+    expect(mapToPylonCaseSeverity({ severity: SEVERITY_2, plan: PRO })).toBe(
       "Sev-3",
     );
   });
 
-  it("maps Severity 3 to Sev-3 regardless of plan", () => {
+  it("maps Severity 3 to Sev-3 for eligible plans and unknown plans", () => {
     expect(
-      mapToPylonCaseSeverity({ severity: SEVERITY_3, plan: HIGH_TIER }),
+      mapToPylonCaseSeverity({ severity: SEVERITY_3, plan: ENTERPRISE }),
     ).toBe("Sev-3");
     expect(mapToPylonCaseSeverity({ severity: SEVERITY_3 })).toBe("Sev-3");
+  });
+
+  it("returns no case severity for Hobby/Core plans regardless of selection", () => {
+    for (const severity of [SEVERITY_1, SEVERITY_2, SEVERITY_3]) {
+      expect(
+        mapToPylonCaseSeverity({ severity, plan: LOW_TIER }),
+      ).toBeUndefined();
+      expect(mapToPylonCaseSeverity({ severity, plan: CORE })).toBeUndefined();
+    }
   });
 });
 
 describe("isSeverityAllowedForPlan", () => {
-  it("allows Severity 1 only for high-tier plans", () => {
-    expect(isSeverityAllowedForPlan(SEVERITY_1, HIGH_TIER)).toBe(true);
-    expect(isSeverityAllowedForPlan(SEVERITY_1, MID_TIER)).toBe(false);
+  it("allows Severity 1 only for Enterprise plans", () => {
+    expect(isSeverityAllowedForPlan(SEVERITY_1, ENTERPRISE)).toBe(true);
+    expect(isSeverityAllowedForPlan(SEVERITY_1, SELF_HOSTED_ENTERPRISE)).toBe(
+      true,
+    );
+    expect(isSeverityAllowedForPlan(SEVERITY_1, TEAM)).toBe(false);
+    expect(isSeverityAllowedForPlan(SEVERITY_1, PRO)).toBe(false);
     expect(isSeverityAllowedForPlan(SEVERITY_1, LOW_TIER)).toBe(false);
     expect(isSeverityAllowedForPlan(SEVERITY_1, undefined)).toBe(false);
   });
 
-  it("allows Severity 2 for Pro tier and above but not Hobby/Core", () => {
-    expect(isSeverityAllowedForPlan(SEVERITY_2, HIGH_TIER)).toBe(true);
-    expect(isSeverityAllowedForPlan(SEVERITY_2, MID_TIER)).toBe(true);
+  it("allows Severity 2 only for Enterprise plans", () => {
+    expect(isSeverityAllowedForPlan(SEVERITY_2, ENTERPRISE)).toBe(true);
+    expect(isSeverityAllowedForPlan(SEVERITY_2, SELF_HOSTED_ENTERPRISE)).toBe(
+      true,
+    );
+    expect(isSeverityAllowedForPlan(SEVERITY_2, TEAM)).toBe(false);
+    expect(isSeverityAllowedForPlan(SEVERITY_2, PRO)).toBe(false);
     expect(isSeverityAllowedForPlan(SEVERITY_2, LOW_TIER)).toBe(false);
     expect(isSeverityAllowedForPlan(SEVERITY_2, CORE)).toBe(false);
     expect(isSeverityAllowedForPlan(SEVERITY_2, undefined)).toBe(false);
@@ -95,42 +116,14 @@ describe("isSeverityAllowedForPlan", () => {
   });
 });
 
-describe("highestSupportPlan", () => {
-  it("returns the plan granting the highest severity from a list", () => {
-    expect(highestSupportPlan(["cloud:hobby", "cloud:enterprise"])).toBe(
-      "cloud:enterprise",
-    );
-    expect(highestSupportPlan(["cloud:hobby", "cloud:pro"])).toBe("cloud:pro");
-  });
-
-  it("ignores undefined/empty entries", () => {
-    expect(highestSupportPlan([undefined, "cloud:team", undefined])).toBe(
-      "cloud:team",
-    );
-  });
-
-  it("returns a low-tier plan when that is all the user has", () => {
-    expect(highestSupportPlan(["cloud:hobby", "cloud:core"])).toBe(
-      "cloud:hobby",
-    );
-  });
-
-  it("returns undefined when there are no plans", () => {
-    expect(highestSupportPlan([])).toBeUndefined();
-    expect(highestSupportPlan([undefined])).toBeUndefined();
-  });
-
-  it("a Team/Enterprise member filing off-context can still raise Sev-1", () => {
-    // Regression: support form opened from a no-org page must not wrongly gate.
-    const best = highestSupportPlan(["cloud:hobby", "cloud:enterprise"]);
-    expect(isSeverityAllowedForPlan(SEVERITY_1, best)).toBe(true);
-  });
-});
-
 describe("mapCaseSeverityToPylonPriority", () => {
   it("derives Pylon priority from the effective case severity", () => {
     expect(mapCaseSeverityToPylonPriority("Sev-1")).toBe("urgent");
     expect(mapCaseSeverityToPylonPriority("Sev-2")).toBe("high");
     expect(mapCaseSeverityToPylonPriority("Sev-3")).toBe("low");
+  });
+
+  it("falls back to low priority when there is no case severity", () => {
+    expect(mapCaseSeverityToPylonPriority(undefined)).toBe("low");
   });
 });

@@ -5,6 +5,10 @@ interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   isDisabled?: boolean;
   disabledReason?: string;
 }
@@ -46,6 +50,11 @@ interface NumericKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
+interface BooleanKeyValueFacet extends BaseFacet {
+  type: "booleanKeyValue";
+  keyOptions?: string[];
+}
+
 interface StringKeyValueFacet extends BaseFacet {
   type: "stringKeyValue";
   keyOptions?: string[];
@@ -58,6 +67,7 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
+  | BooleanKeyValueFacet
   | StringKeyValueFacet;
 
 export type FilterStateMigration = (filters: FilterState) => FilterState;

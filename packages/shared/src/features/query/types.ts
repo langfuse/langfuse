@@ -87,6 +87,7 @@ export const views = z.enum([
   "observations",
   "scores-numeric",
   "scores-categorical",
+  "scores-boolean",
   // "sessions",
   // "users",
 ]);
@@ -96,6 +97,7 @@ export const viewsV2 = z.enum([
   "observations",
   "scores-numeric",
   "scores-categorical",
+  "scores-boolean",
 ]);
 
 export const viewVersions = z.enum(["v1", "v2"]);
