@@ -624,29 +624,41 @@ export function DataTableControls({
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "header");
-                  }}
-                  aria-label={isMobile ? "Close filters" : "Hide filters"}
-                  className="-ml-1 h-6 w-6"
-                >
-                  {isMobile ? (
-                    <X className="h-4 w-4" />
-                  ) : (
+            {isMobile ? (
+              // No tooltip: the sheet auto-focuses this control on open, and a
+              // Radix tooltip opens on focus — it would pop up unprompted. An X
+              // is self-evident anyway.
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setOpen(false);
+                  emitSidebarToggled(false, "header");
+                }}
+                aria-label="Close filters"
+                className="-ml-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setOpen(false);
+                      emitSidebarToggled(false, "header");
+                    }}
+                    aria-label="Hide filters"
+                    className="-ml-1 h-6 w-6"
+                  >
                     <PanelLeftClose className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isMobile ? "Close" : "Hide filters"}
-              </TooltipContent>
-            </Tooltip>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hide filters</TooltipContent>
+              </Tooltip>
+            )}
             <span className="text-sm font-bold">Filters</span>
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
