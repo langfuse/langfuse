@@ -11,6 +11,7 @@ import {
   ScoreDataTypeEnum,
 } from "../../domain/scores";
 import { InvalidRequestError, InternalServerError } from "../../errors";
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/endpoints";
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
@@ -66,7 +67,6 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 import {
   eventsTraceMetadata,
-  eventsTracesAggregation,
   eventsExperimentTraceIds,
   eventsExperiments,
   promptEventsForMetrics,
@@ -2417,42 +2417,47 @@ const buildAnalyticsScoreTraceAttributesCte = (
 });
 
 // Same schema rebuilt from events_core for deployments that no longer write
-// the legacy traces table (write mode events_only). Metadata session keys
-// survive events_core value truncation; the 7d start_time lookback mirrors
-// the legacy CTE so delayed scores stay enriched.
+// the legacy traces table (write mode events_only). The 7d start_time
+// lookback mirrors the legacy CTE so delayed scores stay enriched.
+//
+// Hand-written rather than eventsTracesAggregation: aggregating only
+// root-span rows keeps the GROUP BY state ~one row per trace (the full-span
+// aggregation OOMed the largest tenants), and the field expressions carry
+// the parity fixes byte-verified against prod dual-write data in the
+// LFE-14383 benchmark — NULL semantics via nullIf, trace-name fallback
+// strictly from parent_span_id = '' rows, tags as sorted union across
+// writes, release latest-write-wins, metadata keys via indexOf instead of
+// per-row map construction. eventsTracesAggregation lacks all five
+// (tracked in LFE-11009).
 const buildAnalyticsScoreTraceAttributesFromEventsCte = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-): { query: string; params: Record<string, unknown> } => {
-  const aggregation = eventsTracesAggregation({
-    projectId,
-    orderByTimestamp: false,
-    truncated: true,
-  })
-    .whereRaw("start_time >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY", {
-      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
-    })
-    .whereRaw("start_time <= {maxTimestamp: DateTime64(3)}", {
-      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
-    });
-  const { query, params } = aggregation.buildWithParams();
-  return {
-    query: `
+): { query: string; params: Record<string, unknown> } => ({
+  query: `
       SELECT
-        project_id,
-        id,
-        name,
-        session_id,
-        user_id,
-        release,
-        tags,
-        metadata['$posthog_session_id'] as posthog_session_id,
-        metadata['$mixpanel_session_id'] as mixpanel_session_id
-      FROM (${query})`,
-    params,
-  };
-};
+        e.project_id as project_id,
+        e.trace_id as id,
+        coalesce(nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name <> ''), ''), nullIf(argMaxIf(e.name, e.event_ts, e.parent_span_id = '' AND e.name <> ''), ''), '') as name,
+        nullIf(argMaxIf(e.session_id, e.event_ts, e.session_id <> ''), '') as session_id,
+        nullIf(argMaxIf(e.user_id, e.event_ts, e.user_id <> ''), '') as user_id,
+        nullIf(argMax(e.release, e.event_ts), '') as release,
+        arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) as tags,
+        argMax(e.metadata_values[indexOf(e.metadata_names, '$posthog_session_id')], e.event_ts) as posthog_session_id,
+        argMax(e.metadata_values[indexOf(e.metadata_names, '$mixpanel_session_id')], e.event_ts) as mixpanel_session_id
+      FROM events_core e
+      WHERE e.project_id = {projectId: String}
+      AND e.start_time >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}
+      AND e.is_deleted = 0
+      AND ${eventsTableIsRootObservationSql}
+      GROUP BY e.project_id, e.trace_id`,
+  params: {
+    projectId,
+    minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+  },
+});
 
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
@@ -2525,7 +2530,8 @@ export const getScoresForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
     ...(traceAttributesSource === "events"
       ? { preferredClickhouseService: "EventsReadOnly" as const }
       : {}),

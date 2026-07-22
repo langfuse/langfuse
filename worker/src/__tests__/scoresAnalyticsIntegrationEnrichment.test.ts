@@ -225,5 +225,110 @@ maybeDescribe(
       expect(fromTraces).toHaveLength(1);
       expectUnenriched(fromTraces[0]);
     });
+
+    // Parity fixes from the LFE-14383 benchmark, byte-verified against prod
+    // dual-write data. Both cases fail on the eventsTracesAggregation field
+    // expressions (no root-name fallback; latest-write-only tags).
+
+    it("falls back to the root span's own name when no explicit trace name exists", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          parent_span_id: "",
+          type: "SPAN",
+          name: "root-span-name",
+          trace_name: null,
+          user_id: "user-1",
+          session_id: null,
+          release: null,
+          tags: [],
+          metadata_names: [],
+          metadata_values: [],
+          start_time: (now - 2 * HOUR_MS) * 1000,
+          event_ts: (now - 2 * HOUR_MS) * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          timestamp: now,
+        }),
+      ]);
+
+      const rows = await collect(
+        getScoresForAnalyticsIntegrations(
+          projectId,
+          "Test Project",
+          new Date(now - 1 * HOUR_MS),
+          new Date(now + 1 * HOUR_MS),
+          { traceAttributesSource: "events" },
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      // Legacy parity: the traces upsert derives the trace name from the root
+      // span when no explicit trace name was set; absent attributes stay null.
+      expect(rows[0].langfuse_trace_name).toBe("root-span-name");
+      expect(rows[0].langfuse_user_id).toBe("user-1");
+      expect(rows[0].langfuse_release).toBeNull();
+    });
+
+    it("unions tags across trace writes, sorted, like the legacy traces upsert", async () => {
+      const projectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      // two coexisting root-qualifying rows with disjoint tag sets (same
+      // span_id would be a ReplacingMergeTree version and could collapse)
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          parent_span_id: "",
+          type: "SPAN",
+          trace_name: "tagged-trace",
+          tags: ["zulu", "alpha"],
+          start_time: (now - 2 * HOUR_MS) * 1000,
+          event_ts: (now - 2 * HOUR_MS) * 1000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          type: "SPAN",
+          trace_name: "tagged-trace",
+          tags: ["mike"],
+          start_time: (now - 2 * HOUR_MS) * 1000,
+          event_ts: (now - 1 * HOUR_MS) * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          timestamp: now,
+        }),
+      ]);
+
+      const rows = await collect(
+        getScoresForAnalyticsIntegrations(
+          projectId,
+          "Test Project",
+          new Date(now - 1 * HOUR_MS),
+          new Date(now + 1 * HOUR_MS),
+          { traceAttributesSource: "events" },
+        ),
+      );
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].langfuse_tags).toEqual(["alpha", "mike", "zulu"]);
+    });
   },
 );
