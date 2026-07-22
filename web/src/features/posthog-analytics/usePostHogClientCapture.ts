@@ -285,6 +285,7 @@ export const events = {
   ], // also used on landing page for consistency
   in_app_agent: [
     "entry_point_click",
+    "message_queued",
     "new_chat_started",
     "new_chat_turn",
     "quick_action_started",

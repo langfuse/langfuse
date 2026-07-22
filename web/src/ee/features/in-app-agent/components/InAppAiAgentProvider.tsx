@@ -26,6 +26,7 @@ import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/
 import {
   AgUiMessageSchema,
   type AgUiMessage,
+  type AgUiRunAgentInput,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
@@ -97,6 +98,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isRunning: false,
   isSubmitting: false,
   pendingToolApprovals: [],
+  queuedMessages: [],
+  draft: "",
   isSelectedConversationHydrating: false,
   error: null,
   messages: [],
@@ -111,6 +114,10 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   selectConversation: () => undefined,
   deleteConversation: async () => undefined,
   submit: async () => false,
+  setDraft: () => undefined,
+  editQueuedMessage: () => undefined,
+  deleteQueuedMessage: () => undefined,
+  setTranscriptAnimating: () => undefined,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
   submitFeedback: async () => undefined,
@@ -125,6 +132,13 @@ export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
   status: "pending" | "submitting";
+};
+
+export type InAppAgentQueuedMessage = {
+  id: string;
+  content: string;
+  context: AgUiRunAgentInput["context"];
+  options?: InAppAgentSubmitOptions;
 };
 
 export type InAppAiAgentConversation = {
@@ -147,6 +161,8 @@ type InAppAiAgentContextType = {
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
+  queuedMessages: InAppAgentQueuedMessage[];
+  draft: string;
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -164,6 +180,10 @@ type InAppAiAgentContextType = {
     content: string,
     options?: InAppAgentSubmitOptions,
   ) => Promise<boolean>;
+  setDraft: (draft: string) => void;
+  editQueuedMessage: (messageId: string, content: string) => void;
+  deleteQueuedMessage: (messageId: string) => void;
+  setTranscriptAnimating: (isAnimating: boolean) => void;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -264,6 +284,11 @@ function InAppAiAgentProviderInner({
     InAppAgentPendingToolApproval[]
   >([]);
   const pendingToolApprovalsRef = useRef<InAppAgentPendingToolApproval[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<
+    InAppAgentQueuedMessage[]
+  >([]);
+  const queuedMessagesRef = useRef<InAppAgentQueuedMessage[]>([]);
+  const [draft, setDraft] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -276,6 +301,10 @@ function InAppAiAgentProviderInner({
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const runInFlightRef = useRef(false);
+  const transcriptAnimatingRef = useRef(false);
+  const queuedRateLimitRetryRef = useRef(false);
+  const queuedRateLimitTimeoutRef = useRef<number | null>(null);
+  const pumpQueueRef = useRef<() => void>(() => undefined);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
@@ -427,6 +456,45 @@ function InAppAiAgentProviderInner({
     },
     [],
   );
+  const updateQueuedMessages = useCallback(
+    (
+      updater: (
+        currentMessages: InAppAgentQueuedMessage[],
+      ) => InAppAgentQueuedMessage[],
+    ) => {
+      const nextMessages = updater(queuedMessagesRef.current);
+      queuedMessagesRef.current = nextMessages;
+      setQueuedMessages(nextMessages);
+    },
+    [],
+  );
+  const buildRunContext = useCallback(
+    (
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
+    ) =>
+      createInAppAgentScreenContext({
+        currentUrl: window.location.href,
+      }).concat(
+        createInAppAgentUserContext({
+          userName: session.data?.user?.name,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          languages:
+            navigator.languages.length > 0
+              ? Array.from(navigator.languages)
+              : [navigator.language],
+        }),
+        quickActionAttribution
+          ? createInAppAgentQuickActionAttributionContext(
+              quickActionAttribution,
+            )
+          : [],
+        messageEntryPoint
+          ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
+          : [],
+      ),
+    [session.data?.user?.name],
+  );
   const updateLoadingEvent = useCallback(
     (eventId: string, isLoading: boolean) => {
       setLoadingEventIds((currentIds) => {
@@ -467,6 +535,11 @@ function InAppAiAgentProviderInner({
     activeRunIdRef.current = null;
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
+    if (queuedRateLimitTimeoutRef.current !== null) {
+      window.clearTimeout(queuedRateLimitTimeoutRef.current);
+      queuedRateLimitTimeoutRef.current = null;
+      queuedRateLimitRetryRef.current = false;
+    }
     clearLoadingEvents();
   }, [clearLoadingEvents]);
 
@@ -668,6 +741,8 @@ function InAppAiAgentProviderInner({
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
       quickActionAttribution?: InAppAgentQuickActionAttribution,
       messageEntryPoint?: InAppAgentMessageEntryPoint,
+      capturedContext?: AgUiRunAgentInput["context"],
+      retryOnRateLimit = false,
     ) => {
       if (runInFlightRef.current) {
         return Promise.resolve(false);
@@ -680,26 +755,9 @@ function InAppAiAgentProviderInner({
         try {
           await agent.runAgent({
             ...runParameters,
-            context: createInAppAgentScreenContext({
-              currentUrl: window.location.href,
-            }).concat(
-              createInAppAgentUserContext({
-                userName: session.data?.user?.name,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                languages:
-                  navigator.languages.length > 0
-                    ? Array.from(navigator.languages)
-                    : [navigator.language],
-              }),
-              quickActionAttribution
-                ? createInAppAgentQuickActionAttributionContext(
-                    quickActionAttribution,
-                  )
-                : [],
-              messageEntryPoint
-                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
-                : [],
-            ),
+            context:
+              capturedContext ??
+              buildRunContext(quickActionAttribution, messageEntryPoint),
           });
           return true;
         } catch (error) {
@@ -711,8 +769,30 @@ function InAppAiAgentProviderInner({
             throw error;
           }
 
-          setError(getInAppAgentError(error));
+          const agentError = getInAppAgentError(error);
+          setError(agentError);
           console.error("In-app agent drawer error", error);
+
+          if (agentError.type === "rate_limit" && retryOnRateLimit) {
+            queuedRateLimitRetryRef.current = true;
+            queuedRateLimitTimeoutRef.current = window.setTimeout(
+              () => {
+                queuedRateLimitTimeoutRef.current = null;
+                queuedRateLimitRetryRef.current = false;
+                setError(null);
+                runAgent(
+                  agent,
+                  conversationId,
+                  runParameters,
+                  quickActionAttribution,
+                  messageEntryPoint,
+                  capturedContext,
+                  true,
+                ).catch(() => undefined);
+              },
+              Math.max(0, agentError.retryAt - Date.now()),
+            );
+          }
           return false;
         } finally {
           const runId = activeRunIdRef.current;
@@ -733,23 +813,117 @@ function InAppAiAgentProviderInner({
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
           runInFlightRef.current = false;
+          pumpQueueRef.current();
         }
       })();
     },
     [
+      buildRunContext,
       projectId,
       clearLoadingEvents,
       publishLiveMessages,
       releaseSubmitLock,
-      session.data?.user?.name,
       utils.inAppAgent.getConversation,
       utils.inAppAgent.listConversations,
     ],
   );
 
+  const dispatchNextQueuedMessage = useCallback(() => {
+    const queuedMessage = queuedMessagesRef.current[0];
+    const conversationId = selectedConversationId;
+    const agent = agentRef.current;
+    if (
+      !queuedMessage ||
+      !conversationId ||
+      !agent ||
+      agent.threadId !== conversationId
+    ) {
+      return;
+    }
+
+    updateQueuedMessages((currentMessages) => currentMessages.slice(1));
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
+    setError(null);
+
+    agent.addMessage({
+      id: queuedMessage.id,
+      role: "user",
+      content: queuedMessage.content,
+    } satisfies AgUiMessage);
+    setMessages(agent.messages.filter(isAgentConversationMessage));
+    const entryPoint = queuedMessage.options?.entryPoint ?? "chat";
+    capture("in_app_agent:new_chat_turn", { entryPoint });
+    runAgent(
+      agent,
+      conversationId,
+      undefined,
+      queuedMessage.options?.quickAction,
+      entryPoint,
+      queuedMessage.context,
+      true,
+    ).catch(() => undefined);
+  }, [capture, runAgent, selectedConversationId, updateQueuedMessages]);
+
+  const pumpQueue = useCallback(() => {
+    if (
+      transcriptAnimatingRef.current ||
+      queuedRateLimitRetryRef.current ||
+      runInFlightRef.current ||
+      submitInFlightRef.current ||
+      pendingToolApprovalsRef.current.length > 0 ||
+      agentRef.current?.isRunning ||
+      isInAppAgentRateLimited(error)
+    ) {
+      return;
+    }
+
+    dispatchNextQueuedMessage();
+  }, [dispatchNextQueuedMessage, error]);
+  pumpQueueRef.current = pumpQueue;
+
+  const setTranscriptAnimating = useCallback((isAnimating: boolean) => {
+    transcriptAnimatingRef.current = isAnimating;
+    if (!isAnimating) {
+      pumpQueueRef.current();
+    }
+  }, []);
+
+  const editQueuedMessage = useCallback(
+    (messageId: string, content: string) => {
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        return;
+      }
+      updateQueuedMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === messageId
+            ? { ...message, content: trimmedContent }
+            : message,
+        ),
+      );
+    },
+    [updateQueuedMessages],
+  );
+
+  const deleteQueuedMessage = useCallback(
+    (messageId: string) => {
+      updateQueuedMessages((currentMessages) =>
+        currentMessages.filter((message) => message.id !== messageId),
+      );
+    },
+    [updateQueuedMessages],
+  );
+
   const selectConversation = useCallback(
     (conversationId: string | null) => {
-      if (isRunning || conversationId === _selectedConversationId) {
+      if (
+        isRunning ||
+        isSubmitting ||
+        pendingToolApprovalsRef.current.length > 0 ||
+        queuedMessagesRef.current.length > 0 ||
+        conversationId === _selectedConversationId
+      ) {
         return;
       }
 
@@ -758,14 +932,26 @@ function InAppAiAgentProviderInner({
       );
       resetAgent();
       setMessages([]);
+      setDraft("");
       setSelectedConversationId(conversationId);
     },
-    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
+    [
+      _selectedConversationId,
+      isRunning,
+      isSubmitting,
+      resetAgent,
+      setSelectedConversationId,
+    ],
   );
 
   const deleteConversation = useCallback(
     async (conversationId: string) => {
-      if (isRunning) {
+      if (
+        isRunning ||
+        isSubmitting ||
+        pendingToolApprovalsRef.current.length > 0 ||
+        queuedMessagesRef.current.length > 0
+      ) {
         return;
       }
 
@@ -808,6 +994,7 @@ function InAppAiAgentProviderInner({
     [
       deleteConversationMutation,
       isRunning,
+      isSubmitting,
       projectId,
       resetAgent,
       selectedConversationId,
@@ -820,16 +1007,48 @@ function InAppAiAgentProviderInner({
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
+      const trimmedContent = content.trim();
       if (
-        !content ||
-        isRunning ||
+        !trimmedContent ||
         isInAppAgentRateLimited(error) ||
-        (options?.newConversation !== true &&
-          isSelectedConversationHydrating) ||
-        submitInFlightRef.current ||
-        runInFlightRef.current
+        (options?.newConversation !== true && isSelectedConversationHydrating)
       ) {
         return false;
+      }
+
+      const isBusy =
+        isRunning ||
+        isSubmitting ||
+        submitInFlightRef.current ||
+        runInFlightRef.current ||
+        agentRef.current?.isRunning === true ||
+        pendingToolApprovalsRef.current.length > 0 ||
+        transcriptAnimatingRef.current;
+      if (isBusy) {
+        if (
+          options?.newConversation === true ||
+          !selectedConversationId ||
+          selectedConversationIsWriteLocked
+        ) {
+          return false;
+        }
+
+        const queuedMessage: InAppAgentQueuedMessage = {
+          id: createInAppAgentMessageId(),
+          content: trimmedContent,
+          context: buildRunContext(
+            options?.quickAction,
+            options?.entryPoint ?? "chat",
+          ),
+          options,
+        };
+        const queueDepth = queuedMessagesRef.current.length + 1;
+        updateQueuedMessages((currentMessages) =>
+          currentMessages.concat(queuedMessage),
+        );
+        setDraft("");
+        capture("in_app_agent:message_queued", { queueDepth });
+        return true;
       }
 
       submitInFlightRef.current = true;
@@ -885,7 +1104,7 @@ function InAppAiAgentProviderInner({
         const userMessage = {
           id: createInAppAgentMessageId(),
           role: "user",
-          content,
+          content: trimmedContent,
         } satisfies AgUiMessage;
 
         agent.addMessage(userMessage);
@@ -895,6 +1114,7 @@ function InAppAiAgentProviderInner({
           capture("in_app_agent:new_chat_started", { entryPoint });
         }
         capture("in_app_agent:new_chat_turn", { entryPoint });
+        setDraft("");
         startedRun = true;
         runAgent(
           agent,
@@ -915,6 +1135,7 @@ function InAppAiAgentProviderInner({
       }
     },
     [
+      buildRunContext,
       conversationQuery.data,
       capture,
       ensureSubscription,
@@ -922,12 +1143,14 @@ function InAppAiAgentProviderInner({
       getOrCreateAgent,
       isSelectedConversationHydrating,
       isRunning,
+      isSubmitting,
       messages,
       releaseSubmitLock,
       runAgent,
       selectedConversationId,
       selectedConversationIsWriteLocked,
       setSelectedConversationId,
+      updateQueuedMessages,
     ],
   );
 
@@ -1088,6 +1311,7 @@ function InAppAiAgentProviderInner({
             (currentApproval) => currentApproval.id !== approvalId,
           ),
         );
+        pumpQueueRef.current();
       } catch (error) {
         const errorMessage = getAgentErrorMessage(error);
         if (errorMessage === "Invalid forwarded props") {
@@ -1101,6 +1325,7 @@ function InAppAiAgentProviderInner({
             message: "This tool approval is no longer valid. Please try again.",
           });
           console.error("Failed to resume in-app agent tool call", error);
+          pumpQueueRef.current();
           return;
         }
 
@@ -1150,6 +1375,8 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
         : pendingToolApprovals,
+      queuedMessages,
+      draft,
       isSelectedConversationHydrating,
       error,
       messages: messagesWithUiState,
@@ -1164,6 +1391,10 @@ function InAppAiAgentProviderInner({
       selectConversation,
       deleteConversation,
       submit,
+      setDraft,
+      editQueuedMessage,
+      deleteQueuedMessage,
+      setTranscriptAnimating,
       approveToolCall,
       rejectToolCall,
       submitFeedback,
@@ -1181,14 +1412,19 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       isSelectedConversationNotFound,
       deleteConversation,
+      deleteQueuedMessage,
+      draft,
+      editQueuedMessage,
       loadMoreConversations,
       liveMessageVersion,
       messagesWithUiState,
       open,
       openAssistant,
       pendingToolApprovals,
+      queuedMessages,
       rejectToolCall,
       setAgentOpen,
+      setTranscriptAnimating,
       invalidateConversations,
       selectConversation,
       selectedConversationId,
