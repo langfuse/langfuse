@@ -191,9 +191,11 @@ const DropdownMenuContent = React.forwardRef<
     { children, className, header, sideOffset = 4, maxHeight, style, ...props },
     ref,
   ) => {
+    // The early return is intentional: the sticky header sits outside the padded
+    // body so its background and border span the full scroll container. Keep the
+    // header and headerless paths explicit rather than consolidating them through
+    // local variables.
     if (header != null) {
-      // The sticky header sits outside the padded body so its background and
-      // border cover the full width of the scroll container.
       return (
         <DropdownContentWrapper
           ref={ref}
@@ -310,6 +312,9 @@ const DropdownMenuItemWithSecondaryAction = (
   const secondaryAction = props.secondaryAction;
   const PrimaryActionIcon = props.icon;
   const SecondaryActionIcon = secondaryAction?.icon;
+  const primaryActionRef = React.useRef<HTMLAnchorElement | HTMLButtonElement>(
+    null,
+  );
   const primaryContent = (
     <>
       {PrimaryActionIcon && (
@@ -325,6 +330,8 @@ const DropdownMenuItemWithSecondaryAction = (
   );
   let secondaryActionContent: React.ReactNode = null;
 
+  // The secondary action is intentionally pointer-only and cannot be targeted
+  // with the keyboard; the parent remains the row's sole menu item.
   if (secondaryAction && SecondaryActionIcon) {
     if (secondaryAction.href !== undefined) {
       secondaryActionContent = (
@@ -365,41 +372,51 @@ const DropdownMenuItemWithSecondaryAction = (
   }
 
   return (
-    <div className="flex h-8">
+    <DropdownMenuItem
+      className="h-8 p-0"
+      onClick={(event) => {
+        if (event.target !== event.currentTarget) return;
+
+        event.preventDefault();
+        primaryActionRef.current?.click();
+      }}
+    >
       {props.href !== undefined ? (
-        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
-          <Link
-            href={props.href}
-            className={dropdownMenuItemPrimaryActionVariants()}
-            onClick={() => {
+        <Link
+          ref={(element) => {
+            primaryActionRef.current = element;
+          }}
+          href={props.href}
+          className={dropdownMenuItemPrimaryActionVariants()}
+          onClick={() => {
+            props.onBeforeAction?.();
+          }}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
               props.onBeforeAction?.();
-            }}
-            onAuxClick={(event) => {
-              if (event.button === 1) {
-                props.onBeforeAction?.();
-              }
-            }}
-          >
-            {primaryContent}
-          </Link>
-        </DropdownMenuItem>
+            }
+          }}
+        >
+          {primaryContent}
+        </Link>
       ) : (
-        <DropdownMenuItem asChild className="h-8 min-w-0 flex-1 p-0">
-          <button
-            type="button"
-            className={dropdownMenuItemPrimaryActionVariants()}
-            onClick={() => {
-              props.onBeforeAction?.();
-              props.onClick();
-            }}
-          >
-            {primaryContent}
-          </button>
-        </DropdownMenuItem>
+        <button
+          ref={(element) => {
+            primaryActionRef.current = element;
+          }}
+          type="button"
+          className={dropdownMenuItemPrimaryActionVariants()}
+          onClick={() => {
+            props.onBeforeAction?.();
+            props.onClick();
+          }}
+        >
+          {primaryContent}
+        </button>
       )}
 
       {secondaryActionContent}
-    </div>
+    </DropdownMenuItem>
   );
 };
 
