@@ -18,31 +18,47 @@ import * as React from "react";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type {
+  ObservedOptions,
+  ObservedScoreNames,
+} from "@/src/features/search-bar/lib/observed-options";
 import { AI_GROUNDING_COLUMNS } from "@/src/features/search-bar/lib/ai-context";
 import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
 import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import type { SearchCommitTrigger } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 
 export function EventsSearchBarRow({
   projectId,
+  tableName,
   store,
   commit,
   observed,
   erroredColumns,
+  fieldReason,
+  freeTextReason,
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
+  aiScoreNames,
 }: {
   projectId: string;
+  /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
+  tableName: string;
   store: SearchBarStore;
-  commit: () => string | null;
+  commit: (trigger?: SearchCommitTrigger) => string | null;
   observed: ObservedOptions | undefined;
   /** Columns whose lazy fetch terminally errored — value-stage loading settles to
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
   erroredColumns?: ReadonlySet<string>;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
+   *  Undefined leaves all filters active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
   /**
    * Applies AI-generated filters (apply-immediately); the bar re-derives them.
    * Preserves filters the grammar can't represent (no-silent-drop contract) —
@@ -58,6 +74,9 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Observed score names by column type, for the server's score-name
+   *  validation of the generated filters (undefined sets are not enforced). */
+  aiScoreNames?: ObservedScoreNames;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -79,8 +98,10 @@ export function EventsSearchBarRow({
       {aiOpen && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
+          tableName={tableName}
           store={store}
           dataContext={aiDataContext}
+          scoreNames={aiScoreNames}
           onApply={onApplyFilters}
           onExit={() => setAiOpen(false)}
         />
@@ -90,6 +111,8 @@ export function EventsSearchBarRow({
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
           />

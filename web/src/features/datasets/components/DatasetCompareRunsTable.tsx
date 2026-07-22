@@ -107,7 +107,10 @@ function DatasetCompareRunsTableInternal(props: {
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const { closePeek, expandPeek } = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // traceId: not written here, but cleared (and preferred by the trace
+    // reader) so a stray param cannot pin the peek to a foreign trace
+    // (LFE-11041).
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     expandConfig: {
       basePath: `/project/${props.projectId}/traces`,
     },

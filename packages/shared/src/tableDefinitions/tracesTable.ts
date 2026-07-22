@@ -160,6 +160,13 @@ export const tracesTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Latency (s)",
     id: "latency",
     type: "number",
@@ -211,12 +218,15 @@ export const datasetCol: ColumnDefinition = {
 // Used only for dataset evaluator, not on dataset table
 export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
+/** @alias */
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+/** @alias */
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 
 export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
+  score_booleans?: Array<string>;
   traceName?: Array<SingleValueOption>;
   traceTags?: Array<SingleValueOption>;
   environment?: Array<SingleValueOption>;
@@ -257,6 +267,9 @@ export function tracesTableColsWithOptions(
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
+    }
+    if (col.id === "score_booleans") {
+      return formatColumnOptions(col, options?.score_booleans ?? []);
     }
     return col;
   });

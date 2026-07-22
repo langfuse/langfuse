@@ -11,7 +11,9 @@ import {
   convertToSafeWebhookConfig,
   isGitHubDispatchAction,
   convertToSafeGitHubDispatchConfig,
+  TriggerEventSource,
   TriggerEventSourceSchema,
+  ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -25,6 +27,7 @@ import {
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 
@@ -154,10 +157,22 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      return await getAutomations({
+      const automations = await getAutomations({
         projectId: input.projectId,
         eventSource: input.eventSource,
       });
+
+      // Project-notification channels are managed from project settings, not
+      // the general Automations UI. When no eventSource is requested (the
+      // general list), exclude them so they don't leak into that view.
+      if (input.eventSource) {
+        return automations;
+      }
+      return automations.filter(
+        (automation) =>
+          automation.trigger.eventSource !==
+          TriggerEventSource.ProjectNotification,
+      );
     }),
 
   // Get a single automation by automation ID
@@ -497,6 +512,43 @@ export const automationsRouter = createTRPCRouter({
       };
     }),
 
+  // Toggle which project-notification events a channel receives. Narrow
+  // update on trigger.eventActions only, so the action config (and webhook
+  // secrets) is never round-tripped through the client.
+  updateTriggerEventActions: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        automationId: z.string(),
+        eventActions: z.array(ProjectNotificationEventTypeSchema),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const { previousTrigger, trigger } = await updateTriggerEventActions({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        automationId: input.automationId,
+        eventActions: input.eventActions,
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "automation",
+        resourceId: trigger.id,
+        action: "update",
+        before: { trigger: previousTrigger },
+        after: { trigger },
+      });
+
+      return { trigger };
+    }),
+
   // Delete an automation (both trigger and action)
   deleteAutomation: protectedProjectProcedure
     .input(
@@ -573,9 +625,18 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
+      // Exclude project-notification channels from the general Automations
+      // header count (they live in project settings, not this UI).
       const count = await ctx.prisma.action.count({
         where: {
           projectId: input.projectId,
+          automations: {
+            none: {
+              trigger: {
+                eventSource: TriggerEventSource.ProjectNotification,
+              },
+            },
+          },
         },
       });
 

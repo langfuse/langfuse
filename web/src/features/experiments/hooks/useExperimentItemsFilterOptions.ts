@@ -47,8 +47,10 @@ export const useExperimentItemsFilterOptions = ({
       return {
         obs_scores_avg: undefined,
         obs_score_categories: undefined,
+        obs_score_booleans: undefined,
         trace_scores_avg: undefined,
         trace_score_categories: undefined,
+        trace_score_booleans: undefined,
       } satisfies ExperimentItemScoreFilterOptions;
     }
 
@@ -57,10 +59,12 @@ export const useExperimentItemsFilterOptions = ({
       obs_score_categories: processCategoricalScoreOptions(
         filterOptions.data.obs_score_categories,
       ),
+      obs_score_booleans: filterOptions.data.obs_score_booleans,
       trace_scores_avg: filterOptions.data.trace_scores_avg,
       trace_score_categories: processCategoricalScoreOptions(
         filterOptions.data.trace_score_categories,
       ),
+      trace_score_booleans: filterOptions.data.trace_score_booleans,
     } satisfies ExperimentItemScoreFilterOptions;
   }, [filterOptions.data]);
 

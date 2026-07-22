@@ -106,8 +106,8 @@ export default function SessionsTable({
   showControlsInPageHeader = false,
 }: SessionTableProps) {
   const sessionsFilterConfig = useMemo(
-    () => getSessionFilterConfig(omittedFilter),
-    [omittedFilter],
+    () => getSessionFilterConfig(omittedFilter, isBetaEnabled),
+    [isBetaEnabled, omittedFilter],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -236,6 +236,7 @@ export default function SessionsTable({
       ) ?? undefined;
 
     const scoresNumeric = filterOptions.data?.scores_avg ?? undefined;
+    const scoresBoolean = filterOptions.data?.score_booleans ?? undefined;
 
     return {
       bookmarked: ["Bookmarked", "Not bookmarked"],
@@ -256,6 +257,7 @@ export default function SessionsTable({
       totalCost: [],
       score_categories: scoreCategories,
       scores_avg: scoresNumeric,
+      score_booleans: scoresBoolean,
     };
   }, [environmentOptions, filterOptions.data]);
 
@@ -269,8 +271,9 @@ export default function SessionsTable({
       sessionFilterContextId: projectId,
       // Sidebar-only implicit environment defaults
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      isV4: isBetaEnabled,
     }),
-    [isSidebarFilterLoading, projectId],
+    [isBetaEnabled, isSidebarFilterLoading, projectId],
   );
 
   const queryFilter = useSidebarFilterState(

@@ -63,8 +63,21 @@ type CategoryPresetChipsProps = {
   activeViewId: string | null;
   /** Sets `?viewId` (deep-link/provenance); pass null to deselect. */
   onApplyView: (viewId: string | null) => void;
-  /** Applies the preset's filters/orderBy to the live table. */
-  applyViewState: (viewData: TableViewPresetState) => void;
+  /** Applies the preset's filters/orderBy to the live table. Accepts the
+   * analytics `meta` (LFE-10781) so chip applies/toggle-offs emit
+   * `saved_views:applied` — the capture is gated on `meta` being passed. */
+  applyViewState: (
+    viewData: TableViewPresetState,
+    meta?: {
+      trigger:
+        | "select"
+        | "permalink"
+        | "default"
+        | "system_preset"
+        | "system_preset_cleared";
+      viewId?: string | null;
+    },
+  ) => void;
   /**
    * Non-destructive preview of a preset's filters in the search bar while
    * hovering/focusing its row; pass null to restore. No-op when the search bar
@@ -230,7 +243,7 @@ export function CategoryPresetChips({
                 if (openedByPointerRef.current) event.preventDefault();
               }}
             >
-              <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+              <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
                 {label}
               </div>
               <div className="max-h-72 overflow-y-auto">
@@ -285,8 +298,18 @@ export function CategoryPresetChips({
                         const next = isPresetActive ? null : preset.id;
                         outcomeRef.current = next ? "applied" : "cleared";
                         onApplyView(next);
+                        // Pass analytics meta so the chip apply / toggle-off
+                        // emits `saved_views:applied` (LFE-10781): applying a
+                        // preset is a "system_preset" trigger; toggling it off
+                        // applies the cleared/default state.
                         applyViewState(
                           next ? preset.state : CLEARED_VIEW_STATE,
+                          {
+                            trigger: next
+                              ? "system_preset"
+                              : "system_preset_cleared",
+                            viewId: next,
+                          },
                         );
                         capture("saved_views:category_chip_apply", {
                           category,
@@ -305,7 +328,7 @@ export function CategoryPresetChips({
                       )}
                     >
                       <span className="flex flex-col">
-                        <span className="flex items-center gap-1.5 font-medium">
+                        <span className="flex items-center gap-1.5 font-bold">
                           {preset.name}
                           {preset.disabled && (
                             <span className="text-muted-foreground rounded-sm border px-1 text-[10px] font-normal uppercase">

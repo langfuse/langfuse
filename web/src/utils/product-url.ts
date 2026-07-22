@@ -1,4 +1,4 @@
-import type { FilterState } from "@langfuse/shared";
+import type { APIScoreV3, FilterState } from "@langfuse/shared";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -409,6 +409,28 @@ export const buildScoreTargetUrl = (params: {
   return undefined;
 };
 
+export const buildScoreSubjectUrl = (
+  projectId: string,
+  subject: APIScoreV3["subject"],
+): string | undefined => {
+  if (!subject) return undefined;
+
+  switch (subject.kind) {
+    case "trace":
+      return buildScoreTargetUrl({ projectId, traceId: subject.id });
+    case "observation":
+      return buildScoreTargetUrl({
+        projectId,
+        traceId: subject.traceId,
+        observationId: subject.id,
+      });
+    case "session":
+      return buildScoreTargetUrl({ projectId, sessionId: subject.id });
+    case "experiment":
+      return buildExperimentUrl({ projectId, experimentId: subject.id });
+  }
+};
+
 export const buildPromptUrl = (params: {
   projectId: string;
   name: string;
@@ -475,10 +497,26 @@ export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
   );
 
+export const buildMonitorUrl = (params: {
+  projectId: string;
+  monitorId: string;
+}) =>
+  buildProductUrl(
+    `${buildMonitorsPath(params)}/${encodeURIComponent(params.monitorId)}`,
+  );
+
 export const buildDashboardWidgetUrl = (params: {
   projectId: string;
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
+
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  buildProductUrl(
+    `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`,
+  );
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;

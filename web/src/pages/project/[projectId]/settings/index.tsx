@@ -30,7 +30,8 @@ import ProtectedLabelsSettings from "@/src/features/prompts/components/Protected
 import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
-import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
+import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
+import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
@@ -240,8 +241,13 @@ export const getProjectSettingsPages = ({
   {
     title: "Notifications",
     slug: "notifications",
-    cmdKKeywords: ["inbox", "email", "mention", "alert"],
-    content: <NotificationSettings />,
+    cmdKKeywords: ["inbox", "email", "mention", "alert", "slack", "webhook"],
+    content: (
+      <div className="flex flex-col gap-6">
+        <PersonalNotificationSettings />
+        <ProjectNotificationChannels projectId={project.id} />
+      </div>
+    ),
   },
   {
     title: "Billing",
@@ -343,7 +349,7 @@ const Integrations = (props: { projectId: string }) => {
         </Card>
 
         <Card className="p-3">
-          <span className="font-semibold">Blob Storage</span>
+          <span className="font-bold">Blob Storage</span>
           <p className="text-primary mb-4 text-sm">
             Configure scheduled exports of your trace data to S3 compatible
             storages or Azure Blob Storage. Set up a scheduled export to your
@@ -372,7 +378,7 @@ const Integrations = (props: { projectId: string }) => {
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
             <SiSlack className="text-foreground h-5 w-5" />
-            <span className="font-semibold">Slack</span>
+            <span className="font-bold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             Connect a Slack workspace and create channel automations to receive

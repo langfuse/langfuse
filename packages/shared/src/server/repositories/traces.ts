@@ -12,6 +12,7 @@ import {
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -434,7 +435,7 @@ export const getTraceCountsByProjectInCreationInterval = async ({
           query,
           params: input.params,
           clickhouseConfigs: {
-            request_timeout: 120000, // 2 minutes timeout
+            request_timeout: 300000, // 5 minutes timeout
           },
         },
       );
@@ -1733,7 +1734,10 @@ async function buildTracesBaseQuery(
   const filtersNeedScores = filter.some((f) => f.clickhouseTable === "scores");
 
   const hasScoreAggregationFilters = filter.some(
-    (f) => f.field === "s.scores_avg" || f.field === "s.score_categories",
+    (f) =>
+      f.field === "s.scores_avg" ||
+      f.field === "s.score_categories" ||
+      f.field === "s.score_booleans",
   );
 
   const ctes = [];
@@ -1783,7 +1787,8 @@ async function buildTracesBaseQuery(
         project_id,
         groupUniqArray(id) as score_ids,
         groupArrayIf(tuple(name, avg_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories
+        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories,
+        ${scoreBooleansAggregation()} AS score_booleans
       FROM (
         SELECT
           project_id,

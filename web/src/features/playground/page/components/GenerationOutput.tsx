@@ -12,8 +12,14 @@ export const GenerationOutput = () => {
   const [isAdded, setIsAdded] = useState(false);
   const [isJson, setIsJson] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const { output, outputReasoning, outputJson, addMessage, outputToolCalls } =
-    usePlaygroundContext();
+  const {
+    output,
+    outputReasoning,
+    outputJson,
+    addMessage,
+    outputToolCalls,
+    scrollToMessage,
+  } = usePlaygroundContext();
 
   const handleCopy = () => {
     setIsCopied(true);
@@ -24,20 +30,25 @@ export const GenerationOutput = () => {
 
   const handleAddAssistantMessage = () => {
     setIsAdded(true);
-    if (outputToolCalls.length > 0) {
-      addMessage({
-        type: ChatMessageType.AssistantToolCall,
-        role: ChatMessageRole.Assistant,
-        content: output,
-        toolCalls: outputToolCalls,
-      });
-    } else {
-      addMessage({
-        type: ChatMessageType.AssistantText,
-        role: ChatMessageRole.Assistant,
-        content: output,
-      });
-    }
+    const newMessage =
+      outputToolCalls.length > 0
+        ? addMessage({
+            type: ChatMessageType.AssistantToolCall,
+            role: ChatMessageRole.Assistant,
+            content: output,
+            toolCalls: outputToolCalls,
+          })
+        : addMessage({
+            type: ChatMessageType.AssistantText,
+            role: ChatMessageRole.Assistant,
+            content: output,
+          });
+    // Scroll the appended row into view without stealing focus: this is a
+    // programmatic add from the Output panel, so unlike the Add-message button
+    // path (focus=true) we shouldn't yank the caret into the new editor. For a
+    // tool-call add, addMessage returns the last appended row (the final
+    // ToolResult placeholder), so we reveal the newest content (LFE-6864).
+    scrollToMessage(newMessage.id, false);
     setTimeout(() => setIsAdded(false), 1000);
   };
 
@@ -96,7 +107,7 @@ export const GenerationOutput = () => {
       >
         <div className="bg-muted sticky top-0 z-10 p-3">
           <div className="flex w-full items-center">
-            <p className="flex-1 text-xs font-semibold">Output</p>
+            <p className="flex-1 text-xs font-bold">Output</p>
             {copyButton}
           </div>
         </div>

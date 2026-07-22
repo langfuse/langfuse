@@ -121,9 +121,7 @@ export function OnboardingSurvey() {
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
             <Spinner size="xl" variant="muted" />
-            <h1 className="mt-6 text-xl font-semibold">
-              Setting up your project
-            </h1>
+            <h1 className="mt-6 text-xl font-bold">Setting up your project</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               Taking you to tracing...
             </p>
@@ -142,7 +140,7 @@ export function OnboardingSurvey() {
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-xl font-semibold">Failed to load onboarding</h1>
+            <h1 className="text-xl font-bold">Failed to load onboarding</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               Refresh the page to try again.
             </p>
@@ -176,7 +174,7 @@ export function OnboardingSurvey() {
                 name="referralSource"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel className="text-xl font-semibold">
+                    <FormLabel className="text-xl font-bold">
                       Where did you hear about us?
                     </FormLabel>
                     <FormControl>

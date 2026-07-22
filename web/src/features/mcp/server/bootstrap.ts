@@ -26,6 +26,7 @@ import { evalsFeature } from "../features/evals";
 import { dashboardWidgetsFeature } from "../features/dashboardWidgets";
 import { feedbackFeature } from "../features/feedback";
 import { experimentsFeature } from "../features/experiments";
+import { monitorsFeature } from "../features/monitors";
 
 const MCP_FEATURES = [
   promptsFeature,
@@ -42,6 +43,7 @@ const MCP_FEATURES = [
   dashboardWidgetsFeature,
   feedbackFeature,
   experimentsFeature,
+  monitorsFeature,
 ] as const satisfies readonly McpFeatureModule[];
 
 export type McpFeature = (typeof MCP_FEATURES)[number];

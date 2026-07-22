@@ -30,9 +30,11 @@ function operatorToText(operator: FilterCondition["operator"]): string {
 function formatFilterForPill(filter: FilterCondition): string {
   const { column, operator, value } = filter;
 
-  // Handle object filters (numberObject, stringObject) with key
+  // Handle object filters with key
   if (
-    (filter.type === "numberObject" || filter.type === "stringObject") &&
+    (filter.type === "numberObject" ||
+      filter.type === "stringObject" ||
+      filter.type === "booleanObject") &&
     "key" in filter
   ) {
     const valueStr = Array.isArray(value) ? value.join(", ") : String(value);
@@ -94,7 +96,7 @@ function FilterPillWithTarget({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className="flex shrink-0 items-center gap-0.5 font-medium hover:underline"
+            className="flex shrink-0 items-center gap-0.5 font-bold hover:underline"
             title={experimentName}
           >
             <span className="max-w-[100px] truncate" title={experimentName}>
@@ -104,7 +106,7 @@ function FilterPillWithTarget({
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[200px] p-1" align="start">
-          <div className="text-muted-foreground px-2 py-1.5 text-xs font-medium">
+          <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
             Target Experiment
           </div>
           <div className="space-y-0.5">

@@ -43,7 +43,8 @@ import {
   EvalTargetObject,
   EvaluatorBlockReason,
 } from "@langfuse/shared";
-import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import type { Session } from "next-auth";
 
 beforeEach(() => {
@@ -75,14 +76,18 @@ async function prepare() {
           plan: "cloud:hobby",
           cloudConfig: undefined,
           metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
           projects: [
             {
               id: project.id,
               role: "ADMIN",
               retentionDays: 30,
               deletedAt: null,
+              hasTraces: false,
               name: project.name,
               metadata: {},
+              createdAt: new Date().toISOString(),
             },
           ],
         },
@@ -90,6 +95,10 @@ async function prepare() {
       featureFlags: {
         excludeClickhouseRead: false,
         templateFlag: true,
+        searchBar: false,
+        v4BetaToggleVisible: false,
+        observationEvals: false,
+        experimentsV4Enabled: false,
       },
       admin: true,
     },
@@ -99,7 +108,7 @@ async function prepare() {
     },
   };
 
-  const ctx = createInnerTRPCContext({ session });
+  const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   __orgIds.push(org.id);
@@ -558,6 +567,63 @@ describe("evals trpc", () => {
         }),
       ).rejects.toThrow(
         "This code evaluator language is not supported by the configured dispatcher.",
+      );
+    });
+
+    it("adopts the canonical mapping on re-pointed code-eval rules when saving a new version", async () => {
+      const { project, caller } = await prepare();
+      const templateName = `code-template-repoint-${project.id}`;
+
+      const templateV1 = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: templateName,
+          version: 1,
+          type: EvalTemplateType.CODE,
+          prompt: null,
+          outputDefinition: undefined,
+          sourceCode:
+            'function evaluate() { return { scores: [{ name: "s", value: 1 }] }; }',
+          sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+        },
+      });
+
+      // Stored snapshot predating a canonical-variable addition (toolCalls).
+      const staleMapping = getCodeEvalVariableMapping().filter(
+        (mapping) => mapping.templateVariable !== "toolCalls",
+      );
+      const jobConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: templateV1.id,
+          scoreName: "code-score",
+          filter: [],
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: staleMapping,
+          sampling: 1,
+          delay: 0,
+          status: "ACTIVE",
+        },
+      });
+
+      const newVersion = await caller.evals.createTemplate({
+        projectId: project.id,
+        name: templateName,
+        intent: "new-version",
+        sourceTemplateId: templateV1.id,
+        type: EvalTemplateType.CODE,
+        sourceCode:
+          'function evaluate(ctx) { return { scores: [{ name: "s", value: ctx.observation.toolCalls.length }] }; }',
+        sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      });
+
+      const updatedConfig = await prisma.jobConfiguration.findUniqueOrThrow({
+        where: { id: jobConfig.id },
+      });
+      expect(updatedConfig.evalTemplateId).toBe(newVersion.template.id);
+      expect(updatedConfig.variableMapping).toEqual(
+        getCodeEvalVariableMapping(),
       );
     });
   });
@@ -1434,7 +1500,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       // Create a job
@@ -1699,7 +1768,10 @@ describe("evals trpc", () => {
         expires: session.expires,
         environment: session.environment,
       };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+      const limitedCtx = createInnerTRPCContext({
+        session: limitedSession,
+        headers: {},
+      });
       const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
       const evalTemplate = await createTemplateVersion(

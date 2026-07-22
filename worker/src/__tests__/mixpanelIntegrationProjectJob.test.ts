@@ -43,12 +43,28 @@ const h = vi.hoisted(() => {
 
   const mixpanelIntegrationUpdate = vi.fn();
 
+  const defaultIntegration = () => ({
+    projectId: "project-1",
+    enabled: true,
+    exportSource: "TRACES_OBSERVATIONS_EVENTS",
+    mixpanelRegion: "api",
+    encryptedMixpanelProjectToken: "enc",
+    lastSyncAt: new Date("2024-01-01"),
+    project: { name: "Test Project" },
+  });
+
+  // Mutable row returned by the prisma findFirst mock so individual tests can
+  // vary exportSource.
+  const db = { integration: defaultIntegration() as Record<string, unknown> };
+
   return {
     timeline,
     constructed,
     state,
     fakeStream,
     mixpanelIntegrationUpdate,
+    defaultIntegration,
+    db,
   };
 });
 
@@ -78,23 +94,19 @@ vi.mock("@langfuse/shared/encryption", () => ({
 }));
 
 // Keep the throttle delay out of the unit test (real value defaults to 500ms).
-// Path is relative to this test file -> resolves to worker/src/env.
+// Path is relative to this test file -> resolves to worker/src/env (also the
+// module the exportWriteModeGuard reads its write mode from).
 vi.mock("../env", () => ({
-  env: { LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0 },
+  env: {
+    LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: 0,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy",
+  },
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     mixpanelIntegration: {
-      findFirst: vi.fn(async () => ({
-        projectId: "project-1",
-        enabled: true,
-        exportSource: "TRACES_OBSERVATIONS_EVENTS",
-        mixpanelRegion: "api",
-        encryptedMixpanelProjectToken: "enc",
-        lastSyncAt: new Date("2024-01-01"),
-        project: { name: "Test Project" },
-      })),
+      findFirst: vi.fn(async () => h.db.integration),
       update: h.mixpanelIntegrationUpdate,
     },
   },
@@ -115,6 +127,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 
 // Import after mocks are registered.
 import { handleMixpanelIntegrationProjectJob } from "../features/mixpanel/handleMixpanelIntegrationProjectJob";
+import { env } from "../env";
 
 function makeJob() {
   return {
@@ -130,6 +143,8 @@ describe("handleMixpanelIntegrationProjectJob throttling (issue #12786)", () => 
     h.state.activeStreams = 0;
     h.state.maxConcurrentStreams = 0;
     h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
   });
 
   it("reuses a single MixpanelClient for the whole job", async () => {
@@ -148,5 +163,46 @@ describe("handleMixpanelIntegrationProjectJob throttling (issue #12786)", () => 
       if (entry.endsWith(":end")) open--;
       expect(open).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+// LFE-10148: a persisted legacy export source on an events_only deployment
+// reads the v3 traces/observations tables, which are no longer written — the
+// job must fail loudly before exporting empty data and advancing lastSyncAt.
+describe("handleMixpanelIntegrationProjectJob events_only legacy guard (LFE-10148)", () => {
+  beforeEach(() => {
+    h.timeline.length = 0;
+    h.mixpanelIntegrationUpdate.mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+  });
+
+  it("throws before export and does not advance lastSyncAt on events_only + legacy source", async () => {
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      exportSource: "TRACES_OBSERVATIONS",
+    };
+
+    await expect(
+      handleMixpanelIntegrationProjectJob(makeJob()),
+    ).rejects.toThrow(/events_only/);
+
+    // No stream was started (guard fires before the scores export too) and
+    // sync state did not advance.
+    expect(h.timeline).toHaveLength(0);
+    expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
+  });
+
+  it("exports an EVENTS source normally on events_only", async () => {
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+    h.db.integration = {
+      ...h.defaultIntegration(),
+      exportSource: "EVENTS",
+    };
+
+    await handleMixpanelIntegrationProjectJob(makeJob());
+
+    expect(h.mixpanelIntegrationUpdate).toHaveBeenCalledTimes(1);
   });
 });

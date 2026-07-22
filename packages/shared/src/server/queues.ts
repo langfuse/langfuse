@@ -16,6 +16,7 @@ import {
   type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
+import { ProjectNotificationWebhookQueueEventSchema } from "./notifications/types";
 
 export type { MonitorQueueEvent, MonitorQueueEventInput };
 
@@ -68,7 +69,7 @@ export const OtelIngestionEvent = z.object({
   sdkVersion: z.string().optional(),
   ingestionVersion: z.string().optional(),
   // Langfuse-internal telemetry (e.g. LLM-as-a-judge / prompt-experiment
-  // executions published via fetchLLMCompletion's AI SDK engine). The
+  // executions published by the internal AI SDK LLM runtime). The
   // consumer must parse these events with the INTERNAL ingestion schema:
   // the public schema strips the reserved "langfuse-" environment prefix,
   // which would expose internal traces as user environments and bypass the
@@ -283,10 +284,11 @@ export const promptVersionWebhookEnvelopeSchema = z.object({
     .optional(),
 });
 
-/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
 export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
   promptVersionWebhookEnvelopeSchema,
   MonitorWebhookQueueEventSchema,
+  ProjectNotificationWebhookQueueEventSchema,
 ]);
 
 export const WebhookInputSchema = z.object({

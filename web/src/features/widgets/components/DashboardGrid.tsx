@@ -2,6 +2,7 @@ import { Responsive } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { type WidgetPlacement } from "../components/DashboardWidget";
+import { type WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
 import {
   PresetDashboardWidget,
   type PresetPlacement,
@@ -77,6 +78,9 @@ export function DashboardGrid({
   getWidgetSchedulerId,
   onLockedEditAttempt,
   readOnly,
+  onPasteWidget,
+  onDuplicateWidget,
+  onDuplicatePreset,
 }: {
   widgets: DashboardPlacement[];
   onChange: (widgets: DashboardPlacement[]) => void;
@@ -97,13 +101,30 @@ export function DashboardGrid({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): tiles render no edit affordances. */
   readOnly?: boolean;
+  /** Paste the clipboard widget/card next to a tile (editable dashboards only). */
+  onPasteWidget?: (anchor: DashboardPlacement) => void;
+  /** Duplicate a tile's widget next to it (editable dashboards only). */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
+  /** Duplicate a preset card next to it (editable dashboards only). */
+  onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
   const { containerRef, width } = useDebouncedContainerWidth(200);
-  // Rows stay 16:9-proportional to column width
-  const rowHeight = width !== null ? ((width / 12) * 9) / 16 : 150;
+  // Rows stay 16:9-proportional to column width, with a floor so tiles keep a
+  // usable height on narrow screens — below the floor, widget content (chart
+  // floors, table rows) no longer fits and tiles scroll internally; the grid
+  // grows vertically instead. (LFE-10813)
+  const MIN_ROW_HEIGHT = 58;
+  const rowHeight =
+    width !== null ? Math.max(MIN_ROW_HEIGHT, ((width / 12) * 9) / 16) : 150;
 
-  // Detect if screen is medium or smaller (1024px and below)
-  const isSmallScreen = useMediaQuery("(max-width: 1024px)");
+  // Detect if screen is medium or smaller (below 1024px). Exact complement of
+  // Tailwind's `lg:` breakpoint: widget content uses `lg:` variants for its
+  // grid-mode sizing (e.g. smaller chart flex bases that rely on grow), so the
+  // stacked layout must never overlap them. (LFE-10813)
+  const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
 
   // Convert WidgetPlacement to react-grid-layout format
   const layout = widgets.map((w) => ({
@@ -158,6 +179,8 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
+        onPasteWidget={onPasteWidget}
+        onDuplicatePreset={onDuplicatePreset}
       />
     ) : (
       <DashboardWidget
@@ -171,6 +194,8 @@ export function DashboardGrid({
         schedulerId={getWidgetSchedulerId?.(widget.id)}
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
+        onPasteWidget={onPasteWidget}
+        onDuplicateWidget={onDuplicateWidget}
       />
     );
 

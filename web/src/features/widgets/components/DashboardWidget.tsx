@@ -17,11 +17,41 @@ import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { PencilIcon, TrashIcon, GripVerticalIcon } from "lucide-react";
+import {
+  PencilIcon,
+  TrashIcon,
+  GripVerticalIcon,
+  MoreVerticalIcon,
+  CopyIcon,
+  ClipboardPasteIcon,
+  CopyPlusIcon,
+  FileJsonIcon,
+  DownloadIcon,
+  TableIcon,
+} from "lucide-react";
 import { useRouter } from "next/router";
+import {
+  buildTableFilterHref,
+  buildViewAsTableHint,
+} from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { DownloadButton } from "@/src/features/widgets/chart-library/DownloadButton";
+import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import {
+  buildWidgetExport,
+  downloadWidgetJson,
+  type WidgetExportSource,
+} from "@/src/features/widgets/utils/import-export-utils";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
   shouldUseWidgetSSE,
@@ -61,6 +91,8 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
+  onPasteWidget,
+  onDuplicateWidget,
 }: {
   projectId: string;
   dashboardId: string;
@@ -78,6 +110,19 @@ export function DashboardWidget({
   onLockedEditAttempt?: () => void;
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
+  /**
+   * Pastes the clipboard widget next to this tile. Passed only on editable
+   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
+   */
+  onPasteWidget?: (anchor: WidgetPlacement) => void;
+  /**
+   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * tile. Passed only on editable (non-locked) dashboards.
+   */
+  onDuplicateWidget?: (
+    anchor: WidgetPlacement,
+    widget: WidgetExportSource,
+  ) => void;
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -133,6 +178,17 @@ export function DashboardWidget({
   });
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  // Gate "Paste to the right" on the clipboard actually holding a pasteable
+  // payload, where the browser lets us check silently.
+  const isPasteablePayload = useCallback(
+    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
+    [isBetaEnabled],
+  );
+  const clipboardProbe = useClipboardWidgetProbe(
+    isActionsMenuOpen && Boolean(onPasteWidget),
+    isPasteablePayload,
+  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -408,6 +464,46 @@ export function DashboardWidget({
     [chartPresentation],
   );
 
+  // "View as table" navigation: the widget's own filters (config + dashboard
+  // global) translated to the traces/observations table's applicable filters,
+  // plus the widget's time range. Filters the table can't express are dropped
+  // (surfaced as a hint), never errored. The widget-filter merge mirrors the
+  // query build above (widget.data.filters + dashboard filterState).
+  const tableView = useMemo(() => {
+    const view = widget.data?.view;
+    if (!view) return undefined;
+    const mergedFilters: FilterState = [
+      ...(widget.data?.filters ?? []),
+      ...filterState,
+    ];
+    return buildTableFilterHref(
+      projectId,
+      view as z.infer<typeof views>,
+      mergedFilters,
+      dateRange,
+    );
+  }, [projectId, widget.data, filterState, dateRange]);
+
+  const handleViewAsTable = () => {
+    if (!tableView) return;
+    capture("dashboard:widget_view_as_table", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+      view: widget.data?.view,
+      filters_not_applicable: tableView.notApplicable.size,
+      filters_dropped_for_length: tableView.droppedForLength,
+    });
+    router.push(tableView.href);
+  };
+
+  // Hint combines both reasons a widget filter can be missing from the table:
+  // dimensions the table can't express AND applicable filters dropped to keep
+  // the ?filter= URL within budget. A length-drop must never be silent.
+  const viewAsTableHint = useMemo(
+    () => (tableView ? buildViewAsTableHint(tableView) : null),
+    [tableView],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -467,6 +563,48 @@ export function DashboardWidget({
     );
   }
 
+  // Portable configuration of this widget, used by the copy / download /
+  // duplicate menu actions.
+  const widgetExportSource: WidgetExportSource = {
+    name: widget.data.name,
+    description: widget.data.description,
+    view: widget.data.view,
+    dimensions: widget.data.dimensions,
+    metrics: widget.data.metrics.map((metric) => ({
+      measure: metric.measure,
+      agg: metric.agg as z.infer<typeof metricAggregations>,
+    })),
+    filters: widget.data.filters,
+    chartType: widget.data.chartType,
+    chartConfig: widget.data.chartConfig,
+    minVersion: widget.data.minVersion,
+  };
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await copyTextToClipboard(
+        JSON.stringify(buildWidgetExport(widgetExportSource), null, 2),
+      );
+      capture("dashboard:widget_copied_to_clipboard", {
+        surface: "grid_menu",
+        kind: "widget",
+        widget_id: placement.widgetId,
+        dashboard_id: dashboardId,
+      });
+    } catch {
+      showErrorToast("Copy failed", "Could not write to the clipboard.");
+    }
+  };
+
+  const handleDownloadJson = () => {
+    downloadWidgetJson(widgetExportSource);
+    capture("dashboard:widget_json_downloaded", {
+      surface: "grid_menu",
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+    });
+  };
+
   return (
     <div className="bg-background group flex h-full w-full flex-col overflow-hidden rounded-lg border p-4">
       {isCopyDialogOpen && (
@@ -480,7 +618,7 @@ export function DashboardWidget({
       )}
       <div className="flex items-center justify-between">
         <span
-          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          className="flex min-w-0 items-center gap-1.5 truncate text-base font-bold"
           title={widget.data.name}
         >
           <span className="truncate" title={widget.data.name}>
@@ -543,14 +681,77 @@ export function DashboardWidget({
               </button>
             </>
           )}
-          {/* Download button is available once chart data has loaded */}
-          {!queryResult.isPending ? (
-            <DownloadButton
-              data={transformedData}
-              fileName={widget.data.name}
-              className="hidden group-hover:block"
-            />
-          ) : null}
+          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                aria-label="Widget actions"
+              >
+                <MoreVerticalIcon size={16} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {tableView && (
+                <>
+                  <DropdownMenuItem
+                    onClick={handleViewAsTable}
+                    title={viewAsTableHint?.title}
+                  >
+                    <TableIcon className="mr-2 h-4 w-4" />
+                    <span className="flex flex-col">
+                      <span>View as table</span>
+                      {viewAsTableHint && (
+                        <span className="text-muted-foreground text-xs">
+                          {viewAsTableHint.count} filter
+                          {viewAsTableHint.count === 1 ? "" : "s"} not shown in
+                          the table
+                        </span>
+                      )}
+                    </span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem onClick={handleCopyToClipboard}>
+                <CopyIcon className="mr-2 h-4 w-4" />
+                Copy to clipboard
+              </DropdownMenuItem>
+              {onPasteWidget && (
+                <DropdownMenuItem
+                  disabled={clipboardProbe === "no-widget"}
+                  onClick={() => onPasteWidget(placement)}
+                >
+                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
+                  Paste to the right
+                </DropdownMenuItem>
+              )}
+              {onDuplicateWidget && (
+                <DropdownMenuItem
+                  onClick={() =>
+                    onDuplicateWidget(placement, widgetExportSource)
+                  }
+                >
+                  <CopyPlusIcon className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleDownloadJson}>
+                <FileJsonIcon className="mr-2 h-4 w-4" />
+                Download as JSON
+              </DropdownMenuItem>
+              {/* Chart data download needs the query result to have loaded */}
+              <DropdownMenuItem
+                disabled={queryResult.isPending}
+                onClick={() =>
+                  downloadChartDataCsv(transformedData, widget.data.name)
+                }
+              >
+                <DownloadIcon className="mr-2 h-4 w-4" />
+                Download data as CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <div

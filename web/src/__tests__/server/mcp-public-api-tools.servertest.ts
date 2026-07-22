@@ -1,3 +1,7 @@
+vi.hoisted(() => {
+  process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+});
+
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
@@ -159,6 +163,8 @@ describe("MCP public API tools", () => {
         "getHealth",
         "listScores",
         "getScore",
+        "listMonitors",
+        "getMonitor",
         "createModel",
         "createScoreConfig",
       ]),
@@ -242,7 +248,9 @@ describe("MCP public API tools", () => {
       .sort();
     expect(destructiveToolNames).toEqual(
       [
+        "addDashboardPlacement",
         "createChatPrompt",
+        "createDashboard",
         "createDashboardWidget",
         "createEvaluationRule",
         "upsertEvaluator",
@@ -251,6 +259,9 @@ describe("MCP public API tools", () => {
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
+        "deleteDashboard",
+        "deleteDashboardPlacement",
+        "deleteDashboardWidget",
         "deleteDatasetItem",
         "deleteDatasetRun",
         "deleteEvaluationRule",
@@ -258,6 +269,9 @@ describe("MCP public API tools", () => {
         "deleteModel",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
+        "updateDashboard",
+        "updateDashboardPlacement",
+        "updateDashboardWidget",
         "updateEvaluationRule",
         "updatePromptLabels",
         "updateScoreConfig",
@@ -300,7 +314,7 @@ describe("MCP public API tools", () => {
         queueId: queue.id,
         objectId: uuidv4(),
         objectType: "TRACE",
-      },
+      } as unknown as Parameters<typeof handleCreateAnnotationQueueItem>[0],
       context,
     )) as { id: string; status: string };
     expect(queueItem.status).toBe("PENDING");
@@ -379,7 +393,7 @@ describe("MCP public API tools", () => {
     ).resolves.toBe(assignmentAuditLogCount + 1);
 
     const auditLogCreateSpy = vi
-      .spyOn(prisma.auditLog, "create")
+      .spyOn(prisma, "$transaction")
       .mockRejectedValueOnce(new Error("audit failed"));
 
     try {
@@ -727,7 +741,12 @@ describe("MCP public API tools", () => {
   it("covers health public API route and cross-project recent-event checks", async () => {
     const { context } = await createMcpTestSetup();
 
-    await expect(handleGetHealth({}, context)).resolves.toMatchObject({
+    await expect(
+      handleGetHealth(
+        {} as unknown as Parameters<typeof handleGetHealth>[0],
+        context,
+      ),
+    ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
     });
@@ -750,7 +769,12 @@ describe("MCP public API tools", () => {
     ]);
 
     await expect(
-      handleGetHealth({ failIfNoRecentEvents: true }, context),
+      handleGetHealth(
+        { failIfNoRecentEvents: true } as unknown as Parameters<
+          typeof handleGetHealth
+        >[0],
+        context,
+      ),
     ).resolves.toMatchObject({
       status: "OK",
       version: expect.any(String),
@@ -852,7 +876,7 @@ describe("MCP public API tools", () => {
         dataType: "NUMERIC",
         numericMinValue: 0,
         numericMaxValue: 1,
-      },
+      } as unknown as Parameters<typeof handleCreateScoreConfig>[0],
       context,
     )) as { id: string; name: string };
     expect(scoreConfig.name).toBe(scoreConfigName);

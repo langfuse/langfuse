@@ -63,14 +63,22 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  ScoreTag,
+  scoreLevelFromScore,
+  type ScoreLevel,
+} from "@/src/components/score-tag";
 
 export type ScoresTableRow = {
   id: string;
   traceId?: string;
   sessionId?: string;
+  datasetRunId?: string;
   timestamp: Date;
   source: string;
   name: string;
+  /** Derived from the score's context ids (scoreLevelFromScore). */
+  level: ScoreLevel;
   dataType: ScoreDataTypeType;
   value: string;
   author: {
@@ -310,6 +318,7 @@ export default function ScoresTable({
           value: sv.value,
           count: sv.count !== undefined ? Number(sv.count) : undefined,
         })) ?? undefined,
+      booleanValue: filterOptions.data?.booleanValue ?? undefined,
       traceName:
         filterOptions.data?.traceName?.map((tn) => ({
           value: tn.value,
@@ -638,6 +647,22 @@ export default function ScoresTable({
       size: 150,
     },
     {
+      accessorKey: "level",
+      header: "Level",
+      id: "level",
+      enableHiding: true,
+      // Derived client-side from the score's context ids — not a sortable
+      // backend column.
+      enableSorting: false,
+      size: 110,
+      cell: ({ row }) => {
+        // Level tag (LFE-10596): trace- vs observation- (vs session-) level
+        // scores look identical here otherwise.
+        const level: ScoresTableRow["level"] = row.getValue("level");
+        return <ScoreTag level={level} />;
+      },
+    },
+    {
       accessorKey: "dataType",
       header: "Data Type",
       id: "dataType",
@@ -819,6 +844,7 @@ export default function ScoresTable({
       timestamp: score.timestamp,
       source: score.source,
       name: score.name,
+      level: scoreLevelFromScore(score),
       dataType: score.dataType,
       value:
         isNumericDataType(score.dataType) && isPresent(score.value)
@@ -834,6 +860,7 @@ export default function ScoresTable({
       comment: score.comment ?? undefined,
       observationId: score.observationId ?? undefined,
       sessionId: score.sessionId ?? undefined,
+      datasetRunId: score.datasetRunId ?? undefined,
       traceId: score.traceId ?? undefined,
       traceName: score.traceName ?? undefined,
       userId: score.traceUserId ?? undefined,
@@ -864,6 +891,7 @@ export default function ScoresTable({
         timestamp: score.timestamp,
         source: score.source,
         name: score.name,
+        level: scoreLevelFromScore(score),
         dataType: score.dataType,
         value:
           isNumericDataType(score.dataType) && isPresent(score.value)
@@ -879,6 +907,7 @@ export default function ScoresTable({
         comment: score.comment ?? undefined,
         observationId: score.observationId ?? undefined,
         sessionId: score.sessionId ?? undefined,
+        datasetRunId: score.datasetRunId ?? undefined,
         traceId: score.traceId ?? undefined,
         traceName: meta?.traceName ?? undefined,
         userId: meta?.userId ?? undefined,

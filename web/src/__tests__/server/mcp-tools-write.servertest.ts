@@ -85,6 +85,18 @@ import {
   createDashboardWidgetTool,
   handleCreateDashboardWidget,
 } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
+import {
+  handleAddDashboardPlacement,
+  handleCreateDashboard,
+  handleDeleteDashboard,
+  handleDeleteDashboardPlacement,
+  handleDeleteDashboardWidget,
+  handleGetDashboard,
+  handleGetDashboardWidget,
+  handleUpdateDashboardPlacement,
+  handleUpdateDashboard,
+  handleUpdateDashboardWidget,
+} from "@/src/features/mcp/features/dashboardWidgets/tools/dashboardCrud";
 
 const createScoreConfig = async (projectId: string) =>
   prisma.scoreConfig.create({
@@ -269,7 +281,7 @@ describe("MCP Write Tools", () => {
           enabled: false,
           target: "observation",
           filter: [],
-        },
+        } as unknown as Parameters<typeof handleCreateEvaluationRule>[0],
         context,
       )) as { id: string };
       expect(rule.id).toBeDefined();
@@ -441,7 +453,6 @@ describe("MCP Write Tools", () => {
           filters: [],
           chartType: "NUMBER",
           chartConfig: { type: "NUMBER" },
-          minVersion: 2,
         },
         setup.context,
       )) as { id: string; name: string; url: string };
@@ -471,6 +482,179 @@ describe("MCP Write Tools", () => {
           action: "create",
         }),
       ).resolves.toMatchObject({ resourceId: result.id, action: "create" });
+    });
+  });
+
+  describe("dashboard CRUD tools", () => {
+    const createWidgetForTest = async (
+      setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+    ) =>
+      (await handleCreateDashboardWidget(
+        {
+          name: `mcp-widget-${nanoid()}`,
+          description: "Created by MCP",
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "count", agg: "count" }],
+          filters: [],
+          chartType: "NUMBER",
+          chartConfig: { type: "NUMBER" },
+        },
+        setup.context,
+      )) as { id: string };
+
+    it("runs the dashboard and placement write lifecycle", async () => {
+      const setup = await createMcpTestSetup();
+      const created = await createWidgetForTest(setup);
+      const newName = `mcp-widget-renamed-${nanoid()}`;
+
+      await expect(
+        handleUpdateDashboardWidget(
+          { widgetId: created.id, name: newName },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ id: created.id, name: newName });
+
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard(
+          { dashboardId: dashboard.id, name: "MCP dashboard updated" },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({
+        id: dashboard.id,
+        name: "MCP dashboard updated",
+      });
+
+      const added = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
+        setup.context,
+      )) as { id: string } & Record<string, unknown>;
+
+      expect(added).toEqual({
+        type: "widget",
+        id: expect.any(String),
+        widgetId: created.id,
+        x: 0,
+        y: 0,
+        width: 6,
+        height: 6,
+      });
+
+      await expect(
+        handleUpdateDashboardPlacement(
+          {
+            dashboardId: dashboard.id,
+            placementId: added.id,
+            x: 4,
+            width: 4,
+          },
+          setup.context,
+        ),
+      ).resolves.toMatchObject({ id: added.id, x: 4, width: 4 });
+      await expect(
+        handleDeleteDashboardPlacement(
+          { dashboardId: dashboard.id, placementId: added.id },
+          setup.context,
+        ),
+      ).resolves.toEqual({ message: "Placement successfully deleted" });
+      await expect(
+        handleDeleteDashboardWidget({ widgetId: created.id }, setup.context),
+      ).resolves.toEqual({
+        message: "Dashboard widget successfully deleted",
+      });
+      await expect(
+        handleDeleteDashboard({ dashboardId: dashboard.id }, setup.context),
+      ).resolves.toEqual({ message: "Dashboard successfully deleted" });
+      await expect(
+        prisma.dashboardWidget.findUnique({ where: { id: created.id } }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.dashboard.findUnique({ where: { id: dashboard.id } }),
+      ).resolves.toBeNull();
+    });
+
+    it("uses context.projectId for dashboard write isolation", async () => {
+      const owner = await createMcpTestSetup();
+      const other = await createMcpTestSetup();
+      const created = await createWidgetForTest(owner);
+      const dashboard = (await handleCreateDashboard(
+        { name: `private-mcp-dashboard-${nanoid()}`, description: "" },
+        owner.context,
+      )) as { id: string };
+      const placement = (await handleAddDashboardPlacement(
+        { dashboardId: dashboard.id, type: "widget", widgetId: created.id },
+        owner.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard(
+          { dashboardId: dashboard.id, name: "Cross-project rename" },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleUpdateDashboardWidget(
+          { widgetId: created.id, name: "Cross-project widget rename" },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+      await expect(
+        handleUpdateDashboardPlacement(
+          {
+            dashboardId: dashboard.id,
+            placementId: placement.id,
+            x: 4,
+          },
+          other.context,
+        ),
+      ).rejects.toThrow(/not found/i);
+
+      await expect(
+        handleGetDashboard({ dashboardId: dashboard.id }, owner.context),
+      ).resolves.toMatchObject({
+        name: expect.stringContaining("private-mcp-dashboard-"),
+        definition: {
+          widgets: [expect.objectContaining({ id: placement.id, x: 0 })],
+        },
+      });
+      await expect(
+        handleGetDashboardWidget({ widgetId: created.id }, owner.context),
+      ).resolves.toMatchObject({
+        id: created.id,
+        name: expect.stringContaining("mcp-widget-"),
+      });
+    });
+
+    it("rejects widget placements without a widgetId", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleAddDashboardPlacement(
+          { dashboardId: dashboard.id, type: "widget", id: "placement-1" },
+          setup.context,
+        ),
+      ).rejects.toThrow(/widgetId is required/);
+    });
+
+    it("rejects dashboard updates without any patch field", async () => {
+      const setup = await createMcpTestSetup();
+      const dashboard = (await handleCreateDashboard(
+        { name: `mcp-dashboard-${nanoid()}`, description: "" },
+        setup.context,
+      )) as { id: string };
+
+      await expect(
+        handleUpdateDashboard({ dashboardId: dashboard.id }, setup.context),
+      ).rejects.toThrow(/at least one field/i);
     });
   });
 

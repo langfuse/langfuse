@@ -1,4 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
+import {
+  isDenylistedNoiseEvent,
+  isNoisyHttpClientPollEvent,
+} from "@/src/utils/sentryFilters";
 
 const isEuOrUsRegionNonHipaa =
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
@@ -26,6 +30,28 @@ Sentry.init({
     // Filter React DevTools internal errors - these are benign errors from DevTools
     // trying to access internal React properties
     if (errorValue.includes("__reactContextDevtoolDebugId")) {
+      return null;
+    }
+
+    // Drop expected/poll 5xx noise from httpClientIntegration. It flags every
+    // 5xx fetch/XHR as an unhandled "HTTP Client Error"; the NextAuth session
+    // poll (/api/auth/session, every 5 min + on window focus) dominates this and
+    // creates huge false-positive issues. Only the known poll/health endpoints
+    // are dropped — genuine 5xx on real API/tRPC endpoints are kept, and a real
+    // session outage is still observable server-side via request tracing/APM
+    // spans and application logs.
+    if (isNoisyHttpClientPollEvent(event)) {
+      return null;
+    }
+
+    // Drop known-benign client-side noise: browser/transport failures (offline,
+    // flaky network, CORS, proxy/infra HTML error pages), transient
+    // framework/vendor poll logs (NextAuth CLIENT_FETCH_ERROR, PostHog notices),
+    // and expected browser artifacts (clipboard permission denials, intentional
+    // request cancellations). Each signature is narrow and cannot represent a
+    // real Langfuse app bug; real errors that merely quote a phrase still flow
+    // to Sentry. See isDenylistedNoiseEvent for the per-rule rationale.
+    if (isDenylistedNoiseEvent(event)) {
       return null;
     }
 

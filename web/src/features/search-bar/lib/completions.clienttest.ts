@@ -5,12 +5,16 @@ import {
   SECTION_COMPARE_OPS,
   SECTION_FIELDS,
   SECTION_MATCH_OPS,
+  SECTION_MATCHING_FILTERS,
   SECTION_RECENT,
   SECTION_VALUES,
   type CompletionOption,
   type InputCompletionContext,
 } from "@/src/features/search-bar/lib/completions";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  toObservedOptions,
+  type ObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -20,6 +24,7 @@ const OBSERVED: ObservedOptions = {
   environment: [{ value: "production" }, { value: "dev" }],
   scores_avg: [{ value: "accuracy" }],
   score_categories: [{ value: "feedback" }],
+  score_booleans: [{ value: "flag" }],
   "score_categories.feedback": [{ value: "positive" }, { value: "negative" }],
   "metadata.region": [{ value: "eu" }, { value: "us" }],
 };
@@ -57,6 +62,35 @@ describe("planInputCompletions", () => {
     expect(p?.autoHighlight).toBe(false);
     const first = flattenOptions(p);
     expect(first[0]).toMatchObject({ kind: "field", fieldId: "level" });
+  });
+
+  it("always surfaces an exactly-named field first, even when ranking would drop it", () => {
+    // `ttft` is an alias of timeToFirstToken but not a substring of it — label
+    // ranking alone dropped the field entirely while the exact match armed
+    // Enter, which then picked whatever happened to sit first instead of the
+    // field the user named.
+    const ttft = plan("ttft", 4);
+    expect(ttft?.autoHighlight).toBe(true);
+    expect(flattenOptions(ttft)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "timeToFirstToken",
+    });
+    // `model` resolves to providedModelName; `modelId` merely ranks first by
+    // label prefix — Enter must honor the alias, not the label ranking.
+    const model = plan("model", 5);
+    expect(model?.autoHighlight).toBe(true);
+    expect(flattenOptions(model)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "providedModelName",
+    });
+    // `has` (the pseudo-field) hoists its own entry above the hasInput/
+    // hasParentObservation label matches.
+    const has = plan("has", 3);
+    expect(has?.autoHighlight).toBe(true);
+    expect(flattenOptions(has)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "has",
+    });
   });
 
   it("arms Enter only when a bare word EXACTLY names a field", () => {
@@ -254,19 +288,41 @@ describe("planInputCompletions", () => {
     const labels = flattenOptions(p).map((o) => o.label);
     expect(labels).toContain("scores.accuracy");
     expect(labels).toContain("scores.feedback");
+    expect(labels).toContain("scores.flag");
+  });
+
+  it("shows overlapping boolean score names as boolean-only", () => {
+    const observed = toObservedOptions(
+      {
+        scores_avg: [{ value: "flag" }],
+        score_categories: [],
+        score_booleans: [{ value: "flag" }],
+      },
+      false,
+    );
+
+    const option = flattenOptions(plan("scores.", 7, { observed })).find(
+      (o) => o.label === "scores.flag",
+    );
+
+    expect(option).toMatchObject({
+      label: "scores.flag",
+      detail: "boolean score",
+    });
   });
 
   it("suggests trace-score names for every accepted alias incl. singular tracescore.", () => {
     // The parser resolves tracescore./tracescores./trace_scores.; each must also
     // produce the score-name dropdown, or that spelling parses but suggests
     // nothing. (The singular form was previously missing from PATH_PREFIXES.)
-    // Both trace score-name columns are requested + returned together, so model
-    // the categorical one as loaded-but-empty (lazy mode keys loading on column
-    // presence, not value count).
+    // All three trace score-name columns are requested + returned together, so
+    // model the categorical/boolean ones as loaded-but-empty (lazy mode keys
+    // loading on column presence, not value count).
     const observed = {
       ...OBSERVED,
       trace_scores_avg: [{ value: "nps" }],
       trace_score_categories: [],
+      trace_score_booleans: [],
     };
     for (const prefix of ["tracescore.", "tracescores.", "trace_scores."]) {
       const p = plan(prefix, prefix.length, { observed });
@@ -283,6 +339,14 @@ describe("planInputCompletions", () => {
       "positive",
       "negative",
     ]);
+  });
+
+  it("suggests boolean score values", () => {
+    const p = plan("scores.flag:", 12);
+    const values = flattenOptions(p)
+      .filter((o) => o.kind === "value")
+      .map((o) => o.label);
+    expect(values).toEqual(["true", "false"]);
   });
 
   it("suggests metadata values for known keys", () => {
@@ -615,12 +679,16 @@ describe("planInputCompletions", () => {
       expect(p?.requestColumns).toBeUndefined();
     });
 
-    it("requests both score-name columns and shows loading on a score path", () => {
+    it("requests all score-name columns and shows loading on a score path", () => {
       const p = plan("scores.", 7, {
         observed: { level: [{ value: "ERROR" }] },
       });
       expect(p?.loading).toBe(true);
-      expect(p?.requestColumns).toEqual(["scores_avg", "score_categories"]);
+      expect(p?.requestColumns).toEqual([
+        "scores_avg",
+        "score_categories",
+        "score_booleans",
+      ]);
     });
 
     it("requests trace score-name columns while typing a trace score value", () => {
@@ -631,6 +699,7 @@ describe("planInputCompletions", () => {
       expect(p?.requestColumns).toEqual([
         "trace_scores_avg",
         "trace_score_categories",
+        "trace_score_booleans",
       ]);
     });
 
@@ -647,7 +716,11 @@ describe("planInputCompletions", () => {
 
       const score = plan("scores.", 7, {
         observed: { level: [{ value: "ERROR" }] },
-        erroredColumns: new Set(["scores_avg", "score_categories"]),
+        erroredColumns: new Set([
+          "scores_avg",
+          "score_categories",
+          "score_booleans",
+        ]),
       });
       expect(score?.loading).not.toBe(true);
       expect(score?.requestColumns).toBeUndefined();
@@ -669,6 +742,144 @@ describe("planInputCompletions", () => {
     const p = plan("O", 1);
     const operators = flattenOptions(p).filter((o) => o.kind === "operator");
     expect(operators.map((o) => o.label)).not.toContain("OR");
+  });
+
+  describe("matching filters (contextual facet-value suggestions, LFE-10888)", () => {
+    // Typing `mcp` must not ONLY offer full-text search: when a loaded facet
+    // contains a matching value, the concrete `toolNames:mcp` filter is offered
+    // alongside — drawn from LOADED columns only (never fanning out on-demand
+    // option fetches).
+    const observed: ObservedOptions = {
+      ...OBSERVED,
+      toolNames: [
+        { value: "mcp", count: 42 },
+        { value: "mcp-search", count: 7 },
+      ],
+      calledToolNames: [{ value: "web-mcp" }],
+    };
+
+    it("suggests column:value matches for a bare term, exact > prefix > substring", () => {
+      const p = plan("mcp", 3, { observed });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options.map((o) => o.label)).toEqual([
+        "toolNames:mcp", // exact value match
+        "toolNames:mcp-search", // prefix
+        "calledToolNames:web-mcp", // substring
+      ]);
+      expect(sec?.options[0]).toMatchObject({
+        kind: "pattern",
+        insert: "toolNames:mcp",
+        detail: "Available tool names",
+        replaceSpan: { from: 0, to: 3 },
+      });
+      // Free-text stays the primary path: Enter is unarmed (commits the text)
+      // and the default-scope anchor is still offered.
+      expect(p?.autoHighlight ?? false).toBe(false);
+      expect(flattenOptions(p).map((o) => o.id)).toContain("scope:default");
+      // Loaded columns only — no on-demand option fetch is triggered by typing.
+      expect(p?.requestColumns).toBeUndefined();
+    });
+
+    it("prefers higher observed counts within the same match tier", () => {
+      // `er` prefixes both level:ERROR (count 12) and a name value (count 3);
+      // the count breaks the tie even though `name` precedes `level` in the
+      // registry.
+      const p = plan("er", 2, {
+        observed: { ...OBSERVED, name: [{ value: "error-handler", count: 3 }] },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options.map((o) => o.label)).toEqual([
+        "level:ERROR",
+        "name:error-handler",
+      ]);
+    });
+
+    it("caps the section at three matches", () => {
+      const p = plan("mcp", 3, {
+        observed: {
+          ...observed,
+          name: [{ value: "mcp-router" }, { value: "run-mcp" }],
+        },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options).toHaveLength(3);
+    });
+
+    it("matches the whole coalesced run and quotes spaced values", () => {
+      // Caret inside a two-word run: the match target is the logical phrase,
+      // and the suggestion rewrites the WHOLE run — like the scope switches —
+      // serializing the spaced value back to one quoted token.
+      const p = plan("codex tu", 4, {
+        observed: { ...OBSERVED, traceName: [{ value: "Codex Turn" }] },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options[0]).toMatchObject({
+        insert: 'traceName:"Codex Turn"',
+        replaceSpan: { from: 0, to: 8 },
+      });
+    });
+
+    it("scopes the rewrite to the free-text run, leaving existing filters alone", () => {
+      const q = "level:ERROR mcp";
+      const p = plan(q, q.length, { observed });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options[0]).toMatchObject({
+        insert: "toolNames:mcp",
+        replaceSpan: { from: 12, to: 15 },
+      });
+    });
+
+    it("offers no matches for 1-char terms, negated terms, or unloaded/absent values", () => {
+      // A 1-char term matches half the dataset — stay quiet.
+      const short = plan("m", 1, { observed });
+      expect(short?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // A negated term is not a free-text run (and a positive rewrite would
+      // invert the user's intent).
+      const negated = plan("-mcp", 4, { observed });
+      expect(negated?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // toolNames not loaded (lazy column absent) → nothing to match.
+      const unloaded = plan("mcp", 3);
+      expect(unloaded?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // Observed map still on its initial bulk load → no matches, no crash.
+      const initial = plan("mcp", 3, { observed: undefined });
+      expect(initial?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+    });
+
+    it("stays out of the value stage and of key positions inside existing filters", () => {
+      // Caret in a value (`level:ER`) plans the value stage — no run, no section.
+      const value = plan("level:ER", 8, { observed });
+      expect(value?.stage).toBe("value");
+      expect(value?.sections.map((s) => s.title)).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // Caret in the key of an existing filter — a switcher, not a run.
+      const key = plan("level:ERROR", 3, { observed });
+      expect(key?.sections.map((s) => s.title)).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+    });
+
+    it("applyPick replaces the run and completes the filter at the end", () => {
+      const p = plan("mcp", 3, { observed });
+      const opt = flattenOptions(p).find((o) => o.id === "match:toolNames:mcp");
+      expect(opt).toBeDefined();
+      const r = applyPick(
+        opt as Exclude<CompletionOption, { kind: "recent" }>,
+        "mcp",
+        p!,
+      );
+      expect(r.next).toBe("toolNames:mcp ");
+      expect(r.caret).toBe("toolNames:mcp ".length);
+      expect(r.keepOpen).toBe(true);
+    });
   });
 });
 

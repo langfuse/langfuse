@@ -45,11 +45,14 @@ Generally available on the v4 events tables (no opt-in). Based on the
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
-- `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
+  (matches a score at observation OR trace level, LFE-10596). The legacy
+  `traceScores.` namespace (trace-only) still parses/lowers so saved queries
+  and URLs keep working, but it is no longer offered in suggestions.
 - dot-path names with spaces/grammar chars are **quoted after the prefix**:
-  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
-  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
-  the reverse adapter and completions re-quote them — so they round-trip)
+  `scores."Rouge Score":>=1`, `metadata."my key":eu` (the quotes are stripped
+  to the real key when lowering; the reverse adapter and completions re-quote
+  them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
@@ -471,31 +474,6 @@ unused planners).
     operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
     strips redundant parens and would bail on a now-"invalid" paren) and
     removes documented top-level grouping — needs its own pass.
-- **Layer system**: the bar's in-flow overlays use a hardcoded local ladder (X
-  z-20 < autocomplete popover z-50, both drop into the table below the bar).
-  These are genuinely local — they live inside the app's isolated `#__next`
-  stacking context, can't escape it, and never need to beat a body-level
-  overlay, so their z-index is fine. The **error tooltip is the exception**:
-  when the popover is open it flips ABOVE the bar, into the page header's band,
-  where no in-flow z-index can win — `#page > main` is `overflow:hidden` (clips
-  anything above the bar) and the header is inside the isolated stacking
-  context. So that one tooltip renders through the `"tooltip"` `<Layer>`
-  (`components/ui/layer.tsx`), which puts it in a `<body>`-level overlay layer
-  that paints above the whole app by DOM ORDER — no z-index needed.
-- **The app-wide layer system** (`components/ui/layer.tsx`): `<Layer>` is now
-  part of the full overlay band, not a one-off seed. `LAYER_ORDER` is
-  `["agent", "modal", "popover", "tooltip", "toast"]` — five `<body>`-level
-  layers (declared in `_document.tsx`), each its own isolated stacking context,
-  stacked by DOM ORDER (later = on top), carrying NO z-index of their own. ALL
-  overlays route through it: Radix/Vaul primitives via their `*.Portal`'s
-  `container` (use `useLayerContainer`), and bespoke
-  imperatively-positioned content (like this bar's error tooltip) via `<Layer>`.
-  No overlay carries a magic z-index to "escape to the top" anymore; the
-  `@repo/no-overlay-zindex` lint rule enforces this — it bans high z-index on
-  the `ui/*` overlay wrappers, and app-wide on any overlay _content_ element
-  (e.g. a `*Content` you put a stray `z-50` on). When adding a search-bar
-  overlay that must escape clipping/stacking, reach for `<Layer>` (bespoke) or a
-  layer-routed Radix primitive — never a one-off portal + z-index.
 - Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.
