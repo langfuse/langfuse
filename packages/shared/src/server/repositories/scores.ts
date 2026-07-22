@@ -66,6 +66,7 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 import {
   eventsTraceMetadata,
+  eventsTracesAggregation,
   eventsExperimentTraceIds,
   eventsExperiments,
   promptEventsForMetrics,
@@ -2415,18 +2416,68 @@ const buildAnalyticsScoreTraceAttributesCte = (
   },
 });
 
+// Same schema rebuilt from events_core for deployments that no longer write
+// the legacy traces table (write mode events_only). Metadata session keys
+// survive events_core value truncation; the 7d start_time lookback mirrors
+// the legacy CTE so delayed scores stay enriched.
+const buildAnalyticsScoreTraceAttributesFromEventsCte = (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+): { query: string; params: Record<string, unknown> } => {
+  const aggregation = eventsTracesAggregation({
+    projectId,
+    orderByTimestamp: false,
+    truncated: true,
+  })
+    .whereRaw("start_time >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY", {
+      minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    })
+    .whereRaw("start_time <= {maxTimestamp: DateTime64(3)}", {
+      maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+    });
+  const { query, params } = aggregation.buildWithParams();
+  return {
+    query: `
+      SELECT
+        project_id,
+        id,
+        name,
+        session_id,
+        user_id,
+        release,
+        tags,
+        metadata['$posthog_session_id'] as posthog_session_id,
+        metadata['$mixpanel_session_id'] as mixpanel_session_id
+      FROM (${query})`,
+    params,
+  };
+};
+
 export const getScoresForAnalyticsIntegrations = async function* (
   projectId: string,
   projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  options: { useGraceHash?: boolean } = {},
+  options: {
+    useGraceHash?: boolean;
+    /** Pass "events" when the deployment no longer writes the traces table. */
+    traceAttributesSource?: "traces" | "events";
+  } = {},
 ) {
-  const selectedTraces = buildAnalyticsScoreTraceAttributesCte(
-    projectId,
-    minTimestamp,
-    maxTimestamp,
-  );
+  const traceAttributesSource = options.traceAttributesSource ?? "traces";
+  const selectedTraces =
+    traceAttributesSource === "events"
+      ? buildAnalyticsScoreTraceAttributesFromEventsCte(
+          projectId,
+          minTimestamp,
+          maxTimestamp,
+        )
+      : buildAnalyticsScoreTraceAttributesCte(
+          projectId,
+          minTimestamp,
+          maxTimestamp,
+        );
 
   const query = `
     WITH selected_traces AS (${selectedTraces.query}
@@ -2473,9 +2524,11 @@ export const getScoresForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
-      ...selectedTraces.params,
     },
     tags: { projectId },
+    ...(traceAttributesSource === "events"
+      ? { preferredClickhouseService: "EventsReadOnly" as const }
+      : {}),
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash
