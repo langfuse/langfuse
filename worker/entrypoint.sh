@@ -19,13 +19,18 @@ if [ -z "$DATABASE_URL" ]; then
     fi
 fi
 
-# On ECS, append task_id:<id> from the container metadata endpoint to DD_TAGS
-# (best-effort; never blocks startup)
+# On ECS, append task_id:<id> from the container metadata endpoint to DD_TAGS,
+# reusing its existing separator (bounded ~2s total; never fails boot)
 if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
-    _task_arn=$(wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    _task_arn=$(timeout 2 wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     _task_id="${_task_arn##*/}"
     if [ -n "$_task_id" ]; then
-        export DD_TAGS="${DD_TAGS:+${DD_TAGS},}task_id:${_task_id}"
+        case "$DD_TAGS" in
+            *,*) _sep="," ;;
+            *" "*) _sep=" " ;;
+            *) _sep="," ;;
+        esac
+        export DD_TAGS="${DD_TAGS:+${DD_TAGS}${_sep}}task_id:${_task_id}"
     fi
 fi
 

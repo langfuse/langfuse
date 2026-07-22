@@ -126,13 +126,19 @@ fi
 
 # On ECS, resolve the task id from the container metadata endpoint and append
 # it to DD_TAGS so dd-trace stamps tracer telemetry (runtime metrics, spans)
-# with task_id.  Best-effort: on any failure DD_TAGS is left untouched and
-# startup proceeds.
+# with task_id.  Reuses the separator DD_TAGS already uses (comma or space).
+# Best-effort, bounded to ~2s total: on any failure DD_TAGS is left untouched
+# and startup proceeds — this block never fails boot.
 if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
-    _task_arn=$(wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    _task_arn=$(timeout 2 wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     _task_id="${_task_arn##*/}"
     if [ -n "$_task_id" ]; then
-        export DD_TAGS="${DD_TAGS:+${DD_TAGS},}task_id:${_task_id}"
+        case "$DD_TAGS" in
+            *,*) _sep="," ;;
+            *" "*) _sep=" " ;;
+            *) _sep="," ;;
+        esac
+        export DD_TAGS="${DD_TAGS:+${DD_TAGS}${_sep}}task_id:${_task_id}"
     fi
 fi
 
