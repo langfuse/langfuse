@@ -187,6 +187,13 @@ export class ChbBillingService {
           "Cannot initialize ClickHouse Billing checkout for a Stripe-billed organization",
       });
     }
+    if (parsedOrg.cloudConfig?.clickhouse?.bundleId) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message:
+          "Organization already has an active bundle; use changePlan instead of checkout",
+      });
+    }
 
     const planCode = mapStripeProductIdToChbPlanCode(stripeProductId);
     if (!planCode) {
