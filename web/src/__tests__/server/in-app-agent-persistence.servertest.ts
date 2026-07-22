@@ -12,7 +12,7 @@ import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { vi } from "vitest";
 
-import type { Plan } from "@langfuse/shared";
+import { InAppAgentRunErrorCode, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
@@ -1369,7 +1369,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: orphanToolRun.id,
       projectId,
-      errorCode: "aborted",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Aborted before tool result",
     });
 
@@ -1427,7 +1427,7 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: failedRun.id,
       projectId,
-      errorCode: "upstream_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Failed before output",
     });
 
@@ -1567,14 +1567,14 @@ describe("in-app agent persistence", () => {
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "agent_error",
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
       errorMessage: "Original agent error",
     });
     await finishRun({
       prisma,
       runId: run.id,
       projectId,
-      errorCode: "cancelled",
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
       errorMessage: "Client aborted request",
     });
 
@@ -1684,10 +1684,86 @@ describe("in-app agent persistence", () => {
         where: { id_projectId: { id: staleRun.id, projectId } },
       }),
     ).resolves.toMatchObject({
+      status: "FAILED",
       errorCode: "stale",
       errorMessage: "Run was marked stale before starting a new run",
     });
     expect(newRun.finishedAt).toBeNull();
+  });
+
+  it("writes run lifecycle status on the foreground path", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const succeeded = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    expect(succeeded.status).toBe("RUNNING");
+    await finishRun({ prisma, runId: succeeded.id, projectId });
+
+    const failed = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: failed.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
+      errorMessage: "boom",
+    });
+
+    const cancelled = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({
+      prisma,
+      runId: cancelled.id,
+      projectId,
+      errorCode: InAppAgentRunErrorCode.CANCELLED,
+      errorMessage: "Client aborted request",
+    });
+
+    const runs = await prisma.inAppAgentRun.findMany({
+      where: { projectId, conversationId: conversation.id },
+      select: { id: true, status: true },
+    });
+    expect(new Map(runs.map((run) => [run.id, run.status]))).toEqual(
+      new Map([
+        [succeeded.id, "SUCCEEDED"],
+        [failed.id, "FAILED"],
+        [cancelled.id, "CANCELLED"],
+      ]),
+    );
+  });
+
+  it("enforces the single-active-run backstop index at the database level", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+
+    // Bypass createRun's conversation lock and conflict check: the partial
+    // unique index is the DB-level invariant against two unfinished runs in
+    // one conversation.
+    await expect(
+      prisma.inAppAgentRun.create({
+        data: {
+          id: createInAppAgentRunId(),
+          projectId,
+          conversationId: conversation.id,
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
   });
 
   it("paginates conversation list with a stable cursor", async () => {

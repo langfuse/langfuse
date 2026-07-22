@@ -68,6 +68,7 @@ import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
+  InAppAgentRunErrorCode,
   InvalidRequestError,
   type RateLimitResult,
   UnauthorizedError,
@@ -403,7 +404,7 @@ export default async function handler(request: Request) {
           }
 
           const finishCurrentRun = (error?: {
-            errorCode: string;
+            errorCode: InAppAgentRunErrorCode;
             errorMessage: string;
           }) =>
             finishRun({
@@ -482,7 +483,7 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "cancelled",
+                      errorCode: InAppAgentRunErrorCode.CANCELLED,
                       errorMessage: "Client aborted request",
                     }),
                   ),
@@ -491,7 +492,7 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "agent_error",
+                      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
                       errorMessage:
                         error instanceof Error
                           ? error.message
@@ -592,7 +593,7 @@ export default async function handler(request: Request) {
               prisma,
               runId: sanitizedInput.runId,
               projectId,
-              errorCode: "init_failed",
+              errorCode: InAppAgentRunErrorCode.INIT_FAILED,
               errorMessage:
                 error instanceof Error
                   ? error.message

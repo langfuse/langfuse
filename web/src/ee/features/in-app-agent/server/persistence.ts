@@ -1,16 +1,21 @@
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
-import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import {
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
+import { Prisma } from "@langfuse/shared/src/db";
 import type {
   InAppAgentConversation,
-  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 
@@ -38,7 +43,6 @@ import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/ee/features/in-app-agent/
 const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
 const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const STALE_RUN_ERROR_CODE = "stale";
 const STALE_RUN_ERROR_MESSAGE =
   "Run was marked stale before starting a new run";
 const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
@@ -179,8 +183,9 @@ export async function createRun(params: {
         createdAt: { lt: staleBefore },
       },
       data: {
+        status: InAppAgentRunStatus.FAILED,
         finishedAt: now,
-        errorCode: STALE_RUN_ERROR_CODE,
+        errorCode: InAppAgentRunErrorCode.STALE,
         errorMessage: STALE_RUN_ERROR_MESSAGE,
       },
     });
@@ -198,16 +203,31 @@ export async function createRun(params: {
       throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
     }
 
-    return tx.inAppAgentRun.create({
-      data: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        triggeredByUserId: params.triggeredByUserId,
-        model: params.model,
-        mcpApiKeyId: params.mcpApiKeyId,
-      },
-    });
+    try {
+      return await tx.inAppAgentRun.create({
+        data: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          triggeredByUserId: params.triggeredByUserId,
+          model: params.model,
+          mcpApiKeyId: params.mcpApiKeyId,
+          // The foreground path has no queue/claim step; runs start executing.
+          status: InAppAgentRunStatus.RUNNING,
+        },
+      });
+    } catch (error) {
+      // Backstop: the partial unique index on active runs. The conversation
+      // lock above should make this unreachable; surface it as the same
+      // conflict as the primary check instead of a 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
+      }
+      throw error;
+    }
   });
 }
 
@@ -215,9 +235,16 @@ export async function finishRun(params: {
   prisma: PrismaClient;
   runId: string;
   projectId: string;
-  errorCode?: string | null;
+  errorCode?: InAppAgentRunErrorCode | null;
   errorMessage?: string | null;
 }) {
+  const errorCode = params.errorCode ?? null;
+  const status =
+    errorCode == null
+      ? InAppAgentRunStatus.SUCCEEDED
+      : errorCode === InAppAgentRunErrorCode.CANCELLED
+        ? InAppAgentRunStatus.CANCELLED
+        : InAppAgentRunStatus.FAILED;
   await params.prisma.inAppAgentRun
     .updateMany({
       where: {
@@ -226,8 +253,9 @@ export async function finishRun(params: {
         finishedAt: null,
       },
       data: {
+        status,
         finishedAt: new Date(),
-        errorCode: params.errorCode ?? null,
+        errorCode,
         errorMessage: params.errorMessage ?? null,
       },
     })

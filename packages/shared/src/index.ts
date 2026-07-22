@@ -46,6 +46,9 @@ export * from "./features/batchAction/addToDatasetTypes";
 export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
 
+// in-app agent
+export * from "./features/inAppAgent/types";
+
 // annotation
 export * from "./features/annotation/types";
 
