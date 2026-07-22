@@ -35,7 +35,7 @@ export function V4MigrationProjectChip({
     <button
       type="button"
       onClick={handleClick}
-      className="text-foreground ring-border hover:bg-muted/50 relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring"
+      className="text-foreground ring-border hover:bg-muted/50 relative inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
     >
       <span
         aria-hidden

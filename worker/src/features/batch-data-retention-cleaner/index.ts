@@ -1,11 +1,12 @@
 import { createHash } from "crypto";
+import pLimit from "p-limit";
 
-import { percentile } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   commandClickhouse,
   convertDateToClickhouseDateTime,
   logger,
+  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
   recordGauge,
@@ -54,54 +55,24 @@ interface ProjectRetention {
 }
 
 interface ProjectWorkload extends ProjectRetention {
-  expiredRowCount: number | null;
-  oldestAgeSeconds: number | null;
+  rowCount: number | null;
+  secondsPastCutoff: number | null;
 }
 
-function parseMonthlyPartitionStart(partitionId: string): Date | null {
-  if (!/^\d{6}$/.test(partitionId)) {
-    return null;
-  }
-
-  const year = Number(partitionId.slice(0, 4));
-  const month = Number(partitionId.slice(4, 6));
-  if (year < 100 || month < 1 || month > 12) {
-    return null;
-  }
-
-  return new Date(Date.UTC(year, month - 1, 1));
+interface ProjectWorkloadSelection {
+  observedWorkloads: ProjectWorkload[];
+  selectedWorkloads: ProjectWorkload[];
+  lagMeasurementComplete: boolean;
 }
 
-async function getOldestProjectPartitionStarts(
-  tableName: BatchDataRetentionTable,
-  projectIds: string[],
-): Promise<Map<string, Date | null>> {
-  if (projectIds.length === 0) {
-    return new Map();
-  }
+interface CandidateDiscoveryResult {
+  candidates: ProjectRetention[];
+  complete: boolean;
+}
 
-  const result = await queryClickhouse<{
-    project_id: string;
-    oldest_expired_partition: string;
-  }>({
-    query: `
-      SELECT
-        project_id,
-        min(_partition_id) AS oldest_expired_partition
-      FROM ${tableName}
-      PREWHERE project_id IN ({candidateProjectIds: Array(String)})
-      GROUP BY project_id
-    `,
-    params: { candidateProjectIds: projectIds },
-    useMultipartParamsAuto: true,
-  });
-
-  return new Map(
-    result.map((row) => [
-      row.project_id,
-      parseMonthlyPartitionStart(row.oldest_expired_partition),
-    ]),
-  );
+interface EnrichmentResult {
+  workloads: ProjectWorkload[];
+  complete: boolean;
 }
 
 /**
@@ -113,7 +84,7 @@ function toParamKey(projectId: string): string {
 
 /**
  * Build OR conditions for project-specific cutoffs.
- * Used by both count and delete queries.
+ * Used by candidate discovery and delete queries.
  * Uses hashed projectId keys to prevent index mismatch bugs.
  */
 function buildRetentionConditions(
@@ -164,8 +135,8 @@ function buildRetentionConditions(
  * 1. Query PG for all projects with retentionDays > 0
  * 2. Calculate retention cutoff dates for each project
  * 3. Stream projects with expired rows from bounded project chunks
- * 4. Best-effort enrich candidates with exact count and oldest timestamp
- * 5. Sort by expired count DESC when enrichment is available
+ * 4. Best-effort enrich candidates with total row count and oldest timestamp
+ * 5. Sort by lag past cutoff DESC, using total row count as a tie-breaker
  * 6. Execute a single batch DELETE with OR conditions
  */
 export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
@@ -212,6 +183,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     logger.info(`Starting ${this.instanceName}`, {
       intervalMs: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS,
       projectLimit: env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
+      queryConcurrency:
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_QUERY_CONCURRENCY,
       candidateQueryTimeoutMs:
         env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS,
       deleteTimeoutMs:
@@ -276,75 +249,57 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         this.lastLockExtensionAt = 0;
 
         // Step 1: Get project workloads (streamed CH candidates + PG config)
-        const workloads = await this.getProjectWorkloads();
-
-        recordGauge(`${METRIC_PREFIX}.pending_projects`, workloads.length, {
-          table: this.tableName,
-        });
-
-        const SECONDS_PER_DAY = 86400;
-        const secondsPastCutoffByProject = workloads
-          .filter((workload) => workload.oldestAgeSeconds !== null)
-          .map((workload) => ({
-            projectId: workload.projectId,
-            secondsPastCutoff:
-              workload.oldestAgeSeconds! -
-              workload.retentionDays * SECONDS_PER_DAY,
-          }));
-
-        // Compute p90 for the gauge metric (0 when no pending work)
-        const p90SecondsPastCutoff = percentile(
-          secondsPastCutoffByProject.map((project) =>
-            Math.max(project.secondsPastCutoff, 0),
-          ),
-          0.9,
-        );
+        const { observedWorkloads, selectedWorkloads, lagMeasurementComplete } =
+          await this.getProjectWorkloads();
 
         recordGauge(
-          `${METRIC_PREFIX}.seconds_past_cutoff`,
-          Math.max(p90SecondsPastCutoff, 0),
+          `${METRIC_PREFIX}.pending_projects`,
+          observedWorkloads.length,
           {
             table: this.tableName,
           },
         );
 
-        // Step 2: Execute DELETE
-        if (workloads.length >= 0) {
-          logger.info(
-            `${this.instanceName}: Processing ${workloads.length} projects`,
+        // Retention cutoffs come from Postgres and are frozen once per run.
+        // Fold the per-project results here to preserve one maximum across all
+        // bounded ClickHouse queries.
+        const observedMaxSecondsPastCutoff = observedWorkloads.reduce(
+          (maximum, workload) =>
+            workload.secondsPastCutoff === null
+              ? maximum
+              : Math.max(maximum, workload.secondsPastCutoff),
+          0,
+        );
+
+        if (lagMeasurementComplete) {
+          recordGauge(
+            `${METRIC_PREFIX}.seconds_past_cutoff`,
+            observedMaxSecondsPastCutoff,
             {
-              projectIds: workloads.map((workload) => workload.projectId),
-              secondsPastCutoffByProject,
+              table: this.tableName,
+            },
+          );
+        }
+
+        // Step 2: Execute DELETE
+        if (selectedWorkloads.length > 0) {
+          logger.info(
+            `${this.instanceName}: Processing ${selectedWorkloads.length} projects`,
+            {
+              projectIds: selectedWorkloads.map(
+                (workload) => workload.projectId,
+              ),
+              pendingProjectsSeen: observedWorkloads.length,
+              observedMaxSecondsPastCutoff,
+              lagMeasurementComplete,
             },
           );
 
-          await this.executeBatchDelete(timestampColumn, workloads);
-
-          if (workloads.length > 0) {
-            const matchedRows = workloads.reduce<number | null>(
-              (sum, workload) =>
-                sum === null || workload.expiredRowCount === null
-                  ? null
-                  : sum + workload.expiredRowCount,
-              0,
-            );
-
-            if (matchedRows === null) {
-              recordIncrement(`${METRIC_PREFIX}.row_count_unavailable`, 1, {
-                table: this.tableName,
-              });
-            } else {
-              recordIncrement(
-                `${METRIC_PREFIX}.rows_matched_before_delete`,
-                matchedRows,
-                { table: this.tableName },
-              );
-            }
-          }
+          await this.executeBatchDelete(timestampColumn, selectedWorkloads);
 
           logger.info(`${this.instanceName}: Batch deletion completed`, {
             table: this.tableName,
-            projectsProcessed: workloads.length,
+            projectsProcessed: selectedWorkloads.length,
           });
         } else {
           logger.info(
@@ -358,7 +313,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         });
         recordIncrement(
           `${METRIC_PREFIX}.projects_processed`,
-          workloads.length,
+          selectedWorkloads.length,
           {
             table: this.tableName,
           },
@@ -377,10 +332,10 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    * 1. PostgreSQL: Get all projects with retention enabled
    * 2. Calculate cutoffs for all projects
    * 3. Stream projects with expired data from each CHUNK_SIZE project chunk
-   * 4. Best-effort enrich each chunk's candidates with count/min
-   * 5. Sort by count when available and select top PROJECT_LIMIT
+   * 4. Best-effort enrich each chunk's candidates with total count/min
+   * 5. Sort by lag, then total count, and select top PROJECT_LIMIT
    */
-  private async getProjectWorkloads(): Promise<ProjectWorkload[]> {
+  private async getProjectWorkloads(): Promise<ProjectWorkloadSelection> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
 
     // Step 1: Get all projects with retention from PostgreSQL
@@ -393,7 +348,11 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     });
 
     if (projectsWithRetention.length === 0) {
-      return [];
+      return {
+        observedWorkloads: [],
+        selectedWorkloads: [],
+        lagMeasurementComplete: true,
+      };
     }
 
     // Step 2: Calculate cutoffs for all projects upfront
@@ -421,36 +380,97 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       );
     }
 
-    // Step 4: Exact count/min is useful for global ordering and metrics, but
-    // deletion must not depend on this more expensive grouped query succeeding.
-    // Keep enrichment per input chunk so its parameters remain bounded too.
-    const chunkWorkloads = await Promise.all(
-      projectChunks.map(async (projectChunk) => {
-        const candidates = await this.findExpiredProjectCandidates(
-          timestampColumn,
-          projectChunk,
-        );
-        return this.enrichProjectCandidates(timestampColumn, candidates);
-      }),
+    // Step 4: Oldest timestamp provides the main ordering signal and total
+    // count breaks ties, but deletion must not depend on this grouped query
+    // succeeding. Keep enrichment per input chunk so its parameters remain
+    // bounded too.
+    const limitRetentionQuery = pLimit(
+      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_QUERY_CONCURRENCY,
     );
-    const workloads = chunkWorkloads.flat();
+    let leaseLost = false;
+    // Wait for every limited pipeline so no queued query outlives the lock.
+    const settledChunkResults = await Promise.allSettled(
+      projectChunks.map((projectChunk) =>
+        limitRetentionQuery(async () => {
+          if (leaseLost) {
+            return null;
+          }
 
-    // A failed count can indicate a particularly large workload. Prioritize
-    // unknown counts ahead of exact counts instead of treating them as empty.
+          try {
+            const discovery = await this.findExpiredProjectCandidates(
+              timestampColumn,
+              projectChunk,
+            );
+            if (leaseLost) {
+              return null;
+            }
+
+            const enrichment = await this.enrichProjectCandidates(
+              timestampColumn,
+              discovery.candidates,
+            );
+            return {
+              workloads: enrichment.workloads,
+              complete: discovery.complete && enrichment.complete,
+            };
+          } catch (error) {
+            if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
+              leaseLost = true;
+            }
+            throw error;
+          }
+        }),
+      ),
+    );
+
+    const failedChunk = settledChunkResults.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failedChunk) {
+      throw failedChunk.reason;
+    }
+
+    const chunkResults = settledChunkResults.flatMap((result) =>
+      result.status === "fulfilled" && result.value !== null
+        ? [result.value]
+        : [],
+    );
+    const workloads = chunkResults.flatMap((result) => result.workloads);
+
+    // Prioritize the projects furthest behind their cutoff. A failed lag or
+    // count estimate can indicate a particularly large workload, so keep
+    // unknown values ahead of known ones to avoid starvation.
     workloads.sort((left, right) => {
-      if (left.expiredRowCount === null) {
-        return right.expiredRowCount === null ? 0 : -1;
+      if (left.secondsPastCutoff === null) {
+        if (right.secondsPastCutoff !== null) {
+          return -1;
+        }
+      } else if (right.secondsPastCutoff === null) {
+        return 1;
+      } else {
+        const lagDifference = right.secondsPastCutoff - left.secondsPastCutoff;
+        if (lagDifference !== 0) {
+          return lagDifference;
+        }
       }
-      if (right.expiredRowCount === null) {
+
+      if (left.rowCount === null) {
+        return right.rowCount === null ? 0 : -1;
+      }
+      if (right.rowCount === null) {
         return 1;
       }
-      return right.expiredRowCount - left.expiredRowCount;
+      return right.rowCount - left.rowCount;
     });
 
-    return workloads.slice(
-      0,
-      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
-    );
+    return {
+      observedWorkloads: workloads,
+      selectedWorkloads: workloads.slice(
+        0,
+        env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
+      ),
+      lagMeasurementComplete: chunkResults.every((result) => result.complete),
+    };
   }
 
   /**
@@ -460,9 +480,9 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   private async findExpiredProjectCandidates(
     timestampColumn: string,
     projects: ProjectRetention[],
-  ): Promise<ProjectRetention[]> {
+  ): Promise<CandidateDiscoveryResult> {
     if (projects.length === 0) {
-      return [];
+      return { candidates: [], complete: true };
     }
 
     const { conditions, params } = buildRetentionConditions(
@@ -478,6 +498,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     `;
 
     const candidatesById = new Map<string, ProjectRetention>();
+    let complete = true;
     const projectsById = new Map(
       projects.map((project) => [project.projectId, project]),
     );
@@ -513,6 +534,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
         throw error;
       }
+      complete = false;
       recordIncrement(`${METRIC_PREFIX}.candidate_query_failures`, 1, {
         table: this.tableName,
       });
@@ -525,136 +547,160 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     // A completed query is progress even when it did not yield a candidate.
     await this.extendLockOnProgress();
 
-    return Array.from(candidatesById.values());
+    return {
+      candidates: Array.from(candidatesById.values()),
+      complete,
+    };
   }
 
   /**
-   * Best-effort exact count and oldest age for discovered candidates. If this
-   * query fails, estimate the oldest age from the monthly partition instead.
+   * Best-effort total count and oldest retention timestamp for discovered
+   * candidates. The query deliberately filters only on project_id. Retention
+   * cutoffs come from Postgres and are frozen once per run, so they are applied
+   * after the result is returned. A failed primary query is retried once on a
+   * read-only pool. If both attempts fail, candidates remain eligible for
+   * deletion without publishing a partial lag maximum.
    */
   private async enrichProjectCandidates(
     timestampColumn: string,
     candidates: ProjectRetention[],
-  ): Promise<ProjectWorkload[]> {
+  ): Promise<EnrichmentResult> {
     if (candidates.length === 0) {
-      return [];
+      return { workloads: [], complete: true };
     }
 
-    const { conditions, params } = buildRetentionConditions(
-      timestampColumn,
-      candidates,
-    );
     const query = `
       SELECT
         project_id,
-        count() AS count,
-        dateDiff('second', min(event_ts), now()) AS oldest_age_seconds
+        count() AS row_count,
+        min(${timestampColumn}) AS oldest_timestamp
       FROM ${this.tableName}
-      PREWHERE ${conditions}
+      PREWHERE project_id IN ({candidateProjectIds: Array(String)})
       GROUP BY project_id
     `;
 
-    try {
+    const queryExactWorkloads = async (
+      preferredClickhouseService?: "ReadOnly" | "EventsReadOnly",
+    ): Promise<ProjectWorkload[]> => {
       const result = await queryClickhouse<{
         project_id: string;
-        count: number;
-        oldest_age_seconds: number;
+        row_count: number;
+        oldest_timestamp: string;
       }>({
         query,
-        params,
+        params: {
+          candidateProjectIds: candidates.map(
+            (candidate) => candidate.projectId,
+          ),
+        },
         useMultipartParamsAuto: true,
+        preferredClickhouseService,
+        clickhouseConfigs: {
+          request_timeout:
+            env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS,
+          clickhouse_settings: {
+            http_send_timeout: this.candidateQueryHttpTimeoutSeconds,
+            http_receive_timeout: this.candidateQueryHttpTimeoutSeconds,
+          },
+        },
       });
 
       const resultByProjectId = new Map(
         result.map((row) => {
-          const oldestAgeSeconds = Number(row.oldest_age_seconds);
+          const oldestTimestamp = parseClickhouseUTCDateTimeFormat(
+            row.oldest_timestamp,
+          );
+          if (Number.isNaN(oldestTimestamp.getTime())) {
+            throw new Error(
+              `Invalid oldest timestamp for project ${row.project_id}`,
+            );
+          }
 
           return [
             row.project_id,
             {
-              count: Number(row.count),
-              oldestAgeSeconds: Number.isFinite(oldestAgeSeconds)
-                ? oldestAgeSeconds
-                : null,
+              rowCount: Number(row.row_count),
+              oldestTimestamp,
             },
           ] as const;
         }),
       );
 
-      await this.extendLockOnProgress();
-
-      return candidates.map((candidate) => {
+      return candidates.flatMap((candidate) => {
         const resultForProject = resultByProjectId.get(candidate.projectId);
-        return {
-          ...candidate,
-          expiredRowCount: resultForProject?.count ?? null,
-          oldestAgeSeconds: resultForProject?.oldestAgeSeconds ?? null,
-        };
+        if (
+          !resultForProject ||
+          resultForProject.oldestTimestamp.getTime() >=
+            candidate.cutoffDate.getTime()
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            ...candidate,
+            rowCount: resultForProject.rowCount,
+            secondsPastCutoff:
+              (candidate.cutoffDate.getTime() -
+                resultForProject.oldestTimestamp.getTime()) /
+              1000,
+          },
+        ];
       });
+    };
+
+    try {
+      const workloads = await queryExactWorkloads();
+      await this.extendLockOnProgress();
+      return { workloads, complete: true };
     } catch (error) {
       if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
         throw error;
       }
-      recordIncrement(`${METRIC_PREFIX}.enrichment_query_failures`, 1, {
-        table: this.tableName,
-      });
-      logger.warn(`${this.instanceName}: Candidate enrichment failed`, {
-        error,
-        candidatesFound: candidates.length,
-      });
-
-      await this.extendLockOnProgress();
-      return this.enrichCandidatesFromOldestPartition(candidates);
-    }
-  }
-
-  /**
-   * Estimate each candidate's oldest age from its oldest monthly partition.
-   * The partition start is an upper bound on how far the oldest row is past
-   * cutoff. If this query also fails, retain the candidates without metrics.
-   */
-  private async enrichCandidatesFromOldestPartition(
-    candidates: ProjectRetention[],
-  ): Promise<ProjectWorkload[]> {
-    try {
-      const partitionStartByProjectId = await getOldestProjectPartitionStarts(
-        this.tableName,
-        candidates.map((candidate) => candidate.projectId),
+      logger.warn(
+        `${this.instanceName}: Candidate enrichment failed; retrying on read-only`,
+        {
+          error,
+          candidatesFound: candidates.length,
+        },
       );
 
-      await this.extendLockOnProgress();
+      // Reset the lease before another potentially long exact query.
+      await this.extendLockOnProgress(true);
 
-      const now = Date.now();
-      return candidates.map((candidate) => {
-        const partitionStart = partitionStartByProjectId.get(
-          candidate.projectId,
-        );
+      const preferredClickhouseService =
+        this.tableName === "events_full" || this.tableName === "events_core"
+          ? "EventsReadOnly"
+          : "ReadOnly";
+
+      try {
+        const workloads = await queryExactWorkloads(preferredClickhouseService);
+        await this.extendLockOnProgress();
+        return { workloads, complete: true };
+      } catch (retryError) {
+        if (retryError instanceof BatchDataRetentionCleanerLeaseLostError) {
+          throw retryError;
+        }
+
+        recordIncrement(`${METRIC_PREFIX}.enrichment_query_failures`, 1, {
+          table: this.tableName,
+        });
+        logger.warn(`${this.instanceName}: Candidate enrichment failed`, {
+          error: retryError,
+          primaryError: error,
+          candidatesFound: candidates.length,
+        });
+
+        await this.extendLockOnProgress();
         return {
-          ...candidate,
-          expiredRowCount: null,
-          oldestAgeSeconds: partitionStart
-            ? (now - partitionStart.getTime()) / 1000
-            : null,
+          workloads: candidates.map((candidate) => ({
+            ...candidate,
+            rowCount: null,
+            secondsPastCutoff: null,
+          })),
+          complete: false,
         };
-      });
-    } catch (error) {
-      if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
-        throw error;
       }
-      recordIncrement(`${METRIC_PREFIX}.partition_fallback_query_failures`, 1, {
-        table: this.tableName,
-      });
-      logger.warn(`${this.instanceName}: Partition fallback query failed`, {
-        error,
-        candidatesFound: candidates.length,
-      });
-
-      await this.extendLockOnProgress();
-      return candidates.map((candidate) => ({
-        ...candidate,
-        expiredRowCount: null,
-        oldestAgeSeconds: null,
-      }));
     }
   }
 

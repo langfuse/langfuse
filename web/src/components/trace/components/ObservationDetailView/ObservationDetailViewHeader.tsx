@@ -129,7 +129,7 @@ export const ObservationDetailViewHeader = memo(
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span className="mb-0 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+            <span className="mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
               {observation.name || observation.id}
             </span>
             <DetailHeaderActionsMenu

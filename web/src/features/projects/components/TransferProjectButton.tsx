@@ -107,7 +107,7 @@ export function TransferProjectButton() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+          <DialogTitle className="text-lg font-bold">
             Transfer Project
           </DialogTitle>
           <Alert className="mt-2">

@@ -122,7 +122,7 @@ function StatusPill({ ready }: { ready: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
         ready
           ? "bg-light-green text-dark-green"
           : "bg-light-yellow text-dark-yellow",
@@ -354,7 +354,7 @@ function OrgStatusSection({
                   <TableCell density="comfortable" className="max-w-48">
                     {row.isDummy ? (
                       <span
-                        className="block truncate font-medium"
+                        className="block truncate font-bold"
                         title={row.name}
                       >
                         {row.name}
@@ -362,7 +362,7 @@ function OrgStatusSection({
                     ) : (
                       <Link
                         href={`/project/${row.id}`}
-                        className="block truncate font-medium hover:underline"
+                        className="block truncate font-bold hover:underline"
                         title={row.name}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -531,11 +531,11 @@ export default function V4MigrationStatusPage() {
       <div className="flex flex-col gap-6 pt-2 pb-24">
         <Card className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4 p-6">
           <div className="flex min-w-0 flex-col gap-2.5">
-            <p className="text-base font-semibold">
+            <p className="text-base font-bold">
               Langfuse v4 is here. Real-time and up to 165× faster
             </p>
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-2xl leading-none font-medium tracking-tight">
+              <span className="text-2xl leading-none font-bold tracking-tight">
                 {readyProjects}
               </span>
               <span className="text-muted-foreground text-sm">
@@ -563,12 +563,12 @@ export default function V4MigrationStatusPage() {
         ))}
 
         <div className="mt-6">
-          <p className="text-base font-semibold">What&apos;s new in v4</p>
+          <p className="text-base font-bold">What&apos;s new in v4</p>
           <div className="flex flex-col gap-6 pt-4">
             <div className="divide-y">
               {faqItems.map(({ q, a }) => (
                 <div key={q} className="py-3">
-                  <p className="text-sm font-medium">{q}</p>
+                  <p className="text-sm font-bold">{q}</p>
                   <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                     {a}
                   </p>

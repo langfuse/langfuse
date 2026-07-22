@@ -185,7 +185,7 @@ function InlineTake({
         </InlineField>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
-        <div className="text-foreground text-sm font-medium">
+        <div className="text-foreground text-sm font-bold">
           {describeConfig(config)}
         </div>
         <div className="min-h-0 flex-1">

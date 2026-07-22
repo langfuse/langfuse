@@ -209,6 +209,22 @@ describe("queryBuilder", () => {
         } as QueryType,
       ],
       [
+        "scores-boolean query",
+        {
+          view: "scores-boolean",
+          dimensions: [{ field: "booleanValue" }],
+          metrics: [
+            { measure: "count", aggregation: "count" },
+            { measure: "value", aggregation: "avg" },
+          ],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
+        } as QueryType,
+      ],
+      [
         "scores-numeric query with filters and time dimension",
         {
           view: "scores-numeric",
@@ -2449,6 +2465,97 @@ describe("queryBuilder", () => {
         expect(result.data).toHaveLength(1);
         expect(result.data[0].name).toBe("accuracy");
         expect(Number(result.data[0].count_count)).toBe(1);
+      });
+    });
+
+    describe("scores-boolean view", () => {
+      it("isolates boolean scores and supports boolean breakdowns, filters, and true-rate aggregation", async () => {
+        const projectId = randomUUID();
+        const timestamp = Date.now();
+
+        await createScoresCh([
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 1,
+            string_value: "true",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 0,
+            string_value: "false",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 1,
+            string_value: "true",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "NUMERIC",
+            name: "boolean-widget-test",
+            value: 1,
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "CATEGORICAL",
+            name: "boolean-widget-test",
+            string_value: "true",
+            timestamp,
+          }),
+        ]);
+
+        const baseQuery = {
+          view: "scores-boolean",
+          metrics: [
+            { measure: "count", aggregation: "count" },
+            { measure: "value", aggregation: "avg" },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(timestamp - 86_400_000).toISOString(),
+          toTimestamp: new Date(timestamp + 86_400_000).toISOString(),
+          orderBy: null,
+        } satisfies Omit<QueryType, "dimensions" | "filters">;
+
+        const grouped = await executeQuery(projectId, {
+          ...baseQuery,
+          dimensions: [{ field: "booleanValue" }],
+          filters: [],
+        });
+
+        expect(grouped).toHaveLength(2);
+        const trueGroup = grouped.find((row) => row.booleanValue === true);
+        const falseGroup = grouped.find((row) => row.booleanValue === false);
+        expect(Number(trueGroup?.count_count)).toBe(2);
+        expect(Number(trueGroup?.avg_value)).toBe(1);
+        expect(Number(falseGroup?.count_count)).toBe(1);
+        expect(Number(falseGroup?.avg_value)).toBe(0);
+
+        const filtered = await executeQuery(projectId, {
+          ...baseQuery,
+          dimensions: [],
+          filters: [
+            {
+              column: "booleanValue",
+              operator: "=",
+              value: true,
+              type: "boolean",
+            },
+          ],
+        });
+
+        expect(filtered).toHaveLength(1);
+        expect(Number(filtered[0]?.count_count)).toBe(2);
+        expect(Number(filtered[0]?.avg_value)).toBe(1);
       });
     });
 

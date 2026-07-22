@@ -92,7 +92,7 @@ export function Chip({
   return (
     <span
       className={cn(
-        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+        "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
         variant === "warning"
           ? "bg-light-yellow text-dark-yellow"
           : "bg-light-green text-dark-green",
@@ -127,7 +127,7 @@ function Section({
 }
 
 function MonoValue({ children }: { children: ReactNode }) {
-  return <span className="text-foreground font-medium">{children}</span>;
+  return <span className="text-foreground font-bold">{children}</span>;
 }
 
 function ExternalLink({
@@ -212,7 +212,7 @@ export function V4MigrationHeaderContent({
 
   return (
     <>
-      <p className="mb-1.5 text-lg font-semibold">
+      <p className="mb-1.5 text-lg font-bold">
         {projectName ? (
           <>
             Migrate <span className="underline">{projectName}</span> to v4
@@ -277,7 +277,7 @@ export function V4MigrationDetailsContent({
   return (
     <>
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex items-center gap-2 text-base font-bold">
           <LibraryBig className="h-4 w-4" /> Want to review first?
         </div>
         <div className="flex items-center gap-2">
@@ -301,7 +301,7 @@ export function V4MigrationDetailsContent({
       <Separator />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex items-center gap-2 text-base font-bold">
           <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
           update?
         </div>
@@ -436,7 +436,7 @@ export function V4MigrationDetailsContent({
       <Separator />
 
       <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 text-base font-semibold">
+        <div className="flex items-center gap-2 text-base font-bold">
           <LifeBuoy className="h-4 w-4" /> Contact us
         </div>
         <p className="text-muted-foreground text-sm">

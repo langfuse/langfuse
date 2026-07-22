@@ -144,7 +144,7 @@ export function CustomMappingEditor({
   return (
     <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
-        <Label className="text-sm font-medium">Target</Label>
+        <Label className="text-sm font-bold">Target</Label>
         <Tabs
           value={config.type}
           onValueChange={(v) => handleTypeChange(v as MappingTarget)}
@@ -160,7 +160,7 @@ export function CustomMappingEditor({
       {config.type === "root" && (
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">Source</Label>
+            <Label className="text-sm font-bold">Source</Label>
             <div className="mt-1">
               <SourceFieldSelector
                 value={config.rootConfig?.sourceField ?? defaultSourceField}
@@ -169,7 +169,7 @@ export function CustomMappingEditor({
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">JSONPath</Label>
+            <Label className="text-sm font-bold">JSONPath</Label>
             <div className="mt-1">
               <JsonPathInput
                 value={config.rootConfig?.jsonPath ?? "$."}
@@ -189,7 +189,7 @@ export function CustomMappingEditor({
 
       {config.type === "keyValueMap" && (
         <div className="max-h-[35vh] space-y-3 overflow-auto">
-          <Label className="text-sm font-medium">Key-value mappings</Label>
+          <Label className="text-sm font-bold">Key-value mappings</Label>
           <p className="text-muted-foreground text-xs">
             Build an object with custom keys. Values starting with $ are treated
             as JSONPaths.

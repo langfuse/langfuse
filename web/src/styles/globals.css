@@ -9,6 +9,35 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
+   system stacks while the token system (families here, weight roles below,
+   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
+   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
+   :root from _app — next/font CSS is silently dropped in _document), prepend
+   its var to the stacks below, and retune the two weight-role numbers
+   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
+   can preview typefaces live without shipping them. Deliberately a plain
+   @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
+   and only non-inline themes emit the :root custom property. `static`: emit
+   the weight-role vars even when unused in source — the theme-lab tool and
+   inline styles read them at runtime. */
+@theme static {
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
+     Both are font-relative, so components never hardcode numbers.
+     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
+     (700): the `font-bold` utility IS the bold role. font-medium /
+     font-semibold / raw numbers are drift — use font-bold or nothing. */
+  --font-weight-regular: 400;
+  --font-weight-bold: 600;
+}
+
 @theme inline {
   /* Disable unused built-in Tailwind color palettes. */
   --color-lime-*: initial;
@@ -19,9 +48,11 @@
   --color-neutral-*: initial;
   --color-stone-*: initial;
   --color-slate-*: initial;
+  --color-zinc-*: initial;
+  --color-indigo-*: initial;
 
   /* TODO: Disable the remaining default palettes: red, orange, amber, yellow,
-     green, emerald, teal, blue, indigo, violet, purple, pink, gray, zinc. */
+     green, emerald, teal, blue, violet, purple, pink, gray. */
 
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
@@ -52,6 +83,10 @@
   --color-dark-blue: hsl(var(--dark-blue));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
+  --color-light-violet: hsl(var(--light-violet));
+  --color-dark-violet: hsl(var(--dark-violet));
+  --color-light-teal: hsl(var(--light-teal));
+  --color-dark-teal: hsl(var(--dark-teal));
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -107,13 +142,26 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
+  /* Text styles: each size token carries its canonical weight, so `text-*`
+     alone yields a complete style (one weight per token — the design-system
+     rule). Weights reference the font-relative weight roles above; heavier
+     text opts in via `font-bold` (the bold role) — never a raw number.
+     Any other weight utility is drift (the theme-lab tool samples drift
+     per token). */
   --text-xs: 0.7rem;
+  --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
+  --text-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
+  --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1.1rem;
+  --text-lg--font-weight: var(--font-weight-regular);
   --text-xl: 1.2rem;
+  --text-xl--font-weight: var(--font-weight-regular);
   --text-2xl: 1.3rem;
+  --text-2xl--font-weight: var(--font-weight-regular);
   --text-3xl: 1.5rem;
+  --text-3xl--font-weight: var(--font-weight-regular);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -199,16 +247,16 @@
     --surface-code: 0 0% 98%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: var(--foreground);
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: var(--foreground);
 
     /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek).
        Light themes keep the alternating white model (Carbon: light layers
        alternate, dark layers step lighter), so this matches --background. */
     --modal: 0 0% 100%;
-    --modal-foreground: 222.2 84% 4.9%;
+    --modal-foreground: var(--foreground);
 
     --header: 210 40% 98%;
     --header-foreground: var(--foreground);
@@ -278,6 +326,16 @@
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
 
+    /* Violet + teal hue pairs, same bg/fg recipe as the light-X/dark-X pairs
+       above. Added for the score-level color coding (ScoreTag, LFE-10596):
+       observation=blue, trace=violet, session=teal, experiment=yellow — the
+       blue and yellow pairs are reused from above. */
+    --light-violet: 251 91% 95.5%;
+    --dark-violet: 262 72% 54%;
+
+    --light-teal: 167 85% 89%;
+    --dark-teal: 175 84% 28%;
+
     /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
        theme (like a code editor's theme), intentionally its own thing rather
        than the app palette: field=violet, value=green, number=orange,
@@ -342,12 +400,12 @@
        plus hairline borders, not shadows. */
     /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
        cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
-       tiers: emphasis 91% > body 88% > meta 54% > faint 40%, with sidebar nav
+       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
     --background: 0 0% 6%;
-    --foreground: 0 0% 88%;
+    --foreground: 0 0% 70%;
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
@@ -355,13 +413,13 @@
     --surface-code: 0 0% 2.3%;
 
     --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 88%;
+    --popover-foreground: var(--foreground);
 
     --card: 0 0% 7.5%;
-    --card-foreground: 0 0% 88%;
+    --card-foreground: var(--foreground);
 
     --modal: 0 0% 9%;
-    --modal-foreground: 0 0% 88%;
+    --modal-foreground: var(--foreground);
 
     --header: 0 0% 2%;
     --header-foreground: var(--foreground);
@@ -428,6 +486,13 @@
 
     --accent-light-blue: 240 32.4% 13.9%;
     --accent-dark-blue: 246 70% 76%;
+
+    /* Score-level violet + teal (see :root): dark tinted bg + bright fg. */
+    --light-violet: 258 40% 16%;
+    --dark-violet: 255 92% 76%;
+
+    --light-teal: 175 40% 12%;
+    --dark-teal: 172 66% 50%;
 
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */

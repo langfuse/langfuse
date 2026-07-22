@@ -32,7 +32,7 @@ export function V4MigrationDelayBadge() {
     <button
       type="button"
       onClick={handleClick}
-      className="group ring-input hover:bg-muted/50 hover:text-foreground inline-flex w-fit flex-none shrink-0 items-center gap-1.5 rounded-full bg-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap ring"
+      className="group ring-input hover:bg-muted/50 hover:text-foreground inline-flex w-fit flex-none shrink-0 items-center gap-1.5 rounded-full bg-transparent px-2 py-0.5 text-xs font-bold whitespace-nowrap ring"
     >
       <span
         aria-hidden

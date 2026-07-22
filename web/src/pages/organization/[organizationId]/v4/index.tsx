@@ -147,7 +147,7 @@ const ProjectReadinessTable = ({
               <TableCell density="comfortable">
                 <Link
                   href={`/project/${project.projectId}`}
-                  className="font-medium hover:underline"
+                  className="font-bold hover:underline"
                 >
                   {project.projectName}
                 </Link>
@@ -555,7 +555,7 @@ export default function OrganizationV4Page() {
             <div className="flex flex-col gap-4">
               <section className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-medium">
+                  <h3 className="text-sm font-bold">
                     Projects with required changes
                   </h3>
                   <Badge variant="outline-solid" size="sm">
@@ -606,7 +606,7 @@ export default function OrganizationV4Page() {
                   <AccordionItem value="migrated" className="border-b-0">
                     <AccordionTrigger className="py-3 text-sm hover:no-underline">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="font-medium">
+                        <span className="font-bold">
                           Projects without required changes
                         </span>
                         <Badge variant="outline-solid" size="sm">

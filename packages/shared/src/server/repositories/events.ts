@@ -632,6 +632,47 @@ export const getObservationMetricsForPromptsFromEvents = async (
   }));
 };
 
+export const getObservationsWithPromptNameFromEvents = async (
+  projectId: string,
+  promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const query = `
+  SELECT uniq(span_id) as count, prompt_name
+  FROM events_core
+  WHERE project_id = {projectId: String}
+  AND prompt_name IN ({promptNames: Array(String)})
+  AND prompt_name != ''
+  AND is_deleted = 0
+  ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(6)}" : ""}
+  ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(6)}" : ""}
+  GROUP BY prompt_name
+`;
+  const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
+    query,
+    params: {
+      projectId,
+      promptNames,
+      fromTimestamp: fromTimestamp
+        ? convertDateToClickhouseDateTime(fromTimestamp)
+        : undefined,
+      toTimestamp: toTimestamp
+        ? convertDateToClickhouseDateTime(toTimestamp)
+        : undefined,
+    },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    count: Number(row.count),
+    promptName: row.prompt_name,
+  }));
+};
+
 export const getTraceDeleteCursorPageFromEvents = async (props: {
   projectId: string;
   filter: FilterState;

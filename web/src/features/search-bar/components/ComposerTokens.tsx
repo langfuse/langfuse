@@ -39,7 +39,7 @@ export const composerTokenVariants = cva("max-w-full", {
         "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
         "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
-      operator: "font-semibold uppercase text-qlang-keyword",
+      operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
         "mr-1 inline rounded border border-dashed px-1.5 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",

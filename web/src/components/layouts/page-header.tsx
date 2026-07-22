@@ -3,6 +3,8 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
+import { TopbarBrand } from "@/src/components/nav/topbar-brand";
+import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -77,6 +79,12 @@ const PageHeader = ({
   breadcrumbBadges,
 }: PageHeaderProps) => {
   const router = useRouter();
+  const hasAppSidebar = useHasAppSidebar();
+  // The sidebar trigger + brand mark only make sense where a real AppSidebar
+  // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
+  // trace and session views) show the page's own leadingControl instead — no
+  // hamburger opening an empty sheet, no orphaned brand mark.
+  const showSidebarChrome = showSidebarTrigger && hasAppSidebar;
   return (
     <div
       className={cn([
@@ -102,8 +110,14 @@ const PageHeader = ({
             )}
           >
             <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {showSidebarTrigger ? (
-                <SidebarTrigger />
+              {showSidebarChrome ? (
+                <>
+                  <SidebarTrigger />
+                  {/* Brand the app in the top bar while the sidebar (which
+                      owns the logo) is off-canvas below `md`. Hidden on
+                      desktop where the sidebar logo is visible. */}
+                  <TopbarBrand className="md:hidden" />
+                </>
               ) : (
                 leadingControl && (
                   <div className="flex items-center">{leadingControl}</div>
@@ -144,7 +158,12 @@ const PageHeader = ({
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
-                  <h2 className="line-clamp-1 text-lg leading-7 font-semibold">
+                  {/* Explicit color: the SidebarProvider shell sets
+                      text-sidebar-foreground (60% grey in dark) on the whole
+                      app, so unstyled text here would inherit the dimmed
+                      sidebar tint. text-primary is the emphasis tier —
+                      brighter than body text-foreground in dark. */}
+                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (
@@ -215,7 +234,7 @@ const PageHeader = ({
               >
                 {tabsProps.tabs.map((tab) => {
                   const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
                     tab.value === tabsProps.activeTab
                       ? "border-primary-accent text-foreground bg-transparent shadow-none"
                       : "",

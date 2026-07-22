@@ -381,7 +381,7 @@ export function SupportFormSection({
 
   return (
     <div className="mt-1 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-base font-semibold">
+      <div className="flex items-center gap-2 text-base font-bold">
         E-Mail a Support Engineer
       </div>
       <p className="text-muted-foreground text-sm">
@@ -410,9 +410,7 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={
-                          field.value === v ? "default" : "outline-solid"
-                        }
+                        variant={field.value === v ? "default" : "outline"}
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
@@ -498,7 +496,7 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Product Features
                         </div>
                         {TopicGroups["Product Features"].map((t) => (
@@ -508,7 +506,7 @@ export function SupportFormSection({
                         ))}
                       </div>
                       <div className="border-t p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Operations
                         </div>
                         {TopicGroups.Operations.map((t) => (
@@ -640,8 +638,8 @@ export function SupportFormSection({
                 </Dropzone>
 
                 {files && files.length > 0 && (
-                  <div className="p-0 text-left text-sm font-medium">
-                    <div className="text-muted-foreground mb-2 text-xs font-medium">
+                  <div className="p-0 text-left text-sm font-bold">
+                    <div className="text-muted-foreground mb-2 text-xs font-bold">
                       Attached files
                     </div>
                     {files?.map((file) => (

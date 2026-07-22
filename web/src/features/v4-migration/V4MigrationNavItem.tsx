@@ -41,7 +41,7 @@ export function V4MigrationNavItem() {
         className="border-input w-full gap-1.5 rounded-full border pr-2 pl-[9px]"
       >
         <span className="h-2 w-2 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400" />
-        <span className="truncate font-medium" title="Action required">
+        <span className="truncate font-bold" title="Action required">
           Action required
         </span>
         <ChevronRight className="text-muted-foreground ml-auto h-4 w-4 shrink-0" />

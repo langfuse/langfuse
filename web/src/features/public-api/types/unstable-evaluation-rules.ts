@@ -47,6 +47,7 @@ export const GetUnstableEvaluationRuleQuery = z.object({
   evaluationRuleId: z.string(),
 });
 
+/** @alias */
 export const GetUnstableEvaluationRuleResponse = APIEvaluationRule;
 
 export const EvaluationRuleCreateBase = {
@@ -100,8 +101,10 @@ export type PostUnstableEvaluationRuleBodyType = z.infer<
   typeof PostUnstableEvaluationRuleBody
 >;
 
+/** @alias */
 export const PostUnstableEvaluationRuleResponse = APIEvaluationRule;
 
+/** @alias */
 export const PatchUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
 // Exported for reuse (see EvaluationRuleCreateBase) — the create fields, all
@@ -148,8 +151,10 @@ export type PatchUnstableEvaluationRuleBodyType = z.infer<
   typeof PatchUnstableEvaluationRuleBody
 >;
 
+/** @alias */
 export const PatchUnstableEvaluationRuleResponse = APIEvaluationRule;
 
+/** @alias */
 export const DeleteUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
 export const DeleteUnstableEvaluationRuleResponse = z

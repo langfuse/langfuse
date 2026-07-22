@@ -73,7 +73,7 @@ export function InAppAgentWidgetComposer({
       onSubmit={handleSubmit}
       className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3"
     >
-      <div className="flex items-center gap-2 font-medium">
+      <div className="flex items-center gap-2 font-bold">
         <Sparkles className="h-4 w-4" />
         Add with Langfuse Assistant
       </div>

@@ -101,5 +101,3 @@ export const MembershipInvitationTemplate = ({
     </Html>
   );
 };
-
-export default MembershipInvitationTemplate;

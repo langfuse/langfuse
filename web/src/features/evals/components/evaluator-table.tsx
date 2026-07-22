@@ -75,7 +75,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
             </TooltipTrigger>
             <TooltipContent className="max-w-[280px]">
               <div className="space-y-1 text-sm">
-                <p className="font-medium">Action required</p>
+                <p className="font-bold">Action required</p>
                 <p className="text-muted-foreground">
                   This evaluator requires changes to benefit from new features
                   and performance improvements. Please follow{" "}
@@ -83,7 +83,7 @@ function LegacyBadgeCell({ status }: { status: string }) {
                     href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-dark-blue font-medium hover:opacity-80"
+                    className="text-dark-blue font-bold hover:opacity-80"
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
@@ -434,7 +434,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               key="dismissed-eval-remapping-callouts"
             >
               <span>New functionality has landed. </span>
-              <span className="font-semibold">
+              <span className="font-bold">
                 Some of your evaluators (marked &quot;Legacy&quot;) require
                 changes{" "}
               </span>
@@ -443,7 +443,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-dark-blue font-medium hover:opacity-80"
+                className="text-dark-blue font-bold hover:opacity-80"
               >
                 Learn what is changing and how to upgrade
               </Link>
