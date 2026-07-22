@@ -113,7 +113,7 @@ export type EvaluatorSetupRuleControls = {
   setSampling: (sampling: number) => void;
 };
 
-const EVALUATOR_SPLIT_GROUP_ID = "evalV2SetupSplitLayoutNoStepper50";
+const EVALUATOR_SPLIT_GROUP_ID = "evalV2SetupSplitLayoutNoStepper60";
 const EVALUATOR_SPLIT_PANEL_IDS = ["evaluator", "rule"];
 
 /** A sample candidate from the rule-preview table. */
@@ -1125,7 +1125,7 @@ export function EvaluatorSetupForm({
         {/* LEFT — everything that defines the evaluator and its mappings. */}
         <ResizablePanel
           id="evaluator"
-          defaultSize="50%"
+          defaultSize="60%"
           minSize="25%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
@@ -1286,7 +1286,7 @@ export function EvaluatorSetupForm({
         {/* RIGHT — where the evaluator runs and how it performs on a sample. */}
         <ResizablePanel
           id="rule"
-          defaultSize="50%"
+          defaultSize="40%"
           minSize="25%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
