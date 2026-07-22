@@ -119,6 +119,8 @@ job_executions.job_configuration_id
                   └── still points to the same run scope that triggered the run
 ```
 
+For the baseline backfill, set `evaluators.id = job_configurations.id`. Existing executions can then appear in the migrated evaluator's history through `job_executions.job_configuration_id = evaluators.id` without rewriting execution rows. This shared ID is a migration aid, not the long-term relationship: once an evaluator is attached to additional run scopes, its complete history is resolved through all retained assignments. If several existing configurations are consolidated into one evaluator, use one canonical configuration ID and retain assignments for the others.
+
 ## Step-by-step walkthrough of the recommended option
 
 The migration first reaches the following compatibility target. Legacy columns remain as long as historical or rollback reads depend on them.
@@ -273,7 +275,7 @@ This gate prevents a legacy container from creating data after the backfill that
 
 ### 4. Backfill with idempotent SQL
 
-The SQL is driven by `job_configurations`, not by template rows. IDs can be deterministic because evaluator and run-scope IDs live in different tables.
+The SQL is driven by `job_configurations`, not by template rows. Evaluator IDs reuse the corresponding job-configuration IDs; this is valid because the IDs live in different tables.
 
 Create the evaluator mapping. The illustrative SQL uses one evaluator per job configuration because the legacy schema has no stable evaluator identity. If an explicit identity rule is agreed before rollout, this is where configurations can be grouped; dual-write must then resolve legacy writes through the same mapping.
 
