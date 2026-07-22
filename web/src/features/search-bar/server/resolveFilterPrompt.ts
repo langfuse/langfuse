@@ -1,0 +1,131 @@
+// Resolve the v4 search-bar Ask AI system prompt.
+//
+// Mirrors the v3 `naturalLanguageFilters.createCompletion` dogfooding
+// pattern (`../../natural-language-filters/server/router.ts`): prefer a
+// MANAGED chat prompt fetched from the AI-features Langfuse project via the
+// SAME client (`getLangfuseClient`), and fall back to the code-built
+// skeleton (`buildFilterSystemPrompt`) whenever the managed prompt is
+// unavailable — self-hosted (no AI-features keys configured), the org has AI
+// telemetry off, or the fetch/compile call throws. Unlike v3 (which hard-fails
+// when the keys are missing), this endpoint must NEVER hard-fail just because
+// the managed prompt couldn't be fetched — self-hosted and telemetry-off are
+// both expected, ordinary states, not errors, and even a fetch failure only
+// degrades to the fallback (with a `logger.warn`, so a broken managed prompt
+// stays visible instead of silently misbehaving).
+//
+// The MANAGED prompt is the source of truth for the INSTRUCTIONAL PROSE
+// (Role, output format, Levels, Metadata, Scores, Null checks, Negation, Tag
+// groups, Intent hints, Examples) — in cloud this is edited live in the
+// Langfuse UI. Its `{{catalog}}` / `{{nullable_ids}}` compile variables are
+// the SAME registry-derived strings the code fallback builds
+// (`buildFieldCatalog` / `nullableFieldIds` in `./buildFilterPrompt`), so the
+// model's column vocabulary can never drift from the bar grammar regardless
+// of which path served the prompt. Drift in the PROSE between the managed
+// prompt and the code fallback is intentional — that's the whole point of
+// making it editable — and must not be tested for equality.
+//
+// The repo-versioned starting point for the managed prompt lives at
+// `./prompts/search-bar-filter.prompt.json`; `scripts/ask-ai/sync-search-bar-filter-prompt.sh`
+// pushes it to each region (run manually by a human with real keys, never by
+// an agent).
+
+import {
+  type ChatMessage,
+  ChatMessageRole,
+  ChatMessageType,
+  logger,
+} from "@langfuse/shared/src/server";
+import type { ChatPromptClient } from "langfuse";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
+import {
+  buildFieldCatalog,
+  buildFilterSystemPrompt,
+  nullableFieldIds,
+} from "./buildFilterPrompt";
+
+/** Name of the managed chat prompt in the AI-features Langfuse project. Kept
+ *  in sync with the repo seed file (`./prompts/search-bar-filter.prompt.json`)
+ *  and the sync script (`scripts/ask-ai/sync-search-bar-filter-prompt.sh`). */
+export const SEARCH_BAR_FILTER_PROMPT_NAME = "search-bar-filter";
+
+export type ResolvedFilterSystemPrompt = {
+  /** The system message(s) to prepend to the request. Always non-empty. */
+  messages: ChatMessage[];
+  /** Set only when the managed prompt served the request, so the caller can
+   *  link the generation's trace to the exact prompt version. Omitted
+   *  (undefined) when the code fallback served the request instead. */
+  usedPrompt?: ChatPromptClient;
+};
+
+function buildFallbackPrompt(
+  currentDatetime: string,
+): ResolvedFilterSystemPrompt {
+  return {
+    messages: [
+      {
+        role: ChatMessageRole.System,
+        content: buildFilterSystemPrompt(currentDatetime),
+        type: ChatMessageType.PublicAPICreated,
+      },
+    ],
+  };
+}
+
+/**
+ * Build the system-prompt message(s) for `searchBar.generateFilter`: try the
+ * managed `search-bar-filter` Langfuse prompt first, fall back to the
+ * code-built skeleton on any reason it can't be used.
+ */
+export async function resolveFilterSystemPrompt(params: {
+  currentDatetime: string;
+  projectId: string;
+  aiTelemetryEnabled: boolean;
+  aiFeaturesPublicKey: string | undefined;
+  aiFeaturesSecretKey: string | undefined;
+  aiFeaturesHost: string | undefined;
+}): Promise<ResolvedFilterSystemPrompt> {
+  const fallback = buildFallbackPrompt(params.currentDatetime);
+
+  // Self-hosted (no keys) and telemetry-off are expected, ordinary states —
+  // the AI-features project is never contacted in either case, so there is
+  // nothing to fetch and nothing to warn about.
+  const canUseManagedPrompt =
+    params.aiTelemetryEnabled &&
+    Boolean(params.aiFeaturesPublicKey) &&
+    Boolean(params.aiFeaturesSecretKey);
+  if (!canUseManagedPrompt) {
+    return fallback;
+  }
+
+  try {
+    const client = getLangfuseClient(
+      params.aiFeaturesPublicKey!,
+      params.aiFeaturesSecretKey!,
+      params.aiFeaturesHost,
+      false,
+    );
+    const promptResponse = await client.getPrompt(
+      SEARCH_BAR_FILTER_PROMPT_NAME,
+      undefined,
+      { type: "chat" },
+    );
+    const compiled = promptResponse.compile({
+      catalog: buildFieldCatalog(),
+      nullable_ids: nullableFieldIds(),
+      current_datetime: params.currentDatetime,
+    });
+    const messages: ChatMessage[] = compiled.map((message) => ({
+      ...(message as ChatMessage),
+      type: ChatMessageType.PublicAPICreated,
+    }));
+    return { messages, usedPrompt: promptResponse };
+  } catch (error) {
+    // A broken or unreachable managed prompt must degrade to the code
+    // fallback, never 500 the endpoint — but stay visible via a warn log.
+    logger.warn(
+      "Search-bar AI filter: failed to fetch the managed prompt, falling back to the code-built prompt",
+      { projectId: params.projectId, error },
+    );
+    return fallback;
+  }
+}

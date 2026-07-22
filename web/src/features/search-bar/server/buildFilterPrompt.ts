@@ -80,6 +80,31 @@ function fieldCatalogLine(field: FieldDef): string {
 }
 
 /**
+ * The column catalog block: one line per registry field with its id,
+ * aliases, unit, description, and the exact type/operators/value shape it
+ * lowers to. Registry-derived so it can never drift from the grammar.
+ *
+ * Shared by the code-built system prompt (`buildFilterSystemPrompt`) AND the
+ * managed-prompt compile path (`{{catalog}}` in the Langfuse-hosted prompt)
+ * — both must see the identical catalog text.
+ */
+export function buildFieldCatalog(): string {
+  return FIELDS.map(fieldCatalogLine).join("\n");
+}
+
+/**
+ * Comma-joined ids of the fields that support null checks (`is null` /
+ * `is not null`). Registry-derived for the same reason as `buildFieldCatalog`
+ * — shared verbatim by the code-built prompt and the `{{nullable_ids}}`
+ * managed-prompt variable.
+ */
+export function nullableFieldIds(): string {
+  return FIELDS.filter((f) => f.nullable)
+    .map((f) => f.id)
+    .join(", ");
+}
+
+/**
  * Build the STATIC system prompt: role, output format, column catalog, and
  * all fixed rules/examples, anchored to `currentDatetime` (so relative time
  * expressions like "today" / "last 24h" resolve against the request time).
@@ -98,10 +123,17 @@ function fieldCatalogLine(field: FieldDef): string {
  * rules that would otherwise ride along in a user message, and sets up the
  * skeleton to become a managed prompt without dynamic values baked into its
  * text.
+ *
+ * This is the FALLBACK path — used when the managed `search-bar-filter`
+ * Langfuse prompt can't be fetched (self-hosted, fetch failure, telemetry
+ * off). Its instructional prose is intentionally allowed to drift from the
+ * managed prompt's prose over time (the managed prompt is edited live in
+ * Langfuse); only the registry-derived catalog/nullable-ids stay identical
+ * across both, via `buildFieldCatalog` / `nullableFieldIds`.
  */
 export function buildFilterSystemPrompt(currentDatetime: string): string {
-  const catalog = FIELDS.map(fieldCatalogLine).join("\n");
-  const nullableIds = FIELDS.filter((f) => f.nullable).map((f) => f.id);
+  const catalog = buildFieldCatalog();
+  const nullableIds = nullableFieldIds();
 
   return `## Role
 
@@ -181,7 +213,7 @@ NEVER use ${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.cat
 
 ## Null checks
 
-For nullable columns, "has no X" / "is missing X" → {"type": "null", "column": "<column>", "operator": "is null" | "is not null", "value": ""}. Nullable columns: ${nullableIds.join(", ")}.
+For nullable columns, "has no X" / "is missing X" → {"type": "null", "column": "<column>", "operator": "is null" | "is not null", "value": ""}. Nullable columns: ${nullableIds}.
 
 ## Full-text / content search
 
