@@ -1129,7 +1129,10 @@ export function EvaluatorSetupForm({
           minSize="25%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
-          <div className="flex min-w-0 flex-col gap-6 px-6 py-6">
+          <header className="bg-muted/40 border-b px-6 py-3">
+            <h2 className="text-lg leading-7 font-bold">Configure evaluator</h2>
+          </header>
+          <div className="flex min-w-0 flex-col gap-6 p-6">
             <div className="flex flex-col gap-2">
               <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
                 Evaluator type
@@ -1290,6 +1293,11 @@ export function EvaluatorSetupForm({
           <div className="min-w-0">
             {ruleEditorExpanded ? (
               <section className="flex min-w-0 flex-col">
+                <header className="bg-muted/40 border-b px-6 py-3">
+                  <h2 className="text-lg leading-7 font-bold">
+                    Test with sample observations
+                  </h2>
+                </header>
                 {activeFilterSourceLabel ? (
                   <header className="bg-muted/40 flex min-w-0 items-center gap-2 border-b px-6 py-3 text-sm">
                     <span className="text-muted-foreground shrink-0">

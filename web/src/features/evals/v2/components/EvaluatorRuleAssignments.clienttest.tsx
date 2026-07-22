@@ -19,10 +19,6 @@ vi.mock("@/src/features/evals/v2/hooks/useValidatedRuleAttachment", () => ({
   useValidatedRuleAttachment: () => mocks.attachmentHook(),
 }));
 
-vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
-  ActivationCostEstimate: () => <div>Estimated cost</div>,
-}));
-
 vi.mock(
   "@/src/features/evals/v2/components/CreateEvaluationRuleDialog",
   () => ({
@@ -100,7 +96,7 @@ describe("EvaluatorRuleAssignments", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows existing evaluation rules and attaches the selected one", () => {
+  it("attaches a selected rule through the shared validation flow", () => {
     const onView = vi.fn();
     const onEdit = vi.fn();
     render(
@@ -108,7 +104,6 @@ describe("EvaluatorRuleAssignments", () => {
         projectId="project-1"
         evaluatorId="evaluator-1"
         evaluatorName="Quality"
-        isCodeEvaluator={false}
         rules={[
           {
             id: "rule-1",
@@ -153,13 +148,8 @@ describe("EvaluatorRuleAssignments", () => {
     expect(screen.getByText("Available rules")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Available rule"));
     expect(
-      screen.getByRole("heading", { name: "Attach evaluator to rule?" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/matched by “Available rule”/)).toBeInTheDocument();
-    expect(screen.getByText("Estimated cost")).toBeInTheDocument();
-    expect(mocks.attach).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
+      screen.queryByRole("heading", { name: "Attach evaluator to rule?" }),
+    ).not.toBeInTheDocument();
     expect(mocks.attach).toHaveBeenCalledWith({
       evaluatorId: "evaluator-1",
       ruleId: "rule-2",
@@ -193,7 +183,6 @@ describe("EvaluatorRuleAssignments", () => {
         projectId="project-1"
         evaluatorId="evaluator-1"
         evaluatorName="Quality"
-        isCodeEvaluator={false}
         rules={[]}
         hasWriteAccess
         onView={vi.fn()}
@@ -225,7 +214,6 @@ describe("EvaluatorRuleAssignments", () => {
         projectId="project-1"
         evaluatorId="evaluator-1"
         evaluatorName="Quality"
-        isCodeEvaluator={false}
         rules={[]}
         hasWriteAccess
         onView={vi.fn()}

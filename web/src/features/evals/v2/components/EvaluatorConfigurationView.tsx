@@ -253,7 +253,6 @@ export function EvaluatorConfigurationView({
             projectId={projectId}
             evaluatorId={evaluatorId}
             evaluatorName={evaluatorName}
-            isCodeEvaluator={evaluatorType === "CODE"}
             rules={attachedEvaluationRules}
             hasWriteAccess={hasWriteAccess}
             onView={onViewEvaluationRule}

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { type FilterState } from "@langfuse/shared";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -23,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   getEvaluator: vi.fn(),
   getSample: vi.fn(),
+  runLlmTest: vi.fn(),
   defaultFilters: [
     {
       column: "environment",
@@ -136,6 +143,7 @@ vi.mock("@/src/utils/api", () => ({
         evals: { configById: { query: mocks.getEvaluator } },
         events: { all: { query: mocks.getSample } },
         evalsV2: {
+          testRunLlmJudge: { mutate: mocks.runLlmTest },
           testRunCodeEval: { mutate: vi.fn() },
         },
       },
@@ -154,6 +162,13 @@ vi.mock("@/src/utils/api", () => ({
             {
               id: "evaluator-1",
               scoreName: "Correctness",
+              targetObject: "event",
+              status: "ACTIVE",
+              evalTemplate: { type: "LLM_AS_JUDGE" },
+            },
+            {
+              id: "evaluator-2",
+              scoreName: "Relevance",
               targetObject: "event",
               status: "ACTIVE",
               evalTemplate: { type: "LLM_AS_JUDGE" },
@@ -205,7 +220,57 @@ describe("CreateEvaluationRuleDialog", () => {
         outputDefinition: null,
       },
     });
-    mocks.getSample.mockResolvedValue({ observations: [] });
+    mocks.getSample.mockResolvedValue({
+      observations: [
+        {
+          id: "observation-1",
+          traceId: "trace-1",
+          startTime: new Date("2026-07-20T12:00:00.000Z"),
+        },
+      ],
+    });
+    mocks.runLlmTest.mockResolvedValue({ success: true });
+  });
+
+  it("keeps every step available without placeholder summaries", () => {
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const samplingStep = screen.getByRole("button", {
+      name: "Step 2: Set sampling rate",
+    });
+    expect(screen.getByRole("dialog", { name: "New rule" })).toHaveClass(
+      "max-w-6xl",
+    );
+    const evaluatorStep = screen.getByRole("button", {
+      name: "Step 3: Attach evaluator",
+    });
+    const nameStep = screen.getByRole("button", {
+      name: "Step 4: Name rule",
+    });
+    expect(samplingStep).toBeEnabled();
+    expect(within(samplingStep).queryByText("100%")).not.toBeInTheDocument();
+    expect(evaluatorStep).toBeEnabled();
+    expect(nameStep).toBeEnabled();
+    expect(
+      screen.queryByText("Available after evaluator validation"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+    expect(screen.queryByText("Sampling slider")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Attach evaluator" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Evaluators").tagName).toBe("LABEL");
+    fireEvent.click(nameStep);
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
   it("requires a validated evaluator before naming and creating the rule", async () => {
@@ -223,18 +288,30 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Select evaluator" }));
+    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
     fireEvent.click(screen.getByText("Correctness"));
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Selected evaluators" }),
+    ).toHaveTextContent("Correctness");
+    expect(
+      screen.getByRole("button", { name: "Remove Correctness" }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", { name: "Attach evaluator" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
+    fireEvent.click(screen.getByText("Relevance"));
 
     const nameInput = await screen.findByLabelText("Name");
     expect(nameInput).toHaveValue("All production generations");
     fireEvent.change(nameInput, {
       target: { value: "Production observations" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create rule and attach evaluator" }),
-    );
+    const saveButton = screen.getByRole("button", { name: "Save" });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
 
     await waitFor(() =>
       expect(mocks.createRule).toHaveBeenCalledWith({
@@ -244,7 +321,7 @@ describe("CreateEvaluationRuleDialog", () => {
         filter: mocks.defaultFilters,
         sampling: 1,
         enabled: true,
-        evaluatorId: "evaluator-1",
+        evaluatorIds: ["evaluator-1", "evaluator-2"],
       }),
     );
     expect(mocks.invalidateEvaluationRules).toHaveBeenCalledWith({
@@ -253,9 +330,62 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({
       title: "Rule created",
       description:
-        "Production observations is active with Correctness attached.",
+        "Production observations is active with 2 evaluators attached.",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("opens later steps progressively and lets every unlocked step collapse and reopen", async () => {
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const observationsStep = screen.getByRole("button", {
+      name: "Step 1: Choose observations",
+    });
+    fireEvent.click(observationsStep);
+    expect(
+      screen.queryByRole("button", { name: "Change filters" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(observationsStep);
+    expect(
+      screen.getByRole("button", { name: "Change filters" }),
+    ).toBeInTheDocument();
+
+    expect(screen.queryByText("Sampling slider")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Step 2: Set sampling rate" }),
+    );
+    expect(screen.getByText("Sampling slider")).toBeInTheDocument();
+
+    const evaluatorStep = screen.getByRole("button", {
+      name: "Step 3: Attach evaluator",
+    });
+    fireEvent.click(evaluatorStep);
+    expect(
+      screen.queryByRole("button", { name: "Attach evaluator" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(evaluatorStep);
+    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
+    fireEvent.click(screen.getByText("Correctness"));
+
+    expect(await screen.findByLabelText("Name")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Attach evaluator" }),
+    ).toBeInTheDocument();
+    const nameStep = screen.getByRole("button", {
+      name: "Step 4: Name rule",
+    });
+    fireEvent.click(nameStep);
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    fireEvent.click(nameStep);
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
   it("requires evaluator validation again after filters change", async () => {
@@ -269,18 +399,16 @@ describe("CreateEvaluationRuleDialog", () => {
       </TooltipProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Select evaluator" }));
+    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
     fireEvent.click(screen.getByText("Correctness"));
     expect(await screen.findByLabelText("Name")).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Step 1: Choose observations" }),
-    );
     fireEvent.click(screen.getByRole("button", { name: "Change filters" }));
 
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expect(screen.getByText(/Needs validation/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Validate selected evaluators" }),
+    ).toBeInTheDocument();
   });
 
   it("opens a matching observation's trace without discarding the rule draft", () => {
@@ -301,7 +429,7 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(screen.getByText("Trace detail trace-1")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to new rule" }));
     expect(
-      screen.getByRole("button", { name: "Continue" }),
+      screen.getByRole("button", { name: "Attach evaluator" }),
     ).toBeInTheDocument();
   });
 });

@@ -28,7 +28,6 @@ import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/C
 import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/EvaluationRulePicker";
-import { ConfirmEvaluationRuleAttachmentDialog } from "@/src/features/evals/v2/components/EvaluatorEditRuleDialogs";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
@@ -40,7 +39,6 @@ export function EvaluatorRuleAssignments({
   projectId,
   evaluatorId,
   evaluatorName,
-  isCodeEvaluator,
   rules,
   hasWriteAccess,
   onView,
@@ -49,7 +47,6 @@ export function EvaluatorRuleAssignments({
   projectId: string;
   evaluatorId: string;
   evaluatorName: string;
-  isCodeEvaluator: boolean;
   rules: Array<{
     id: string;
     name: string;
@@ -67,7 +64,6 @@ export function EvaluatorRuleAssignments({
   });
   const [rulePickerOpen, setRulePickerOpen] = useState(false);
   const [createRuleDialogOpen, setCreateRuleDialogOpen] = useState(false);
-  const [ruleToAttachId, setRuleToAttachId] = useState<string | null>(null);
   const [ruleToDetach, setRuleToDetach] = useState<
     (typeof rules)[number] | null
   >(null);
@@ -82,9 +78,16 @@ export function EvaluatorRuleAssignments({
   const unattachedRules = compatibleRules.filter(
     (rule) => !attachedRuleIds.has(rule.id),
   );
-  const ruleToAttach = unattachedRules.find(
-    (rule) => rule.id === ruleToAttachId,
-  );
+  const attachRule = (rule: (typeof unattachedRules)[number]) => {
+    attachment
+      .attach({
+        evaluatorId,
+        ruleId: rule.id,
+        evaluatorName,
+        evaluationRuleName: rule.name,
+      })
+      .catch(() => undefined);
+  };
   const detachRule = api.evalsV2.detachEvaluatorFromRule.useMutation({
     onError: (error) => trpcErrorToast(error),
     onSuccess: (_data, variables) => {
@@ -129,7 +132,7 @@ export function EvaluatorRuleAssignments({
           loading={availableRules.isPending}
           align="end"
           onOpenChange={setRulePickerOpen}
-          onSelectAvailableRule={(rule) => setRuleToAttachId(rule.id)}
+          onSelectAvailableRule={attachRule}
           onCreateRule={() => setCreateRuleDialogOpen(true)}
         />
       </div>
@@ -229,29 +232,6 @@ export function EvaluatorRuleAssignments({
 
       <EvaluationRuleAttachmentValidationDialog
         open={attachment.pendingKey !== null}
-      />
-
-      <ConfirmEvaluationRuleAttachmentDialog
-        projectId={projectId}
-        evaluatorId={evaluatorId}
-        rule={ruleToAttach ?? null}
-        isCodeEvaluator={isCodeEvaluator}
-        open={ruleToAttach !== undefined}
-        onOpenChange={(open) => {
-          if (!open) setRuleToAttachId(null);
-        }}
-        onConfirm={() => {
-          if (!ruleToAttach) return;
-          setRuleToAttachId(null);
-          attachment
-            .attach({
-              evaluatorId,
-              ruleId: ruleToAttach.id,
-              evaluatorName,
-              evaluationRuleName: ruleToAttach.name,
-            })
-            .catch(() => undefined);
-        }}
       />
 
       {createRuleDialogOpen ? (

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Link2 } from "lucide-react";
+import { ArrowLeft, Link2, X } from "lucide-react";
 
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
@@ -51,8 +51,6 @@ import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type FilterState } from "@langfuse/shared";
 
-type RuleCreationStep = "observations" | "evaluator" | "name";
-
 export function CreateEvaluationRuleDialog({
   projectId,
   open,
@@ -63,21 +61,22 @@ export function CreateEvaluationRuleDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const utils = api.useUtils();
-  const [activeStep, setActiveStep] =
-    useState<RuleCreationStep>("observations");
-  const [evaluatorStepAvailable, setEvaluatorStepAvailable] = useState(false);
+  const [observationsOpen, setObservationsOpen] = useState(true);
+  const [samplingOpen, setSamplingOpen] = useState(false);
+  const [evaluatorOpen, setEvaluatorOpen] = useState(true);
+  const [nameOpen, setNameOpen] = useState(false);
   const [name, setName] = useState("");
   const [nameCustomized, setNameCustomized] = useState(false);
   const [filterState, setFilterState] = useState<FilterState>(() => [
     ...EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
   ]);
   const [sampling, setSampling] = useState(1);
-  const [selectedEvaluatorId, setSelectedEvaluatorId] = useState<string | null>(
-    null,
+  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
+    [],
   );
-  const [validatedEvaluatorId, setValidatedEvaluatorId] = useState<
-    string | null
-  >(null);
+  const [validatedEvaluatorIds, setValidatedEvaluatorIds] = useState<string[]>(
+    [],
+  );
   const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [traceId, setTraceId] = useState<string | null>(null);
   const validation = useValidatedRuleDraftEvaluator({ projectId });
@@ -93,16 +92,24 @@ export function CreateEvaluationRuleDialog({
   const rules = api.evalsV2.rules.useQuery({ projectId }, { enabled: open });
   const evaluatorOptions = api.evalsV2.evaluatorOptions.useQuery(
     { projectId },
-    { enabled: open && evaluatorStepAvailable },
+    { enabled: open && evaluatorOpen },
   );
-  const selectedEvaluator = evaluatorOptions.data?.find(
-    (evaluator) => evaluator.id === selectedEvaluatorId,
-  );
-  const evaluatorValidated =
-    selectedEvaluatorId !== null &&
-    selectedEvaluatorId === validatedEvaluatorId;
+  const selectedEvaluators = selectedEvaluatorIds.flatMap((evaluatorId) => {
+    const evaluator = evaluatorOptions.data?.find(
+      (candidate) => candidate.id === evaluatorId,
+    );
+    return evaluator ? [evaluator] : [];
+  });
+  const evaluatorsValidated =
+    selectedEvaluatorIds.length > 0 &&
+    selectedEvaluatorIds.every((evaluatorId) =>
+      validatedEvaluatorIds.includes(evaluatorId),
+    );
   const availableEvaluators = (evaluatorOptions.data ?? []).filter(
     (evaluator) => evaluator.targetObject === "event",
+  );
+  const unattachedEvaluators = availableEvaluators.filter(
+    (evaluator) => !selectedEvaluatorIds.includes(evaluator.id),
   );
   const createRule = api.evalsV2.createRule.useMutation({
     onError: (error) => trpcErrorToast(error),
@@ -110,18 +117,28 @@ export function CreateEvaluationRuleDialog({
 
   const updateFilters = (nextFilters: FilterState) => {
     setFilterState(nextFilters);
-    setValidatedEvaluatorId(null);
+    setValidatedEvaluatorIds([]);
+    setNameOpen(false);
     validation.resetIssue();
   };
 
-  const openEvaluatorStep = () => {
-    setEvaluatorStepAvailable(true);
-    setActiveStep("evaluator");
-  };
-
   const validateEvaluator = async (evaluatorId: string) => {
-    setSelectedEvaluatorId(evaluatorId);
-    setValidatedEvaluatorId(null);
+    if (selectedEvaluatorIds.includes(evaluatorId)) {
+      const nextSelectedIds = selectedEvaluatorIds.filter(
+        (selectedId) => selectedId !== evaluatorId,
+      );
+      setSelectedEvaluatorIds(nextSelectedIds);
+      setValidatedEvaluatorIds((current) =>
+        current.filter((validatedId) => validatedId !== evaluatorId),
+      );
+      if (nextSelectedIds.length === 0) setNameOpen(false);
+      validation.resetIssue();
+      setEvaluatorPickerOpen(false);
+      return;
+    }
+
+    const nextSelectedIds = [...selectedEvaluatorIds, evaluatorId];
+    setSelectedEvaluatorIds(nextSelectedIds);
     validation.resetIssue();
     setEvaluatorPickerOpen(false);
 
@@ -131,7 +148,8 @@ export function CreateEvaluationRuleDialog({
     });
     if (!valid) return;
 
-    setValidatedEvaluatorId(evaluatorId);
+    const nextValidatedIds = [...validatedEvaluatorIds, evaluatorId];
+    setValidatedEvaluatorIds(nextValidatedIds);
     if (!nameCustomized) {
       setName(
         generateEvaluationRuleName({
@@ -141,11 +159,38 @@ export function CreateEvaluationRuleDialog({
         }),
       );
     }
-    setActiveStep("name");
+    setNameOpen(true);
+  };
+
+  const validateSelectedEvaluators = async () => {
+    const validatedIds: string[] = [];
+    for (const evaluatorId of selectedEvaluatorIds) {
+      const valid = await validation.validate({
+        evaluatorId,
+        filter: filterState,
+      });
+      if (!valid) {
+        setValidatedEvaluatorIds(validatedIds);
+        return;
+      }
+      validatedIds.push(evaluatorId);
+    }
+
+    setValidatedEvaluatorIds(validatedIds);
+    if (!nameCustomized) {
+      setName(
+        generateEvaluationRuleName({
+          filter: filterState,
+          targetObject: "event",
+          existingNames: (rules.data ?? []).map((rule) => rule.name),
+        }),
+      );
+    }
+    setNameOpen(true);
   };
 
   const create = async () => {
-    if (!selectedEvaluator || !evaluatorValidated) return;
+    if (!evaluatorsValidated) return;
     try {
       await createRule.mutateAsync({
         projectId,
@@ -154,7 +199,7 @@ export function CreateEvaluationRuleDialog({
         filter: filterState,
         sampling,
         enabled: true,
-        evaluatorId: selectedEvaluator.id,
+        evaluatorIds: selectedEvaluatorIds,
       });
     } catch {
       return;
@@ -166,14 +211,20 @@ export function CreateEvaluationRuleDialog({
     ]).catch(() => undefined);
     showSuccessToast({
       title: "Rule created",
-      description: `${name.trim()} is active with ${selectedEvaluator.scoreName} attached.`,
+      description:
+        selectedEvaluators.length === 1
+          ? `${name.trim()} is active with ${selectedEvaluators[0]?.scoreName ?? "the evaluator"} attached.`
+          : `${name.trim()} is active with ${selectedEvaluators.length} evaluators attached.`,
     });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size={traceId ? "xxl" : "lg"}>
+      <DialogContent
+        size={traceId ? "xxl" : "xl"}
+        className={traceId ? undefined : "max-w-6xl"}
+      >
         <DialogHeader>
           {traceId ? (
             <div className="flex min-w-0 items-center gap-2">
@@ -197,8 +248,8 @@ export function CreateEvaluationRuleDialog({
             <>
               <DialogTitle>New rule</DialogTitle>
               <DialogDescription>
-                Define what data is evaluated, choose an evaluator, then name
-                the rule.
+                Define what data is evaluated, attach evaluators, then name the
+                rule.
               </DialogDescription>
             </>
           )}
@@ -217,11 +268,8 @@ export function CreateEvaluationRuleDialog({
             <SetupStep
               number={1}
               title="Choose observations"
-              summary={`${Math.round(sampling * 100)}% sampling`}
-              open={activeStep === "observations"}
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) setActiveStep("observations");
-              }}
+              open={observationsOpen}
+              onOpenChange={setObservationsOpen}
             >
               <div className="flex flex-col gap-6">
                 <section className="flex min-w-0 flex-col gap-2">
@@ -252,25 +300,6 @@ export function CreateEvaluationRuleDialog({
                   </div>
                 </section>
 
-                <section className="flex flex-col gap-2">
-                  <EvaluationRuleFieldLabel tooltip="The share of matching observations to evaluate. 100% evaluates every match.">
-                    Sampling
-                  </EvaluationRuleFieldLabel>
-                  <Slider
-                    min={0.0001}
-                    max={1}
-                    step={0.0001}
-                    value={[sampling]}
-                    onValueChange={(value) => {
-                      setSampling(value[0] ?? sampling);
-                      setValidatedEvaluatorId(null);
-                      validation.resetIssue();
-                    }}
-                    showInput
-                    displayAsPercentage
-                  />
-                </section>
-
                 <section className="flex min-w-0 flex-col gap-2">
                   <EvaluationRuleFieldLabel tooltip="Preview recent observations that currently match this rule.">
                     Matching observations
@@ -289,90 +318,138 @@ export function CreateEvaluationRuleDialog({
 
             <SetupStep
               number={2}
-              title="Select evaluator"
-              summary={
-                selectedEvaluator
-                  ? evaluatorValidated
-                    ? selectedEvaluator.scoreName
-                    : `${selectedEvaluator.scoreName} · Needs validation`
-                  : "Required"
-              }
-              open={activeStep === "evaluator"}
-              disabled={!evaluatorStepAvailable}
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) setActiveStep("evaluator");
-              }}
+              title="Set sampling rate"
+              open={samplingOpen}
+              onOpenChange={setSamplingOpen}
+            >
+              <div className="flex flex-col gap-2">
+                <EvaluationRuleFieldLabel tooltip="The share of matching observations to evaluate. 100% evaluates every match.">
+                  Sampling
+                </EvaluationRuleFieldLabel>
+                <Slider
+                  min={0.0001}
+                  max={1}
+                  step={0.0001}
+                  value={[sampling]}
+                  onValueChange={(value) => {
+                    setSampling(value[0] ?? sampling);
+                    setValidatedEvaluatorIds([]);
+                    setNameOpen(false);
+                    validation.resetIssue();
+                  }}
+                  showInput
+                  displayAsPercentage
+                />
+              </div>
+            </SetupStep>
+
+            <SetupStep
+              number={3}
+              title="Attach evaluator"
+              open={evaluatorOpen}
+              onOpenChange={setEvaluatorOpen}
             >
               <div className="flex flex-col gap-3">
-                <p className="text-muted-foreground text-sm">
-                  Choose what should run on observations matched by this rule.
-                </p>
-                <Popover
-                  open={evaluatorPickerOpen}
-                  onOpenChange={setEvaluatorPickerOpen}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full justify-between"
-                    >
-                      <span
-                        className="truncate"
-                        title={selectedEvaluator?.scoreName}
-                      >
-                        {selectedEvaluator?.scoreName ?? "Select evaluator"}
-                      </span>
-                      <Link2 className="ml-2 h-3.5 w-3.5 shrink-0" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="w-(--radix-popover-trigger-width) p-0"
+                <div className="flex items-center justify-between gap-3">
+                  <EvaluationRuleFieldLabel tooltip="Choose what should run on observations matched by this rule.">
+                    Evaluators
+                  </EvaluationRuleFieldLabel>
+                  <Popover
+                    open={evaluatorPickerOpen}
+                    onOpenChange={setEvaluatorPickerOpen}
                   >
-                    <Command>
-                      <CommandInput placeholder="Find an evaluator..." />
-                      <CommandList>
-                        <CommandEmpty>No evaluator found.</CommandEmpty>
-                        <CommandGroup heading="Available evaluators">
-                          {availableEvaluators.map((evaluator) => (
-                            <CommandItem
-                              key={evaluator.id}
-                              value={`${evaluator.scoreName} ${evaluator.id}`}
-                              onSelect={() =>
-                                validateEvaluator(evaluator.id).catch(
-                                  () => undefined,
-                                )
-                              }
-                            >
-                              <span
-                                className="truncate"
-                                title={evaluator.scoreName}
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        aria-label="Attach evaluator"
+                      >
+                        Attach evaluator
+                        <Link2 className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-80 p-0">
+                      <Command>
+                        <CommandInput placeholder="Find an evaluator..." />
+                        <CommandList>
+                          <CommandEmpty>
+                            No unattached evaluator found.
+                          </CommandEmpty>
+                          <CommandGroup heading="Available evaluators">
+                            {unattachedEvaluators.map((evaluator) => (
+                              <CommandItem
+                                key={evaluator.id}
+                                value={`${evaluator.scoreName} ${evaluator.id}`}
+                                onSelect={() =>
+                                  validateEvaluator(evaluator.id).catch(
+                                    () => undefined,
+                                  )
+                                }
                               >
-                                {evaluator.scoreName}
-                              </span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {selectedEvaluator && !evaluatorValidated ? (
+                                <span
+                                  className="truncate"
+                                  title={evaluator.scoreName}
+                                >
+                                  {evaluator.scoreName}
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {selectedEvaluators.length > 0 ? (
+                  <ul
+                    className="divide-border divide-y overflow-hidden rounded-md border"
+                    aria-label="Selected evaluators"
+                  >
+                    {selectedEvaluators.map((evaluator) => (
+                      <li
+                        key={evaluator.id}
+                        className="flex min-w-0 items-center px-1 py-1 text-sm"
+                      >
+                        <span
+                          className="min-w-0 flex-1 truncate px-2"
+                          title={evaluator.scoreName}
+                        >
+                          {evaluator.scoreName}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove ${evaluator.scoreName}`}
+                          onClick={() =>
+                            validateEvaluator(evaluator.id).catch(
+                              () => undefined,
+                            )
+                          }
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-sm">
+                    No evaluators attached yet.
+                  </div>
+                )}
+                {selectedEvaluatorIds.length > 0 && !evaluatorsValidated ? (
                   <Button
                     type="button"
                     variant="outline"
                     className="self-start"
-                    loading={
-                      validation.pendingEvaluatorId === selectedEvaluator.id
-                    }
+                    loading={validation.pendingEvaluatorId !== null}
                     onClick={() =>
-                      validateEvaluator(selectedEvaluator.id).catch(
-                        () => undefined,
-                      )
+                      validateSelectedEvaluators().catch(() => undefined)
                     }
                   >
-                    Validate evaluator
+                    Validate selected evaluators
                   </Button>
                 ) : null}
                 {validation.issue ? (
@@ -386,15 +463,11 @@ export function CreateEvaluationRuleDialog({
             </SetupStep>
 
             <SetupStep
-              number={3}
+              number={4}
               title="Name rule"
-              summary={name || "Available after evaluator validation"}
-              open={activeStep === "name"}
-              disabled={!evaluatorValidated}
+              open={nameOpen}
               isLast
-              onOpenChange={(nextOpen) => {
-                if (nextOpen) setActiveStep("name");
-              }}
+              onOpenChange={setNameOpen}
             >
               <div className="flex flex-col gap-2">
                 <EvaluationRuleFieldLabel
@@ -431,20 +504,14 @@ export function CreateEvaluationRuleDialog({
             >
               Cancel
             </Button>
-            {activeStep === "observations" ? (
-              <Button type="button" onClick={openEvaluatorStep}>
-                Continue
-              </Button>
-            ) : activeStep === "name" ? (
-              <Button
-                type="button"
-                loading={createRule.isPending}
-                disabled={!name.trim() || !evaluatorValidated}
-                onClick={() => create().catch(() => undefined)}
-              >
-                Create rule and attach evaluator
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              loading={createRule.isPending}
+              disabled={!name.trim() || !evaluatorsValidated}
+              onClick={() => create().catch(() => undefined)}
+            >
+              Save
+            </Button>
           </DialogFooter>
         ) : null}
       </DialogContent>

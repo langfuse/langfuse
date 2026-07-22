@@ -746,6 +746,7 @@ export const evalsV2Router = createTRPCRouter({
         sampling: z.number().gt(0).lte(1),
         enabled: z.boolean(),
         evaluatorId: z.string().optional(),
+        evaluatorIds: z.array(z.string()).min(1).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -755,6 +756,8 @@ export const evalsV2Router = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
+      const evaluatorIds =
+        input.evaluatorIds ?? (input.evaluatorId ? [input.evaluatorId] : []);
       const evaluationRule = await createRule({
         prisma: ctx.prisma,
         projectId: input.projectId,
@@ -764,12 +767,12 @@ export const evalsV2Router = createTRPCRouter({
         filter: input.filter ?? [],
         sampling: input.sampling,
         enabled: input.enabled,
-        evaluatorId: input.evaluatorId,
+        evaluatorIds,
       });
       await auditLog({
         session: ctx.session,
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: input.evaluatorId ?? evaluationRule.id,
+        resourceId: evaluatorIds[0] ?? evaluationRule.id,
         action: "create",
       });
       await invalidateProjectEvalConfigCaches(input.projectId);

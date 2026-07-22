@@ -593,6 +593,49 @@ describe("evalsV2.activateEvaluator", () => {
     );
   });
 
+  it("creates an evaluation rule with multiple evaluator assignments", async () => {
+    const { project, caller } = await prepare();
+    const evaluators = await Promise.all(
+      ["correctness", "relevance"].map((scoreName) =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: `${scoreName}-${project.id}`,
+            filter: [],
+            targetObject: EvalTargetObject.EVENT,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+          },
+        }),
+      ),
+    );
+
+    const created = await caller.evalsV2.createRule({
+      projectId: project.id,
+      name: `multi-evaluator-rule-${project.id}`,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: 1,
+      enabled: true,
+      evaluatorIds: evaluators.map((evaluator) => evaluator.id),
+    });
+
+    const persisted = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { evaluatorAssignments: true },
+    });
+    expect(
+      persisted.evaluatorAssignments.map(
+        (assignment) => assignment.jobConfigurationId,
+      ),
+    ).toEqual(
+      expect.arrayContaining(evaluators.map((evaluator) => evaluator.id)),
+    );
+    expect(persisted.evaluatorAssignments).toHaveLength(2);
+  });
+
   it("returns evaluator overview metadata and evaluation rule usage", async () => {
     const { project, caller } = await prepare();
     const creator = await prisma.user.create({

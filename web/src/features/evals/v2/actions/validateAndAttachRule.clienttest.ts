@@ -42,15 +42,26 @@ function dependencies() {
 }
 
 describe("validateAndAttachRule", () => {
-  it("checks LLM variable mappings without running an observation", async () => {
+  it("test-runs an LLM evaluator on a matching observation before attaching", async () => {
     const deps = dependencies();
 
     await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
       attached: true,
     });
 
-    expect(deps.getSample).not.toHaveBeenCalled();
-    expect(deps.runLlmTest).not.toHaveBeenCalled();
+    expect(deps.getSample).toHaveBeenCalledWith([]);
+    expect(deps.runLlmTest).toHaveBeenCalledWith({
+      projectId: "project-1",
+      prompt: "Judge {{input}}",
+      provider: null,
+      model: null,
+      modelParams: null,
+      outputDefinition: null,
+      mapping: evaluator.variableMapping,
+      observationId: "observation-1",
+      traceId: "trace-1",
+      observationStartTime: new Date("2026-07-20T08:00:00.000Z"),
+    });
     expect(deps.attach).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledWith({
@@ -92,17 +103,22 @@ describe("validateAndAttachRule", () => {
     });
   });
 
-  it("does not require a matching observation for LLM evaluators", async () => {
+  it("keeps an LLM evaluator detached when no observation matches", async () => {
     const deps = dependencies();
     deps.getSample.mockResolvedValue(null);
 
     const result = await validateAndAttachRule("project-1", deps);
 
-    expect(result).toEqual({ attached: true });
+    expect(result).toEqual({
+      attached: false,
+      outcome: "unavailable",
+      message:
+        "No observations currently match this evaluation rule, so the evaluator could not be tested. The evaluator was not attached to the evaluation rule.",
+    });
     expect(deps.runLlmTest).not.toHaveBeenCalled();
-    expect(deps.attach).toHaveBeenCalledOnce();
+    expect(deps.attach).not.toHaveBeenCalled();
     expect(deps.captureValidation).toHaveBeenCalledWith({
-      outcome: "passed",
+      outcome: "unavailable",
       evaluatorType: "LLM_AS_JUDGE",
     });
   });

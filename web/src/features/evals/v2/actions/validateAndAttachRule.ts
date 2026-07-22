@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { observationVariableMapping, type FilterState } from "@langfuse/shared";
+import {
+  observationVariableMapping,
+  PersistedEvalOutputDefinitionSchema,
+  type FilterState,
+} from "@langfuse/shared";
 import { type RouterInputs } from "@/src/utils/api";
 
 type EvaluatorConfig = {
@@ -49,6 +53,9 @@ type Dependencies = {
     targetObject: string;
   }>;
   getSample: (filter: FilterState) => Promise<SampleObservation | null>;
+  runLlmTest: (
+    input: RouterInputs["evalsV2"]["testRunLlmJudge"],
+  ) => Promise<{ success: boolean; error?: string }>;
   runCodeTest: (
     input: RouterInputs["evalsV2"]["testRunCodeEval"],
   ) => Promise<{ success: boolean; error?: string }>;
@@ -62,6 +69,7 @@ type Dependencies = {
 type ValidationDependencies = Omit<Dependencies, "attach">;
 
 const codeLanguageSchema = z.enum(["PYTHON", "TYPESCRIPT"]);
+const modelParamsSchema = z.record(z.string(), z.unknown()).nullable();
 
 function captureValidation(
   dependencies: Pick<Dependencies, "captureValidation">,
@@ -110,8 +118,7 @@ function hasCompleteLlmVariableMappings(
 }
 
 /**
- * Code evaluators run once against a matching observation before activation.
- * LLM-as-a-judge evaluators only need complete prompt variable mappings.
+ * Evaluators run once against a matching observation before activation.
  */
 export async function validateRuleAttachment(
   projectId: string,
@@ -178,9 +185,6 @@ export async function validateRuleAttachment(
         "Please complete all prompt variable mappings before attaching this evaluator to the evaluation rule.",
       );
     }
-
-    captureValidation(dependencies, { outcome: "passed", evaluatorType });
-    return { valid: true };
   }
 
   let sample: SampleObservation | null;
@@ -205,7 +209,33 @@ export async function validateRuleAttachment(
 
   let testResult: { success: boolean; error?: string };
   try {
-    if (evaluatorType === "CODE") {
+    if (evaluatorType === "LLM_AS_JUDGE") {
+      const modelParams = modelParamsSchema.safeParse(template.modelParams);
+      const outputDefinition =
+        PersistedEvalOutputDefinitionSchema.nullable().safeParse(
+          template.outputDefinition,
+        );
+      if (!modelParams.success || !outputDefinition.success) {
+        return validationIssue(
+          dependencies,
+          evaluatorType,
+          "failed",
+          "The evaluator definition is incomplete. The evaluator was not attached to the evaluation rule.",
+        );
+      }
+      testResult = await dependencies.runLlmTest({
+        projectId,
+        prompt: template.prompt!,
+        provider: template.provider,
+        model: template.model,
+        modelParams: modelParams.data,
+        outputDefinition: outputDefinition.data,
+        mapping: mapping.data,
+        observationId: sample.id,
+        traceId: sample.traceId,
+        observationStartTime: sample.startTime,
+      });
+    } else if (evaluatorType === "CODE") {
       const sourceCodeLanguage = codeLanguageSchema.safeParse(
         template.sourceCodeLanguage,
       );

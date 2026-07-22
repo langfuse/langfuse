@@ -19,7 +19,7 @@ export async function createRule({
   filter,
   sampling,
   enabled,
-  evaluatorId,
+  evaluatorIds,
 }: {
   prisma: PrismaClient;
   projectId: string;
@@ -29,19 +29,20 @@ export async function createRule({
   filter: z.infer<typeof singleFilter>[];
   sampling: number;
   enabled: boolean;
-  evaluatorId?: string;
+  evaluatorIds: string[];
 }) {
   try {
     return await prisma.$transaction(async (tx) => {
-      const evaluator = evaluatorId
-        ? await tx.jobConfiguration.findFirst({
-            where: { id: evaluatorId, projectId },
-          })
-        : null;
-      if (evaluatorId && !evaluator) {
+      const uniqueEvaluatorIds = [...new Set(evaluatorIds)];
+      const evaluators = await tx.jobConfiguration.findMany({
+        where: { id: { in: uniqueEvaluatorIds }, projectId },
+      });
+      if (evaluators.length !== uniqueEvaluatorIds.length) {
         throw new LangfuseNotFoundError("Evaluator not found");
       }
-      if (evaluator && evaluator.targetObject !== targetObject) {
+      if (
+        evaluators.some((evaluator) => evaluator.targetObject !== targetObject)
+      ) {
         throw new InvalidRequestError(
           "The evaluator and evaluation rule use different data types",
         );
@@ -59,15 +60,15 @@ export async function createRule({
         },
       });
 
-      if (evaluator) {
-        await tx.evalRunScopeAssignment.create({
-          data: {
+      if (evaluators.length > 0) {
+        await tx.evalRunScopeAssignment.createMany({
+          data: evaluators.map((evaluator) => ({
             jobConfigurationId: evaluator.id,
             runScopeId: evaluationRule.id,
-          },
+          })),
         });
-        await tx.jobConfiguration.update({
-          where: { id: evaluator.id, projectId },
+        await tx.jobConfiguration.updateMany({
+          where: { id: { in: uniqueEvaluatorIds }, projectId },
           data: {
             filter,
             sampling,
