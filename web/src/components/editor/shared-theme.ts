@@ -2,6 +2,10 @@ import { type CreateThemeOptions } from "@uiw/codemirror-themes";
 import { tags as t } from "@lezer/highlight";
 
 export const defaultSettingsBothThemes: CreateThemeOptions["settings"] = {
+  // Route all editors to the app's mono font token (IBM Plex Mono + fallbacks)
+  // instead of CodeMirror's generic `monospace` default. createTheme applies
+  // this to `.cm-scroller`, which `.cm-content` and `.cm-gutters` inherit.
+  fontFamily: "var(--font-mono)",
   background: "hsl(var(--background))",
   foreground: "hsl(var(--foreground))",
   caret: "hsl(var(--foreground))",

@@ -214,7 +214,7 @@ export function PeekHeader({
             <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
           </div>
           <span
-            className="truncate text-sm font-medium focus:outline-hidden"
+            className="truncate text-sm font-bold focus:outline-hidden"
             tabIndex={0}
             title={typeof title === "string" ? title : undefined}
           >

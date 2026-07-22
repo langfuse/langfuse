@@ -75,7 +75,7 @@ function GraphPanelBar({
       aria-expanded={!collapsed}
       className="text-muted-foreground hover:bg-muted/50 hover:text-foreground flex h-7 w-full shrink-0 items-center justify-between border-b px-2"
     >
-      <span className="text-xs font-medium">Graph</span>
+      <span className="text-xs font-bold">Graph</span>
       {collapsed ? (
         <ChevronUp className="h-3.5 w-3.5" />
       ) : (

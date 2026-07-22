@@ -87,7 +87,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
-                          className="truncate text-sm leading-tight font-medium"
+                          className="truncate text-sm leading-tight font-bold"
                           title={automation.name}
                         >
                           {automation.name}

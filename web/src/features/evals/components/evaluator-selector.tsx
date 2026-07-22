@@ -72,7 +72,7 @@ const TemplatePreviewTooltipContent = ({
   if (template.type === EvalTemplateType.CODE) {
     return (
       <>
-        <p className="mb-1 font-medium">
+        <p className="mb-1 font-bold">
           {getCodeTemplateLanguageTitle(template.sourceCodeLanguage)} source
         </p>
         <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
@@ -84,7 +84,7 @@ const TemplatePreviewTooltipContent = ({
 
   return (
     <>
-      <p className="mb-1 font-medium">Evaluation prompt</p>
+      <p className="mb-1 font-bold">Evaluation prompt</p>
       <pre className="text-muted-foreground text-xs wrap-break-word whitespace-pre-wrap">
         {template.prompt}
       </pre>

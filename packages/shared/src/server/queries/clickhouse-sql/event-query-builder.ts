@@ -536,6 +536,8 @@ const EVENTS_AGGREGATION_FIELDS = {
     "date_diff('millisecond', min(start_time), greatest(max(start_time), max(end_time))) AS latency_milliseconds",
   observation_ids:
     "groupUniqArrayIf(span_id, span_id <> '') AS observation_ids",
+  observation_count:
+    "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
 
   bookmarked:
     "argMaxIf(bookmarked, event_ts, parent_span_id = '') AS bookmarked",

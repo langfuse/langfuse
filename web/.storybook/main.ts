@@ -1,8 +1,19 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
-import { dirname, resolve } from "path";
+import { basename, dirname, resolve } from "path";
 
 import { fileURLToPath } from "url";
+import {
+  flatStoryTitlesPlugin,
+  flattenStoryIndexTitles,
+} from "./storybook-flat-story-titles";
+
+const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
+const DESIGN_COMPONENT_STORIES = [
+  "LangfuseIcon/LangfuseIcon",
+  "Spinner/Spinner",
+  "Switch/Switch",
+] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -13,7 +24,35 @@ function getAbsolutePath(value: string) {
 }
 
 const config: StorybookConfig = {
-  stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  stories: [
+    // Curated design-system documentation shown under Design.
+    {
+      directory: "../storybook/docs",
+      files: "**/*.mdx",
+      titlePrefix: "Design",
+    },
+    // Technical MDX documents colocated with implementation code.
+    {
+      directory: "../src",
+      files: "**/*.mdx",
+      titlePrefix: "Playground/Docs",
+    },
+    // Reviewed components that are part of the design-system reference.
+    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design/Components",
+    })),
+    // All other component stories belong to the flat Playground by default.
+    {
+      directory: "../src",
+      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
+        basename(storyPath),
+      ).join("|")}).stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+  ],
+  experimental_indexers: flattenStoryIndexTitles,
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
@@ -33,6 +72,8 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    viteConfig.plugins = [flatStoryTitlesPlugin, ...(viteConfig.plugins ?? [])];
+
     const sharedSrc = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../packages/shared/src",
@@ -58,6 +99,18 @@ const config: StorybookConfig = {
           replacement: replacement as string,
         }));
     viteConfig.resolve.alias = [
+      // The package also exposes a few named subpath exports (e.g.
+      // `@langfuse/shared/query`, imported transitively via the chart-library's
+      // PivotTable → widgets/utils). Those aren't under `src/`, so the two rules
+      // below miss them and they fall through to the CJS dist bundle, whose
+      // re-exported names (e.g. `getViewDeclaration`) Vite's lexer can't resolve
+      // — the same failure the bare-specifier rule fixes. Map the source-safe
+      // subpaths to source too. (`query/index.ts` only re-exports client-safe
+      // dataModel/types/validateQuery.)
+      {
+        find: /^@langfuse\/shared\/query$/,
+        replacement: `${sharedSrc}/features/query`,
+      },
       {
         find: /^\.prisma\/client\/index-browser$/,
         replacement: prismaBrowserStub,

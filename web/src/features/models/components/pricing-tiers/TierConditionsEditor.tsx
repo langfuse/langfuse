@@ -69,7 +69,7 @@ export function TierConditionsEditor({
       {fields.map((condition, conditionIndex) => (
         <div key={condition.id} className="space-y-3 rounded-lg border p-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
+            <span className="text-sm font-bold">
               Condition {conditionIndex + 1}
             </span>
             <Button

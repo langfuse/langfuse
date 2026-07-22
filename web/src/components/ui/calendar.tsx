@@ -30,7 +30,7 @@ function Calendar({
         [UI.Months]: "flex relative",
         [UI.Month]: "space-y-4",
         [UI.MonthCaption]: "flex justify-center items-center h-7",
-        [UI.CaptionLabel]: "text-sm font-medium",
+        [UI.CaptionLabel]: "text-sm font-bold",
         [UI.PreviousMonthButton]: cn(
           buttonVariants({ variant: "outline" }),
           "absolute left-1 top-0 h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
@@ -50,7 +50,7 @@ function Calendar({
           buttonVariants({ variant: "ghost" }),
           "h-9 w-9 p-0 font-normal aria-selected:opacity-100",
           // can't use SelectionState.range_start here because Tailwind classes can't be constructed dynamically
-          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-primary-foreground group-[.today]:font-semibold",
+          "group-[.selection-edge]:bg-primary group-[.selection-edge]:text-primary-foreground group-[.today]:font-bold",
         ),
         [SelectionState.range_start]:
           "group selection-edge bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground rounded-l-md rounded-r-none",

@@ -67,7 +67,7 @@ export function EstimatedCostRow(props: EstimatedCostRowProps) {
       <span className="text-muted-foreground shrink-0">
         Est. LLM API Key Cost:
       </span>
-      <span className="flex items-center gap-1 font-medium">
+      <span className="flex items-center gap-1 font-bold">
         {formatCostEstimate(totalEstimate)}
         {isPartial ? "*" : ""}
         <TooltipProvider>

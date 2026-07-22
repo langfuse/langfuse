@@ -19,5 +19,21 @@ if [ -z "$DATABASE_URL" ]; then
     fi
 fi
 
+# On ECS, append task_arn:<full TaskARN> from the container metadata endpoint
+# to DD_TAGS, reusing its existing separator (bounded ~2s total; never fails
+# boot).  Full ARN exact-match joins with EventBridge taskArn / Datadog's ECS
+# task_arn tag convention.
+if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
+    _task_arn=$(timeout 2 wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    if [ -n "$_task_arn" ]; then
+        case "$DD_TAGS" in
+            *,*) _sep="," ;;
+            *" "*) _sep=" " ;;
+            *) _sep="," ;;
+        esac
+        export DD_TAGS="${DD_TAGS:+${DD_TAGS}${_sep}}task_arn:${_task_arn}"
+    fi
+fi
+
 # Run the command passed to the docker image on start
 exec "$@"

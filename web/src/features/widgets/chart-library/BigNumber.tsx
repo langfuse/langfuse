@@ -173,7 +173,7 @@ export const BigNumber: React.FC<ChartProps> = ({
             {displayValue.negative && (
               <span
                 className={cn(
-                  "text-foreground font-extrabold tracking-tight",
+                  "text-foreground font-bold tracking-tight",
                   fontSize,
                 )}
               >
@@ -185,7 +185,7 @@ export const BigNumber: React.FC<ChartProps> = ({
         )}
         <span
           ref={textRef}
-          className={cn("text-center font-extrabold tracking-tight", fontSize)}
+          className={cn("text-center font-bold tracking-tight", fontSize)}
           title={calculatedMetric.toString()}
         >
           {displayValue.negative && !displayValue.prefix ? "-" : ""}

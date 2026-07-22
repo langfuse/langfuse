@@ -293,6 +293,8 @@ export function SearchComposer({
   erroredColumns,
   onActivateAi,
   onRequestColumns,
+  fieldReason,
+  freeTextReason,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
@@ -309,6 +311,11 @@ export function SearchComposer({
    * loading is wired by the host table.
    */
   onRequestColumns?: (columns: readonly string[]) => void;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -1350,6 +1357,8 @@ export function SearchComposer({
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
           />
         </div>
         {/* "Ask AI" affordance — a plain button, always available so filters can

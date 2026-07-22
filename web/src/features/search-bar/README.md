@@ -45,11 +45,14 @@ Generally available on the v4 events tables (no opt-in). Based on the
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
-- `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- `metadata.region:eu`, `scores.accuracy:>0.8` — `scores.` is level-agnostic
+  (matches a score at observation OR trace level, LFE-10596). The legacy
+  `traceScores.` namespace (trace-only) still parses/lowers so saved queries
+  and URLs keep working, but it is no longer offered in suggestions.
 - dot-path names with spaces/grammar chars are **quoted after the prefix**:
-  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
-  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
-  the reverse adapter and completions re-quote them — so they round-trip)
+  `scores."Rouge Score":>=1`, `metadata."my key":eu` (the quotes are stripped
+  to the real key when lowering; the reverse adapter and completions re-quote
+  them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 

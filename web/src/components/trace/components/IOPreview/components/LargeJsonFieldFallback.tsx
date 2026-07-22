@@ -10,11 +10,13 @@ const PREVIEW_DISPLAY_CHARS = 4_000;
 
 /**
  * Fallback for a single JSON-view field (Input / Output / Metadata) whose
- * payload is too large to render in the unvirtualized react18-json-view
- * (LFE-10989). Instead of parsing + rendering the full tree on the main thread
- * — which freezes for seconds and crashes the renderer around ~20 MB — it
- * shows a bounded preview head plus escape hatches: a raw download, and a
- * pointer to the Formatted (lazy) and JSON Beta (virtualized) views that scale.
+ * payload is too large to render. Used by both JSON views: the plain view when
+ * a field exceeds the char limit (unvirtualized react18-json-view, LFE-10989),
+ * and the Beta viewer when a field exceeds the node/row limit (its O(N)
+ * tree-build freezes the tab even though the DOM is virtualized, LFE-10847).
+ * Instead of building the full tree on the main thread — which freezes for
+ * seconds and crashes the renderer — it shows a bounded preview head plus
+ * escape hatches: a raw download, and a pointer to the Formatted (lazy) view.
  *
  * This component never serializes the payload: the caller's size probe already
  * did that once and passes the `serialized` string in, reused here for both the
@@ -26,7 +28,9 @@ export function LargeJsonFieldFallback({
   serialized,
   isString,
   charCount,
+  rowCount,
   downloadFileBase,
+  hideTitle = false,
 }: {
   title: string;
   /** Pre-serialized content: raw text for string fields, compact JSON for
@@ -36,10 +40,24 @@ export function LargeJsonFieldFallback({
    *  base64/plain payloads are not quote/escape-wrapped; objects use .json. */
   isString: boolean;
   charCount: number;
+  /** When set, the field was gated on node/row count (JSON Beta viewer), so the
+   *  summary names rows — the actual trigger — instead of characters. Omit for
+   *  the plain view's char-based gate. */
+  rowCount?: number;
   /** File name without extension. */
   downloadFileBase: string;
+  /** Omit the field-name heading — used when the surrounding section already
+   *  renders the title (JSON Beta section footer). */
+  hideTitle?: boolean;
 }) {
   const capture = usePostHogClientCapture();
+
+  // Name the metric that actually tripped the gate: rows for the virtualized
+  // Beta viewer (node/tree-build cost), characters for the plain view.
+  const sizeSummary =
+    rowCount != null
+      ? `${compactNumberFormatter(rowCount, 1)} rows`
+      : `${compactNumberFormatter(charCount, 1)} characters`;
 
   const previewText = useMemo(
     () =>
@@ -64,16 +82,14 @@ export function LargeJsonFieldFallback({
     <div className="io-message-content">
       <div className="my-2 flex flex-col gap-2 rounded-sm border border-dashed p-3">
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-foreground font-medium">{title}</span>
-          <span>
-            {compactNumberFormatter(charCount, 1)} characters — too large to
-            render in JSON view
-          </span>
+          {!hideTitle && (
+            <span className="text-foreground font-bold">{title}</span>
+          )}
+          <span>{sizeSummary} — too large to render in JSON view</span>
         </div>
         <p className="text-muted-foreground text-xs">
           Rendering this much JSON at once freezes the tab. Use the{" "}
-          <span className="font-medium">Formatted</span> or{" "}
-          <span className="font-medium">JSON Beta</span> view for the full
+          <span className="font-bold">Formatted</span> view for the full
           payload, or download it below.
         </p>
         <pre className="bg-muted/50 max-h-40 overflow-hidden rounded-md border p-2 font-mono text-xs break-all whitespace-pre-wrap">

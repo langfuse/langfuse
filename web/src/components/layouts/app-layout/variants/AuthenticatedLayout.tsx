@@ -9,6 +9,7 @@ import Head from "next/head";
 import { useRouter, type NextRouter } from "next/router";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
+import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
@@ -24,6 +25,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { InAppAgentWindowHost } from "@/src/ee/features/in-app-agent/components/InAppAgentWindowHost";
 
 const CommandMenu = dynamic(
   () =>
@@ -112,8 +114,7 @@ export function AuthenticatedLayout({
     }),
   );
 
-  // Currently there are no feature previews available
-  const hasFeaturePreviews = false;
+  const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -168,38 +169,44 @@ export function AuthenticatedLayout({
       </Head>
 
       <TopBannerProvider>
-        <SidebarProvider>
-          <div className="flex h-dvh w-full flex-col">
-            <PaymentBanner />
-            <div className="pt-banner-offset flex min-h-0 flex-1">
-              <AppSidebar
-                navItems={navigation.mainNavigation}
-                secondaryNavItems={navigation.secondaryNavigation}
-                userNavProps={userNavProps}
-              />
-              <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
-                {/* Toasts render in the `toast` overlay layer — the last layer
-                    in LAYER_ORDER — so they paint above every overlay (incl. a
-                    non-modal peek) by DOM order alone, no z-index. Sonner's
-                    Toaster is position:fixed, so nesting it in the fixed
-                    full-screen layer container is positionally identical. */}
-                <Layer name="toast">
-                  <Toaster visibleToasts={1} />
-                </Layer>
-                <CommandMenu mainNavigation={navigation.navigation} />
-              </SidebarInset>
+        <SidebarPresenceProvider>
+          <SidebarProvider>
+            <div className="flex h-dvh w-full flex-col">
+              <PaymentBanner />
+              <div className="pt-banner-offset flex min-h-0 flex-1">
+                <AppSidebar
+                  navItems={navigation.mainNavigation}
+                  secondaryNavItems={navigation.secondaryNavigation}
+                  userNavProps={userNavProps}
+                />
+                <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
+                  <AppContentWithRightDrawer>
+                    {children}
+                  </AppContentWithRightDrawer>
+                  {/* Toasts render in the `toast` overlay layer — the last layer
+                      in LAYER_ORDER — so they paint above every overlay (incl. a
+                      non-modal peek) by DOM order alone, no z-index. Sonner's
+                      Toaster is position:fixed, so nesting it in the fixed
+                      full-screen layer container is positionally identical. */}
+                  <Layer name="toast">
+                    <Toaster visibleToasts={1} />
+                  </Layer>
+                  <CommandMenu mainNavigation={navigation.navigation} />
+                  {/* Assistant window host lives here (not in PageHeader with
+                      its launcher button) so the open window and its geometry
+                      survive route changes. */}
+                  <InAppAgentWindowHost />
+                </SidebarInset>
+              </div>
+              {hasFeaturePreviews ? (
+                <ControlledFeaturePreviewModal
+                  open={featurePreviewOpen}
+                  onOpenChange={setFeaturePreviewOpen}
+                />
+              ) : null}
             </div>
-            {hasFeaturePreviews ? (
-              <ControlledFeaturePreviewModal
-                open={featurePreviewOpen}
-                onOpenChange={setFeaturePreviewOpen}
-              />
-            ) : null}
-          </div>
-        </SidebarProvider>
+          </SidebarProvider>
+        </SidebarPresenceProvider>
       </TopBannerProvider>
     </>
   );

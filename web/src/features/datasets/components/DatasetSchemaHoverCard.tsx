@@ -69,7 +69,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
         className="max-h-[80vh] w-[400px] overflow-auto"
         collisionPadding={20}
       >
-        <p className="text-sm font-medium">{title}</p>
+        <p className="text-sm font-bold">{title}</p>
         <p className="text-muted-foreground pt-2 text-sm">
           Learn more about{" "}
           <a
@@ -96,7 +96,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           <>
             <Separator className="my-4" />
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Example Object</p>
+              <p className="text-sm font-bold">Example Object</p>
               <Button
                 variant="ghost"
                 size="sm"

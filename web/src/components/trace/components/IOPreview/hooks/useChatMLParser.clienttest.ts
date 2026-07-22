@@ -1,5 +1,5 @@
 import { renderHook } from "@testing-library/react";
-import { useChatMLParser } from "./useChatMLParser";
+import { type ChatMLParserResult, useChatMLParser } from "./useChatMLParser";
 
 describe("useChatMLParser", () => {
   it("groups output-side tool call arguments by tool name", () => {
@@ -157,5 +157,34 @@ describe("useChatMLParser", () => {
         invocationNumber: 2,
       },
     ]);
+  });
+
+  it("reuses an already computed parser result", () => {
+    const preparedResult: ChatMLParserResult = {
+      canDisplayAsChat: true,
+      allMessages: [],
+      additionalInput: undefined,
+      allTools: [],
+      toolCallCounts: new Map(),
+      toolCallsByName: new Map(),
+      messageToToolCallNumbers: new Map(),
+      toolNameToDefinitionNumber: new Map(),
+      inputMessageCount: 0,
+    };
+
+    const { result } = renderHook(() =>
+      useChatMLParser(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        preparedResult,
+      ),
+    );
+
+    expect(result.current).toBe(preparedResult);
   });
 });

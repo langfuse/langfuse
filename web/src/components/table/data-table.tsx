@@ -578,7 +578,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium">
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={data.isLoading}

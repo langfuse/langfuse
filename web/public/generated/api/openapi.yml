@@ -1960,7 +1960,7 @@ paths:
             ```json
 
             {
-              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-categorical"
+              "view": string,           // Required. One of "traces", "observations", "scores-numeric", "scores-boolean", "scores-categorical"
               "dimensions": [           // Optional. Default: []
                 {
                   "field": string       // Field to group by, e.g. "name", "userId", "sessionId"
@@ -2755,8 +2755,8 @@ paths:
 
         ## V2 Differences
 
-        - Supports `observations`, `scores-numeric`, and `scores-categorical`
-        views only (traces view not supported)
+        - Supports `observations`, `scores-numeric`, `scores-boolean`, and
+        `scores-categorical` views only (traces view not supported)
 
         - Direct access to tags and release fields on observations
 
@@ -2890,6 +2890,24 @@ paths:
         - `value` - Score value (for aggregations)
 
 
+        ### scores-boolean
+
+        Query boolean score data. It has the same score and parent
+        trace/observation dimensions as scores-numeric, plus:
+
+
+        **Dimensions:**
+
+        - `booleanValue` - Boolean value for true/false grouping and filtering
+
+
+        **Measures:**
+
+        - `count` - Total number of boolean scores
+
+        - `value` - Numeric 0/1 score value; `avg` returns the true-rate
+
+
         ### scores-categorical
 
         Query categorical score data. Same dimensions as scores-numeric except
@@ -2922,7 +2940,7 @@ paths:
         - `parentObservationId` - Use parentObservationId filter instead
 
 
-        **scores-numeric / scores-categorical views:**
+        **scores-numeric / scores-boolean / scores-categorical views:**
 
         - `id` - Use specific filters to narrow down results
 
@@ -2961,7 +2979,7 @@ paths:
             ```json
 
             {
-              "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
+              "view": string,           // Required. One of "observations", "scores-numeric", "scores-boolean", "scores-categorical"
               "dimensions": [           // Optional. Default: []
                 {
                   "field": string       // Field to group by (see available dimensions above)
@@ -6616,8 +6634,8 @@ paths:
         `POST /dashboards/{dashboardId}/placements`.
 
 
-        Supported views are `observations`, `scores-numeric`, and
-        `scores-categorical`.
+        Supported views are `observations`, `scores-numeric`, `scores-boolean`,
+        and `scores-categorical`.
 
         The legacy `traces` view is not supported by this unstable API.
 
@@ -14819,6 +14837,7 @@ components:
       enum:
         - observations
         - scores-numeric
+        - scores-boolean
         - scores-categorical
     unstableDashboardWidgetViewWithLegacy:
       title: unstableDashboardWidgetViewWithLegacy
@@ -14826,6 +14845,7 @@ components:
       enum:
         - observations
         - scores-numeric
+        - scores-boolean
         - scores-categorical
         - traces
       description: |-

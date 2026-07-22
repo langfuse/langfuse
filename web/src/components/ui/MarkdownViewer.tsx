@@ -10,7 +10,6 @@ import {
   createElement,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
-import Link from "next/link";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "@/src/components/ui/Codeblock";
 import { useTheme } from "next-themes";
@@ -40,6 +39,7 @@ import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { env } from "@/src/env.mjs";
 import {
   getPromptReferenceMarkdownHref,
   getPromptReferenceMarkdownLabel,
@@ -89,6 +89,23 @@ const transformListItemChildren = (children: ReactNode) =>
         })
       : child,
   );
+
+/**
+ * A Next.js `<Link>` auto-prepends the configured `NEXT_PUBLIC_BASE_PATH` to
+ * root-relative internal hrefs (`/project/...`); a native `<a>` does not. Since
+ * markdown links now render as native anchors, replicate that so a hand-authored
+ * internal link still resolves under the base path on subpath deployments.
+ * Only root-relative paths are rewritten — absolute URLs (with a scheme),
+ * protocol-relative (`//`), hash (`#`), search (`?`), and `./`/`../` refs are
+ * left untouched (Next's `<Link>` did not prepend the base path to those either).
+ */
+export const prependBasePathToInternalHref = (
+  href: string,
+  basePath: string,
+): string =>
+  basePath && href.startsWith("/") && !href.startsWith("//")
+    ? `${basePath}${href}`
+    : href;
 
 const isImageNode = (node?: ReactMarkdownNode): boolean =>
   !!node &&
@@ -283,18 +300,31 @@ function MarkdownRenderer({
                 );
               }
 
-              // Handle regular links
+              // Handle regular links. These are user-content URLs opened in a
+              // new tab (target="_blank"), so a native <a> is correct: a Next.js
+              // <Link> gives no client-routing benefit for an external new-tab
+              // navigation, but it DOES run the router's href validation, which
+              // throws "Invalid href '…' passed to next/router" for the many
+              // malformed URLs embedded in trace content (e.g. a URL containing
+              // a second `https://`). That was a top Sentry noise family
+              // (LANGFUSE-5DZ / 5EA / 5ER, ~40k lifetime events). getSafeLinkUrl
+              // already gates the protocol/shape; a native <a> never validates.
+              // Re-apply NEXT_PUBLIC_BASE_PATH for root-relative internal hrefs,
+              // which <Link> used to prepend automatically (subpath deploys).
               const safeHref = getSafeLinkUrl(href);
               if (safeHref) {
                 return (
-                  <Link
-                    href={safeHref}
+                  <a
+                    href={prependBasePathToInternalHref(
+                      safeHref,
+                      env.NEXT_PUBLIC_BASE_PATH ?? "",
+                    )}
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {children}
-                  </Link>
+                  </a>
                 );
               }
               return (
@@ -399,7 +429,7 @@ function MarkdownRenderer({
             },
             th({ children }) {
               return (
-                <th className="px-4 py-2 text-left text-xs font-medium tracking-wider uppercase">
+                <th className="px-4 py-2 text-left text-xs font-bold tracking-wider uppercase">
                   {children}
                 </th>
               );

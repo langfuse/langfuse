@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
+import type { IOPreviewContentMode } from "../IOPreview";
 
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
 
@@ -64,6 +65,41 @@ export function shouldRenderMessage(message: ChatMlMessage): boolean {
     hasRenderableContent(message) ||
     hasAdditionalData(message) ||
     isPlaceholderMessage(message)
+  );
+}
+
+export function shouldRenderMessageForContentMode(
+  message: ChatMlMessage,
+  contentMode: IOPreviewContentMode,
+  showSystemPrompt?: boolean,
+): boolean {
+  const shouldShowSystemPrompt =
+    showSystemPrompt ?? contentMode !== "conversation";
+
+  if (message.role === "system" && !shouldShowSystemPrompt) return false;
+
+  if (contentMode === "all") return shouldRenderMessage(message);
+
+  return (
+    (message.role === "user" ||
+      message.role === "assistant" ||
+      message.role === "system") &&
+    (hasRenderableContent(message) ||
+      hasThinkingContent(message) ||
+      hasRedactedThinkingContent(message))
+  );
+}
+
+export function hasRenderableConversationMessages(
+  messages: ChatMlMessage[],
+  showSystemPrompt?: boolean,
+): boolean {
+  return messages.some((message) =>
+    shouldRenderMessageForContentMode(
+      message,
+      "conversation",
+      showSystemPrompt,
+    ),
   );
 }
 

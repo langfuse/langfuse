@@ -194,7 +194,7 @@ function FileViewer({
       )}
 
       <div className="flex flex-col items-center gap-1">
-        <span className="text-sm font-medium">{fileExtension}</span>
+        <span className="text-sm font-bold">{fileExtension}</span>
         <span className="text-muted-foreground text-xs">
           {fileName.length > 5 ? `${fileName.slice(0, 5)}...` : fileName}
         </span>

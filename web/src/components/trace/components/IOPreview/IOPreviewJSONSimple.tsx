@@ -184,10 +184,13 @@ export function IOPreviewJSONSimple({
         ))}
       {/* When the output is over-limit, effectiveOutput is undefined, so the
           correction editor opens without a baseline actual-output to diff
-          against — an acceptable degradation for payloads too large to render. */}
+          against — an acceptable degradation for payloads too large to render.
+          We flag it as too-large so the diff dialog says so, rather than
+          reporting "no original output". */}
       {showCorrections && (
         <CorrectedOutputField
           actualOutput={effectiveOutput}
+          actualOutputTooLarge={outputTooLarge}
           existingCorrection={outputCorrection}
           observationId={observationId}
           projectId={projectId}

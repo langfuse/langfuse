@@ -118,7 +118,9 @@ export function SplashScreen({
           </StatusBadge>
         )}
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
-        <div className="text-muted-foreground">{description}</div>
+        {/* text-base: without a size token this fell through to the 16px
+            browser default — off the type scale. */}
+        <div className="text-muted-foreground text-base">{description}</div>
       </div>
 
       <div className="mb-8 flex w-full flex-wrap justify-center gap-4">
@@ -162,7 +164,7 @@ export function SplashScreen({
             <div key={index} className="flex gap-4">
               {/* Left: circle + connecting line */}
               <div className="flex flex-col items-center">
-                <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+                <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold">
                   {index + 1}
                 </div>
                 {index < steps.length - 1 && (
@@ -177,7 +179,7 @@ export function SplashScreen({
                 )}
               >
                 <div className="mb-2 flex items-center gap-3">
-                  <h3 className="text-xl font-semibold">{step.title}</h3>
+                  <h3 className="text-xl font-bold">{step.title}</h3>
                   {step.badge}
                 </div>
                 {step.description && (

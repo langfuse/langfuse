@@ -149,7 +149,7 @@ export const DatasetItemDetailPage = ({
                 <PopoverContent className="w-80" align="start" side="bottom">
                   <div className="flex flex-col gap-4">
                     <div className="space-y-2">
-                      <h4 className="leading-none font-medium">
+                      <h4 className="leading-none font-bold">
                         {item.data.status === DatasetStatus.ACTIVE
                           ? "Archive this item?"
                           : "Unarchive this item?"}

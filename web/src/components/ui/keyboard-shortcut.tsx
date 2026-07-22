@@ -17,7 +17,7 @@ const KeyboardShortcut = React.forwardRef<HTMLElement, KeyboardShortcutProps>(
     <kbd
       ref={ref}
       className={cn(
-        "bg-muted text-muted-foreground pointer-events-none inline-flex h-5 min-w-5 items-center justify-center gap-1 rounded-md border px-1.5 font-mono text-[10px] leading-none font-medium shadow-xs select-none",
+        "bg-muted text-muted-foreground pointer-events-none inline-flex h-5 min-w-5 items-center justify-center gap-1 rounded-md border px-1.5 font-mono text-[10px] leading-none font-bold shadow-xs select-none",
         className,
       )}
       {...props}

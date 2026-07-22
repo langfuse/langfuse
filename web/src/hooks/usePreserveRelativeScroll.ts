@@ -167,5 +167,3 @@ export function usePreserveRelativeScroll<T extends Element = Element>(
 
   return [elementRef, startPreserveScroll];
 }
-
-export default usePreserveRelativeScroll;

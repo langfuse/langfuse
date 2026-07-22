@@ -127,6 +127,22 @@ export default [
     },
   },
 
+  // Design-token lint wall. The type system has exactly two weights
+  // (`font-bold` for the bold role; text-* size tokens carry the regular
+  // weight), and colors must come from design tokens — palette utilities or
+  // token-backed arbitrary values like `bg-[hsl(var(--muted))]`. Raw weight
+  // utilities (font-medium, font-semibold, …) and raw colors in arbitrary
+  // values (bg-[#fff], shadow-[…rgb(0_0_0/0.3)]) escape the system and break
+  // theming.
+  {
+    name: "langfuse/web/design-tokens",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-raw-font-weight": "error",
+      "@repo/no-arbitrary-colors": "error",
+    },
+  },
+
   // App-wide guard ("overlay-content" mode): a consumer must not re-introduce a
   // z-index escape on an overlay it imports (e.g. nav-user's old `z-60` on
   // DropdownMenuContent, or `z-50` on a HoverCardContent). This mode flags a

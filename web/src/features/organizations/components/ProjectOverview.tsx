@@ -271,7 +271,9 @@ const SingleOrganizationProjectOverviewTile = ({
               />
             </Button>
           </CollapsibleTrigger>
-          <h3 className="truncate text-xl leading-7 font-bold">{org.name}</h3>
+          <h3 className="truncate text-xl leading-7 font-bold" title={org.name}>
+            {org.name}
+          </h3>
           <Badge variant="secondary" className="shrink-0 font-normal">
             {projectCount} {projectCount === 1 ? "project" : "projects"}
           </Badge>

@@ -90,7 +90,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
         <div className="flex w-full flex-row items-center gap-1">
           <ItemBadge type="TRACE" isSmall />
-          <span className="line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+          <span className="line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
             {trace.name || trace.id}
           </span>
           <DetailHeaderActionsMenu

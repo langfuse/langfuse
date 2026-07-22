@@ -5,6 +5,7 @@ import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
+import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/ee/features/in-app-agent/context";
 import {
@@ -48,6 +49,7 @@ export function ControlledInAppAgentWindow(
     isSubmitting,
     invalidateConversations,
     loadMoreConversations,
+    liveMessageVersion,
     messages,
     pendingToolApprovals,
     approveToolCall,
@@ -58,8 +60,20 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
+  const {
+    isAnimating,
+    messages: displayedMessages,
+    pendingToolApprovals: displayedPendingToolApprovals,
+    runningToolCallIds,
+  } = useSmoothStreamingMessages({
+    messages,
+    liveMessageVersion,
+    pendingToolApprovals,
+    shouldFlush: error !== null,
+  });
   const isInputDisabled =
     isRunning ||
+    isAnimating ||
     isSubmitting ||
     selectedConversationIsWriteLocked ||
     isSelectedConversationHydrating ||
@@ -86,11 +100,19 @@ export function ControlledInAppAgentWindow(
     () =>
       getDrawerMessages({
         error,
-        isRunning,
-        messages,
-        pendingToolApprovals,
+        isRunning: isRunning || isAnimating,
+        messages: displayedMessages,
+        pendingToolApprovals: displayedPendingToolApprovals,
+        runningToolCallIds,
       }),
-    [error, isRunning, messages, pendingToolApprovals],
+    [
+      displayedMessages,
+      displayedPendingToolApprovals,
+      error,
+      isAnimating,
+      isRunning,
+      runningToolCallIds,
+    ],
   );
 
   const closeButtonProps =
@@ -101,7 +123,9 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={displayError}
-      isAssistantTurnInProgress={isRunning || pendingToolApprovals.length > 0}
+      isAssistantTurnInProgress={
+        isRunning || isAnimating || displayedPendingToolApprovals.length > 0
+      }
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}

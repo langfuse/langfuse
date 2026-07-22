@@ -705,9 +705,7 @@ export function TableViewPresetsDrawer({
                                       <PopoverContent
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <h2 className="mb-3 font-semibold">
-                                          Edit
-                                        </h2>
+                                        <h2 className="mb-3 font-bold">Edit</h2>
                                         <Form {...form}>
                                           <form
                                             onSubmit={form.handleSubmit(

@@ -1,8 +1,123 @@
-import { MediaContentType, MediaFileExtension } from "../validation";
+export enum MediaContentType {
+  PNG = "image/png",
+  JPEG = "image/jpeg",
+  JPG = "image/jpg",
+  WEBP = "image/webp",
+  GIF = "image/gif",
+  SVG = "image/svg+xml",
+  TIFF = "image/tiff",
+  BMP = "image/bmp",
+  AVIF = "image/avif",
+  HEIC = "image/heic",
+  MP3 = "audio/mpeg",
+  MP3_LEGACY = "audio/mp3",
+  WAV = "audio/wav",
+  OGG = "audio/ogg",
+  OGA = "audio/oga",
+  AAC = "audio/aac",
+  M4A = "audio/mp4",
+  FLAC = "audio/flac",
+  OPUS = "audio/opus",
+  WEBA = "audio/webm",
+  MP4 = "video/mp4",
+  WEBM = "video/webm",
+  VIDEO_OGG = "video/ogg",
+  MPEG = "video/mpeg",
+  MOV = "video/quicktime",
+  AVI = "video/x-msvideo",
+  MKV = "video/x-matroska",
+  TXT = "text/plain",
+  HTML = "text/html",
+  CSS = "text/css",
+  CSV = "text/csv",
+  MARKDOWN = "text/markdown",
+  PYTHON = "text/x-python",
+  JAVASCRIPT = "application/javascript",
+  TYPESCRIPT = "text/x-typescript",
+  YAML = "application/x-yaml",
+  PDF = "application/pdf",
+  DOC = "application/msword",
+  XLS = "application/vnd.ms-excel",
+  XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ZIP = "application/zip",
+  JSON = "application/json",
+  XML = "application/xml",
+  BIN = "application/octet-stream",
+  DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  RTF = "application/rtf",
+  JSONL = "application/x-ndjson",
+  PARQUET = "application/vnd.apache.parquet",
+  GZIP = "application/gzip",
+  TAR = "application/x-tar",
+  SEVEN_Z = "application/x-7z-compressed",
+}
 
-export const getFileExtensionFromContentType = (
+export enum MediaFileExtension {
+  PNG = "png",
+  JPG = "jpg",
+  JPEG = "jpeg",
+  WEBP = "webp",
+  GIF = "gif",
+  SVG = "svg",
+  TIFF = "tiff",
+  BMP = "bmp",
+  AVIF = "avif",
+  HEIC = "heic",
+  MP3 = "mp3",
+  WAV = "wav",
+  OGG = "ogg",
+  OGA = "oga",
+  AAC = "aac",
+  M4A = "m4a",
+  FLAC = "flac",
+  OPUS = "opus",
+  WEBA = "weba",
+  MP4 = "mp4",
+  WEBM = "webm",
+  OGV = "ogv",
+  MPEG = "mpeg",
+  MOV = "mov",
+  AVI = "avi",
+  MKV = "mkv",
+  TXT = "txt",
+  HTML = "html",
+  CSS = "css",
+  CSV = "csv",
+  MD = "md",
+  PY = "py",
+  JS = "js",
+  TS = "ts",
+  YAML = "yaml",
+  PDF = "pdf",
+  DOC = "doc",
+  XLS = "xls",
+  XLSX = "xlsx",
+  ZIP = "zip",
+  JSON = "json",
+  XML = "xml",
+  BIN = "bin",
+  DOCX = "docx",
+  PPTX = "pptx",
+  RTF = "rtf",
+  JSONL = "jsonl",
+  PARQUET = "parquet",
+  GZ = "gz",
+  TAR = "tar",
+  SEVEN_Z = "7z",
+}
+
+export type MediaField = "input" | "output" | "metadata";
+
+const mediaContentTypes = new Set<string>(Object.values(MediaContentType));
+
+export function isMediaContentType(value: unknown): value is MediaContentType {
+  return typeof value === "string" && mediaContentTypes.has(value);
+}
+
+export function getFileExtensionFromContentType(
   contentType: MediaContentType,
-): MediaFileExtension => {
+): MediaFileExtension {
   const mimeToExtension: Record<MediaContentType, MediaFileExtension> = {
     [MediaContentType.PNG]: MediaFileExtension.PNG,
     [MediaContentType.JPEG]: MediaFileExtension.JPEG,
@@ -58,10 +173,10 @@ export const getFileExtensionFromContentType = (
     [MediaContentType.SEVEN_Z]: MediaFileExtension.SEVEN_Z,
   };
 
-  const extension = mimeToExtension[contentType as MediaContentType];
+  const extension = mimeToExtension[contentType];
   if (!extension) {
     throw new Error(`Unsupported content type: ${contentType}`);
   }
 
   return extension;
-};
+}

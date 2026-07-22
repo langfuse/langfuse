@@ -630,7 +630,7 @@ export function DatasetRunsTable(props: {
                         key={key}
                         className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -664,7 +664,7 @@ export function DatasetRunsTable(props: {
                         key={key}
                         className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -681,7 +681,7 @@ export function DatasetRunsTable(props: {
                       key={key}
                       className="flex h-full max-w-full min-w-80 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">

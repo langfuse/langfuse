@@ -22,5 +22,8 @@ export function buildMonitorAlertSlackMessage(
     body: alert.message.body,
     timestamp: alert.timestamp,
     url: alert.permalink,
+    secondaryUrl: alert.dataPermalink,
+    secondaryLabel:
+      alert.view === "observations" ? "View observations" : "View traces",
   });
 }

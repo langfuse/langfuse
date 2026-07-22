@@ -26,5 +26,3 @@ export const BillingPlanPeriodView = () => {
     </div>
   );
 };
-
-export default BillingPlanPeriodView;

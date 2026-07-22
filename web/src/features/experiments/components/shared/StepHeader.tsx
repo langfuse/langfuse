@@ -11,7 +11,7 @@ export const StepHeader: React.FC<StepHeaderProps> = ({
 }) => {
   return (
     <div className="space-y-2">
-      <h3 className="text-lg font-medium">{title}</h3>
+      <h3 className="text-lg font-bold">{title}</h3>
       <p className="text-muted-foreground text-sm">{description}</p>
     </div>
   );

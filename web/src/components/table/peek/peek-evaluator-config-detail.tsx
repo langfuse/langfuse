@@ -58,7 +58,7 @@ const PeekViewEvaluatorConfigDetail = ({
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
-          <span className="max-h-fit text-lg font-medium">Configuration</span>
+          <span className="max-h-fit text-lg font-bold">Configuration</span>
           <div className="flex items-center gap-2">
             <StatusBadge
               type={displayStatus.toLowerCase()}
@@ -106,7 +106,7 @@ const PeekViewEvaluatorConfigDetail = ({
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
 
       <CardDescription className="flex items-center text-sm">
-        <span className="mr-2 text-sm font-medium">Referenced Evaluator</span>
+        <span className="mr-2 text-sm font-bold">Referenced Evaluator</span>
         {evalConfig.evalTemplate && (
           <TableLink
             path={`/project/${projectId}/evals/templates/${evalConfig.evalTemplate.id}`}

@@ -10,6 +10,7 @@ import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
 import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
+import { cn } from "@/src/utils/tailwind";
 import { TotalMetric } from "./TotalMetric";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
@@ -193,7 +194,11 @@ export const ScoresTable = ({
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the table fits its rows to the
+      // AVAILABLE height instead of overflowing; min-h-0 lets the flex column
+      // shrink so the row area scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="Scores"
       isLoading={
         isLoading ||

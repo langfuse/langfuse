@@ -174,6 +174,30 @@ describe("buildFilterColumnsParams", () => {
     expect(custom).not.toContain("type");
     expect(custom).not.toContain("level");
   });
+
+  it("offers a boolean value filter only for boolean score monitors", () => {
+    const booleanParams = buildFilterColumnsParams({
+      view: "scores-boolean",
+      filterOptions: undefined,
+      datasets: undefined,
+    });
+    const booleanColumns = getWidgetFilterColumns(booleanParams);
+    expect(
+      booleanColumns.find((column) => column.id === "booleanValue")?.type,
+    ).toBe("boolean");
+    expect(booleanColumns.some((column) => column.id === "value")).toBe(false);
+
+    const numericParams = buildFilterColumnsParams({
+      view: "scores-numeric",
+      filterOptions: undefined,
+      datasets: undefined,
+    });
+    expect(
+      getWidgetFilterColumns(numericParams).some(
+        (column) => column.id === "booleanValue",
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("monitorToDefaults", () => {

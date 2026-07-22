@@ -102,7 +102,7 @@ export function WebCalloutMenuItem({
           title={action.endpointName}
         >
           <span>Call </span>
-          <span className="font-semibold">{action.endpointName}</span>
+          <span className="font-bold">{action.endpointName}</span>
         </span>
       </DropdownMenuItem>
       {withSeparator && <DropdownMenuSeparator />}

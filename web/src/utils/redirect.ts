@@ -42,6 +42,17 @@ export function getSafeRedirectPath(
     return safeDefault;
   }
 
+  // Strip ASCII control characters (0x00-0x1F, 0x7F) to defend against
+  // newline injection (HTTP header / log forging) and null-byte injection
+  // (path-extension confusion). These characters are not valid in URL
+  // paths per RFC 3986. Unicode bidi-formatting characters (e.g.
+  // U+202E RTL-override) are intentionally out of scope for this fix.
+  const sanitized = trimmed.replace(/[\x00-\x1F\x7F]/g, "");
+
+  if (!sanitized) {
+    return safeDefault;
+  }
+
   // Only allow paths starting with "/" but not "//" (protocol-relative URLs)
   // This blocks:
   // - Protocol-relative: "//evil.com"
@@ -49,18 +60,18 @@ export function getSafeRedirectPath(
   // - JavaScript URIs: "javascript:alert(1)"
   // - Data URIs: "data:text/html,..."
   // - Other schemes: "file://", "ftp://", etc.
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+  if (!sanitized.startsWith("/") || sanitized.startsWith("//")) {
     return safeDefault;
   }
 
   // If basePath is configured, check if the path already starts with it
   // This prevents double-prepending when the path already includes the base path
-  if (basePath && trimmed.startsWith(basePath)) {
-    return trimmed;
+  if (basePath && sanitized.startsWith(basePath)) {
+    return sanitized;
   }
 
   // Prepend basePath if configured
-  return basePath + trimmed;
+  return basePath + sanitized;
 }
 
 /**
@@ -81,6 +92,10 @@ export function stripBasePath(path: string): string {
     return path;
   }
 
-  const stripped = path.slice(basePath.length) || "/";
+  // Strip ASCII control characters (0x00-0x1F, 0x7F) before further
+  // processing. See getSafeRedirectPath for the rationale.
+  const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
+
+  const stripped = cleaned.slice(basePath.length) || "/";
   return stripped.startsWith("/") ? stripped : `/${stripped}`;
 }

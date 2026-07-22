@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { buildTreeFromJSON } from "./treeStructure";
+import { buildMultiSectionTree } from "./multiSectionTree";
+import { applyExpansionState } from "./treeExpansion";
 import {
   getAllVisibleNodes,
   getNodeByIndex,
@@ -506,6 +508,60 @@ describe("getNodeByIndex after expansion changes", () => {
     }
 
     expect(failedIndexes).toEqual([]);
+  });
+
+  it("CRITICAL: multi-section — meta-root count stays in sync after collapsing a section", () => {
+    // Regression for LANGFUSE-456 ("[getNodeByIndex] Index out of bounds").
+    // The virtualizer's row count is driven by the synthetic meta-root's
+    // visibleDescendantCount. applyExpansionState used to skip non-expandable
+    // nodes, so the meta-root's cached count stayed over-counted after a section
+    // collapsed, and the virtualizer requested phantom row indexes.
+    const sections = [
+      {
+        key: "input",
+        data: {
+          messages: [
+            { role: "user", content: "hello" },
+            { role: "assistant", content: "hi there" },
+          ],
+        },
+      },
+      {
+        key: "output",
+        data: { result: { text: "answer", tokens: [1, 2, 3] } },
+      },
+    ];
+
+    const tree = buildMultiSectionTree(sections);
+
+    // Sanity: fully expanded on build, every index resolves.
+    const initialRowCount = 1 + tree.rootNode.visibleDescendantCount;
+    for (let i = 0; i < initialRowCount; i++) {
+      expect(getNodeByIndex(tree.rootNode, i)).not.toBeNull();
+    }
+
+    // Re-apply an expansion state that collapses the first section — this is what
+    // happens on load / when switching observations and the tree is rebuilt.
+    applyExpansionState(tree, { input__header: false });
+
+    const rowCount = 1 + tree.rootNode.visibleDescendantCount;
+
+    // The meta-root's cached descendant count MUST equal the real navigable count.
+    // Pre-fix this was over-counted (still included the collapsed section's rows).
+    const navigableCount = getAllVisibleNodes(tree.rootNode).length - 1;
+    expect(tree.rootNode.visibleDescendantCount).toBe(navigableCount);
+
+    // Every index in [0, rowCount) must resolve to a non-null node.
+    // Pre-fix: the trailing phantom indexes walked into the collapsed section
+    // header and returned null.
+    const failedIndexes: number[] = [];
+    for (let i = 0; i < rowCount; i++) {
+      const node = getNodeByIndex(tree.rootNode, i);
+      if (node === null) failedIndexes.push(i);
+    }
+
+    expect(failedIndexes).toEqual([]);
+    expect(failedIndexes.length).toBe(0);
   });
 });
 

@@ -34,6 +34,7 @@ import {
   escapeSqlLikePattern,
   tableColumnsToSqlFilterAndPrefix,
   getObservationsWithPromptName,
+  getObservationsWithPromptNameFromEvents,
   getObservationMetricsForPrompts,
   getObservationMetricsForPromptsFromEvents,
   getAggregatedScoresForPrompts,
@@ -262,15 +263,16 @@ export const promptRouter = createTRPCRouter({
           message: "fromTimestamp must be before toTimestamp",
         }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { projectId, promptNames, ...timeWindow } = input;
       if (promptNames.length === 0) return [];
+      const useEventsTable = ctx.session.user.v4BetaEnabled === true;
 
-      const res = await getObservationsWithPromptName(
-        projectId,
-        promptNames,
-        timeWindow,
-      );
+      const getPromptCounts = useEventsTable
+        ? getObservationsWithPromptNameFromEvents
+        : getObservationsWithPromptName;
+
+      const res = await getPromptCounts(projectId, promptNames, timeWindow);
       return res.map(({ promptName, count }) => ({
         promptName,
         observationCount: count,

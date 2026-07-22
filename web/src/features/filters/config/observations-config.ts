@@ -5,6 +5,7 @@ import {
 } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { renderLevelIcon } from "@/src/components/level-colors";
 
 export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
@@ -53,9 +54,12 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Tags",
     },
     {
+      // Display relabel to "Status" (see traces-config); column id stays
+      // `level` until the cross-surface rename lands.
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "categorical" as const,

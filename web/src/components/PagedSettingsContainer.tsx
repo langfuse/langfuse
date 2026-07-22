@@ -83,7 +83,7 @@ export const PagedSettingsContainer = ({
               <Link
                 key={page.title}
                 href={page.href}
-                className="flex flex-row items-center gap-2 font-semibold"
+                className="flex flex-row items-center gap-2 font-bold"
               >
                 {page.title}
                 <ArrowUpRight size={14} className="inline" />
@@ -93,7 +93,7 @@ export const PagedSettingsContainer = ({
                 key={page.title}
                 onClick={() => onChange(page.slug)}
                 className={cn(
-                  "cursor-pointer font-semibold",
+                  "cursor-pointer font-bold",
                   page.slug === currentPage.slug && "text-primary",
                 )}
               >

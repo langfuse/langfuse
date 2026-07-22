@@ -43,7 +43,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/observability/sdk/upgrade-path"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -68,7 +68,7 @@ const getCalloutContent = (
               href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Learn more about the Experiment Runner SDK.
             </a>
@@ -96,7 +96,7 @@ const getCalloutContent = (
             href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk#experiment-runner-sdk"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -119,7 +119,7 @@ const getCalloutContent = (
             href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-dark-blue font-medium hover:opacity-80"
+            className="text-dark-blue font-bold hover:opacity-80"
           >
             Learn more
           </a>
@@ -151,7 +151,7 @@ export function EvalVersionCallout({
       <AlertDescription>
         <div className="flex flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <span className="text-foreground font-medium">{content.title}</span>
+            <span className="text-foreground font-bold">{content.title}</span>
             <span className="text-foreground text-sm">
               {content.description}
             </span>

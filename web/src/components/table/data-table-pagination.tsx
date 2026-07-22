@@ -82,10 +82,8 @@ export function DataTablePagination<TData>({
       </div>
       <div className="flex flex-wrap items-center space-x-6 lg:space-x-8">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium whitespace-nowrap md:hidden">
-            Rows
-          </p>
-          <p className="hidden text-sm font-medium whitespace-nowrap md:block">
+          <p className="text-sm font-bold whitespace-nowrap md:hidden">Rows</p>
+          <p className="hidden text-sm font-bold whitespace-nowrap md:block">
             Rows per page
           </p>
           <Select
@@ -109,7 +107,7 @@ export function DataTablePagination<TData>({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-center gap-1 text-sm font-medium whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1 text-sm font-bold whitespace-nowrap">
           {table.getPageCount() !== -1 ? (
             <>
               Page

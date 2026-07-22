@@ -15,6 +15,7 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import { parseTraceTimestampFromQuery } from "@/src/utils/parseTraceTimestampFromQuery";
 
 export type EvalPreviewPointer = {
   traceId?: string;
@@ -41,18 +42,6 @@ export function getEvalPreviewDetailPageListKey(
   return undefined;
 }
 
-function parseTimestamp(timestamp: string | string[] | undefined) {
-  if (Array.isArray(timestamp)) return undefined;
-  if (!timestamp) return undefined;
-
-  try {
-    const date = new Date(decodeURIComponent(timestamp));
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  } catch {
-    return undefined;
-  }
-}
-
 export function getEvalPreviewPointerFromDetailPageEntry(
   entry: ListEntry | undefined,
   target: EvalTargetObjectType,
@@ -62,7 +51,7 @@ export function getEvalPreviewPointerFromDetailPageEntry(
   if (target === EvalTargetObject.TRACE) {
     return {
       traceId: entry.id,
-      timestamp: parseTimestamp(entry.params?.timestamp),
+      timestamp: parseTraceTimestampFromQuery(entry.params?.timestamp),
     };
   }
 
@@ -73,7 +62,7 @@ export function getEvalPreviewPointerFromDetailPageEntry(
   return {
     traceId,
     observationId: observationEntry.id,
-    timestamp: parseTimestamp(
+    timestamp: parseTraceTimestampFromQuery(
       observationEntry.params?.startTime ?? observationEntry.params?.timestamp,
     ),
   };
@@ -90,8 +79,9 @@ export function getEvalPreviewPointerFromUrlQuery(
     typeof query.observationId === "string" ? query.observationId : undefined;
   const timestamp =
     target === EvalTargetObject.TRACE
-      ? parseTimestamp(query.timestamp)
-      : (parseTimestamp(query.startTime) ?? parseTimestamp(query.timestamp));
+      ? parseTraceTimestampFromQuery(query.timestamp)
+      : (parseTraceTimestampFromQuery(query.startTime) ??
+        parseTraceTimestampFromQuery(query.timestamp));
 
   if (target === EvalTargetObject.TRACE) {
     return { traceId, timestamp };

@@ -182,11 +182,12 @@ phrase (e.g. "routing queue" → metadata.routing.queue), use that exact key. Us
 
 ## Scores (evaluation results)
 
-Filter by score NAME via the "key" field. Default to OBSERVATION-level scores
-unless the request clearly means trace-level scores.
-- Numeric score: {"type": "numberObject", "column": "${SCORE_COLUMNS.observation.numeric}" (observation) or "${SCORE_COLUMNS.trace.numeric}" (trace), "key": "<score name>", "operator": ">" | "<" | ">=" | "<=" | "=", "value": <number>}
-- Categorical score: {"type": "categoryOptions", "column": "${SCORE_COLUMNS.observation.categorical}" (observation) or "${SCORE_COLUMNS.trace.categorical}" (trace), "key": "<score name>", "operator": "any of" | "none of", "value": ["<category>"]}
-- Boolean score: {"type": "booleanObject", "column": "${SCORE_COLUMNS.observation.boolean}" (observation) or "${SCORE_COLUMNS.trace.boolean}" (trace), "key": "<score name>", "operator": "=" | "<>", "value": true | false}
+Filter by score NAME via the "key" field. The score columns
+(${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.categorical} / ${SCORE_COLUMNS.observation.boolean}) are level-agnostic: they match a score
+whether it was recorded at observation or trace level — always use them.
+- Numeric score: {"type": "numberObject", "column": "${SCORE_COLUMNS.observation.numeric}", "key": "<score name>", "operator": ">" | "<" | ">=" | "<=" | "=", "value": <number>}
+- Categorical score: {"type": "categoryOptions", "column": "${SCORE_COLUMNS.observation.categorical}", "key": "<score name>", "operator": "any of" | "none of", "value": ["<category>"]}
+- Boolean score: {"type": "booleanObject", "column": "${SCORE_COLUMNS.observation.boolean}", "key": "<score name>", "operator": "=" | "<>", "value": true | false}
 
 NEVER use ${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.categorical} / ${SCORE_COLUMNS.observation.boolean} / ${SCORE_COLUMNS.trace.numeric} / ${SCORE_COLUMNS.trace.categorical} / ${SCORE_COLUMNS.trace.boolean} as a plain column (no bare {"type":"number","column":"${SCORE_COLUMNS.observation.numeric}"} etc.) — they REQUIRE the keyed numberObject/categoryOptions/booleanObject shape above with the score name in "key". Only use a score name that appears in the observed data; do not invent one.
 

@@ -98,7 +98,7 @@ export function TracePage({
     )
   ) : undefined;
   const sharedBadge = showPublicIndicators ? (
-    <Badge variant="outline" className="text-xs font-medium">
+    <Badge variant="outline" className="text-xs font-bold">
       Public
     </Badge>
   ) : undefined;

@@ -361,7 +361,7 @@ function ViewModeSegment({
       aria-pressed={active}
       title={label}
       className={cn(
-        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",

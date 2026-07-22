@@ -296,7 +296,7 @@ function StandardSignupFlow({
             {showPasswordStep ? "Sign up" : "Continue"}
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -416,7 +416,7 @@ function VerifiedSignupFlow({
             </h2>
             <p className="text-muted-foreground mt-2 text-center text-sm">
               We sent a verification code to{" "}
-              <span className="font-medium">{otpEmail}</span>
+              <span className="font-bold">{otpEmail}</span>
             </p>
           </div>
 
@@ -425,7 +425,7 @@ function VerifiedSignupFlow({
               <div>
                 <label
                   htmlFor="otp-code"
-                  className="mb-2 block text-sm font-medium"
+                  className="mb-2 block text-sm font-bold"
                 >
                   Verification code
                 </label>
@@ -450,7 +450,7 @@ function VerifiedSignupFlow({
                 Verify
               </Button>
               {otpError && (
-                <div className="text-destructive text-center text-sm font-medium">
+                <div className="text-destructive text-center text-sm font-bold">
                   {otpError}
                 </div>
               )}
@@ -458,7 +458,7 @@ function VerifiedSignupFlow({
                 The code is valid for 3 minutes.{" "}
                 <button
                   type="button"
-                  className="text-link hover:text-link-hover font-medium"
+                  className="text-link hover:text-link-hover font-bold"
                   onClick={() => {
                     setPhase("form");
                     setOtpCode("");
@@ -523,7 +523,7 @@ function VerifiedSignupFlow({
             Continue
           </Button>
           {formError ? (
-            <div className="text-destructive text-center text-sm font-medium">
+            <div className="text-destructive text-center text-sm font-bold">
               {formError}
             </div>
           ) : null}
@@ -586,7 +586,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-link hover:text-link-hover leading-6 font-semibold"
+        className="text-link hover:text-link-hover leading-6 font-bold"
       >
         Sign in
       </Link>

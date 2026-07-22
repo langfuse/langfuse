@@ -80,7 +80,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             style={toolsPopoverWidth ? { width: toolsPopoverWidth } : undefined}
           >
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">Tools</h4>
+              <h4 className="mb-1 text-sm font-bold">Tools</h4>
               <p className="text-muted-foreground text-xs">
                 Configure tools for your model to use.
               </p>
@@ -117,7 +117,7 @@ export const ConfigurationDropdowns: React.FC = () => {
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">Structured Output</h4>
+              <h4 className="mb-1 text-sm font-bold">Structured Output</h4>
               <p className="text-muted-foreground text-xs">
                 Configure JSON schema for structured output.
               </p>
@@ -154,7 +154,7 @@ export const ConfigurationDropdowns: React.FC = () => {
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">
+              <h4 className="mb-1 text-sm font-bold">
                 Variables & Message Placeholders
               </h4>
               <p className="text-muted-foreground text-xs">
@@ -168,11 +168,11 @@ export const ConfigurationDropdowns: React.FC = () => {
               >
                 <div className="space-y-4">
                   <div>
-                    <h5 className="mb-2 text-xs font-medium">Variables</h5>
+                    <h5 className="mb-2 text-xs font-bold">Variables</h5>
                     <Variables />
                   </div>
                   <div>
-                    <h5 className="mb-2 text-xs font-medium">
+                    <h5 className="mb-2 text-xs font-bold">
                       Message Placeholders
                     </h5>
                     <MessagePlaceholders />

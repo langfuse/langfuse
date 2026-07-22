@@ -448,7 +448,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                 >
                   <span>Show all {payload.length}</span>
                   {hiddenCount > 0 && (
-                    <span className="font-medium">(+{hiddenCount})</span>
+                    <span className="font-bold">(+{hiddenCount})</span>
                   )}
                   <MoreVertical className="h-3 w-3" />
                 </Button>
@@ -460,7 +460,7 @@ export const ScoreChartLegendContent = React.forwardRef<
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">All Categories</p>
+                    <p className="text-sm font-bold">All Categories</p>
                     <span className="text-muted-foreground text-xs">
                       {payload.length} total
                     </span>
@@ -471,7 +471,7 @@ export const ScoreChartLegendContent = React.forwardRef<
                         <div key={groupName}>
                           {/* Only show subheader if there are multiple groups */}
                           {Object.keys(groupedItems).length > 1 && (
-                            <h4 className="text-muted-foreground mb-2 text-xs font-medium">
+                            <h4 className="text-muted-foreground mb-2 text-xs font-bold">
                               {groupName}
                             </h4>
                           )}

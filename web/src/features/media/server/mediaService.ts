@@ -1,13 +1,9 @@
-import { randomUUID } from "crypto";
-
 import { env } from "@/src/env.mjs";
-import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlQuery,
   GetMediaUploadUrlResponseSchema,
-  type MediaContentType,
   type PatchMediaBody,
 } from "@/src/features/media/validation";
 import {
@@ -18,10 +14,14 @@ import {
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   declarePendingDatasetItemMedia,
+  getMediaBucketPath,
+  getMediaId,
   getCurrentSpan,
+  linkMediaToTraceOrObservation,
   logger,
   recordHistogram,
   recordIncrement,
+  upsertMediaRecord,
 } from "@langfuse/shared/src/server";
 
 export async function createMediaUploadUrl(params: {
@@ -96,7 +96,12 @@ export async function createMediaUploadUrl(params: {
       );
     }
 
-    const bucketPath = getBucketPath({ projectId, mediaId, contentType });
+    const bucketPath = getMediaBucketPath({
+      projectId,
+      mediaId,
+      contentType,
+      prefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX ?? "",
+    });
     const uploadUrl = await getMediaStorageServiceClient(
       uploadBucket,
     ).getSignedUploadUrl({
@@ -215,115 +220,4 @@ export async function updateMediaUploadStatus(params: {
       `Error updating uploadedAt on media ID ${mediaId}: ${message}`,
     );
   }
-}
-
-async function upsertMediaRecord(params: {
-  mediaId: string;
-  projectId: string;
-  sha256Hash: string;
-  bucketPath: string;
-  uploadBucket: string;
-  contentType: MediaContentType;
-  contentLength: number;
-}) {
-  const {
-    mediaId,
-    projectId,
-    sha256Hash,
-    bucketPath,
-    uploadBucket,
-    contentType,
-    contentLength,
-  } = params;
-
-  // Media has two unique constraints: (project_id, id) for the public mediaId
-  // and (project_id, sha_256_hash) for content dedupe. Under concurrent uploads
-  // of the same file, either unique index can observe the speculative insert
-  // first. Omitting the conflict target makes DO NOTHING absorb conflicts from
-  // both constraints; the guarded Prisma update below then proves that the
-  // existing row has both the expected mediaId and full hash before reusing it.
-  await prisma.$executeRaw`
-        INSERT INTO "media" (
-            "id",
-            "project_id",
-            "sha_256_hash",
-            "bucket_path",
-            "bucket_name",
-            "content_type",
-            "content_length"
-          )
-          VALUES (
-            ${mediaId},
-            ${projectId},
-            ${sha256Hash},
-            ${bucketPath},
-            ${uploadBucket},
-            ${contentType},
-            ${contentLength}
-          )
-          ON CONFLICT DO NOTHING
-        `;
-
-  const result = await prisma.media.updateMany({
-    where: {
-      projectId,
-      id: mediaId,
-      sha256Hash,
-    },
-    data: {
-      bucketName: uploadBucket,
-      bucketPath,
-      contentType,
-      contentLength: BigInt(contentLength),
-    },
-  });
-
-  if (result.count === 0) {
-    throw new InternalServerError(
-      `Media ID collision detected for media ID ${mediaId} in project ${projectId}. The existing media row has a different id or sha_256_hash.`,
-    );
-  }
-}
-
-async function linkMediaToTraceOrObservation(params: {
-  projectId: string;
-  traceId: string;
-  observationId?: string | null;
-  mediaId: string;
-  field: string;
-}) {
-  const { projectId, traceId, observationId, mediaId, field } = params;
-
-  if (observationId) {
-    await prisma.$queryRaw`
-        INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
-        VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
-        ON CONFLICT DO NOTHING;
-      `;
-    return;
-  }
-
-  await prisma.$queryRaw`
-      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-      VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
-      ON CONFLICT DO NOTHING;
-    `;
-}
-
-function getBucketPath(params: {
-  projectId: string;
-  mediaId: string;
-  contentType: MediaContentType;
-}) {
-  const { projectId, mediaId, contentType } = params;
-  const prefix = env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX ?? "";
-  const fileExtension = getFileExtensionFromContentType(contentType);
-
-  return `${prefix}${projectId}/${mediaId}.${fileExtension}`;
-}
-
-function getMediaId(sha256Hash: string) {
-  const urlSafeHash = sha256Hash.replaceAll("+", "-").replaceAll("/", "_");
-
-  return urlSafeHash.slice(0, 22);
 }

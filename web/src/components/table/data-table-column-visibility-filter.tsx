@@ -215,7 +215,7 @@ function GroupVisibilityHeader<TData, TValue>({
         >
           <div className="flex items-center gap-2">
             <Component className="h-4 w-4 opacity-50" />
-            <span className="text-sm font-medium">
+            <span className="text-sm font-bold">
               {column.header && typeof column.header === "string"
                 ? column.header
                 : column.accessorKey}
@@ -439,7 +439,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
                     className="hover:bg-transparent!"
                     onClick={() => toggleAllColumns(count, total)}
                   >
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-bold">
                       {count === total
                         ? "Deselect All Columns"
                         : "Select All Columns"}

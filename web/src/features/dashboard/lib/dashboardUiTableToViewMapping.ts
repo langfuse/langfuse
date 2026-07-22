@@ -213,6 +213,53 @@ const viewFilterDefinitions: Record<
       sourceSpec("Version", { uiTableId: "version" }),
     ),
   ],
+  "scores-boolean": [
+    defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
+    defineField(
+      "source",
+      sourceSpec("Score Source", { uiTableId: "scoreSource" }),
+    ),
+    defineField(
+      "booleanValue",
+      sourceSpec("Boolean Value", { uiTableId: "booleanValue" }),
+    ),
+    defineField(
+      "dataType",
+      sourceSpec("Scores Data Type", { uiTableId: "scoreDataType" }),
+    ),
+    defineField("tags", sourceSpec("Tags", { uiTableId: "traceTags" })),
+    defineField(
+      "environment",
+      sourceSpec("Environment", { uiTableId: "environment" }),
+    ),
+    defineField(
+      "userId",
+      sourceSpec("User", { uiTableId: "user" }),
+      sourceSpec("User", { uiTableId: "userId" }),
+    ),
+    defineField(
+      "sessionId",
+      sourceSpec("Session", { uiTableId: "session" }),
+      sourceSpec("Session", { uiTableId: "sessionId" }),
+    ),
+    defineField("metadata", sourceSpec("Metadata", { uiTableId: "metadata" })),
+    defineField(
+      "traceName",
+      sourceSpec("Trace Name", { uiTableId: "traceName" }),
+    ),
+    defineField(
+      "observationName",
+      sourceSpec("Observation Name", { uiTableId: "observationName" }),
+    ),
+    defineField(
+      "traceRelease",
+      sourceSpec("Release", { uiTableId: "release" }),
+    ),
+    defineField(
+      "traceVersion",
+      sourceSpec("Version", { uiTableId: "version" }),
+    ),
+  ],
   "scores-categorical": [
     defineField("name", sourceSpec("Score Name", { uiTableId: "scoreName" })),
     defineField(

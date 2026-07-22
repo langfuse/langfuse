@@ -1,12 +1,17 @@
 import React from "react";
 import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import {
+  IOPreview,
+  type IOPreviewContentMode,
+  type ViewMode,
+} from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { downloadJsonFile } from "@/src/components/session/actions/downloadSessionAsJson";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
+import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -41,7 +46,7 @@ const TruncatedIOSection = ({
   return (
     <div className="flex flex-col gap-1">
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-        <span className="font-medium">{label}</span>
+        <span className="font-bold">{label}</span>
         {(truncated || shown.length < text.length) && (
           <span>
             {compactNumberFormatter(Math.max(fullLength, text.length), 1)}{" "}
@@ -74,6 +79,13 @@ export const SessionObservationIO = ({
   environment,
   showCorrections,
   onOpenInTraceView,
+  contentMode = "all",
+  showSystemPrompt,
+  currentView,
+  parsedInput,
+  parsedOutput,
+  parsedMetadata,
+  chatMLParserResult,
 }: {
   observation: SessionTraceObservation;
   projectId: string;
@@ -82,6 +94,13 @@ export const SessionObservationIO = ({
   environment?: string;
   showCorrections: boolean;
   onOpenInTraceView: (observationId: string) => void;
+  contentMode?: IOPreviewContentMode;
+  showSystemPrompt?: boolean;
+  currentView?: ViewMode;
+  parsedInput?: unknown;
+  parsedOutput?: unknown;
+  parsedMetadata?: unknown;
+  chatMLParserResult?: ChatMLParserResult;
 }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -132,21 +151,32 @@ export const SessionObservationIO = ({
     onOpenInTraceView(observation.id);
   };
 
+  const ioPreview = (
+    <IOPreview
+      input={observation.input ?? undefined}
+      output={observation.output ?? undefined}
+      metadata={observation.metadata ?? undefined}
+      observationName={observation.name ?? undefined}
+      hideIfNull
+      projectId={projectId}
+      traceId={traceId}
+      observationId={observation.id}
+      environment={environment}
+      showCorrections={showCorrections}
+      contentMode={contentMode}
+      showSystemPrompt={showSystemPrompt}
+      currentView={currentView}
+      parsedInput={parsedInput}
+      parsedOutput={parsedOutput}
+      parsedMetadata={parsedMetadata}
+      chatMLParserResult={chatMLParserResult}
+    />
+  );
+
   if (!isIOTruncated) {
     return (
       <>
-        <IOPreview
-          input={observation.input ?? undefined}
-          output={observation.output ?? undefined}
-          metadata={observation.metadata ?? undefined}
-          observationName={observation.name ?? undefined}
-          hideIfNull
-          projectId={projectId}
-          traceId={traceId}
-          observationId={observation.id}
-          environment={environment}
-          showCorrections={showCorrections}
-        />
+        {ioPreview}
         {observation.metadataTruncated && (
           <p className="text-muted-foreground text-xs">
             Some metadata values are too large to show here.{" "}

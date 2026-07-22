@@ -99,7 +99,7 @@ export function NavUser({ user, items }: UserNavigationProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold" title={user.name}>
+                <span className="truncate font-bold" title={user.name}>
                   {user.name}
                 </span>
                 <span className="truncate text-xs" title={user.email}>
@@ -128,7 +128,7 @@ export function NavUser({ user, items }: UserNavigationProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold" title={user.name}>
+                  <span className="truncate font-bold" title={user.name}>
                     {user.name}
                   </span>
                   <span className="truncate text-xs" title={user.email}>

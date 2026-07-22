@@ -14,7 +14,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@prisma/client";
 
 type MonitorStatus = "ACTIVE" | "PAUSED" | "ERROR_BAD_QUERY";
-type MonitorView = "OBSERVATIONS" | "SCORES_NUMERIC" | "SCORES_CATEGORICAL";
+type MonitorView =
+  | "OBSERVATIONS"
+  | "SCORES_NUMERIC"
+  | "SCORES_BOOLEAN"
+  | "SCORES_CATEGORICAL";
 
 type SeedOverrides = Partial<{
   id: string;

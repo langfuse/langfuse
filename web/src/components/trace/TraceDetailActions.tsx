@@ -118,7 +118,7 @@ export function TraceDetailActions({
         deleteConfirmation={name ?? ""}
         icon
         // Match Star/Publish so the three icons share one row height and a
-        // ghost (not boxed "outline-solid") style.
+        // ghost (not boxed "outline") style.
         size={size}
         variant="ghost"
       />

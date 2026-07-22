@@ -95,6 +95,22 @@ type MergeAndWriteParams = {
   attribution: IngestionAttribution;
 };
 
+/**
+ * Returns a new event record whose `event_bytes` value is the UTF-8 size of
+ * the final JSONEachRow payload, excluding the self-referential accounting
+ * field. The supplied record is not mutated.
+ */
+function withSerializedEventByteLength(
+  eventRecord: EventRecordInsertType,
+): EventRecordInsertType {
+  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
+
+  return {
+    ...eventWithoutSize,
+    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+  };
+}
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -416,10 +432,17 @@ export class IngestionService {
    * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
+   * Enqueues a new record whose `event_bytes` describes the final normalized
+   * event rather than the raw OTEL span measured before media processing. The
+   * supplied record is not mutated.
+   *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
+    this.clickHouseWriter.addToQueue(
+      TableName.EventsFull,
+      withSerializedEventByteLength(eventRecord),
+    );
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -545,6 +568,7 @@ export class IngestionService {
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
     const unexpectedScoreValidationErrors: unknown[] = [];
+    let expectedScoreValidationDrops = 0;
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -599,9 +623,11 @@ export class IngestionService {
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
             if (
-              !(error instanceof InvalidRequestError) &&
-              !(error instanceof LangfuseNotFoundError)
+              error instanceof InvalidRequestError ||
+              error instanceof LangfuseNotFoundError
             ) {
+              expectedScoreValidationDrops += 1;
+            } else {
               unexpectedScoreValidationErrors.push(error);
             }
 
@@ -631,6 +657,16 @@ export class IngestionService {
         unexpectedScoreValidationErrors,
         `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
       );
+    }
+
+    // Count drops only on an attempt that proceeds: a rethrowing batch is
+    // redelivered, and counting it would inflate the metric once per retry.
+    for (let i = 0; i < expectedScoreValidationDrops; i++) {
+      recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+        reason: "score_validation_dropped",
+        source: "api",
+        domain: "score",
+      });
     }
 
     if (scoreRecords.length === 0 && !clickhouseScoreRecord) {

@@ -38,7 +38,7 @@ export function ApiKeyCreateDialogContent(
     const { secretKey, publicKey, baseUrl } = props;
 
     return (
-      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent closeOnInteractionOutside>
         <DialogHeader>
           <DialogTitle>API Keys</DialogTitle>
         </DialogHeader>
@@ -58,7 +58,7 @@ export function ApiKeyCreateDialogContent(
   const { note, onNoteChange, onSubmit, isPending } = props;
 
   return (
-    <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+    <DialogContent closeOnInteractionOutside>
       <DialogHeader>
         <DialogTitle>Create API Keys</DialogTitle>
       </DialogHeader>

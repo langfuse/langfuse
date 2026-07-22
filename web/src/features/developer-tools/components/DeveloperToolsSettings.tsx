@@ -34,7 +34,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="text-foreground h-5 w-5" />
-            <span className="font-semibold">Agent Skill</span>
+            <span className="font-bold">Agent Skill</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse Agent Skill is an open-source skill following
@@ -55,7 +55,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <Bot className="text-foreground h-5 w-5" />
-            <span className="font-semibold">MCP Server</span>
+            <span className="font-bold">MCP Server</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse MCP server lets AI assistants and agents interact with
@@ -79,7 +79,7 @@ export function DeveloperToolsSettings({ projectId }: { projectId: string }) {
         <Card className="p-4">
           <div className="mb-3 flex items-center gap-2">
             <SquareTerminal className="text-foreground h-5 w-5" />
-            <span className="font-semibold">CLI</span>
+            <span className="font-bold">CLI</span>
           </div>
           <p className="text-primary mb-4 text-sm">
             The Langfuse CLI provides terminal access to the full Langfuse API.

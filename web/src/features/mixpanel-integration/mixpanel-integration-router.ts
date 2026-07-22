@@ -11,6 +11,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
@@ -45,11 +46,14 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         const { encryptedMixpanelProjectToken, exportSource, ...config } =
           dbConfig;
 
+        // Write-only credential: never return the plaintext token (LFE-14384).
         return {
           config: {
             ...config,
             exportSource,
-            mixpanelProjectToken: decrypt(encryptedMixpanelProjectToken),
+            mixpanelProjectTokenDisplay: getDisplayCredential(
+              decrypt(encryptedMixpanelProjectToken),
+            ),
           },
           legacyWritesActive,
         };
@@ -101,8 +105,24 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
       const existingIntegration =
         await ctx.prisma.mixpanelIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true, createdAt: true },
+          select: {
+            exportSource: true,
+            createdAt: true,
+            encryptedMixpanelProjectToken: true,
+          },
         });
+
+      // Write-only credential: blank/omitted keeps the persisted encrypted
+      // value (LFE-14384).
+      const encryptedMixpanelProjectToken = input.mixpanelProjectToken
+        ? encrypt(input.mixpanelProjectToken)
+        : existingIntegration?.encryptedMixpanelProjectToken;
+      if (!encryptedMixpanelProjectToken) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Mixpanel Project Token is required",
+        });
+      }
       const createDefaultExportSource = legacyWritesActive
         ? AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
         : AnalyticsIntegrationExportSource.EVENTS;
@@ -136,9 +156,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
         resourceType: "mixpanelIntegration",
         resourceId: input.projectId,
       });
-      const { mixpanelProjectToken, ...config } = input;
-
-      const encryptedMixpanelProjectToken = encrypt(mixpanelProjectToken);
+      const { mixpanelProjectToken: _mixpanelProjectToken, ...config } = input;
 
       await ctx.prisma.$transaction(async (tx) => {
         const result = await tx.mixpanelIntegration.upsert({

@@ -103,7 +103,7 @@ export const BillingSwitchPlanDialog = ({
                   >
                     <div className="mb-4">
                       {/* Labels above plan title */}
-                      <div className="mb-1 h-5 text-xs font-medium text-blue-700">
+                      <div className="mb-1 h-5 text-xs font-bold text-blue-700">
                         {isCurrentPlan && <span>Current Plan</span>}
                         {scheduledPlanSwitch &&
                           scheduledPlanSwitch.newPlanId ===
@@ -146,7 +146,7 @@ export const BillingSwitchPlanDialog = ({
                       {product.checkout?.description}
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Main features:</div>
+                      <div className="text-sm font-bold">Main features:</div>
                       <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                         {product.checkout?.mainFeatures.map(
                           (feature, index) => (

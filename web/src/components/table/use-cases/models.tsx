@@ -118,7 +118,7 @@ export default function ModelTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         return (
           <span
-            className="truncate font-mono text-xs font-semibold"
+            className="truncate font-mono text-xs font-bold"
             title={row.original.modelName}
           >
             {row.original.modelName}

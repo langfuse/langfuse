@@ -65,7 +65,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
           {!hideCount && (
             <div className="flex gap-2">
               <span className="text-muted-foreground">Observations:</span>
-              <span className="font-medium">{displayCount}</span>
+              <span className="font-bold">{displayCount}</span>
             </div>
           )}
 

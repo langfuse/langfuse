@@ -30,7 +30,7 @@ export const DatasetSchemaValidationError: React.FC<
 
   return (
     <Alert variant="destructive" className="mt-4">
-      <AlertTitle className="text-base font-semibold">
+      <AlertTitle className="text-base font-bold">
         Schema Validation Failed
       </AlertTitle>
       <AlertDescription className="mt-2 space-y-3">
@@ -45,7 +45,7 @@ export const DatasetSchemaValidationError: React.FC<
           variant="ghost"
           size="sm"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="h-auto p-0 text-sm font-medium hover:bg-transparent"
+          className="h-auto p-0 text-sm font-bold hover:bg-transparent"
         >
           {isExpanded ? (
             <ChevronDown className="mr-1 h-4 w-4" />
@@ -71,13 +71,13 @@ export const DatasetSchemaValidationError: React.FC<
                       href={`/project/${projectId}/datasets/${datasetId}/items/${error.datasetItemId}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm font-medium hover:underline"
+                      className="flex items-center gap-1 text-sm font-bold hover:underline"
                     >
                       Item: {error.datasetItemId}
                       <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
-                  <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-medium">
+                  <span className="bg-destructive/20 rounded px-2 py-0.5 text-xs font-bold">
                     {error.field === "input" ? "Input" : "Expected Output"}
                   </span>
                 </div>

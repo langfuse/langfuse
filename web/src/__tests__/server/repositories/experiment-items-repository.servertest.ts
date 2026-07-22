@@ -5,6 +5,7 @@ import {
   getExperimentItemsFromEvents,
   getExperimentItemsCountFromEvents,
   getExperimentItemsBatchIO,
+  getExperimentMetricsFromEvents,
   createTraceScore,
   type EventRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -1158,6 +1159,203 @@ describe("Clickhouse Experiment Items Repository Test", () => {
       // THEN: count = 4, results.length = 4
       expect(count).toBe(4);
       expect(result).toHaveLength(4);
+    });
+  });
+
+  maybe("getExperimentItemsFromEvents - Cost Aggregation", () => {
+    it("should sum cost across each item's full observation subtree, matching the independently-computed experiment-level aggregate", async () => {
+      // GIVEN: 3 items with different cost distributions across their trees -
+      // cost only on a child (the common v4-events bug shape: wrapper/root
+      // spans are cost-free, cost lives on nested generations), cost split
+      // root/child, and cost only on the root (no children). Root/child start
+      // times straddle a clock-minute boundary so this also covers the
+      // orderByColumns() primary-key-prefix pitfall (a child starting in a
+      // later minute bucket than its root must not outrank the root).
+      const expId = randomUUID();
+      const datasetId = randomUUID();
+      const minuteBoundaryMs =
+        Math.ceil(Date.now() / 60_000) * 60_000 + 5 * 60_000; // a future, clean minute boundary
+      const now = (minuteBoundaryMs - 500) * 1000; // root: just before the boundary (microseconds)
+      const childOffsetMicros = 2_500_000; // child: 2.5s later, in the next minute bucket
+
+      const makeItemEvents = (rootCost: number, childCost: number | null) => {
+        const itemId = randomUUID();
+        const traceId = randomUUID();
+        const rootId = randomUUID();
+
+        const events = [
+          createExperimentEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            span_id: rootId,
+            parent_span_id: null,
+            experimentId: expId,
+            experimentName: "cost-consistency-exp",
+            datasetId,
+            itemId,
+            experimentItemRootSpanId: rootId,
+            start_time: now,
+            cost_details: { input: 0, output: 0, total: rootCost },
+            provided_cost_details: { input: 0, output: 0, total: rootCost },
+          }),
+        ];
+
+        if (childCost !== null) {
+          events.push(
+            createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: randomUUID(),
+              parent_span_id: rootId,
+              experimentId: expId,
+              experimentName: "cost-consistency-exp",
+              datasetId,
+              itemId,
+              experimentItemRootSpanId: rootId,
+              start_time: now + childOffsetMicros,
+              cost_details: { input: 0, output: 0, total: childCost },
+              provided_cost_details: { input: 0, output: 0, total: childCost },
+            }),
+          );
+        }
+
+        return { itemId, traceId, rootId, events };
+      };
+
+      const bugShapeItem = makeItemEvents(0, 300); // cost only on child
+      const splitItem = makeItemEvents(50, 100); // cost split across root and child
+      const rootOnlyItem = makeItemEvents(75, null); // no children, cost on root only
+
+      await createEventsCh([
+        ...bugShapeItem.events,
+        ...splitItem.events,
+        ...rootOnlyItem.events,
+      ]);
+
+      // WHEN
+      const items = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: expId,
+        compExperimentIds: [],
+        filterByExperiment: [],
+        limit: 10,
+        offset: 0,
+      });
+
+      // getExperimentMetricsFromEvents computes the experiment total via a
+      // plain SUM(e.total_cost) over every row (event-query-builder.ts:1922)
+      // - unrelated to the per-item root-span selection logic under test, so
+      // it's a good independent cross-check.
+      const [experimentMetrics] = await getExperimentMetricsFromEvents({
+        projectId,
+        experimentIds: [expId],
+      });
+
+      // THEN: the bug-shape item's cost is the sum of root (0) + child (300),
+      // still returned as the root span's own identity (observationId,
+      // traceId) despite the child starting in a later minute bucket; and the
+      // sum of all per-item costs equals the independently-computed
+      // experiment total.
+      expect(items).toHaveLength(3);
+
+      const bugShapeResult = items.find(
+        (item) => item.itemId === bugShapeItem.itemId,
+      );
+      expect(bugShapeResult?.experiments).toHaveLength(1);
+      expect(bugShapeResult?.experiments[0].totalCost).toBe(300);
+      expect(bugShapeResult?.experiments[0].observationId).toBe(
+        bugShapeItem.rootId,
+      );
+      expect(bugShapeResult?.experiments[0].traceId).toBe(bugShapeItem.traceId);
+
+      const summedItemCost = items.reduce(
+        (sum, item) => sum + (item.experiments[0]?.totalCost ?? 0),
+        0,
+      );
+
+      expect(experimentMetrics.totalCost).toBe(525);
+      expect(summedItemCost).toBeCloseTo(experimentMetrics.totalCost!, 6);
+    });
+
+    it("should scope cost to the selected (latest) iteration, not sum across an item's repetitions", async () => {
+      // GIVEN: one item run 3 times (repetitions/iterations aren't modeled
+      // yet - LFE-8965 - so each iteration is its own trace sharing the same
+      // experiment_item_id/experiment_id). Each iteration costs a different
+      // amount so a wrong (unscoped) sum is easy to distinguish from the
+      // correct, iteration-scoped one.
+      const baselineExpId = randomUUID();
+      const datasetId = randomUUID();
+      const itemId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const makeIteration = (cost: number, startOffsetMs: number) => {
+        const traceId = randomUUID();
+        const rootId = randomUUID();
+        const childId = randomUUID();
+
+        return {
+          traceId,
+          rootId,
+          events: [
+            createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: rootId,
+              parent_span_id: null,
+              experimentId: baselineExpId,
+              experimentName: "baseline-exp",
+              datasetId,
+              itemId,
+              experimentItemRootSpanId: rootId,
+              start_time: now + startOffsetMs * 1000,
+              cost_details: { input: 0, output: 0, total: 0 },
+              provided_cost_details: { input: 0, output: 0, total: 0 },
+            }),
+            createExperimentEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              span_id: childId,
+              parent_span_id: rootId,
+              experimentId: baselineExpId,
+              experimentName: "baseline-exp",
+              datasetId,
+              itemId,
+              experimentItemRootSpanId: rootId,
+              start_time: now + startOffsetMs * 1000 + 500,
+              cost_details: { input: 0, output: 0, total: cost },
+              provided_cost_details: { input: 0, output: 0, total: cost },
+            }),
+          ],
+        };
+      };
+
+      const iteration1 = makeIteration(10, 0); // oldest
+      const iteration2 = makeIteration(20, 1000);
+      const iteration3 = makeIteration(30, 2000); // latest
+
+      await createEventsCh([
+        ...iteration1.events,
+        ...iteration2.events,
+        ...iteration3.events,
+      ]);
+
+      // WHEN
+      const result = await getExperimentItemsFromEvents({
+        projectId,
+        baseExperimentId: baselineExpId,
+        compExperimentIds: [],
+        filterByExperiment: [],
+        limit: 10,
+        offset: 0,
+      });
+
+      // THEN: still a single row (latest iteration), and its cost is that
+      // iteration's own (30), not the sum across all iterations (60).
+      expect(result).toHaveLength(1);
+      expect(result[0].experiments).toHaveLength(1);
+      expect(result[0].experiments[0].traceId).toBe(iteration3.traceId);
+      expect(result[0].experiments[0].observationId).toBe(iteration3.rootId);
+      expect(result[0].experiments[0].totalCost).toBe(30);
     });
   });
 

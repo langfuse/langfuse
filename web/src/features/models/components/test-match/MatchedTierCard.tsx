@@ -38,13 +38,13 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+        <CardTitle className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
           Matched Pricing Tier
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
-          <span className="text-base font-semibold">{tier.name}</span>
+          <span className="text-base font-bold">{tier.name}</span>
           {tier.isDefault && (
             <Badge variant="secondary" className="text-xs">
               Default
@@ -56,7 +56,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
         </div>
 
         <div>
-          <div className="text-muted-foreground mb-2 text-xs font-medium">
+          <div className="text-muted-foreground mb-2 text-xs font-bold">
             Prices (per {priceUnit}):
           </div>
           <div className="space-y-1.5">
@@ -68,7 +68,7 @@ export function MatchedTierCard({ tier }: MatchedTierCardProps) {
                 <span className="text-muted-foreground font-mono text-xs">
                   {usageType}:
                 </span>
-                <span className="font-mono text-sm font-semibold">
+                <span className="font-mono text-sm font-bold">
                   $
                   {new Decimal(price)
                     .mul(priceUnitMultiplier)

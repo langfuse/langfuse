@@ -740,7 +740,7 @@ export default function SignIn({
             page (CMD + SHIFT + R) or clear your browser cache.{" "}
             <a
               href="mailto:support@langfuse.com"
-              className="text-link hover:text-link-hover cursor-pointer text-xs font-medium whitespace-nowrap"
+              className="text-link hover:text-link-hover cursor-pointer text-xs font-bold whitespace-nowrap"
             >
               (contact us)
             </a>
@@ -847,7 +847,7 @@ export default function SignIn({
               </div>
             )}
             {credentialsFormError ? (
-              <div className="text-destructive text-center text-sm font-medium">
+              <div className="text-destructive text-center text-sm font-bold">
                 {credentialsFormError}
                 <br />
                 Contact support if this error is unexpected.{" "}
@@ -869,7 +869,7 @@ export default function SignIn({
               No account yet?{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-                className="text-link hover:text-link-hover leading-6 font-semibold"
+                className="text-link hover:text-link-hover leading-6 font-bold"
               >
                 Sign up
               </Link>

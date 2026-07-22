@@ -53,6 +53,7 @@ export type SessionTraceFromEvents = {
   timestamp: Date;
   environment: string | null;
   userId: string | null;
+  observationCount: number;
 };
 
 export const getSessionTracesFromEvents = async (props: {
@@ -92,6 +93,7 @@ export const getSessionTracesFromEvents = async (props: {
         timestamp: string;
         environment: string | null;
         user_id: string | null;
+        observation_count: number | string;
       }>({
         query,
         params: input.params,
@@ -107,6 +109,7 @@ export const getSessionTracesFromEvents = async (props: {
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     environment: row.environment,
     userId: row.user_id,
+    observationCount: Number(row.observation_count),
   }));
 };
 

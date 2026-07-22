@@ -198,11 +198,13 @@ export function getDrawerMessages({
   isRunning,
   messages,
   pendingToolApprovals = [],
+  runningToolCallIds,
 }: {
   error: unknown;
   isRunning: boolean;
   messages: unknown;
   pendingToolApprovals?: readonly InAppAgentPendingToolApproval[];
+  runningToolCallIds?: readonly string[];
 }): InAppAgentWindowMessage[] {
   const parsedMessages = z.array(InAppAiAgentMessageSchema).parse(messages);
   const toolResults = getToolResultsByToolCallId(parsedMessages);
@@ -210,6 +212,9 @@ export function getDrawerMessages({
   const pendingApprovalsByToolCallId = new Map(
     pendingToolApprovals.map((approval) => [approval.id, approval]),
   );
+  const runningToolCallIdSet = runningToolCallIds
+    ? new Set(runningToolCallIds)
+    : null;
   const mappedPendingApprovalIds = new Set<string>();
 
   const mappedMessages: InAppAgentWindowMessage[] = [];
@@ -356,7 +361,11 @@ export function getDrawerMessages({
                 resultState = "error";
               } else if (result?.content !== undefined) {
                 resultState = "result";
-              } else if (isRunning && !error) {
+              } else if (
+                runningToolCallIdSet
+                  ? runningToolCallIdSet.has(toolCall.id)
+                  : isRunning && !error
+              ) {
                 resultState = "pending";
               } else {
                 resultState = "incomplete";

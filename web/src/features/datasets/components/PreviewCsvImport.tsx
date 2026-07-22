@@ -195,7 +195,7 @@ export function PreviewCsvImport({
               <DragOverlay dropAnimation={null} adjustScale={false}>
                 {dragAndDrop.activeColumn ? (
                   dragAndDrop.activeColumn.startsWith("mapped-") ? (
-                    <div className="bg-accent-dark-blue text-muted-foreground cursor-grabbing rounded-md px-2 py-1 text-sm font-medium shadow-xl">
+                    <div className="bg-accent-dark-blue text-muted-foreground cursor-grabbing rounded-md px-2 py-1 text-sm font-bold shadow-xl">
                       {dragAndDrop.activeColumn.replace("mapped-", "")}
                     </div>
                   ) : (

@@ -1885,7 +1885,8 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash

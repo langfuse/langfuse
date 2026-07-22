@@ -542,7 +542,7 @@ export function TraceTimeline() {
           live in the shared navigation header (see PlaybackControls). */}
       <div className="flex shrink-0">
         <div
-          className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-medium"
+          className="bg-background text-muted-foreground flex shrink-0 items-center pl-2 text-xs font-bold"
           style={{ width: `${gutterWidth}px` }}
         >
           <span className="truncate" title="Name">

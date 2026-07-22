@@ -545,7 +545,7 @@ function JsonPrettyTable({
               )}
             </div>
             <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text font-medium`}
+              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text`}
               style={{ maxWidth: availableTextWidth }}
             >
               {itemBadgeType && (

@@ -8,6 +8,7 @@ import {
   BatchActionQueue,
   logger,
   QueueJobs,
+  applyCommentFilters,
   getObservationsCountFromEventsTable,
   getObservationsTableCount,
 } from "@langfuse/shared/src/server";
@@ -17,6 +18,7 @@ import {
   BatchActionType,
   BatchActionStatus,
   ActionId,
+  InvalidRequestError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { CreateObservationAddToDatasetActionSchema } from "../validation";
@@ -50,18 +52,30 @@ export const addToDatasetRouter = createTRPCRouter({
           tableName,
         });
 
+        // Resolve comment predicates for the count only. The original query is
+        // persisted and queued so the worker can resolve comments against its
+        // own cutoff-time selection.
+        const commentFilterResult = await applyCommentFilters({
+          filterState: query.filter ?? [],
+          prisma: ctx.prisma,
+          projectId,
+          objectType: "OBSERVATION",
+        });
+
         // Check observation count doesn't exceed maximum
         const queryOpts = {
           projectId,
-          filter: query.filter ?? [],
+          filter: commentFilterResult.filterState,
           searchQuery: query.searchQuery,
           searchType: query.searchType,
           limit: 1,
           offset: 0,
         };
-        const observationCount = useEventsTable
-          ? await getObservationsCountFromEventsTable(queryOpts)
-          : await getObservationsTableCount(queryOpts);
+        const observationCount = commentFilterResult.hasNoMatches
+          ? 0
+          : useEventsTable
+            ? await getObservationsCountFromEventsTable(queryOpts)
+            : await getObservationsTableCount(queryOpts);
 
         if (observationCount > MAX_BATCH_ADD_TO_DATASET_ITEMS) {
           throw new TRPCError({
@@ -126,6 +140,13 @@ export const addToDatasetRouter = createTRPCRouter({
         logger.error(e);
         if (e instanceof TRPCError) {
           throw e;
+        }
+        if (e instanceof InvalidRequestError) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: e.message,
+            cause: e,
+          });
         }
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",

@@ -93,7 +93,7 @@ export function ProjectNotificationChannels({
 
           <div className="flex flex-col gap-4">
             <div>
-              <h3 className="text-lg font-medium">Events</h3>
+              <h3 className="text-lg font-bold">Events</h3>
               <p className="text-muted-foreground text-sm">
                 {hasChannels
                   ? "Choose which events are delivered to your channels."
@@ -111,7 +111,7 @@ export function ProjectNotificationChannels({
                     !hasChannels && "opacity-50",
                   )}
                 >
-                  <p className="text-base font-medium">{event.title}</p>
+                  <p className="text-base font-bold">{event.title}</p>
                   <p className="text-muted-foreground text-sm">
                     {event.description}
                   </p>

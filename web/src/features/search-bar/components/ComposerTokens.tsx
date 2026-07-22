@@ -39,13 +39,17 @@ export const composerTokenVariants = cva("max-w-full", {
         "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
         "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
-      operator: "font-semibold uppercase text-qlang-keyword",
+      operator: "font-bold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
         "mr-1 inline rounded border border-dashed px-1.5 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
+    // A filter that the current surface can't apply (e.g. the chart view can't
+    // filter on this column). Dimmed + dashed so it reads as "shown but not
+    // applied"; the reason is on hover (`title`).
+    deactivated: { true: "opacity-50 line-through decoration-1", false: "" },
   },
-  defaultVariants: { kind: "freeText" },
+  defaultVariants: { kind: "freeText", deactivated: false },
 });
 
 type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
@@ -107,10 +111,22 @@ export function ComposerTokens({
   draft,
   showDiagnostics,
   scoreTypes,
+  fieldReason,
+  freeTextReason,
 }: {
   draft: string;
   showDiagnostics: boolean;
   scoreTypes?: ScoreTypeContext;
+  /**
+   * Given a filter token's field name, the reason it is NOT applied on the
+   * current surface, or `null` if it is. When it returns a reason the pill
+   * renders deactivated (dimmed + struck) with the reason on hover. Undefined
+   * (the default) leaves every filter active — nothing is deactivated.
+   */
+  fieldReason?: (field: string) => string | null;
+  /** Reason a free-text token is not applied (e.g. charts ignore full-text
+   *  search), or null/undefined to leave it active. */
+  freeTextReason?: string | null;
 }): React.ReactNode {
   const segments = deriveComposerSegments(draft, scoreTypes);
   const out: React.ReactNode[] = [];
@@ -125,12 +141,24 @@ export function ComposerTokens({
       segment.kind === "invalid" && !showDiagnostics
         ? "freeText"
         : segment.kind;
+    // "Not applied on this surface" — a filter column the chart can't honour,
+    // or free text a chart ignores. Only filter/free-text tokens can deactivate
+    // (operators/parens/invalid never do).
+    const deactivatedReason =
+      segment.kind === "filter"
+        ? (fieldReason?.(segment.displayField) ?? null)
+        : segment.kind === "freeText"
+          ? (freeTextReason ?? null)
+          : null;
+    const deactivated = deactivatedReason !== null;
     // Invalid tokens get the styled per-token error tooltip (a positioned
-    // overlay in SearchComposer), not the native browser title. Free text is a
-    // full-text search — say so on hover so a standalone text chip explains
-    // itself instead of looking like a stray block.
-    const title =
-      segment.kind === "invalid"
+    // overlay in SearchComposer), not the native browser title. A deactivated
+    // token explains why it is ignored. Free text is a full-text search — say so
+    // on hover so a standalone text chip explains itself instead of looking like
+    // a stray block.
+    const title = deactivated
+      ? deactivatedReason
+      : segment.kind === "invalid"
         ? undefined
         : segment.kind === "freeText"
           ? `Full-text search — matches results containing "${segment.raw}". Searches ids, names, input and output by default; use input: or output: to search one payload, or name:/id: to narrow.`
@@ -140,9 +168,10 @@ export function ComposerTokens({
         key={segment.id}
         data-testid="search-bar-token"
         data-kind={visibleKind}
+        data-deactivated={deactivated || undefined}
         data-segment-id={segment.id}
         title={title}
-        className={composerTokenVariants({ kind: visibleKind })}
+        className={composerTokenVariants({ kind: visibleKind, deactivated })}
       >
         {segment.kind === "filter" ? (
           <FilterTokenBody segment={segment} />

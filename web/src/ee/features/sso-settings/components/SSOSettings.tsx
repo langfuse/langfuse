@@ -613,7 +613,7 @@ function SsoConfigDialog({
             <AlertDialogDescription>
               <span className="block">
                 Saving will activate SSO for{" "}
-                <span className="font-medium">@{domain}</span> within 1 hour.
+                <span className="font-bold">@{domain}</span> within 1 hour.
                 Every user at that domain will be redirected to your identity
                 provider on sign-in &mdash; they will not be able to use Google,
                 GitHub, password, or any other method until SSO is deleted.
@@ -647,7 +647,7 @@ function SsoConfigDialog({
 function CallbackUrlPanel({ callbackUrl }: { callbackUrl: string }) {
   return (
     <div>
-      <p className="mb-2 text-sm font-medium">Callback URL</p>
+      <p className="mb-2 text-sm font-bold">Callback URL</p>
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>

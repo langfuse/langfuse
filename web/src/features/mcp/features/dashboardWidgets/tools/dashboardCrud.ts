@@ -67,7 +67,12 @@ const dashboardWidgetPatchBaseSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
   view: z
-    .enum(["observations", "scores-numeric", "scores-categorical"])
+    .enum([
+      "observations",
+      "scores-numeric",
+      "scores-boolean",
+      "scores-categorical",
+    ])
     .optional(),
   dimensions: z.array(z.object({ field: z.string() })).optional(),
   metrics: z

@@ -1954,9 +1954,7 @@ export function WidgetForm({
               {selectedChartType === "PIVOT_TABLE" && (
                 <div className="space-y-4">
                   <div>
-                    <h4 className="mb-2 text-sm font-semibold">
-                      Row Dimensions
-                    </h4>
+                    <h4 className="mb-2 text-sm font-bold">Row Dimensions</h4>
                     <p className="text-muted-foreground mb-3 text-xs">
                       Configure up to {MAX_PIVOT_TABLE_DIMENSIONS} dimensions
                       for pivot table rows. Each dimension creates groupings
@@ -2032,7 +2030,7 @@ export function WidgetForm({
               {selectedChartType === "PIVOT_TABLE" && (
                 <div className="space-y-4">
                   <div>
-                    <h4 className="mb-2 text-sm font-semibold">
+                    <h4 className="mb-2 text-sm font-bold">
                       Default Sort Configuration
                     </h4>
                     <p className="text-muted-foreground mb-3 text-xs">

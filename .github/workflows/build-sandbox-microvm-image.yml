@@ -1,0 +1,207 @@
+name: Build Sandbox MicroVM Image
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: build-sandbox-microvm-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & Publish (${{ matrix.environment }})
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    environment: ${{ matrix.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: staging
+          - environment: prod-eu
+          - environment: prod-us
+          - environment: prod-hipaa
+          - environment: prod-jp
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_MICROVM_BUILD_ROLE_ARN: ${{ vars.AWS_MICROVM_BUILD_ROLE_ARN }}
+      S3_BUCKET: langfuse-${{ matrix.environment }}-in-app-agent-sandbox-artifacts
+      MICROVM_IMAGE_NAME: langfuse-in-app-agent-sandbox
+      BASE_IMAGE_ARN: arn:aws:lambda:${{ vars.AWS_REGION }}:aws:microvm-image:al2023-1
+      BASE_IMAGE_VERSION: "0"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build runtime
+        run: pnpm --filter @repo/in-app-agent-sandbox-runtime run build
+
+      - name: Create artifact
+        working-directory: packages/in-app-agent-sandbox-runtime
+        run: zip -r microvm-artifact.zip Dockerfile package.json dist
+
+      - name: Install AWS CLI with Lambda MicroVM support
+        run: |
+          # Download the pinned AWS CLI v2 installer.
+          curl --fail --silent --show-error --location \
+            "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.36.1.zip" \
+            --output "$RUNNER_TEMP/awscliv2.zip"
+          # Verify the installer before extracting or executing it.
+          printf '%s  %s\n' \
+            "6b36b85980ab783db7ba0ff24ebb85924682fa6da1db7ca3c2fa6f27083c0f52" \
+            "$RUNNER_TEMP/awscliv2.zip" | sha256sum --check --strict
+          # Extract the verified installer into the runner's temporary directory.
+          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP/aws-cli-installer"
+          # Install the CLI in an isolated runner-local directory.
+          "$RUNNER_TEMP/aws-cli-installer/aws/install" \
+            --install-dir "$RUNNER_TEMP/aws-cli" \
+            --bin-dir "$RUNNER_TEMP/aws-cli-bin"
+          # Use the pinned CLI for all subsequent workflow steps.
+          printf '%s\n' "$RUNNER_TEMP/aws-cli-bin" >> "$GITHUB_PATH"
+
+          # Print the pinned AWS CLI version used by subsequent steps.
+          "$RUNNER_TEMP/aws-cli-bin/aws" --version
+          # Verify that this release contains the Lambda MicroVM service model.
+          "$RUNNER_TEMP/aws-cli-bin/aws" lambda-microvms list-microvm-images \
+            --generate-cli-skeleton >/dev/null
+
+      - name: Authenticate with AWS
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_MICROVM_BUILD_ROLE_ARN }}
+
+      - name: Get AWS account ID
+        id: aws-account
+        run: |
+          # Resolve the account used to construct the MicroVM build role ARN.
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          printf 'account_id=%s\n' "$account_id" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        run: |
+          # Upload the runtime bundle for the Lambda MicroVM image build.
+          aws s3 cp \
+            "packages/in-app-agent-sandbox-runtime/microvm-artifact.zip" \
+            "s3://$S3_BUCKET/$MICROVM_IMAGE_NAME.zip" \
+            --region "$AWS_REGION"
+
+      - name: Create or update MicroVM image
+        id: publish
+        env:
+          LAMBDA_MICROVM_BUILD_ROLE_ARN: arn:aws:iam::${{ steps.aws-account.outputs.account_id }}:role/${{ matrix.environment }}-in-app-agent-sandbox-microvm-build
+        run: |
+          s3_uri="s3://$S3_BUCKET/$MICROVM_IMAGE_NAME.zip"
+          # Find an existing image so this workflow can update it in place.
+          image_arn="$({
+            aws lambda-microvms list-microvm-images \
+              --region "$AWS_REGION" \
+              --name-filter "$MICROVM_IMAGE_NAME" \
+              --query "items[?name=='$MICROVM_IMAGE_NAME'] | [0].imageArn" \
+              --output text 2>/dev/null || true
+          } | tr -d '\r')"
+
+          if [ -n "$image_arn" ] && [ "$image_arn" != "None" ] && [ "$image_arn" != "null" ]; then
+            printf 'Updating existing MicroVM image %s\n' "$image_arn"
+            # Start a new build for the existing MicroVM image.
+            image_arn="$(aws lambda-microvms update-microvm-image \
+              --region "$AWS_REGION" \
+              --image-identifier "$image_arn" \
+              --base-image-arn "$BASE_IMAGE_ARN" \
+              --base-image-version "$BASE_IMAGE_VERSION" \
+              --build-role-arn "$LAMBDA_MICROVM_BUILD_ROLE_ARN" \
+              --code-artifact "uri=$s3_uri" \
+              --hooks '{"port":5000,"microvmImageHooks":{"ready":"ENABLED","readyTimeoutInSeconds":60},"microvmHooks":{"run":"ENABLED","runTimeoutInSeconds":30,"resume":"ENABLED","resumeTimeoutInSeconds":30,"suspend":"ENABLED","suspendTimeoutInSeconds":60,"terminate":"ENABLED","terminateTimeoutInSeconds":30}}' \
+              --cpu-configurations architecture=ARM_64 \
+              --resources minimumMemoryInMiB=512 \
+              --query imageArn \
+              --output text | tr -d '\r')"
+          else
+            printf 'Creating MicroVM image %s\n' "$MICROVM_IMAGE_NAME"
+            # Create the MicroVM image when it does not exist yet.
+            image_arn="$(aws lambda-microvms create-microvm-image \
+              --region "$AWS_REGION" \
+              --name "$MICROVM_IMAGE_NAME" \
+              --base-image-arn "$BASE_IMAGE_ARN" \
+              --base-image-version "$BASE_IMAGE_VERSION" \
+              --build-role-arn "$LAMBDA_MICROVM_BUILD_ROLE_ARN" \
+              --code-artifact "uri=$s3_uri" \
+              --hooks '{"port":5000,"microvmImageHooks":{"ready":"ENABLED","readyTimeoutInSeconds":60},"microvmHooks":{"run":"ENABLED","runTimeoutInSeconds":30,"resume":"ENABLED","resumeTimeoutInSeconds":30,"suspend":"ENABLED","suspendTimeoutInSeconds":60,"terminate":"ENABLED","terminateTimeoutInSeconds":30}}' \
+              --cpu-configurations architecture=ARM_64 \
+              --resources minimumMemoryInMiB=512 \
+              --query imageArn \
+              --output text | tr -d '\r')"
+          fi
+
+          if [ -z "$image_arn" ] || [ "$image_arn" = "None" ] || [ "$image_arn" = "null" ]; then
+            printf 'Failed to create or update the MicroVM image\n' >&2
+            exit 1
+          fi
+
+          printf 'image_arn=%s\n' "$image_arn" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for MicroVM image
+        id: wait
+        env:
+          IMAGE_ARN: ${{ steps.publish.outputs.image_arn }}
+        run: |
+          while true; do
+            # Read the build state and active version from one response.
+            image="$(aws lambda-microvms get-microvm-image \
+              --region "$AWS_REGION" \
+              --image-identifier "$IMAGE_ARN" \
+              --query '{state: state, version: latestActiveImageVersion}' \
+              --output json)"
+            image_state="$(jq -r '.state' <<< "$image")"
+            image_version="$(jq -r '.version // empty' <<< "$image")"
+
+            printf 'Current MicroVM image state: %s\n' "$image_state"
+
+            case "$image_state" in
+              CREATED|UPDATED)
+                printf 'image_version=%s\n' "$image_version" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              CREATE_FAILED|UPDATE_FAILED|DELETE_FAILED)
+                printf 'MicroVM image entered failure state: %s\n' "$image_state" >&2
+                # Print the complete image response to expose build failure details.
+                aws lambda-microvms get-microvm-image \
+                  --region "$AWS_REGION" \
+                  --image-identifier "$IMAGE_ARN" \
+                  --output json >&2
+                exit 1
+                ;;
+              *)
+                sleep 5
+                ;;
+            esac
+          done
+
+      - name: Write job summary
+        env:
+          IMAGE_ARN: ${{ steps.publish.outputs.image_arn }}
+          IMAGE_VERSION: ${{ steps.wait.outputs.image_version }}
+        run: |
+          printf '## Sandbox MicroVM image (%s)\n\n' '${{ matrix.environment }}' >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- Region: `%s`\n' "$AWS_REGION" >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- ARN: `%s`\n' "$IMAGE_ARN" >> "$GITHUB_STEP_SUMMARY"
+          printf -- '- Version: `%s`\n' "$IMAGE_VERSION" >> "$GITHUB_STEP_SUMMARY"

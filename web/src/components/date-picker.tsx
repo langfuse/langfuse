@@ -273,7 +273,7 @@ export function DatePickerWithRange({
           {internalDateRange?.from && internalDateRange.to && (
             <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
               <div className="px-3">
-                <p className="px-1 text-sm font-medium">
+                <p className="px-1 text-sm font-bold">
                   Start<span className="hidden sm:inline"> time</span>
                 </p>
                 <TimePicker
@@ -283,7 +283,7 @@ export function DatePickerWithRange({
                 />
               </div>
               <div className="px-3">
-                <p className="px-1 text-sm font-medium">
+                <p className="px-1 text-sm font-bold">
                   End<span className="hidden sm:inline"> time</span>
                 </p>
                 <TimePicker
@@ -566,7 +566,7 @@ export function TimeRangePicker({
               {internalDateRange?.from && internalDateRange.to && (
                 <div className="flex flex-col gap-3 border-t p-3">
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-medium">Start time</p>
+                    <p className="px-1 text-sm font-bold">Start time</p>
                     <TimePicker
                       date={internalDateRange?.from}
                       setDate={onStartTimeSelection}
@@ -574,7 +574,7 @@ export function TimeRangePicker({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <p className="px-1 text-sm font-medium">End time</p>
+                    <p className="px-1 text-sm font-bold">End time</p>
                     <TimePicker
                       date={internalDateRange?.to}
                       setDate={onEndTimeSelection}

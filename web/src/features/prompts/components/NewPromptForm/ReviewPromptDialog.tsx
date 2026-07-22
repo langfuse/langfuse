@@ -78,7 +78,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
         <DialogHeader>
           <DialogTitle>Review Prompt Changes</DialogTitle>
           <DialogDescription className="flex items-center gap-2">
-            <span className="font-medium">{initialPrompt.name}</span>
+            <span className="font-bold">{initialPrompt.name}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -87,7 +87,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
             <div className="space-y-6">
               <div className="space-y-4">
                 <div>
-                  <h3 className="mb-2 text-base font-medium">Content</h3>
+                  <h3 className="mb-2 text-base font-bold">Content</h3>
                   <DiffViewer
                     oldString={initialPromptContent}
                     newString={newPromptContent}
@@ -96,7 +96,7 @@ export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
                   />
                 </div>
                 <div>
-                  <h3 className="mb-2 text-base font-medium">Config</h3>
+                  <h3 className="mb-2 text-base font-bold">Config</h3>
                   <DiffViewer
                     oldString={JSON.stringify(initialPrompt.config, null, 2)}
                     newString={newConfig ?? "failed"}

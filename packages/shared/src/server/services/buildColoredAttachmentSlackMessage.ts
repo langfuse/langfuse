@@ -16,6 +16,14 @@ export function buildColoredAttachmentSlackMessage(args: {
   url?: string;
   /** contextText is an optional extra context element rendered next to the timestamp. */
   contextText?: string;
+  /**
+   * secondaryUrl, when set alongside `url`, renders a second action button
+   * after "View in Langfuse" (e.g. a monitor alert's link to the breaching
+   * data). Absent by default so project notifications stay single-button.
+   */
+  secondaryUrl?: string;
+  /** secondaryLabel is the second button's label; defaults to "View data". */
+  secondaryLabel?: string;
 }): SlackMessage {
   const { color } = args;
   const title = escapeSlackMrkdwn(args.title);
@@ -60,6 +68,19 @@ export function buildColoredAttachmentSlackMessage(args: {
                 },
                 url: args.url,
               },
+              ...(args.secondaryUrl
+                ? [
+                    {
+                      type: "button",
+                      text: {
+                        type: "plain_text",
+                        text: args.secondaryLabel ?? "View data",
+                        emoji: true,
+                      },
+                      url: args.secondaryUrl,
+                    },
+                  ]
+                : []),
             ],
           },
         ]

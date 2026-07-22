@@ -71,4 +71,3 @@ export const GCPServiceAccountKeySchema = z.object({
 });
 
 export type GCPServiceAccountKey = z.infer<typeof GCPServiceAccountKeySchema>;
-export default GCPServiceAccountKeySchema;

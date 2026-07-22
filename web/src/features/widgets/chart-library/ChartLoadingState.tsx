@@ -141,7 +141,7 @@ export function ChartLoadingState({
           {shouldRenderStatusTitle ? (
             <p
               className={cn(
-                "text-foreground font-medium",
+                "text-foreground font-bold",
                 shouldShowProgress ? "text-left" : "text-center",
                 isTight ? "text-xs" : "text-sm",
               )}

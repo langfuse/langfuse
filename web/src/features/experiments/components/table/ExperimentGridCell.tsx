@@ -289,7 +289,7 @@ const GroupSection = ({
             )}
           />
         )}
-        <span className="text-muted-foreground text-[10px] font-semibold uppercase">
+        <span className="text-muted-foreground text-[10px] font-bold uppercase">
           {header}
         </span>
       </div>

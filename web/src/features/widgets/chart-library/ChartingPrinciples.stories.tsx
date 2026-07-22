@@ -85,8 +85,8 @@ const axes = (
 );
 
 const meta = preview.meta({
-  title: "Design System/Charts/Illustrations",
   component: LineChartTimeSeries,
+  tags: ["!dev"],
 });
 
 // ── V1 · Draw what was measured ──────────────────────────────────────────────
@@ -293,7 +293,7 @@ const ChartFrame = ({
   children: React.ReactNode;
 }) => (
   <div className="bg-background rounded-md border p-3">
-    <div className="mb-1 text-sm font-medium">{title}</div>
+    <div className="mb-1 text-sm font-bold">{title}</div>
     <div className="h-[280px] w-full">{children}</div>
   </div>
 );

@@ -66,6 +66,8 @@ export function ComposerWithPreview(
                 draft={previewText}
                 showDiagnostics={false}
                 scoreTypes={scoreTypes}
+                fieldReason={props.fieldReason}
+                freeTextReason={props.freeTextReason}
               />
             </div>
           </div>

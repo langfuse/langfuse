@@ -1298,7 +1298,7 @@ export default function DashboardDetail() {
           <Layer name="modal">
             <div className="bg-background/80 pointer-events-none fixed inset-0 flex items-center justify-center backdrop-blur-xs">
               <div className="border-primary bg-background rounded-lg border-2 border-dashed px-8 py-6 text-center shadow-lg">
-                <p className="font-medium">Drop to import</p>
+                <p className="font-bold">Drop to import</p>
                 <p className="text-muted-foreground text-sm">
                   Langfuse dashboard or widget JSON
                 </p>

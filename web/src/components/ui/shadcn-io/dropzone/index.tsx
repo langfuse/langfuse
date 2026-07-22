@@ -142,7 +142,7 @@ export const DropzoneContent = ({
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-sm font-medium" title={text}>
+      <p className="my-2 w-full truncate text-sm font-bold" title={text}>
         {text}
       </p>
       <p className="text-muted-foreground w-full text-xs text-wrap">
@@ -195,7 +195,7 @@ export const DropzoneEmptyState = ({
         <UploadIcon size={16} />
       </div>
       <p
-        className="my-2 w-full truncate text-sm font-medium text-wrap"
+        className="my-2 w-full truncate text-sm font-bold text-wrap"
         title={text1}
       >
         {text1}

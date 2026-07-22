@@ -164,6 +164,8 @@ export const viewToPrisma = (view: MonitorView): PrismaMonitorView => {
       return PrismaMonitorView.OBSERVATIONS;
     case "scores-numeric":
       return PrismaMonitorView.SCORES_NUMERIC;
+    case "scores-boolean":
+      return PrismaMonitorView.SCORES_BOOLEAN;
     case "scores-categorical":
       return PrismaMonitorView.SCORES_CATEGORICAL;
   }
@@ -176,6 +178,8 @@ export const viewFromPrisma = (view: PrismaMonitorView): MonitorView => {
       return "observations";
     case PrismaMonitorView.SCORES_NUMERIC:
       return "scores-numeric";
+    case PrismaMonitorView.SCORES_BOOLEAN:
+      return "scores-boolean";
     case PrismaMonitorView.SCORES_CATEGORICAL:
       return "scores-categorical";
   }

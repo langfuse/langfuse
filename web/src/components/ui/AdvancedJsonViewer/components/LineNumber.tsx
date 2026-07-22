@@ -27,7 +27,7 @@ export function LineNumber({
         marginRight: "8px",
         color: theme.lineNumberColor,
         opacity: 0.3,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
         fontSize: theme.fontSize,
       }}
     >

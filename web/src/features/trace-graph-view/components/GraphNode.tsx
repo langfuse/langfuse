@@ -72,7 +72,7 @@ function GraphNodeComponent({
   const style: React.CSSProperties = { left: x, top: y, width, height };
 
   const shared = cn(
-    "absolute flex select-none items-center justify-center gap-1.5 overflow-hidden rounded-md px-2 text-xs font-medium transition-[box-shadow]",
+    "absolute flex select-none items-center justify-center gap-1.5 overflow-hidden rounded-md px-2 text-xs font-bold transition-[box-shadow]",
     onSelect && [
       "cursor-pointer hover:ring-2 hover:ring-ring/40",
       "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",

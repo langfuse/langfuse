@@ -102,7 +102,7 @@ export const ExperimentGridView = ({
         header: () => (
           <div className="flex items-center gap-2">
             <span
-              className={cn("truncate font-medium", colorStyles?.textClass)}
+              className={cn("truncate font-bold", colorStyles?.textClass)}
               title={expName}
             >
               {expName}
@@ -111,7 +111,7 @@ export const ExperimentGridView = ({
               <Badge
                 variant="outline"
                 size="sm"
-                className={cn("shrink-0 font-medium", colorStyles?.badgeClass)}
+                className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
               >
                 {isBaseline ? "Baseline" : "Comp"}
               </Badge>

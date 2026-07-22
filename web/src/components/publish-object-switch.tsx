@@ -196,7 +196,7 @@ const Base = (props: {
 
   return (
     <div className={cn("flex items-center gap-1", props.label && "w-full")}>
-      <div className={cn("text-sm font-semibold", props.label && "w-full")}>
+      <div className={cn("text-sm font-bold", props.label && "w-full")}>
         <Popover
           open={isOpen}
           onOpenChange={(open) => {

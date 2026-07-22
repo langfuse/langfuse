@@ -100,6 +100,7 @@ export {
   buildEventsObservationRowSelection,
   eventSearchCondition,
   groupEventsObservationFilters,
+  toLevelAgnosticScoreFilter,
   type EventsObservationFilterGroups,
   type EventsObservationRowSelectionInput,
 } from "./clickhouse-sql/events-observation-row-selection";

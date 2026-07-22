@@ -26,7 +26,7 @@ const allSizes = Object.keys({
   full: true,
 } satisfies Record<Size, true>) as Size[];
 
-export const AllVariants = meta.story({
+export const VariantMatrix = meta.story({
   render: () => (
     <div
       className="grid gap-x-8 gap-y-4"

@@ -14,6 +14,7 @@ export const ClickhouseTableNames = {
   // Virtual tables for dashboards
   // TODO: Check if we can do this more elegantly
   scores_numeric: "scores_numeric",
+  scores_boolean: "scores_boolean",
   scores_categorical: "scores_categorical",
   events_traces: "events_traces",
   events_observations: "events_observations",

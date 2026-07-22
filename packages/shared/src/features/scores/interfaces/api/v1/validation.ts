@@ -22,6 +22,7 @@ export const filterAndValidateLegacyV1GetScoreList = (
 
 /**
  * @deprecated
+ * @alias
  * Use `filterAndValidateV2GetScoreList` instead. This function is only used for the legacy v1 API where scores were only associated with traces.
  * Use this function when pulling a list of scores from the database before returning to the public API to ensure type safety.
  * All scores are expected to pass the validation. If a score fails validation, it will be logged to Otel.

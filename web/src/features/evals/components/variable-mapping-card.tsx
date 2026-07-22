@@ -212,7 +212,7 @@ export const VariableMappingCard = ({
   return (
     <Card className="max-w-full min-w-0 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-lg font-medium">Variable mapping</span>
+        <span className="text-lg font-bold">Variable mapping</span>
         <div className="flex flex-wrap items-center justify-between gap-2">
           {evalTemplate.projectId ? (
             <Button asChild variant="outline" size="sm">
@@ -272,7 +272,7 @@ export const VariableMappingCard = ({
                     />
                   ) : (
                     <div className="bg-muted/50 flex max-h-full min-h-48 w-full flex-col gap-1 lg:w-2/3">
-                      <div className="flex flex-row items-center justify-between py-0 text-sm font-medium capitalize">
+                      <div className="flex flex-row items-center justify-between py-0 text-sm font-bold capitalize">
                         <div className="flex flex-row items-center gap-2">
                           Evaluation Prompt Preview
                           <Skeleton className="h-[25px] w-[63px]" />
@@ -326,7 +326,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >
@@ -592,7 +592,7 @@ export const VariableMappingCard = ({
                         <Card className="flex flex-col gap-2 p-4" key={index}>
                           <div
                             className={cn(
-                              "text-sm font-semibold",
+                              "text-sm font-bold",
                               getVariableColor(index),
                             )}
                           >

@@ -6,7 +6,9 @@ import {
   hasPassthroughJson,
   isPlaceholderMessage,
   isOnlyJsonMessage,
+  hasRenderableConversationMessages,
   shouldRenderMessage,
+  shouldRenderMessageForContentMode,
   parseToolCallsFromMessage,
 } from "./chat-message-utils";
 
@@ -222,6 +224,19 @@ describe("chat-message-utils", () => {
     });
   });
 
+  describe("hasRenderableConversationMessages", () => {
+    it("rejects empty-content passthrough JSON without changing all-data rendering", () => {
+      const message = createMessage({
+        role: "assistant",
+        content: "",
+        json: { data: "test" },
+      });
+
+      expect(hasRenderableConversationMessages([message], false)).toBe(false);
+      expect(shouldRenderMessage(message)).toBe(true);
+    });
+  });
+
   describe("shouldRenderMessage", () => {
     it("returns true for message with content", () => {
       expect(
@@ -311,6 +326,46 @@ describe("chat-message-utils", () => {
           }),
         ),
       ).toEqual(directToolCalls);
+    });
+  });
+
+  describe("shouldRenderMessageForContentMode", () => {
+    const systemMessage = createMessage({
+      role: "system",
+      content: "Follow the support policy.",
+    });
+    const toolMessage = createMessage({
+      role: "tool",
+      content: "Order lookup complete.",
+    });
+    it("controls system prompts independently from inline data", () => {
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "conversation", false),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "conversation", true),
+      ).toBe(true);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "all", false),
+      ).toBe(false);
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "all", true),
+      ).toBe(true);
+      expect(
+        shouldRenderMessageForContentMode(toolMessage, "conversation", true),
+      ).toBe(false);
+      expect(shouldRenderMessageForContentMode(toolMessage, "all", false)).toBe(
+        true,
+      );
+    });
+
+    it("preserves the existing defaults outside Modern Session", () => {
+      expect(
+        shouldRenderMessageForContentMode(systemMessage, "conversation"),
+      ).toBe(false);
+      expect(shouldRenderMessageForContentMode(systemMessage, "all")).toBe(
+        true,
+      );
     });
   });
 });

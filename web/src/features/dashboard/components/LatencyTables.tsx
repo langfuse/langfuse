@@ -9,6 +9,7 @@ import {
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { truncate } from "@/src/utils/string";
+import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
@@ -116,7 +117,7 @@ const generateLatencyData = (data?: Record<string, unknown>[]) => {
               triggerContent={
                 item.type ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                    <span className="text-muted-foreground text-[10px] font-bold tracking-wide uppercase">
                       {String(item.type)}
                     </span>
                     <span>{truncate(item.name as string)}</span>
@@ -198,7 +199,11 @@ export const LatencyTable = ({
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the table fits its rows to the
+      // AVAILABLE height instead of overflowing; min-h-0 lets the flex column
+      // shrink so the row area scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title={title}
       isLoading={isLoading || latencies.isPending}
     >

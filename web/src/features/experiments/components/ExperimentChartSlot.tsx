@@ -182,9 +182,7 @@ export function ExperimentChartSlot({
           <SelectContent>
             {Array.from(groupedOptions.entries()).map(([group, options]) => (
               <SelectGroup key={group}>
-                <SelectLabel className="text-xs font-semibold">
-                  {group}
-                </SelectLabel>
+                <SelectLabel className="text-xs font-bold">{group}</SelectLabel>
                 {options.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
                     {option.label}

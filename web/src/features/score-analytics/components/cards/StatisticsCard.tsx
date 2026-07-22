@@ -127,7 +127,7 @@ export function StatisticsCard() {
       <CardContent className="space-y-4">
         {/* Section 1: Score 1 Data */}
         <div>
-          <h4 className="mb-2 text-xs font-semibold">
+          <h4 className="mb-2 text-xs font-bold">
             {score1.name} ({score1.source})
           </h4>
           {dataType === "NUMERIC" ? (
@@ -216,7 +216,7 @@ export function StatisticsCard() {
         {/* Section 2: Score 2 Data - Always show to set expectations */}
         {showScore2Section && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold">
+            <h4 className="mb-2 text-xs font-bold">
               {score2?.name ?? "Score 2"}
               {score2?.source ? ` (${score2.source})` : ""}
             </h4>
@@ -313,7 +313,7 @@ export function StatisticsCard() {
         {/* Section 3: Comparison Metrics - Always show to set expectations */}
         {showComparisonSection && (
           <div>
-            <h4 className="mb-2 text-xs font-semibold">Comparison</h4>
+            <h4 className="mb-2 text-xs font-bold">Comparison</h4>
             {dataType === "NUMERIC" ? (
               <div className="space-y-4">
                 {/* First row: Matched, Pearson, Spearman */}
@@ -332,7 +332,7 @@ export function StatisticsCard() {
                             show: true,
                             content: (
                               <div className="space-y-2 text-xs">
-                                <p className="font-semibold">
+                                <p className="font-bold">
                                   Matched count exceeds individual score counts
                                   due to Cartesian product
                                 </p>
@@ -468,7 +468,7 @@ export function StatisticsCard() {
                             show: true,
                             content: (
                               <div className="space-y-2 text-xs">
-                                <p className="font-semibold">
+                                <p className="font-bold">
                                   Matched count exceeds individual score counts
                                   due to Cartesian product
                                 </p>

@@ -78,12 +78,15 @@ const dialogContentVariants = cva(
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    confirmCloseOnEscape?: string;
-    overlayMode?: DialogOverlayMode;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      stopPropagationOnEnterSpace?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {
@@ -261,10 +264,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-xl leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-xl leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));

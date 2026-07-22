@@ -452,8 +452,8 @@ export const UpsertModelFormDialog = (({
             </DialogFooter>
           </form>
           {formError ? (
-            <p className="text-destructive my-2 text-center text-sm font-medium">
-              <span className="font-semibold">Error:</span> {formError}
+            <p className="text-destructive my-2 text-center text-sm font-bold">
+              <span className="font-bold">Error:</span> {formError}
             </p>
           ) : null}
         </Form>

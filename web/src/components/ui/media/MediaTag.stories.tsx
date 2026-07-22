@@ -20,7 +20,6 @@ const sampleImage =
   );
 
 const meta = preview.meta({
-  title: "components/media/MediaTag",
   component: MediaTag,
   args: {
     contentType: "image/png",

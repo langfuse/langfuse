@@ -36,6 +36,8 @@ export function EventsSearchBarRow({
   commit,
   observed,
   erroredColumns,
+  fieldReason,
+  freeTextReason,
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
@@ -51,6 +53,12 @@ export function EventsSearchBarRow({
    *  empty (per column) instead of pinning, matching the sidebar's settled-error
    *  state, without blocking other columns. */
   erroredColumns?: ReadonlySet<string>;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (e.g. the chart view can't filter on it) — dims the pill + hover.
+   *  Undefined leaves all filters active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
   /**
    * Applies AI-generated filters (apply-immediately); the bar re-derives them.
    * Preserves filters the grammar can't represent (no-silent-drop contract) —
@@ -103,6 +111,8 @@ export function EventsSearchBarRow({
             projectId={projectId}
             observed={observed}
             erroredColumns={erroredColumns}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
           />

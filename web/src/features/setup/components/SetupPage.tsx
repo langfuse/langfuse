@@ -51,7 +51,7 @@ export function SetupPage() {
               className={cn(
                 stepInt !== 1
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               1. Create Organization
@@ -64,7 +64,7 @@ export function SetupPage() {
               className={cn(
                 stepInt !== 2
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               2. Create Project

@@ -200,5 +200,3 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     </div>
   );
 };
-
-export default VerticalBarChartTimeSeries;

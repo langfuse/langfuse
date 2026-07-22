@@ -242,6 +242,7 @@ export const GetObservationV1Query = z.object({
   observationId: z.string(),
   useEventsTable: useEventsTableSchema,
 });
+/** @alias */
 export const GetObservationV1Response = APIObservation;
 
 /**

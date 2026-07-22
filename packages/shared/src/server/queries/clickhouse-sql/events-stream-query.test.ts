@@ -1,4 +1,5 @@
 import type { FilterCondition } from "../../../types";
+import { InvalidRequestError } from "../../../errors";
 import { describe, expect, it } from "vitest";
 import {
   buildEventsObservationRowSelection,
@@ -148,6 +149,27 @@ describe("buildEventsStreamQuery", () => {
     );
   });
 
+  it("exports trace-level scores alongside observation-level ones (LFE-10596)", () => {
+    // No score filter at all: the export must still join and select the
+    // trace-score aggregate so trace-level scores land in the file exactly
+    // like the UI's unified Scores column.
+    const { queryBuilder } = buildEventsBlobExportStreamQuery({
+      projectId,
+      filter: [],
+      rowLimit: 7,
+    });
+    const { query } = queryBuilder.buildWithParams();
+
+    expect(query.match(/\btrace_scores_agg AS \(/g)).toHaveLength(1);
+    expect(query).toContain("ts.scores_avg as trace_scores_avg");
+    expect(query).toContain(
+      "ts.score_categories_tuples as trace_score_categories_tuples",
+    );
+    expect(query).toContain(
+      "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
+    );
+  });
+
   it("applies score filters without exposing them as native event filters", () => {
     const { queryBuilder } = buildEventsStreamQuery({
       projectId,
@@ -166,25 +188,6 @@ describe("buildEventsStreamQuery", () => {
     const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
 
     expect(Object.values(params)).toContain("quality");
-  });
-
-  it("keeps comment filters out of the legacy stream selection", () => {
-    const { queryBuilder } = buildEventsStreamQuery({
-      projectId,
-      filter: [
-        nativeFilter,
-        {
-          column: "commentContent",
-          operator: "contains",
-          value: "comment-needle",
-          type: "string",
-        },
-      ],
-      rowLimit: 7,
-    });
-    const { params } = queryBuilder.selectFieldSet("eval").buildWithParams();
-
-    expect(Object.values(params)).not.toContain("comment-needle");
   });
 });
 
@@ -275,7 +278,7 @@ describe("buildEventsObservationRowSelection", () => {
     },
   );
 
-  it("does not silently discard unresolved comment filters", () => {
+  it("rejects unresolved comment filters", () => {
     expect(() =>
       buildSelection({
         filter: [
@@ -287,6 +290,6 @@ describe("buildEventsObservationRowSelection", () => {
           },
         ],
       }),
-    ).toThrow();
+    ).toThrow(InvalidRequestError);
   });
 });

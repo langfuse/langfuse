@@ -254,12 +254,12 @@ export function ResetPasswordPage({
               </form>
             </Form>
             {formError ? (
-              <div className="text-destructive text-center text-sm font-medium">
+              <div className="text-destructive text-center text-sm font-bold">
                 {formError}
               </div>
             ) : null}
             {isSuccess && (
-              <div className="text-center text-sm font-medium">
+              <div className="text-center text-sm font-bold">
                 {successMessage}
               </div>
             )}

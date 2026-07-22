@@ -9,6 +9,51 @@ import {
 import { TableName } from "../../ClickhouseWriter";
 
 describe("IngestionService unit tests", () => {
+  it("writes the final serialized event size instead of the raw OTEL span size", async () => {
+    const addToQueue = vi.fn();
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const rawOtelSpanBytes = 10_000_000;
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        parentSpanId: "",
+        name: "post-media-size",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-07-22T00:00:00.000Z",
+        endTimeISO: "2026-07-22T00:00:01.000Z",
+        input: "@@@langfuseMedia:type=image/png|id=media-id|source=bytes@@@",
+        output: "multibyte 🔥 output",
+        metadata: { nested: { value: "metadata" } },
+        source: "otel",
+        eventBytes: rawOtelSpanBytes,
+      },
+      "otel/project-id/raw-event.json",
+    );
+
+    expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
+
+    ingestionService.writeEventRecord(eventRecord);
+
+    expect(addToQueue).toHaveBeenCalledOnce();
+    const queuedRecord = addToQueue.mock.calls[0]?.[1];
+    const { event_bytes: eventBytes, ...eventWithoutSize } = queuedRecord;
+
+    expect(queuedRecord).not.toBe(eventRecord);
+    expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
+    expect(eventBytes).toBe(
+      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+    );
+    expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
+  });
+
   it("correctly sorts events in ascending order by timestamp", async () => {
     const firstTrace = { timestamp: 1, type: "observation-create" };
     const secondTrace = { timestamp: 1, type: "observation-update" };

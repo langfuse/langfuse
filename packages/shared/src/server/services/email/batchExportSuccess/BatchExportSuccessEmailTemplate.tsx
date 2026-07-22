@@ -80,5 +80,3 @@ export const BatchExportSuccessEmailTemplate = ({
     </Html>
   );
 };
-
-export default BatchExportSuccessEmailTemplate;

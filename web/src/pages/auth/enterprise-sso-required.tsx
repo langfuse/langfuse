@@ -141,7 +141,7 @@ export default function EnterpriseSsoRequiredPage() {
       <Head>
         <title>Enterprise SSO Required | Langfuse</title>
       </Head>
-      <div className="min-h-screen-with-banner bg-background flex flex-col justify-center px-6 py-12 lg:px-8">
+      <div className="flex min-h-full flex-1 flex-col justify-center px-6 py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
             <LangfuseIcon />
@@ -188,7 +188,7 @@ export default function EnterpriseSsoRequiredPage() {
             </form>
           </Form>
           {error ? (
-            <div className="text-destructive mt-4 text-center text-sm font-medium">
+            <div className="text-destructive mt-4 text-center text-sm font-bold">
               {error}
               <br />
               Contact{" "}

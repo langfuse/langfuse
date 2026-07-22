@@ -3,6 +3,8 @@ export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
 
 export const IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE = "tool_call_rejected";
 
+export const IN_APP_AGENT_MCP_USER_AGENT = "langfuse-in-app-agent";
+
 // Header used only by Langfuse's server-side in-app agent when it calls the
 // Langfuse MCP endpoint with a temporary in-app-agent API key and run override.
 export const IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER =

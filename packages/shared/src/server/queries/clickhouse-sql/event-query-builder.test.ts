@@ -2,9 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildEventsFullTableSplitQuery,
+  EventsAggregationQueryBuilder,
   EventsQueryBuilder,
   EventsSessionAggregationQueryBuilder,
 } from "./event-query-builder";
+
+describe("EventsAggregationQueryBuilder", () => {
+  it("counts distinct non-synthetic observations per trace", () => {
+    const { query } = new EventsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("all")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
+    );
+  });
+});
 
 describe("EventsSessionAggregationQueryBuilder", () => {
   it("selects metadata arrays from the same deterministic latest observation", () => {
