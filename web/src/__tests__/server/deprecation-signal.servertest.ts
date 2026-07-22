@@ -20,11 +20,21 @@ import {
   TRACES_DEPRECATION,
 } from "@/src/features/public-api/server/deprecations";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+
+// `_deprecation` injection is gated on LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
+// which also enables the events read path (requires ClickHouse >= 25.12). The
+// -azure / -redis-cluster CI modes intentionally run older ClickHouse with the
+// flag off, so skip there — same pattern as the other events-read-path suites.
+const maybeDescribe =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 // LFE-10895: legacy (v3-data-model) endpoints attach a top-level `_deprecation`
 // object so coding agents get a self-correcting migration signal.
-describe("public API deprecation signal", () => {
+maybeDescribe("public API deprecation signal", () => {
   let auth: string;
   let projectId: string;
 
