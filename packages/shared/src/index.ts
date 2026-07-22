@@ -4,6 +4,7 @@ export * from "./interfaces/filters";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
+export * from "./interfaces/billingProvider";
 export * from "./interfaces/customLLMProviderConfigSchemas";
 export * from "./tableDefinitions";
 export * from "./types";

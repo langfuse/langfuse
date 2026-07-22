@@ -24,6 +24,11 @@ const EnvSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
 
+  // ClickHouse Billing cutoff, shared with web via the provider resolver in
+  // @langfuse/shared (getBillingProvider). The worker only consults it in the
+  // defensive usage-metering guard; unset = CHB routing off.
+  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso.datetime().optional(),
+
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
   LANGFUSE_S3_BATCH_EXPORT_ENABLED: z.enum(["true", "false"]).default("false"),
