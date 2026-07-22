@@ -1017,11 +1017,11 @@ export const LoadingAfterToolCall = meta.story({
 });
 
 export const FeedbackControlsWaitForTurnEnd = meta.story({
-  name: "(Test) Feedback Controls Wait For Turn End",
+  name: "(Test) Feedback Controls Stay During Queued Handoff",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: true,
-    isAssistantTurnInProgress: true,
+    isInputDisabled: false,
+    isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
     messages: [
       {
@@ -1034,11 +1034,18 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
       },
       {
         id: "assistant-1",
-        runId: "run-1",
         role: "assistant",
         content: {
           type: "text",
           text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Which payloads were affected?",
         },
       },
     ],
@@ -1050,14 +1057,12 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
       "I found a cluster of ingestion errors around malformed JSON payloads",
     );
 
-    await waitFor(() => {
-      expect(
-        canvas.queryByRole("button", { name: "Good response" }),
-      ).not.toBeInTheDocument();
-      expect(
-        canvas.queryByRole("button", { name: "Bad response" }),
-      ).not.toBeInTheDocument();
-    });
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeDisabled();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeDisabled();
   },
 });
 

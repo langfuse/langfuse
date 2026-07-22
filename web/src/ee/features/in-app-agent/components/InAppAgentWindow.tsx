@@ -808,13 +808,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
-                const feedbackRunId =
+                const shouldShowFeedback =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
-                  !isCurrentTurnInProgress &&
-                  isLastMessageOfTurn
-                    ? message.runId
-                    : undefined;
+                  isLastMessageOfTurn;
+                const feedbackRunId = shouldShowFeedback
+                  ? message.runId
+                  : undefined;
 
                 return (
                   <li
@@ -829,15 +829,21 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
-                      isFeedbackDisabled={baseIsInputDisabled}
+                      isFeedbackDisabled={
+                        baseIsInputDisabled ||
+                        isCurrentTurnInProgress ||
+                        !feedbackRunId
+                      }
                       onSubmitFeedback={
-                        feedbackRunId
+                        shouldShowFeedback
                           ? (params) =>
-                              onSubmitFeedback({
-                                messageId: message.id,
-                                runId: feedbackRunId,
-                                ...params,
-                              })
+                              feedbackRunId
+                                ? onSubmitFeedback({
+                                    messageId: message.id,
+                                    runId: feedbackRunId,
+                                    ...params,
+                                  })
+                                : Promise.resolve()
                           : undefined
                       }
                     />
