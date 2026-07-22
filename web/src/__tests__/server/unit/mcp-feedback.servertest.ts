@@ -1,19 +1,28 @@
-const { mockSubmitFeedback } = vi.hoisted(() => ({
+const { mockSubmitFeedback, mockRunMcpTool } = vi.hoisted(() => ({
   mockSubmitFeedback: vi.fn(),
+  mockRunMcpTool: vi.fn(async ({ fn }: { fn: () => Promise<unknown> }) => fn()),
 }));
 
 vi.mock("@/src/features/feedback/server/FeedbackService", () => ({
   submitFeedback: mockSubmitFeedback,
 }));
 
+vi.mock("@/src/features/mcp/core/run-mcp-tool", () => ({
+  runMcpTool: mockRunMcpTool,
+}));
+
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { ServiceUnavailableError } from "@langfuse/shared";
+import {
+  LangfuseConflictError,
+  ServiceUnavailableError,
+} from "@langfuse/shared";
 import { mockServerContext } from "../mcp-helpers";
 import { handleSubmitFeedback } from "@/src/features/mcp/features/feedback/tools/submitFeedback";
 
 describe("MCP submitFeedback tool", () => {
   beforeEach(() => {
+    mockRunMcpTool.mockClear();
     mockSubmitFeedback.mockResolvedValue({
       id: "11111111-1111-4111-8111-111111111111",
     });
@@ -52,6 +61,9 @@ describe("MCP submitFeedback tool", () => {
       },
       source: "langfuse-mcp",
     });
+    expect(mockRunMcpTool.mock.calls[0]?.[0].attributes).toEqual({
+      "mcp.feedback_target_type": "mcp-tool",
+    });
 
     mockSubmitFeedback.mockRejectedValueOnce(
       new ServiceUnavailableError("Feedback Slack sink rejected message"),
@@ -74,5 +86,29 @@ describe("MCP submitFeedback tool", () => {
         "An internal server error occurred. Please try again later.",
       );
     }
+  });
+
+  it("exposes the safe unconfigured-sink conflict", async () => {
+    mockSubmitFeedback.mockRejectedValueOnce(
+      new LangfuseConflictError(
+        "Feedback submission is not configured for this deployment",
+      ),
+    );
+
+    await expect(
+      handleSubmitFeedback(
+        {
+          targetType: "mcp-tool",
+          target: "submitFeedback",
+          feedback: "Please enable feedback intake.",
+        },
+        mockServerContext(),
+      ),
+    ).rejects.toMatchObject({
+      code: ErrorCode.InvalidRequest,
+      message: expect.stringContaining(
+        "Feedback submission is not configured for this deployment",
+      ),
+    });
   });
 });

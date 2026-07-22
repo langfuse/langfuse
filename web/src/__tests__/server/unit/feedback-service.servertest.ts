@@ -1,9 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ServiceUnavailableError } from "@langfuse/shared";
+import {
+  LangfuseConflictError,
+  ServiceUnavailableError,
+} from "@langfuse/shared";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-const { mockEnforceFeedbackRateLimit } = vi.hoisted(() => ({
-  mockEnforceFeedbackRateLimit: vi.fn(),
-}));
+const { mockEnforceFeedbackRateLimit, mockRecordIncrement, mockLoggerWarn } =
+  vi.hoisted(() => ({
+    mockEnforceFeedbackRateLimit: vi.fn(),
+    mockRecordIncrement: vi.fn(),
+    mockLoggerWarn: vi.fn(),
+  }));
+
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual<typeof SharedServer>(
+    "@langfuse/shared/src/server",
+  );
+  return {
+    ...actual,
+    recordIncrement: mockRecordIncrement,
+    logger: Object.assign(Object.create(actual.logger), {
+      warn: mockLoggerWarn,
+    }),
+  };
+});
 
 vi.mock("@/src/features/feedback/server/FeedbackRateLimitService", () => ({
   enforceFeedbackRateLimit: mockEnforceFeedbackRateLimit,
@@ -38,6 +58,8 @@ describe("FeedbackService", () => {
   beforeEach(() => {
     mockEnforceFeedbackRateLimit.mockReset();
     mockEnforceFeedbackRateLimit.mockResolvedValue(undefined);
+    mockRecordIncrement.mockReset();
+    mockLoggerWarn.mockReset();
     (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK =
       "https://hooks.slack.com/services/test";
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -166,5 +188,54 @@ describe("FeedbackService", () => {
         source: "langfuse-docs-mcp",
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
+  });
+
+  it("returns a sanitized conflict when the Slack sink is not configured", async () => {
+    (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK = undefined;
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const input = {
+      targetType: "docs" as const,
+      target: "sensitive-target",
+      feedback: "sensitive-feedback",
+      goal: "sensitive-goal",
+      referenceUrl: "https://example.com/sensitive-reference",
+    };
+
+    await expect(
+      submitFeedback({ context: authScope, input, source: "public-api" }),
+    ).rejects.toEqual(
+      new LangfuseConflictError(
+        "Feedback submission is not configured for this deployment",
+      ),
+    );
+
+    expect(mockEnforceFeedbackRateLimit).toHaveBeenCalledBefore(
+      mockRecordIncrement,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.feedback.submission",
+      1,
+      { source: "public-api", outcome: "sink_unconfigured" },
+    );
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "Feedback intake sink is not configured",
+      {
+        source: "public-api",
+        targetType: "docs",
+        orgId: "org-1",
+        projectId: "project-1",
+        region: "HIPAA",
+      },
+    );
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
+      "sensitive-feedback",
+    );
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
+      "sensitive-target",
+    );
   });
 });

@@ -46,6 +46,11 @@ export type AuthedProjectAPIRouteConfig<
   responseSchema: TResponse;
   successStatusCode?: number;
   rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
+  /**
+   * Skip the route-level limiter when the delegated service enforces a stricter
+   * feature-specific limit for every entry point.
+   */
+  skipRateLimit?: boolean;
   rateLimitUpgradePath?: RateLimitUpgradePath;
   /**
    * Allow authentication via ADMIN_API_KEY for self-hosted instances only.
@@ -370,11 +375,12 @@ export const createAuthedProjectAPIRoute = <
       return;
     }
 
-    const rateLimitResponse =
-      await RateLimitService.getInstance().rateLimitRequest(
-        auth.scope,
-        routeConfig.rateLimitResource || "public-api",
-      );
+    const rateLimitResponse = routeConfig.skipRateLimit
+      ? undefined
+      : await RateLimitService.getInstance().rateLimitRequest(
+          auth.scope,
+          routeConfig.rateLimitResource || "public-api",
+        );
 
     if (rateLimitResponse?.isRateLimited()) {
       return rateLimitResponse.sendRestResponseIfLimited(res, {

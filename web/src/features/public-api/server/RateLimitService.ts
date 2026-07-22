@@ -289,12 +289,6 @@ const getPlanBasedRateLimitConfig = (
             points: 30,
             durationInSec: 60,
           };
-        case "feedback":
-          return {
-            resource: "feedback",
-            points: 5,
-            durationInSec: 60,
-          };
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
@@ -384,12 +378,6 @@ const getPlanBasedRateLimitConfig = (
             points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
-        case "feedback":
-          return {
-            resource: "feedback",
-            points: 5,
-            durationInSec: 60,
-          };
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
@@ -477,12 +465,6 @@ const getPlanBasedRateLimitConfig = (
           return {
             resource: "public-api",
             points: 1000,
-            durationInSec: 60,
-          };
-        case "feedback":
-          return {
-            resource: "feedback",
-            points: 5,
             durationInSec: 60,
           };
         case "public-api-legacy":

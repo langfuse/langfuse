@@ -1,86 +1,70 @@
-import { RateLimiterRes } from "rate-limiter-flexible";
-
 import {
   enforceFeedbackRateLimit,
   FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX,
 } from "@/src/features/feedback/server/FeedbackRateLimitService";
 
-const mocks = vi.hoisted(() => ({
-  consume: vi.fn(),
-  options: [] as Array<Record<string, unknown>>,
-}));
-
-vi.mock("rate-limiter-flexible", () => {
-  class MockRateLimiterRes {
-    constructor(public msBeforeNext = 1000) {}
-  }
-
-  class MockRateLimiterRedis {
-    consume = mocks.consume;
-
-    constructor(options: Record<string, unknown>) {
-      mocks.options.push(options);
-    }
-  }
-
-  return {
-    RateLimiterRedis: MockRateLimiterRedis,
-    RateLimiterRes: MockRateLimiterRes,
-  };
-});
-
 describe("feedback rate limiting", () => {
-  const redis = {} as any;
+  const evalCommand = vi.fn();
+  const redis = { eval: evalCommand } as any;
 
   beforeEach(() => {
-    mocks.consume.mockReset();
-    mocks.consume.mockResolvedValue({});
-    mocks.options.length = 0;
+    evalCommand.mockReset();
+    evalCommand.mockResolvedValue(1);
   });
 
-  it("enforces principal and global limits and fails closed", async () => {
+  it("atomically enforces principal and global limits", async () => {
     await enforceFeedbackRateLimit(
       { source: "public-api", orgId: "org-1" },
       redis,
     );
 
-    expect(mocks.options).toMatchObject([
-      {
-        keyPrefix: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-minute`,
-        points: 5,
-        duration: 60,
-      },
-      {
-        keyPrefix: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-day`,
-        points: 10,
-        duration: 86_400,
-      },
-      {
-        keyPrefix: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-second`,
-        points: 1,
-        duration: 1,
-      },
-      {
-        keyPrefix: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-day`,
-        points: 100,
-        duration: 86_400,
-      },
-    ]);
-    expect(mocks.consume.mock.calls).toEqual([
-      ["org:org-1"],
-      ["org:org-1"],
-      ["feedback"],
-      ["feedback"],
-    ]);
+    expect(evalCommand).toHaveBeenCalledTimes(1);
+    expect(evalCommand).toHaveBeenCalledWith(
+      expect.any(String),
+      4,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-minute:org:org-1`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-day:org:org-1`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-second`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-day`,
+      5,
+      60,
+      20,
+      86_400,
+      1,
+      1,
+      100,
+      86_400,
+    );
+  });
 
-    mocks.consume.mockReset();
-    mocks.consume.mockRejectedValueOnce(new (RateLimiterRes as any)(1000));
+  it("uses the docs source as the principal and returns 429 atomically", async () => {
+    evalCommand.mockResolvedValue(0);
+
     await expect(
       enforceFeedbackRateLimit({ source: "langfuse-docs-mcp" }, redis),
     ).rejects.toMatchObject({ httpCode: 429 });
 
-    mocks.consume.mockReset();
-    mocks.consume.mockRejectedValueOnce(new Error("redis unavailable"));
+    expect(evalCommand).toHaveBeenCalledWith(
+      expect.any(String),
+      4,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-minute:source:langfuse-docs-mcp`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-day:source:langfuse-docs-mcp`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-second`,
+      `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-day`,
+      5,
+      60,
+      20,
+      86_400,
+      1,
+      1,
+      100,
+      86_400,
+    );
+  });
+
+  it("fails closed when Redis is unavailable", async () => {
+    evalCommand.mockRejectedValueOnce(new Error("redis unavailable"));
+
     await expect(
       enforceFeedbackRateLimit({ source: "langfuse-docs-mcp" }, redis),
     ).rejects.toMatchObject({ httpCode: 503 });

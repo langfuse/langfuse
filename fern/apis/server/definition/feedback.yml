@@ -11,6 +11,8 @@ service:
       response:
         status-code: 201
         type: SubmitFeedbackResponse
+      errors:
+        - FeedbackNotConfiguredError
 types:
   FeedbackTargetType:
     enum:
@@ -44,3 +46,7 @@ types:
       id:
         type: string
         docs: Correlation ID for the submitted feedback.
+errors:
+  FeedbackNotConfiguredError:
+    docs: Feedback submission is not configured for this deployment.
+    status-code: 409

@@ -18,7 +18,6 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
       context,
       attributes: {
         "mcp.feedback_target_type": input.targetType,
-        "mcp.feedback_target": input.target,
       },
       fn: async () =>
         await submitFeedback({

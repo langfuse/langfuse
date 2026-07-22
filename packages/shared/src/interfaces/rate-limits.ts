@@ -5,7 +5,6 @@ export const RateLimitResource = z.enum([
   "ingestion",
   "media-upload",
   "public-api",
-  "feedback",
   "public-api-legacy",
   "public-api-metrics",
   "public-api-v2-metrics",

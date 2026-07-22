@@ -1,5 +1,4 @@
 import type { Cluster, Redis } from "ioredis";
-import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { BaseError, ServiceUnavailableError } from "@langfuse/shared";
 import {
   recordIncrement,
@@ -8,26 +7,71 @@ import {
 
 import type { FeedbackSource } from "./FeedbackService";
 
-export const FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit:feedback";
+// The hash tag keeps every key in the same Redis Cluster slot so the Lua
+// script can check and consume all quotas atomically.
+export const FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit:{feedback}";
 
 type FeedbackRateLimitContext = {
   source: FeedbackSource;
   orgId?: string;
 };
 
-const createLimiter = (
-  storeClient: Redis | Cluster,
-  bucket: string,
-  points: number,
-  duration: number,
-) =>
-  new RateLimiterRedis({
-    storeClient,
-    keyPrefix: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:${bucket}`,
-    points,
-    duration,
-    rejectIfRedisNotReady: true,
-  });
+type FeedbackLimit = {
+  key: string;
+  points: number;
+  durationSeconds: number;
+};
+
+const ATOMIC_RATE_LIMIT_LUA = `
+for index, key in ipairs(KEYS) do
+  local current = tonumber(redis.call("GET", key) or "0")
+  local points = tonumber(ARGV[((index - 1) * 2) + 1])
+  if current >= points then
+    return 0
+  end
+end
+
+for index, key in ipairs(KEYS) do
+  local duration = tonumber(ARGV[((index - 1) * 2) + 2])
+  local current = redis.call("INCR", key)
+  if current == 1 then
+    redis.call("EXPIRE", key, duration)
+  end
+end
+
+return 1
+`;
+
+const getFeedbackLimits = (
+  context: FeedbackRateLimitContext,
+): FeedbackLimit[] => {
+  const principalKey = context.orgId
+    ? `org:${context.orgId}`
+    : `source:${context.source}`;
+
+  return [
+    {
+      key: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-minute:${principalKey}`,
+      points: 5,
+      durationSeconds: 60,
+    },
+    {
+      key: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:principal-day:${principalKey}`,
+      points: 20,
+      durationSeconds: 86_400,
+    },
+    {
+      key: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-second`,
+      points: 1,
+      durationSeconds: 1,
+    },
+    {
+      key: `${FEEDBACK_RATE_LIMIT_REDIS_KEY_PREFIX}:global-day`,
+      points: 100,
+      durationSeconds: 86_400,
+    },
+  ];
+};
 
 export const enforceFeedbackRateLimit = async (
   context: FeedbackRateLimitContext,
@@ -41,41 +85,20 @@ export const enforceFeedbackRateLimit = async (
     throw new ServiceUnavailableError("Feedback intake is unavailable");
   }
 
-  const principalKey = context.orgId
-    ? `org:${context.orgId}`
-    : `source:${context.source}`;
-  const principalDailyLimit = context.source === "langfuse-docs-mcp" ? 50 : 10;
-
-  const limits = [
-    {
-      limiter: createLimiter(storeClient, "principal-minute", 5, 60),
-      key: principalKey,
-    },
-    {
-      limiter: createLimiter(
-        storeClient,
-        "principal-day",
-        principalDailyLimit,
-        86_400,
-      ),
-      key: principalKey,
-    },
-    {
-      limiter: createLimiter(storeClient, "global-second", 1, 1),
-      key: "feedback",
-    },
-    {
-      limiter: createLimiter(storeClient, "global-day", 100, 86_400),
-      key: "feedback",
-    },
-  ];
+  const limits = getFeedbackLimits(context);
 
   try {
-    for (const { limiter, key } of limits) {
-      await limiter.consume(key);
-    }
-  } catch (error) {
-    if (error instanceof RateLimiterRes) {
+    const result = await storeClient.eval(
+      ATOMIC_RATE_LIMIT_LUA,
+      limits.length,
+      ...limits.map(({ key }) => key),
+      ...limits.flatMap(({ points, durationSeconds }) => [
+        points,
+        durationSeconds,
+      ]),
+    );
+
+    if (result !== 1) {
       recordIncrement("langfuse.feedback.submission", 1, {
         source: context.source,
         outcome: "rate_limited",
@@ -87,6 +110,8 @@ export const enforceFeedbackRateLimit = async (
         true,
       );
     }
+  } catch (error) {
+    if (error instanceof BaseError) throw error;
 
     recordIncrement("langfuse.feedback.submission", 1, {
       source: context.source,

@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { ServiceUnavailableError } from "@langfuse/shared";
-import { recordIncrement } from "@langfuse/shared/src/server";
+import {
+  LangfuseConflictError,
+  ServiceUnavailableError,
+} from "@langfuse/shared";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import type {
   PostFeedbackBodyType,
@@ -11,7 +14,6 @@ import { enforceFeedbackRateLimit } from "./FeedbackRateLimitService";
 export type FeedbackSource =
   | "langfuse-docs-mcp"
   | "langfuse-mcp"
-  | "langfuse-cli"
   | "public-api";
 
 type FeedbackContext = {
@@ -100,7 +102,6 @@ const getDataRegion = (): string =>
 const feedbackSourceLabel: Record<FeedbackSource, string> = {
   "langfuse-docs-mcp": "Langfuse Docs MCP",
   "langfuse-mcp": "Langfuse MCP",
-  "langfuse-cli": "Langfuse CLI",
   "public-api": "Public API",
 };
 
@@ -171,7 +172,9 @@ const getFeedbackWebhookUrl = (): string => {
   const webhookUrl = env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK;
 
   if (!webhookUrl) {
-    throw new ServiceUnavailableError("Feedback Slack sink is not configured");
+    throw new LangfuseConflictError(
+      "Feedback submission is not configured for this deployment",
+    );
   }
 
   let parsed: URL;
@@ -202,6 +205,24 @@ export const submitFeedback = async ({
   context?: FeedbackContext;
 }): Promise<PostFeedbackResponseType> => {
   await enforceFeedbackRateLimit({ source, orgId: context?.orgId });
+
+  if (!env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK) {
+    recordIncrement("langfuse.feedback.submission", 1, {
+      source,
+      outcome: "sink_unconfigured",
+    });
+    logger.warn("Feedback intake sink is not configured", {
+      source,
+      targetType: input.targetType,
+      ...(context
+        ? { orgId: context.orgId, projectId: context.projectId }
+        : {}),
+      region: getDataRegion(),
+    });
+    throw new LangfuseConflictError(
+      "Feedback submission is not configured for this deployment",
+    );
+  }
 
   const id = randomUUID();
   const webhookUrl = getFeedbackWebhookUrl();

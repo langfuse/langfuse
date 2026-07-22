@@ -1,4 +1,7 @@
-import { ServiceUnavailableError } from "@langfuse/shared";
+import {
+  LangfuseConflictError,
+  ServiceUnavailableError,
+} from "@langfuse/shared";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -96,10 +99,10 @@ describe("POST /api/public/feedback", () => {
       context: validScope,
       source: "public-api",
     });
-    expect(mockRateLimitRequest).toHaveBeenCalledWith(validScope, "feedback");
+    expect(mockRateLimitRequest).not.toHaveBeenCalled();
   });
 
-  it("classifies CLI submissions from the existing client header", async () => {
+  it("treats client attribution headers as public API submissions", async () => {
     const { req, res } = createRequest(validBody, "cli");
 
     await handler(req, res);
@@ -108,7 +111,7 @@ describe("POST /api/public/feedback", () => {
     expect(mockSubmitFeedback).toHaveBeenCalledWith({
       input: validBody,
       context: validScope,
-      source: "langfuse-cli",
+      source: "public-api",
     });
   });
 
@@ -136,6 +139,23 @@ describe("POST /api/public/feedback", () => {
     expect(JSON.parse(res._getData())).toMatchObject({
       message: "Feedback Slack sink rejected message",
       error: "ServiceUnavailableError",
+    });
+  });
+
+  it("returns 409 when feedback is not configured", async () => {
+    mockSubmitFeedback.mockRejectedValueOnce(
+      new LangfuseConflictError(
+        "Feedback submission is not configured for this deployment",
+      ),
+    );
+    const { req, res } = createRequest(validBody);
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(409);
+    expect(JSON.parse(res._getData())).toMatchObject({
+      message: "Feedback submission is not configured for this deployment",
+      error: "LangfuseConflictError",
     });
   });
 });

@@ -1838,6 +1838,8 @@ paths:
           content:
             application/json:
               schema: {}
+        '409':
+          description: ''
       security: *ref_0
       requestBody:
         required: true
