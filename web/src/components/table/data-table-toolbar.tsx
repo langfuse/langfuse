@@ -22,8 +22,10 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TimeRange,
@@ -232,6 +234,8 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const isMobile = useIsMobile();
+  const [viewSheetOpen, setViewSheetOpen] = useState(false);
 
   const capture = usePostHogClientCapture();
   const showSearchTypeSelector = Boolean(
@@ -269,246 +273,331 @@ export function DataTableToolbar<TData, TValue>({
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
-  return (
-    <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
+
+  // Extract each control into a shared element so the desktop row and the
+  // mobile View sheet reference the SAME JSX (no duplicated/retyped controls,
+  // no double-mounted stateful drawers). Only ONE layout mounts (branched on
+  // `isMobile`), so these render at most once.
+  const searchEl = searchConfig ? (
+    <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
       <div
         className={cn(
-          "@container my-2 flex flex-wrap items-center gap-2",
-          rowClassName,
+          "border-input bg-background flex h-8 flex-1 items-center border pl-2",
+          showSearchTypeSelector
+            ? "rounded-l-md rounded-r-none border-r-0"
+            : "rounded-l-md rounded-r-md",
         )}
       >
-        {leadingControls}
-        {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
-            toolbar toggle only remains for the mobile stacked layout. */}
-        {hasNewSidebar && (
-          <FilterToggleButton filterState={filterState} className="md:hidden" />
-        )}
-        {!!columnVisibility && !!columnOrder && !!viewConfig && (
-          <TableViewPresetsDrawer
-            viewConfig={viewConfig}
-            currentState={{
-              orderBy: orderByState ?? null,
-              filters: filterState ?? [],
-              columnOrder,
-              columnVisibility,
-              searchQuery: currentSearchQuery ?? searchString,
-            }}
-            systemFilterPresets={viewConfig.systemFilterPresets}
-          />
-        )}
-        {searchConfig && (
-          <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
-            <div
-              className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                showSearchTypeSelector
-                  ? "rounded-l-md rounded-r-none border-r-0"
-                  : "rounded-l-md rounded-r-md",
-              )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mr-1"
+          onClick={() => {
+            capture("table:search_submit");
+            submitSearch(searchString);
+          }}
+        >
+          <Search className="h-4 w-4" />
+        </Button>
+        <Input
+          autoFocus
+          placeholder={
+            searchConfig.tableAllowsFullTextSearch
+              ? "Search..."
+              : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+          }
+          value={searchString}
+          onChange={(event) => {
+            const newValue = event.currentTarget.value;
+            setSearchString(newValue);
+            // If user cleared the search, update URL immediately
+            if (newValue === "") {
+              submitSearch("");
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              capture("table:search_submit");
+              submitSearch(searchString);
+            }
+          }}
+          className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
+        />
+      </div>
+      {showSearchTypeSelector && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="default"
+              className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1"
-                onClick={() => {
-                  capture("table:search_submit");
-                  submitSearch(searchString);
-                }}
+              <span
+                className="flex items-center gap-1 truncate"
+                title={searchButtonLabel}
               >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Input
-                autoFocus
-                placeholder={
-                  searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
-                }
-                value={searchString}
-                onChange={(event) => {
-                  const newValue = event.currentTarget.value;
-                  setSearchString(newValue);
-                  // If user cleared the search, update URL immediately
-                  if (newValue === "") {
-                    submitSearch("");
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    capture("table:search_submit");
-                    submitSearch(searchString);
-                  }
-                }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-              />
-            </div>
-            {showSearchTypeSelector && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
-                  >
-                    <span
-                      className="flex items-center gap-1 truncate"
-                      title={searchButtonLabel}
-                    >
-                      {searchButtonLabel}
-                      <DocPopup
-                        description={getSearchDescription(
-                          searchConfig.searchType,
-                          searchConfig.metadataSearchFields,
-                          searchConfig.hidePerformanceWarning,
-                          searchConfig.tableAllowsFullTextSearch,
-                        )}
-                      />
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                {searchButtonLabel}
+                <DocPopup
+                  description={getSearchDescription(
+                    searchConfig.searchType,
+                    searchConfig.metadataSearchFields,
+                    searchConfig.hidePerformanceWarning,
+                    searchConfig.tableAllowsFullTextSearch,
+                  )}
+                />
+              </span>
+              <ChevronDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup
+              value={getSearchMode(
+                searchConfig.searchType,
+                searchConfig.tableAllowsFullTextSearch,
+              )}
+              onValueChange={(value) => {
+                if (
+                  !searchConfig.tableAllowsFullTextSearch &&
+                  value.startsWith("metadata_fulltext")
+                )
+                  return;
+                searchConfig.setSearchType?.(searchModeToType(value));
+              }}
+            >
+              <DropdownMenuRadioItem value="metadata">
+                {searchConfig.customDropdownLabels?.metadata ?? "IDs / Names"}
+              </DropdownMenuRadioItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger
+                  disabled={!searchConfig.tableAllowsFullTextSearch}
+                >
+                  <span className="flex items-center gap-2">
+                    {getSearchMode(
+                      searchConfig.searchType,
+                      searchConfig.tableAllowsFullTextSearch,
+                    ).startsWith("metadata_fulltext") && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
+                    )}
+                    {searchConfig.customDropdownLabels?.fullText ?? "Full Text"}
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
                   <DropdownMenuRadioGroup
                     value={getSearchMode(
                       searchConfig.searchType,
                       searchConfig.tableAllowsFullTextSearch,
                     )}
                     onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value.startsWith("metadata_fulltext")
-                      )
-                        return;
                       searchConfig.setSearchType?.(searchModeToType(value));
                     }}
                   >
-                    <DropdownMenuRadioItem value="metadata">
-                      {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger
-                        disabled={!searchConfig.tableAllowsFullTextSearch}
-                      >
-                        <span className="flex items-center gap-2">
-                          {getSearchMode(
-                            searchConfig.searchType,
-                            searchConfig.tableAllowsFullTextSearch,
-                          ).startsWith("metadata_fulltext") && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
-                          )}
-                          {searchConfig.customDropdownLabels?.fullText ??
-                            "Full Text"}
-                        </span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup
-                          value={getSearchMode(
-                            searchConfig.searchType,
-                            searchConfig.tableAllowsFullTextSearch,
-                          )}
-                          onValueChange={(value) => {
-                            searchConfig.setSearchType?.(
-                              searchModeToType(value),
-                            );
-                          }}
-                        >
-                          {/* Only show options that are explicitly available */}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.content) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext">
-                              Input/Output
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.input) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_input">
-                              Input
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.output) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_output">
-                              Output
-                            </DropdownMenuRadioItem>
-                          )}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
+                    {/* Only show options that are explicitly available */}
+                    {(searchConfig.availableSearchTypes === undefined ||
+                      searchConfig.availableSearchTypes.content) && (
+                      <DropdownMenuRadioItem value="metadata_fulltext">
+                        Input/Output
+                      </DropdownMenuRadioItem>
+                    )}
+                    {(searchConfig.availableSearchTypes === undefined ||
+                      searchConfig.availableSearchTypes.input) && (
+                      <DropdownMenuRadioItem value="metadata_fulltext_input">
+                        Input
+                      </DropdownMenuRadioItem>
+                    )}
+                    {(searchConfig.availableSearchTypes === undefined ||
+                      searchConfig.availableSearchTypes.output) && (
+                      <DropdownMenuRadioItem value="metadata_fulltext_output">
+                        Output
+                      </DropdownMenuRadioItem>
+                    )}
                   </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  ) : null;
+
+  const viewPresetsEl =
+    !!columnVisibility && !!columnOrder && !!viewConfig ? (
+      <TableViewPresetsDrawer
+        viewConfig={viewConfig}
+        currentState={{
+          orderBy: orderByState ?? null,
+          filters: filterState ?? [],
+          columnOrder,
+          columnVisibility,
+          searchQuery: currentSearchQuery ?? searchString,
+        }}
+        systemFilterPresets={viewConfig.systemFilterPresets}
+      />
+    ) : null;
+
+  const timeRangeEl =
+    timeRange && setTimeRange ? (
+      <TimeRangePicker
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
+        timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+        className="my-0 max-w-full overflow-x-auto"
+      />
+    ) : null;
+
+  const refreshEl = refreshConfig ? (
+    <DataTableRefreshButton
+      onRefresh={refreshConfig.onRefresh}
+      isRefreshing={refreshConfig.isRefreshing}
+      interval={refreshConfig.interval}
+      setInterval={refreshConfig.setInterval}
+    />
+  ) : null;
+
+  const envEl = environmentFilter ? (
+    <MultiSelectFilter
+      title="Environment"
+      label="Env"
+      values={environmentFilter.values}
+      onValueChange={environmentFilter.onValueChange}
+      options={environmentFilter.options}
+      className="my-0 w-auto overflow-hidden"
+    />
+  ) : null;
+
+  const v3FilterEl =
+    !!filterColumnDefinition && !!filterState && !!setFilterState ? (
+      <PopoverFilterBuilder
+        columns={filterColumnDefinition}
+        filterState={filterState}
+        onChange={setFilterState}
+        columnsWithCustomSelect={columnsWithCustomSelect}
+        filterWithAI={filterWithAI}
+        // Analytics (LFE-10781): the table's own identity, so popover
+        // filters:applied/cleared events aren't mislabeled "unknown". Prefer
+        // an explicit `tableName` (tables without a viewConfig — users,
+        // dataset runs/items), else the view's table. The v4 events table
+        // filters via the grammar bar (it omits filterColumnDefinition here,
+        // so this popover is a v3/legacy surface); derive isV4 from the
+        // ObservationsEvents view for consistency + future-proofing.
+        tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
+        isV4={
+          viewConfig?.tableName === TableViewPresetTableName.ObservationsEvents
+        }
+      />
+    ) : null;
+
+  const columnsEl =
+    !!columnVisibility && !!setColumnVisibility ? (
+      <DataTableColumnVisibilityFilter
+        columns={columns}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={setColumnVisibility}
+        columnOrder={columnOrder}
+        setColumnOrder={setColumnOrder}
+      />
+    ) : null;
+
+  const rowHeightEl =
+    !!rowHeight && !!setRowHeight ? (
+      <DataTableRowHeightSwitch
+        rowHeight={rowHeight}
+        setRowHeight={setRowHeight}
+      />
+    ) : null;
+
+  // The mobile View sheet gathers every control that isn't the search field,
+  // the filter toggle, or the view-mode switch. If a table supplies none of
+  // them, there is nothing to open, so the View button is not rendered.
+  const hasViewSheetContent = Boolean(
+    leadingControls ||
+    viewPresetsEl ||
+    timeRangeEl ||
+    refreshEl ||
+    envEl ||
+    v3FilterEl ||
+    columnsEl ||
+    rowHeightEl ||
+    actionButtons,
+  );
+
+  return (
+    <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
+      {isMobile ? (
+        <div
+          className={cn("@container my-2 flex flex-col gap-2", rowClassName)}
+        >
+          {/* Search gets its own full-width row on mobile. */}
+          {searchEl}
+          {/* Compact control row: filter toggle, view-mode switch, and the
+              View button that opens the rest in a bottom sheet. */}
+          <div className="flex flex-row flex-wrap items-center gap-2">
+            {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
+            {viewModeToggle}
+            {hasViewSheetContent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewSheetOpen(true)}
+                className="flex h-8 items-center gap-2 text-sm"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>View</span>
+              </Button>
             )}
           </div>
-        )}
-        {viewModeToggle}
-        {timeRange && setTimeRange && (
-          <TimeRangePicker
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-            className="my-0 max-w-full overflow-x-auto"
-          />
-        )}
-        {refreshConfig && (
-          <DataTableRefreshButton
-            onRefresh={refreshConfig.onRefresh}
-            isRefreshing={refreshConfig.isRefreshing}
-            interval={refreshConfig.interval}
-            setInterval={refreshConfig.setInterval}
-          />
-        )}
-        {environmentFilter && (
-          <MultiSelectFilter
-            title="Environment"
-            label="Env"
-            values={environmentFilter.values}
-            onValueChange={environmentFilter.onValueChange}
-            options={environmentFilter.options}
-            className="my-0 w-auto overflow-hidden"
-          />
-        )}
-        {!!filterColumnDefinition && !!filterState && !!setFilterState && (
-          <PopoverFilterBuilder
-            columns={filterColumnDefinition}
-            filterState={filterState}
-            onChange={setFilterState}
-            columnsWithCustomSelect={columnsWithCustomSelect}
-            filterWithAI={filterWithAI}
-            // Analytics (LFE-10781): the table's own identity, so popover
-            // filters:applied/cleared events aren't mislabeled "unknown". Prefer
-            // an explicit `tableName` (tables without a viewConfig — users,
-            // dataset runs/items), else the view's table. The v4 events table
-            // filters via the grammar bar (it omits filterColumnDefinition here,
-            // so this popover is a v3/legacy surface); derive isV4 from the
-            // ObservationsEvents view for consistency + future-proofing.
-            tableName={tableName ?? viewConfig?.tableName ?? "unknown"}
-            isV4={
-              viewConfig?.tableName ===
-              TableViewPresetTableName.ObservationsEvents
-            }
-          />
-        )}
-
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
-          {!!columnVisibility && !!setColumnVisibility && (
-            <DataTableColumnVisibilityFilter
-              columns={columns}
-              columnVisibility={columnVisibility}
-              setColumnVisibility={setColumnVisibility}
-              columnOrder={columnOrder}
-              setColumnOrder={setColumnOrder}
-            />
+          {hasViewSheetContent && (
+            <Sheet open={viewSheetOpen} onOpenChange={setViewSheetOpen}>
+              <SheetContent
+                side="bottom"
+                aria-describedby={undefined}
+                className="flex max-h-[85svh] flex-col gap-2 overflow-y-auto p-4"
+              >
+                <SheetTitle className="sr-only">View options</SheetTitle>
+                {leadingControls}
+                {viewPresetsEl}
+                {timeRangeEl}
+                {refreshEl}
+                {envEl}
+                {v3FilterEl}
+                {columnsEl}
+                {rowHeightEl}
+                {actionButtons}
+              </SheetContent>
+            </Sheet>
           )}
-          {!!rowHeight && !!setRowHeight && (
-            <DataTableRowHeightSwitch
-              rowHeight={rowHeight}
-              setRowHeight={setRowHeight}
-            />
-          )}
-          {actionButtons}
         </div>
-      </div>
+      ) : (
+        <div
+          className={cn(
+            "@container my-2 flex flex-wrap items-center gap-2",
+            rowClassName,
+          )}
+        >
+          {leadingControls}
+          {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
+              toolbar toggle only remains for the mobile stacked layout. */}
+          {hasNewSidebar && (
+            <FilterToggleButton
+              filterState={filterState}
+              className="md:hidden"
+            />
+          )}
+          {viewPresetsEl}
+          {searchEl}
+          {viewModeToggle}
+          {timeRangeEl}
+          {refreshEl}
+          {envEl}
+          {v3FilterEl}
+
+          <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
+            {columnsEl}
+            {rowHeightEl}
+            {actionButtons}
+          </div>
+        </div>
+      )}
       {multiSelect && allVisibleRowsSelected && (
         <DataTableSelectAllBanner {...multiSelect} />
       )}
