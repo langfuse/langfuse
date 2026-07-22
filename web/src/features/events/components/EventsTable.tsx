@@ -1063,7 +1063,17 @@ export default function ObservationsEventsTable({
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(hideControls ? [] : [selectActionColumn]),
+    // Spread a mobile-card hint onto the shared selection column locally so
+    // only this table opts into card rendering (the shared column stays
+    // un-annotated for other tables).
+    ...(hideControls
+      ? []
+      : [
+          {
+            ...selectActionColumn,
+            mobileCard: { slot: "select" as const },
+          },
+        ]),
     {
       accessorKey: "startTime",
       id: "startTime",
@@ -1071,6 +1081,7 @@ export default function ObservationsEventsTable({
       size: 150,
       enableHiding: true,
       enableSorting,
+      mobileCard: { slot: "timestamp" },
       cell: ({ row }) => {
         const value: Date = row.getValue("startTime");
         return <LocalIsoDate date={value} />;
@@ -1098,6 +1109,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("name"),
       size: 150,
       enableSorting,
+      mobileCard: { slot: "title" },
       cell: ({ row }) => {
         const value: EventsTableRow["name"] = row.getValue("name");
         return value ?? undefined;
@@ -1228,6 +1240,7 @@ export default function ObservationsEventsTable({
         href: "https://langfuse.com/docs/observability/features/log-levels",
       },
       enableHiding: true,
+      mobileCard: { slot: "badge" },
       cell: ({ row }) => {
         const value: ObservationLevelType | undefined = row.getValue("level");
         return value ? (
@@ -1272,6 +1285,7 @@ export default function ObservationsEventsTable({
       id: "latency",
       header: getEventsColumnName("latency"),
       size: 100,
+      mobileCard: { slot: "metric", order: 0 },
       cell: ({ row }) => {
         const latency: number | undefined = row.getValue("latency");
         return latency !== undefined ? (
@@ -1286,6 +1300,7 @@ export default function ObservationsEventsTable({
       header: getEventsColumnName("totalCost"),
       id: "totalCost",
       size: 120,
+      mobileCard: { slot: "metric", order: 1 },
       cell: ({ row }) => {
         const value: number | undefined = row.getValue("totalCost");
 
@@ -1489,6 +1504,7 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
+          mobileCard: { slot: "metric", order: 2 },
           cell: ({ row }) => {
             const value = row.getValue("usage") as {
               inputUsage: number;
@@ -1546,6 +1562,7 @@ export default function ObservationsEventsTable({
       size: 150,
       enableHiding: true,
       loadingCell: <TableBadgeLoadingCell />,
+      mobileCard: { slot: "context", order: 1 },
       cell: ({ row }) => {
         const value: EventsTableRow["environment"] =
           row.getValue("environment");
@@ -1567,6 +1584,7 @@ export default function ObservationsEventsTable({
       size: 250,
       enableHiding: true,
       loadingCell: <TableTextLoadingCell />,
+      mobileCard: { slot: "context", order: 0 },
       cell: ({ row }) => {
         const traceTags: string[] | undefined = row.getValue("traceTags");
         return (
