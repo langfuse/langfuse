@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parse } from "./langQ";
+import { parse, serialize } from "./langQ";
 import { semanticDiagnostics, validateQuery } from "./validate";
 
 function warnings(query: string): string[] {
@@ -78,4 +78,71 @@ describe("validateQuery — merged-diagnostic dedup", () => {
       expect(errorMessages(query)).toEqual([expected]);
     },
   );
+});
+
+// LFE-11017: a partial filter token that isn't a complete expression must not
+// silently apply to the query. A bare field word (`type`, no operator/value)
+// used to parse as free text and lower to a full-text searchQuery, wiping the
+// results with no signal — while `type:` already errored. It must now be
+// treated as an incomplete filter (excluded from the query, rendered red),
+// WITHOUT flagging deliberate multi-word free-text phrases.
+describe("validateQuery — incomplete bare field token (LFE-11017)", () => {
+  const errors = (query: string): string[] =>
+    validateQuery(query)
+      .diagnostics.filter((d) => d.severity === "error")
+      .map((d) => d.message);
+  const isValid = (query: string): boolean => validateQuery(query).valid;
+
+  it.each(["type", "level", "env", "tags", "TYPE", "metadata.region"])(
+    "flags a lone bare field word %s as an incomplete filter",
+    (query) => {
+      expect(isValid(query)).toBe(false);
+      expect(errors(query).some((m) => m.startsWith("Incomplete filter"))).toBe(
+        true,
+      );
+    },
+  );
+
+  it("flags a bare field word appended after an existing filter (the repro)", () => {
+    expect(isValid("name:foo type")).toBe(false);
+    expect(
+      errors("name:foo type").some((m) => m.startsWith("Incomplete filter")),
+    ).toBe(true);
+  });
+
+  it("does not flag a deliberate multi-word phrase containing a field word", () => {
+    expect(isValid("type error")).toBe(true);
+    expect(isValid("session timeout")).toBe(true);
+    expect(isValid("name:foo type error")).toBe(true);
+  });
+
+  it("does not flag a quoted field word (explicit literal text search)", () => {
+    expect(isValid('"type"')).toBe(true);
+    expect(errors('"type"')).toEqual([]);
+  });
+
+  it("does not flag free text that is not a field name", () => {
+    expect(isValid("hello")).toBe(true);
+    expect(isValid("refund policy")).toBe(true);
+  });
+
+  it("still flags the colon-but-no-value form (unchanged existing error)", () => {
+    // `type:` keeps its own "Missing value" error — NOT the incomplete-filter one.
+    const msgs = errors("type:");
+    expect(msgs).toContain('Missing value after "type:"');
+    expect(msgs.some((m) => m.startsWith("Incomplete filter"))).toBe(false);
+  });
+
+  it("accepts a complete expression", () => {
+    expect(isValid("type:chat")).toBe(true);
+    expect(isValid("name:foo type:chat")).toBe(true);
+  });
+
+  it("round-trips a committed field-word free text as a quoted literal", () => {
+    // The reverse of the guard: a legacy searchQuery=`type` must serialize as
+    // `"type"` so it re-derives valid, not as a bare token that lands red.
+    const text = serialize({ kind: "text", value: "type" });
+    expect(text).toBe('"type"');
+    expect(isValid(text)).toBe(true);
+  });
 });

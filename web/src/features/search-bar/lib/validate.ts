@@ -10,7 +10,7 @@
 // span. `valid === true` therefore guarantees astToFilterState() lowers the
 // whole query without errors.
 
-import type { ASTNode, Span } from "./ast";
+import type { ASTNode, Span, TextNode } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
@@ -84,6 +84,54 @@ function hasFilterWarnings(
   }
 }
 
+function collectTextNodes(node: ASTNode, out: TextNode[]): void {
+  switch (node.kind) {
+    case "text":
+      out.push(node);
+      return;
+    case "not":
+      collectTextNodes(node.child, out);
+      return;
+    case "and":
+    case "or":
+      for (const c of node.children) collectTextNodes(c, out);
+      return;
+    case "filter":
+      return;
+  }
+}
+
+/**
+ * A lone bare word that resolves to a field name (`type`, `level`, `env`, …) is
+ * almost always a filter the user started and did not finish — not free text.
+ * Left as free text it silently lowers to a full-text `searchQuery` and wipes
+ * the results with no signal (LFE-11017), while the analogous `type:` (colon, no
+ * value) already errors. Treat it as an incomplete filter so it renders red and
+ * is excluded from the query, consistent with the dangling dot-prefix guard
+ * (`metadata.`) in the adapter.
+ *
+ * Scoped to the SOLE free-text token: a deliberate multi-word phrase that
+ * happens to contain a field word ("type error", "session timeout") lowers to
+ * one contiguous-substring `searchQuery`, not a filter, so it is left untouched.
+ * Quoting escapes a single word back to literal text (`"type"`) — the same
+ * escape hatch the reserved keywords (`and`/`or`/`not`) use, and the reason the
+ * serializer force-quotes a field-name free-text value (mirror invariant).
+ */
+function incompleteFieldTokenDiagnostic(ast: ASTNode, out: Diagnostic[]): void {
+  const texts: TextNode[] = [];
+  collectTextNodes(ast, texts);
+  if (texts.length !== 1) return;
+  const node = texts[0]!;
+  if (node.quoted || node.span === undefined) return;
+  if (resolveField(node.value) === null) return;
+  out.push({
+    from: node.span.from,
+    to: node.span.to,
+    severity: "error",
+    message: `Incomplete filter "${node.value}" — add a value (e.g. ${node.value}:value) or quote "${node.value}" to search as text`,
+  });
+}
+
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
@@ -91,6 +139,11 @@ export function semanticDiagnostics(
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
+
+  // A bare field-name word with no operator/value is an incomplete filter, not
+  // free text — checked over the WHOLE tree (not per top-level node) so the
+  // "sole free-text token" scoping can see every text node at once.
+  incompleteFieldTokenDiagnostic(ast, out);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same

@@ -19,7 +19,7 @@
 
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { canonicalKey, operatorIssue, resolveField } from "./fields";
-import { NEEDS_QUOTES, unquote } from "./quoting";
+import { NEEDS_QUOTES, quote, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
 // dependency-free `quoting.ts` (so `fields.ts` can use them too).
@@ -854,8 +854,7 @@ export function serializeValue(value: string): string {
     value.startsWith("!") ||
     RESERVED_BARE_TOKEN.test(value)
   ) {
-    // Escape \ before " — must be the exact inverse of unquote.
-    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    return quote(value);
   }
   return value;
 }
@@ -924,8 +923,15 @@ export function serialize(ast: ASTNode | null): string {
       return serializeFilter(ast);
     case "text":
       // Always route through serializeValue so bare keywords (AND/OR/NOT) and
-      // leading-operator/hyphen free text get quoted and reparse as text.
-      return serializeValue(ast.value);
+      // leading-operator/hyphen free text get quoted and reparse as text. A lone
+      // word that resolves to a field name is treated as an incomplete filter by
+      // the validator (LFE-11017), so it must serialize QUOTED too — otherwise a
+      // committed free-text searchQuery like `type` (e.g. a legacy URL/saved
+      // view) re-derives as a red chip instead of a valid literal search. Mirror
+      // invariant with validate.ts's incomplete-field-token check.
+      return resolveField(ast.value) !== null
+        ? quote(ast.value)
+        : serializeValue(ast.value);
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
