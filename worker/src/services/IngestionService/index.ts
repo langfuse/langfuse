@@ -95,6 +95,18 @@ type MergeAndWriteParams = {
   attribution: IngestionAttribution;
 };
 
+/**
+ * Returns the UTF-8 size of the final JSONEachRow event payload, excluding the
+ * self-referential `event_bytes` accounting field.
+ */
+function getSerializedEventByteLength(
+  eventRecord: EventRecordInsertType,
+): number {
+  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
+
+  return Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8");
+}
+
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -416,9 +428,14 @@ export class IngestionService {
    * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
+   * Mutates `eventRecord.event_bytes` immediately before enqueueing so the
+   * persisted value describes the final normalized event rather than the raw
+   * OTEL span measured before media processing.
+   *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
+    eventRecord.event_bytes = getSerializedEventByteLength(eventRecord);
     this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
   }
 
