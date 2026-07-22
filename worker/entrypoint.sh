@@ -22,7 +22,7 @@ fi
 # On ECS, append task_id:<id> from the container metadata endpoint to DD_TAGS
 # (best-effort; never blocks startup)
 if [ -n "$ECS_CONTAINER_METADATA_URI_V4" ]; then
-    _task_arn=$(wget -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    _task_arn=$(wget -T 2 -qO- "${ECS_CONTAINER_METADATA_URI_V4}/task" | sed -n 's/.*"TaskARN"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
     _task_id="${_task_arn##*/}"
     if [ -n "$_task_id" ]; then
         export DD_TAGS="${DD_TAGS:+${DD_TAGS},}task_id:${_task_id}"
