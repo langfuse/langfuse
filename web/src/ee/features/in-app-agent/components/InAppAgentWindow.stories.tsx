@@ -1,5 +1,4 @@
 import preview from "../../../../../.storybook/preview";
-import { arrayMove } from "@dnd-kit/sortable";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -83,16 +82,6 @@ function StatefulQueuedInAppAgentWindow(args: InAppAgentWindowProps) {
         setQueuedMessages((current) =>
           current.filter(({ id }) => id !== messageId),
         );
-      }}
-      onReorderQueuedMessage={(messageId, targetMessageId) => {
-        args.onReorderQueuedMessage?.(messageId, targetMessageId);
-        setQueuedMessages((current) => {
-          const fromIndex = current.findIndex(({ id }) => id === messageId);
-          const toIndex = current.findIndex(({ id }) => id === targetMessageId);
-          return fromIndex < 0 || toIndex < 0
-            ? current
-            : arrayMove(current, fromIndex, toIndex);
-        });
       }}
     />
   );
@@ -713,7 +702,6 @@ export const RunningWithQueuedFollowUps = meta.story({
     onDraftChange: fn(),
     onEditQueuedMessage: fn(),
     onDeleteQueuedMessage: fn(),
-    onReorderQueuedMessage: fn(),
     messages: [
       {
         id: "user-1",

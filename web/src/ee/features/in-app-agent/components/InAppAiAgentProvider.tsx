@@ -106,7 +106,6 @@ export type InAppAiAgentConversation = {
     isRunning: boolean;
     requiresApproval: boolean;
     queuedCount: number;
-    unreadOutcome: "completed" | "failed" | null;
   };
 };
 
@@ -138,7 +137,6 @@ type InAppAiAgentContextType = {
   setDraft: (draft: string) => void;
   editQueuedMessage: (messageId: string, content: string) => void;
   deleteQueuedMessage: (messageId: string) => void;
-  reorderQueuedMessage: (messageId: string, targetMessageId: string) => void;
   submit: (
     content: string,
     options?: InAppAgentSubmitOptions,
@@ -181,7 +179,6 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   setDraft: () => undefined,
   editQueuedMessage: () => undefined,
   deleteQueuedMessage: () => undefined,
-  reorderQueuedMessage: () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
@@ -279,7 +276,6 @@ function InAppAiAgentProviderInner({
       {},
     );
   const runtimesRef = useRef(new Map<string, AgentRuntime>());
-  const selectedConversationIdRef = useRef<string | null>(null);
   const pumpConversationRef = useRef<(conversationId: string) => void>(
     () => undefined,
   );
@@ -343,7 +339,6 @@ function InAppAiAgentProviderInner({
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
-  selectedConversationIdRef.current = selectedConversationId;
 
   const conversations = useMemo<InAppAiAgentConversation[]>(() => {
     const remoteIds = new Set(remoteConversations.map(({ id }) => id));
@@ -361,7 +356,6 @@ function InAppAiAgentProviderInner({
               isRunning: state.isRunning || state.isSubmitting,
               requiresApproval: state.pendingToolApprovals.length > 0,
               queuedCount: state.queuedMessages.length,
-              unreadOutcome: state.unreadOutcome,
             }
           : undefined,
       };
@@ -663,7 +657,6 @@ function InAppAiAgentProviderInner({
       } finally {
         const activeRunId = runtime.activeRunId;
         runtime.activeRunId = null;
-        const failed = result === "failed";
         updateConversation(conversationId, (current) => ({
           ...current,
           isRunning: false,
@@ -673,14 +666,6 @@ function InAppAiAgentProviderInner({
             runtime.agent.messages.filter(isAgentConversationMessage),
             activeRunId,
           ),
-          unreadOutcome:
-            selectedConversationIdRef.current !== conversationId &&
-            current.pendingToolApprovals.length === 0 &&
-            result !== "rate_limited"
-              ? failed
-                ? "failed"
-                : "completed"
-              : current.unreadOutcome,
         }));
         Promise.all([
           utils.inAppAgent.listConversations.invalidate({ projectId }),
@@ -847,16 +832,9 @@ function InAppAiAgentProviderInner({
       if (conversationId === _selectedConversationId) {
         return;
       }
-      selectedConversationIdRef.current = conversationId;
       setSelectedConversationId(conversationId);
-      if (conversationId) {
-        updateConversation(conversationId, (current) => ({
-          ...current,
-          unreadOutcome: null,
-        }));
-      }
     },
-    [_selectedConversationId, setSelectedConversationId, updateConversation],
+    [_selectedConversationId, setSelectedConversationId],
   );
 
   const setDraft = useCallback(
@@ -899,33 +877,6 @@ function InAppAiAgentProviderInner({
     },
     [selectedConversationId, updateConversation],
   );
-  const reorderQueuedMessage = useCallback(
-    (messageId: string, targetMessageId: string) => {
-      if (!selectedConversationId || messageId === targetMessageId) {
-        return;
-      }
-      updateConversation(selectedConversationId, (current) => {
-        const fromIndex = current.queuedMessages.findIndex(
-          ({ id }) => id === messageId,
-        );
-        const toIndex = current.queuedMessages.findIndex(
-          ({ id }) => id === targetMessageId,
-        );
-        if (fromIndex < 0 || toIndex < 0) {
-          return current;
-        }
-        const queuedMessages = current.queuedMessages.slice();
-        const [message] = queuedMessages.splice(fromIndex, 1);
-        if (!message) {
-          return current;
-        }
-        queuedMessages.splice(toIndex, 0, message);
-        return { ...current, queuedMessages };
-      });
-    },
-    [selectedConversationId, updateConversation],
-  );
-
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
       const trimmedContent = content.trim();
@@ -977,7 +928,6 @@ function InAppAiAgentProviderInner({
             draft: "",
           }),
         );
-        selectedConversationIdRef.current = conversationId;
         setSelectedConversationId(conversationId);
       }
 
@@ -1275,7 +1225,6 @@ function InAppAiAgentProviderInner({
       setDraft,
       editQueuedMessage,
       deleteQueuedMessage,
-      reorderQueuedMessage,
       submit,
       approveToolCall,
       rejectToolCall,
@@ -1298,7 +1247,6 @@ function InAppAiAgentProviderInner({
       open,
       openAssistant,
       rejectToolCall,
-      reorderQueuedMessage,
       selectConversation,
       selectedClientState,
       selectedConversationId,

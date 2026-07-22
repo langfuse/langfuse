@@ -33,7 +33,6 @@ export type InAppAgentConversationClientState = {
   liveMessageVersion: number;
   queuedMessages: InAppAgentQueuedMessage[];
   draft: string;
-  unreadOutcome: "completed" | "failed" | null;
 };
 
 export const EMPTY_IN_APP_AGENT_CONVERSATION_STATE: InAppAgentConversationClientState =
@@ -47,7 +46,6 @@ export const EMPTY_IN_APP_AGENT_CONVERSATION_STATE: InAppAgentConversationClient
     liveMessageVersion: 0,
     queuedMessages: [],
     draft: "",
-    unreadOutcome: null,
   };
 
 type InAppAgentClientStoreState = {

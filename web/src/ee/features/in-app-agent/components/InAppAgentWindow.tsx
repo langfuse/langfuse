@@ -246,7 +246,6 @@ export type InAppAgentWindowConversation = {
     isRunning: boolean;
     requiresApproval: boolean;
     queuedCount: number;
-    unreadOutcome: "completed" | "failed" | null;
   };
 };
 
@@ -294,7 +293,6 @@ export type InAppAgentWindowProps = {
   onDraftChange?: (draft: string) => void;
   onEditQueuedMessage?: (messageId: string, content: string) => void;
   onDeleteQueuedMessage?: (messageId: string) => void;
-  onReorderQueuedMessage?: (messageId: string, targetMessageId: string) => void;
   screenContextDescription: InAppAgentScreenContextDescription;
   quickActionContext: InAppAgentQuickActionContext;
   focusedQuickActions?: readonly InAppAgentQuickAction[];
@@ -393,7 +391,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onDraftChange,
     onEditQueuedMessage,
     onDeleteQueuedMessage,
-    onReorderQueuedMessage,
     focusedQuickActions,
     quickActionContext,
     quickActionResetKey,
@@ -653,25 +650,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         <span className="text-muted-foreground shrink-0 text-[0.625rem]">
                           {conversation.activity.queuedCount} queued
                         </span>
-                      ) : conversation.activity?.unreadOutcome ? (
-                        <span
-                          aria-label={
-                            conversation.activity.unreadOutcome === "failed"
-                              ? "Failed while unviewed"
-                              : "Completed while unviewed"
-                          }
-                          className={cn(
-                            "size-2 shrink-0 rounded-full",
-                            conversation.activity.unreadOutcome === "failed"
-                              ? "bg-destructive"
-                              : "bg-primary-accent",
-                          )}
-                          title={
-                            conversation.activity.unreadOutcome === "failed"
-                              ? "Failed while unviewed"
-                              : "Completed while unviewed"
-                          }
-                        />
                       ) : null}
                       <Button
                         type="button"
@@ -1003,7 +981,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
                 onDeleteQueuedMessage(messageId);
               }}
-              onReorder={onReorderQueuedMessage}
             />
           </div>
         ) : null}

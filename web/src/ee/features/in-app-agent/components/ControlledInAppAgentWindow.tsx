@@ -38,6 +38,17 @@ type ControlledInAppAgentWindowProps = ControlledInAppAgentWindowBaseProps &
 export function ControlledInAppAgentWindow(
   props: ControlledInAppAgentWindowProps,
 ) {
+  const { selectedConversationId } = useInAppAiAgent();
+
+  return (
+    <SelectedConversationWindow
+      key={selectedConversationId ?? "new-conversation"}
+      {...props}
+    />
+  );
+}
+
+function SelectedConversationWindow(props: ControlledInAppAgentWindowProps) {
   const router = useRouter();
   const {
     conversations,
@@ -55,7 +66,6 @@ export function ControlledInAppAgentWindow(
     messages,
     pendingToolApprovals,
     queuedMessages,
-    reorderQueuedMessage,
     approveToolCall,
     rejectToolCall,
     selectConversation,
@@ -153,7 +163,6 @@ export function ControlledInAppAgentWindow(
       onDraftChange={setDraft}
       onEditQueuedMessage={editQueuedMessage}
       onDeleteQueuedMessage={deleteQueuedMessage}
-      onReorderQueuedMessage={reorderQueuedMessage}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

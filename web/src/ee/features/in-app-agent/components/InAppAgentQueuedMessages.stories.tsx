@@ -1,5 +1,4 @@
 import { useState, type ComponentProps } from "react";
-import { arrayMove } from "@dnd-kit/sortable";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
@@ -23,7 +22,6 @@ const meta = preview.meta({
     messages,
     onEdit: fn(),
     onDelete: fn(),
-    onReorder: fn(),
   },
 });
 
@@ -51,16 +49,6 @@ function ReorderableQueueStory(
         setQueuedMessages((current) =>
           current.filter(({ id }) => id !== messageId),
         );
-      }}
-      onReorder={(messageId, targetMessageId) => {
-        args.onReorder?.(messageId, targetMessageId);
-        setQueuedMessages((current) => {
-          const fromIndex = current.findIndex(({ id }) => id === messageId);
-          const toIndex = current.findIndex(({ id }) => id === targetMessageId);
-          return fromIndex < 0 || toIndex < 0
-            ? current
-            : arrayMove(current, fromIndex, toIndex);
-        });
       }}
     />
   );
