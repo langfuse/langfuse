@@ -85,8 +85,8 @@ const axes = (
 );
 
 const meta = preview.meta({
-  title: "Design System/Charts/Illustrations",
   component: LineChartTimeSeries,
+  tags: ["!dev"],
 });
 
 // ── V1 · Draw what was measured ──────────────────────────────────────────────
