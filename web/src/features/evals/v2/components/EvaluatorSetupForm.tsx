@@ -79,6 +79,7 @@ import {
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
+import { removePromptVariable } from "@/src/features/evals/v2/lib/promptVariables";
 import { useRuleMatchCount } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
@@ -576,8 +577,7 @@ export function EvaluatorSetupForm({
   // Trash action in the mapping panel: removes every {{variable}} occurrence
   // from the prompt (the variable then leaves the panel via the effect above).
   const deleteVariable = (variable: string) => {
-    const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    setPrompt(prompt.replace(new RegExp(`{{\\s*${escaped}\\s*}}`, "g"), ""));
+    setPrompt(removePromptVariable(prompt, variable));
     setVariableFields((prev) => {
       const next = { ...prev };
       delete next[variable];

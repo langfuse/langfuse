@@ -41,7 +41,7 @@ export function pathSegmentsToJsonPath(
     if (typeof segment === "number") return `${path}[${segment}]`;
     return JSONPATH_IDENTIFIER_REGEX.test(segment)
       ? `${path}.${segment}`
-      : `${path}["${segment.replace(/"/g, '\\"')}"]`;
+      : `${path}[${JSON.stringify(segment)}]`;
   }, "$");
 }
 

@@ -41,44 +41,9 @@ import {
   segmentsToJsonPath,
   type PathSegment,
 } from "@/src/features/evals/v2/lib/jsonPathSegments";
+import { resolveShapeNode } from "@/src/features/evals/v2/lib/resolveShapeNode";
 import { cn } from "@/src/utils/tailwind";
 import { extractValueFromObjectAsString } from "@langfuse/shared";
-
-/**
- * Walks the sample field's (JSON-decoded) value along the drill path to the
- * node whose SHAPE the panel renders. A wildcard descends into the first
- * entry as the representative shape; the actual mapped value (all entries)
- * comes from the real JSONPath extraction instead.
- */
-function resolveShapeNode(
-  root: unknown,
-  segments: PathSegment[],
-): { found: boolean; value: unknown } {
-  let node = root;
-  for (const segment of segments) {
-    if (Array.isArray(node) && segment === WILDCARD) {
-      if (node.length === 0) return { found: false, value: undefined };
-      node = node[0];
-    } else if (Array.isArray(node) && segment === LAST) {
-      if (node.length === 0) return { found: false, value: undefined };
-      node = node[node.length - 1];
-    } else if (Array.isArray(node) && typeof segment === "number") {
-      if (segment >= node.length) return { found: false, value: undefined };
-      node = node[segment];
-    } else if (
-      node !== null &&
-      typeof node === "object" &&
-      !Array.isArray(node) &&
-      typeof segment === "string"
-    ) {
-      if (!(segment in node)) return { found: false, value: undefined };
-      node = (node as Record<string, unknown>)[segment];
-    } else {
-      return { found: false, value: undefined };
-    }
-  }
-  return { found: true, value: node };
-}
 
 // Breadcrumb rows never wrap: beyond this many crumbs the middle collapses
 // into a "…" (root field + the last crumbs stay visible).
