@@ -13,14 +13,12 @@ import {
   processEventBatch,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import { LEGACY_INGESTION_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Generation (Legacy)",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
-    deprecation: LEGACY_INGESTION_DEPRECATION,
     rateLimitResource: "legacy-ingestion",
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
@@ -65,7 +63,6 @@ export default withMiddlewares({
     name: "Patch Generation (Legacy)",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
-    deprecation: LEGACY_INGESTION_DEPRECATION,
     rateLimitResource: "legacy-ingestion",
     rejectInEventsOnlyMode: true,
     fn: async ({ body, auth, req, res }) => {

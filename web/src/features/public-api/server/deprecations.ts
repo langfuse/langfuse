@@ -66,13 +66,6 @@ export const METRICS_DEPRECATION: ApiDeprecationInfo = {
   docsUrl: DOCS.metricsV2,
 };
 
-// Legacy create/update endpoints (trace, generation, span, event) → OpenTelemetry.
-export const LEGACY_INGESTION_DEPRECATION: ApiDeprecationInfo = {
-  message: `${V3_NOTICE} Send data via the OpenTelemetry endpoint at ${REPLACEMENT.otelTraces} instead.`,
-  replacement: REPLACEMENT.otelTraces,
-  docsUrl: DOCS.otel,
-};
-
 // Legacy dataset-run-items reads → experiment items (dataset runs are replaced
 // by experiments in v4).
 export const DATASET_RUN_ITEMS_DEPRECATION: ApiDeprecationInfo = {
