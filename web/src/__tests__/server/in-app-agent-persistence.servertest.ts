@@ -1659,6 +1659,34 @@ describe("in-app agent persistence", () => {
     ).rejects.toThrow("Assistant is already responding in this conversation");
   });
 
+  it("rethrows a replayed run id instead of reporting an active-run conflict", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+
+    const finished = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    await finishRun({ prisma, runId: finished.id, projectId });
+
+    // Replaying the id of a finished run violates the (id, project_id) primary
+    // key, not the active-run backstop index — the caller must not be told the
+    // assistant is still responding. Asserting on meta.target pins the shape
+    // the createRun catch discriminates on.
+    await expect(
+      createConversationRun({
+        projectId,
+        conversationId: conversation.id,
+        userId,
+        runId: finished.id,
+      }),
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["id", "project_id"] },
+    });
+  });
+
   it("marks old unfinished runs stale before starting a new run", async () => {
     const { projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -1754,7 +1782,9 @@ describe("in-app agent persistence", () => {
 
     // Bypass createRun's conversation lock and conflict check: the partial
     // unique index is the DB-level invariant against two unfinished runs in
-    // one conversation.
+    // one conversation. Asserting on meta.target pins the shape the createRun
+    // catch discriminates on (Prisma resolves the raw-SQL index to its
+    // column names).
     await expect(
       prisma.inAppAgentRun.create({
         data: {
@@ -1763,7 +1793,10 @@ describe("in-app agent persistence", () => {
           conversationId: conversation.id,
         },
       }),
-    ).rejects.toMatchObject({ code: "P2002" });
+    ).rejects.toMatchObject({
+      code: "P2002",
+      meta: { target: ["project_id", "conversation_id"] },
+    });
   });
 
   it("paginates conversation list with a stable cursor", async () => {

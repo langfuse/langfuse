@@ -298,6 +298,10 @@ model InAppAgentRun {
 
   events InAppAgentEvent[]
 
+  // A conversation can have at most one unfinished run, enforced via the
+  // partial unique index in_app_agent_runs_active_conversation_key on
+  // (project_id, conversation_id) WHERE finished_at IS NULL, added in the
+  // migration since Prisma cannot express partial uniqueness in the schema DSL.
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")

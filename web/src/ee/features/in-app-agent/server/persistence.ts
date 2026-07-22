@@ -219,10 +219,14 @@ export async function createRun(params: {
     } catch (error) {
       // Backstop: the partial unique index on active runs. The conversation
       // lock above should make this unreachable; surface it as the same
-      // conflict as the primary check instead of a 500.
+      // conflict as the primary check instead of a 500. The insert can also
+      // violate the (id, project_id) primary key (a replayed runId), so only
+      // map the active-run index — Prisma reports it via its column names.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes("conversation_id")
       ) {
         throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
       }
