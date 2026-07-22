@@ -13,7 +13,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
+import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripe/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
