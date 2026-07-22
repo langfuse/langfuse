@@ -3,6 +3,7 @@
 import { type PropsWithChildren, Children } from "react";
 import { useMediaQuery } from "react-responsive";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { useDataTableControls } from "./data-table-controls";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
@@ -41,13 +42,26 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     ? childrenArray.slice(1)
     : childrenArray;
 
-  // On mobile, honor the open state so the hide/show toggle works the same as
-  // on desktop — collapsed by default, expandable via the controls button.
+  // On mobile the desktop rail doesn't fit — the table takes the full width and
+  // the filter panel opens in a bottom sheet (driven by the same open state the
+  // "Filters" toggle in the toolbar controls), rather than squeezing the
+  // desktop sidebar inline alongside the table.
   if (!isDesktop) {
     return (
-      <div className="flex flex-1 overflow-hidden">
-        {open ? filterSidebar : null}
+      <div className="flex flex-1 flex-col overflow-hidden">
         {tableContent}
+        {filterSidebar && (
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent
+              side="bottom"
+              aria-describedby={undefined}
+              className="flex h-[85svh] flex-col gap-0 p-0"
+            >
+              <SheetTitle className="sr-only">Filters</SheetTitle>
+              {filterSidebar}
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
     );
   }
