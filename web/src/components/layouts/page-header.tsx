@@ -19,12 +19,13 @@ import {
 } from "@/src/components/layouts/page-tabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
-
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
 
 export type PageHeaderProps = {
   title: string;
+  titleDescription?: ReactNode;
+  fitTitleToContent?: boolean;
   /** Rich title rendering (e.g. inline-editable); replaces the plain title
    * span inside the heading. `title` stays the canonical string. */
   titleContent?: ReactNode;
@@ -45,6 +46,8 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
+  titleDescription,
+  fitTitleToContent = false,
   titleContent,
   itemType,
   actionButtonsLeft,
@@ -132,63 +135,75 @@ const PageHeader = ({
           >
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1">
-                {itemType && (
-                  <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+              <div className="mr-2 flex min-w-0 flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  {itemType && (
+                    <div className="flex items-center">
+                      <ItemBadge type={itemType} showLabel />
+                    </div>
+                  )}
+                  <div
+                    className={cn(
+                      "relative inline-block",
+                      fitTitleToContent
+                        ? "max-w-none shrink-0"
+                        : "max-w-md md:max-w-none",
+                    )}
+                  >
+                    <h2
+                      className={cn(
+                        "text-primary text-lg leading-7 font-bold",
+                        fitTitleToContent
+                          ? "whitespace-nowrap"
+                          : "line-clamp-1",
+                      )}
+                    >
+                      {titleContent ? (
+                        titleContent
+                      ) : titleTooltip ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="cursor-help wrap-break-word"
+                                data-testid="page-header-title"
+                              >
+                                {title}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              {titleTooltip}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span
+                          className="wrap-break-word"
+                          title={title}
+                          data-testid="page-header-title"
+                        >
+                          {title}
+                        </span>
+                      )}
+                      {help && (
+                        <span className="whitespace-nowrap">
+                          &nbsp;
+                          <DocPopup
+                            description={help.description}
+                            href={help.href}
+                            className={help.className}
+                          />
+                        </span>
+                      )}
+                    </h2>
                   </div>
-                )}
-                <div className="relative inline-block max-w-md md:max-w-none">
-                  {/* Explicit color: the SidebarProvider shell sets
-                      text-sidebar-foreground (60% grey in dark) on the whole
-                      app, so unstyled text here would inherit the dimmed
-                      sidebar tint. text-primary is the emphasis tier —
-                      brighter than body text-foreground in dark. */}
-                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
-                    {titleContent ? (
-                      titleContent
-                    ) : titleTooltip ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span
-                              className="cursor-help wrap-break-word"
-                              data-testid="page-header-title"
-                            >
-                              {title}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            {titleTooltip}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      <span
-                        className="wrap-break-word"
-                        title={title}
-                        data-testid="page-header-title"
-                      >
-                        {title}
-                      </span>
-                    )}
-                    {help && (
-                      <span className="whitespace-nowrap">
-                        &nbsp;
-                        <DocPopup
-                          description={help.description}
-                          href={help.href}
-                          className={help.className}
-                        />
-                      </span>
-                    )}
-                  </h2>
+                  {titleBadges && (
+                    <div className="ml-1 flex items-center gap-1">
+                      {titleBadges}
+                    </div>
+                  )}
                 </div>
-                {titleBadges && (
-                  <div className="ml-1 flex items-center gap-1">
-                    {titleBadges}
-                  </div>
-                )}
+                {titleDescription}
               </div>
               {actionButtonsLeft && (
                 <div className="flex flex-wrap items-center gap-1 self-center">
@@ -208,7 +223,7 @@ const PageHeader = ({
           {tabsProps && (
             <PageTabs
               {...tabsProps}
-              className={cn("ml-2", tabsProps.className)}
+              className={cn("ml-2 pr-3", tabsProps.className)}
             />
           )}
         </div>

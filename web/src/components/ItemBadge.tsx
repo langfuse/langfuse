@@ -19,6 +19,7 @@ import {
   Link,
   Search,
   Layers3,
+  ListFilter,
   ShieldCheck,
 } from "lucide-react";
 import { cva } from "class-variance-authority";
@@ -38,6 +39,7 @@ export type LangfuseItemType =
   | "PROMPT"
   | "EVALUATOR"
   | "RUNNING_EVALUATOR"
+  | "EVALUATION_RULE"
   | "EXPERIMENT";
 
 const iconMap = {
@@ -60,6 +62,7 @@ const iconMap = {
   ANNOTATION_QUEUE: ListTodo,
   PROMPT: FileText,
   RUNNING_EVALUATOR: Bot,
+  EVALUATION_RULE: ListFilter,
   EVALUATOR: WandSparkles,
   EXPERIMENT: FlaskConical,
 } as const;
@@ -87,6 +90,7 @@ const iconVariants = cva("h-4 w-4", {
       PROMPT: "text-primary-accent",
       EVALUATOR: "text-primary-accent", // usually text-indigo-600
       RUNNING_EVALUATOR: "text-primary-accent",
+      EVALUATION_RULE: "text-primary-accent",
       EXPERIMENT: "text-primary-accent",
     },
   },

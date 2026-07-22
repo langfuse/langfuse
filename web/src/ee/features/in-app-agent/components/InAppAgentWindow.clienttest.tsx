@@ -62,6 +62,10 @@ function selectTab(name: string) {
 }
 
 describe("InAppAgentWindow quick actions", () => {
+  beforeEach(() => {
+    capture.mockClear();
+  });
+
   it("switches tabs, resets on route change, and submits the action prompt with attribution", async () => {
     const onSubmit = vi.fn().mockResolvedValue(true);
     const { rerender } = render(windowElement({ onSubmit }));
@@ -141,5 +145,46 @@ describe("InAppAgentWindow quick actions", () => {
     expect(
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
+  });
+
+  it("focuses the composer without submitting for a focus-input action", () => {
+    const onSubmit = vi.fn().mockResolvedValue(true);
+
+    render(
+      windowElement({
+        focusedQuickActions: [
+          {
+            id: "describe-evaluator-goal",
+            label: "Build an evaluator I have in mind",
+            description: "Describe what you want the evaluator to measure",
+            icon: ScanSearch,
+            behavior: "focus_input",
+          },
+        ],
+        onSubmit,
+        quickActionContext: "evaluation",
+        quickActionResetKey: "/project/project-1/evals/v2",
+        screenContextDescription: { type: "evaluators-list" },
+      }),
+    );
+
+    const composer = screen.getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    composer.blur();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Build an evaluator I have in mind/,
+      }),
+    );
+
+    expect(composer).toHaveFocus();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledWith("in_app_agent:quick_action_started", {
+      quickActionKey: "describe-evaluator-goal",
+      quickActionCategory: "evaluation",
+      position: 0,
+    });
   });
 });

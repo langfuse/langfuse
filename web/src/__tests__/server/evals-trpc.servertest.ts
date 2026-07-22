@@ -59,6 +59,788 @@ beforeEach(() => {
 
 const __orgIds: string[] = [];
 
+describe("evalsV2.activateEvaluator", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  it("activates an evaluator with the filters saved during setup", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "setup-rule-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 0.5,
+        delay: 30_000,
+        status: "INACTIVE",
+      },
+    });
+
+    const result = await caller.evalsV2.activateEvaluator({
+      projectId: project.id,
+      evaluatorId: evaluator.id,
+      rule: { mode: "setup" },
+    });
+
+    const updated = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id, projectId: project.id },
+      include: { runScopeAssignments: true },
+    });
+    const createdRule = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: result.ruleId, projectId: project.id },
+    });
+
+    expect(updated.status).toBe("ACTIVE");
+    expect(updated.runScopeAssignments).toEqual([
+      expect.objectContaining({ runScopeId: createdRule.id }),
+    ]);
+    expect(updated.timeScope).toEqual(["NEW"]);
+    expect(createdRule.filter).toEqual([]);
+    expect(createdRule.sampling.toNumber()).toBe(0.5);
+    expect(createdRule.createdByUserId).toBe("user-1");
+  });
+
+  it("activates an evaluator with one existing rule", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "existing-rule-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+        status: "INACTIVE",
+      },
+    });
+    const rule = await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `existing-rule-${evaluator.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 0.25,
+        delay: 10_000,
+      },
+    });
+
+    await caller.evalsV2.activateEvaluator({
+      projectId: project.id,
+      evaluatorId: evaluator.id,
+      rule: { mode: "existing", ruleId: rule.id },
+    });
+
+    const updated = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id, projectId: project.id },
+      include: { runScopeAssignments: true },
+    });
+    expect(updated.status).toBe("ACTIVE");
+    expect(updated.runScopeAssignments).toEqual([
+      expect.objectContaining({ runScopeId: rule.id }),
+    ]);
+    expect(updated.sampling.toNumber()).toBe(0.25);
+    expect(updated.delay).toBe(10_000);
+  });
+
+  it("does not attach a rule from another project", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "project-isolated-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+        status: "INACTIVE",
+      },
+    });
+    const otherRule = await prisma.evalRunScope.create({
+      data: {
+        projectId: otherProject.id,
+        name: `other-project-rule-${evaluator.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        delay: 30_000,
+      },
+    });
+
+    await expect(
+      caller.evalsV2.activateEvaluator({
+        projectId: project.id,
+        evaluatorId: evaluator.id,
+        rule: { mode: "existing", ruleId: otherRule.id },
+      }),
+    ).rejects.toThrow("Evaluation rule not found");
+
+    const unchanged = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id, projectId: project.id },
+      include: { runScopeAssignments: true },
+    });
+    expect(unchanged.status).toBe("INACTIVE");
+    expect(unchanged.runScopeAssignments).toEqual([]);
+  });
+
+  it("attaches one evaluator to multiple evaluation rules", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "multi-rule-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+        status: "INACTIVE",
+      },
+    });
+    const rules = await Promise.all(
+      ["production", "staging"].map((name) =>
+        prisma.evalRunScope.create({
+          data: {
+            projectId: project.id,
+            name: `${name}-${evaluator.id}`,
+            targetObject: EvalTargetObject.EVENT,
+            filter: [],
+            sampling: 1,
+          },
+        }),
+      ),
+    );
+
+    for (const rule of rules) {
+      await caller.evalsV2.attachEvaluatorToRule({
+        projectId: project.id,
+        evaluatorId: evaluator.id,
+        ruleId: rule.id,
+      });
+    }
+
+    const assignments = await prisma.evalRunScopeAssignment.findMany({
+      where: { jobConfigurationId: evaluator.id },
+      orderBy: { runScopeId: "asc" },
+    });
+    expect(
+      assignments.map((assignment) => assignment.runScopeId).sort(),
+    ).toEqual(rules.map((rule) => rule.id).sort());
+  });
+
+  it("rejects a cross-project evaluation rule attachment", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "tenant-isolated-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+      },
+    });
+    const otherRule = await prisma.evalRunScope.create({
+      data: {
+        projectId: otherProject.id,
+        name: `tenant-isolated-rule-${evaluator.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+      },
+    });
+
+    await expect(
+      caller.evalsV2.attachEvaluatorToRule({
+        projectId: project.id,
+        evaluatorId: evaluator.id,
+        ruleId: otherRule.id,
+      }),
+    ).rejects.toThrow("Evaluation rule not found");
+
+    await expect(
+      prisma.evalRunScopeAssignment.findUnique({
+        where: {
+          jobConfigurationId_runScopeId: {
+            jobConfigurationId: evaluator.id,
+            runScopeId: otherRule.id,
+          },
+        },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("creates a definition version and updates mappings when editing", async () => {
+    const { project, caller } = await prepare();
+    const template = await prisma.evalTemplate.create({
+      data: {
+        projectId: project.id,
+        name: "versioned-evaluator",
+        version: 1,
+        type: "LLM_AS_JUDGE",
+        prompt: "Judge {{input}}",
+        vars: ["input"],
+        outputDefinition: createNumericEvalOutputDefinition({
+          reasoningDescription: "Why",
+          scoreDescription: "Score",
+        }),
+      },
+    });
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        evalTemplateId: template.id,
+        scoreName: "versioned-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [
+          {
+            templateVariable: "input",
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+        ],
+        sampling: 1,
+        delay: 30_000,
+      },
+    });
+
+    await caller.evalsV2.updateEvaluatorDefinition({
+      projectId: project.id,
+      evaluatorId: evaluator.id,
+      scoreName: "versioned-evaluator",
+      description: "Updated definition",
+      prompt: "Judge {{output}} carefully",
+      sourceCode: null,
+      sourceCodeLanguage: null,
+      mapping: [
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+      ],
+    });
+
+    const updated = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id, projectId: project.id },
+      include: { evalTemplate: true },
+    });
+    const original = await prisma.evalTemplate.findUniqueOrThrow({
+      where: { id: template.id },
+    });
+
+    expect(updated.evalTemplate).toEqual(
+      expect.objectContaining({
+        version: 2,
+        prompt: "Judge {{output}} carefully",
+        vars: ["output"],
+      }),
+    );
+    expect(updated.evalTemplateId).not.toBe(template.id);
+    expect(updated.variableMapping).toEqual([
+      {
+        templateVariable: "output",
+        selectedColumnId: "output",
+        jsonSelector: null,
+      },
+    ]);
+    expect(updated.description).toBe("Updated definition");
+    expect(original.prompt).toBe("Judge {{input}}");
+  });
+
+  it("rejects editing an evaluator from another project", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const template = await prisma.evalTemplate.create({
+      data: {
+        projectId: otherProject.id,
+        name: "other-project-definition",
+        version: 1,
+        type: "LLM_AS_JUDGE",
+        prompt: "Original prompt",
+        vars: [],
+      },
+    });
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: otherProject.id,
+        jobType: "EVAL",
+        evalTemplateId: template.id,
+        scoreName: "other-project-definition",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+      },
+    });
+
+    await expect(
+      caller.evalsV2.updateEvaluatorDefinition({
+        projectId: project.id,
+        evaluatorId: evaluator.id,
+        scoreName: "stolen-evaluator",
+        description: null,
+        prompt: "Changed prompt",
+        sourceCode: null,
+        sourceCodeLanguage: null,
+        mapping: [],
+      }),
+    ).rejects.toThrow("Evaluator not found");
+
+    const unchanged = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id, projectId: otherProject.id },
+      include: { evalTemplate: true },
+    });
+    expect(unchanged.scoreName).toBe("other-project-definition");
+    expect(unchanged.evalTemplate?.prompt).toBe("Original prompt");
+  });
+
+  it("updates a evaluation rule including its name", async () => {
+    const { project, caller } = await prepare();
+    const rule = await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `rule-before-edit-${project.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+      },
+    });
+
+    await caller.evalsV2.updateRule({
+      projectId: project.id,
+      ruleId: rule.id,
+      name: `rule-after-edit-${project.id}`,
+      filter: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      sampling: 0.25,
+    });
+
+    const updated = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: rule.id, projectId: project.id },
+    });
+    expect(updated.name).toBe(`rule-after-edit-${project.id}`);
+    expect(updated.filter).toEqual([
+      expect.objectContaining({ column: "environment", value: ["production"] }),
+    ]);
+    expect(updated.sampling.toNumber()).toBe(0.25);
+  });
+
+  it("deletes a evaluation rule and inactivates evaluators left without a rule", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "rule-delete-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+        status: "ACTIVE",
+      },
+    });
+    const rule = await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `rule-to-delete-${project.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        evaluatorAssignments: {
+          create: { jobConfigurationId: evaluator.id },
+        },
+      },
+    });
+
+    await caller.evalsV2.deleteRule({
+      projectId: project.id,
+      ruleId: rule.id,
+    });
+
+    await expect(
+      prisma.evalRunScope.findUnique({ where: { id: rule.id } }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.jobConfiguration.findUniqueOrThrow({
+        where: { id: evaluator.id },
+      }),
+    ).resolves.toEqual(expect.objectContaining({ status: "INACTIVE" }));
+  });
+
+  it("keeps evaluators active when deleting one of their evaluation rules", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "multi-rule-delete-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 30_000,
+        status: "ACTIVE",
+      },
+    });
+    const rules = await Promise.all(
+      ["delete", "keep"].map((name) =>
+        prisma.evalRunScope.create({
+          data: {
+            projectId: project.id,
+            name: `${name}-rule-${project.id}`,
+            targetObject: EvalTargetObject.EVENT,
+            filter: [],
+            sampling: 1,
+            evaluatorAssignments: {
+              create: { jobConfigurationId: evaluator.id },
+            },
+          },
+        }),
+      ),
+    );
+
+    await caller.evalsV2.deleteRule({
+      projectId: project.id,
+      ruleId: rules[0].id,
+    });
+
+    const updated = await prisma.jobConfiguration.findUniqueOrThrow({
+      where: { id: evaluator.id },
+      include: { runScopeAssignments: true },
+    });
+    expect(updated.status).toBe("ACTIVE");
+    expect(updated.runScopeAssignments).toEqual([
+      expect.objectContaining({ runScopeId: rules[1].id }),
+    ]);
+  });
+
+  it("does not delete a evaluation rule from another project", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const rule = await prisma.evalRunScope.create({
+      data: {
+        projectId: otherProject.id,
+        name: `other-project-rule-${otherProject.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+      },
+    });
+
+    await expect(
+      caller.evalsV2.deleteRule({
+        projectId: project.id,
+        ruleId: rule.id,
+      }),
+    ).rejects.toThrow("Evaluation rule not found");
+
+    await expect(
+      prisma.evalRunScope.findUnique({ where: { id: rule.id } }),
+    ).resolves.not.toBeNull();
+  });
+
+  it("creates and returns evaluation rule creator metadata", async () => {
+    const { project, caller, session } = await prepare();
+
+    const created = await caller.evalsV2.createRule({
+      projectId: project.id,
+      name: `created-rule-${project.id}`,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: 1,
+      enabled: false,
+    });
+
+    const persisted = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: created.id },
+    });
+    expect(persisted.createdByUserId).toBe(session.user?.id);
+    expect(persisted.enabled).toBe(false);
+
+    const rules = await caller.evalsV2.rules({ projectId: project.id });
+    expect(rules).toContainEqual(
+      expect.objectContaining({
+        id: created.id,
+        createdAt: persisted.createdAt,
+        updatedAt: persisted.updatedAt,
+        createdByUser: expect.objectContaining({ name: "Demo User" }),
+      }),
+    );
+  });
+
+  it("creates an evaluation rule with multiple evaluator assignments", async () => {
+    const { project, caller } = await prepare();
+    const evaluators = await Promise.all(
+      ["correctness", "relevance"].map((scoreName) =>
+        prisma.jobConfiguration.create({
+          data: {
+            projectId: project.id,
+            jobType: "EVAL",
+            scoreName: `${scoreName}-${project.id}`,
+            filter: [],
+            targetObject: EvalTargetObject.EVENT,
+            variableMapping: [],
+            sampling: 1,
+            delay: 0,
+          },
+        }),
+      ),
+    );
+
+    const created = await caller.evalsV2.createRule({
+      projectId: project.id,
+      name: `multi-evaluator-rule-${project.id}`,
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      sampling: 1,
+      enabled: true,
+      evaluatorIds: evaluators.map((evaluator) => evaluator.id),
+    });
+
+    const persisted = await prisma.evalRunScope.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { evaluatorAssignments: true },
+    });
+    expect(
+      persisted.evaluatorAssignments.map(
+        (assignment) => assignment.jobConfigurationId,
+      ),
+    ).toEqual(
+      expect.arrayContaining(evaluators.map((evaluator) => evaluator.id)),
+    );
+    expect(persisted.evaluatorAssignments).toHaveLength(2);
+  });
+
+  it("returns evaluator overview metadata and evaluation rule usage", async () => {
+    const { project, caller } = await prepare();
+    const creator = await prisma.user.create({
+      data: {
+        id: `evaluator-creator-${project.id}`,
+        name: "Evaluation Owner",
+        email: `evaluator-owner-${project.id}@example.com`,
+      },
+    });
+    const template = await prisma.evalTemplate.create({
+      data: {
+        projectId: project.id,
+        name: `overview-template-${project.id}`,
+        version: 1,
+        type: "CODE",
+        sourceCode: "return { scores: [] };",
+        sourceCodeLanguage: "TYPESCRIPT",
+      },
+    });
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        createdByUserId: creator.id,
+        jobType: "EVAL",
+        evalTemplateId: template.id,
+        scoreName: "overview-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 0,
+      },
+    });
+    await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `overview-rule-${project.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        evaluatorAssignments: {
+          create: { jobConfigurationId: evaluator.id },
+        },
+      },
+    });
+
+    const overview = await caller.evalsV2.evaluators({
+      projectId: project.id,
+    });
+
+    expect(overview).toContainEqual(
+      expect.objectContaining({
+        id: evaluator.id,
+        scoreName: "overview-evaluator",
+        ruleCount: 1,
+        rules: [
+          expect.objectContaining({ name: `overview-rule-${project.id}` }),
+        ],
+        createdByUser: expect.objectContaining({ name: "Evaluation Owner" }),
+        evalTemplate: { type: "CODE" },
+      }),
+    );
+
+    await prisma.user.delete({ where: { id: creator.id } });
+  });
+
+  it("returns the latest five executions for each evaluation rule", async () => {
+    const { project, caller } = await prepare();
+    const evaluator = await prisma.jobConfiguration.create({
+      data: {
+        projectId: project.id,
+        jobType: "EVAL",
+        scoreName: "execution-history-evaluator",
+        filter: [],
+        targetObject: EvalTargetObject.EVENT,
+        variableMapping: [],
+        sampling: 1,
+        delay: 0,
+      },
+    });
+    const rule = await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `execution-history-rule-${project.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        evaluatorAssignments: {
+          create: { jobConfigurationId: evaluator.id },
+        },
+      },
+    });
+    await prisma.jobExecution.createMany({
+      data: Array.from({ length: 6 }, (_, index) => ({
+        id: `execution-${project.id}-${index}`,
+        projectId: project.id,
+        jobConfigurationId: evaluator.id,
+        runScopeId: rule.id,
+        status: index === 5 ? ("ERROR" as const) : ("COMPLETED" as const),
+        createdAt: new Date(`2026-07-20T10:0${index}:00.000Z`),
+      })),
+    });
+
+    const rules = await caller.evalsV2.rules({ projectId: project.id });
+    const result = rules.find((item) => item.id === rule.id);
+
+    expect(result?.executionTraces).toEqual([]);
+  });
+
+  it("toggles only evaluation rules belonging to the current project", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const ownRule = await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `toggle-rule-${project.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+      },
+    });
+    const otherRule = await prisma.evalRunScope.create({
+      data: {
+        projectId: otherProject.id,
+        name: `toggle-rule-${otherProject.id}`,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+      },
+    });
+
+    await expect(
+      caller.evalsV2.setRulesEnabled({
+        projectId: project.id,
+        ruleIds: [ownRule.id, otherRule.id],
+        enabled: false,
+      }),
+    ).rejects.toThrow("One or more evaluation rules were not found");
+    await expect(
+      prisma.evalRunScope.findUniqueOrThrow({ where: { id: ownRule.id } }),
+    ).resolves.toEqual(expect.objectContaining({ enabled: true }));
+
+    await caller.evalsV2.setRulesEnabled({
+      projectId: project.id,
+      ruleIds: [ownRule.id],
+      enabled: false,
+    });
+
+    await expect(
+      prisma.evalRunScope.findUniqueOrThrow({ where: { id: ownRule.id } }),
+    ).resolves.toEqual(expect.objectContaining({ enabled: false }));
+    await expect(
+      prisma.evalRunScope.findUniqueOrThrow({ where: { id: otherRule.id } }),
+    ).resolves.toEqual(expect.objectContaining({ enabled: true }));
+  });
+
+  it("bulk deletes only evaluators belonging to the current project", async () => {
+    const { project, caller } = await prepare();
+    const { project: otherProject } = await prepare();
+    const createEvaluator = (projectId: string, scoreName: string) =>
+      prisma.jobConfiguration.create({
+        data: {
+          projectId,
+          jobType: "EVAL",
+          scoreName,
+          filter: [],
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+        },
+      });
+    const ownEvaluator = await createEvaluator(
+      project.id,
+      "bulk-delete-own-evaluator",
+    );
+    const otherEvaluator = await createEvaluator(
+      otherProject.id,
+      "bulk-delete-other-evaluator",
+    );
+
+    await expect(
+      caller.evalsV2.deleteEvaluators({
+        projectId: project.id,
+        evaluatorIds: [ownEvaluator.id, otherEvaluator.id],
+      }),
+    ).rejects.toThrow("One or more evaluators were not found");
+    await expect(
+      prisma.jobConfiguration.findUnique({ where: { id: ownEvaluator.id } }),
+    ).resolves.not.toBeNull();
+
+    await caller.evalsV2.deleteEvaluators({
+      projectId: project.id,
+      evaluatorIds: [ownEvaluator.id],
+    });
+
+    await expect(
+      prisma.jobConfiguration.findUnique({ where: { id: ownEvaluator.id } }),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.jobConfiguration.findUnique({ where: { id: otherEvaluator.id } }),
+    ).resolves.not.toBeNull();
+  });
+});
+
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
 
@@ -1279,7 +2061,7 @@ describe("evals trpc", () => {
       expect(response.filter).toEqual([]);
     });
 
-    it("when the evaluator ran on existing traces, time scope cannot be changed to NEW only", async () => {
+    it("when the evaluator ran on existing traces, time target cannot be changed to NEW only", async () => {
       const { project, caller } = await prepare();
 
       const evalJobConfig = await prisma.jobConfiguration.create({
@@ -1472,7 +2254,7 @@ describe("evals trpc", () => {
       ).rejects.toThrow("Job not found");
     });
 
-    it("should throw error when user lacks evalJob:CUD access scope", async () => {
+    it("should throw error when user lacks evalJob:CUD access target", async () => {
       const { project, session } = await prepare();
 
       // Create a session with limited permissions
@@ -1491,7 +2273,7 @@ describe("evals trpc", () => {
               projects: [
                 {
                   ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
+                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD target
                 },
               ],
             },
@@ -1741,7 +2523,7 @@ describe("evals trpc", () => {
       ).rejects.toThrow("Evaluator not found");
     });
 
-    it("should throw error when user lacks evalTemplate:CUD access scope", async () => {
+    it("should throw error when user lacks evalTemplate:CUD access target", async () => {
       const { project, session } = await prepare();
 
       const limitedSession: Session = {
@@ -1759,7 +2541,7 @@ describe("evals trpc", () => {
               projects: [
                 {
                   ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
+                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD target
                 },
               ],
             },

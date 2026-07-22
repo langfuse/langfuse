@@ -3383,6 +3383,150 @@ export const getAvgCostByEvaluatorIds = async (
   }));
 };
 
+/**
+ * Get evaluation-generation cost grouped by evaluation rule for the last week.
+ */
+export const getCostByEvaluationRuleIds = async (
+  projectId: string,
+  ruleIds: string[],
+): Promise<Array<{ ruleId: string; totalCost: number }>> => {
+  if (ruleIds.length === 0) return [];
+
+  const evaluationRuleMetadata =
+    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['run_scope_id']";
+  const builder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: evaluationRuleMetadata,
+    selectExpression: [
+      `${evaluationRuleMetadata} as run_scope_id`,
+      "sum(e.total_cost) as total_cost",
+    ].join(", "),
+  })
+    .whereRaw("e.type = 'GENERATION'")
+    .whereRaw("has(e.metadata_names, 'run_scope_id')")
+    .whereRaw(`${evaluationRuleMetadata} IN ({ruleIds: Array(String)})`, {
+      ruleIds,
+    })
+    .whereRaw("e.start_time > today() - 7");
+
+  const { query, params } = builder.buildWithParams();
+  const rows = await queryClickhouse<{
+    run_scope_id: string;
+    total_cost: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    ruleId: row.run_scope_id,
+    totalCost: Number(row.total_cost),
+  }));
+};
+
+const evaluationRuleMetadata =
+  "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['run_scope_id']";
+
+const executionTraceEnvironments = [
+  "langfuse-llm-as-a-judge",
+  "langfuse-code-eval",
+];
+
+/** Execution traces for an evaluation rule, bucketed by day and trace level. */
+export const getExecutionTraceHistoryByEvaluationRuleId = async (
+  projectId: string,
+  ruleId: string,
+): Promise<Array<{ day: Date; level: string; executionCount: number }>> => {
+  // `eventsTracesAggregation` is the same trace projection backing the traces
+  // table. It resolves an execution trace's level from all of its observations
+  // before the outer query groups those traces into daily buckets.
+  const tracesBuilder = eventsTracesAggregation({ projectId })
+    .whereRaw("has(e.metadata_names, 'run_scope_id')")
+    .whereRaw(`${evaluationRuleMetadata} = {ruleId: String}`, { ruleId })
+    .whereRaw("e.environment IN ({environments: Array(String)})", {
+      environments: executionTraceEnvironments,
+    })
+    .whereRaw("e.start_time >= today() - 6");
+  const traceQuery = tracesBuilder.buildWithSchema();
+  const query = `
+    WITH execution_traces AS (${traceQuery.query})
+    SELECT
+      toStartOfDay(timestamp) AS day,
+      aggregated_level AS level,
+      count() AS execution_count
+    FROM execution_traces
+    GROUP BY day, level
+    ORDER BY day ASC
+  `;
+  const rows = await queryClickhouse<{
+    day: string;
+    level: string;
+    execution_count: string;
+  }>({
+    query,
+    params: traceQuery.params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    day: parseClickhouseUTCDateTimeFormat(row.day),
+    level: row.level,
+    executionCount: Number(row.execution_count),
+  }));
+};
+
+/** The latest execution traces for each evaluation rule, for overview tables. */
+export const getRecentExecutionTracesByEvaluationRuleIds = async (
+  projectId: string,
+  ruleIds: string[],
+): Promise<
+  Array<{ ruleId: string; id: string; level: string; timestamp: Date }>
+> => {
+  if (ruleIds.length === 0) return [];
+
+  const tracesBuilder = eventsTracesAggregation({ projectId })
+    .whereRaw("has(e.metadata_names, 'run_scope_id')")
+    .whereRaw(`${evaluationRuleMetadata} IN ({ruleIds: Array(String)})`, {
+      ruleIds,
+    })
+    .whereRaw("e.environment IN ({environments: Array(String)})", {
+      environments: executionTraceEnvironments,
+    });
+  const traceQuery = tracesBuilder.buildWithSchema();
+  const query = `
+    WITH execution_traces AS (${traceQuery.query})
+    SELECT
+      metadata['run_scope_id'] AS rule_id,
+      id,
+      aggregated_level AS level,
+      timestamp
+    FROM execution_traces
+    ORDER BY rule_id ASC, timestamp DESC
+    LIMIT 5 BY rule_id
+  `;
+  const rows = await queryClickhouse<{
+    rule_id: string;
+    id: string;
+    level: string;
+    timestamp: string;
+  }>({
+    query,
+    params: traceQuery.params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    ruleId: row.rule_id,
+    id: row.id,
+    level: row.level,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
+
 export const getSessionMetricsFromEvents = async (props: {
   projectId: string;
   sessionIds: string[];

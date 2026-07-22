@@ -18,6 +18,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { cn } from "@/src/utils/tailwind";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
@@ -43,6 +44,14 @@ type CodeEvalTemplateFormBodyProps = {
   editable: boolean;
   validationResult: CodeEvalValidationResult | null;
   headerAction?: ReactNode;
+  /** Hide the language label when the surrounding UI already names it. */
+  hideLanguageLabel?: boolean;
+  /** Hide the trailing contract hint (render it elsewhere via
+      CodeEvalFunctionContractHint, e.g. below a split layout). */
+  hideFunctionContractHint?: boolean;
+  /** Extra classes for the editor box — e.g. squaring its bottom corners
+      when an attached panel sits directly beneath it. */
+  editorClassName?: string;
 };
 
 const FORMAT_SHORTCUT_ARIA = "Alt+Shift+F";
@@ -64,6 +73,24 @@ const codeMirrorLayoutTheme = EditorView.theme({
     overflow: "auto",
   },
 });
+
+/** The contract hint under the editor, exported for split layouts. */
+export function CodeEvalFunctionContractHint() {
+  return (
+    <p className="text-muted-foreground text-xs">
+      The evaluate function receives an EvaluationContext and returns an
+      EvaluationResult with one or more scores.{" "}
+      <a
+        href={FUNCTION_CONTRACT_DOCS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline"
+      >
+        See type definitions.
+      </a>
+    </p>
+  );
+}
 
 function createCodeEvalHoverExtension(hoverDocs: CodeEvalHoverDocs) {
   return hoverTooltip((view, pos) => {
@@ -127,6 +154,9 @@ export function CodeEvalTemplateFormBody({
   editable,
   validationResult,
   headerAction,
+  hideLanguageLabel = false,
+  hideFunctionContractHint = false,
+  editorClassName,
 }: CodeEvalTemplateFormBodyProps) {
   const { resolvedTheme } = useTheme();
   const [isFormatting, setIsFormatting] = useState(false);
@@ -263,16 +293,37 @@ export function CodeEvalTemplateFormBody({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      {(!hideLanguageLabel || headerAction) && (
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-muted-foreground text-sm">{languageLabel}</span>
+          {!hideLanguageLabel ? (
+            <span className="text-muted-foreground text-sm">
+              {languageLabel}
+            </span>
+          ) : null}
           {headerAction}
         </div>
+      )}
+      {/* The Format button floats inside the editor's top-right corner so
+          the editor box can align with siblings without a header row. */}
+      <div className="relative">
+        <CodeMirror
+          value={sourceCode}
+          theme={codeMirrorTheme}
+          basicSetup={CODE_MIRROR_BASIC_SETUP}
+          extensions={extensions}
+          editable={editable}
+          onChange={handleSourceCodeChange}
+          className={cn(
+            "overflow-hidden rounded-md border text-xs",
+            editorClassName,
+          )}
+        />
         {shouldShowFormatButton ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="bg-background/90 absolute top-2 right-2"
             disabled={isFormatting}
             aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
             onClick={() => formatSource()}
@@ -293,27 +344,7 @@ export function CodeEvalTemplateFormBody({
           </Button>
         ) : null}
       </div>
-      <CodeMirror
-        value={sourceCode}
-        theme={codeMirrorTheme}
-        basicSetup={CODE_MIRROR_BASIC_SETUP}
-        extensions={extensions}
-        editable={editable}
-        onChange={handleSourceCodeChange}
-        className="overflow-hidden rounded-md border text-xs"
-      />
-      <p className="text-muted-foreground text-xs">
-        The evaluate function receives an EvaluationContext and returns an
-        EvaluationResult with one or more scores.{" "}
-        <a
-          href={FUNCTION_CONTRACT_DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-        >
-          See type definitions.
-        </a>
-      </p>
+      {!hideFunctionContractHint && <CodeEvalFunctionContractHint />}
     </div>
   );
 }

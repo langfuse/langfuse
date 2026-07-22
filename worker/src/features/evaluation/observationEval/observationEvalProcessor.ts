@@ -206,10 +206,13 @@ export async function processObservationEval(
     `Downloaded observation data for job ${job.id}: span_id=${observationData.span_id}`,
   );
 
-  // Final fail-closed loop safeguard: never execute an eval whose target
-  // lives in an internal Langfuse environment, regardless of which scheduling
-  // path created the job. See isEvalTargetEnvironmentAllowed.
-  if (!isEvalTargetEnvironmentAllowed(observationData.environment)) {
+  // Live evaluations must never target internal Langfuse observations because
+  // their execution traces would recursively schedule more evaluations. A
+  // manual batch is bounded by the user's explicit selection and cannot loop.
+  if (
+    event.executionMode !== "MANUAL" &&
+    !isEvalTargetEnvironmentAllowed(observationData.environment)
+  ) {
     logger.warn(
       "Cancelling eval job targeting an internal Langfuse environment",
       {
@@ -260,6 +263,7 @@ export async function processObservationEval(
     executionMetadata: buildEvalExecutionMetadata({
       jobExecutionId: event.jobExecutionId,
       jobConfigurationId: job.jobConfigurationId,
+      ruleId: job.runScopeId,
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,

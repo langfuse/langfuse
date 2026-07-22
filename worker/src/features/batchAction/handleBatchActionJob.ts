@@ -462,8 +462,14 @@ export const handleBatchActionJob = async (
       observations,
     });
   } else if (actionId === "observation-run-batched-evaluation") {
-    const { projectId, query, cutoffCreatedAt, evaluatorIds, batchActionId } =
-      batchActionEvent;
+    const {
+      projectId,
+      query,
+      cutoffCreatedAt,
+      evaluatorIds,
+      batchActionId,
+      maxCount,
+    } = batchActionEvent;
 
     if (!batchActionId) {
       throw new Error(
@@ -539,7 +545,9 @@ export const handleBatchActionJob = async (
       filter,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
-      rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
+      rowLimit: maxCount
+        ? Math.min(maxCount, env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT)
+        : env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
     });
 
     await processBatchedObservationEval({

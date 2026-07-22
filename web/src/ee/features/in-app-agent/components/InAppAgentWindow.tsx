@@ -207,6 +207,10 @@ function formatScreenContextNotice(
     return "The assistant is aware that you're viewing this experiment run.";
   }
 
+  if (description.type === "evaluators-list") {
+    return "The assistant is aware that you're viewing your evaluators.";
+  }
+
   if (
     description.type === "trace-list" ||
     description.type === "observations-list" ||
@@ -718,6 +722,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       quickActionCategory: context,
                       position,
                     });
+
+                    if (action.behavior === "focus_input") {
+                      inputRef.current?.focus();
+                      return;
+                    }
+
                     submitInput(action.prompt, {
                       quickAction: {
                         key: action.id,

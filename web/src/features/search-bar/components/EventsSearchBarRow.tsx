@@ -15,6 +15,7 @@
 
 import * as React from "react";
 
+import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -41,6 +42,10 @@ export function EventsSearchBarRow({
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
+  className,
+  composerSurfaceClassName,
+  savedQueries,
+  onPickSavedQuery,
   aiScoreNames,
 }: {
   projectId: string;
@@ -74,6 +79,18 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
+  /** Overrides the wrapper padding when the row is embedded outside a table
+   *  toolbar (e.g. inside a form), where the toolbar-aligned inset is off. */
+  className?: string;
+  /** Overrides the composer surface spacing for embedded form layouts. */
+  composerSurfaceClassName?: string;
+  /** Host-provided saved queries shown as an empty-bar autocomplete section;
+   *  picking one calls onPickSavedQuery(id). See SearchComposer. */
+  savedQueries?: {
+    title: string;
+    items: { id: string; label: string; detail?: string }[];
+  };
+  onPickSavedQuery?: (id: string) => void;
   /** Observed score names by column type, for the server's score-name
    *  validation of the generated filters (undefined sets are not enforced). */
   aiScoreNames?: ObservedScoreNames;
@@ -94,7 +111,7 @@ export function EventsSearchBarRow({
   }, [onRequestColumns]);
 
   return (
-    <div className="min-w-0 px-2 pt-2 pb-1">
+    <div className={cn("min-w-0 px-2 pt-2 pb-1", className)}>
       {aiOpen && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
@@ -115,6 +132,9 @@ export function EventsSearchBarRow({
             freeTextReason={freeTextReason}
             onActivateAi={aiAvailable ? activateAi : undefined}
             onRequestColumns={onRequestColumns}
+            surfaceClassName={composerSurfaceClassName}
+            savedQueries={savedQueries}
+            onPickSavedQuery={onPickSavedQuery}
           />
         </SearchBarStoreProvider>
       )}

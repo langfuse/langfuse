@@ -52,6 +52,7 @@ import {
   convertRowIdToKeyPath,
   getRowChildren,
   type JsonTableRow,
+  pathSegmentsToJsonPath,
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 import {
@@ -242,6 +243,7 @@ function generateChildRows(row: JsonTableRow): JsonTableRow[] {
     row.level + 1,
     row.id,
     false, // Don't use lazy loading for children
+    row.pathSegments,
   );
 
   return children;
@@ -334,6 +336,7 @@ function handleRowExpansion(
   onLazyLoadChildren?: (rowId: string) => void,
   expandedCells?: Set<string>,
   toggleCellExpansion?: (cellId: string) => void,
+  maxDisplayChars: number = MAX_CELL_DISPLAY_CHARS,
 ) {
   // row expansion takes precedence over cell expansion
   if (row.original.hasChildren) {
@@ -349,11 +352,19 @@ function handleRowExpansion(
   const cellId = `${row.id}-value`;
   const { value } = row.original;
   const valueStringLength = getValueStringLength(value);
-  const needsCellExpansion = valueStringLength > MAX_CELL_DISPLAY_CHARS;
+  const needsCellExpansion = valueStringLength > maxDisplayChars;
 
   if (needsCellExpansion && expandedCells && toggleCellExpansion) {
     toggleCellExpansion(cellId);
   }
+}
+
+/** Turns the pretty view into a path picker: rows become click-to-select
+    (children still expand via the caret) and report their JSONPath. */
+export interface JsonPathSelection {
+  onSelectPath: (jsonPath: string) => void;
+  /** Highlights the row whose JSONPath matches. */
+  selectedJsonPath?: string | null;
 }
 
 interface JsonTableRowProps {
@@ -365,6 +376,8 @@ interface JsonTableRowProps {
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey: boolean;
   stickyOffsets: { header: number; row: number };
+  selection?: JsonPathSelection;
+  maxDisplayChars: number;
 }
 
 const JsonTableRowComponent = memo(
@@ -377,22 +390,32 @@ const JsonTableRowComponent = memo(
     toggleCellExpansion,
     stickyTopLevelKey,
     stickyOffsets,
+    selection,
+    maxDisplayChars,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
     const isExpandable =
       row.original.hasChildren ||
-      getValueStringLength(row.original.value) > MAX_CELL_DISPLAY_CHARS;
+      getValueStringLength(row.original.value) > maxDisplayChars;
+
+    const rowJsonPath = pathSegmentsToJsonPath(row.original.pathSegments);
+    const isSelected = selection?.selectedJsonPath === rowJsonPath;
 
     const { props: rowClickProps } = useClickWithoutSelection({
       onClick: () => {
+        if (selection) {
+          selection.onSelectPath(rowJsonPath);
+          return;
+        }
         handleRowExpansion(
           row,
           onLazyLoadChildren,
           expandedCells,
           toggleCellExpansion,
+          maxDisplayChars,
         );
       },
-      enabled: isExpandable,
+      enabled: Boolean(selection) || isExpandable,
     });
 
     return (
@@ -405,7 +428,8 @@ const JsonTableRowComponent = memo(
         data-observation-id={row.id}
         {...rowClickProps}
         className={cn(
-          isExpandable ? "cursor-pointer" : "",
+          selection || isExpandable ? "cursor-pointer" : "",
+          isSelected ? "bg-accent" : "",
           row.original.level === 0 && stickyTopLevelKey
             ? "bg-background sticky z-10 shadow-xs"
             : "",
@@ -447,6 +471,10 @@ function JsonPrettyTable({
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
   metadataActions,
+  selection,
+  renderPathSuffix,
+  maxDisplayChars = MAX_CELL_DISPLAY_CHARS,
+  maxDisplayLines,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -464,6 +492,13 @@ function JsonPrettyTable({
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
+  selection?: JsonPathSelection;
+  /** Extra content rendered after a row's key (e.g. mapped-variable chips). */
+  renderPathSuffix?: (jsonPath: string) => React.ReactNode;
+  /** Truncation threshold for long values; Infinity disables truncation. */
+  maxDisplayChars?: number;
+  /** Clamps collapsed values to N rendered lines. */
+  maxDisplayLines?: number;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -501,7 +536,7 @@ function JsonPrettyTable({
         const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
 
         const valueLength = getValueStringLength(row.original.value);
-        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+        const isLongValue = valueLength > maxDisplayChars / 3; // already long if we don't truncate
 
         const itemBadgeType =
           showObservationTypeBadge &&
@@ -555,6 +590,9 @@ function JsonPrettyTable({
               )}
               {row.original.key}
             </span>
+            {renderPathSuffix?.(
+              pathSegmentsToJsonPath(row.original.pathSegments),
+            )}
           </div>
         );
 
@@ -593,6 +631,8 @@ function JsonPrettyTable({
             row.original.key === "code_eval_source_code"
           }
           metadataActions={metadataActions}
+          maxDisplayChars={maxDisplayChars}
+          maxDisplayLines={maxDisplayLines}
         />
       ),
     },
@@ -755,6 +795,8 @@ function JsonPrettyTable({
               toggleCellExpansion={toggleCellExpansion}
               stickyTopLevelKey={stickyTopLevelKey}
               stickyOffsets={stickyOffsets}
+              selection={selection}
+              maxDisplayChars={maxDisplayChars}
             />
           ))}
         </TableBody>
@@ -789,6 +831,15 @@ export function PrettyJsonView(props: {
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
+  /** Pretty view only: turns rows into JSONPath pick targets (clicking a row
+      selects it instead of toggling expansion; the caret still expands). */
+  pathSelection?: JsonPathSelection;
+  /** Pretty view only: extra content after a row's key, by JSONPath (e.g.
+      mapped-variable chips). Works with or without pathSelection. */
+  renderPathSuffix?: (jsonPath: string) => React.ReactNode;
+  /** Pretty view only: clamps collapsed values to N rendered lines (expand
+      restores the full value). Covers wrapped lines, unlike the char limit. */
+  maxDisplayLines?: number;
   /** Collapse long string content to a preview (from raw `role === "system"`,
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
@@ -956,6 +1007,7 @@ export function PrettyJsonView(props: {
               type: valueType,
               hasChildren: childrenExist,
               level: 0,
+              pathSegments: [key],
               childrenGenerated: false,
             };
 
@@ -1364,6 +1416,17 @@ export function PrettyJsonView(props: {
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
+                  selection={props.pathSelection}
+                  renderPathSuffix={props.renderPathSuffix}
+                  // Same contract as the JSON view: null = never truncate,
+                  // undefined = the 2000-char default.
+                  maxDisplayChars={
+                    props.collapseStringsAfterLength === null
+                      ? Number.POSITIVE_INFINITY
+                      : (props.collapseStringsAfterLength ??
+                        MAX_CELL_DISPLAY_CHARS)
+                  }
+                  maxDisplayLines={props.maxDisplayLines}
                 />
               )}
             </div>

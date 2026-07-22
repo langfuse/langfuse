@@ -57,6 +57,19 @@ export async function fetchObservationEvalConfigs(
           type: true,
         },
       },
+      runScopeAssignments: {
+        select: {
+          runScope: {
+            select: {
+              id: true,
+              enabled: true,
+              filter: true,
+              sampling: true,
+              targetObject: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -84,6 +97,9 @@ export async function fetchObservationEvalConfigs(
     return {
       ...config,
       evalTemplate: config.evalTemplate,
+      evaluationRules: config.runScopeAssignments.map(
+        (assignment) => assignment.runScope,
+      ),
     };
   });
 }

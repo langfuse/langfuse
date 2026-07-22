@@ -47,13 +47,24 @@ export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS: Record<
   dashboards: "Dashboard",
 };
 
-export type InAppAgentQuickAction = {
+type InAppAgentQuickActionBase = {
   id: string;
   label: string;
   description: string;
-  prompt: string;
   icon: LucideIcon;
 };
+
+export type InAppAgentQuickAction = InAppAgentQuickActionBase &
+  (
+    | {
+        behavior?: "submit";
+        prompt: string;
+      }
+    | {
+        behavior: "focus_input";
+        prompt?: never;
+      }
+  );
 
 export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
   InAppAgentQuickActionContext,
@@ -193,6 +204,23 @@ export const IN_APP_AGENT_QUICK_ACTIONS_BY_CONTEXT = {
 >;
 
 export const IN_APP_AGENT_FOCUSED_QUICK_ACTIONS = {
+  "evaluators-list": [
+    {
+      id: "suggest-evaluators-from-traces",
+      label: "Suggest evaluators based on my traces",
+      description: "Find useful evaluation gaps in recent traces",
+      icon: ScanSearch,
+      prompt:
+        "Suggest evaluators based on my traces. Review a small representative sample of recent production traces, existing evaluators, and scores; identify important evaluation gaps; then recommend no more than three evaluators. Ask one focused question first if you need to narrow the scope. Do not create anything yet.",
+    },
+    {
+      id: "describe-evaluator-goal",
+      label: "Build an evaluator I have in mind",
+      description: "Describe what you want the evaluator to measure",
+      icon: MessageSquareText,
+      behavior: "focus_input",
+    },
+  ],
   trace: [
     {
       id: "analyze-this-trace",
