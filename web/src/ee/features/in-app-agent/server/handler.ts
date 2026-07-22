@@ -13,7 +13,6 @@ import {
   sanitizeInAppAgentContext,
 } from "@/src/ee/features/in-app-agent/context";
 import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
-import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -65,6 +64,7 @@ import {
 import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { getProductBaseUrl } from "@/src/utils/base-url";
+import { parseSavedViewFromURL } from "@/src/utils/product-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
@@ -73,6 +73,7 @@ import {
   InvalidRequestError,
   LangfuseNotFoundError,
   type RateLimitResult,
+  TableViewPresetTableName,
   UnauthorizedError,
   CloudConfigSchema,
 } from "@langfuse/shared";
@@ -201,7 +202,11 @@ export default async function handler(request: Request) {
       );
     }
 
-    const sanitizedInput = await prepareAgentInput(input, projectId);
+    const sanitizedInput = await prepareAgentInput(
+      input,
+      projectId,
+      user.v4BetaEnabled ?? false,
+    );
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -863,6 +868,7 @@ function isResumeAgentInput(
 async function prepareAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
+  isV4Enabled: boolean,
 ): Promise<SanitizedAgentInput> {
   const forwardedProps: unknown = input.forwardedProps;
 
@@ -878,21 +884,35 @@ async function prepareAgentInput(
   const currentUrlContext = input.context.find(
     (item) => item.description === "current_url",
   );
-  const currentProjectRoute = currentUrlContext
-    ? getInAppAgentProjectRoute(currentUrlContext.value)
+  const selectedSavedView = currentUrlContext
+    ? parseSavedViewFromURL(currentUrlContext.value, isV4Enabled)
     : undefined;
-  const savedViewId = currentProjectRoute?.parsedUrl.searchParams.get("viewId");
   let viewFilters: FilterState | undefined;
 
-  if (savedViewId) {
+  if (selectedSavedView) {
     try {
-      viewFilters = (
-        await TableViewService.getTableViewPresetsById(savedViewId, projectId)
-      ).filters;
+      const { filters, tableName } =
+        await TableViewService.getTableViewPresetsById(
+          selectedSavedView.viewId,
+          projectId,
+        );
+
+      if (
+        tableName === selectedSavedView.tableName ||
+        (selectedSavedView.tableName ===
+          TableViewPresetTableName.ObservationsEvents &&
+          tableName === TableViewPresetTableName.Observations)
+      ) {
+        viewFilters = filters;
+      }
     } catch (error) {
       // Saved views can be deleted while their URLs remain open or shared.
       if (!(error instanceof LangfuseNotFoundError)) {
-        throw error;
+        logger.warn("Failed to resolve saved view for in-app agent context", {
+          error,
+          projectId,
+          savedViewId: selectedSavedView.viewId,
+        });
       }
     }
   }

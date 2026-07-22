@@ -13,6 +13,7 @@ import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
+  TableViewService,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -1043,7 +1044,7 @@ describe("in-app agent public API route auth", () => {
     }
   });
 
-  it("resolves saved view filters into screen context", async () => {
+  it("resolves saved view filters only on a compatible table route", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -1135,6 +1136,39 @@ describe("in-app agent public API route auth", () => {
           filters,
         },
       });
+
+      const mismatchedResponse = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: "conversation-2",
+            runId: "client-run-2",
+            messages: [{ id: "message-2", role: "user", content: "hello" }],
+            tools: [],
+            context: [
+              {
+                description: "current_url",
+                value: `https://cloud.langfuse.com/project/${project.id}/sessions?viewId=${savedView.id}`,
+              },
+            ],
+            state: {
+              type: "newConversation",
+              projectId: project.id,
+            },
+            forwardedProps: {},
+          }),
+        }),
+      );
+
+      expect(mismatchedResponse.status).toBe(200);
+      const mismatchedStreamInput =
+        agentMocks.createAgUiStream.mock.calls[1][0].input;
+      expect(JSON.parse(mismatchedStreamInput.context[0].value)).toEqual({
+        pathname: `/project/${project.id}/sessions`,
+        searchParams: [{ key: "viewId", value: savedView.id }],
+        hash: "",
+      });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
@@ -1145,7 +1179,7 @@ describe("in-app agent public API route auth", () => {
     }
   });
 
-  it("does not resolve saved views outside the current project", async () => {
+  it("continues without resolved filters when saved view lookup fails", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -1179,6 +1213,7 @@ describe("in-app agent public API route auth", () => {
         orderBy: Prisma.JsonNull,
       },
     });
+    const lookupSpy = vi.spyOn(TableViewService, "getTableViewPresetsById");
 
     try {
       await prisma.organization.update({
@@ -1195,10 +1230,17 @@ describe("in-app agent public API route auth", () => {
       const { default: handler } =
         await import("@/src/ee/features/in-app-agent/server/handler");
 
-      for (const [index, viewId] of [
-        otherProjectView.id,
-        randomUUID(),
-      ].entries()) {
+      const lookupScenarios = [
+        { viewId: otherProjectView.id },
+        { viewId: randomUUID() },
+        { viewId: randomUUID(), error: new Error("database unavailable") },
+      ];
+
+      for (const [index, { viewId, error }] of lookupScenarios.entries()) {
+        if (error) {
+          lookupSpy.mockRejectedValueOnce(error);
+        }
+
         const response = await handler(
           new Request("http://localhost/api/in-app-agent", {
             method: "POST",
@@ -1235,6 +1277,7 @@ describe("in-app agent public API route auth", () => {
         });
       }
     } finally {
+      lookupSpy.mockRestore();
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
       (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
