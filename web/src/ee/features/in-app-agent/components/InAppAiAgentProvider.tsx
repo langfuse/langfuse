@@ -6,8 +6,8 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
   type PropsWithChildren,
+  type Dispatch,
   type SetStateAction,
 } from "react";
 import { EventType, HttpAgent } from "@ag-ui/client";
@@ -18,47 +18,47 @@ import { useStore } from "zustand";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "../ids";
+} from "@/src/ee/features/in-app-agent/ids";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
-} from "../schema";
+} from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { api } from "@/src/utils/api";
 import {
   createInAppAgentMessageEntryPointContext,
   createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
-} from "../context";
-import type { InAppAgentSubmitOptions } from "../quickActions";
+} from "@/src/ee/features/in-app-agent/context";
+import type { InAppAgentSubmitOptions } from "@/src/ee/features/in-app-agent/quickActions";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   EMPTY_IN_APP_AGENT_CONVERSATION_STATE,
   NEW_CONVERSATION_DRAFT_KEY,
   createInAppAgentClientStore,
   type InAppAgentPendingToolApproval,
   type InAppAgentQueuedMessage,
-} from "./inAppAgentClientStore";
+} from "@/src/ee/features/in-app-agent/components/inAppAgentClientStore";
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
-  type InAppAgentError,
   type InAppAiAgentMessage,
-} from "./utils/utils";
-import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { api } from "@/src/utils/api";
+} from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
+import { InAppAgentDisabledDialog } from "@/src/ee/features/in-app-agent/components/InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
