@@ -11,10 +11,8 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import {
-  getDisplaySecretKey,
-  validateWebhookURL,
-} from "@langfuse/shared/src/server";
+import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
@@ -53,7 +51,7 @@ export const posthogIntegrationRouter = createTRPCRouter({
           config: {
             ...config,
             exportSource,
-            posthogApiKeyDisplay: getDisplaySecretKey(
+            posthogApiKeyDisplay: getDisplayCredential(
               decrypt(encryptedPosthogApiKey),
             ),
           },

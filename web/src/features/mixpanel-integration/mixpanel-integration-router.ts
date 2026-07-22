@@ -11,7 +11,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { getDisplaySecretKey } from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   areLegacyWritesActive,
@@ -51,7 +51,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           config: {
             ...config,
             exportSource,
-            mixpanelProjectTokenDisplay: getDisplaySecretKey(
+            mixpanelProjectTokenDisplay: getDisplayCredential(
               decrypt(encryptedMixpanelProjectToken),
             ),
           },

@@ -456,7 +456,10 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(result.config).not.toHaveProperty("posthogApiKey");
-      expect(result.config?.posthogApiKeyDisplay).toContain("...");
+      // Last-4-only: leading characters of the key are real secret material.
+      expect(result.config?.posthogApiKeyDisplay).toBe(
+        "..." + baseConfig.posthogProjectApiKey.slice(-4),
+      );
       expect(JSON.stringify(result)).not.toContain(
         baseConfig.posthogProjectApiKey,
       );

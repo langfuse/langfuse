@@ -412,7 +412,10 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
         projectId: project.id,
       });
       expect(result.config).not.toHaveProperty("mixpanelProjectToken");
-      expect(result.config?.mixpanelProjectTokenDisplay).toContain("...");
+      // Last-4-only: leading characters of the token are real secret material.
+      expect(result.config?.mixpanelProjectTokenDisplay).toBe(
+        "..." + baseConfig.mixpanelProjectToken.slice(-4),
+      );
       expect(JSON.stringify(result)).not.toContain(
         baseConfig.mixpanelProjectToken,
       );
