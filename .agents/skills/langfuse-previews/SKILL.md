@@ -117,7 +117,7 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 ### Symptom → fix
 | Symptom | Likely cause / fix |
 |---|---|
-| My preview environment is not available | Check that all CI checks pass. The PR's preview image is built only after they succeed. |
+| My preview environment is not available | Check for the `preview` label and inspect the **AWS preview build** workflow. If the PR opened with merge conflicts, resolve them; the next update adds the label. Other CI checks do not gate the preview build. |
 | 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access). |
 | URL not ready right after building | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals. |
 | Unresponsive at night / on a weekend | Asleep off-hours — wake it (above). |
