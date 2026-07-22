@@ -8,6 +8,29 @@ export type TableRowOptions = {
 
 export type DataTableCellPadding = "compact" | "comfortable" | "none";
 
+/**
+ * Slot a column occupies when a table is rendered as a mobile card list
+ * (see `data-table-mobile-card-list.tsx`). A column WITHOUT a `mobileCard`
+ * hint is not shown on the card — card content is curated per table by
+ * annotating a small subset of columns. The presence of any `mobileCard`
+ * hint on a table's columns is also what opts that table into card rendering
+ * on mobile; desktop and un-annotated tables are unaffected.
+ */
+export type MobileCardSlot =
+  | "title" // primary name — the card's headline
+  | "timestamp" // trailing time in the header line
+  | "metric" // compact labelled value in the metric strip (latency, cost, tokens)
+  | "badge" // small status badge/dot in the header line (e.g. level)
+  | "context" // wrapping chips below (tags, environment)
+  | "action" // trailing affordance in the header line (e.g. bookmark star)
+  | "select"; // leading selection checkbox
+
+export type MobileCardHint = {
+  slot: MobileCardSlot;
+  /** sort within a slot, ascending; default 0 */
+  order?: number;
+};
+
 declare module "@tanstack/react-table" {
   // extends tanstack ColumnDef to include additional properties
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -22,6 +45,8 @@ declare module "@tanstack/react-table" {
     isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
     loadingCell?: React.ReactNode | (() => React.ReactNode);
     cellPadding?: DataTableCellPadding;
+    /** Opt a column into the mobile card list and place it in a slot. */
+    mobileCard?: MobileCardHint;
   }
 }
 

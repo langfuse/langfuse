@@ -646,13 +646,16 @@ export default function TracesTable({
     ...(hideControls
       ? []
       : ([
-          selectActionColumn,
+          // Spread mobile-card hints onto the shared selection column locally
+          // so only this table opts into card rendering.
+          { ...selectActionColumn, mobileCard: { slot: "select" as const } },
           {
             accessorKey: "bookmarked",
             header: undefined,
             id: "bookmarked",
             size: 30,
             isFixedPosition: true,
+            mobileCard: { slot: "action" as const },
             loadingCell: <TableIconButtonLoadingCell />,
             cell: ({ row }) => {
               const bookmarked: TracesTableRow["bookmarked"] =
@@ -679,6 +682,7 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       enableSorting,
+      mobileCard: { slot: "timestamp" },
       cell: ({ row }) => {
         const value: TracesTableRow["timestamp"] = row.getValue("timestamp");
         return value ? <LocalIsoDate date={value} /> : undefined;
@@ -691,6 +695,7 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       enableSorting,
+      mobileCard: { slot: "title" },
       cell: ({ row }) => {
         const value: TracesTableRow["name"] = row.getValue("name");
         return value ?? undefined;
@@ -782,6 +787,7 @@ export default function TracesTable({
       id: "latency",
       header: "Latency",
       size: 100,
+      mobileCard: { slot: "metric", order: 0 },
       // add seconds to the end of the latency
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
@@ -800,6 +806,7 @@ export default function TracesTable({
       header: "Tokens",
       id: "tokens",
       size: 180,
+      mobileCard: { slot: "metric", order: 2 },
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: TracesTableRow["usage"] = row.getValue("usage");
@@ -830,6 +837,7 @@ export default function TracesTable({
       id: "totalCost",
       header: "Total Cost",
       size: 130,
+      mobileCard: { slot: "metric", order: 1 },
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const cost: TracesTableRow["totalCost"] = row.getValue("totalCost");
@@ -857,6 +865,7 @@ export default function TracesTable({
       size: 150,
       enableHiding: true,
       loadingCell: <TableBadgeLoadingCell />,
+      mobileCard: { slot: "context", order: 1 },
       cell: ({ row }) => {
         const value: TracesTableRow["environment"] =
           row.getValue("environment");
@@ -876,6 +885,7 @@ export default function TracesTable({
       id: "tags",
       header: "Tags",
       size: 150,
+      mobileCard: { slot: "context", order: 0 },
       headerTooltip: {
         description: (
           <>
@@ -1066,6 +1076,7 @@ export default function TracesTable({
       id: "level",
       header: "Level",
       size: 75,
+      mobileCard: { slot: "badge" },
       loadingCell: <TableTextLoadingCell />,
       cell: ({ row }) => {
         const value: TracesTableRow["level"] = row.getValue("level");

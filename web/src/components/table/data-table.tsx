@@ -56,6 +56,8 @@ import {
   useTableRowIsSelected,
   useTableSelectAll,
 } from "@/src/components/table/table-selection-store";
+import { DataTableMobileCardList } from "@/src/components/table/data-table-mobile-card-list";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -209,6 +211,22 @@ export function DataTable<TData extends object, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
   const capture = usePostHogClientCapture();
+
+  // Card rendering is opt-in per table: a table opts in by annotating any of
+  // its columns (including a grouped column's children) with a `mobileCard`
+  // hint. Tables without hints — and every desktop viewport — keep the exact
+  // table body below.
+  const isMobile = useIsMobile();
+  const hasMobileCardConfig = useMemo(
+    () =>
+      columns.some(
+        (c) =>
+          (c as LangfuseColumnDef<TData>).mobileCard ||
+          c.columns?.some((cc) => cc.mobileCard),
+      ),
+    [columns],
+  );
+  const useMobileCards = isMobile && hasMobileCardConfig;
   const flattedColumnsByGroup = useMemo(() => {
     const flatColumnsByGroup = new Map<string, string[]>();
 
@@ -392,190 +410,206 @@ export function DataTable<TData extends object, TValue>({
           className,
         )}
       >
-        <div
-          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
-          // last column's resize handle is never flush against the scrollbar/edge and
-          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
-          // browser still clamps the cursor at the screen edge, so this guarantees room
-          // to the right, not a complete fix.
-          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
-          style={{ ...columnSizeVars }}
-        >
-          <Table>
-            <TableHeader className="sticky top-0 z-20">
-              {tableHeaders.map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const columnDef = header.column
-                      .columnDef as LangfuseColumnDef<ModelTableRow>;
-                    const sortingEnabled = columnDef.enableSorting;
-                    // if the header id does not translate to a valid css variable name, default to 150px as width
-                    // may only happen for dynamic columns, as column names are user defined
-                    const width = columnDef.isFlexWidth
-                      ? "auto"
-                      : isValidCssVariableName({
-                            name: header.id,
-                            includesHyphens: false,
-                          })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+        {useMobileCards ? (
+          <DataTableMobileCardList
+            table={table}
+            data={data}
+            onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+            selectionStore={selectionStore}
+            noResultsMessage={noResultsMessage}
+            help={help}
+            getRowClassName={getRowClassName}
+          />
+        ) : (
+          <div
+            // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
+            // last column's resize handle is never flush against the scrollbar/edge and
+            // always has some cursor room. Partial mitigation for LFE-10460: a maximized
+            // browser still clamps the cursor at the screen edge, so this guarantees room
+            // to the right, not a complete fix.
+            className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
+            style={{ ...columnSizeVars }}
+          >
+            <Table>
+              <TableHeader className="sticky top-0 z-20">
+                {tableHeaders.map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      const columnDef = header.column
+                        .columnDef as LangfuseColumnDef<ModelTableRow>;
+                      const sortingEnabled = columnDef.enableSorting;
+                      // if the header id does not translate to a valid css variable name, default to 150px as width
+                      // may only happen for dynamic columns, as column names are user defined
+                      const width = columnDef.isFlexWidth
+                        ? "auto"
+                        : isValidCssVariableName({
+                              name: header.id,
+                              includesHyphens: false,
+                            })
+                          ? `calc(var(--header-${header.id}-size) * 1px)`
+                          : 150;
 
-                    return header.column.getIsVisible() ? (
-                      <TableHead
-                        key={header.id}
-                        className={cn(
-                          "group p-1 first:pl-2",
-                          sortingEnabled && "cursor-pointer",
-                          getPinningClasses(header.column),
-                        )}
-                        style={{
-                          ...getCommonPinningStyles(header.column),
-                          width,
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault();
+                      return header.column.getIsVisible() ? (
+                        <TableHead
+                          key={header.id}
+                          className={cn(
+                            "group p-1 first:pl-2",
+                            sortingEnabled && "cursor-pointer",
+                            getPinningClasses(header.column),
+                          )}
+                          style={{
+                            ...getCommonPinningStyles(header.column),
+                            width,
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
 
-                          // Ignore the click synthesized when this column's own
-                          // resize drag is released over its header (other
-                          // headers stay clickable during that window).
-                          const lastResize = lastColumnResizeEndRef.current;
-                          if (
-                            lastResize.columnId === header.column.id &&
-                            Date.now() - lastResize.at < 250
-                          ) {
-                            return;
-                          }
+                            // Ignore the click synthesized when this column's own
+                            // resize drag is released over its header (other
+                            // headers stay clickable during that window).
+                            const lastResize = lastColumnResizeEndRef.current;
+                            if (
+                              lastResize.columnId === header.column.id &&
+                              Date.now() - lastResize.at < 250
+                            ) {
+                              return;
+                            }
 
-                          if (!setOrderBy || !columnDef.id || !sortingEnabled) {
-                            return;
-                          }
+                            if (
+                              !setOrderBy ||
+                              !columnDef.id ||
+                              !sortingEnabled
+                            ) {
+                              return;
+                            }
 
-                          if (orderBy?.column === columnDef.id) {
-                            if (orderBy.order === "DESC") {
-                              capture("table:column_sorting_header_click", {
-                                column: columnDef.id,
-                                order: "ASC",
-                              });
-                              setOrderBy({
-                                column: columnDef.id,
-                                order: "ASC",
-                              });
+                            if (orderBy?.column === columnDef.id) {
+                              if (orderBy.order === "DESC") {
+                                capture("table:column_sorting_header_click", {
+                                  column: columnDef.id,
+                                  order: "ASC",
+                                });
+                                setOrderBy({
+                                  column: columnDef.id,
+                                  order: "ASC",
+                                });
+                              } else {
+                                capture("table:column_sorting_header_click", {
+                                  column: columnDef.id,
+                                  order: "Disabled",
+                                });
+                                setOrderBy(null);
+                              }
                             } else {
                               capture("table:column_sorting_header_click", {
                                 column: columnDef.id,
-                                order: "Disabled",
+                                order: "DESC",
                               });
-                              setOrderBy(null);
+                              setOrderBy({
+                                column: columnDef.id,
+                                order: "DESC",
+                              });
                             }
-                          } else {
-                            capture("table:column_sorting_header_click", {
-                              column: columnDef.id,
-                              order: "DESC",
-                            });
-                            setOrderBy({
-                              column: columnDef.id,
-                              order: "DESC",
-                            });
-                          }
-                        }}
-                      >
-                        {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
-                            <span
-                              className="truncate leading-normal"
-                              title={getPlainTextFromReactNode(
-                                flexRender(
+                          }}
+                        >
+                          {header.isPlaceholder ? null : (
+                            <div className="flex items-center select-none">
+                              <span
+                                className="truncate leading-normal"
+                                title={getPlainTextFromReactNode(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  ),
+                                )}
+                              >
+                                {flexRender(
                                   header.column.columnDef.header,
                                   header.getContext(),
-                                ),
+                                )}
+                              </span>
+                              {columnDef.headerTooltip && (
+                                <DocPopup
+                                  description={
+                                    columnDef.headerTooltip.description
+                                  }
+                                  href={columnDef.headerTooltip.href}
+                                />
                               )}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </span>
-                            {columnDef.headerTooltip && (
-                              <DocPopup
-                                description={
-                                  columnDef.headerTooltip.description
-                                }
-                                href={columnDef.headerTooltip.href}
-                              />
-                            )}
-                            {orderBy?.column === columnDef.id
-                              ? renderOrderingIndicator(orderBy)
-                              : null}
+                              {orderBy?.column === columnDef.id
+                                ? renderOrderingIndicator(orderBy)
+                                : null}
 
-                            <div
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              onDoubleClick={() => header.column.resetSize()}
-                              onMouseDown={beginColumnResize(
-                                header.column.id,
-                                header.getResizeHandler(),
-                              )}
-                              onTouchStart={beginColumnResize(
-                                header.column.id,
-                                header.getResizeHandler(),
-                              )}
-                              className={cn(
-                                "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
-                                header.column.getIsResizing() &&
-                                  "bg-primary-accent opacity-100",
-                              )}
-                            />
-                          </div>
-                        )}
-                      </TableHead>
-                    ) : null;
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            {table.getState().columnSizingInfo.isResizingColumn ||
-            !!peekView ? (
-              <MemoizedTableBody
-                table={table}
-                rowheighttw={rowheighttw}
-                rowHeight={rowHeight}
-                columns={columns}
-                data={data}
-                help={help}
-                noResultsMessage={noResultsMessage}
-                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                getRowClassName={getRowClassName}
-                highlightAllRows={highlightAllRows}
-                selectionStore={selectionStore}
-                topAlignCells={topAlignCells}
-                cellPadding={cellPadding}
-                tableSnapshot={{
-                  columnVisibility,
-                  columnOrder,
-                  rowSelection,
-                }}
-              />
-            ) : (
-              <TableBodyComponent
-                table={table}
-                rowheighttw={rowheighttw}
-                rowHeight={rowHeight}
-                columns={columns}
-                data={data}
-                help={help}
-                noResultsMessage={noResultsMessage}
-                onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
-                getRowClassName={getRowClassName}
-                highlightAllRows={highlightAllRows}
-                selectionStore={selectionStore}
-                topAlignCells={topAlignCells}
-                cellPadding={cellPadding}
-              />
-            )}
-          </Table>
-        </div>
+                              <div
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                                onDoubleClick={() => header.column.resetSize()}
+                                onMouseDown={beginColumnResize(
+                                  header.column.id,
+                                  header.getResizeHandler(),
+                                )}
+                                onTouchStart={beginColumnResize(
+                                  header.column.id,
+                                  header.getResizeHandler(),
+                                )}
+                                className={cn(
+                                  "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
+                                  header.column.getIsResizing() &&
+                                    "bg-primary-accent opacity-100",
+                                )}
+                              />
+                            </div>
+                          )}
+                        </TableHead>
+                      ) : null;
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              {table.getState().columnSizingInfo.isResizingColumn ||
+              !!peekView ? (
+                <MemoizedTableBody
+                  table={table}
+                  rowheighttw={rowheighttw}
+                  rowHeight={rowHeight}
+                  columns={columns}
+                  data={data}
+                  help={help}
+                  noResultsMessage={noResultsMessage}
+                  onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                  getRowClassName={getRowClassName}
+                  highlightAllRows={highlightAllRows}
+                  selectionStore={selectionStore}
+                  topAlignCells={topAlignCells}
+                  cellPadding={cellPadding}
+                  tableSnapshot={{
+                    columnVisibility,
+                    columnOrder,
+                    rowSelection,
+                  }}
+                />
+              ) : (
+                <TableBodyComponent
+                  table={table}
+                  rowheighttw={rowheighttw}
+                  rowHeight={rowHeight}
+                  columns={columns}
+                  data={data}
+                  help={help}
+                  noResultsMessage={noResultsMessage}
+                  onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                  getRowClassName={getRowClassName}
+                  highlightAllRows={highlightAllRows}
+                  selectionStore={selectionStore}
+                  topAlignCells={topAlignCells}
+                  cellPadding={cellPadding}
+                />
+              )}
+            </Table>
+          </div>
+        )}
       </div>
       {!hidePagination && pagination !== undefined ? (
         <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
