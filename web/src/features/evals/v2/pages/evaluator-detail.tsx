@@ -93,6 +93,7 @@ export default function EvaluatorDetailPage() {
   );
 
   const activationDialogOpen = router.query.activate === "1";
+  const attachRuleOnOpen = router.query.attachRule === "1";
   const editMode = router.query.edit === "1";
   const initialEvaluationRuleId =
     typeof router.query.ruleId === "string" ? router.query.ruleId : undefined;
@@ -303,6 +304,7 @@ export default function EvaluatorDetailPage() {
               filter: z.array(singleFilter).catch([]).parse(rule.filter),
               enabled: rule.enabled,
             }))}
+            attachRuleOnOpen={attachRuleOnOpen}
             hasWriteAccess={hasWriteAccess}
             onViewEvaluationRule={(ruleId) =>
               evaluationRulePeekNavigation.openPeek(ruleId)

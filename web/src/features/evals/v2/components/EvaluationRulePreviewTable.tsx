@@ -48,10 +48,10 @@ export function EvaluationRulePreviewTable({
   timeRange: AbsoluteTimeRange | null;
   /** Row click: use the clicked observation as the sample. */
   onSelectObservation?: (row: EventsTableRow) => void;
-  /** Radio-dot pick: use the row as the sample without row-click side
+  /** Checkbox pick: use the row as the sample without row-click side
       effects (e.g. opening the peek). */
   onPickObservation?: (row: EventsTableRow) => void;
-  /** The picked sample row — drives the radio-dot column and row highlight.
+  /** The picked sample row — drives the checkbox column and row highlight.
       Pass null (not undefined) to show the picker with nothing picked. */
   selectedObservationId?: string | null;
   /** Reports the loaded preview rows, e.g. to derive sample candidates. */

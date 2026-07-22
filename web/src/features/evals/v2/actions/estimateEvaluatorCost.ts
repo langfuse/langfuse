@@ -7,10 +7,12 @@ type TestInput = Omit<
 
 export async function estimateEvaluatorCost({
   testInput,
+  modelAvailable,
   getSample,
   runTest,
 }: {
   testInput: TestInput;
+  modelAvailable: boolean;
   getSample: () => Promise<{
     id: string;
     traceId: string | null;
@@ -21,6 +23,8 @@ export async function estimateEvaluatorCost({
     estimatedCostUsd?: number | null;
   }>;
 }) {
+  if (!modelAvailable) return null;
+
   const sample = await getSample();
   if (!sample?.traceId) return null;
 

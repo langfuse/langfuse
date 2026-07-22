@@ -43,6 +43,7 @@ export function useEvaluationModel(
   }, [selectedModel, setModelParams]);
 
   return {
+    defaultModel,
     selectedModel,
     isUsingDefaultModel: !customModelParams,
     isDefaultModelLoading,

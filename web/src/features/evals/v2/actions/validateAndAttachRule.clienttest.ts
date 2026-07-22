@@ -103,20 +103,15 @@ describe("validateAndAttachRule", () => {
     });
   });
 
-  it("keeps an LLM evaluator detached when no observation matches", async () => {
+  it("attaches without test-running when no observation matches", async () => {
     const deps = dependencies();
     deps.getSample.mockResolvedValue(null);
 
     const result = await validateAndAttachRule("project-1", deps);
 
-    expect(result).toEqual({
-      attached: false,
-      outcome: "unavailable",
-      message:
-        "No observations currently match this evaluation rule, so the evaluator could not be tested. The evaluator was not attached to the evaluation rule.",
-    });
+    expect(result).toEqual({ attached: true });
     expect(deps.runLlmTest).not.toHaveBeenCalled();
-    expect(deps.attach).not.toHaveBeenCalled();
+    expect(deps.attach).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledWith({
       outcome: "unavailable",
       evaluatorType: "LLM_AS_JUDGE",

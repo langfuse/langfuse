@@ -13,10 +13,11 @@ import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
+  Code2,
   ChevronDown,
   ChevronUp,
-  Plus,
   Search,
+  Sparkles,
   User,
   X,
   type LucideIcon,
@@ -284,7 +285,7 @@ export function EvaluatorGalleryDialog({
       ? [
           {
             key: CUSTOM_SECTION_KEY,
-            label: "Custom",
+            label: "Your Examples",
             icon: User,
             count: projectTemplates.data?.length,
           },
@@ -469,25 +470,11 @@ export function EvaluatorGalleryDialog({
             </DialogClose>
           </div>
           <DialogDescription>
-            Pick an example or start from scratch.
+            Choose a blank evaluator or start from an example.
           </DialogDescription>
         </div>
         <DialogBody className="flex-row gap-4 overflow-hidden p-0">
           <div className="flex w-56 shrink-0 flex-col gap-0.5 overflow-y-auto border-r p-4">
-            {/* Lands on the LLM-as-a-Judge editor; its type tabs switch to
-                Python/TypeScript from there. */}
-            <Button
-              type="button"
-              variant="ghost"
-              // Matches renderNavItem's px-3 + mr-2 icon so the plus lines up
-              // with the section icons below.
-              className="w-full justify-start px-3"
-              onClick={() => onCreateFromScratch("llm")}
-            >
-              <Plus className="mr-2 h-4 w-4 shrink-0" />
-              Create from scratch
-            </Button>
-            <div className="bg-border my-2 h-px shrink-0" />
             {/* Group header: one hierarchy level above the sm/font-normal
                 nav items, so it must not render smaller than them. */}
             {navItems.length > 0 ? (
@@ -529,6 +516,55 @@ export function EvaluatorGalleryDialog({
                 </div>
               ) : (
                 <>
+                  {!query ? (
+                    <div className="flex flex-col gap-2.5">
+                      <h3 className="text-xl leading-7 font-bold">
+                        Start from scratch
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          className="hover:border-primary hover:bg-accent/40 flex items-center gap-3 rounded-lg border p-4 text-left transition-all hover:shadow-sm"
+                          onClick={() => onCreateFromScratch("llm")}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                              getCategoryIconClasses("rag"),
+                            )}
+                          >
+                            <Sparkles className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold">
+                              LLM-as-a-judge
+                            </span>
+                            <span className="text-muted-foreground block text-sm">
+                              Start with a blank prompt.
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="hover:border-primary hover:bg-accent/40 flex items-center gap-3 rounded-lg border p-4 text-left transition-all hover:shadow-sm"
+                          onClick={() => onCreateFromScratch("code")}
+                        >
+                          <span className="bg-light-blue/40 text-dark-blue flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
+                            <Code2 className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold">
+                              Code evaluator
+                            </span>
+                            <span className="text-muted-foreground block text-sm">
+                              Start with Python or TypeScript.
+                            </span>
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   {filteredProjectTemplates.length > 0 ||
                   visibleCategorySections.length > 0 ? (
                     <h3 className="text-xl leading-7 font-bold">
@@ -542,7 +578,7 @@ export function EvaluatorGalleryDialog({
                       className="flex scroll-mt-1 flex-col gap-2.5"
                     >
                       <SectionHeader
-                        label="Your examples"
+                        label="Your Examples"
                         description="Start from an evaluator this project already created."
                       />
                       {renderTemplateGrid(

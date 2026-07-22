@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Code2, Sparkles } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -117,22 +117,46 @@ export function EvaluatorDefinitionView({
     <div className="flex min-w-0 flex-col gap-6">
       {showType ? (
         <section className="flex flex-col gap-2">
-          <Label>Evaluator type</Label>
-          <div className="bg-muted flex h-8 w-fit items-center gap-1.5 rounded-md border px-3 text-sm font-bold">
-            {isCode ? (
-              sourceCodeLanguage === "TYPESCRIPT" ? (
-                <SiTypescript className="h-3.5 w-3.5" />
+          <Label>Evaluation</Label>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span>Run using</span>
+            <div className="bg-background flex h-8 items-center gap-1.5 rounded-md border px-3 font-bold">
+              {isCode ? (
+                <Code2 className="h-3.5 w-3.5" />
               ) : (
-                <SiPython className="h-3.5 w-3.5" />
-              )
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isCode ? "Code evaluator" : "LLM-as-a-judge"}
+            </div>
+            {isCode ? (
+              <>
+                <span>written in</span>
+                <div className="bg-background flex h-8 items-center gap-1.5 rounded-md border px-3 font-bold">
+                  {sourceCodeLanguage === "TYPESCRIPT" ? (
+                    <SiTypescript className="h-3.5 w-3.5" />
+                  ) : (
+                    <SiPython className="h-3.5 w-3.5" />
+                  )}
+                  {sourceCodeLanguage === "TYPESCRIPT"
+                    ? "TypeScript"
+                    : "Python"}
+                </div>
+              </>
             ) : (
-              <Sparkles className="h-3.5 w-3.5" />
+              <>
+                <span>with</span>
+                <div className="bg-background flex h-8 max-w-full items-center gap-2 rounded-md border px-3">
+                  <span className="truncate" title={modelLabel}>
+                    {modelLabel}
+                  </span>
+                  {usesProjectDefaultModel ? (
+                    <Badge variant="secondary" size="sm">
+                      Project default
+                    </Badge>
+                  ) : null}
+                </div>
+              </>
             )}
-            {isCode
-              ? sourceCodeLanguage === "TYPESCRIPT"
-                ? "TypeScript"
-                : "Python"
-              : "LLM-as-a-judge"}
           </div>
         </section>
       ) : null}
@@ -154,16 +178,18 @@ export function EvaluatorDefinitionView({
         <>
           <section className="flex min-w-0 flex-col gap-2">
             <Label>Prompt</Label>
-            <div className="flex w-fit max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
-              <span className="truncate" title={modelLabel}>
-                {modelLabel}
-              </span>
-              {usesProjectDefaultModel ? (
-                <Badge variant="secondary" size="sm">
-                  Project default
-                </Badge>
-              ) : null}
-            </div>
+            {!showType ? (
+              <div className="flex w-fit max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                <span className="truncate" title={modelLabel}>
+                  {modelLabel}
+                </span>
+                {usesProjectDefaultModel ? (
+                  <Badge variant="secondary" size="sm">
+                    Project default
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
             <PromptVariableEditor
               value={prompt ?? ""}
               onChange={() => undefined}
@@ -193,6 +219,7 @@ export function EvaluatorConfigurationView({
   evaluatorId,
   evaluatorName,
   attachedEvaluationRules,
+  attachRuleOnOpen = false,
   hasWriteAccess,
   onViewEvaluationRule,
   onEditEvaluationRule,
@@ -214,6 +241,7 @@ export function EvaluatorConfigurationView({
     filter: FilterState;
     enabled: boolean;
   }>;
+  attachRuleOnOpen?: boolean;
   hasWriteAccess: boolean;
   onViewEvaluationRule: (ruleId: string) => void;
   onEditEvaluationRule: (ruleId: string) => void;
@@ -254,6 +282,7 @@ export function EvaluatorConfigurationView({
             evaluatorId={evaluatorId}
             evaluatorName={evaluatorName}
             rules={attachedEvaluationRules}
+            rulePickerInitiallyOpen={attachRuleOnOpen}
             hasWriteAccess={hasWriteAccess}
             onView={onViewEvaluationRule}
             onEdit={onEditEvaluationRule}

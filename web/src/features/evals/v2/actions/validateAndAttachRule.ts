@@ -199,12 +199,13 @@ export async function validateRuleAttachment(
     );
   }
   if (!sample?.traceId) {
-    return validationIssue(
-      dependencies,
+    // An empty rule has nothing meaningful to test yet, but its evaluator can
+    // still be attached and will run when the first observation matches.
+    captureValidation(dependencies, {
+      outcome: "unavailable",
       evaluatorType,
-      "unavailable",
-      "No observations currently match this evaluation rule, so the evaluator could not be tested. The evaluator was not attached to the evaluation rule.",
-    );
+    });
+    return { valid: true };
   }
 
   let testResult: { success: boolean; error?: string };

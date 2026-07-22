@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
+  ExternalLink,
   Pencil,
   Trash2,
   TriangleAlert,
@@ -68,6 +69,41 @@ function MappedValuePreview({ value }: { value: string }) {
           </pre>
         )}
       </div>
+    </div>
+  );
+}
+
+function SampleSourceToolbar({
+  sampleLabel,
+  onOpenSample,
+  suffix,
+  action,
+}: {
+  sampleLabel: string | null;
+  onOpenSample: () => void;
+  suffix?: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-muted/30 text-muted-foreground flex min-w-0 items-center gap-1.5 border-b px-3 py-1.5 text-xs">
+      <span className="shrink-0">Value from sample</span>
+      {sampleLabel ? (
+        <button
+          type="button"
+          className="hover:text-foreground inline-flex min-w-0 items-center gap-1 font-bold underline-offset-2 hover:underline"
+          title="Open the sample trace"
+          onClick={onOpenSample}
+        >
+          <span className="truncate" title={sampleLabel}>
+            {sampleLabel}
+          </span>
+          <ExternalLink className="h-3 w-3 shrink-0" />
+        </button>
+      ) : (
+        <span className="italic">not selected</span>
+      )}
+      {suffix}
+      {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>
   );
 }
@@ -157,6 +193,8 @@ function DrillSelector({
   hasMatchingObservations,
   onCommit,
   onCancel,
+  sampleLabel,
+  onOpenSample,
 }: {
   variable: string;
   initial: VariableFieldState;
@@ -164,6 +202,8 @@ function DrillSelector({
   hasMatchingObservations: boolean;
   onCommit: (next: VariableFieldState) => void;
   onCancel: () => void;
+  sampleLabel: string | null;
+  onOpenSample: () => void;
 }) {
   // Mounted fresh per open (conditional render), so the draft starts from
   // the committed binding each time.
@@ -174,6 +214,11 @@ function DrillSelector({
 
   return (
     <div className="flex flex-col">
+      <SampleSourceToolbar
+        sampleLabel={sampleLabel}
+        onOpenSample={onOpenSample}
+        suffix={<span>— choose the data this variable should use.</span>}
+      />
       <VariableMappingPanel
         className="h-80"
         activeVariable={variable}
@@ -210,7 +255,7 @@ function DrillSelector({
 
 /**
  * The tree selector as a card body: click a node to bind and close (select
- * semantics), with the raw-JSONPath entry folded inside as a footer link —
+ * semantics), with the raw-JSONPath entry folded into the toolbar above it —
  * the card header keeps exactly one edit affordance (the pencil).
  */
 function TreeSelectorBody({
@@ -221,6 +266,8 @@ function TreeSelectorBody({
   hasMatchingObservations,
   onSelect,
   onApplyJsonPath,
+  sampleLabel,
+  onOpenSample,
 }: {
   variable: string;
   fieldState: VariableFieldState;
@@ -229,6 +276,8 @@ function TreeSelectorBody({
   hasMatchingObservations: boolean;
   onSelect: (columnId: string, segments: PathSegment[]) => void;
   onApplyJsonPath: (jsonSelector: string | null) => void;
+  sampleLabel: string | null;
+  onOpenSample: () => void;
 }) {
   const [pathEditing, setPathEditing] = useState(false);
 
@@ -244,19 +293,45 @@ function TreeSelectorBody({
 
   if (pathEditing && fieldState.selectedColumnId) {
     return (
-      <JsonPathEditor
-        initialPath={fieldState.jsonSelector ?? "$"}
-        suggestions={buildJsonPathSuggestions(
-          sourceObject[fieldState.selectedColumnId],
-        )}
-        onApply={onApplyJsonPath}
-        onCancel={() => setPathEditing(false)}
-      />
+      <>
+        <SampleSourceToolbar
+          sampleLabel={sampleLabel}
+          onOpenSample={onOpenSample}
+        />
+        <JsonPathEditor
+          initialPath={fieldState.jsonSelector ?? "$"}
+          suggestions={buildJsonPathSuggestions(
+            sourceObject[fieldState.selectedColumnId],
+          )}
+          onApply={onApplyJsonPath}
+          onCancel={() => setPathEditing(false)}
+        />
+      </>
     );
   }
 
   return (
     <>
+      <SampleSourceToolbar
+        sampleLabel={sampleLabel}
+        onOpenSample={onOpenSample}
+        suffix={<span>{`— choose the data {{${variable}}} should use.`}</span>}
+        action={
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!fieldState.selectedColumnId}
+            title={
+              fieldState.selectedColumnId
+                ? "Enter a raw JSONPath (filters, slices, …)"
+                : "Pick a field in the tree first, then refine it as a path."
+            }
+            onClick={() => setPathEditing(true)}
+          >
+            Type a JSONPath instead
+          </button>
+        }
+      />
       <SampleDataTreeSelector
         variable={variable}
         currentColumnId={fieldState.selectedColumnId}
@@ -264,27 +339,6 @@ function TreeSelectorBody({
         sourceObject={sourceObject}
         onSelect={onSelect}
       />
-      <div className="flex min-w-0 items-center justify-between gap-2 border-t px-3 py-1.5">
-        <p
-          className="text-muted-foreground min-w-0 truncate text-xs"
-          title={`Click rows to open them — hover one and press "Use" to bind {{${variable}}} (values bind on click).`}
-        >
-          {`Click rows to open them — hover one and press "Use" to bind {{${variable}}} (values bind on click).`}
-        </p>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!fieldState.selectedColumnId}
-          title={
-            fieldState.selectedColumnId
-              ? "Enter a raw JSONPath (filters, slices, …)"
-              : "Pick a field in the tree first, then refine it as a path."
-          }
-          onClick={() => setPathEditing(true)}
-        >
-          Type a JSONPath instead
-        </button>
-      </div>
     </>
   );
 }
@@ -309,6 +363,8 @@ function VariableMappingRow({
   hasMatchingObservations,
   onChange,
   onDelete,
+  sampleLabel,
+  onOpenSample,
 }: {
   variable: string;
   unmapped: boolean;
@@ -323,6 +379,8 @@ function VariableMappingRow({
   hasMatchingObservations: boolean;
   onChange: (next: VariableFieldState) => void;
   onDelete: () => void;
+  sampleLabel: string | null;
+  onOpenSample: () => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
   // The value preview is collapsed by default; the card header toggles it.
@@ -510,6 +568,13 @@ function VariableMappingRow({
         </span>
       </div>
 
+      {!open && bodyVisible ? (
+        <SampleSourceToolbar
+          sampleLabel={sampleLabel}
+          onOpenSample={onOpenSample}
+        />
+      ) : null}
+
       {/* Body: the selector while editing; otherwise warnings always show,
           and the value preview only when the header is expanded. */}
       {open ? (
@@ -524,6 +589,8 @@ function VariableMappingRow({
               onOpenChange(false);
             }}
             onCancel={() => onOpenChange(false)}
+            sampleLabel={sampleLabel}
+            onOpenSample={onOpenSample}
           />
         ) : (
           <TreeSelectorBody
@@ -548,6 +615,8 @@ function VariableMappingRow({
               });
               onOpenChange(false);
             }}
+            sampleLabel={sampleLabel}
+            onOpenSample={onOpenSample}
           />
         )
       ) : !previewOpen ? null : unmapped ? (
@@ -593,6 +662,8 @@ export function VariableMappingList({
   onDeleteVariable,
   sourceObject,
   hasMatchingObservations,
+  sampleLabel,
+  onOpenSample,
 }: {
   /** Every prompt variable with its mapping label, in prompt order. */
   overview: Array<{ variable: string; label: string; unmapped: boolean }>;
@@ -611,6 +682,9 @@ export function VariableMappingList({
   sourceObject: Record<string, unknown> | null;
   /** False when the rule matches nothing — drives the empty state. */
   hasMatchingObservations: boolean;
+  /** Selected observation shown above each payload preview. */
+  sampleLabel: string | null;
+  onOpenSample: () => void;
 }) {
   if (overview.length === 0) {
     return (
@@ -638,6 +712,8 @@ export function VariableMappingList({
           fieldState={getFieldState(item.variable)}
           sourceObject={sourceObject}
           hasMatchingObservations={hasMatchingObservations}
+          sampleLabel={sampleLabel}
+          onOpenSample={onOpenSample}
           onChange={(next) => onChangeField(item.variable, next)}
           onDelete={() => onDeleteVariable(item.variable)}
         />

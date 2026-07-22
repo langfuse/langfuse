@@ -26,6 +26,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   trigger,
   attachedRules = [],
   availableRules,
+  initiallyOpen = false,
   selectedRuleId,
   loading = false,
   align = "start",
@@ -38,6 +39,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   trigger: (open: boolean) => ReactNode;
   attachedRules?: Rule[];
   availableRules: Rule[];
+  initiallyOpen?: boolean;
   selectedRuleId?: string | null;
   loading?: boolean;
   align?: "start" | "center" | "end";
@@ -47,7 +49,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
   onCreateRule: () => void;
   onClearSelection?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
 
   const changeOpen = (nextOpen: boolean) => {
     setOpen(nextOpen);

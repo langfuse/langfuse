@@ -74,6 +74,7 @@ import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -1152,10 +1153,10 @@ export default function ObservationsEventsTable({
 
   const enableSorting = !hideControls;
 
-  // Single-select sample picker: a radio dot (one pick, unlike the multi-
-  // select checkboxes) that fills on the picked row. Rendered as a button so
-  // the row-click handler ignores it (shouldIgnoreRowClickTarget) — the dot
-  // picks without the row-click side effects (e.g. opening the peek).
+  // Single-select sample picker: checkbox styling keeps this consistent with
+  // table selection, while the externally-owned id still permits one sample.
+  // Radix renders a button, so the row-click handler ignores it and picking a
+  // sample does not also open the row peek.
   const externalRowPickerColumn: LangfuseColumnDef<EventsTableRow> = {
     accessorKey: "externalRowPicker",
     id: "externalRowPicker",
@@ -1165,33 +1166,16 @@ export default function ObservationsEventsTable({
     cell: ({ row }) => {
       const isPicked = row.original.id === externalSelectedRowId;
       return (
-        <button
-          type="button"
-          className="group/picker flex h-full items-center px-1"
+        <Checkbox
+          checked={isPicked}
+          aria-label={
+            isPicked ? "Selected sample" : "Use this row as the sample"
+          }
           title={
             isPicked ? "This row is the sample" : "Use this row as the sample"
           }
-          aria-pressed={isPicked}
-          onClick={() => onExternalRowPick?.(row.original)}
-        >
-          <span
-            className={cn(
-              "flex h-4 w-4 items-center justify-center rounded-full border",
-              isPicked
-                ? "border-primary"
-                : "border-muted-foreground/40 group-hover/picker:border-primary/60",
-            )}
-          >
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                isPicked
-                  ? "bg-primary"
-                  : "group-hover/picker:bg-primary/30 bg-transparent",
-              )}
-            />
-          </span>
-        </button>
+          onCheckedChange={() => onExternalRowPick?.(row.original)}
+        />
       );
     },
   };

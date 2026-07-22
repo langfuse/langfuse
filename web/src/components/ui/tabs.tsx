@@ -108,7 +108,7 @@ const AnimatedTabsList = React.forwardRef<
       {thumb && (
         <span
           aria-hidden
-          className="bg-background absolute top-1 h-6 rounded-sm shadow-xs transition-[left,width] duration-200 ease-out"
+          className="bg-background absolute inset-y-1 rounded-sm shadow-xs transition-[left,width] duration-200 ease-out"
           style={{ left: thumb.left, width: thumb.width }}
         />
       )}

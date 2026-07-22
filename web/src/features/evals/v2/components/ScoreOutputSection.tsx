@@ -420,10 +420,7 @@ export function ScoreOutputSection({
               handleDataTypeChange(value as ScoreOutputDataType)
             }
           >
-            <SelectTrigger
-              className="bg-muted hover:bg-muted/80 w-auto min-w-24"
-              aria-label="Score type"
-            >
+            <SelectTrigger className="w-auto min-w-24" aria-label="Score type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -444,7 +441,7 @@ export function ScoreOutputSection({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="bg-muted hover:bg-muted/80 h-8 font-normal"
+                    className="h-8 font-normal"
                     disabled={readOnly}
                   >
                     {numericBoundsLabel}

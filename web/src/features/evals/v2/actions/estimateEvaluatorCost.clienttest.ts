@@ -18,6 +18,7 @@ describe("estimateEvaluatorCost", () => {
     await expect(
       estimateEvaluatorCost({
         testInput,
+        modelAvailable: true,
         getSample: vi.fn().mockResolvedValue({
           id: "observation-1",
           traceId: "trace-1",
@@ -40,10 +41,27 @@ describe("estimateEvaluatorCost", () => {
     await expect(
       estimateEvaluatorCost({
         testInput,
+        modelAvailable: true,
         getSample: vi.fn().mockResolvedValue(null),
         runTest,
       }),
     ).resolves.toBeNull();
+    expect(runTest).not.toHaveBeenCalled();
+  });
+
+  it("does not look for a sample or run a test without a model", async () => {
+    const getSample = vi.fn();
+    const runTest = vi.fn();
+
+    await expect(
+      estimateEvaluatorCost({
+        testInput,
+        modelAvailable: false,
+        getSample,
+        runTest,
+      }),
+    ).resolves.toBeNull();
+    expect(getSample).not.toHaveBeenCalled();
     expect(runTest).not.toHaveBeenCalled();
   });
 });

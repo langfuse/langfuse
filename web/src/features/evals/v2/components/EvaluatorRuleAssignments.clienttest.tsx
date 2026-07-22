@@ -166,6 +166,25 @@ describe("EvaluatorRuleAssignments", () => {
     expect(onView).toHaveBeenCalledTimes(2);
   });
 
+  it("opens the rule picker when linked from the evaluator overview", () => {
+    render(
+      <EvaluatorRuleAssignments
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        evaluatorName="Quality"
+        rules={[]}
+        rulePickerInitiallyOpen
+        hasWriteAccess
+        onView={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByText("Create new rule")).toBeInTheDocument();
+    expect(screen.getByText("Available rule")).toBeInTheDocument();
+  });
+
   it("keeps validation failures in context with a setup link", () => {
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,

@@ -40,6 +40,7 @@ export function EvaluatorRuleAssignments({
   evaluatorId,
   evaluatorName,
   rules,
+  rulePickerInitiallyOpen = false,
   hasWriteAccess,
   onView,
   onEdit,
@@ -53,6 +54,7 @@ export function EvaluatorRuleAssignments({
     filter: FilterState;
     enabled: boolean;
   }>;
+  rulePickerInitiallyOpen?: boolean;
   hasWriteAccess: boolean;
   onView: (ruleId: string) => void;
   onEdit: (ruleId: string) => void;
@@ -62,7 +64,7 @@ export function EvaluatorRuleAssignments({
     projectId,
     entryPoint: "evaluator_detail",
   });
-  const [rulePickerOpen, setRulePickerOpen] = useState(false);
+  const [rulePickerOpen, setRulePickerOpen] = useState(rulePickerInitiallyOpen);
   const [createRuleDialogOpen, setCreateRuleDialogOpen] = useState(false);
   const [ruleToDetach, setRuleToDetach] = useState<
     (typeof rules)[number] | null
@@ -129,6 +131,7 @@ export function EvaluatorRuleAssignments({
             </Button>
           )}
           availableRules={unattachedRules}
+          initiallyOpen={rulePickerInitiallyOpen}
           loading={availableRules.isPending}
           align="end"
           onOpenChange={setRulePickerOpen}

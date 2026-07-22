@@ -7,7 +7,14 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { InfoIcon, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  Code2,
+  InfoIcon,
+  PanelRightClose,
+  PanelRightOpen,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Button } from "@/src/components/ui/button";
@@ -28,7 +35,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-  useDefaultLayout,
+  usePanelRef,
 } from "@/src/components/ui/resizable";
 import {
   CodeEvalFunctionContractHint,
@@ -114,9 +121,6 @@ export type EvaluatorSetupRuleControls = {
   sampling: number;
   setSampling: (sampling: number) => void;
 };
-
-const EVALUATOR_SPLIT_GROUP_ID = "evalV2SetupStepperLayout75";
-const EVALUATOR_SPLIT_PANEL_IDS = ["setup", "test"];
 
 /** A sample candidate from the rule-preview table. */
 type SampleObservationOption = {
@@ -281,6 +285,8 @@ export function EvaluatorSetupForm({
   const [definitionStepOpen, setDefinitionStepOpen] = useState(false);
   const [metadataStepOpen, setMetadataStepOpen] = useState(false);
   const isCodeMode = tab !== "llm";
+  const [testPanelCollapsed, setTestPanelCollapsed] = useState(true);
+  const testPanelRef = usePanelRef();
   const [isSaveWorkflowPending, setIsSaveWorkflowPending] = useState(false);
   // Rule assignments are saved separately in the edit view. Keep the
   // evaluator-definition baseline here so only left-pane changes enable Save.
@@ -307,12 +313,6 @@ export function EvaluatorSetupForm({
   );
   const [previewEnabled, setPreviewEnabled] = useState(false);
 
-  // Adjustable split between the evaluator (left) and rule (right) panes,
-  // persisted per browser.
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: EVALUATOR_SPLIT_GROUP_ID,
-    panelIds: EVALUATOR_SPLIT_PANEL_IDS,
-  });
   // Code-mode counterpart of the prompt's interpolated preview: the sample
   // drawer attached under the editor, expanded/collapsed via its own strip.
   const [codeSampleDrawerOpen, setCodeSampleDrawerOpen] = useState(false);
@@ -417,7 +417,11 @@ export function EvaluatorSetupForm({
         : undefined,
     [sourceTemplate],
   );
-  useEvaluationModel(projectId, setModelParams, sourceTemplateModel);
+  const { defaultModel: defaultEvaluationModel } = useEvaluationModel(
+    projectId,
+    setModelParams,
+    sourceTemplateModel,
+  );
 
   // Score output definition (LLM mode), prefilled from the source template.
   const [outputState, setOutputState] = useState<ScoreOutputFormState>(() =>
@@ -482,6 +486,8 @@ export function EvaluatorSetupForm({
       startTime: row.startTime,
     });
     setDefinitionStepOpen(true);
+    testPanelRef.current?.expand();
+    setTestPanelCollapsed(false);
   };
 
   const handleSelectObservationFromPreview = (row: EventsTableRow) => {
@@ -898,6 +904,10 @@ export function EvaluatorSetupForm({
               outputDefinition: fields.outputDefinition,
               mapping: fields.mapping,
             },
+            modelAvailable:
+              judgeModelMode === "custom"
+                ? customModelPayload !== null
+                : Boolean(defaultEvaluationModel),
             getSample: async () => {
               const result = await utils.client.events.all.query({
                 projectId,
@@ -1104,16 +1114,9 @@ export function EvaluatorSetupForm({
         sampling,
         setSampling,
       })}
-      <ResizablePanelGroup
-        id={EVALUATOR_SPLIT_GROUP_ID}
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        defaultLayout={defaultLayout}
-        onLayoutChanged={onLayoutChanged}
-      >
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel
           id="setup"
-          defaultSize="75%"
           minSize="55%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
@@ -1229,39 +1232,89 @@ export function EvaluatorSetupForm({
               <div className="flex min-w-0 flex-col gap-6">
                 <div className="flex flex-col gap-2">
                   <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
-                    Evaluation type
+                    Evaluation
                   </LabelWithTooltip>
-                  <Tabs
-                    value={tab}
-                    onValueChange={(value) => setTab(value as EvaluatorTab)}
-                  >
-                    <TabsList>
-                      <TabsTrigger
-                        value="llm"
-                        className="gap-1.5"
-                        disabled={mode === "edit"}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        LLM-as-a-judge
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="python"
-                        className="gap-1.5"
-                        disabled={mode === "edit"}
-                      >
-                        <SiPython className="h-3.5 w-3.5" />
-                        Python
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="typescript"
-                        className="gap-1.5"
-                        disabled={mode === "edit"}
-                      >
-                        <SiTypescript className="h-3.5 w-3.5" />
-                        TypeScript
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span>Run using</span>
+                    <Tabs
+                      value={isCodeMode ? "code" : "llm"}
+                      onValueChange={(value) =>
+                        setTab(
+                          value === "llm"
+                            ? "llm"
+                            : tab === "llm"
+                              ? "python"
+                              : tab,
+                        )
+                      }
+                    >
+                      <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
+                        <TabsTrigger
+                          value="llm"
+                          className="gap-1.5"
+                          disabled={mode === "edit"}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          LLM-as-a-judge
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="code"
+                          className="gap-1.5"
+                          disabled={mode === "edit"}
+                        >
+                          <Code2 className="h-3.5 w-3.5" />
+                          Code evaluator
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    {isCodeMode ? (
+                      <>
+                        <span>written in</span>
+                        <Tabs
+                          value={tab}
+                          onValueChange={(value) =>
+                            setTab(value as EvaluatorTab)
+                          }
+                        >
+                          <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
+                            <TabsTrigger
+                              value="python"
+                              className="gap-1.5"
+                              disabled={mode === "edit"}
+                            >
+                              <SiPython className="h-3.5 w-3.5" />
+                              Python
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="typescript"
+                              className="gap-1.5"
+                              disabled={mode === "edit"}
+                            >
+                              <SiTypescript className="h-3.5 w-3.5" />
+                              TypeScript
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </>
+                    ) : (
+                      <>
+                        <span>with</span>
+                        <JudgeModelSection
+                          projectId={projectId}
+                          mode={judgeModelMode}
+                          onModeChange={setJudgeModelMode}
+                          modelParamsContext={{
+                            modelParams,
+                            availableModels,
+                            availableProviders,
+                            providerModelCombinations,
+                            updateModelParamValue,
+                            setModelParamEnabled,
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {isCodeMode ? (
@@ -1302,25 +1355,6 @@ export function EvaluatorSetupForm({
                   </div>
                 ) : (
                   <>
-                    <div className="flex min-w-0 flex-col gap-2">
-                      <LabelWithTooltip tooltip="Choose the model used to judge each matching observation.">
-                        Model
-                      </LabelWithTooltip>
-                      <JudgeModelSection
-                        projectId={projectId}
-                        mode={judgeModelMode}
-                        onModeChange={setJudgeModelMode}
-                        modelParamsContext={{
-                          modelParams,
-                          availableModels,
-                          availableProviders,
-                          providerModelCombinations,
-                          updateModelParamValue,
-                          setModelParamEnabled,
-                        }}
-                      />
-                    </div>
-
                     <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]">
                       <div className="flex min-w-0 flex-col gap-2">
                         <LabelWithTooltip tooltip="The judge's instructions. {{variables}} pull in the selected sample data.">
@@ -1373,6 +1407,13 @@ export function EvaluatorSetupForm({
                           hasMatchingObservations={
                             observationOptions.length > 0
                           }
+                          sampleLabel={
+                            selectedObservation
+                              ? (selectedObservation.name ??
+                                selectedObservation.id)
+                              : null
+                          }
+                          onOpenSample={openSampleTracePeek}
                         />
                       </div>
                     </div>
@@ -1429,16 +1470,51 @@ export function EvaluatorSetupForm({
 
         <ResizablePanel
           id="test"
-          defaultSize="25%"
+          panelRef={testPanelRef}
+          defaultSize="40px"
           minSize="20%"
+          collapsible
+          collapsedSize="40px"
+          onResize={() =>
+            setTestPanelCollapsed(testPanelRef.current?.isCollapsed() ?? false)
+          }
           className="min-h-0 min-w-0 overflow-y-auto"
         >
-          {ruleEditorExpanded ? (
+          {testPanelCollapsed ? (
+            <div className="flex h-full items-start justify-center py-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Expand test panel"
+                title="Expand test panel"
+                onClick={() => {
+                  testPanelRef.current?.expand();
+                  setTestPanelCollapsed(false);
+                }}
+              >
+                <PanelRightOpen className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : ruleEditorExpanded ? (
             <section className="flex min-w-0 flex-col">
-              <header className="bg-muted/40 border-b px-4 py-3">
+              <header className="bg-muted/40 flex items-center justify-between gap-2 border-b px-4 py-3">
                 <h2 className="text-base leading-7 font-bold">
                   Test evaluator
                 </h2>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Collapse test panel"
+                  title="Collapse test panel"
+                  onClick={() => {
+                    testPanelRef.current?.collapse();
+                    setTestPanelCollapsed(true);
+                  }}
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </Button>
               </header>
               <div className="flex min-w-0 flex-col p-4">
                 <div className="flex flex-col rounded-md border">

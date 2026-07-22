@@ -3527,6 +3527,57 @@ export const getRecentExecutionTracesByEvaluationRuleIds = async (
   }));
 };
 
+/** The latest execution traces for each evaluator, for overview tables. */
+export const getRecentExecutionTracesByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+): Promise<
+  Array<{ evaluatorId: string; id: string; level: string; timestamp: Date }>
+> => {
+  if (evaluatorIds.length === 0) return [];
+
+  const evaluatorMetadata =
+    "mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))['job_configuration_id']";
+  const tracesBuilder = eventsTracesAggregation({ projectId })
+    .whereRaw("has(e.metadata_names, 'job_configuration_id')")
+    .whereRaw(`${evaluatorMetadata} IN ({evaluatorIds: Array(String)})`, {
+      evaluatorIds,
+    })
+    .whereRaw("e.environment IN ({environments: Array(String)})", {
+      environments: executionTraceEnvironments,
+    });
+  const traceQuery = tracesBuilder.buildWithSchema();
+  const query = `
+    WITH execution_traces AS (${traceQuery.query})
+    SELECT
+      metadata['job_configuration_id'] AS evaluator_id,
+      id,
+      aggregated_level AS level,
+      timestamp
+    FROM execution_traces
+    ORDER BY evaluator_id ASC, timestamp DESC
+    LIMIT 5 BY evaluator_id
+  `;
+  const rows = await queryClickhouse<{
+    evaluator_id: string;
+    id: string;
+    level: string;
+    timestamp: string;
+  }>({
+    query,
+    params: traceQuery.params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    evaluatorId: row.evaluator_id,
+    id: row.id,
+    level: row.level,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
+
 export const getSessionMetricsFromEvents = async (props: {
   projectId: string;
   sessionIds: string[];

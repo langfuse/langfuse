@@ -1,5 +1,6 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Circle, ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo, useState } from "react";
 import { type RowSelectionState } from "@tanstack/react-table";
@@ -16,14 +17,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { EvaluationRuleExecutionTraceStatusHistory } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar";
-import { RelationshipPills } from "@/src/features/evals/v2/components/RelationshipPills";
 import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -42,6 +48,63 @@ function RelativeDate({ date }: { date: Date }) {
     >
       {formatDistanceToNowStrict(date, { addSuffix: true })}
     </span>
+  );
+}
+
+function EvaluatorActiveStatus({
+  projectId,
+  activeRules,
+}: {
+  projectId: string;
+  activeRules: EvaluatorRow["activeRules"];
+}) {
+  if (activeRules.length === 0) {
+    return (
+      <Badge variant="secondary" className="gap-1.5 whitespace-nowrap">
+        <Circle className="h-2 w-2 fill-current" />
+        Inactive · 0
+      </Badge>
+    );
+  }
+
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="focus-visible:ring-ring cursor-pointer rounded-md outline-hidden focus-visible:ring-2"
+          aria-label={`Active. Used by ${activeRules.length} active evaluation rule${activeRules.length === 1 ? "" : "s"}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Badge className="gap-1.5 bg-green-500/15 whitespace-nowrap text-green-700 hover:bg-green-500/25 dark:text-green-400">
+            <Circle className="h-2 w-2 fill-current" />
+            Active · {activeRules.length}
+          </Badge>
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        align="start"
+        className="w-72"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p className="mb-2 text-sm font-bold">
+          Used by active evaluation rules
+        </p>
+        <ul className="space-y-1 text-sm">
+          {activeRules.map((rule) => (
+            <li key={rule.id}>
+              <Link
+                href={`/project/${encodeURIComponent(projectId)}/evals/v2/rules?peek=${encodeURIComponent(rule.id)}`}
+                className="text-muted-foreground hover:text-foreground block truncate underline-offset-2 hover:underline"
+                title={rule.name}
+              >
+                {rule.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
 
@@ -141,6 +204,7 @@ export function EvaluatorOverviewTable({
         id: "scoreName",
         header: "Name",
         size: 200,
+        isFlexWidth: true,
         cell: ({ row }) => (
           <span
             className="block min-w-0 truncate font-bold"
@@ -161,6 +225,29 @@ export function EvaluatorOverviewTable({
               ? "Code"
               : "LLM as a judge"}
           </Badge>
+        ),
+      },
+      {
+        accessorKey: "activeRules",
+        id: "activeRules",
+        header: "Status",
+        size: 110,
+        cell: ({ row }) => (
+          <EvaluatorActiveStatus
+            projectId={projectId}
+            activeRules={row.original.activeRules}
+          />
+        ),
+      },
+      {
+        accessorKey: "executionTraces",
+        id: "executionTraces",
+        header: "Last 5 runs",
+        size: 120,
+        cell: ({ row }) => (
+          <EvaluationRuleExecutionTraceStatusHistory
+            traces={row.original.executionTraces}
+          />
         ),
       },
       {
@@ -209,20 +296,6 @@ export function EvaluatorOverviewTable({
         cell: ({ row }) => <RelativeDate date={row.original.updatedAt} />,
       },
       {
-        accessorKey: "rules",
-        id: "rules",
-        header: "Used by",
-        size: 220,
-        isFlexWidth: true,
-        cell: ({ row }) => (
-          <RelationshipPills
-            items={row.original.rules}
-            totalCount={row.original.ruleCount}
-            emptyLabel="No rules"
-          />
-        ),
-      },
-      {
         accessorKey: "actions",
         id: "actions",
         header: "",
@@ -236,21 +309,37 @@ export function EvaluatorOverviewTable({
             className="flex justify-end gap-1"
             onClick={(event) => event.stopPropagation()}
           >
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                router.push(
-                  getEvaluatorScoresHref({
-                    projectId,
-                    scoreName: row.original.scoreName,
-                  }),
-                )
-              }
-            >
-              View scores
-            </Button>
+            {row.original.activeRules.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  router.push(
+                    getEvaluatorScoresHref({
+                      projectId,
+                      scoreName: row.original.scoreName,
+                    }),
+                  )
+                }
+              >
+                View scores
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!hasWriteAccess}
+                onClick={() =>
+                  router.push(
+                    `/project/${projectId}/evals/v2/${encodeURIComponent(row.original.id)}?attachRule=1#attached-evaluation-rules`,
+                  )
+                }
+              >
+                Attach to rule
+              </Button>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

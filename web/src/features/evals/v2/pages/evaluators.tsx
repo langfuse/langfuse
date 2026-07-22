@@ -82,6 +82,10 @@ export default function EvaluatorsV2Page() {
             .catch(() => undefined);
         }}
         onCreateFromScratch={(type) => {
+          capture("eval_config:creation_path_selected", {
+            source: "scratch",
+            evaluatorType: type,
+          });
           router
             .push(`/project/${projectId}/evals/v2/new?scratch=${type}`)
             .catch(() => undefined);
