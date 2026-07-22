@@ -60,7 +60,7 @@ describe("versionUpdateStore", () => {
     expect(store.getSnapshot()).toBe(false);
   });
 
-  it("hides after dismiss and re-shows only when an even newer build arrives", () => {
+  it("hides after dismiss and re-shows only when a not-yet-seen build arrives", () => {
     const store = createVersionUpdateStore(() => "running");
 
     store.reportObservedBuildId("deployed-1");
@@ -73,9 +73,57 @@ describe("versionUpdateStore", () => {
     store.reportObservedBuildId("deployed-1");
     expect(store.getSnapshot()).toBe(false);
 
-    // An even newer build the user has not seen re-shows it.
+    // A build id the user has not seen re-shows it.
     store.reportObservedBuildId("deployed-2");
     expect(store.getSnapshot()).toBe(true);
+  });
+
+  // Rolling deploy: one tab sees responses from BOTH old and new pods, in any
+  // order, and build ids are opaque (no orderable newer/older). These guard the
+  // three failure modes flagged in review.
+  describe("rolling deploy robustness", () => {
+    it("stays available once a differing build is seen — a later old-pod response cannot suppress it", () => {
+      const store = createVersionUpdateStore(() => "running");
+
+      store.reportObservedBuildId("deployed"); // new pod
+      expect(store.getSnapshot()).toBe(true);
+
+      // Old pod still serving the running build id — must NOT clear the banner.
+      store.reportObservedBuildId("running");
+      expect(store.getSnapshot()).toBe(true);
+
+      // Alternating pods likewise keep it sticky.
+      store.reportObservedBuildId("deployed");
+      store.reportObservedBuildId("running");
+      expect(store.getSnapshot()).toBe(true);
+    });
+
+    it("does not reopen a dismissed banner when an already-seen build re-appears (old pod)", () => {
+      const store = createVersionUpdateStore(() => "running");
+
+      store.reportObservedBuildId("deployed");
+      store.dismiss();
+      expect(store.getSnapshot()).toBe(false);
+
+      // Old pods keep alternating: re-observing the running id or the
+      // already-seen deployed id must not reopen the dismissed banner.
+      store.reportObservedBuildId("running");
+      store.reportObservedBuildId("deployed");
+      expect(store.getSnapshot()).toBe(false);
+    });
+
+    it("re-observing an already-seen build never flaps the snapshot (no extra notifications)", () => {
+      const store = createVersionUpdateStore(() => "running");
+      const listener = vi.fn();
+      store.subscribe(listener);
+
+      store.reportObservedBuildId("deployed"); // 1 change: false→true
+      store.reportObservedBuildId("deployed"); // seen → no-op
+      store.reportObservedBuildId("running"); // matches running → no-op
+      store.reportObservedBuildId("deployed"); // seen → no-op
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(store.getSnapshot()).toBe(true);
+    });
   });
 
   it("notifies subscribers when the snapshot changes and after unsubscribe stops", () => {

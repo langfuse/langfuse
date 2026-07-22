@@ -38,13 +38,16 @@ export type VersionUpdateStore = {
   getServerSnapshot: () => boolean;
   /**
    * Record a build id observed from a server response. Safe to call on every
-   * tRPC response with any value; it only changes the snapshot when it reveals a
-   * genuinely newer build than the one already seen.
+   * tRPC response with any value. Once a build id different from the running one
+   * has been seen, "update available" is STICKY — later responses (including an
+   * old pod still serving the running build during a rolling deploy) can never
+   * clear it.
    */
   reportObservedBuildId: (observedBuildId: string | null | undefined) => void;
   /**
-   * Dismiss the banner for the current session. It re-shows only if an even
-   * newer build id arrives later (the user has already seen this one).
+   * Dismiss the banner for the current session. It re-shows only when a build id
+   * that has NOT been seen before arrives — never on a re-observation of an
+   * already-seen build (an old pod during a rolling deploy).
    */
   dismiss: () => void;
 };
@@ -53,17 +56,32 @@ export type VersionUpdateStore = {
  * Builds a version-update store. `getRunningBuildId` returns the build id of the
  * bundle this tab is running; injecting it (rather than reading the module-level
  * env directly) keeps the store deterministic and testable.
+ *
+ * Rolling-deploy correctness: during a rollout, one tab sees responses from
+ * BOTH the old and new pods, in any order, and build ids are opaque hashes with
+ * no orderable "newer/older". So the store cannot ask "is the observed build
+ * newer?" — it asks only "have we ever seen a build id ≠ ours?". That makes the
+ * signal:
+ *  - **sticky** — a subsequent old-pod response carrying the running build id
+ *    cannot flip the banner back off; and
+ *  - **flap-free** — re-observing an already-seen build id does nothing, so the
+ *    banner does not blink or reopen as responses alternate between pods.
+ * Reloading always converges the tab to whatever build is currently served, so
+ * "a build ≠ yours exists → offer reload" is the right action even though we
+ * can't prove the other build is strictly newer.
  */
 export function createVersionUpdateStore(
   getRunningBuildId: () => string | null | undefined,
 ): VersionUpdateStore {
   const listeners = new Set<() => void>();
-  let latestBuildId: string | null = null;
-  let dismissedBuildId: string | null = null;
+  // Every build id observed that differs from the running one. Membership is
+  // what makes re-observation a no-op (no flapping) and dismiss durable.
+  const seenDifferingBuildIds = new Set<string>();
+  // Sticky: set true the first time a differing build id is seen, never unset.
+  let updateAvailable = false;
+  let dismissed = false;
 
-  const compute = (): boolean =>
-    isVersionMismatch(getRunningBuildId(), latestBuildId) &&
-    latestBuildId !== dismissedBuildId;
+  const compute = (): boolean => updateAvailable && !dismissed;
 
   // Cache the snapshot so `getSnapshot` returns a referentially stable value
   // between changes — `useSyncExternalStore` requires this to avoid re-render
@@ -91,12 +109,20 @@ export function createVersionUpdateStore(
       return false;
     },
     reportObservedBuildId(observedBuildId) {
-      if (!observedBuildId || observedBuildId === latestBuildId) return;
-      latestBuildId = observedBuildId;
+      if (!observedBuildId) return;
+      if (!isVersionMismatch(getRunningBuildId(), observedBuildId)) return;
+      // A differing build id. If we've already seen this exact one, do nothing —
+      // re-observation (old pod re-serving it) must not flap or reopen a dismiss.
+      if (seenDifferingBuildIds.has(observedBuildId)) return;
+      seenDifferingBuildIds.add(observedBuildId);
+      updateAvailable = true; // sticky
+      // A genuinely new (never-seen) differing build → worth re-prompting even
+      // if the user dismissed an earlier one.
+      dismissed = false;
       emitChange();
     },
     dismiss() {
-      dismissedBuildId = latestBuildId;
+      dismissed = true;
       emitChange();
     },
   };
