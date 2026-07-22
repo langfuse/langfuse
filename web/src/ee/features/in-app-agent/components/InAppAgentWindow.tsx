@@ -61,6 +61,7 @@ import {
 } from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { InAppAgentQueuedMessages } from "./InAppAgentQueuedMessages";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -241,6 +242,12 @@ export type InAppAgentWindowConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
+  activity?: {
+    isRunning: boolean;
+    requiresApproval: boolean;
+    queuedCount: number;
+    unreadOutcome: "completed" | "failed" | null;
+  };
 };
 
 type InAppAgentWindowCloseButtonProps =
@@ -264,6 +271,8 @@ export type InAppAgentWindowProps = {
   isInputDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
+  draft?: string;
+  queuedMessages?: readonly { id: string; content: string }[];
   onExpandedChange: (isExpanded: boolean) => void;
   onDeleteConversation: (conversation: InAppAgentWindowConversation) => void;
   onLoadMoreConversations: () => void;
@@ -282,6 +291,9 @@ export type InAppAgentWindowProps = {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
+  onDraftChange?: (draft: string) => void;
+  onEditQueuedMessage?: (messageId: string, content: string) => void;
+  onDeleteQueuedMessage?: (messageId: string) => void;
   screenContextDescription: InAppAgentScreenContextDescription;
   quickActionContext: InAppAgentQuickActionContext;
   focusedQuickActions?: readonly InAppAgentQuickAction[];
@@ -365,6 +377,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isInputDisabled: baseIsInputDisabled,
     isLoadingMoreConversations,
     messages,
+    draft,
+    queuedMessages = [],
     onDeleteConversation,
     onExpandedChange,
     onLoadMoreConversations,
@@ -375,6 +389,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
+    onDraftChange,
+    onEditQueuedMessage,
+    onDeleteQueuedMessage,
     focusedQuickActions,
     quickActionContext,
     quickActionResetKey,
@@ -392,7 +409,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const previousIsInputDisabledRef = useRef(isInputDisabled);
-  const [input, setInput] = useState("");
+  const [localInput, setLocalInput] = useState("");
+  const input = draft ?? localInput;
+  const setInput = onDraftChange ?? setLocalInput;
   const [isConversationHistoryOpen, setIsConversationHistoryOpen] =
     useState(false);
   const hasUserMessage = messages.some((message) => message.role === "user");
@@ -437,9 +456,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         if (submitted) {
           isAutoScrollAttachedRef.current = true;
 
-          setInput((currentInput) =>
-            currentInput.trim() === trimmedContent ? "" : currentInput,
-          );
+          if (inputRef.current?.value.trim() === trimmedContent) {
+            setInput("");
+          }
 
           window.requestAnimationFrame(() => {
             scrollViewportToBottom(viewportRef.current);
@@ -528,7 +547,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 size="icon"
                 className="size-6 shrink-0"
                 onClick={onNewConversation}
-                disabled={baseIsInputDisabled}
                 aria-label="Start new conversation"
               >
                 <Plus className="size-3" />
@@ -554,7 +572,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     variant="ghost"
                     size="icon"
                     className="size-6 shrink-0"
-                    disabled={baseIsInputDisabled}
                     aria-label="Conversation history"
                   >
                     <History className="size-3" />
@@ -596,12 +613,48 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       >
                         {conversationTitle}
                       </span>
+                      {conversation.activity?.requiresApproval ? (
+                        <span className="shrink-0 text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">
+                          Approval
+                        </span>
+                      ) : conversation.activity?.isRunning ? (
+                        <span className="text-muted-foreground shrink-0 text-[0.625rem]">
+                          Running
+                        </span>
+                      ) : conversation.activity?.queuedCount ? (
+                        <span className="text-muted-foreground shrink-0 text-[0.625rem]">
+                          {conversation.activity.queuedCount} queued
+                        </span>
+                      ) : conversation.activity?.unreadOutcome ? (
+                        <span
+                          aria-label={
+                            conversation.activity.unreadOutcome === "failed"
+                              ? "Failed while unviewed"
+                              : "Completed while unviewed"
+                          }
+                          className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            conversation.activity.unreadOutcome === "failed"
+                              ? "bg-destructive"
+                              : "bg-primary-accent",
+                          )}
+                          title={
+                            conversation.activity.unreadOutcome === "failed"
+                              ? "Failed while unviewed"
+                              : "Completed while unviewed"
+                          }
+                        />
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon-xs"
                         className="text-muted-foreground hover:text-destructive -mr-1.5 shrink-0"
-                        disabled={baseIsInputDisabled}
+                        disabled={
+                          conversation.activity?.isRunning ||
+                          conversation.activity?.requiresApproval ||
+                          Boolean(conversation.activity?.queuedCount)
+                        }
                         aria-label="Delete conversation"
                         onClick={(event) => {
                           event.preventDefault();
@@ -886,6 +939,23 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </>
               )}
             </div>
+          </div>
+        ) : null}
+        {queuedMessages.length > 0 &&
+        onEditQueuedMessage &&
+        onDeleteQueuedMessage ? (
+          <div
+            className={cn(
+              "shrink-0 px-1.5 pt-1.5",
+              isExpanded && "mx-auto w-full max-w-3xl",
+            )}
+          >
+            <InAppAgentQueuedMessages
+              key={selectedConversationId ?? "new"}
+              messages={queuedMessages}
+              onEdit={onEditQueuedMessage}
+              onDelete={onDeleteQueuedMessage}
+            />
           </div>
         ) : null}
         <div

@@ -41,22 +41,26 @@ export function ControlledInAppAgentWindow(
   const router = useRouter();
   const {
     conversations,
+    deleteQueuedMessage,
+    draft,
+    editQueuedMessage,
     error,
     hasMoreConversations,
     isLoadingMoreConversations,
     isRunning,
     isSelectedConversationHydrating,
-    isSubmitting,
     invalidateConversations,
     loadMoreConversations,
     liveMessageVersion,
     messages,
     pendingToolApprovals,
+    queuedMessages,
     approveToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
     selectedConversationIsWriteLocked,
+    setDraft,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -72,12 +76,7 @@ export function ControlledInAppAgentWindow(
     shouldFlush: error !== null,
   });
   const isInputDisabled =
-    isRunning ||
-    isAnimating ||
-    isSubmitting ||
-    selectedConversationIsWriteLocked ||
-    isSelectedConversationHydrating ||
-    pendingToolApprovals.length > 0;
+    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -131,6 +130,8 @@ export function ControlledInAppAgentWindow(
       isInputDisabled={isInputDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
+      draft={draft}
+      queuedMessages={queuedMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
       quickActionResetKey={quickActionResetKey}
@@ -148,6 +149,9 @@ export function ControlledInAppAgentWindow(
       }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onDraftChange={setDraft}
+      onEditQueuedMessage={editQueuedMessage}
+      onDeleteQueuedMessage={deleteQueuedMessage}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

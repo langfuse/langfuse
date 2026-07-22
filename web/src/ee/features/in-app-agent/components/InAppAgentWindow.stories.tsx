@@ -654,6 +654,42 @@ export const ToolApprovalRequired = meta.story({
   },
 });
 
+export const RunningWithQueuedFollowUps = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: false,
+    selectedConversationId: "conversation-1",
+    draft: "A third follow-up can still be composed",
+    queuedMessages: [
+      { id: "queued-1", content: "Compare this with last week." },
+      {
+        id: "queued-2",
+        content:
+          "Break down the result by model.\nHighlight regressions above 10%.",
+      },
+    ],
+    onDraftChange: fn(),
+    onEditQueuedMessage: fn(),
+    onDeleteQueuedMessage: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Investigate today's latency spike." },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Inspecting slow traces and comparing model latency.",
+          isStreaming: true,
+        },
+      },
+    ],
+  },
+});
+
 export const Empty = meta.story({
   args: {
     messages: [],

@@ -142,4 +142,45 @@ describe("InAppAgentWindow quick actions", () => {
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
   });
+
+  it("keeps follow-up, new conversation, history, and switching controls available while running", async () => {
+    const onNewConversation = vi.fn();
+    const onSelectConversation = vi.fn();
+
+    render(
+      windowElement({
+        conversations: [
+          {
+            id: "conversation-1",
+            title: "Running conversation",
+            updatedAt: new Date(),
+          },
+        ],
+        isAssistantTurnInProgress: true,
+        isInputDisabled: false,
+        messages: [
+          {
+            id: "message-1",
+            role: "user",
+            content: { type: "text", text: "First" },
+          },
+        ],
+        onNewConversation,
+        onSelectConversation,
+      }),
+    );
+
+    expect(screen.getByLabelText("Message the assistant")).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Conversation history" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(await screen.findByText("Running conversation"));
+
+    expect(onNewConversation).toHaveBeenCalledOnce();
+    expect(onSelectConversation).toHaveBeenCalledWith("conversation-1");
+  });
 });

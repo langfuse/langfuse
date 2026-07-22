@@ -6,56 +6,59 @@ import {
   useMemo,
   useRef,
   useState,
-  type PropsWithChildren,
   type Dispatch,
+  type PropsWithChildren,
   type SetStateAction,
 } from "react";
 import { EventType, HttpAgent } from "@ag-ui/client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 import { z } from "zod";
+import { useStore } from "zustand";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "@/src/ee/features/in-app-agent/ids";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+} from "../ids";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
-  type InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
-import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { api } from "@/src/utils/api";
+} from "../schema";
 import {
   createInAppAgentMessageEntryPointContext,
   createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
-  type InAppAgentMessageEntryPoint,
-} from "@/src/ee/features/in-app-agent/context";
-import type {
-  InAppAgentQuickActionAttribution,
-  InAppAgentSubmitOptions,
-} from "@/src/ee/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+} from "../context";
+import type { InAppAgentSubmitOptions } from "../quickActions";
+import {
+  EMPTY_IN_APP_AGENT_CONVERSATION_STATE,
+  NEW_CONVERSATION_DRAFT_KEY,
+  createInAppAgentClientStore,
+  type InAppAgentPendingToolApproval,
+  type InAppAgentQueuedMessage,
+} from "./inAppAgentClientStore";
 import {
   getInAppAgentError,
   isInAppAgentRateLimited,
+  type InAppAgentError,
   type InAppAiAgentMessage,
-} from "@/src/ee/features/in-app-agent/components/utils/utils";
+} from "./utils/utils";
+import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { api } from "@/src/utils/api";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
-import { InAppAgentDisabledDialog } from "@/src/ee/features/in-app-agent/components/InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -87,66 +90,38 @@ const getConversationAgentState = (
     ? { type: "newConversation", projectId }
     : { type: "existingConversation", projectId, conversationId };
 
-const NOOP_CONTEXT: InAppAiAgentContextType = {
-  isAvailable: false,
-  open: false,
-  setOpen: () => undefined,
-  openAssistant: () => false,
-  isExpanded: false,
-  setIsExpanded: () => undefined,
-  isRunning: false,
-  isSubmitting: false,
-  pendingToolApprovals: [],
-  isSelectedConversationHydrating: false,
-  error: null,
-  messages: [],
-  liveMessageVersion: 0,
-  conversations: [],
-  hasMoreConversations: false,
-  isLoadingMoreConversations: false,
-  selectedConversationId: undefined,
-  selectedConversationIsWriteLocked: false,
-  loadMoreConversations: () => undefined,
-  invalidateConversations: () => undefined,
-  selectConversation: () => undefined,
-  deleteConversation: async () => undefined,
-  submit: async () => false,
-  approveToolCall: async () => undefined,
-  rejectToolCall: async () => undefined,
-  submitFeedback: async () => undefined,
-};
-
 type InAppAiAgentFeedbackByConversationId = Record<
   string,
   Record<string, InAppAgentMessageFeedback>
 >;
 
-export type InAppAgentPendingToolApproval = {
-  id: string;
-  approvalRequest: InAppAgentToolApprovalRequest;
-  status: "pending" | "submitting";
-};
+export type { InAppAgentPendingToolApproval, InAppAgentQueuedMessage };
 
 export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
   isWriteLocked: boolean;
+  activity?: {
+    isRunning: boolean;
+    requiresApproval: boolean;
+    queuedCount: number;
+    unreadOutcome: "completed" | "failed" | null;
+  };
 };
 
 type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
-   * the disabled dialog and returns false when the organization has AI
-   * features turned off. */
   openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
+  queuedMessages: InAppAgentQueuedMessage[];
+  draft: string;
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
@@ -160,6 +135,9 @@ type InAppAiAgentContextType = {
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
+  setDraft: (draft: string) => void;
+  editQueuedMessage: (messageId: string, content: string) => void;
+  deleteQueuedMessage: (messageId: string) => void;
   submit: (
     content: string,
     options?: InAppAgentSubmitOptions,
@@ -172,6 +150,40 @@ type InAppAiAgentContextType = {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
+};
+
+const NOOP_CONTEXT: InAppAiAgentContextType = {
+  isAvailable: false,
+  open: false,
+  setOpen: () => undefined,
+  openAssistant: () => false,
+  isExpanded: false,
+  setIsExpanded: () => undefined,
+  isRunning: false,
+  isSubmitting: false,
+  pendingToolApprovals: [],
+  queuedMessages: [],
+  draft: "",
+  isSelectedConversationHydrating: false,
+  error: null,
+  messages: [],
+  liveMessageVersion: 0,
+  conversations: [],
+  hasMoreConversations: false,
+  isLoadingMoreConversations: false,
+  selectedConversationId: undefined,
+  selectedConversationIsWriteLocked: false,
+  loadMoreConversations: () => undefined,
+  invalidateConversations: () => undefined,
+  selectConversation: () => undefined,
+  deleteConversation: async () => undefined,
+  setDraft: () => undefined,
+  editQueuedMessage: () => undefined,
+  deleteQueuedMessage: () => undefined,
+  submit: async () => false,
+  approveToolCall: async () => undefined,
+  rejectToolCall: async () => undefined,
+  submitFeedback: async () => undefined,
 };
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
@@ -209,42 +221,51 @@ function InAppAiAgentProjectProvider({
   children,
   projectId,
   defaultOpen,
-}: InAppAiAgentProviderProps & {
-  projectId: string;
-}) {
+}: InAppAiAgentProviderProps & { projectId: string }) {
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
   );
+  const [clientStore] = useState(createInAppAgentClientStore);
 
   return (
     <InAppAiAgentProviderInner
       projectId={projectId}
       open={open}
       setOpen={setOpen}
+      clientStore={clientStore}
     >
       {children}
     </InAppAiAgentProviderInner>
   );
 }
 
-type InAppAiAgentProviderInnerProps = PropsWithChildren<{
-  projectId: string;
-  open: boolean;
-  setOpen: Dispatch<SetStateAction<boolean>>;
-}>;
+type AgentRuntime = {
+  agent: HttpAgent;
+  subscription: ReturnType<HttpAgent["subscribe"]> | null;
+  activeRunId: string | null;
+};
+
+type RunResult = "completed" | "failed" | "rate_limited";
 
 function InAppAiAgentProviderInner({
   children,
   projectId,
   open,
   setOpen,
-}: InAppAiAgentProviderInnerProps) {
+  clientStore,
+}: PropsWithChildren<{
+  projectId: string;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  clientStore: ReturnType<typeof createInAppAgentClientStore>;
+}>) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
     useSessionStorage<string | null>(
       `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -255,29 +276,29 @@ function InAppAiAgentProviderInner({
       `${FEEDBACK_STORAGE_KEY_PREFIX}:${projectId}`,
       {},
     );
-  const [messages, setMessages] = useState<AgUiMessage[]>([]);
-  // Only live AG-UI publications increment this version. The display smoother
-  // uses it to distinguish stream updates from history hydration, including
-  // updates where the agent mutates message objects in place.
-  const [liveMessageVersion, setLiveMessageVersion] = useState(0);
-  const [pendingToolApprovals, setPendingToolApprovals] = useState<
-    InAppAgentPendingToolApproval[]
-  >([]);
-  const pendingToolApprovalsRef = useRef<InAppAgentPendingToolApproval[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [loadingEventIds, setLoadingEventIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
+  const runtimesRef = useRef(new Map<string, AgentRuntime>());
+  const selectedConversationIdRef = useRef<string | null>(null);
+  const pumpConversationRef = useRef<(conversationId: string) => void>(
+    () => undefined,
   );
-  const [error, setError] = useState<InAppAgentError | null>(null);
-  const agentRef = useRef<HttpAgent | null>(null);
-  const activeRunIdRef = useRef<string | null>(null);
-  const intentionalAbortRef = useRef(false);
-  const submitInFlightRef = useRef(false);
-  const runInFlightRef = useRef(false);
-  const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
-    null,
+  const executeRunRef = useRef<
+    (
+      conversationId: string,
+      runtime: AgentRuntime,
+      context: InAppAgentQueuedMessage["context"],
+      parameters?: Parameters<HttpAgent["runAgent"]>[0],
+      retryOnRateLimit?: boolean,
+      throwOnFailure?: boolean,
+    ) => Promise<RunResult>
+  >(async () => "failed");
+  const actions = clientStore.getState().actions;
+  const allClientConversations = useStore(
+    clientStore,
+    (state) => state.conversations,
+  );
+  const localConversations = useStore(
+    clientStore,
+    (state) => state.localConversations,
   );
 
   const conversationListQuery =
@@ -288,60 +309,86 @@ function InAppAiAgentProviderInner({
         getNextPageParam: (lastPage) => lastPage.nextCursor,
       },
     );
+  const remoteConversations = useMemo(
+    () =>
+      conversationListQuery.data?.pages.flatMap((page) => page.conversations) ??
+      [],
+    [conversationListQuery.data?.pages],
+  );
+  const selectedClientKey =
+    _selectedConversationId ?? NEW_CONVERSATION_DRAFT_KEY;
+  const selectedClientState = useStore(
+    clientStore,
+    (state) =>
+      state.conversations[selectedClientKey] ??
+      EMPTY_IN_APP_AGENT_CONVERSATION_STATE,
+  );
   const conversationQuery = api.inAppAgent.getConversation.useQuery(
+    { projectId, conversationId: _selectedConversationId ?? "" },
     {
-      projectId,
-      conversationId: _selectedConversationId ?? "",
-    },
-    {
-      enabled: open && Boolean(_selectedConversationId) && !isSubmitting,
+      enabled:
+        open &&
+        Boolean(_selectedConversationId) &&
+        !selectedClientState.isSubmitting,
     },
   );
   const deleteConversationMutation =
     api.inAppAgent.deleteConversation.useMutation();
   const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
   const isSelectedConversationNotFound =
-    conversationQuery.error?.data?.code === "NOT_FOUND";
+    conversationQuery.error?.data?.code === "NOT_FOUND" &&
+    !localConversations[_selectedConversationId ?? ""];
   const selectedConversationId = isSelectedConversationNotFound
     ? null
     : _selectedConversationId;
+  selectedConversationIdRef.current = selectedConversationId;
 
-  const conversations = useMemo(
-    () =>
-      conversationListQuery.data?.pages.flatMap((page) => page.conversations) ??
-      [],
-    [conversationListQuery.data?.pages],
-  );
+  const conversations = useMemo<InAppAiAgentConversation[]>(() => {
+    const remoteIds = new Set(remoteConversations.map(({ id }) => id));
+    const localOnlyConversations: InAppAiAgentConversation[] = Object.values(
+      localConversations,
+    ).filter(({ id }) => !remoteIds.has(id));
+    const merged = localOnlyConversations.concat(remoteConversations);
+
+    return merged.map((conversation) => {
+      const state = allClientConversations[conversation.id];
+      return {
+        ...conversation,
+        activity: state
+          ? {
+              isRunning: state.isRunning || state.isSubmitting,
+              requiresApproval: state.pendingToolApprovals.length > 0,
+              queuedCount: state.queuedMessages.length,
+              unreadOutcome: state.unreadOutcome,
+            }
+          : undefined,
+      };
+    });
+  }, [allClientConversations, localConversations, remoteConversations]);
+  const selectedConversationIsWriteLocked =
+    conversationQuery.data?.conversation.isWriteLocked ??
+    conversations.find(({ id }) => id === selectedConversationId)
+      ?.isWriteLocked ??
+    false;
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
-  const selectedConversationIsWriteLocked =
-    conversationQuery.data?.conversation.isWriteLocked ?? false;
-  const currentMessages = useMemo(() => {
-    if (isSelectedConversationNotFound) {
-      return EMPTY_MESSAGES;
-    }
+  const isSelectedConversationHydrating =
+    Boolean(selectedConversationId) &&
+    !localConversations[selectedConversationId ?? ""] &&
+    conversationQuery.isLoading &&
+    !conversationQuery.data;
 
-    const storedMessages =
-      conversationQuery.data?.conversation.id === selectedConversationId
-        ? conversationQuery.data.messages.filter(isAgentConversationMessage)
-        : undefined;
-
-    if (
-      !isRunning &&
-      storedMessages &&
-      messages.length <= storedMessages.length
-    ) {
-      return storedMessages;
-    }
-
-    return messages;
-  }, [
-    conversationQuery.data,
-    isRunning,
-    isSelectedConversationNotFound,
-    messages,
-    selectedConversationId,
-  ]);
+  const storedMessages =
+    conversationQuery.data?.conversation.id === selectedConversationId
+      ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+      : undefined;
+  const currentMessages = isSelectedConversationNotFound
+    ? EMPTY_MESSAGES
+    : !selectedClientState.isRunning &&
+        storedMessages &&
+        selectedClientState.messages.length <= storedMessages.length
+      ? storedMessages
+      : selectedClientState.messages;
   const messagesWithUiState = useMemo(() => {
     const messagesWithFeedback = mergeMessagesWithFeedback(
       currentMessages,
@@ -352,291 +399,107 @@ function InAppAiAgentProviderInner({
 
     return messagesWithFeedback.map((message) => {
       if (message.role === "reasoning") {
-        return { ...message, isLoading: loadingEventIds.has(message.id) };
+        return {
+          ...message,
+          isLoading: selectedClientState.loadingEventIds.has(message.id),
+        };
       }
-
       if (message.role !== "assistant") {
         return message;
       }
-
       return {
         ...message,
         isLoading:
-          loadingEventIds.has(message.id) ||
+          selectedClientState.loadingEventIds.has(message.id) ||
           (message.toolCalls?.some(
             (toolCall) =>
               toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
-              loadingEventIds.has(toolCall.id),
+              selectedClientState.loadingEventIds.has(toolCall.id),
           ) ??
             false),
       };
     });
   }, [
-    feedbackByConversationId,
     currentMessages,
-    loadingEventIds,
+    feedbackByConversationId,
+    selectedClientState.loadingEventIds,
     selectedConversationId,
   ]);
-  const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
-  const loadMoreConversations = useCallback(() => {
-    if (!hasMoreConversations || isLoadingMoreConversations) {
-      return;
-    }
 
-    fetchNextConversationsPage().catch((error) => {
-      const errorMessage = getAgentErrorMessage(error);
-      showErrorToast("Failed to load conversations", errorMessage);
-      console.error("Failed to load in-app agent conversations", error);
-    });
-  }, [
-    fetchNextConversationsPage,
-    hasMoreConversations,
-    isLoadingMoreConversations,
-  ]);
-  const invalidateConversations = useCallback(
-    () => utils.inAppAgent.listConversations.invalidate({ projectId }),
-    [projectId, utils.inAppAgent.listConversations],
-  );
-
-  useEffect(() => {
-    if (!conversationListQuery.error) {
-      return;
-    }
-
-    const errorMessage = getAgentErrorMessage(conversationListQuery.error);
-    showErrorToast("Failed to load conversations", errorMessage);
-    console.error("Failed to load in-app agent conversations", {
-      error: conversationListQuery.error,
-      projectId,
-    });
-  }, [conversationListQuery.error, projectId]);
-
-  const isSelectedConversationHydrating =
-    Boolean(selectedConversationId) &&
-    conversationQuery.isLoading &&
-    !conversationQuery.data;
-  const updatePendingToolApprovals = useCallback(
+  const updateConversation = useCallback(
     (
-      updater: (
-        currentApprovals: InAppAgentPendingToolApproval[],
-      ) => InAppAgentPendingToolApproval[],
+      conversationId: string,
+      update: Parameters<typeof actions.updateConversation>[1],
     ) => {
-      const nextApprovals = updater(pendingToolApprovalsRef.current);
-      pendingToolApprovalsRef.current = nextApprovals;
-      setPendingToolApprovals(nextApprovals);
+      actions.updateConversation(conversationId, update);
     },
-    [],
+    [actions],
   );
+
+  const buildContext = useCallback(
+    (options?: InAppAgentSubmitOptions) =>
+      createInAppAgentScreenContext({
+        currentUrl: window.location.href,
+      }).concat(
+        createInAppAgentUserContext({
+          userName: session.data?.user?.name,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          languages:
+            navigator.languages.length > 0
+              ? Array.from(navigator.languages)
+              : [navigator.language],
+        }),
+        options?.quickAction
+          ? createInAppAgentQuickActionAttributionContext(options.quickAction)
+          : [],
+        createInAppAgentMessageEntryPointContext(options?.entryPoint ?? "chat"),
+      ),
+    [session.data?.user?.name],
+  );
+
   const updateLoadingEvent = useCallback(
-    (eventId: string, isLoading: boolean) => {
-      setLoadingEventIds((currentIds) => {
-        if (currentIds.has(eventId) === isLoading) {
-          return currentIds;
+    (conversationId: string, eventId: string, isLoading: boolean) => {
+      updateConversation(conversationId, (current) => {
+        if (current.loadingEventIds.has(eventId) === isLoading) {
+          return current;
         }
-
-        const nextIds = new Set(currentIds);
+        const loadingEventIds = new Set(current.loadingEventIds);
         if (isLoading) {
-          nextIds.add(eventId);
+          loadingEventIds.add(eventId);
         } else {
-          nextIds.delete(eventId);
+          loadingEventIds.delete(eventId);
         }
-        return nextIds;
+        return { ...current, loadingEventIds };
       });
     },
-    [],
+    [updateConversation],
   );
-  const clearLoadingEvents = useCallback(() => {
-    setLoadingEventIds((currentIds) =>
-      currentIds.size > 0 ? new Set() : currentIds,
-    );
-  }, []);
-  const publishLiveMessages = useCallback((messages: AgUiMessage[]) => {
-    setMessages(messages);
-    setLiveMessageVersion((currentVersion) => currentVersion + 1);
-  }, []);
 
-  const resetAgent = useCallback(() => {
-    if (agentRef.current?.isRunning) {
-      intentionalAbortRef.current = true;
-    }
-
-    subscriptionRef.current?.unsubscribe();
-    subscriptionRef.current = null;
-    agentRef.current?.abortRun();
-    agentRef.current = null;
-    activeRunIdRef.current = null;
-    pendingToolApprovalsRef.current = [];
-    setPendingToolApprovals([]);
-    clearLoadingEvents();
-  }, [clearLoadingEvents]);
-
-  useEffect(() => {
-    return () => {
-      resetAgent();
-    };
-  }, [resetAgent]);
-
-  const rateLimitRetryAt = error?.type === "rate_limit" ? error.retryAt : null;
-
-  useEffect(() => {
-    if (rateLimitRetryAt === null) {
-      return;
-    }
-
-    const timeout = window.setTimeout(
-      () => {
-        setError((currentError) => {
-          if (
-            currentError?.type !== "rate_limit" ||
-            currentError.retryAt !== rateLimitRetryAt
-          ) {
-            return currentError;
-          }
-
-          return null;
-        });
-      },
-      Math.max(0, rateLimitRetryAt - Date.now()),
-    );
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [rateLimitRetryAt]);
-
-  const ensureSubscription = useCallback(
-    (agent: HttpAgent) => {
-      if (subscriptionRef.current) {
-        return;
-      }
-
-      subscriptionRef.current = agent.subscribe({
-        onRunStartedEvent: (payload: { event: unknown }) => {
-          if (
-            typeof payload.event === "object" &&
-            payload.event !== null &&
-            "runId" in payload.event &&
-            typeof payload.event.runId === "string"
-          ) {
-            activeRunIdRef.current = payload.event.runId;
-          }
-        },
-        onEvent: ({ event }) => {
-          if (
-            event.type === EventType.REASONING_MESSAGE_START ||
-            event.type === EventType.TEXT_MESSAGE_START
-          ) {
-            updateLoadingEvent(event.messageId, true);
-            return;
-          }
-
-          if (
-            event.type === EventType.REASONING_MESSAGE_END ||
-            event.type === EventType.TEXT_MESSAGE_END
-          ) {
-            updateLoadingEvent(event.messageId, false);
-            return;
-          }
-
-          if (event.type === EventType.TOOL_CALL_START) {
-            updateLoadingEvent(event.toolCallId, true);
-            return;
-          }
-
-          // TOOL_CALL_END only finishes argument streaming. The tool remains
-          // active until its result arrives.
-          if (event.type === EventType.TOOL_CALL_RESULT) {
-            updateLoadingEvent(event.toolCallId, false);
-            return;
-          }
-
-          if (
-            event.type === EventType.RUN_FINISHED ||
-            event.type === EventType.RUN_ERROR
-          ) {
-            clearLoadingEvents();
-          }
-        },
-        onCustomEvent: ({ event }) => {
-          const approvalRequest = parseInAppAgentInterruptEvent(event);
-
-          if (!approvalRequest) {
-            return;
-          }
-
-          const approval: InAppAgentPendingToolApproval = {
-            id: approvalRequest.toolCallId,
-            approvalRequest,
-            status: "pending",
-          };
-
-          updatePendingToolApprovals((currentApprovals) => {
-            const existingIndex = currentApprovals.findIndex(
-              (currentApproval) => currentApproval.id === approval.id,
-            );
-
-            if (existingIndex === -1) {
-              return [...currentApprovals, approval];
-            }
-
-            const nextApprovals = [...currentApprovals];
-            nextApprovals[existingIndex] = approval;
-            return nextApprovals;
-          });
-        },
-        onToolCallResultEvent: ({ event }) => {
-          updatePendingToolApprovals((currentApprovals) =>
-            currentApprovals.filter(
-              (approval) =>
-                approval.approvalRequest.toolCallId !== event.toolCallId,
-            ),
-          );
-        },
-        onRunErrorEvent: ({ event }) => {
-          if (intentionalAbortRef.current) {
-            return;
-          }
-
-          setError(getInAppAgentError(event));
-          console.error("In-app agent drawer run error", event);
-        },
-        onMessagesChanged: ({ messages }) => {
-          publishLiveMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
-          );
-        },
-        onStateChanged: ({ messages }) => {
-          publishLiveMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
-          );
-        },
-      });
+  const publishLiveMessages = useCallback(
+    (
+      conversationId: string,
+      messages: AgUiMessage[],
+      activeRunId: string | null,
+    ) => {
+      updateConversation(conversationId, (current) => ({
+        ...current,
+        messages: attachActiveRunIdToAssistantMessages(messages, activeRunId),
+        liveMessageVersion: current.liveMessageVersion + 1,
+      }));
     },
-    [
-      clearLoadingEvents,
-      publishLiveMessages,
-      updateLoadingEvent,
-      updatePendingToolApprovals,
-    ],
+    [updateConversation],
   );
 
-  const getOrCreateAgent = useCallback(
+  const getOrCreateRuntime = useCallback(
     (
       conversationId: string,
       initialMessages: AgUiMessage[],
       isNewConversation: boolean,
     ) => {
-      if (agentRef.current?.threadId === conversationId) {
-        return agentRef.current;
+      const existing = runtimesRef.current.get(conversationId);
+      if (existing) {
+        return existing;
       }
-
-      resetAgent();
 
       const agent = new HttpAgent({
         url: getInAppAgentUrl(),
@@ -648,149 +511,515 @@ function InAppAiAgentProviderInner({
           isNewConversation,
         ),
       });
-
-      agentRef.current = agent;
-
-      return agent;
+      const runtime: AgentRuntime = {
+        agent,
+        activeRunId: null,
+        subscription: null,
+      };
+      runtime.subscription = agent.subscribe({
+        onRunStartedEvent: ({ event }) => {
+          const parsedEvent = z.object({ runId: z.string() }).safeParse(event);
+          if (parsedEvent.success) {
+            runtime.activeRunId = parsedEvent.data.runId;
+          }
+        },
+        onEvent: ({ event }) => {
+          if (
+            event.type === EventType.REASONING_MESSAGE_START ||
+            event.type === EventType.TEXT_MESSAGE_START
+          ) {
+            updateLoadingEvent(conversationId, event.messageId, true);
+          } else if (
+            event.type === EventType.REASONING_MESSAGE_END ||
+            event.type === EventType.TEXT_MESSAGE_END
+          ) {
+            updateLoadingEvent(conversationId, event.messageId, false);
+          } else if (event.type === EventType.TOOL_CALL_START) {
+            updateLoadingEvent(conversationId, event.toolCallId, true);
+          } else if (event.type === EventType.TOOL_CALL_RESULT) {
+            updateLoadingEvent(conversationId, event.toolCallId, false);
+          } else if (
+            event.type === EventType.RUN_FINISHED ||
+            event.type === EventType.RUN_ERROR
+          ) {
+            updateConversation(conversationId, (current) => ({
+              ...current,
+              loadingEventIds: new Set(),
+            }));
+          }
+        },
+        onCustomEvent: ({ event }) => {
+          const approvalRequest = parseInAppAgentInterruptEvent(event);
+          if (!approvalRequest) {
+            return;
+          }
+          const approval: InAppAgentPendingToolApproval = {
+            id: approvalRequest.toolCallId,
+            approvalRequest,
+            status: "pending",
+          };
+          updateConversation(conversationId, (current) => ({
+            ...current,
+            pendingToolApprovals: replaceApproval(
+              current.pendingToolApprovals,
+              approval,
+            ),
+          }));
+        },
+        onToolCallResultEvent: ({ event }) => {
+          updateConversation(conversationId, (current) => ({
+            ...current,
+            pendingToolApprovals: current.pendingToolApprovals.filter(
+              ({ approvalRequest }) =>
+                approvalRequest.toolCallId !== event.toolCallId,
+            ),
+          }));
+        },
+        onRunErrorEvent: ({ event }) => {
+          updateConversation(conversationId, (current) => ({
+            ...current,
+            error: getInAppAgentError(event),
+          }));
+          console.warn("In-app agent drawer run error", event);
+        },
+        onMessagesChanged: ({ messages }) => {
+          publishLiveMessages(
+            conversationId,
+            messages.filter(isAgentConversationMessage),
+            runtime.activeRunId,
+          );
+        },
+        onStateChanged: ({ messages }) => {
+          publishLiveMessages(
+            conversationId,
+            messages.filter(isAgentConversationMessage),
+            runtime.activeRunId,
+          );
+        },
+      });
+      runtimesRef.current.set(conversationId, runtime);
+      return runtime;
     },
-    [projectId, resetAgent],
+    [projectId, publishLiveMessages, updateConversation, updateLoadingEvent],
   );
 
-  const releaseSubmitLock = useCallback(() => {
-    submitInFlightRef.current = false;
-    setIsSubmitting(false);
-  }, []);
-
-  const runAgent = useCallback(
-    (
-      agent: HttpAgent,
+  const executeRun = useCallback(
+    async (
       conversationId: string,
-      runParameters?: Parameters<HttpAgent["runAgent"]>[0],
-      quickActionAttribution?: InAppAgentQuickActionAttribution,
-      messageEntryPoint?: InAppAgentMessageEntryPoint,
-    ) => {
-      if (runInFlightRef.current) {
-        return Promise.resolve(false);
-      }
+      runtime: AgentRuntime,
+      context: InAppAgentQueuedMessage["context"],
+      parameters?: Parameters<HttpAgent["runAgent"]>[0],
+      retryOnRateLimit = false,
+      throwOnFailure = false,
+    ): Promise<RunResult> => {
+      updateConversation(conversationId, (current) => ({
+        ...current,
+        error: null,
+        isRunning: true,
+        isSubmitting: false,
+        loadingEventIds: new Set(),
+      }));
+      let result: RunResult = "completed";
 
-      runInFlightRef.current = true;
-      clearLoadingEvents();
-      setIsRunning(true);
-      return (async () => {
-        try {
-          await agent.runAgent({
-            ...runParameters,
-            context: createInAppAgentScreenContext({
-              currentUrl: window.location.href,
-            }).concat(
-              createInAppAgentUserContext({
-                userName: session.data?.user?.name,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                languages:
-                  navigator.languages.length > 0
-                    ? Array.from(navigator.languages)
-                    : [navigator.language],
-              }),
-              quickActionAttribution
-                ? createInAppAgentQuickActionAttributionContext(
-                    quickActionAttribution,
-                  )
-                : [],
-              messageEntryPoint
-                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
-                : [],
-            ),
-          });
-          return true;
-        } catch (error) {
-          if (intentionalAbortRef.current) {
-            return false;
-          }
+      try {
+        await runtime.agent.runAgent({ ...parameters, context });
+      } catch (error) {
+        const agentError = getInAppAgentError(error);
+        const retryAt =
+          agentError.type === "rate_limit" ? agentError.retryAt : null;
+        result = retryAt === null ? "failed" : "rate_limited";
+        updateConversation(conversationId, (current) => ({
+          ...current,
+          error: agentError,
+        }));
+        console.warn("In-app agent drawer error", error);
 
-          if (runParameters?.forwardedProps?.command?.resume) {
-            throw error;
-          }
-
-          setError(getInAppAgentError(error));
-          console.error("In-app agent drawer error", error);
-          return false;
-        } finally {
-          const runId = activeRunIdRef.current;
-          clearLoadingEvents();
-          setIsRunning(false);
-          publishLiveMessages(
-            attachActiveRunIdToAssistantMessages(
-              agent.messages.filter(isAgentConversationMessage),
-              runId,
-            ),
+        if (retryAt !== null && retryOnRateLimit) {
+          window.setTimeout(
+            () => {
+              updateConversation(conversationId, (current) => ({
+                ...current,
+                error: null,
+              }));
+              executeRunRef
+                .current(conversationId, runtime, context, parameters, true)
+                .then((retryResult) => {
+                  if (retryResult !== "rate_limited") {
+                    pumpConversationRef.current(conversationId);
+                  }
+                })
+                .catch((error: unknown) => {
+                  console.warn("Failed to retry in-app agent run", error);
+                });
+            },
+            Math.max(0, retryAt - Date.now()),
           );
-          utils.inAppAgent.listConversations.invalidate({ projectId });
+        }
+        if (throwOnFailure) {
+          throw error;
+        }
+      } finally {
+        const activeRunId = runtime.activeRunId;
+        runtime.activeRunId = null;
+        const failed = result === "failed";
+        updateConversation(conversationId, (current) => ({
+          ...current,
+          isRunning: false,
+          isSubmitting: false,
+          loadingEventIds: new Set(),
+          messages: attachActiveRunIdToAssistantMessages(
+            runtime.agent.messages.filter(isAgentConversationMessage),
+            activeRunId,
+          ),
+          unreadOutcome:
+            selectedConversationIdRef.current !== conversationId &&
+            current.pendingToolApprovals.length === 0 &&
+            result !== "rate_limited"
+              ? failed
+                ? "failed"
+                : "completed"
+              : current.unreadOutcome,
+        }));
+        Promise.all([
+          utils.inAppAgent.listConversations.invalidate({ projectId }),
           utils.inAppAgent.getConversation.invalidate({
             projectId,
             conversationId,
-          });
-          releaseSubmitLock();
-          activeRunIdRef.current = null;
-          intentionalAbortRef.current = false;
-          runInFlightRef.current = false;
-        }
-      })();
+          }),
+        ]).catch((error: unknown) => {
+          console.warn("Failed to refresh in-app agent conversation", error);
+        });
+      }
+
+      return result;
     },
     [
       projectId,
-      clearLoadingEvents,
-      publishLiveMessages,
-      releaseSubmitLock,
-      session.data?.user?.name,
+      updateConversation,
       utils.inAppAgent.getConversation,
       utils.inAppAgent.listConversations,
     ],
   );
+  executeRunRef.current = executeRun;
 
-  const selectConversation = useCallback(
-    (conversationId: string | null) => {
-      if (isRunning || conversationId === _selectedConversationId) {
+  const dispatchNextQueuedMessage = useCallback(
+    async (conversationId: string) => {
+      const before =
+        clientStore.getState().conversations[conversationId] ??
+        EMPTY_IN_APP_AGENT_CONVERSATION_STATE;
+      const queuedMessage = before.queuedMessages[0];
+      if (!queuedMessage) {
         return;
       }
 
-      setError((currentError) =>
-        isInAppAgentRateLimited(currentError) ? currentError : null,
-      );
-      resetAgent();
-      setMessages([]);
-      setSelectedConversationId(conversationId);
+      updateConversation(conversationId, (current) => ({
+        ...current,
+        isSubmitting: true,
+        queuedMessages: current.queuedMessages.slice(1),
+      }));
+
+      try {
+        const initialMessages = before.messages.length
+          ? before.messages
+          : conversationQuery.data?.conversation.id === conversationId
+            ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+            : [];
+        const runtime = getOrCreateRuntime(
+          conversationId,
+          initialMessages,
+          Boolean(localConversations[conversationId]) &&
+            initialMessages.length === 0,
+        );
+        const userMessage = {
+          id: createInAppAgentMessageId(),
+          role: "user",
+          content: queuedMessage.content,
+        } satisfies AgUiMessage;
+        runtime.agent.addMessage(userMessage);
+        updateConversation(conversationId, (current) => ({
+          ...current,
+          messages: runtime.agent.messages.filter(isAgentConversationMessage),
+        }));
+
+        const entryPoint = queuedMessage.options?.entryPoint ?? "chat";
+        if (
+          localConversations[conversationId] &&
+          initialMessages.length === 0
+        ) {
+          capture("in_app_agent:new_chat_started", { entryPoint });
+        }
+        capture("in_app_agent:new_chat_turn", { entryPoint });
+        const result = await executeRun(
+          conversationId,
+          runtime,
+          queuedMessage.context,
+          undefined,
+          true,
+        );
+        if (result !== "rate_limited") {
+          pumpConversationRef.current(conversationId);
+        }
+      } catch (error) {
+        updateConversation(conversationId, (current) => ({
+          ...current,
+          error: getInAppAgentError(error),
+          isSubmitting: false,
+          queuedMessages: [queuedMessage].concat(current.queuedMessages),
+        }));
+        console.warn("Failed to start in-app agent conversation", error);
+      }
     },
-    [_selectedConversationId, isRunning, resetAgent, setSelectedConversationId],
+    [
+      capture,
+      clientStore,
+      conversationQuery.data,
+      executeRun,
+      getOrCreateRuntime,
+      localConversations,
+      updateConversation,
+    ],
+  );
+
+  const pumpConversation = useCallback(
+    (conversationId: string) => {
+      const state =
+        clientStore.getState().conversations[conversationId] ??
+        EMPTY_IN_APP_AGENT_CONVERSATION_STATE;
+      const isBusy =
+        state.isRunning ||
+        state.isSubmitting ||
+        state.pendingToolApprovals.length > 0 ||
+        isInAppAgentRateLimited(state.error);
+      if (!isBusy && state.queuedMessages.length > 0) {
+        dispatchNextQueuedMessage(conversationId).catch((error: unknown) => {
+          console.warn("Failed to dispatch queued in-app agent message", error);
+        });
+      }
+    },
+    [clientStore, dispatchNextQueuedMessage],
+  );
+  pumpConversationRef.current = pumpConversation;
+
+  useEffect(() => {
+    const runtimes = runtimesRef.current;
+    return () => {
+      for (const { agent, subscription } of runtimes.values()) {
+        subscription?.unsubscribe();
+        agent.abortRun();
+      }
+      runtimes.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!conversationListQuery.error) {
+      return;
+    }
+    const errorMessage = getAgentErrorMessage(conversationListQuery.error);
+    showErrorToast("Failed to load conversations", errorMessage);
+    console.warn("Failed to load in-app agent conversations", {
+      error: conversationListQuery.error,
+      projectId,
+    });
+  }, [conversationListQuery.error, projectId]);
+
+  const loadMoreConversations = useCallback(() => {
+    if (!hasMoreConversations || isLoadingMoreConversations) {
+      return;
+    }
+    conversationListQuery.fetchNextPage().catch((error) => {
+      showErrorToast(
+        "Failed to load conversations",
+        getAgentErrorMessage(error),
+      );
+      console.warn("Failed to load in-app agent conversations", error);
+    });
+  }, [conversationListQuery, hasMoreConversations, isLoadingMoreConversations]);
+  const invalidateConversations = useCallback(
+    () => utils.inAppAgent.listConversations.invalidate({ projectId }),
+    [projectId, utils.inAppAgent.listConversations],
+  );
+
+  const selectConversation = useCallback(
+    (conversationId: string | null) => {
+      if (conversationId === _selectedConversationId) {
+        return;
+      }
+      selectedConversationIdRef.current = conversationId;
+      setSelectedConversationId(conversationId);
+      if (conversationId) {
+        updateConversation(conversationId, (current) => ({
+          ...current,
+          unreadOutcome: null,
+        }));
+      }
+    },
+    [_selectedConversationId, setSelectedConversationId, updateConversation],
+  );
+
+  const setDraft = useCallback(
+    (draft: string) => {
+      updateConversation(selectedClientKey, (current) => ({
+        ...current,
+        draft,
+      }));
+    },
+    [selectedClientKey, updateConversation],
+  );
+  const editQueuedMessage = useCallback(
+    (messageId: string, content: string) => {
+      const trimmedContent = content.trim();
+      if (!selectedConversationId || !trimmedContent) {
+        return;
+      }
+      updateConversation(selectedConversationId, (current) => ({
+        ...current,
+        queuedMessages: current.queuedMessages.map((message) =>
+          message.id === messageId
+            ? { ...message, content: trimmedContent }
+            : message,
+        ),
+      }));
+    },
+    [selectedConversationId, updateConversation],
+  );
+  const deleteQueuedMessage = useCallback(
+    (messageId: string) => {
+      if (!selectedConversationId) {
+        return;
+      }
+      updateConversation(selectedConversationId, (current) => ({
+        ...current,
+        queuedMessages: current.queuedMessages.filter(
+          (message) => message.id !== messageId,
+        ),
+      }));
+    },
+    [selectedConversationId, updateConversation],
+  );
+
+  const submit = useCallback(
+    async (content: string, options?: InAppAgentSubmitOptions) => {
+      const trimmedContent = content.trim();
+      if (!trimmedContent) {
+        return false;
+      }
+      const isNewConversation =
+        options?.newConversation === true || !selectedConversationId;
+      if (!isNewConversation && isSelectedConversationHydrating) {
+        return false;
+      }
+      if (
+        !isNewConversation &&
+        selectedConversationId &&
+        selectedConversationIsWriteLocked
+      ) {
+        updateConversation(selectedConversationId, (current) => ({
+          ...current,
+          error: {
+            type: "generic",
+            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+          },
+        }));
+        return false;
+      }
+
+      const conversationId = isNewConversation
+        ? createInAppAgentConversationId()
+        : selectedConversationId;
+      if (!conversationId) {
+        return false;
+      }
+      const current =
+        clientStore.getState().conversations[conversationId] ??
+        EMPTY_IN_APP_AGENT_CONVERSATION_STATE;
+      if (isInAppAgentRateLimited(current.error)) {
+        return false;
+      }
+
+      if (isNewConversation) {
+        actions.rememberLocalConversation(
+          conversationId,
+          trimmedContent.slice(0, 80),
+        );
+        actions.updateConversation(
+          NEW_CONVERSATION_DRAFT_KEY,
+          (draftState) => ({
+            ...draftState,
+            draft: "",
+          }),
+        );
+        selectedConversationIdRef.current = conversationId;
+        setSelectedConversationId(conversationId);
+      }
+
+      const queuedMessage: InAppAgentQueuedMessage = {
+        id: createInAppAgentMessageId(),
+        content: trimmedContent,
+        context: buildContext(options),
+        options,
+      };
+      const isBusy =
+        current.isRunning ||
+        current.isSubmitting ||
+        current.pendingToolApprovals.length > 0 ||
+        runtimesRef.current.get(conversationId)?.agent.isRunning === true;
+      updateConversation(conversationId, (state) => ({
+        ...state,
+        error: null,
+        draft: "",
+        queuedMessages: state.queuedMessages.concat(queuedMessage),
+      }));
+      if (isBusy) {
+        capture("in_app_agent:message_queued", {
+          queueDepth: current.queuedMessages.length + 1,
+        });
+      }
+      pumpConversationRef.current(conversationId);
+      return true;
+    },
+    [
+      actions,
+      buildContext,
+      capture,
+      clientStore,
+      isSelectedConversationHydrating,
+      selectedConversationId,
+      selectedConversationIsWriteLocked,
+      setSelectedConversationId,
+      updateConversation,
+    ],
   );
 
   const deleteConversation = useCallback(
     async (conversationId: string) => {
-      if (isRunning) {
+      const state = allClientConversations[conversationId];
+      if (
+        state &&
+        (state.isRunning ||
+          state.isSubmitting ||
+          state.pendingToolApprovals.length > 0 ||
+          state.queuedMessages.length > 0)
+      ) {
         return;
       }
-
       try {
         await deleteConversationMutation.mutateAsync({
           projectId,
           conversationId,
         });
-
         if (conversationId === selectedConversationId) {
-          resetAgent();
-          setMessages([]);
           setSelectedConversationId(null);
         }
-
+        actions.removeConversation(conversationId);
         setFeedbackByConversationId((currentFeedback) => {
           if (!currentFeedback[conversationId]) {
             return currentFeedback;
           }
-
           const nextFeedback = { ...currentFeedback };
           delete nextFeedback[conversationId];
           return nextFeedback;
         });
-
         await Promise.all([
           utils.inAppAgent.listConversations.invalidate({ projectId }),
           utils.inAppAgent.getConversation.invalidate({
@@ -799,17 +1028,19 @@ function InAppAiAgentProviderInner({
           }),
         ]);
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to delete conversation", errorMessage);
-        console.error("Failed to delete in-app agent conversation", error);
+        showErrorToast(
+          "Failed to delete conversation",
+          getAgentErrorMessage(error),
+        );
+        console.warn("Failed to delete in-app agent conversation", error);
         throw error;
       }
     },
     [
+      actions,
+      allClientConversations,
       deleteConversationMutation,
-      isRunning,
       projectId,
-      resetAgent,
       selectedConversationId,
       setFeedbackByConversationId,
       setSelectedConversationId,
@@ -818,117 +1049,98 @@ function InAppAiAgentProviderInner({
     ],
   );
 
-  const submit = useCallback(
-    async (content: string, options?: InAppAgentSubmitOptions) => {
-      if (
-        !content ||
-        isRunning ||
-        isInAppAgentRateLimited(error) ||
-        (options?.newConversation !== true &&
-          isSelectedConversationHydrating) ||
-        submitInFlightRef.current ||
-        runInFlightRef.current
-      ) {
-        return false;
+  const resumeToolApproval = useCallback(
+    async (approvalId: string, approved: boolean) => {
+      if (!selectedConversationId || selectedConversationIsWriteLocked) {
+        return;
       }
+      const state =
+        clientStore.getState().conversations[selectedConversationId] ??
+        EMPTY_IN_APP_AGENT_CONVERSATION_STATE;
+      const approval = state.pendingToolApprovals.find(
+        ({ id }) => id === approvalId,
+      );
+      const runtime = runtimesRef.current.get(selectedConversationId);
+      if (
+        !approval ||
+        !runtime ||
+        state.isRunning ||
+        isInAppAgentRateLimited(state.error)
+      ) {
+        return;
+      }
+      updateConversation(selectedConversationId, (current) => ({
+        ...current,
+        pendingToolApprovals: current.pendingToolApprovals.map((item) =>
+          item.id === approvalId ? { ...item, status: "submitting" } : item,
+        ),
+      }));
 
-      submitInFlightRef.current = true;
-      setIsSubmitting(true);
-      setError(null);
-
-      let startedRun = false;
       try {
-        const isNewConversation =
-          options?.newConversation === true || !selectedConversationId;
-
-        if (!isNewConversation && selectedConversationIsWriteLocked) {
-          setError({
-            type: "generic",
-            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-          });
-          return false;
-        }
-
-        const conversationId = isNewConversation
-          ? createInAppAgentConversationId()
-          : selectedConversationId;
-
-        if (!conversationId) {
-          return false;
-        }
-
-        if (isNewConversation) {
-          setSelectedConversationId(conversationId);
-        }
-
-        const storedMessages =
-          conversationQuery.data?.conversation.id === conversationId
-            ? conversationQuery.data.messages
-            : undefined;
-        const initialMessages = !isNewConversation
-          ? getHydratedMessages(messages, storedMessages)
-          : [];
-        // TODO: Avoid hydrating the full history once the agent client can send
-        // only the latest user turn; the server rebuilds history from persistence.
-        const agent = getOrCreateAgent(
-          conversationId,
-          initialMessages,
-          isNewConversation,
+        await executeRun(
+          selectedConversationId,
+          runtime,
+          buildContext(),
+          {
+            runId: createInAppAgentRunId(),
+            forwardedProps: {
+              command: {
+                resume: {
+                  approved,
+                  approvalRequest: approval.approvalRequest,
+                },
+              },
+            },
+          },
+          false,
+          true,
         );
-
-        if (agent.isRunning) {
-          return false;
-        }
-
-        ensureSubscription(agent);
-
-        const userMessage = {
-          id: createInAppAgentMessageId(),
-          role: "user",
-          content,
-        } satisfies AgUiMessage;
-
-        agent.addMessage(userMessage);
-        setMessages(agent.messages.filter(isAgentConversationMessage));
-        const entryPoint = options?.entryPoint ?? "chat";
-        if (isNewConversation) {
-          capture("in_app_agent:new_chat_started", { entryPoint });
-        }
-        capture("in_app_agent:new_chat_turn", { entryPoint });
-        startedRun = true;
-        runAgent(
-          agent,
-          conversationId,
-          undefined,
-          options?.quickAction,
-          entryPoint,
-        );
-        return true;
+        updateConversation(selectedConversationId, (current) => ({
+          ...current,
+          pendingToolApprovals: current.pendingToolApprovals.filter(
+            ({ id }) => id !== approvalId,
+          ),
+        }));
+        pumpConversationRef.current(selectedConversationId);
       } catch (error) {
-        setError(getInAppAgentError(error));
-        console.error("Failed to start in-app agent conversation", error);
-        return false;
-      } finally {
-        if (!startedRun) {
-          releaseSubmitLock();
+        const isStaleApproval =
+          getAgentErrorMessage(error) === "Invalid forwarded props";
+        updateConversation(selectedConversationId, (current) => ({
+          ...current,
+          error: isStaleApproval
+            ? {
+                type: "generic",
+                message:
+                  "This tool approval is no longer valid. Please try again.",
+              }
+            : current.error,
+          pendingToolApprovals: isStaleApproval
+            ? current.pendingToolApprovals.filter(({ id }) => id !== approvalId)
+            : current.pendingToolApprovals.map((item) =>
+                item.id === approvalId ? { ...item, status: "pending" } : item,
+              ),
+        }));
+        if (isStaleApproval) {
+          pumpConversationRef.current(selectedConversationId);
         }
       }
     },
     [
-      conversationQuery.data,
-      capture,
-      ensureSubscription,
-      error,
-      getOrCreateAgent,
-      isSelectedConversationHydrating,
-      isRunning,
-      messages,
-      releaseSubmitLock,
-      runAgent,
+      buildContext,
+      clientStore,
+      executeRun,
       selectedConversationId,
       selectedConversationIsWriteLocked,
-      setSelectedConversationId,
+      updateConversation,
     ],
+  );
+  const approveToolCall = useCallback(
+    (approvalId: string) => resumeToolApproval(approvalId, true),
+    [resumeToolApproval],
+  );
+  const rejectToolCall = useCallback(
+    (approvalId: string) => resumeToolApproval(approvalId, false),
+    [resumeToolApproval],
   );
 
   const submitFeedback = useCallback(
@@ -941,7 +1153,6 @@ function InAppAiAgentProviderInner({
       if (!selectedConversationId) {
         return;
       }
-
       try {
         const result = await feedbackMutation.mutateAsync({
           projectId,
@@ -951,31 +1162,26 @@ function InAppAiAgentProviderInner({
           value: params.value,
           comment: params.comment ?? null,
         });
-
         setFeedbackByConversationId((currentFeedback) => {
           const nextFeedback = { ...currentFeedback };
           const conversationFeedback = {
             ...(nextFeedback[selectedConversationId] ?? {}),
           };
-
           if (result.feedback) {
             conversationFeedback[params.messageId] = result.feedback;
           } else {
             delete conversationFeedback[params.messageId];
           }
-
-          if (Object.keys(conversationFeedback).length > 0) {
+          if (Object.keys(conversationFeedback).length) {
             nextFeedback[selectedConversationId] = conversationFeedback;
           } else {
             delete nextFeedback[selectedConversationId];
           }
-
           return nextFeedback;
         });
       } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        showErrorToast("Failed to save feedback", errorMessage);
-        console.error("Failed to save in-app agent feedback", error);
+        showErrorToast("Failed to save feedback", getAgentErrorMessage(error));
+        console.warn("Failed to save in-app agent feedback", error);
         throw error;
       }
     },
@@ -990,151 +1196,24 @@ function InAppAiAgentProviderInner({
   const setAgentOpen = useCallback<Dispatch<SetStateAction<boolean>>>(
     (action) => {
       const nextOpen = evaluateSetStateAction(action, open);
-
       if (!nextOpen) {
-        // Collapse the drawer when closing
         setIsExpanded(false);
       }
-
       setOpen(nextOpen);
     },
     [open, setOpen],
   );
-
   const openAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {
       capture("in_app_agent:entry_point_click", { source });
-
       if (organization && !organization.aiFeaturesEnabled) {
         setEnableDialogOpen(true);
         return false;
       }
-
       setAgentOpen(true);
       return true;
     },
     [capture, organization, setAgentOpen],
-  );
-
-  const resumeToolApproval = useCallback(
-    async (approvalId: string, approved: boolean) => {
-      if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
-        return;
-      }
-
-      const approval = pendingToolApprovals.find(
-        (approval) => approval.id === approvalId,
-      );
-
-      if (
-        !approval ||
-        !selectedConversationId ||
-        isRunning ||
-        runInFlightRef.current ||
-        isInAppAgentRateLimited(error)
-      ) {
-        return;
-      }
-
-      const agent = agentRef.current;
-      if (!agent || agent.threadId !== selectedConversationId) {
-        showErrorToast(
-          "Failed to resume tool call",
-          "The interrupted assistant run is no longer available.",
-        );
-        return;
-      }
-
-      updatePendingToolApprovals((currentApprovals) =>
-        currentApprovals.map((currentApproval) =>
-          currentApproval.id === approvalId
-            ? { ...currentApproval, status: "submitting" }
-            : currentApproval,
-        ),
-      );
-      setError(null);
-
-      try {
-        ensureSubscription(agent);
-        const completed = await runAgent(agent, selectedConversationId, {
-          runId: createInAppAgentRunId(),
-          forwardedProps: {
-            command: {
-              resume: {
-                approved,
-                approvalRequest: approval.approvalRequest,
-              },
-            },
-          },
-        });
-
-        if (!completed) {
-          updatePendingToolApprovals((currentApprovals) =>
-            currentApprovals.map((currentApproval) =>
-              currentApproval.id === approvalId
-                ? { ...currentApproval, status: "pending" }
-                : currentApproval,
-            ),
-          );
-          return;
-        }
-
-        updatePendingToolApprovals((currentApprovals) =>
-          currentApprovals.filter(
-            (currentApproval) => currentApproval.id !== approvalId,
-          ),
-        );
-      } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        if (errorMessage === "Invalid forwarded props") {
-          updatePendingToolApprovals((currentApprovals) =>
-            currentApprovals.filter(
-              (currentApproval) => currentApproval.id !== approvalId,
-            ),
-          );
-          setError({
-            type: "generic",
-            message: "This tool approval is no longer valid. Please try again.",
-          });
-          console.error("Failed to resume in-app agent tool call", error);
-          return;
-        }
-
-        updatePendingToolApprovals((currentApprovals) =>
-          currentApprovals.map((currentApproval) =>
-            currentApproval.id === approvalId
-              ? { ...currentApproval, status: "pending" }
-              : currentApproval,
-          ),
-        );
-        setError(getInAppAgentError(error));
-        console.error("Failed to resume in-app agent tool call", error);
-      }
-    },
-    [
-      ensureSubscription,
-      error,
-      isRunning,
-      pendingToolApprovals,
-      runAgent,
-      selectedConversationId,
-      selectedConversationIsWriteLocked,
-      updatePendingToolApprovals,
-    ],
-  );
-
-  const approveToolCall = useCallback(
-    (approvalId: string) => resumeToolApproval(approvalId, true),
-    [resumeToolApproval],
-  );
-
-  const rejectToolCall = useCallback(
-    (approvalId: string) => resumeToolApproval(approvalId, false),
-    [resumeToolApproval],
   );
 
   const value = useMemo<InAppAiAgentContextType>(
@@ -1145,15 +1224,17 @@ function InAppAiAgentProviderInner({
       openAssistant,
       isExpanded,
       setIsExpanded,
-      isRunning,
-      isSubmitting,
+      isRunning: selectedClientState.isRunning,
+      isSubmitting: selectedClientState.isSubmitting,
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
-        : pendingToolApprovals,
+        : selectedClientState.pendingToolApprovals,
+      queuedMessages: selectedClientState.queuedMessages,
+      draft: selectedClientState.draft,
       isSelectedConversationHydrating,
-      error,
+      error: selectedClientState.error,
       messages: messagesWithUiState,
-      liveMessageVersion,
+      liveMessageVersion: selectedClientState.liveMessageVersion,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -1163,6 +1244,9 @@ function InAppAiAgentProviderInner({
       invalidateConversations,
       selectConversation,
       deleteConversation,
+      setDraft,
+      editQueuedMessage,
+      deleteQueuedMessage,
       submit,
       approveToolCall,
       rejectToolCall,
@@ -1170,28 +1254,27 @@ function InAppAiAgentProviderInner({
     }),
     [
       approveToolCall,
-      isExpanded,
       conversations,
-      error,
-      hasMoreConversations,
-      isLoadingMoreConversations,
-      isRunning,
-      isSelectedConversationHydrating,
-      selectedConversationIsWriteLocked,
-      isSubmitting,
-      isSelectedConversationNotFound,
       deleteConversation,
+      deleteQueuedMessage,
+      editQueuedMessage,
+      hasMoreConversations,
+      invalidateConversations,
+      isExpanded,
+      isLoadingMoreConversations,
+      isSelectedConversationHydrating,
+      isSelectedConversationNotFound,
       loadMoreConversations,
-      liveMessageVersion,
       messagesWithUiState,
       open,
       openAssistant,
-      pendingToolApprovals,
       rejectToolCall,
-      setAgentOpen,
-      invalidateConversations,
       selectConversation,
+      selectedClientState,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
+      setAgentOpen,
+      setDraft,
       submit,
       submitFeedback,
     ],
@@ -1210,20 +1293,7 @@ function InAppAiAgentProviderInner({
 }
 
 function isAgentConversationMessage(message: unknown): message is AgUiMessage {
-  const result = AgUiMessageSchema.safeParse(message);
-
-  return result.success;
-}
-
-function getHydratedMessages(
-  localMessages: AgUiMessage[],
-  storedMessages: readonly unknown[] | undefined,
-): AgUiMessage[] {
-  if (localMessages.length > 0) {
-    return localMessages;
-  }
-
-  return storedMessages?.filter(isAgentConversationMessage) ?? [];
+  return AgUiMessageSchema.safeParse(message).success;
 }
 
 function mergeMessagesWithFeedback(
@@ -1233,19 +1303,11 @@ function mergeMessagesWithFeedback(
   if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
     return messages;
   }
-
-  return messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
-    }
-
-    const feedback = feedbackByMessageId[message.id];
-    if (!feedback) {
-      return message;
-    }
-
-    return { ...message, feedback };
-  });
+  return messages.map((message) =>
+    message.role === "assistant" && feedbackByMessageId[message.id]
+      ? { ...message, feedback: feedbackByMessageId[message.id] }
+      : message,
+  );
 }
 
 function attachActiveRunIdToAssistantMessages(
@@ -1255,40 +1317,46 @@ function attachActiveRunIdToAssistantMessages(
   if (!runId) {
     return messages;
   }
+  return messages.map((message) =>
+    message.role === "assistant" && !message.runId
+      ? { ...message, runId }
+      : message,
+  );
+}
 
-  return messages.map((message) => {
-    if (message.role !== "assistant" || message.runId) {
-      return message;
-    }
-
-    return { ...message, runId };
-  });
+function replaceApproval(
+  approvals: InAppAgentPendingToolApproval[],
+  approval: InAppAgentPendingToolApproval,
+) {
+  const existingIndex = approvals.findIndex(({ id }) => id === approval.id);
+  if (existingIndex === -1) {
+    return approvals.concat(approval);
+  }
+  const nextApprovals = approvals.slice();
+  nextApprovals[existingIndex] = approval;
+  return nextApprovals;
 }
 
 function parseInAppAgentInterruptEvent(event: unknown) {
   if (!event || typeof event !== "object") {
     return null;
   }
-
   if (!("name" in event) || event.name !== "on_interrupt") {
     return null;
   }
-
   const value = "value" in event ? event.value : undefined;
   const parsedValue = typeof value === "string" ? parseJson(value) : value;
   const interrupt = MastraSuspendEventSchema.safeParse(parsedValue);
-
   if (!interrupt.success) {
     return null;
   }
-
   return {
     type: "tool_approval_request" as const,
     toolCallId: interrupt.data.toolCallId,
     toolName: interrupt.data.toolName,
     args: interrupt.data.args,
     runId: interrupt.data.runId,
-  } satisfies InAppAgentToolApprovalRequest;
+  };
 }
 
 function parseJson(value: string) {
@@ -1306,7 +1374,6 @@ function getInAppAgentUrl() {
 function getAgentErrorMessage(error: unknown): string {
   if (error && typeof error === "object") {
     const payload = "payload" in error ? error.payload : undefined;
-
     if (
       payload &&
       typeof payload === "object" &&
@@ -1315,31 +1382,22 @@ function getAgentErrorMessage(error: unknown): string {
     ) {
       return payload.error;
     }
-
     if ("message" in error && typeof error.message === "string") {
       return error.message;
     }
   }
-
   return "Assistant request failed. Please try again.";
 }
 
 export function useInAppAiAgent() {
-  const ctx = useContext(InAppAiAgentContext);
-  if (!ctx) {
-    return NOOP_CONTEXT;
-  }
-  return ctx;
+  return useContext(InAppAiAgentContext) ?? NOOP_CONTEXT;
 }
 
-/** Whether the current user/context may use the in-app assistant at all.
- * Shared gate for the launcher button and the window host. */
 export function useCanUseInAppAgent() {
   const { isAvailable } = useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProjectOrOrganization();
-
   return (
     isAvailable &&
     hasInAppAgentEntitlement &&
