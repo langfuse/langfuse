@@ -3,6 +3,7 @@ import { getDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDa
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
+import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
 import { GetDatasetRunMcpInput } from "../schema";
 
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
@@ -20,6 +21,7 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
         "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
+        rejectDatasetRunToolsInEventsOnlyMode();
         const result = await getDatasetRunByIdForApi({
           projectId: context.projectId,
           datasetId: input.datasetId,
