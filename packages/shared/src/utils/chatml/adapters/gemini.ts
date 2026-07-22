@@ -38,6 +38,8 @@ const GeminiADKOutputSchema = z.looseObject({
 // ADK invocation input format (root span of the OpenInference ADK
 // instrumentation): {user_id, session_id, new_message: {parts, role}, run_config}
 const GeminiADKInvocationInputSchema = z.looseObject({
+  user_id: z.string(),
+  session_id: z.string(),
   new_message: z.looseObject({
     parts: z.array(z.any()),
     role: z.string().optional(),
