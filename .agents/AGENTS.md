@@ -21,8 +21,8 @@ evaluating, and debugging AI applications.
   real browser before signoff. Prefill the data the flow needs with the seed
   CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
   never with ad-hoc scripts or raw ClickHouse inserts.
-- When fixing an isolated styling issue in an individual component, read the
-  `storybook` skill and create or update a component story following its
+- When fixing an isolated styling issue in an individual component, read
+  `.agents/skills/storybook/SKILL.md` create or update a component story following its
   guidance first.
 - Every PR auto-builds (via GitHub Actions) a disposable, full-stack preview at
   `pr-<N>.preview.langfuse.com` — nothing to spin up. Use the `langfuse-previews`
