@@ -58,12 +58,12 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
    * Process expired media for the project furthest past its cutoff.
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
-  protected async execute(): Promise<void> {
+  protected async execute(): Promise<number> {
     // Reset gauge before attempting lock - ensures it doesn't appear stuck
     // if another worker holds the lock
     recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0);
 
-    await this.withLock(
+    const nextDelayMs = await this.withLock(
       async () => {
         // Get the most overdue project (single project per iteration)
         let workload: MediaRetentionProject | null;
@@ -92,14 +92,21 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
           await this.processProject(workload);
           recordIncrement(`${METRIC_PREFIX}.projects_processed`, 1);
-        } else {
-          logger.info(`${this.name}: No expired media to clean up`);
+          // Without media storage, this workload cannot make progress.
+          return env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+            ? 0
+            : this.defaultIntervalMs;
         }
+
+        logger.info(`${this.name}: No expired media to clean up`);
+        return this.defaultIntervalMs;
       },
       () => {
         recordIncrement(`${METRIC_PREFIX}.project_failures`, 1);
       },
     );
+
+    return nextDelayMs ?? this.defaultIntervalMs;
   }
 
   private async processProject(workload: MediaRetentionProject): Promise<void> {

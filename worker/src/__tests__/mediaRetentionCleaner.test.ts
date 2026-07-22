@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { MediaRetentionCleaner } from "../features/media-retention-cleaner";
+import { env } from "../env";
 
 // Mock S3 and blob storage functions
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -27,6 +28,7 @@ vi.mock("../env", async () => {
       ...(actual as { env: object }).env,
       LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "test-bucket",
       LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "false",
+      LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS: 600_000,
       LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: 2,
     },
   };
@@ -104,6 +106,27 @@ describe("MediaRetentionCleaner", () => {
   });
 
   describe("processBatch", () => {
+    it("runs again immediately after work and waits when empty", async () => {
+      await drainExpiredMedia();
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+      await createTestMedia(
+        projectId,
+        new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      );
+
+      const cleaner = new MediaRetentionCleaner();
+      await expect(cleaner.processBatch()).resolves.toBe(0);
+      await expect(getMediaCount(projectId)).resolves.toBe(0);
+      await expect(cleaner.processBatch()).resolves.toBe(
+        env.LANGFUSE_MEDIA_RETENTION_CLEANER_INTERVAL_MS,
+      );
+    });
+
     it("should delete media files older than project retention", async () => {
       const now = Date.now();
       const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
