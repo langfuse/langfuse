@@ -11,12 +11,14 @@ import { metricAggregations } from "@langfuse/shared/query";
 export const PostUnstableDashboardWidgetView = z.enum([
   "observations",
   "scores-numeric",
+  "scores-boolean",
   "scores-categorical",
 ]);
 
 export const DashboardWidgetViewOutput = z.enum([
   "observations",
   "scores-numeric",
+  "scores-boolean",
   "scores-categorical",
   "traces",
 ]);
@@ -71,6 +73,7 @@ export const PublicDashboardWidget = z
   })
   .strict();
 
+/** @alias */
 export const PostUnstableDashboardWidgetResponse = PublicDashboardWidget;
 
 export const GetUnstableDashboardWidgetsQuery = z.object({
@@ -87,12 +90,14 @@ export const GetUnstableDashboardWidgetsResponse = z.object({
   }),
 });
 export const DashboardWidgetIdQuery = z.object({ widgetId: z.string() });
+/** @alias */
 export const GetUnstableDashboardWidgetResponse = PublicDashboardWidget;
 export const PatchUnstableDashboardWidgetBody =
   UnstableDashboardWidgetBody.partial().refine(
     (value) => Object.keys(value).length > 0,
     "At least one field is required",
   );
+/** @alias */
 export const PatchUnstableDashboardWidgetResponse = PublicDashboardWidget;
 export const DeleteUnstableDashboardWidgetResponse = z.object({
   message: z.literal("Dashboard widget successfully deleted"),

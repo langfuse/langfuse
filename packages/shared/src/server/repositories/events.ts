@@ -631,6 +631,47 @@ export const getObservationMetricsForPromptsFromEvents = async (
   }));
 };
 
+export const getObservationsWithPromptNameFromEvents = async (
+  projectId: string,
+  promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  const query = `
+  SELECT uniq(span_id) as count, prompt_name
+  FROM events_core
+  WHERE project_id = {projectId: String}
+  AND prompt_name IN ({promptNames: Array(String)})
+  AND prompt_name != ''
+  AND is_deleted = 0
+  ${fromTimestamp ? "AND start_time >= {fromTimestamp: DateTime64(6)}" : ""}
+  ${toTimestamp ? "AND start_time <= {toTimestamp: DateTime64(6)}" : ""}
+  GROUP BY prompt_name
+`;
+  const rows = await queryClickhouse<{ count: string; prompt_name: string }>({
+    query,
+    params: {
+      projectId,
+      promptNames,
+      fromTimestamp: fromTimestamp
+        ? convertDateToClickhouseDateTime(fromTimestamp)
+        : undefined,
+      toTimestamp: toTimestamp
+        ? convertDateToClickhouseDateTime(toTimestamp)
+        : undefined,
+    },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    count: Number(row.count),
+    promptName: row.prompt_name,
+  }));
+};
+
 export const getTraceDeleteCursorPageFromEvents = async (props: {
   projectId: string;
   filter: FilterState;
@@ -2534,6 +2575,145 @@ export const getObservationsBatchIOFromEventsTable = async <
         }
       : {}),
   })) as Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>;
+};
+
+/**
+ * The single observation IO fields the stream/length helpers below can serve.
+ * `input`/`output` are raw `String` columns streamed as-is — note they may be a
+ * bare, unquoted string (not JSON) for plain-text prompts/completions, so the
+ * route serves them as opaque bytes, not `application/json`. `metadata` is
+ * reconstructed from the `metadata_names`/`metadata_values` `Map(String,String)`
+ * columns, so **every metadata value is emitted JSON-string-encoded** (a nested
+ * object comes out as an escaped string). Consumers must unwrap one level, exactly
+ * as the existing metadata read path does (`parseMetadataCHRecordToDomain`).
+ */
+export const OBSERVATION_IO_STREAM_FIELDS = [
+  "input",
+  "output",
+  "metadata",
+] as const;
+
+export type ObservationIoStreamField =
+  (typeof OBSERVATION_IO_STREAM_FIELDS)[number];
+
+// Closed set of SQL expressions keyed by the validated `field` enum — never
+// string-interpolated user input. The length pre-query and the byte stream share
+// this map + the WHERE/params below so they can never drift; a mismatch would
+// make the route's Content-Length integrity check wrong.
+const OBSERVATION_IO_FIELD_SELECT: Record<ObservationIoStreamField, string> = {
+  input: "e.input",
+  output: "e.output",
+  metadata:
+    "toJSONString(mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values)))",
+};
+
+// The ±1s window around `startTime` only prunes the primary key
+// (project_id, toStartOfMinute(start_time), xxHash32(trace_id)); it is a
+// performance hint, never an authorization control.
+const OBSERVATION_IO_WHERE = `
+    WHERE e.project_id = {projectId: String}
+      AND e.trace_id = {traceId: String}
+      AND e.span_id = {observationId: String}
+      AND e.start_time >= {minTimestamp: DateTime64(3)}
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}`;
+
+interface ObservationIOReadOpts {
+  projectId: string;
+  traceId: string;
+  observationId: string;
+  field: ObservationIoStreamField;
+  /** The observation's startTime; bounds the read for primary-key pruning. */
+  startTime: Date;
+}
+
+function observationIOReadParams(opts: ObservationIOReadOpts) {
+  return {
+    projectId: opts.projectId,
+    traceId: opts.traceId,
+    observationId: opts.observationId,
+    minTimestamp: convertDateToClickhouseDateTime(
+      new Date(opts.startTime.getTime() - 1000),
+    ),
+    maxTimestamp: convertDateToClickhouseDateTime(
+      new Date(opts.startTime.getTime() + 1000),
+    ),
+  };
+}
+
+/**
+ * Byte length of one observation IO field — a cheap pre-query the streaming
+ * route runs BEFORE committing headers. It does two jobs the raw stream can't:
+ *  - distinguishes "not found" (no row → `null` → the route 404s) from "present
+ *    but empty" (row with 0 → empty 200), so a stale/skewed `startTime` yields a
+ *    diagnosable 404 rather than a misleading empty body; and
+ *  - gives the exact byte count for a `Content-Length` header, so a mid-stream
+ *    ClickHouse failure (truncated body) is detectable at the HTTP layer on ANY
+ *    ClickHouse version — independent of the `x-clickhouse-exception-tag` header
+ *    that raw-passthrough failure detection needs (≥25.11 only).
+ * Uses the SAME field expression + WHERE as the stream, so the length matches the
+ * bytes streamed. `length()` on a ClickHouse `String` is its byte count.
+ */
+export const getObservationIOFieldByteLengthFromEventsTable = async (
+  opts: ObservationIOReadOpts,
+): Promise<number | null> => {
+  const query = `
+    SELECT length(${OBSERVATION_IO_FIELD_SELECT[opts.field]}) AS len
+    FROM events_full e
+    ${OBSERVATION_IO_WHERE}
+    ORDER BY e.event_ts DESC
+    LIMIT 1
+  `;
+  const rows = await queryClickhouse<{ len: string }>({
+    query,
+    params: observationIOReadParams(opts),
+    tags: { projectId: opts.projectId, route: "observation-io-stream-length" },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  const first = rows[0];
+  return first ? Number(first.len) : null;
+};
+
+/**
+ * Stream ONE observation's single IO field (input | output | metadata) straight
+ * from ClickHouse to the caller as raw bytes, WITHOUT materializing the whole
+ * value in the Node process. Uses `FORMAT RawBLOB`, so ClickHouse emits exactly
+ * the field's bytes (no JSONEachRow envelope) and {@link queryClickhouseExecRaw}
+ * hands back the live HTTP body as a `Readable` for the caller to pipe onward.
+ * This is the transport primitive behind the lazy/streaming large-JSON viewer
+ * (LFE-11081): the browser can fetch a multi-hundred-MB field as a byte stream
+ * instead of forcing the server to buffer + JSON-serialize it in one shot.
+ *
+ * SECURITY: strictly tenant-scoped. The read is pinned to a single
+ * (project_id, trace_id, span_id) via parameterized predicates, so it can only
+ * ever return bytes for that one observation inside that one project — a wrong
+ * projectId yields zero rows (zero bytes). `field` is NOT interpolated user
+ * input: it selects from a fixed, closed set of SQL expressions. Callers MUST
+ * still authorize the (projectId, traceId) pair before calling — this function
+ * performs data isolation, not request authorization.
+ */
+export const streamObservationIOFieldFromEventsTable = (
+  opts: ObservationIOReadOpts,
+) => {
+  const query = `
+    SELECT ${OBSERVATION_IO_FIELD_SELECT[opts.field]} AS field
+    FROM events_full e
+    ${OBSERVATION_IO_WHERE}
+    ORDER BY e.event_ts DESC
+    LIMIT 1
+  `;
+
+  // FORMAT RawBLOB emits the selected String column's bytes with no escaping or
+  // delimiters; with LIMIT 1 that is exactly this observation's field value.
+  return queryClickhouseExecRaw({
+    query,
+    format: "RawBLOB",
+    params: observationIOReadParams(opts),
+    tags: {
+      projectId: opts.projectId,
+      route: "observation-io-stream",
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
 };
 
 /**

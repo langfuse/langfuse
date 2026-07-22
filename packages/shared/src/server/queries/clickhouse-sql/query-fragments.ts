@@ -264,10 +264,14 @@ interface EventsTracesScoresAggregationParams {
   projectId: string;
   startTimeFrom?: string | null;
   hasScoreAggregationFilters?: boolean;
-  // Note: includeTupleEncoding is intentionally omitted. This function is only used
-  // in UI table queries where score_categories are used for filtering, not programmatic
-  // parsing. If this is ever used in an export path, add includeTupleEncoding here and
-  // pass it through to buildScoresAggregationCTE (see EventsScoresAggregationParams).
+  /**
+   * Adds the `score_categories_tuples` column for programmatic parsing (see
+   * BaseScoresAggregationParams). Only meaningful together with
+   * `hasScoreAggregationFilters` (the flat branch returns score ids only);
+   * used by the blob-export path so trace-level categorical scores export
+   * safely even when names contain colons.
+   */
+  includeTupleEncoding?: boolean;
 }
 
 /**

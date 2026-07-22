@@ -171,7 +171,7 @@ const buildFilterColumnsParams = ({
   filterOptions,
   datasets,
 }: {
-  view: "traces" | "observations" | "scores-numeric" | "scores-categorical";
+  view: MonitorView;
   filterOptions: RouterOutputs["events"]["filterOptions"] | undefined;
   datasets: Array<{ id: string; name: string }> | undefined;
 }) => {
@@ -355,11 +355,7 @@ export const MonitorForm = ({
   const filterColumnsParams = useMemo(
     () =>
       buildFilterColumnsParams({
-        view: (watched.view ?? "observations") as
-          | "traces"
-          | "observations"
-          | "scores-numeric"
-          | "scores-categorical",
+        view: (watched.view ?? "observations") as MonitorView,
         filterOptions: eventsFilterOptions.data,
         datasets: datasets.data,
       }),

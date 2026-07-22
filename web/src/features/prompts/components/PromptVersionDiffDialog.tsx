@@ -87,10 +87,7 @@ export const PromptVersionDiffDialog: React.FC<PromptVersionDiffDialogProps> = (
         size="xl"
         // prevent event bubbling up and triggering the row's click handler
         onClick={(event) => event.stopPropagation()}
-        onPointerDownOutside={(e) => {
-          setIsOpen(false);
-          e.stopPropagation();
-        }}
+        closeOnInteractionOutside
       >
         <DialogHeader>
           <DialogTitle>

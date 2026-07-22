@@ -4,6 +4,7 @@ import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
+import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -12,30 +13,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  PageTabs,
+  type PageTabsProps,
+} from "@/src/components/layouts/page-tabs";
 import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { useRouter } from "next/router";
-import { type ParsedUrlQuery } from "querystring";
 import { type ReactNode } from "react";
-
-type TabDefinition = {
-  value: string;
-  label: string;
-  href?: string;
-  onClick?: () => void;
-  querySelector?: (
-    query: ParsedUrlQuery,
-  ) => Record<string, string | string[] | undefined>;
-  disabled?: boolean;
-  className?: string;
-};
-
-type PageTabsProps = {
-  tabs: TabDefinition[];
-  activeTab: string;
-  className?: string;
-  listClassName?: string;
-};
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
@@ -77,7 +60,12 @@ const PageHeader = ({
   titleBadges,
   breadcrumbBadges,
 }: PageHeaderProps) => {
-  const router = useRouter();
+  const hasAppSidebar = useHasAppSidebar();
+  // The sidebar trigger + brand mark only make sense where a real AppSidebar
+  // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
+  // trace and session views) show the page's own leadingControl instead — no
+  // hamburger opening an empty sheet, no orphaned brand mark.
+  const showSidebarChrome = showSidebarTrigger && hasAppSidebar;
   return (
     <div
       className={cn([
@@ -103,16 +91,12 @@ const PageHeader = ({
             )}
           >
             <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {showSidebarTrigger ? (
+              {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
-                      desktop where the sidebar logo is visible. Gated on the
-                      same condition as the trigger so it only appears where a
-                      sidebar actually exists to mirror — never on the
-                      sidebar-less MinimalLayout (e.g. the public/shared trace
-                      view, which supplies its own leadingControl). */}
+                      desktop where the sidebar logo is visible. */}
                   <TopbarBrand className="md:hidden" />
                 </>
               ) : (
@@ -222,52 +206,10 @@ const PageHeader = ({
           </div>
 
           {tabsProps && (
-            <div className={cn("ml-2", tabsProps.className)}>
-              <div
-                className={cn(
-                  "inline-flex h-8 items-center justify-start",
-                  tabsProps.listClassName,
-                )}
-              >
-                {tabsProps.tabs.map((tab) => {
-                  const tabClassName = cn(
-                    "hover:bg-muted/50 focus-visible:ring-ring text-muted-foreground font-bold inline-flex h-full items-center justify-center rounded-none border-b-4 border-transparent px-2 py-0.5 text-sm whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
-                    tab.value === tabsProps.activeTab
-                      ? "border-primary-accent text-foreground bg-transparent shadow-none"
-                      : "",
-                    tab.disabled && "pointer-events-none opacity-50",
-                    tab.className,
-                  );
-
-                  if (tab.onClick) {
-                    return (
-                      <button
-                        key={tab.value}
-                        type="button"
-                        onClick={tab.onClick}
-                        className={tabClassName}
-                        disabled={tab.disabled}
-                      >
-                        {tab.label}
-                      </button>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      key={tab.value}
-                      href={{
-                        pathname: tab.href ?? "",
-                        query: tab.querySelector?.(router.query),
-                      }}
-                      className={tabClassName}
-                    >
-                      {tab.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+            <PageTabs
+              {...tabsProps}
+              className={cn("ml-2", tabsProps.className)}
+            />
           )}
         </div>
       </div>

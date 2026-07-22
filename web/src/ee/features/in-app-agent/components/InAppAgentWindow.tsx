@@ -671,7 +671,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           ) : null}
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           ref={viewportRef}
           className="min-h-0 flex-1 overflow-y-auto"
@@ -702,7 +702,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {!hasUserMessage ? (
+            {messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
@@ -829,7 +829,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               : "max-h-40 opacity-100",
           )}
         >
-          <div className="p-2">
+          <div className="mb-2 px-2">
             <div
               className={cn(
                 "flex w-full flex-col gap-1.5",

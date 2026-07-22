@@ -45,6 +45,7 @@ export const paginationLimitZod = z.preprocess(
   z.coerce.number().int().gte(1).lte(100).default(50),
 );
 
+/** @alias */
 export const publicApiPaginationLimitZod = paginationLimitZod;
 
 export const paginationZod = {

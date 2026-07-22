@@ -13,6 +13,7 @@ export const PATH_CONSTANTS = {
     "/auth/sign-in",
     "/auth/sign-up",
     "/auth/sso-initiate",
+    "/auth/enterprise-sso-required",
     "/auth/error",
     "/auth/hf-spaces",
   ] as const,

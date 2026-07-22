@@ -1,8 +1,19 @@
 import type { StorybookConfig } from "@storybook/nextjs-vite";
 
-import { dirname, resolve } from "path";
+import { basename, dirname, resolve } from "path";
 
 import { fileURLToPath } from "url";
+import {
+  flatStoryTitlesPlugin,
+  flattenStoryIndexTitles,
+} from "./storybook-flat-story-titles";
+
+const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
+const DESIGN_COMPONENT_STORIES = [
+  "LangfuseIcon/LangfuseIcon",
+  "Spinner/Spinner",
+  "Switch/Switch",
+] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -13,7 +24,35 @@ function getAbsolutePath(value: string) {
 }
 
 const config: StorybookConfig = {
-  stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  stories: [
+    // Curated design-system documentation shown under Design.
+    {
+      directory: "../storybook/docs",
+      files: "**/*.mdx",
+      titlePrefix: "Design",
+    },
+    // Technical MDX documents colocated with implementation code.
+    {
+      directory: "../src",
+      files: "**/*.mdx",
+      titlePrefix: "Playground/Docs",
+    },
+    // Reviewed components that are part of the design-system reference.
+    ...DESIGN_COMPONENT_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design/Components",
+    })),
+    // All other component stories belong to the flat Playground by default.
+    {
+      directory: "../src",
+      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
+        basename(storyPath),
+      ).join("|")}).stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+  ],
+  experimental_indexers: flattenStoryIndexTitles,
   addons: [
     getAbsolutePath("@storybook/addon-a11y"),
     getAbsolutePath("@storybook/addon-docs"),
@@ -33,6 +72,8 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    viteConfig.plugins = [flatStoryTitlesPlugin, ...(viteConfig.plugins ?? [])];
+
     const sharedSrc = resolve(
       dirname(fileURLToPath(import.meta.url)),
       "../../packages/shared/src",

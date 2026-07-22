@@ -11,12 +11,12 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
-import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
-import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
-import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
+import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
