@@ -185,7 +185,9 @@ function MobileCard<TData>({
         onClick={
           isClickable
             ? (e) => {
-                if (shouldIgnoreRowClickTarget(e.target)) return;
+                // Exclude the card root (role="button") so only interactive
+                // CHILDREN (checkbox, star, links) swallow the tap.
+                if (shouldIgnoreRowClickTarget(e.target, e.currentTarget)) return;
                 onRowClick?.(row.original, e);
               }
             : undefined
@@ -194,7 +196,7 @@ function MobileCard<TData>({
           isClickable
             ? (e) => {
                 if (e.key !== "Enter") return;
-                if (shouldIgnoreRowClickTarget(e.target)) return;
+                if (shouldIgnoreRowClickTarget(e.target, e.currentTarget)) return;
                 onRowClick?.(row.original);
               }
             : undefined

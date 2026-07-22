@@ -133,10 +133,20 @@ function isValidCssVariableName({
 const INTERACTIVE_ROW_CLICK_SELECTOR =
   "a, button, input, select, textarea, summary, [role='button'], [role='link']";
 
-export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+export const shouldIgnoreRowClickTarget = (
+  target: EventTarget | null,
+  // Optional clickable container (e.g. a card that is itself role="button").
+  // Interactive CHILDREN of the row should swallow the click, but the container
+  // itself matching the selector must not — otherwise every click inside it is
+  // ignored and the row action never fires.
+  container?: Element | null,
+) => {
   if (!(target instanceof Element)) return false;
 
-  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
+  const interactive = target.closest(INTERACTIVE_ROW_CLICK_SELECTOR);
+  if (!interactive) return false;
+  if (container && interactive === container) return false;
+  return true;
 };
 
 // These are the important styles to make sticky column pinning work!
