@@ -2377,19 +2377,23 @@ export const getScoresForBlobStorageExportParquet = function (
   });
 };
 
-export const getScoresForAnalyticsIntegrations = async function* (
+/**
+ * Trace-attribute CTE for analytics-integration score exports. Pre-filters
+ * traces so the trace timestamp window prunes partitions directly, instead of
+ * living in an OR clause after the LEFT JOIN where the planner cannot push it
+ * down. Subtracts 7d from minTimestamp to keep scores whose trace was created
+ * before the score window started.
+ *
+ * Schema contract with the consuming query in
+ * getScoresForAnalyticsIntegrations: project_id, id, name, session_id,
+ * user_id, release, tags, posthog_session_id, mixpanel_session_id.
+ */
+const buildAnalyticsScoreTraceAttributesCte = (
   projectId: string,
-  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  options: { useGraceHash?: boolean } = {},
-) {
-  // Pre-filter traces in a CTE so the trace timestamp window prunes partitions
-  // directly, instead of living in an OR clause after the LEFT JOIN where the
-  // planner cannot push it down. Subtract 7d from minTimestamp to keep scores
-  // whose trace was created before the score window started.
-  const query = `
-    WITH selected_traces AS (
+): { query: string; params: Record<string, unknown> } => ({
+  query: `
       SELECT
         t.project_id as project_id,
         t.id as id,
@@ -2403,7 +2407,29 @@ export const getScoresForAnalyticsIntegrations = async function* (
       FROM traces t FINAL
       WHERE t.project_id = {projectId: String}
       AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-      AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+      AND t.timestamp <= {maxTimestamp: DateTime64(3)}`,
+  params: {
+    projectId,
+    minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+  },
+});
+
+export const getScoresForAnalyticsIntegrations = async function* (
+  projectId: string,
+  projectName: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  options: { useGraceHash?: boolean } = {},
+) {
+  const selectedTraces = buildAnalyticsScoreTraceAttributesCte(
+    projectId,
+    minTimestamp,
+    maxTimestamp,
+  );
+
+  const query = `
+    WITH selected_traces AS (${selectedTraces.query}
     )
 
     SELECT
@@ -2447,6 +2473,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
+      ...selectedTraces.params,
     },
     tags: { projectId },
     clickhouseConfigs: {

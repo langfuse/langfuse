@@ -114,7 +114,7 @@ export function AuthenticatedLayout({
     }),
   );
 
-  const hasFeaturePreviews = isLangfuseCloud;
+  const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
