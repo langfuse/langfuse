@@ -5,13 +5,21 @@
 // MANAGED chat prompt fetched from the AI-features Langfuse project via the
 // SAME client (`getLangfuseClient`), and fall back to the code-built
 // skeleton (`buildFilterSystemPrompt`) whenever the managed prompt is
-// unavailable — self-hosted (no AI-features keys configured), the org has AI
-// telemetry off, or the fetch/compile call throws. Unlike v3 (which hard-fails
-// when the keys are missing), this endpoint must NEVER hard-fail just because
-// the managed prompt couldn't be fetched — self-hosted and telemetry-off are
-// both expected, ordinary states, not errors, and even a fetch failure only
-// degrades to the fallback (with a `logger.warn`, so a broken managed prompt
-// stays visible instead of silently misbehaving).
+// unavailable — self-hosted (no AI-features keys configured) or the
+// fetch/compile call throws. Unlike v3 (which hard-fails when the keys are
+// missing), this endpoint must NEVER hard-fail just because the managed
+// prompt couldn't be fetched — self-hosted is an expected, ordinary state,
+// not an error, and even a fetch failure only degrades to the fallback (with
+// a `logger.warn`, so a broken managed prompt stays visible instead of
+// silently misbehaving).
+//
+// Gated on AI-features KEYS only — same as v3, and deliberately NOT on the
+// org's `aiTelemetryEnabled` setting. Fetching and compiling our OWN managed
+// prompt is a GET of our prompt; it sends no org data anywhere, so there is
+// nothing for telemetry consent to gate here. `aiTelemetryEnabled` continues
+// to gate exactly what it always has: the trace WRITE and the prompt-version
+// link, both inside `router.ts`'s `traceSinkParams`. A telemetry-off org
+// still gets the improved managed prompt; it just doesn't get traced.
 //
 // The MANAGED prompt is the source of truth for the INSTRUCTIONAL PROSE
 // (Role, output format, Levels, Metadata, Scores, Null checks, Negation, Tag
@@ -79,20 +87,18 @@ function buildFallbackPrompt(
 export async function resolveFilterSystemPrompt(params: {
   currentDatetime: string;
   projectId: string;
-  aiTelemetryEnabled: boolean;
   aiFeaturesPublicKey: string | undefined;
   aiFeaturesSecretKey: string | undefined;
   aiFeaturesHost: string | undefined;
 }): Promise<ResolvedFilterSystemPrompt> {
   const fallback = buildFallbackPrompt(params.currentDatetime);
 
-  // Self-hosted (no keys) and telemetry-off are expected, ordinary states —
-  // the AI-features project is never contacted in either case, so there is
-  // nothing to fetch and nothing to warn about.
+  // Self-hosted (no keys) is an expected, ordinary state — the AI-features
+  // project is never contacted, so there is nothing to fetch and nothing to
+  // warn about. This is a CAPABILITY check only; whether the org has AI
+  // telemetry on is irrelevant to whether we can read our own prompt.
   const canUseManagedPrompt =
-    params.aiTelemetryEnabled &&
-    Boolean(params.aiFeaturesPublicKey) &&
-    Boolean(params.aiFeaturesSecretKey);
+    Boolean(params.aiFeaturesPublicKey) && Boolean(params.aiFeaturesSecretKey);
   if (!canUseManagedPrompt) {
     return fallback;
   }
@@ -107,13 +113,29 @@ export async function resolveFilterSystemPrompt(params: {
     const promptResponse = await client.getPrompt(
       SEARCH_BAR_FILTER_PROMPT_NAME,
       undefined,
-      { type: "chat" },
+      // A slow or erroring AI-features project must never stall the user's
+      // request — a fast local fallback exists, so there is no reason to
+      // inherit the SDK's default retry/timeout budget (~15s worst case).
+      { type: "chat", fetchTimeoutMs: 2000, maxRetries: 0 },
     );
     const compiled = promptResponse.compile({
       catalog: buildFieldCatalog(),
       nullable_ids: nullableFieldIds(),
       current_datetime: params.currentDatetime,
     });
+    // `getPrompt` is typed to return chat messages for `{ type: "chat" }`,
+    // but that only holds if the SERVER-SIDE prompt is actually stored as a
+    // chat prompt. If it were ever stored as a text prompt instead, `compile`
+    // returns a string, not an array — guard explicitly rather than relying
+    // on the TypeError `.map` would throw (which IS caught below, but a
+    // named check is clearer than depending on an incidental throw).
+    if (!Array.isArray(compiled)) {
+      logger.warn(
+        "Search-bar AI filter: managed prompt compiled to a non-chat result, falling back to the code-built prompt",
+        { projectId: params.projectId },
+      );
+      return fallback;
+    }
     const messages: ChatMessage[] = compiled.map((message) => ({
       ...(message as ChatMessage),
       type: ChatMessageType.PublicAPICreated,

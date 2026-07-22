@@ -143,12 +143,14 @@ export const searchBarRouter = createTRPCRouter({
         // — same AI-features project/client the v3 natural-language-filter
         // path uses); falls back to the code-built skeleton whenever the
         // managed prompt is unavailable. Never throws — see
-        // `resolveFilterPrompt.ts` for the fallback conditions.
+        // `resolveFilterPrompt.ts` for the fallback conditions. Gated on
+        // AI-features keys only, NOT on `aiTelemetryEnabled` — reading our
+        // own prompt sends no org data out, so telemetry consent has nothing
+        // to gate here; it still gates the trace write + version link below.
         const { messages: systemMessages, usedPrompt } =
           await resolveFilterSystemPrompt({
             currentDatetime,
             projectId: input.projectId,
-            aiTelemetryEnabled,
             aiFeaturesPublicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
             aiFeaturesSecretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
             aiFeaturesHost: env.LANGFUSE_AI_FEATURES_HOST,

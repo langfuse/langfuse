@@ -31,7 +31,6 @@ describe("resolveFilterSystemPrompt", () => {
   it("falls back to the code-built prompt when AI-features keys are absent (self-hosted)", async () => {
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
-      aiTelemetryEnabled: true,
       aiFeaturesPublicKey: undefined,
       aiFeaturesSecretKey: undefined,
       aiFeaturesHost: undefined,
@@ -50,24 +49,43 @@ describe("resolveFilterSystemPrompt", () => {
     expect(mockedGetLangfuseClient).not.toHaveBeenCalled();
   });
 
-  it("falls back to the code-built prompt when the org's AI telemetry is off, even with keys present", async () => {
+  it("uses the managed prompt whenever keys are present, regardless of the org's AI telemetry setting", async () => {
+    // This function no longer takes an `aiTelemetryEnabled` flag at all —
+    // reading our own managed prompt is a capability question (do we have
+    // keys?), not a telemetry-consent question (fetching it sends no org
+    // data anywhere). `aiTelemetryEnabled` still gates the trace WRITE and
+    // the prompt-version link, but that gate lives entirely in
+    // `router.ts`'s `traceSinkParams` ternary — a telemetry-off org still
+    // gets the improved prompt here, it just never gets traced or linked.
+    const compile = vi
+      .fn()
+      .mockReturnValue([
+        { role: "system", content: "compiled system message" },
+      ]);
+    const fakePromptResponse = {
+      name: SEARCH_BAR_FILTER_PROMPT_NAME,
+      version: 3,
+      compile,
+    };
+    const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
+    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
-      aiTelemetryEnabled: false,
       aiFeaturesPublicKey: "pk-test",
       aiFeaturesSecretKey: "sk-test",
       aiFeaturesHost: "https://example.com",
     });
 
-    expect(result.usedPrompt).toBeUndefined();
+    expect(mockedGetLangfuseClient).toHaveBeenCalled();
+    expect(result.usedPrompt).toBe(fakePromptResponse);
     expect(result.messages).toEqual([
       {
         role: "system",
-        content: buildFilterSystemPrompt(baseParams.currentDatetime),
+        content: "compiled system message",
         type: "public-api-created",
       },
     ]);
-    expect(mockedGetLangfuseClient).not.toHaveBeenCalled();
   });
 
   it("falls back to the code-built prompt (with a warn log) when the managed-prompt fetch throws", async () => {
@@ -77,7 +95,6 @@ describe("resolveFilterSystemPrompt", () => {
 
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
-      aiTelemetryEnabled: true,
       aiFeaturesPublicKey: "pk-test",
       aiFeaturesSecretKey: "sk-test",
       aiFeaturesHost: "https://example.com",
@@ -94,9 +111,50 @@ describe("resolveFilterSystemPrompt", () => {
     expect(getPrompt).toHaveBeenCalledWith(
       SEARCH_BAR_FILTER_PROMPT_NAME,
       undefined,
-      { type: "chat" },
+      {
+        type: "chat",
+        // Caps cold-start latency: a slow/erroring AI-features project must
+        // never stall the user's request when a fast local fallback exists.
+        fetchTimeoutMs: 2000,
+        maxRetries: 0,
+      },
     );
     // A broken managed prompt must be visible, not silent.
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("falls back to the code-built prompt (with a warn log) when the managed prompt compiles to a non-chat result", async () => {
+    // If the server ever stores a TEXT prompt under this name,
+    // `getPrompt(..., { type: "chat" })` still resolves, but `.compile()`
+    // returns a STRING (the `TextPromptClient` shape), not an array of chat
+    // messages. This must degrade to the fallback via an explicit guard, not
+    // by relying on the TypeError `.map` would otherwise throw.
+    const compile = vi.fn().mockReturnValue("a plain compiled string");
+    const fakePromptResponse = {
+      name: SEARCH_BAR_FILTER_PROMPT_NAME,
+      version: 1,
+      compile,
+    };
+    const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
+    mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+    const result = await resolveFilterSystemPrompt({
+      ...baseParams,
+      aiFeaturesPublicKey: "pk-test",
+      aiFeaturesSecretKey: "sk-test",
+      aiFeaturesHost: "https://example.com",
+    });
+
+    expect(result.usedPrompt).toBeUndefined();
+    expect(result.messages).toEqual([
+      {
+        role: "system",
+        content: buildFilterSystemPrompt(baseParams.currentDatetime),
+        type: "public-api-created",
+      },
+    ]);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
   });
@@ -117,7 +175,6 @@ describe("resolveFilterSystemPrompt", () => {
 
     const result = await resolveFilterSystemPrompt({
       ...baseParams,
-      aiTelemetryEnabled: true,
       aiFeaturesPublicKey: "pk-test",
       aiFeaturesSecretKey: "sk-test",
       aiFeaturesHost: "https://example.com",

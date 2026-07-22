@@ -16,7 +16,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROMPT_FILE="${REPO_ROOT}/web/src/features/search-bar/server/prompts/search-bar-filter.prompt.json"
-PROMPT_NAME="search-bar-filter"
 REGIONS=(STAGING EU US JP HIPAA)
 BASE_URLS=(
   "https://staging.langfuse.com"
@@ -38,8 +37,14 @@ fi
 
 REQUEST_BODY="$(jq -c '.' "${PROMPT_FILE}")"
 
-if [[ "$(jq -r '.name' <<<"${REQUEST_BODY}")" != "${PROMPT_NAME}" ]]; then
-  echo "Prompt file 'name' must be '${PROMPT_NAME}'." >&2
+# The seed file's `.name` is the single source of truth for the managed
+# prompt's name — kept in sync with the TS constant
+# (`SEARCH_BAR_FILTER_PROMPT_NAME` in `resolveFilterPrompt.ts`) by a test,
+# not by a second literal here. A rename in one place therefore can't
+# silently desync the two and degrade every request to permanent fallback.
+PROMPT_NAME="$(jq -r '.name' <<<"${REQUEST_BODY}")"
+if [[ -z "${PROMPT_NAME}" || "${PROMPT_NAME}" == "null" ]]; then
+  echo "Prompt file must have a non-empty 'name'." >&2
   exit 1
 fi
 if [[ "$(jq -r '.type' <<<"${REQUEST_BODY}")" != "chat" ]]; then

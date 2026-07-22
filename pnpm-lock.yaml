@@ -939,6 +939,9 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
+      langfuse-core:
+        specifier: ^3.38.4
+        version: 3.38.20
       node-mocks-http:
         specifier: ^1.17.2
         version: 1.17.2(@types/express@5.0.6)(@types/node@24.3.0)

@@ -207,6 +207,7 @@
     "eslint-plugin-storybook": "10.3.6",
     "eslint-plugin-tailwindcss": "4.0.2",
     "jsdom": "^26.1.0",
+    "langfuse-core": "^3.38.4",
     "node-mocks-http": "^1.17.2",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.2",
