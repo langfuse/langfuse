@@ -138,6 +138,7 @@ type InAppAiAgentContextType = {
   setDraft: (draft: string) => void;
   editQueuedMessage: (messageId: string, content: string) => void;
   deleteQueuedMessage: (messageId: string) => void;
+  reorderQueuedMessage: (messageId: string, targetMessageId: string) => void;
   submit: (
     content: string,
     options?: InAppAgentSubmitOptions,
@@ -180,6 +181,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   setDraft: () => undefined,
   editQueuedMessage: () => undefined,
   deleteQueuedMessage: () => undefined,
+  reorderQueuedMessage: () => undefined,
   submit: async () => false,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
@@ -897,6 +899,32 @@ function InAppAiAgentProviderInner({
     },
     [selectedConversationId, updateConversation],
   );
+  const reorderQueuedMessage = useCallback(
+    (messageId: string, targetMessageId: string) => {
+      if (!selectedConversationId || messageId === targetMessageId) {
+        return;
+      }
+      updateConversation(selectedConversationId, (current) => {
+        const fromIndex = current.queuedMessages.findIndex(
+          ({ id }) => id === messageId,
+        );
+        const toIndex = current.queuedMessages.findIndex(
+          ({ id }) => id === targetMessageId,
+        );
+        if (fromIndex < 0 || toIndex < 0) {
+          return current;
+        }
+        const queuedMessages = current.queuedMessages.slice();
+        const [message] = queuedMessages.splice(fromIndex, 1);
+        if (!message) {
+          return current;
+        }
+        queuedMessages.splice(toIndex, 0, message);
+        return { ...current, queuedMessages };
+      });
+    },
+    [selectedConversationId, updateConversation],
+  );
 
   const submit = useCallback(
     async (content: string, options?: InAppAgentSubmitOptions) => {
@@ -1247,6 +1275,7 @@ function InAppAiAgentProviderInner({
       setDraft,
       editQueuedMessage,
       deleteQueuedMessage,
+      reorderQueuedMessage,
       submit,
       approveToolCall,
       rejectToolCall,
@@ -1269,6 +1298,7 @@ function InAppAiAgentProviderInner({
       open,
       openAssistant,
       rejectToolCall,
+      reorderQueuedMessage,
       selectConversation,
       selectedClientState,
       selectedConversationId,

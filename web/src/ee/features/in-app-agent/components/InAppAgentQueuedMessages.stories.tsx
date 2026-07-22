@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
@@ -22,36 +23,44 @@ const meta = preview.meta({
     messages,
     onEdit: fn(),
     onDelete: fn(),
+    onReorder: fn(),
   },
 });
 
-export const QueuedFollowUps = meta.story({});
+export const QueuedFollowUps = meta.story({
+  render: (args) => <ReorderableQueueStory {...args} />,
+});
 
 export const Collapsed = meta.story({
   args: { defaultExpanded: false },
+  render: (args) => <ReorderableQueueStory {...args} />,
 });
 
-function EditableQueueStory(
+function ReorderableQueueStory(
   args: ComponentProps<typeof InAppAgentQueuedMessages>,
 ) {
-  const [queuedMessages, setQueuedMessages] = useState(args.messages);
+  const [queuedMessages, setQueuedMessages] = useState(() =>
+    Array.from(args.messages),
+  );
   return (
     <InAppAgentQueuedMessages
       {...args}
       messages={queuedMessages}
-      onEdit={(messageId, content) => {
-        args.onEdit(messageId, content);
-        setQueuedMessages((current) =>
-          current.map((message) =>
-            message.id === messageId ? { ...message, content } : message,
-          ),
-        );
-      }}
       onDelete={(messageId) => {
         args.onDelete(messageId);
         setQueuedMessages((current) =>
-          current.filter((message) => message.id !== messageId),
+          current.filter(({ id }) => id !== messageId),
         );
+      }}
+      onReorder={(messageId, targetMessageId) => {
+        args.onReorder?.(messageId, targetMessageId);
+        setQueuedMessages((current) => {
+          const fromIndex = current.findIndex(({ id }) => id === messageId);
+          const toIndex = current.findIndex(({ id }) => id === targetMessageId);
+          return fromIndex < 0 || toIndex < 0
+            ? current
+            : arrayMove(current, fromIndex, toIndex);
+        });
       }}
     />
   );
@@ -59,56 +68,14 @@ function EditableQueueStory(
 
 export const TestEditsAndDeletesFollowUps = meta.story({
   name: "(Test) Edits And Deletes Follow-Ups",
-  render: (args) => <EditableQueueStory {...args} />,
+  render: (args) => <ReorderableQueueStory {...args} />,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Edit queued message 1" }),
     );
-    const firstEditor = canvas.getByRole("textbox", {
-      name: "Edit queued message 1",
-    });
-    await userEvent.clear(firstEditor);
-    await userEvent.type(firstEditor, "Edited with Save");
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-    await expect(args.onEdit).toHaveBeenCalledWith(
-      "queued-1",
-      "Edited with Save",
-    );
-
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Edit queued message 2" }),
-    );
-    const secondEditor = canvas.getByRole("textbox", {
-      name: "Edit queued message 2",
-    });
-    await userEvent.type(secondEditor, "{enter}temporary line");
-    await expect(secondEditor).toHaveValue(
-      `${messages[1]?.content}\ntemporary line`,
-    );
-    await userEvent.click(canvas.getByRole("button", { name: "Cancel" }));
-    await expect(args.onEdit).toHaveBeenCalledTimes(1);
-
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Edit queued message 1" }),
-    );
-    const keyboardEditor = canvas.getByRole("textbox", {
-      name: "Edit queued message 1",
-    });
-    await userEvent.clear(keyboardEditor);
-    await userEvent.type(keyboardEditor, "Saved from keyboard");
-    await userEvent.keyboard("{Control>}{Enter}{/Control}");
-    await expect(args.onEdit).toHaveBeenLastCalledWith(
-      "queued-1",
-      "Saved from keyboard",
-    );
-
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Edit queued message 2" }),
-    );
-    await userEvent.keyboard("{Escape}");
-    await expect(canvas.queryByRole("textbox")).not.toBeInTheDocument();
+    await expect(args.onEdit).toHaveBeenCalledWith("queued-1");
 
     await userEvent.click(
       canvas.getByRole("button", { name: "Delete queued message 2" }),

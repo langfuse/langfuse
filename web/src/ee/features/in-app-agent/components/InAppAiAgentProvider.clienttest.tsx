@@ -193,6 +193,17 @@ function Harness() {
           Open {conversation.title}
         </button>
       ))}
+      <button
+        onClick={() => {
+          const first = agent.queuedMessages[0];
+          const last = agent.queuedMessages.at(-1);
+          if (first && last) {
+            agent.reorderQueuedMessage(last.id, first.id);
+          }
+        }}
+      >
+        Move last first
+      </button>
       {agent.queuedMessages.map((message) => (
         <div key={message.id}>
           <span>{message.content}</span>
@@ -299,7 +310,7 @@ describe("InAppAiAgentProvider concurrent conversations and queue", () => {
     });
   });
 
-  it("edits and deletes pending messages before dispatch without changing their order", async () => {
+  it("edits, deletes, and reorders pending messages before dispatch", async () => {
     renderProvider();
 
     fireEvent.click(screen.getByText("Submit first"));
@@ -325,18 +336,19 @@ describe("InAppAiAgentProvider concurrent conversations and queue", () => {
     }
     fireEvent.click(editButton);
     fireEvent.click(deleteButton);
+    fireEvent.click(screen.getByText("Move last first"));
 
     act(() => {
       agent.finishNextRun();
     });
     await waitFor(() => {
-      expect(agent.userMessages).toEqual(["first", "edited"]);
+      expect(agent.userMessages).toEqual(["first", "fourth"]);
     });
     act(() => {
       agent.finishNextRun();
     });
     await waitFor(() => {
-      expect(agent.userMessages).toEqual(["first", "edited", "fourth"]);
+      expect(agent.userMessages).toEqual(["first", "fourth", "edited"]);
     });
   });
 });

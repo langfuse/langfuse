@@ -55,6 +55,7 @@ export function ControlledInAppAgentWindow(
     messages,
     pendingToolApprovals,
     queuedMessages,
+    reorderQueuedMessage,
     approveToolCall,
     rejectToolCall,
     selectConversation,
@@ -152,6 +153,7 @@ export function ControlledInAppAgentWindow(
       onDraftChange={setDraft}
       onEditQueuedMessage={editQueuedMessage}
       onDeleteQueuedMessage={deleteQueuedMessage}
+      onReorderQueuedMessage={reorderQueuedMessage}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}

@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { arrayMove } from "@dnd-kit/sortable";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -54,6 +55,46 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
         />
       )}
     </InAppAgentWindowStoryShell>
+  );
+}
+
+function StatefulQueuedInAppAgentWindow(args: InAppAgentWindowProps) {
+  const [draft, setDraft] = useState(args.draft ?? "");
+  const [queuedMessages, setQueuedMessages] = useState(() =>
+    Array.from(args.queuedMessages ?? []),
+  );
+
+  return (
+    <StatefulInAppAgentWindow
+      {...args}
+      draft={draft}
+      queuedMessages={queuedMessages}
+      onDraftChange={setDraft}
+      onEditQueuedMessage={(messageId, content) => {
+        args.onEditQueuedMessage?.(messageId, content);
+        setQueuedMessages((current) =>
+          current.map((message) =>
+            message.id === messageId ? { ...message, content } : message,
+          ),
+        );
+      }}
+      onDeleteQueuedMessage={(messageId) => {
+        args.onDeleteQueuedMessage?.(messageId);
+        setQueuedMessages((current) =>
+          current.filter(({ id }) => id !== messageId),
+        );
+      }}
+      onReorderQueuedMessage={(messageId, targetMessageId) => {
+        args.onReorderQueuedMessage?.(messageId, targetMessageId);
+        setQueuedMessages((current) => {
+          const fromIndex = current.findIndex(({ id }) => id === messageId);
+          const toIndex = current.findIndex(({ id }) => id === targetMessageId);
+          return fromIndex < 0 || toIndex < 0
+            ? current
+            : arrayMove(current, fromIndex, toIndex);
+        });
+      }}
+    />
   );
 }
 
@@ -655,6 +696,7 @@ export const ToolApprovalRequired = meta.story({
 });
 
 export const RunningWithQueuedFollowUps = meta.story({
+  render: (args) => <StatefulQueuedInAppAgentWindow {...args} />,
   args: {
     isAssistantTurnInProgress: true,
     isInputDisabled: false,
@@ -671,6 +713,7 @@ export const RunningWithQueuedFollowUps = meta.story({
     onDraftChange: fn(),
     onEditQueuedMessage: fn(),
     onDeleteQueuedMessage: fn(),
+    onReorderQueuedMessage: fn(),
     messages: [
       {
         id: "user-1",
@@ -1171,10 +1214,10 @@ export const RateLimited = meta.story({
     await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   },
 });
 

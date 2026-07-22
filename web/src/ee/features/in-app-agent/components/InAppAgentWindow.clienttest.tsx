@@ -146,6 +146,7 @@ describe("InAppAgentWindow quick actions", () => {
   it("keeps follow-up, new conversation, history, and switching controls available while running", async () => {
     const onNewConversation = vi.fn();
     const onSelectConversation = vi.fn();
+    const onEditQueuedMessage = vi.fn();
 
     render(
       windowElement({
@@ -158,6 +159,8 @@ describe("InAppAgentWindow quick actions", () => {
         ],
         isAssistantTurnInProgress: true,
         isInputDisabled: false,
+        draft: "Unsent draft",
+        queuedMessages: [{ id: "queued-1", content: "Queued follow-up" }],
         messages: [
           {
             id: "message-1",
@@ -167,10 +170,30 @@ describe("InAppAgentWindow quick actions", () => {
         ],
         onNewConversation,
         onSelectConversation,
+        onEditQueuedMessage,
+        onDeleteQueuedMessage: vi.fn(),
       }),
     );
 
     expect(screen.getByLabelText("Message the assistant")).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit queued message 1" }),
+    );
+    const editor = screen.getByRole("textbox", {
+      name: "Edit queued message",
+    });
+    expect(editor).toHaveValue("Queued follow-up");
+    fireEvent.change(editor, { target: { value: "Edited follow-up" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save queued message" }),
+    );
+    expect(onEditQueuedMessage).toHaveBeenCalledWith(
+      "queued-1",
+      "Edited follow-up",
+    );
+    expect(screen.getByLabelText("Message the assistant")).toHaveValue(
+      "Unsent draft",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Start new conversation" }),
     );

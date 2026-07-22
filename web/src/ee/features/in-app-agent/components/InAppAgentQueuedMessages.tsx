@@ -1,8 +1,31 @@
-import { useState, type KeyboardEvent } from "react";
-import { ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  ChevronDown,
+  CornerDownRight,
+  GripVertical,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
 import { cn } from "@/src/utils/tailwind";
 
 export type InAppAgentQueuedMessageItem = {
@@ -15,35 +38,32 @@ export function InAppAgentQueuedMessages({
   defaultExpanded = true,
   onEdit,
   onDelete,
+  onReorder,
 }: {
   messages: readonly InAppAgentQueuedMessageItem[];
   defaultExpanded?: boolean;
-  onEdit: (messageId: string, content: string) => void;
+  onEdit: (messageId: string) => void;
   onDelete: (messageId: string) => void;
+  onReorder?: (messageId: string, targetMessageId: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [editing, setEditing] = useState<{
-    messageId: string;
-    content: string;
-  } | null>(null);
+  const sensors = useSensors(
+    useSensor(MouseSensor),
+    useSensor(TouchSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
-  const saveEdit = () => {
-    const content = editing?.content.trim();
-    if (!editing || !content) {
-      return;
-    }
-    onEdit(editing.messageId, content);
-    setEditing(null);
-  };
-  const handleEditKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setEditing(null);
-      return;
-    }
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-      event.preventDefault();
-      saveEdit();
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (
+      onReorder &&
+      over &&
+      active.id !== over.id &&
+      typeof active.id === "string" &&
+      typeof over.id === "string"
+    ) {
+      onReorder(active.id, over.id);
     }
   };
 
@@ -67,96 +87,108 @@ export function InAppAgentQueuedMessages({
         {messages.length} queued
       </button>
       {isExpanded ? (
-        <ol className="border-border divide-y border-t">
-          {messages.map((message, index) => {
-            const isEditing = editing?.messageId === message.id;
-            return (
-              <li key={message.id} className="flex gap-2 px-2 py-2">
-                <span className="bg-muted text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold">
-                  {index + 1}
-                </span>
-                {isEditing ? (
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <Textarea
-                      autoFocus
-                      aria-label={`Edit queued message ${index + 1}`}
-                      rows={2}
-                      value={editing.content}
-                      onChange={(event) => {
-                        setEditing({
-                          messageId: message.id,
-                          content: event.target.value,
-                        });
-                      }}
-                      onKeyDown={handleEditKeyDown}
-                      className="max-h-32 min-h-14 resize-y text-xs"
-                    />
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => {
-                          setEditing(null);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        disabled={!editing.content.trim()}
-                        onClick={saveEdit}
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <p className="min-w-0 flex-1 text-xs leading-5 wrap-break-word whitespace-pre-wrap">
-                      {message.content}
-                    </p>
-                    <div className="flex shrink-0 items-start gap-0.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Edit queued message ${index + 1}`}
-                        onClick={() => {
-                          setEditing({
-                            messageId: message.id,
-                            content: message.content,
-                          });
-                        }}
-                      >
-                        <Pencil className="size-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="hover:text-destructive"
-                        aria-label={`Delete queued message ${index + 1}`}
-                        onClick={() => {
-                          if (editing?.messageId === message.id) {
-                            setEditing(null);
-                          }
-                          onDelete(message.id);
-                        }}
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <DndContext
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={messages.map(({ id }) => id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <ol className="border-border divide-y border-t">
+              {messages.map((message, index) => (
+                <SortableQueuedMessage
+                  key={message.id}
+                  message={message}
+                  index={index}
+                  canReorder={Boolean(onReorder)}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))}
+            </ol>
+          </SortableContext>
+        </DndContext>
       ) : null}
     </div>
+  );
+}
+
+function SortableQueuedMessage({
+  message,
+  index,
+  canReorder,
+  onEdit,
+  onDelete,
+}: {
+  message: InAppAgentQueuedMessageItem;
+  index: number;
+  canReorder: boolean;
+  onEdit: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: message.id, disabled: !canReorder });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "bg-card flex gap-2 px-2 py-2",
+        isDragging && "relative z-10 opacity-70 shadow-sm",
+      )}
+    >
+      <CornerDownRight className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+      <p className="min-w-0 flex-1 text-xs leading-5 wrap-break-word whitespace-pre-wrap">
+        {message.content}
+      </p>
+      <div className="flex shrink-0 items-start gap-0.5">
+        {canReorder ? (
+          <Button
+            {...attributes}
+            {...listeners}
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="cursor-grab active:cursor-grabbing"
+            aria-label={`Reorder queued message ${index + 1}`}
+          >
+            <GripVertical className="size-3" />
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Edit queued message ${index + 1}`}
+          onClick={() => {
+            onEdit(message.id);
+          }}
+        >
+          <Pencil className="size-3" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="hover:text-destructive"
+          aria-label={`Delete queued message ${index + 1}`}
+          onClick={() => {
+            onDelete(message.id);
+          }}
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
+    </li>
   );
 }
