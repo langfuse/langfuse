@@ -232,6 +232,10 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Version-update reload notification (LFE-10978). `banner_shown` fires once
+  // per appearance; the two actions measure the reload-vs-dismiss split. No
+  // props carry user content.
+  version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   toast: ["report_issue", "dismiss"],
   tag: [
