@@ -203,7 +203,7 @@ export function AnnotationQueueItemsTable({
                 }
               }}
               aria-label="Select all"
-              className="opacity-60"
+              variant="muted"
             />
           </div>
         );
@@ -214,7 +214,8 @@ export function AnnotationQueueItemsTable({
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+            variant="muted"
+            className="mt-1 data-[state=checked]:mt-[5px]"
           />
         );
       },
