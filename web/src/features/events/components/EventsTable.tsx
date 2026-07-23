@@ -119,6 +119,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   observedScoreNamesFromOptions,
@@ -1889,7 +1890,17 @@ export default function ObservationsEventsTable({
                     // padding, so the bar lines up with time range / presets.
                     className="p-0"
                   />
-                ) : undefined
+                ) : (
+                  // No grammar bar (userId/sessionId-scoped tables): fall back
+                  // to the legacy full-text search so mobile keeps the search
+                  // desktop has via the toolbar's searchConfig (LFE-11067).
+                  <MobileFullTextSearch
+                    currentQuery={searchQuery ?? undefined}
+                    updateQuery={setSearchQuery}
+                    tableAllowsFullTextSearch
+                    metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                  />
+                )
               }
               headerControls={
                 // Compact time-range + refresh, pulled up into the sheet's
