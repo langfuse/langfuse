@@ -26,7 +26,7 @@ interface ActionButtonProps extends ButtonProps {
   limitValue?: number;
   limit?: number | false;
   children: React.ReactNode;
-  className?: "mt-4" | "w-full";
+  className?: "w-full";
   href?: string;
   trackingEventName?: Parameters<ReturnType<typeof usePostHogClientCapture>>[0];
   trackingProps?: Record<string, unknown>;
