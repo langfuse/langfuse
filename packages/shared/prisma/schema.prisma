@@ -756,7 +756,6 @@ model DatasetRuns {
   dataset         Dataset           @relation(fields: [datasetId, projectId], references: [id, projectId], onDelete: Cascade)
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at")
-  datasetRunItems DatasetRunItems[]
 
   @@id([id, projectId])
   @@unique([datasetId, projectId, name])
@@ -764,27 +763,6 @@ model DatasetRuns {
   @@index([createdAt])
   @@index([updatedAt])
   @@map("dataset_runs")
-}
-
-model DatasetRunItems {
-  id            String      @default(cuid())
-  projectId     String      @map("project_id")
-  datasetRunId  String      @map("dataset_run_id")
-  datasetRun    DatasetRuns @relation(fields: [datasetRunId, projectId], references: [id, projectId], onDelete: Cascade)
-  datasetItemId String      @map("dataset_item_id")
-  traceId       String      @map("trace_id")
-  observationId String?     @map("observation_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
-
-  @@id([id, projectId])
-  @@index([datasetRunId], type: Hash)
-  @@index([datasetItemId], type: Hash)
-  @@index([observationId], type: Hash)
-  @@index([traceId])
-  @@index([createdAt])
-  @@index([updatedAt])
-  @@map("dataset_run_items")
 }
 
 model Comment {

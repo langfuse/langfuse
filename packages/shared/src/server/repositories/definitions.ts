@@ -491,50 +491,6 @@ export const convertPostgresTraceToInsert = (
   };
 };
 
-export const convertPostgresDatasetRunItemToInsert = (
-  datasetRunItem: Record<string, any>,
-): DatasetRunItemRecordInsertType => {
-  return {
-    id: datasetRunItem.id,
-    project_id: datasetRunItem.project_id,
-    dataset_run_id: datasetRunItem.dataset_run_id,
-    dataset_item_id: datasetRunItem.dataset_item_id,
-    dataset_id: datasetRunItem.dataset_id,
-    trace_id: datasetRunItem.trace_id,
-    observation_id: datasetRunItem.observation_id,
-    error: datasetRunItem.error,
-    created_at: datasetRunItem.created_at?.getTime(),
-    updated_at: datasetRunItem.updated_at?.getTime(),
-    // denormalized run data
-    dataset_run_name: datasetRunItem.dataset_run_name,
-    dataset_run_description: datasetRunItem.dataset_run_description,
-    dataset_run_metadata:
-      typeof datasetRunItem.dataset_run_metadata === "string" ||
-      typeof datasetRunItem.dataset_run_metadata === "number" ||
-      typeof datasetRunItem.dataset_run_metadata === "boolean"
-        ? { metadata: datasetRunItem.dataset_run_metadata }
-        : Array.isArray(datasetRunItem.dataset_run_metadata)
-          ? { metadata: datasetRunItem.dataset_run_metadata }
-          : (datasetRunItem.dataset_run_metadata ?? {}),
-    dataset_run_created_at: datasetRunItem.dataset_run_created_at?.getTime(),
-    // denormalized item data
-    dataset_item_input: JSON.stringify(datasetRunItem.dataset_item_input),
-    dataset_item_expected_output: JSON.stringify(
-      datasetRunItem.dataset_item_expected_output,
-    ),
-    dataset_item_metadata:
-      typeof datasetRunItem.dataset_item_metadata === "string" ||
-      typeof datasetRunItem.dataset_item_metadata === "number" ||
-      typeof datasetRunItem.dataset_item_metadata === "boolean"
-        ? { metadata: datasetRunItem.dataset_item_metadata }
-        : Array.isArray(datasetRunItem.dataset_item_metadata)
-          ? { metadata: datasetRunItem.dataset_item_metadata }
-          : (datasetRunItem.dataset_item_metadata ?? {}),
-    event_ts: datasetRunItem.created_at?.getTime(),
-    is_deleted: 0,
-  };
-};
-
 /**
  * Expects a single record from a
  * `select o.*,
