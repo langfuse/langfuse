@@ -165,6 +165,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: `BatchDataRetentionCleaner(${tableName})`,
+      metricName: "batch_data_retention_cleaner",
+      metricScope: tableName,
       lockKey: `${BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
       onUnavailable: "fail",
@@ -538,6 +540,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       recordIncrement(`${METRIC_PREFIX}.candidate_query_failures`, 1, {
         table: this.tableName,
       });
+      this.markRunFailed(error);
       logger.warn(`${this.instanceName}: Candidate query did not complete`, {
         error,
         candidatesFound: candidatesById.size,
@@ -657,6 +660,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
         throw error;
       }
+      this.markRunFailed(error);
       logger.warn(
         `${this.instanceName}: Candidate enrichment failed; retrying on read-only`,
         {
