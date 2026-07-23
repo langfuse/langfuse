@@ -79,6 +79,23 @@ function buildFallbackPrompt(
   };
 }
 
+// The managed prompt is edited live in the Langfuse UI, so a bad edit can
+// compile to a structurally-invalid chat message: an unsupported role or
+// non-string (e.g. multimodal) content. Such a message must degrade to the
+// code fallback rather than reach `generateLangfuseAIText` and 500 the request.
+const VALID_CHAT_ROLES: ReadonlySet<string> = new Set(
+  Object.values(ChatMessageRole),
+);
+function isUsableChatMessage(message: unknown): boolean {
+  if (typeof message !== "object" || message === null) return false;
+  const { role, content } = message as { role?: unknown; content?: unknown };
+  return (
+    typeof role === "string" &&
+    VALID_CHAT_ROLES.has(role) &&
+    typeof content === "string"
+  );
+}
+
 /**
  * Build the system-prompt message(s) for `searchBar.generateFilter`: try the
  * managed `search-bar-filter` Langfuse prompt first, fall back to the
@@ -123,15 +140,20 @@ export async function resolveFilterSystemPrompt(params: {
       nullable_ids: nullableFieldIds(),
       current_datetime: params.currentDatetime,
     });
-    // `getPrompt` is typed to return chat messages for `{ type: "chat" }`,
-    // but that only holds if the SERVER-SIDE prompt is actually stored as a
-    // chat prompt. If it were ever stored as a text prompt instead, `compile`
-    // returns a string, not an array — guard explicitly rather than relying
-    // on the TypeError `.map` would throw (which IS caught below, but a
-    // named check is clearer than depending on an incidental throw).
-    if (!Array.isArray(compiled)) {
+    // `getPrompt` is typed to return chat messages for `{ type: "chat" }`, but
+    // that only holds if the live prompt is actually a well-formed chat prompt.
+    // A bad edit can compile to: a STRING (if stored as a text prompt), an
+    // EMPTY array, or an array with a MALFORMED message (unsupported role /
+    // non-string content). Any of these would otherwise reach
+    // `generateLangfuseAIText` and 500 the request, so validate the structure
+    // explicitly and degrade to the code fallback (staying visible via a warn).
+    if (
+      !Array.isArray(compiled) ||
+      compiled.length === 0 ||
+      !compiled.every(isUsableChatMessage)
+    ) {
       logger.warn(
-        "Search-bar AI filter: managed prompt compiled to a non-chat result, falling back to the code-built prompt",
+        "Search-bar AI filter: managed prompt compiled to an empty or malformed chat result, falling back to the code-built prompt",
         { projectId: params.projectId },
       );
       return fallback;

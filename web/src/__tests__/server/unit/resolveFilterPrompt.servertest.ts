@@ -159,6 +159,51 @@ describe("resolveFilterSystemPrompt", () => {
     warnSpy.mockRestore();
   });
 
+  // The managed prompt is edited live in the Langfuse UI, so a bad edit can
+  // compile to a well-typed-but-malformed chat result. Each of these must
+  // degrade to the code fallback (with a warn) rather than reach the model
+  // call and 500 the request.
+  it.each([
+    ["an empty message array", [] as unknown],
+    ["a message with an unsupported role", [{ role: "wizard", content: "hi" }]],
+    [
+      "a message with non-string (multimodal) content",
+      [{ role: "system", content: [{ type: "text", text: "hi" }] }],
+    ],
+    ["a null entry", [null]],
+  ])(
+    "falls back to the code-built prompt (with a warn log) when the managed prompt compiles to %s",
+    async (_label, compiled) => {
+      const compile = vi.fn().mockReturnValue(compiled);
+      const fakePromptResponse = {
+        name: SEARCH_BAR_FILTER_PROMPT_NAME,
+        version: 2,
+        compile,
+      };
+      const getPrompt = vi.fn().mockResolvedValue(fakePromptResponse);
+      mockedGetLangfuseClient.mockReturnValue({ getPrompt } as any);
+      const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => logger);
+
+      const result = await resolveFilterSystemPrompt({
+        ...baseParams,
+        aiFeaturesPublicKey: "pk-test",
+        aiFeaturesSecretKey: "sk-test",
+        aiFeaturesHost: "https://example.com",
+      });
+
+      expect(result.usedPrompt).toBeUndefined();
+      expect(result.messages).toEqual([
+        {
+          role: "system",
+          content: buildFilterSystemPrompt(baseParams.currentDatetime),
+          type: "public-api-created",
+        },
+      ]);
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
+    },
+  );
+
   it("compiles the managed prompt with the registry-derived catalog/nullable-ids/current-datetime variables and links the prompt version", async () => {
     const compile = vi
       .fn()

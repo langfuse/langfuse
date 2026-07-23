@@ -125,8 +125,11 @@ export function nullableFieldIds(): string {
  * text.
  *
  * This is the FALLBACK path — used when the managed `search-bar-filter`
- * Langfuse prompt can't be fetched (self-hosted, fetch failure, telemetry
- * off). Its instructional prose is intentionally allowed to drift from the
+ * Langfuse prompt can't be used: self-hosted (no AI-features keys), a
+ * fetch/compile failure, or a malformed compiled prompt. It is NOT gated on AI
+ * telemetry — a telemetry-off org still gets the managed prompt (see
+ * `resolveFilterPrompt.ts`). Its instructional prose is intentionally allowed
+ * to drift from the
  * managed prompt's prose over time (the managed prompt is edited live in
  * Langfuse); only the registry-derived catalog/nullable-ids stay identical
  * across both, via `buildFieldCatalog` / `nullableFieldIds`.
