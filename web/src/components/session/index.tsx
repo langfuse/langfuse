@@ -1049,7 +1049,7 @@ const LoadedSessionEventsPage: React.FC<{
         basePath: `/project/${projectId}/traces`,
       },
       queryParams: ["observation", "display", "timestamp"],
-      // observationId: set by a card's "Open in trace view" on a truncated
+      // observationId: set by a card's "Open Trace View" on a truncated
       // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),

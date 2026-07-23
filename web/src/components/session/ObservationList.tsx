@@ -218,8 +218,8 @@ const TurnCard = React.memo(
           <span
             role="button"
             tabIndex={0}
-            aria-label="Open trace view"
-            title="Open trace view"
+            aria-label="Open Trace View"
+            title="Open Trace View"
             onClick={(event) => {
               event.stopPropagation();
               onOpenPeek(trace);
