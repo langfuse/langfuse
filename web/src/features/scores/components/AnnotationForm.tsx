@@ -1154,7 +1154,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                                   ) ?? -1) + 1;
                                                 return digit >= 1 &&
                                                   digit <= 9 ? (
-                                                  <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:group-focus-within:inline-flex">
+                                                  <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px] md:hidden md:group-focus-within:inline-flex">
                                                     {digit}
                                                   </KeyboardShortcut>
                                                 ) : null;
