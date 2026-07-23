@@ -2597,33 +2597,6 @@
           "input_cached_tokens": 3e-7,
           "input_cache_read": 3e-7
         }
-      },
-      {
-        "id": "00b65240-047b-4722-9590-808edbc2067f",
-        "name": "Large Context",
-        "isDefault": false,
-        "priority": 1,
-        "conditions": [
-          {
-            "usageDetailPattern": "input",
-            "operator": "gt",
-            "value": 200000,
-            "caseSensitive": false
-          }
-        ],
-        "prices": {
-          "input": 0.000006,
-          "input_tokens": 0.000006,
-          "output": 0.0000225,
-          "output_tokens": 0.0000225,
-          "cache_creation_input_tokens": 0.0000075,
-          "input_cache_creation": 0.0000075,
-          "input_cache_creation_5m": 0.0000075,
-          "input_cache_creation_1h": 0.000012,
-          "cache_read_input_tokens": 6e-7,
-          "input_cached_tokens": 6e-7,
-          "input_cache_read": 6e-7
-        }
       }
     ]
   },
