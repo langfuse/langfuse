@@ -7,8 +7,8 @@ import { cn } from "@/src/utils/tailwind";
 
 type ProgressProps = Pick<
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>,
-  "className" | "value"
->;
+  "value"
+> & { className?: "w-full" | "h-2" };
 
 const Progress = React.forwardRef<
   React.ComponentRef<typeof ProgressPrimitive.Root>,
