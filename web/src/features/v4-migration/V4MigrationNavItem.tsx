@@ -27,8 +27,9 @@ export function V4MigrationNavItem() {
     apis: migrationData.apis,
     exports: migrationData.exports,
   });
-  const label =
-    readiness === "ready"
+  const label = !migrationData.hasMigrationAccess
+    ? "Ask admin"
+    : readiness === "ready"
       ? "Up to date"
       : readiness === "checking"
         ? "Checking"

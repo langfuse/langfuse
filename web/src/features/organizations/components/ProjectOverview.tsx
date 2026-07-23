@@ -48,6 +48,10 @@ const OrganizationProjectTiles = ({
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const hasMigrationAccess = useHasOrganizationAccess({
+    organizationId: org.id,
+    scope: "v4Migration:read",
+  });
   const { data: lastTraceTimes } =
     api.organizations.lastTraceByProject.useQuery(
       { orgId: org.id },
@@ -58,6 +62,7 @@ const OrganizationProjectTiles = ({
       {
         id: org.id,
         name: org.name,
+        hasMigrationAccess,
         projects: org.projects
           .filter((project) => !project.deletedAt)
           .map((project) => ({ id: project.id, name: project.name })),
@@ -96,6 +101,7 @@ const OrganizationProjectTiles = ({
                     <V4MigrationProjectChip
                       project={{ id: project.id, name: project.name }}
                       status={migrationStatusByProjectId.get(project.id)}
+                      hasMigrationAccess={hasMigrationAccess}
                     />
                   )}
                 </div>

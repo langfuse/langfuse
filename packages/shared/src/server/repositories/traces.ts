@@ -471,6 +471,7 @@ export const getLastTraceTimestampsByProjectsFromTracesTable = async ({
   }>({
     query,
     params: { projectIds },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return rows.map((row) => ({

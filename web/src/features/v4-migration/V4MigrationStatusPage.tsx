@@ -20,6 +20,7 @@ import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   useAccountV4MigrationData,
   type V4MigrationOrganization,
@@ -52,7 +53,16 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function AffectedCell({ count }: { count: MigrationCountState }) {
+function AffectedCell({
+  count,
+  restricted,
+}: {
+  count: MigrationCountState;
+  restricted: boolean;
+}) {
+  if (restricted) {
+    return <span className="text-foreground-tertiary">—</span>;
+  }
   if (count.status === "loading") {
     return <span className="text-foreground-tertiary">Checking…</span>;
   }
@@ -65,9 +75,16 @@ function AffectedCell({ count }: { count: MigrationCountState }) {
   return <span>{count.count}</span>;
 }
 
-function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
-  const label =
-    readiness === "ready"
+function StatusPill({
+  readiness,
+  restricted,
+}: {
+  readiness: ProjectMigrationReadiness;
+  restricted: boolean;
+}) {
+  const label = restricted
+    ? "Ask admin"
+    : readiness === "ready"
       ? "Ready"
       : readiness === "checking"
         ? "Checking"
@@ -79,9 +96,10 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
     <span
       className={cn(
         "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        readiness === "ready"
+        !restricted && readiness === "ready"
           ? "bg-light-green text-dark-green"
-          : readiness === "checking" || readiness === "unavailable"
+          : !restricted &&
+              (readiness === "checking" || readiness === "unavailable")
             ? "bg-muted text-muted-foreground"
             : "bg-light-yellow text-dark-yellow",
       )}
@@ -192,6 +210,7 @@ function OrgStatusSection({
       case "name":
         return row.name.toLowerCase();
       case "status":
+        if (!org.hasMigrationAccess) return 0;
         return row.status
           ? {
               unavailable: 0,
@@ -314,7 +333,10 @@ function OrgStatusSection({
                       density="comfortable"
                       className="overflow-hidden"
                     >
-                      <StatusPill readiness={readiness} />
+                      <StatusPill
+                        readiness={readiness}
+                        restricted={!org.hasMigrationAccess}
+                      />
                     </TableCell>
                     <TableCell density="comfortable">
                       {row.status.sdk === "latest" ? (
@@ -336,13 +358,22 @@ function OrgStatusSection({
                       )}
                     </TableCell>
                     <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
+                      <AffectedCell
+                        count={row.status.evals}
+                        restricted={!org.hasMigrationAccess}
+                      />
                     </TableCell>
                     <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
+                      <AffectedCell
+                        count={row.status.apis}
+                        restricted={!org.hasMigrationAccess}
+                      />
                     </TableCell>
                     <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
+                      <AffectedCell
+                        count={row.status.exports}
+                        restricted={!org.hasMigrationAccess}
+                      />
                     </TableCell>
                     <TableCell
                       density="comfortable"
@@ -385,6 +416,11 @@ function V4MigrationStatusPageContent() {
     session.data?.user?.organizations?.map((org) => ({
       id: org.id,
       name: org.name,
+      hasMigrationAccess: hasOrganizationAccess({
+        role: org.role,
+        scope: "v4Migration:read",
+        admin: session.data?.user?.admin,
+      }),
       projects: org.projects
         .filter((project) => !project.deletedAt)
         .map((project) => ({ id: project.id, name: project.name })),
@@ -463,9 +499,18 @@ function V4MigrationStatusPageContent() {
     },
   ];
 
-  const allStatuses = [...statusByProjectId.values()];
-  const totalProjects = allStatuses.length;
-  const readiness = allStatuses.map(getProjectMigrationReadiness);
+  const totalProjects = orgs.reduce(
+    (total, org) => total + org.projects.length,
+    0,
+  );
+  const readiness = orgs
+    .filter((org) => org.hasMigrationAccess)
+    .flatMap((org) =>
+      org.projects.flatMap((project) => {
+        const status = statusByProjectId.get(project.id);
+        return status ? [getProjectMigrationReadiness(status)] : [];
+      }),
+    );
   const readyProjects = readiness.filter((state) => state === "ready").length;
   const isChecking =
     session.status === "loading" ||
