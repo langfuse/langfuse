@@ -51,7 +51,7 @@ export function JsonValue({
         style={{
           color: theme.punctuationColor,
           opacity: 0.4,
-          fontFamily: "monospace",
+          fontFamily: "var(--font-mono)",
           whiteSpace: "nowrap", // Never wrap preview text like "{4 keys}" or "Array(3)"
           flexShrink: 0, // Prevent compression in flex container
         }}
@@ -123,7 +123,7 @@ export function JsonValue({
         className={className}
         style={{
           color,
-          fontFamily: "monospace",
+          fontFamily: "var(--font-mono)",
           whiteSpace: stringWrapMode === "wrap" ? "pre-wrap" : "nowrap",
           overflowWrap: stringWrapMode === "wrap" ? "break-word" : undefined,
           wordBreak: stringWrapMode === "wrap" ? "break-word" : undefined,
@@ -197,7 +197,7 @@ export function JsonValue({
       className={className}
       style={{
         color,
-        fontFamily: "monospace",
+        fontFamily: "var(--font-mono)",
       }}
     >
       {segments.map((segment, index) => {

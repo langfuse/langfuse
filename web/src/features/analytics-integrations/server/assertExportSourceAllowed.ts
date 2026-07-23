@@ -12,8 +12,8 @@ import { type AnalyticsIntegrationExportSource } from "@langfuse/shared/src/db";
  *
  * An explicitly requested source must pass every check. When the request omits
  * the source, the persisted one stays in effect: deployment-capability reasons
- * still reject it (it could not export), while the Cloud date cutoffs
- * grandfather it — they gate newly chosen values only.
+ * (enriched-unavailable, legacy-writes-disabled) still reject it — it could
+ * not export — while the Cloud date cutoffs grandfather it.
  */
 export function assertExportSourceAllowed({
   nextExportSource,
@@ -30,8 +30,12 @@ export function assertExportSourceAllowed({
     return;
   }
   if (!persistedExportSource) return;
-  const validation = validateExportSource(persistedExportSource, ctx);
-  if (!validation.ok && validation.reason !== "cloud-cutoff") {
-    throw new InvalidRequestError(validation.message);
-  }
+  // Capability-only check: dropping the creation dates disables the Cloud
+  // date cutoffs, which gate newly chosen values only.
+  const validation = validateExportSource(persistedExportSource, {
+    isCloud: ctx.isCloud,
+    enrichedAvailable: ctx.enrichedAvailable,
+    legacyWritesActive: ctx.legacyWritesActive,
+  });
+  if (!validation.ok) throw new InvalidRequestError(validation.message);
 }

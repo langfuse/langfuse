@@ -230,7 +230,7 @@ export const CreateExperimentsForm = ({
                 </ul>
                 {!fixedDatasetId ? (
                   <div className="mt-4 space-y-2">
-                    <div className="text-sm font-medium">Dataset</div>
+                    <div className="text-sm font-bold">Dataset</div>
                     <Popover
                       open={datasetPopoverOpen}
                       onOpenChange={setDatasetPopoverOpen}

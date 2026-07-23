@@ -402,7 +402,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
             Private channels are not visible. To access private channels,{" "}
             <button
               type="button"
-              className="font-medium underline"
+              className="font-bold underline"
               onClick={() =>
                 window.open(
                   `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/public/slack/install?projectId=${projectId}`,

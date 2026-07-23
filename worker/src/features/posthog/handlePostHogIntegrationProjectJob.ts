@@ -20,6 +20,8 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { env, v4WritesToLegacyTables } from "../../env";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -173,7 +175,11 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
     config.projectName,
     config.minTimestamp,
     config.maxTimestamp,
-    { useGraceHash: config.useGraceHash },
+    {
+      useGraceHash: config.useGraceHash,
+      // events_only no longer writes the traces table (LFE-11009)
+      traceAttributesSource: v4WritesToLegacyTables(env) ? "traces" : "events",
+    },
   );
 
   logger.info(
@@ -364,6 +370,13 @@ export const handlePostHogIntegrationProjectJob = async (
   };
 
   try {
+    // Fail loudly before exporting empty data and advancing lastSyncAt
+    // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
+    assertExportSourceWritable(
+      postHogIntegration.exportSource,
+      "Select the enriched observations export source in the PostHog integration settings.",
+    );
+
     const processPromises: Promise<void>[] = [];
 
     // Always include scores

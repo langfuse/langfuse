@@ -34,11 +34,20 @@ import {
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentMessageEntryPointContext,
+  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
+  type InAppAgentMessageEntryPoint,
 } from "@/src/ee/features/in-app-agent/context";
+import type {
+  InAppAgentQuickActionAttribution,
+  InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
@@ -46,6 +55,7 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
+import { InAppAgentDisabledDialog } from "@/src/ee/features/in-app-agent/components/InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -54,6 +64,11 @@ const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
+
+export type InAppAgentEntryPoint =
+  | "top_nav"
+  | "keyboard_shortcut"
+  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -76,6 +91,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -84,6 +100,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSelectedConversationHydrating: false,
   error: null,
   messages: [],
+  liveMessageVersion: 0,
   conversations: [],
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
@@ -121,6 +138,10 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
+   * the disabled dialog and returns false when the organization has AI
+   * features turned off. */
+  openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -129,6 +150,7 @@ type InAppAiAgentContextType = {
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
+  liveMessageVersion: number;
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
@@ -138,7 +160,10 @@ type InAppAiAgentContextType = {
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
-  submit: (content: string) => Promise<boolean>;
+  submit: (
+    content: string,
+    options?: InAppAgentSubmitOptions,
+  ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -218,6 +243,8 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const { organization } = useQueryProjectOrOrganization();
+  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
     useSessionStorage<string | null>(
       `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -229,6 +256,10 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [messages, setMessages] = useState<AgUiMessage[]>([]);
+  // Only live AG-UI publications increment this version. The display smoother
+  // uses it to distinguish stream updates from history hydration, including
+  // updates where the agent mutates message objects in place.
+  const [liveMessageVersion, setLiveMessageVersion] = useState(0);
   const [pendingToolApprovals, setPendingToolApprovals] = useState<
     InAppAgentPendingToolApproval[]
   >([]);
@@ -244,6 +275,7 @@ function InAppAiAgentProviderInner({
   const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
+  const runInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
@@ -418,6 +450,10 @@ function InAppAiAgentProviderInner({
       currentIds.size > 0 ? new Set() : currentIds,
     );
   }, []);
+  const publishLiveMessages = useCallback((messages: AgUiMessage[]) => {
+    setMessages(messages);
+    setLiveMessageVersion((currentVersion) => currentVersion + 1);
+  }, []);
 
   const resetAgent = useCallback(() => {
     if (agentRef.current?.isRunning) {
@@ -565,7 +601,7 @@ function InAppAiAgentProviderInner({
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               messages.filter(isAgentConversationMessage),
               activeRunIdRef.current,
@@ -573,7 +609,7 @@ function InAppAiAgentProviderInner({
           );
         },
         onStateChanged: ({ messages }) => {
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               messages.filter(isAgentConversationMessage),
               activeRunIdRef.current,
@@ -582,7 +618,12 @@ function InAppAiAgentProviderInner({
         },
       });
     },
-    [clearLoadingEvents, updateLoadingEvent, updatePendingToolApprovals],
+    [
+      clearLoadingEvents,
+      publishLiveMessages,
+      updateLoadingEvent,
+      updatePendingToolApprovals,
+    ],
   );
 
   const getOrCreateAgent = useCallback(
@@ -625,27 +666,43 @@ function InAppAiAgentProviderInner({
       agent: HttpAgent,
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
+      if (runInFlightRef.current) {
+        return Promise.resolve(false);
+      }
+
+      runInFlightRef.current = true;
       clearLoadingEvents();
       setIsRunning(true);
-      return agent
-        .runAgent({
-          ...runParameters,
-          context: createInAppAgentScreenContext({
-            currentUrl: window.location.href,
-          }).concat(
-            ...createInAppAgentUserContext({
-              userName: session.data?.user?.name,
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              languages:
-                navigator.languages.length > 0
-                  ? Array.from(navigator.languages)
-                  : [navigator.language],
-            }),
-          ),
-        })
-        .then(() => true)
-        .catch((error) => {
+      return (async () => {
+        try {
+          await agent.runAgent({
+            ...runParameters,
+            context: createInAppAgentScreenContext({
+              currentUrl: window.location.href,
+            }).concat(
+              createInAppAgentUserContext({
+                userName: session.data?.user?.name,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                languages:
+                  navigator.languages.length > 0
+                    ? Array.from(navigator.languages)
+                    : [navigator.language],
+              }),
+              quickActionAttribution
+                ? createInAppAgentQuickActionAttributionContext(
+                    quickActionAttribution,
+                  )
+                : [],
+              messageEntryPoint
+                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
+                : [],
+            ),
+          });
+          return true;
+        } catch (error) {
           if (intentionalAbortRef.current) {
             return false;
           }
@@ -657,12 +714,11 @@ function InAppAiAgentProviderInner({
           setError(getInAppAgentError(error));
           console.error("In-app agent drawer error", error);
           return false;
-        })
-        .finally(() => {
+        } finally {
           const runId = activeRunIdRef.current;
           clearLoadingEvents();
           setIsRunning(false);
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               agent.messages.filter(isAgentConversationMessage),
               runId,
@@ -676,11 +732,14 @@ function InAppAiAgentProviderInner({
           releaseSubmitLock();
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
-        });
+          runInFlightRef.current = false;
+        }
+      })();
     },
     [
       projectId,
       clearLoadingEvents,
+      publishLiveMessages,
       releaseSubmitLock,
       session.data?.user?.name,
       utils.inAppAgent.getConversation,
@@ -760,13 +819,15 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string) => {
+    async (content: string, options?: InAppAgentSubmitOptions) => {
       if (
         !content ||
         isRunning ||
         isInAppAgentRateLimited(error) ||
-        isSelectedConversationHydrating ||
-        submitInFlightRef.current
+        (options?.newConversation !== true &&
+          isSelectedConversationHydrating) ||
+        submitInFlightRef.current ||
+        runInFlightRef.current
       ) {
         return false;
       }
@@ -777,7 +838,10 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        if (selectedConversationIsWriteLocked) {
+        const isNewConversation =
+          options?.newConversation === true || !selectedConversationId;
+
+        if (!isNewConversation && selectedConversationIsWriteLocked) {
           setError({
             type: "generic",
             message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
@@ -785,9 +849,13 @@ function InAppAiAgentProviderInner({
           return false;
         }
 
-        const isNewConversation = !selectedConversationId;
-        const conversationId =
-          selectedConversationId ?? createInAppAgentConversationId();
+        const conversationId = isNewConversation
+          ? createInAppAgentConversationId()
+          : selectedConversationId;
+
+        if (!conversationId) {
+          return false;
+        }
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -822,12 +890,19 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started");
+          capture("in_app_agent:new_chat_started", { entryPoint });
         }
-        capture("in_app_agent:new_chat_turn");
+        capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        runAgent(agent, conversationId);
+        runAgent(
+          agent,
+          conversationId,
+          undefined,
+          options?.quickAction,
+          entryPoint,
+        );
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -926,6 +1001,21 @@ function InAppAiAgentProviderInner({
     [open, setOpen],
   );
 
+  const openAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      capture("in_app_agent:entry_point_click", { source });
+
+      if (organization && !organization.aiFeaturesEnabled) {
+        setEnableDialogOpen(true);
+        return false;
+      }
+
+      setAgentOpen(true);
+      return true;
+    },
+    [capture, organization, setAgentOpen],
+  );
+
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
       if (selectedConversationIsWriteLocked) {
@@ -944,6 +1034,7 @@ function InAppAiAgentProviderInner({
         !approval ||
         !selectedConversationId ||
         isRunning ||
+        runInFlightRef.current ||
         isInAppAgentRateLimited(error)
       ) {
         return;
@@ -1051,6 +1142,7 @@ function InAppAiAgentProviderInner({
       isAvailable: true,
       open,
       setOpen: setAgentOpen,
+      openAssistant,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1061,6 +1153,7 @@ function InAppAiAgentProviderInner({
       isSelectedConversationHydrating,
       error,
       messages: messagesWithUiState,
+      liveMessageVersion,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -1089,8 +1182,10 @@ function InAppAiAgentProviderInner({
       isSelectedConversationNotFound,
       deleteConversation,
       loadMoreConversations,
+      liveMessageVersion,
       messagesWithUiState,
       open,
+      openAssistant,
       pendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
@@ -1105,6 +1200,11 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      <InAppAgentDisabledDialog
+        open={enableDialogOpen}
+        onOpenChange={setEnableDialogOpen}
+        organizationId={organization?.id}
+      />
     </InAppAiAgentContext.Provider>
   );
 }
@@ -1230,4 +1330,20 @@ export function useInAppAiAgent() {
     return NOOP_CONTEXT;
   }
   return ctx;
+}
+
+/** Whether the current user/context may use the in-app assistant at all.
+ * Shared gate for the launcher button and the window host. */
+export function useCanUseInAppAgent() {
+  const { isAvailable } = useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return (
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    isLangfuseCloud &&
+    Boolean(organization)
+  );
 }

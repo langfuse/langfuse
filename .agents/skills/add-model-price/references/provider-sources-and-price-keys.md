@@ -89,6 +89,23 @@ Always fetch pricing from the provider's official docs before editing.
   Long context prices: sol $10/$1.00/$45, terra $5/$0.50/$22.50, luna $2/$0.20/$9
   per MTok input/cached/output. Added Large Context (>272K) tiers to the pricing file in
   July 2026. The threshold of 272K is unique to this family; most other models use 200K.
+- **Gemini 3.6 Flash (added July 2026)** — `gemini-3.6-flash` appeared on the official AI Studio
+  pricing page in July 2026 at $1.50/MTok input, $7.50/MTok output, cache read $0.15/MTok
+  (10% cache-read ratio). No large-context tier. Added to pricing file and selectable model lists
+  (`vertexAIModels`, `googleAIStudioModels`) in the July 22 2026 audit. Note: despite the higher
+  version number, output price ($7.50) is lower than gemini-3.5-flash ($9.00); this is correct
+  per the official page (improved efficiency at same input price).
+- **Gemini 3.5 Flash-Lite (added July 2026)** — `gemini-3.5-flash-lite` appeared on the official
+  AI Studio pricing page in July 2026 at $0.30/MTok input, $2.50/MTok output, cache read
+  $0.03/MTok (10% cache-read ratio). No large-context tier. Added to pricing file and selectable
+  model lists in the July 22 2026 audit. Follows the same pattern as gemini-3.1-flash-lite.
+- **gpt-5-chat-latest confirmed pricing** — This alias has confirmed pricing at $1.25/MTok
+  input, $0.125/MTok cached input, $10.00/MTok output, verified via its specific model page
+  `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` (July 2026 audit).
+  A prior audit WebFetch of the overview pricing page returned an artifact suggesting
+  "$5/$30", which was confusion with gpt-5.6-sol pricing. When a pricing summary for a
+  model alias appears inconsistent with what the file holds, always fetch the specific
+  model page (`https://developers.openai.com/api/docs/models/<model-id>`) to confirm.
 
 Capture:
 

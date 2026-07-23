@@ -99,5 +99,3 @@ export const BlobStorageExportFailedEmailTemplate = ({
     </Html>
   );
 };
-
-export default BlobStorageExportFailedEmailTemplate;

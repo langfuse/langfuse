@@ -19,6 +19,7 @@ import {
 const exportSourceCtx: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
+  legacyWritesActive: true,
   projectCreatedAt: new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + 1),
   integrationCreatedAt: null,
 };

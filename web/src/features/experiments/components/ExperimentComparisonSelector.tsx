@@ -92,7 +92,7 @@ export function ExperimentComparisonSelector({
             </div>
             <div className="min-w-0 flex-1">
               <p
-                className="truncate text-sm font-medium"
+                className="truncate text-sm font-bold"
                 title={item.experimentName}
               >
                 {item.experimentName}

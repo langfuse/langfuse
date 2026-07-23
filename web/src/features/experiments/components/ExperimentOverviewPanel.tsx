@@ -95,7 +95,7 @@ export function ExperimentOverviewPanel({
   return (
     <div className="space-y-4">
       <div className="bg-background sticky -top-4 z-30 -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-4">
-        <h3 className="text-lg font-semibold">Experiment Details</h3>
+        <h3 className="text-lg font-bold">Experiment Details</h3>
 
         <div>
           <ExperimentOverviewSectionHeading>
@@ -149,7 +149,7 @@ export function ExperimentOverviewPanel({
             </ExperimentOverviewSectionHeading>
             <div className="space-y-3 text-sm">
               <ExperimentOverviewField label="Name">
-                <div className="font-medium">{experiment.name}</div>
+                <div className="font-bold">{experiment.name}</div>
               </ExperimentOverviewField>
 
               {experiment.description && (

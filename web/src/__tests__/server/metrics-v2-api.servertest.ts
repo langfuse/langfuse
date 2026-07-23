@@ -566,6 +566,111 @@ describe("/api/public/v2/metrics API Endpoint", () => {
 
       expect(response.status).toBe(200);
     });
+
+    it("should query boolean scores with true/false breakdowns and true-rate aggregation", async () => {
+      const scoreName = `boolean-metrics-v2-${randomUUID()}`;
+      const scoreIds = Array.from({ length: 4 }, () => randomUUID());
+
+      await createScoresCh([
+        createTraceScore({
+          id: scoreIds[0],
+          project_id: projectId,
+          name: scoreName,
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "true",
+        }),
+        createTraceScore({
+          id: scoreIds[1],
+          project_id: projectId,
+          name: scoreName,
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "false",
+        }),
+        createTraceScore({
+          id: scoreIds[2],
+          project_id: projectId,
+          name: scoreName,
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "true",
+        }),
+        createTraceScore({
+          id: scoreIds[3],
+          project_id: projectId,
+          name: scoreName,
+          data_type: "NUMERIC",
+          value: 1,
+        }),
+      ]);
+
+      const query = {
+        view: "scores-boolean",
+        dimensions: [{ field: "booleanValue" }],
+        metrics: [
+          { measure: "count", aggregation: "count" },
+          { measure: "value", aggregation: "avg" },
+        ],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: scoreName,
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86_400_000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86_400_000).toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            booleanValue: true,
+            count_count: 2,
+            avg_value: 1,
+          }),
+          expect.objectContaining({
+            booleanValue: false,
+            count_count: 1,
+            avg_value: 0,
+          }),
+        ]),
+      );
+
+      const trueOnlyResponse = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(
+          JSON.stringify({
+            ...query,
+            dimensions: [],
+            filters: [
+              ...query.filters,
+              {
+                column: "booleanValue",
+                operator: "=",
+                value: true,
+                type: "boolean",
+              },
+            ],
+          }),
+        )}`,
+      );
+      expect(trueOnlyResponse.status).toBe(200);
+      expect(trueOnlyResponse.body.data).toEqual([
+        expect.objectContaining({ count_count: 2, avg_value: 1 }),
+      ]);
+    });
   });
 
   maybe("Time Dimension", () => {

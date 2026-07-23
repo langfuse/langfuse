@@ -4459,5 +4459,81 @@
         }
       }
     ]
+  },
+  {
+    "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "modelName": "gemini-3.6-flash",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.6-flash)$",
+    "createdAt": "2026-07-22T00:00:00.000Z",
+    "updatedAt": "2026-07-22T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1.5e-6,
+          "input_text": 1.5e-6,
+          "input_modality_1": 1.5e-6,
+          "prompt_token_count": 1.5e-6,
+          "promptTokenCount": 1.5e-6,
+          "input_cached_tokens": 0.15e-6,
+          "cached_content_token_count": 0.15e-6,
+          "output": 7.5e-6,
+          "output_text": 7.5e-6,
+          "output_modality_1": 7.5e-6,
+          "candidates_token_count": 7.5e-6,
+          "candidatesTokenCount": 7.5e-6,
+          "thoughtsTokenCount": 7.5e-6,
+          "thoughts_token_count": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
+  },
+  {
+    "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+    "modelName": "gemini-3.5-flash-lite",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
+    "createdAt": "2026-07-22T00:00:00.000Z",
+    "updatedAt": "2026-07-22T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.3e-6,
+          "input_text": 0.3e-6,
+          "input_modality_1": 0.3e-6,
+          "prompt_token_count": 0.3e-6,
+          "promptTokenCount": 0.3e-6,
+          "input_cached_tokens": 0.03e-6,
+          "cached_content_token_count": 0.03e-6,
+          "output": 2.5e-6,
+          "output_text": 2.5e-6,
+          "output_modality_1": 2.5e-6,
+          "candidates_token_count": 2.5e-6,
+          "candidatesTokenCount": 2.5e-6,
+          "thoughtsTokenCount": 2.5e-6,
+          "thoughts_token_count": 2.5e-6,
+          "output_reasoning_tokens": 2.5e-6,
+          "output_reasoning": 2.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      }
+    ]
   }
 ]

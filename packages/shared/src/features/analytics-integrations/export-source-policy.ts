@@ -22,6 +22,14 @@
 //   preview opt-in. A persisted enriched value left behind by a preview
 //   rollback is rejected too, instead of silently driving exports against
 //   unpopulated tables (LFE-10296).
+// - LEGACY WRITE CAPABILITY ("legacy-writes-disabled"): legacy sources read
+//   the v3 traces/observations tables. Under
+//   LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only those tables are no longer
+//   written, so a legacy source would silently export stale/empty data —
+//   blocked by data capability, deployment-agnostic, on Cloud and self-hosted
+//   alike (LFE-10148). Unlike the date cutoffs this also applies to persisted
+//   values: keeping one would not grandfather anything, it would export
+//   nothing.
 // - PERSISTED VALUES ARE NEVER SILENTLY REWRITTEN (LFE-10296): the UI keeps a
 //   persisted-but-blocked source visible as an unavailable option and blocks
 //   the save; forms and servers must not substitute a different source behind
@@ -30,7 +38,9 @@
 // Check order inside validateExportSource doubles as the user-facing reason
 // precedence: enriched-unavailable first (such a source cannot export at all),
 // then the Cloud cutoffs — so Cloud users are never shown messaging about
-// deployment configuration they do not control.
+// deployment configuration they do not control — then legacy-writes-disabled,
+// which in practice only surfaces on self-hosted (Cloud does not run
+// events_only), where naming the env var is operator-appropriate.
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
 
@@ -125,8 +135,20 @@ export function isEnrichedBlobExportAvailable(
 }
 
 /**
+ * Mirrors the LANGFUSE_MIGRATION_V4_WRITE_MODE env enum; kept as a literal
+ * union so this client-safe file has no dependency on server env parsing.
+ */
+export type BlobExportWriteMode = "legacy" | "dual" | "events_only";
+
+/** Whether the deployment still writes the v3 traces/observations tables. */
+export function areLegacyWritesActive(writeMode: BlobExportWriteMode): boolean {
+  return writeMode !== "events_only";
+}
+
+/**
  * Everything the policy needs to know about a deployment/project/integration.
- * Adapters assemble it; optional fields skip their check when absent:
+ * Adapters assemble it (env reads stay server/worker-side); optional fields
+ * skip their check when absent:
  * - projectCreatedAt: omit to skip the project-level Cloud cutoff (e.g. when
  *   the caller has no project in scope).
  * - integrationCreatedAt: omit to skip the integration-level Cloud cutoff
@@ -136,11 +158,15 @@ export function isEnrichedBlobExportAvailable(
 export type ExportSourceContext = {
   isCloud: boolean;
   enrichedAvailable: boolean;
+  legacyWritesActive: boolean;
   projectCreatedAt?: Date;
   integrationCreatedAt?: Date | null;
 };
 
-export type ExportSourceBlockedReason = "cloud-cutoff" | "enriched-unavailable";
+export type ExportSourceBlockedReason =
+  | "cloud-cutoff"
+  | "legacy-writes-disabled"
+  | "enriched-unavailable";
 
 export type ExportSourceValidation =
   | { ok: true }
@@ -155,6 +181,13 @@ const PROJECT_CUTOFF_MESSAGE =
   "Legacy export sources are not available for Cloud projects created on or after 2026-05-20. Use 'OBSERVATIONS_V2' instead.";
 const exporterCutoffMessage = () =>
   `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`;
+
+// Self-hosted-operator-facing: naming the env var is intentional. Worded
+// integration-neutrally since blob storage, PostHog, and Mixpanel all surface
+// it. (The Cloud-cutoff messages above keep their pre-existing
+// 'OBSERVATIONS_V2' blob-REST wording; tracked under LFE-9688.)
+const LEGACY_WRITES_DISABLED_MESSAGE =
+  "Legacy export sources are not available while LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only, because the legacy traces/observations tables are no longer written. Switch to the enriched observations export source instead.";
 
 /** Whether a source may be selected/kept in the given context. */
 export function validateExportSource(
@@ -189,6 +222,13 @@ export function validateExportSource(
         message: exporterCutoffMessage(),
       };
     }
+  }
+  if (isLegacyBlobExportSource(source) && !ctx.legacyWritesActive) {
+    return {
+      ok: false,
+      reason: "legacy-writes-disabled",
+      message: LEGACY_WRITES_DISABLED_MESSAGE,
+    };
   }
   return { ok: true };
 }

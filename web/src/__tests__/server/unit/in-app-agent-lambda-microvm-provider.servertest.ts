@@ -56,6 +56,8 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
       executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      egressNetworkConnectorArn:
+        "arn:aws:lambda:us-east-1:123456789012:network-connector:deny-all",
       region: "us-east-1",
     });
 
@@ -75,6 +77,54 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     expect(microvmSendMock.mock.calls[1]?.[0]?.input).toEqual({
       microvmIdentifier: "microvm-1",
     });
+  });
+
+  it("omits egress network connectors when no connector ARN is configured", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response(null, { status: 200 })),
+    );
+    microvmSendMock.mockImplementation(async (command: { input: unknown }) => {
+      if (command.constructor.name === "RunMicrovmCommand") {
+        return {
+          microvmId: "microvm-1",
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "GetMicrovmCommand") {
+        return {
+          microvmId: "microvm-1",
+          endpoint: "https://microvm.example.com:8443",
+          state: "RUNNING",
+        };
+      }
+
+      if (command.constructor.name === "CreateMicrovmAuthTokenCommand") {
+        return { authToken: { "X-aws-proxy-auth": "token-1" } };
+      }
+
+      throw new Error(`Unexpected command ${command.constructor.name}`);
+    });
+
+    const { createLambdaMicrovmSandboxProvider } =
+      await import("@/src/ee/features/in-app-agent/server/sandbox/providers/lambdaMicrovm");
+    const provider = createLambdaMicrovmSandboxProvider({
+      imageIdentifier: "image-1",
+      executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      region: "us-east-1",
+    });
+
+    await provider.ensureSession({ conversationId: "conversation-1" });
+
+    expect(
+      microvmSendMock.mock.calls.find(
+        ([command]) => command.constructor.name === "RunMicrovmCommand",
+      )?.[0]?.input,
+    ).not.toHaveProperty("egressNetworkConnectors");
   });
 
   it("reuses the microvm endpoint and refreshes expired auth tokens", async () => {
@@ -124,12 +174,25 @@ describe("in-app agent lambda microvm sandbox provider", () => {
     const provider = createLambdaMicrovmSandboxProvider({
       imageIdentifier: "image-1",
       executionRoleArn: "arn:aws:iam::123456789012:role/sandbox",
+      egressNetworkConnectorArn:
+        "arn:aws:lambda:us-east-1:123456789012:network-connector:deny-all",
       region: "us-east-1",
     });
 
     const session = await provider.ensureSession({
       conversationId: "conversation-1",
     });
+
+    expect(
+      microvmSendMock.mock.calls.find(
+        ([command]) => command.constructor.name === "RunMicrovmCommand",
+      )?.[0]?.input,
+    ).toMatchObject({
+      egressNetworkConnectors: [
+        "arn:aws:lambda:us-east-1:123456789012:network-connector:deny-all",
+      ],
+    });
+
     await session.sandbox.read({ path: "notes.txt" });
     vi.setSystemTime(new Date("2026-01-01T00:28:00Z"));
     await session.sandbox.read({ path: "notes.txt" });

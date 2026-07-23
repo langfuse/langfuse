@@ -211,7 +211,7 @@ function DatasetCompareChartsLegacy() {
                         key={key}
                         className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -238,7 +238,7 @@ function DatasetCompareChartsLegacy() {
                       key={key}
                       className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">

@@ -217,7 +217,7 @@ const MessageCard = forwardRef<
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-foreground border-border border",
+          : "bg-card text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
@@ -324,12 +324,7 @@ function InAppAgentReasoningBlock({
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary
-        className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
-          isCompact && "px-0.5",
-        )}
-      >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
             "min-w-0 flex-1",
@@ -556,7 +551,7 @@ function SourcesPopover({
         <button
           type="button"
           className={cn(
-            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium",
+            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-bold",
             isCompact && "py-0.5",
           )}
         >
@@ -602,7 +597,7 @@ const CommentButton = forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}
@@ -692,7 +687,7 @@ function ToolCallGroup({
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
         <ChevronDown
           className={cn(
@@ -728,7 +723,7 @@ function ToolCallDisclosure({
       <summary
         aria-label={`${tool.name}: ${status}`}
         className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
           isCompact && "px-0.5",
         )}
       >

@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import { ChatMessage } from "./ChatMessage";
 import { type ChatMlMessage } from "./chat-message-utils";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+import { type IOPreviewContentMode } from "../IOPreview";
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
@@ -33,7 +34,13 @@ const longSystemPrompt = Array.from(
 
 function renderChatMessage(
   message: ChatMlMessage,
-  { shouldRenderMarkdown = true }: { shouldRenderMarkdown?: boolean } = {},
+  {
+    shouldRenderMarkdown = true,
+    contentMode = "all",
+  }: {
+    shouldRenderMarkdown?: boolean;
+    contentMode?: IOPreviewContentMode;
+  } = {},
 ) {
   return render(
     <MarkdownContextProvider>
@@ -41,10 +48,39 @@ function renderChatMessage(
         message={message}
         shouldRenderMarkdown={shouldRenderMarkdown}
         currentView="pretty"
+        contentMode={contentMode}
       />
     </MarkdownContextProvider>,
   );
 }
+
+describe("ChatMessage content modes", () => {
+  const assistantWithToolCall = {
+    role: "assistant",
+    content: "I will check that for you.",
+    tool_calls: [
+      {
+        id: "call-1",
+        name: "search_traces",
+        arguments: '{"limit":10}',
+      },
+    ],
+  } as unknown as ChatMlMessage;
+
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMemoryStorage());
+    vi.stubGlobal("sessionStorage", createMemoryStorage());
+  });
+
+  it("keeps assistant content but removes tool details in conversation mode", () => {
+    renderChatMessage(assistantWithToolCall, { contentMode: "conversation" });
+
+    expect(
+      screen.getAllByText("I will check that for you.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("search_traces")).not.toBeInTheDocument();
+  });
+});
 
 // getByRole ignores elements hidden via display:none, so queries only see the
 // active render path (markdown vs json), even though ChatMessage mounts both.

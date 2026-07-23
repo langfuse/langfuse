@@ -11,12 +11,12 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
-import LineChartTimeSeries from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import AreaChartTimeSeries from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import VerticalBarChartTimeSeries from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import HorizontalBarChart from "@/src/features/widgets/chart-library/HorizontalBarChart";
-import VerticalBarChart from "@/src/features/widgets/chart-library/VerticalBarChart";
-import PieChart from "@/src/features/widgets/chart-library/PieChart";
+import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
+import { HorizontalBarChart } from "@/src/features/widgets/chart-library/HorizontalBarChart";
+import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
+import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
 import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
@@ -255,7 +255,7 @@ const ChartComponent = ({
   const renderWarning = () => (
     <div className="flex flex-col items-center justify-center p-6 text-center">
       <AlertCircle className="mb-4 h-12 w-12" />
-      <h3 className="mb-2 text-lg font-semibold">Large Dataset Warning</h3>
+      <h3 className="mb-2 text-lg font-bold">Large Dataset Warning</h3>
       <p className="text-muted-foreground mb-6 text-sm">
         This chart has more than 2,000 unique data points. Rendering it may be
         slow or may crash your browser. Try to reduce the number of dimensions
@@ -265,7 +265,7 @@ const ChartComponent = ({
       <Button
         variant="outline"
         onClick={() => setForceRender(true)}
-        className="font-medium"
+        className="font-bold"
       >
         I understand, proceed to render the chart
       </Button>

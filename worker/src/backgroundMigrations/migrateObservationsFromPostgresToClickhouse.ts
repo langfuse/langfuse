@@ -1,5 +1,6 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import {
+  buildClickHouseLogComment,
   clickhouseClient,
   convertPostgresObservationToInsert,
   logger,
@@ -70,6 +71,13 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
     // Check if ClickHouse observations table exists
     const tables = await clickhouseClient().query({
       query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route:
+            "background-migration.migrateObservationsFromPostgresToClickhouse",
+        }),
+      },
     });
     const tableNames = (await tables.json()).data as { name: string }[];
     if (!tableNames.some((r) => r.name === "observations")) {
@@ -143,6 +151,13 @@ export default class MigrateObservationsFromPostgresToClickhouse implements IBac
         table: "observations",
         values: observations.map(convertPostgresObservationToInsert),
         format: "JSONEachRow",
+        clickhouse_settings: {
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route:
+              "background-migration.migrateObservationsFromPostgresToClickhouse",
+          }),
+        },
       });
 
       logger.info(

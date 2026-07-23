@@ -18,7 +18,10 @@ import {
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
-import { isEnrichedBlobExportAvailable } from "@langfuse/shared";
+import {
+  areLegacyWritesActive,
+  isEnrichedBlobExportAvailable,
+} from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 
@@ -185,6 +188,9 @@ async function handleUpsertBlobStorageIntegration(
       enrichedAvailable: isEnrichedBlobExportAvailable(
         isCloud,
         isV4PreviewEnabled,
+      ),
+      legacyWritesActive: areLegacyWritesActive(
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       ),
       projectCreatedAt: project.createdAt,
       integrationCreatedAt: existingIntegration?.createdAt ?? null,

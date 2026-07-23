@@ -83,6 +83,9 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
     .string()
     .optional(),
@@ -427,6 +430,16 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100), // Chunk size for counting projects in ClickHouse
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_QUERY_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2), // Max concurrent query pipelines per table cleaner
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(180_000), // 3 minutes for candidate and enrichment queries
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
