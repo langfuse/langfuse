@@ -24,7 +24,15 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
-import { randomString } from 'https://jslib.k6.io/k6-utils/1.2.0/index.js';
+// Local random string helper — no remote dependency required
+function randomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 // ---- Config via environment variables ----
 const LANGFUSE_URL = __ENV.LANGFUSE_URL || 'http://localhost:3000';
