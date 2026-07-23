@@ -70,7 +70,7 @@ function JsonInputOutputView({
       {showOutput && (
         <PrettyJsonView
           title="Output"
-          json={parsedOutput ?? null}
+          json={parsedOutput}
           isLoading={isLoading}
           isParsing={isParsing}
           media={media?.filter((m) => m.field === "output") ?? []}
@@ -267,17 +267,6 @@ export function IOPreviewPretty({
   const showData = contentMode !== "conversation";
   const shouldRenderMessages =
     canDisplayAsChat && !allMessages.every(isOnlyJsonMessage);
-  // Chat-parseable content with a missing output renders the same shared
-  // empty-output state the non-chat branch shows (PrettyJsonView's
-  // "No output captured"), instead of silently dropping the Output section.
-  const showMissingOutputAfterMessages =
-    shouldRenderMessages &&
-    showData &&
-    !hideOutput &&
-    !hideIfNull &&
-    !isLoading &&
-    !isParsing &&
-    (parsedOutput === null || parsedOutput === undefined);
 
   return (
     <div>
@@ -303,15 +292,6 @@ export function IOPreviewPretty({
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
           />
-          {showMissingOutputAfterMessages && (
-            <PrettyJsonView
-              title="Output"
-              json={null}
-              isLoading={isLoading}
-              isParsing={isParsing}
-              currentView="pretty"
-            />
-          )}
           {showCorrections && (
             <CorrectedOutputField
               actualOutput={parsedOutput}

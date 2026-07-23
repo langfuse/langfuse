@@ -148,7 +148,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Input"
-            json={input ?? null}
+            json={input}
             parsedJson={effectiveInput}
             isLoading={isLoading}
             isParsing={isParsing}
@@ -175,7 +175,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Output"
-            json={output ?? null}
+            json={output}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
             isParsing={isParsing}

@@ -1240,18 +1240,6 @@ export function PrettyJsonView(props: {
 
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
-  // Missing I/O gets one shared empty state in BOTH the formatted and the
-  // simple JSON view instead of raw `null`/`undefined` literals (which read
-  // as data, and `undefined` is not even JSON). Display-only: copy still
-  // yields the normalized `null` payload.
-  const missingValueDisplay =
-    parsedJson === null || parsedJson === undefined
-      ? props.title === "Input"
-        ? "No input captured"
-        : props.title === "Output"
-          ? "No output captured"
-          : null
-      : null;
   const isMarkdownMode = isMarkdown && isPrettyView;
   const standaloneMediaReferenceStrings =
     typeof markdownContent === "string"
@@ -1309,23 +1297,6 @@ export function PrettyJsonView(props: {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      ) : missingValueDisplay ? (
-        <div className="io-message-content">
-          <div
-            className={cn(
-              "flex items-center",
-              getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-              ),
-            )}
-          >
-            <span className="text-muted-foreground italic">
-              {missingValueDisplay}
-            </span>
           </div>
         </div>
       ) : emptyValueDisplay && isPrettyView ? (
