@@ -58,7 +58,7 @@
     "ioredis": "^5.10.1",
     "lodash": "4.18.1",
     "p-limit": "^7.3.0",
-    "posthog-node": "^5.32.0",
+    "posthog-node": "^5.45.2",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.0",

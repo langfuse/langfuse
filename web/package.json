@@ -138,7 +138,7 @@
     "next-query-params": "^5.1.0",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.390.2",
-    "posthog-node": "^5.32.0",
+    "posthog-node": "^5.45.2",
     "prexit": "^2.2.0",
     "prism-react-renderer": "^2.4.1",
     "protobufjs": "7.6.5",
