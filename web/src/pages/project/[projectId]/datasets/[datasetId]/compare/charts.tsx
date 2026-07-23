@@ -321,16 +321,8 @@ export default function DatasetCompare() {
       return;
     }
 
-    router.replace(
-      toExperimentsResultsUrl(projectId, asArrayValue(runsQuery)),
-    );
-  }, [
-    isExperimentsBetaActive,
-    isInitializing,
-    projectId,
-    router,
-    runsQuery,
-  ]);
+    router.replace(toExperimentsResultsUrl(projectId, asArrayValue(runsQuery)));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runsQuery]);
 
   if (!router.isReady || isInitializing || isExperimentsBetaActive) {
     return <Skeleton className="h-full w-full" />;

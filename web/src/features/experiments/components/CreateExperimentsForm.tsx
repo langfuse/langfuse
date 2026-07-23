@@ -396,9 +396,7 @@ export const CreateExperimentsForm = ({
       promptDefault={promptDefault}
       handleExperimentSettled={handleExperimentSettled}
       handleExperimentSuccess={handleExperimentSuccess}
-      enableLegacyNameValidation={
-        !isInitializing && !isExperimentsBetaActive
-      }
+      enableLegacyNameValidation={!isInitializing && !isExperimentsBetaActive}
     />
   );
 };
