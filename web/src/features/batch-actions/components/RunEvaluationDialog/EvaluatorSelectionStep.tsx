@@ -219,13 +219,14 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             </Button>
                           }
                         />
-                        <Checkbox
-                          checked={selectedEvaluatorIds.includes(item.id)}
-                          aria-label={`Select ${item.scoreName}`}
-                          onClick={(event) => event.stopPropagation()}
-                          onCheckedChange={() => onToggleEvaluator(item.id)}
-                          className="mr-1"
-                        />
+                        <span className="mr-1">
+                          <Checkbox
+                            checked={selectedEvaluatorIds.includes(item.id)}
+                            aria-label={`Select ${item.scoreName}`}
+                            onClick={(event) => event.stopPropagation()}
+                            onCheckedChange={() => onToggleEvaluator(item.id)}
+                          />
+                        </span>
                       </div>
                       {index < array.length - 1 ? (
                         <div className="border-border/50 border-b" />
