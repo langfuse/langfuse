@@ -232,6 +232,7 @@ function enqueueStreamingUpdate(
     displayedToolApprovals: mergeDisplayedToolApprovals(
       state.displayedToolApprovals,
       action.pendingToolApprovals,
+      state.toolDisplayById,
     ),
     nowMs: action.publishedAtMs,
     textPacingByMessageId: isLivePublication
@@ -592,14 +593,29 @@ function applyNextToolTransition(state: SmoothStreamingState, nowMs: number) {
 function mergeDisplayedToolApprovals(
   displayedApprovals: InAppAgentPendingToolApproval[],
   targetApprovals: InAppAgentPendingToolApproval[],
+  toolDisplayById: ToolDisplayState,
 ) {
   const targetApprovalsById = new Map(
     targetApprovals.map((approval) => [approval.id, approval]),
   );
-
-  return displayedApprovals.map(
-    (approval) => targetApprovalsById.get(approval.id) ?? approval,
+  const displayedApprovalIds = new Set(
+    displayedApprovals.map((approval) => approval.id),
   );
+  // An approval can arrive after its tool call's appearance transition has
+  // already run: the TOOL_CALL_* events stream well before the interrupt that
+  // carries the approval. No later transition surfaces it (appearance only
+  // fires once per tool), so attach it as soon as its tool is visible.
+  // Approvals for tools that are not visible yet keep waiting for their
+  // appearance transition.
+  const lateApprovals = targetApprovals.filter(
+    (approval) =>
+      !displayedApprovalIds.has(approval.id) &&
+      toolDisplayById[approval.id] !== undefined,
+  );
+
+  return displayedApprovals
+    .map((approval) => targetApprovalsById.get(approval.id) ?? approval)
+    .concat(lateApprovals);
 }
 
 function areToolApprovalsEqual(

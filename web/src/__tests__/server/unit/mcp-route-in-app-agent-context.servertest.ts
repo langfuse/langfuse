@@ -47,20 +47,34 @@ describe("MCP route in-app-agent context", () => {
     });
   });
 
-  it("returns a single-tool override for valid override headers", async () => {
+  it("returns a tool override for valid override headers", async () => {
     const overrideHeader = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
     const req = createRequest(overrideHeader);
 
+    // Single-tool overrides are minted in the legacy shape so web instances
+    // that predate the batch contract still parse them during rolling deploys.
     expect(
       InAppAgentMcpRunOverrideSchema.parse(JSON.parse(overrideHeader)),
     ).toEqual({
       toolName: "upsertDataset",
     });
     expect(getInAppAgentContext(req, true)).toEqual({
-      permissions: "single-tool-override",
-      allowedToolName: "upsertDataset",
+      permissions: "tool-override",
+      allowedToolNames: ["upsertDataset"],
+    });
+  });
+
+  it("returns a tool override listing every approved tool", async () => {
+    const overrideHeader = await createInAppAgentMcpRunOverride({
+      toolNames: ["upsertDataset", "createDashboardWidget"],
+    });
+    const req = createRequest(overrideHeader);
+
+    expect(getInAppAgentContext(req, true)).toEqual({
+      permissions: "tool-override",
+      allowedToolNames: ["upsertDataset", "createDashboardWidget"],
     });
   });
 });

@@ -143,3 +143,77 @@ describe("InAppAgentWindow quick actions", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("InAppAgentWindow tool approvals", () => {
+  const approvalToolGroupMessage = (
+    tools: Array<{ id: string; status: "pending" | "approved" | "submitting" }>,
+  ) =>
+    ({
+      id: "tools",
+      role: "assistant",
+      content: {
+        type: "toolGroup",
+        tools: tools.map(({ id, status }) => ({
+          type: "tool" as const,
+          name: `langfuse_createTextPrompt`,
+          args: JSON.stringify({ name: id }),
+          status: "running" as const,
+          approval: { id, status },
+        })),
+      },
+    }) as const;
+
+  it("pages through approvals one card at a time and advances on decision", () => {
+    const onApproveToolCall = vi.fn().mockResolvedValue(undefined);
+    render(
+      windowElement({
+        messages: [
+          approvalToolGroupMessage([
+            { id: "tool-call-1", status: "pending" },
+            { id: "tool-call-2", status: "pending" },
+          ]),
+        ],
+        onApproveToolCall,
+      }),
+    );
+
+    // Only the active card renders.
+    expect(screen.getAllByRole("button", { name: /Confirm/ })).toHaveLength(1);
+    expect(
+      screen.getByText("Tool call 1 of 2 awaiting review"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/tool-call-1/)).toBeInTheDocument();
+
+    // Manual navigation reaches the sibling card.
+    fireEvent.click(screen.getByRole("button", { name: "Next tool call" }));
+    expect(
+      screen.getByText("Tool call 2 of 2 awaiting review"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/tool-call-2/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Previous tool call" }));
+    expect(screen.getByText(/tool-call-1/)).toBeInTheDocument();
+
+    // Deciding records the decision and advances to the next undecided card.
+    fireEvent.click(screen.getByRole("button", { name: /Confirm/ }));
+    expect(onApproveToolCall).toHaveBeenCalledWith("tool-call-1");
+    expect(screen.getByText(/tool-call-2/)).toBeInTheDocument();
+  });
+
+  it("closes the pager once the batch is submitting", () => {
+    render(
+      windowElement({
+        messages: [
+          approvalToolGroupMessage([
+            { id: "tool-call-1", status: "submitting" },
+            { id: "tool-call-2", status: "submitting" },
+          ]),
+        ],
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Confirm/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/awaiting review/)).not.toBeInTheDocument();
+  });
+});

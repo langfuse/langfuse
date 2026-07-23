@@ -41,7 +41,10 @@ import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import {
+  getInAppAgentMcpOverrideToolNames,
+  InAppAgentMcpRunOverrideSchema,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import { safeJsonParse } from "@/src/utils/json";
 
 // Bootstrap MCP features - registers all tools at module load time
@@ -206,8 +209,10 @@ export function getInAppAgentContext(
 
   return parsedOverride.success
     ? {
-        permissions: "single-tool-override",
-        allowedToolName: parsedOverride.data.toolName,
+        permissions: "tool-override",
+        allowedToolNames: getInAppAgentMcpOverrideToolNames(
+          parsedOverride.data,
+        ),
       }
     : { permissions: "read" };
 }

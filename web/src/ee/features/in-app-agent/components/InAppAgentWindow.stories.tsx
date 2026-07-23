@@ -654,6 +654,51 @@ export const ToolApprovalRequired = meta.story({
   },
 });
 
+// The batch state cannot be reached casually in the app (the model must
+// propose several approval-gated calls in one turn), so this story is the
+// reference for the pager: one card at a time with prev/next navigation.
+export const ToolApprovalBatch = meta.story({
+  args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create three prompts in parallel with draft content.",
+        },
+      },
+      {
+        id: "approvals",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [1, 2, 3].map((index) => ({
+            type: "tool",
+            name: "langfuse_createTextPrompt",
+            status: "running",
+            args: JSON.stringify(
+              {
+                name: `prompt-${index}`,
+                prompt: `You are draft assistant ${index}: {{input}}`,
+              },
+              null,
+              2,
+            ),
+            approval: {
+              id: `approval-${index}`,
+              status: "pending",
+            },
+          })),
+        },
+      },
+    ],
+  },
+});
+
 export const Empty = meta.story({
   args: {
     messages: [],
@@ -1223,5 +1268,36 @@ export const RefocusAfterSubmit = meta.story({
     await waitFor(() => {
       expect(textarea).toHaveFocus();
     });
+  },
+});
+
+export const ToolApprovalPagerNavigation = meta.story({
+  name: "(Test) Tool Approval Pager Navigation",
+  args: {
+    ...ToolApprovalBatch.input.args,
+    onApproveToolCall: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByText("Tool call 1 of 3 awaiting review"),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText(/prompt-1/)).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Next tool call" }),
+    );
+    await expect(
+      canvas.getByText("Tool call 2 of 3 awaiting review"),
+    ).toBeInTheDocument();
+
+    // Deciding a card records the decision and advances to the next
+    // undecided one.
+    await userEvent.click(canvas.getByRole("button", { name: "Confirm" }));
+    await expect(args.onApproveToolCall).toHaveBeenCalledWith("approval-2");
+    await expect(
+      canvas.getByText("Tool call 3 of 3 awaiting review"),
+    ).toBeInTheDocument();
   },
 });

@@ -262,7 +262,11 @@ vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
 
-const createPatchedChunkProcessor = () => {
+const createPatchedChunkProcessor = (
+  approvalGatedToolNames: ReadonlySet<string> = new Set([
+    "langfuse_createScoreConfig",
+  ]),
+) => {
   const forwardedChunks: unknown[] = [];
   const onError = vi.fn();
   const flush = vi.fn();
@@ -276,7 +280,10 @@ const createPatchedChunkProcessor = () => {
     })),
   };
 
-  patchMastraApprovalChunks(adapter as unknown as MastraAgent);
+  patchMastraApprovalChunks(
+    adapter as unknown as MastraAgent,
+    approvalGatedToolNames,
+  );
 
   const processor = adapter.createChunkProcessor({ onError });
 
@@ -333,6 +340,73 @@ describe("patchMastraApprovalChunks", () => {
         },
       },
     ]);
+  });
+
+  it("suspends every proposed approval-gated tool call", () => {
+    // Mastra raises at most one approval per run: parallel siblings never
+    // reach their execution step. Their tool-call chunks must still surface
+    // as suspensions so all proposed calls get an approval card.
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-a" },
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-2",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-b" },
+      },
+    });
+    // The call Mastra does execute also emits its approval chunk; it must not
+    // suspend twice.
+    processor.handleChunk({
+      type: "tool-call-approval",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_createScoreConfig",
+        args: { name: "sibling-a" },
+      },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(
+      forwardedChunks.map((chunk) => {
+        const { type, payload } = chunk as {
+          type: string;
+          payload: { toolCallId: string };
+        };
+        return { type, toolCallId: payload.toolCallId };
+      }),
+    ).toEqual([
+      { type: "tool-call-suspended", toolCallId: "tool-call-1" },
+      { type: "tool-call-suspended", toolCallId: "tool-call-2" },
+    ]);
+  });
+
+  it("passes tool calls without approval gating through unchanged", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+    const readToolCall = {
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_listPrompts",
+        args: {},
+      },
+    };
+
+    processor.handleChunk(readToolCall);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([readToolCall]);
   });
 
   it("reports malformed tool-call approvals", () => {
@@ -1048,6 +1122,116 @@ describe("createAgUiStream", () => {
         }),
       }),
     );
+  });
+
+  it("resolves a batch of decisions in one continuation run", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const base = createToolApprovalResumeInput(true);
+    const approvedRequest = base.forwardedProps.command.resume.approvalRequest;
+    const rejectedRequest = {
+      type: "tool_approval_request" as const,
+      toolCallId: "tool-call-2",
+      toolName: "langfuse_upsertDataset",
+      args: { name: "Rejected dataset" },
+      runId: "interrupted-run-1",
+    };
+    const input = {
+      ...base,
+      forwardedProps: {
+        command: {
+          resume: {
+            decisions: [
+              { approved: true, approvalRequest: approvedRequest },
+              { approved: false, approvalRequest: rejectedRequest },
+            ],
+          },
+        },
+      },
+    };
+    adapterEvents.inputs = [];
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+    const persistedEvents: AgUiEvent[] = [];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+          runOverride: "run-override",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+      },
+    });
+    await readStream(stream);
+
+    // One continuation run receives both resolutions in decision order.
+    expect(adapterEvents.inputs).toHaveLength(1);
+    expect(adapterEvents.inputs[0]).toMatchObject({
+      forwardedProps: {},
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          id: "tool-call-1-approval-tool-result",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            id: "score-config-1",
+            name: "readiness",
+            dataType: "NUMERIC",
+          }),
+        }),
+        expect.objectContaining({
+          id: "tool-call-2-approval-tool-result",
+          role: "tool",
+          toolCallId: "tool-call-2",
+          content: "Tool call was not approved by the user.",
+          error: expect.stringContaining("tool_call_rejected"),
+        }),
+      ]),
+    });
+
+    // The approved tool executed exactly once; the rejected one never ran.
+    expect(adapterEvents.createScoreConfigExecute).toHaveBeenCalledTimes(1);
+
+    const persistedResults = persistedEvents.filter(
+      (event) => event.type === EventType.TOOL_CALL_RESULT,
+    );
+    expect(persistedResults).toEqual([
+      expect.objectContaining({
+        toolCallId: "tool-call-1",
+        content: JSON.stringify({
+          id: "score-config-1",
+          name: "readiness",
+          dataType: "NUMERIC",
+        }),
+      }),
+      expect.objectContaining({
+        toolCallId: "tool-call-2",
+        content: "Tool call was not approved by the user.",
+        error: expect.stringContaining("tool_call_rejected"),
+      }),
+    ]);
   });
 
   it("continues approved tools with a tool error result when execution fails", async () => {

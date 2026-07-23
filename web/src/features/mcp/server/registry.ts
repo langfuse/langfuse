@@ -176,8 +176,10 @@ class ToolRegistry {
       return tool.definition.annotations?.readOnlyHint === true;
     }
 
-    if (context.inAppAgent.permissions === "single-tool-override") {
-      return context.inAppAgent.allowedToolName === tool.definition.name;
+    if (context.inAppAgent.permissions === "tool-override") {
+      return context.inAppAgent.allowedToolNames.some(
+        (allowedToolName) => allowedToolName === tool.definition.name,
+      );
     }
 
     return false;

@@ -4,9 +4,9 @@ import {
 } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 
 describe("in-app agent MCP run override", () => {
-  it("serializes the override as plain JSON", async () => {
+  it("serializes a single-tool override in the legacy shape", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(JSON.parse(token)).toEqual({
@@ -14,9 +14,19 @@ describe("in-app agent MCP run override", () => {
     });
   });
 
+  it("serializes a multi-tool override as a tool name list", async () => {
+    const token = await createInAppAgentMcpRunOverride({
+      toolNames: ["upsertDataset", "createDashboardWidget"],
+    });
+
+    expect(JSON.parse(token)).toEqual({
+      toolNames: ["upsertDataset", "createDashboardWidget"],
+    });
+  });
+
   it("accepts a matching plain JSON override", async () => {
     const token = await createInAppAgentMcpRunOverride({
-      toolName: "upsertDataset",
+      toolNames: ["upsertDataset"],
     });
 
     expect(InAppAgentMcpRunOverrideSchema.safeParse(JSON.parse(token))).toEqual(

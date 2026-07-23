@@ -23,6 +23,10 @@ export function InAppAgentToolCallCard({
   const approval = tool.approval;
   const isApprovalPending = approval?.status === "pending";
   const isApprovalSubmitting = approval?.status === "submitting";
+  const decision =
+    approval?.status === "approved" || approval?.status === "rejected"
+      ? approval.status
+      : null;
   const approveLabel = `Approve ${tool.name}?`;
   const usedLabel = `Used ${tool.name}`;
 
@@ -59,7 +63,10 @@ export function InAppAgentToolCallCard({
                 variant="outline-success"
                 className="h-7"
                 disabled={
-                  isDisabled || isApprovalSubmitting || !onApproveToolCall
+                  isDisabled ||
+                  isApprovalSubmitting ||
+                  decision !== null ||
+                  !onApproveToolCall
                 }
                 onClick={() => {
                   if (isApprovalPending) {
@@ -72,7 +79,7 @@ export function InAppAgentToolCallCard({
                 ) : (
                   <Check className="mr-1 size-3" />
                 )}
-                Confirm
+                {decision === "approved" ? "Approved" : "Confirm"}
               </Button>
               <Button
                 type="button"
@@ -80,7 +87,10 @@ export function InAppAgentToolCallCard({
                 variant="outline"
                 className="h-7"
                 disabled={
-                  isDisabled || isApprovalSubmitting || !onRejectToolCall
+                  isDisabled ||
+                  isApprovalSubmitting ||
+                  decision !== null ||
+                  !onRejectToolCall
                 }
                 onClick={() => {
                   if (isApprovalPending) {
@@ -88,8 +98,13 @@ export function InAppAgentToolCallCard({
                   }
                 }}
               >
-                Reject
+                {decision === "rejected" ? "Rejected" : "Reject"}
               </Button>
+              {decision !== null && !isApprovalSubmitting ? (
+                <span className="text-muted-foreground text-xs">
+                  Waiting for the remaining decisions…
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

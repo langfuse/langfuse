@@ -124,7 +124,12 @@ type InAppAiAgentFeedbackByConversationId = Record<
 export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
-  status: "pending" | "submitting";
+  /**
+   * pending: awaiting the user's decision. approved/rejected: decided locally,
+   * waiting for the remaining cards — the batch resume fires once none are
+   * pending. submitting: the batch resume is in flight.
+   */
+  status: "pending" | "approved" | "rejected" | "submitting";
 };
 
 export type InAppAiAgentConversation = {
@@ -1016,125 +1021,182 @@ function InAppAiAgentProviderInner({
     [capture, organization, setAgentOpen],
   );
 
-  const resumeToolApproval = useCallback(
-    async (approvalId: string, approved: boolean) => {
-      if (selectedConversationIsWriteLocked) {
-        setError({
-          type: "generic",
-          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-        });
+  // Fires the single batch resume once every card is decided; all decisions
+  // travel in one continuation run.
+  const submitToolApprovalDecisions = useCallback(async () => {
+    const approvals = pendingToolApprovalsRef.current;
+
+    if (
+      approvals.length === 0 ||
+      approvals.some(
+        (approval) =>
+          approval.status === "pending" || approval.status === "submitting",
+      )
+    ) {
+      return;
+    }
+
+    if (!selectedConversationId) {
+      return;
+    }
+
+    const agent = agentRef.current;
+    if (!agent || agent.threadId !== selectedConversationId) {
+      showErrorToast(
+        "Failed to resume tool calls",
+        "The interrupted assistant run is no longer available.",
+      );
+      return;
+    }
+
+    const decisions = approvals.map((approval) => ({
+      approved: approval.status === "approved",
+      approvalRequest: approval.approvalRequest,
+    }));
+    // The continuation run can raise NEW approval interrupts while this batch
+    // is in flight; every state update below must touch only the submitted
+    // approvals so a freshly arrived card is not wiped or reverted.
+    const submittedApprovalIds = new Set(
+      approvals.map((approval) => approval.id),
+    );
+
+    updatePendingToolApprovals((currentApprovals) =>
+      currentApprovals.map((currentApproval) =>
+        submittedApprovalIds.has(currentApproval.id)
+          ? { ...currentApproval, status: "submitting" as const }
+          : currentApproval,
+      ),
+    );
+    setError(null);
+
+    try {
+      ensureSubscription(agent);
+      const completed = await runAgent(agent, selectedConversationId, {
+        runId: createInAppAgentRunId(),
+        forwardedProps: {
+          command: {
+            resume: { decisions },
+          },
+        },
+      });
+
+      if (!completed) {
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.map((currentApproval) =>
+            submittedApprovalIds.has(currentApproval.id)
+              ? { ...currentApproval, status: "pending" as const }
+              : currentApproval,
+          ),
+        );
         return;
       }
 
-      const approval = pendingToolApprovals.find(
+      updatePendingToolApprovals((currentApprovals) =>
+        currentApprovals.filter(
+          (currentApproval) => !submittedApprovalIds.has(currentApproval.id),
+        ),
+      );
+    } catch (error) {
+      const errorMessage = getAgentErrorMessage(error);
+      if (errorMessage === "Invalid forwarded props") {
+        // The batch is consumed all-or-nothing, so a stale entry invalidates
+        // the whole submitted set.
+        updatePendingToolApprovals((currentApprovals) =>
+          currentApprovals.filter(
+            (currentApproval) => !submittedApprovalIds.has(currentApproval.id),
+          ),
+        );
+        setError({
+          type: "generic",
+          message:
+            "These tool approvals are no longer valid. Please try again.",
+        });
+        console.error("Failed to resume in-app agent tool calls", error);
+        return;
+      }
+
+      updatePendingToolApprovals((currentApprovals) =>
+        currentApprovals.map((currentApproval) =>
+          submittedApprovalIds.has(currentApproval.id)
+            ? { ...currentApproval, status: "pending" as const }
+            : currentApproval,
+        ),
+      );
+      setError(getInAppAgentError(error));
+      console.error("Failed to resume in-app agent tool calls", error);
+    }
+  }, [
+    ensureSubscription,
+    runAgent,
+    selectedConversationId,
+    updatePendingToolApprovals,
+  ]);
+
+  const canDecideToolApprovals = useCallback(() => {
+    if (selectedConversationIsWriteLocked) {
+      setError({
+        type: "generic",
+        message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+      });
+      return false;
+    }
+
+    return (
+      Boolean(selectedConversationId) &&
+      !isRunning &&
+      !runInFlightRef.current &&
+      !isInAppAgentRateLimited(error) &&
+      !pendingToolApprovalsRef.current.some(
+        (approval) => approval.status === "submitting",
+      )
+    );
+  }, [
+    error,
+    isRunning,
+    selectedConversationId,
+    selectedConversationIsWriteLocked,
+  ]);
+
+  const recordToolApprovalDecision = useCallback(
+    async (approvalId: string, approved: boolean) => {
+      const approval = pendingToolApprovalsRef.current.find(
         (approval) => approval.id === approvalId,
       );
 
-      if (
-        !approval ||
-        !selectedConversationId ||
-        isRunning ||
-        runInFlightRef.current ||
-        isInAppAgentRateLimited(error)
-      ) {
-        return;
-      }
-
-      const agent = agentRef.current;
-      if (!agent || agent.threadId !== selectedConversationId) {
-        showErrorToast(
-          "Failed to resume tool call",
-          "The interrupted assistant run is no longer available.",
-        );
+      if (!approval || !canDecideToolApprovals()) {
         return;
       }
 
       updatePendingToolApprovals((currentApprovals) =>
         currentApprovals.map((currentApproval) =>
           currentApproval.id === approvalId
-            ? { ...currentApproval, status: "submitting" }
+            ? {
+                ...currentApproval,
+                status: approved
+                  ? ("approved" as const)
+                  : ("rejected" as const),
+              }
             : currentApproval,
         ),
       );
-      setError(null);
 
-      try {
-        ensureSubscription(agent);
-        const completed = await runAgent(agent, selectedConversationId, {
-          runId: createInAppAgentRunId(),
-          forwardedProps: {
-            command: {
-              resume: {
-                approved,
-                approvalRequest: approval.approvalRequest,
-              },
-            },
-          },
-        });
-
-        if (!completed) {
-          updatePendingToolApprovals((currentApprovals) =>
-            currentApprovals.map((currentApproval) =>
-              currentApproval.id === approvalId
-                ? { ...currentApproval, status: "pending" }
-                : currentApproval,
-            ),
-          );
-          return;
-        }
-
-        updatePendingToolApprovals((currentApprovals) =>
-          currentApprovals.filter(
-            (currentApproval) => currentApproval.id !== approvalId,
-          ),
-        );
-      } catch (error) {
-        const errorMessage = getAgentErrorMessage(error);
-        if (errorMessage === "Invalid forwarded props") {
-          updatePendingToolApprovals((currentApprovals) =>
-            currentApprovals.filter(
-              (currentApproval) => currentApproval.id !== approvalId,
-            ),
-          );
-          setError({
-            type: "generic",
-            message: "This tool approval is no longer valid. Please try again.",
-          });
-          console.error("Failed to resume in-app agent tool call", error);
-          return;
-        }
-
-        updatePendingToolApprovals((currentApprovals) =>
-          currentApprovals.map((currentApproval) =>
-            currentApproval.id === approvalId
-              ? { ...currentApproval, status: "pending" }
-              : currentApproval,
-          ),
-        );
-        setError(getInAppAgentError(error));
-        console.error("Failed to resume in-app agent tool call", error);
-      }
+      await submitToolApprovalDecisions();
     },
     [
-      ensureSubscription,
-      error,
-      isRunning,
-      pendingToolApprovals,
-      runAgent,
-      selectedConversationId,
-      selectedConversationIsWriteLocked,
+      canDecideToolApprovals,
+      submitToolApprovalDecisions,
       updatePendingToolApprovals,
     ],
   );
 
   const approveToolCall = useCallback(
-    (approvalId: string) => resumeToolApproval(approvalId, true),
-    [resumeToolApproval],
+    (approvalId: string) => recordToolApprovalDecision(approvalId, true),
+    [recordToolApprovalDecision],
   );
 
   const rejectToolCall = useCallback(
-    (approvalId: string) => resumeToolApproval(approvalId, false),
-    [resumeToolApproval],
+    (approvalId: string) => recordToolApprovalDecision(approvalId, false),
+    [recordToolApprovalDecision],
   );
 
   const value = useMemo<InAppAiAgentContextType>(

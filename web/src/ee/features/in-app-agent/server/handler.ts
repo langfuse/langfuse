@@ -17,6 +17,7 @@ import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
   type AgUiEvent,
+  getResumeDecisions,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
   ResumeForwardedPropsSchema,
@@ -316,9 +317,9 @@ export default async function handler(request: Request) {
       sanitizedInput,
       conversationMessages,
     );
-    const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
-      ? sanitizedInput.forwardedProps.command.resume.approvalRequest
-      : undefined;
+    const resumeDecisions = isResumeAgentInput(sanitizedInput)
+      ? getResumeDecisions(sanitizedInput.forwardedProps)
+      : [];
     const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
     const sandboxProvider =
       await getInAppAgentSandboxProvider(sandboxProviderType);
@@ -344,41 +345,55 @@ export default async function handler(request: Request) {
         })
       : undefined;
 
-    const approvedResumeApprovalRequest =
-      isResumeAgentInput(sanitizedInput) &&
-      sanitizedInput.forwardedProps.command.resume.approved
-        ? sanitizedInput.forwardedProps.command.resume.approvalRequest
-        : undefined;
+    const approvedResumeDecisions = resumeDecisions.filter(
+      (decision) => decision.approved,
+    );
+    const approvedResumeToolCallIds = new Set(
+      approvedResumeDecisions.map(
+        (decision) => decision.approvalRequest.toolCallId,
+      ),
+    );
 
     return await withInAppAgentMcpApiKeyCleanup(
       {
         projectId,
         runId: sanitizedInput.runId,
         userId,
-        toolName: getInAppAgentMcpRegistryToolName(
-          approvedResumeApprovalRequest?.toolName,
-        ),
+        toolNames: approvedResumeDecisions.flatMap((decision) => {
+          const registryToolName = getInAppAgentMcpRegistryToolName(
+            decision.approvalRequest.toolName,
+          );
+          return registryToolName ? [registryToolName] : [];
+        }),
       },
       async (mcpApiKey, runOverride, cleanupMcpApiKey) => {
         let runCreated = false;
         let pendingToolApprovalConsumed = false;
         let streamCreated = false;
-        let approvedToolResultPersisted = false;
+        const executedApprovedToolCallIds = new Set<string>();
 
-        const restorePendingToolApprovalIfRetryable = () => {
-          if (
-            !pendingToolApprovalConsumed ||
-            !approvedResumeApprovalRequest ||
-            approvedToolResultPersisted
-          ) {
+        // Rejected decisions are never restored (matching the pre-batch
+        // behavior); an approved decision is restored only while its tool has
+        // not executed — an executed call must never become resumable again.
+        const restorePendingToolApprovalIfRetryable = async () => {
+          if (!pendingToolApprovalConsumed) {
             return;
           }
 
-          return storePendingToolApproval({
-            projectId,
-            conversationId: conversation.id,
-            approvalRequest: approvedResumeApprovalRequest,
-          });
+          const restorableDecisions = approvedResumeDecisions.filter(
+            (decision) =>
+              !executedApprovedToolCallIds.has(
+                decision.approvalRequest.toolCallId,
+              ),
+          );
+
+          for (const decision of restorableDecisions) {
+            await storePendingToolApproval({
+              projectId,
+              conversationId: conversation.id,
+              approvalRequest: decision.approvalRequest,
+            });
+          }
         };
 
         try {
@@ -465,10 +480,10 @@ export default async function handler(request: Request) {
 
                 if (
                   persistedEvent.type === EventType.TOOL_CALL_RESULT &&
-                  persistedEvent.toolCallId ===
-                    resumeApprovalRequest?.toolCallId
+                  typeof persistedEvent.toolCallId === "string" &&
+                  approvedResumeToolCallIds.has(persistedEvent.toolCallId)
                 ) {
-                  approvedToolResultPersisted = true;
+                  executedApprovedToolCallIds.add(persistedEvent.toolCallId);
                 }
 
                 persistedEvents.push(persistedEvent);
@@ -479,8 +494,8 @@ export default async function handler(request: Request) {
 
                 return replacePersistedRunEvents();
               },
-              onApprovedToolCallExecuted: () => {
-                approvedToolResultPersisted = true;
+              onApprovedToolCallExecuted: (toolCallId) => {
+                executedApprovedToolCallIds.add(toolCallId);
               },
               onComplete: () =>
                 replacePersistedRunEvents()
@@ -786,7 +801,7 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
     projectId: string;
     runId: string;
     userId: string;
-    toolName?: McpToolName;
+    toolNames: McpToolName[];
   },
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
@@ -795,7 +810,7 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   ) => T | Promise<T>,
 ): Promise<T> {
   // Each run gets a temporary in-app-agent API key. Approved MCP resumes also
-  // get a tool-scoped run override for the single mutating registry tool.
+  // get a tool-scoped run override for the approved mutating registry tools.
   const mcpApiKey = await createInAppAgentMcpApiKey(
     params.projectId,
     params.userId,
@@ -817,11 +832,12 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    const runOverride = params.toolName
-      ? await createInAppAgentMcpRunOverride({
-          toolName: params.toolName,
-        })
-      : undefined;
+    const runOverride =
+      params.toolNames.length > 0
+        ? await createInAppAgentMcpRunOverride({
+            toolNames: params.toolNames,
+          })
+        : undefined;
 
     return await createResponse(mcpApiKey, runOverride, cleanupMcpApiKey);
   } catch (err) {
