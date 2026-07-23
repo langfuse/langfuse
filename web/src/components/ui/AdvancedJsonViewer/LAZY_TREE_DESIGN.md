@@ -64,10 +64,10 @@ browser Ctrl+F, so the viewer owns an in-viewer find.
 ## Status / next (phased)
 
 - **P0 — interim gate (LFE-10847, #15230): MERGED.** Stops the crash today.
-- **P1 — byte engine + async seam + renderer: done** (#15265 draft). Demoable via
-  `LazyJsonViewer.stories.tsx`. Materialization + wide-container pagination
-  (LFE-11082) are built inside the engine; the streaming backend (LFE-11081,
-  #15239) is merged.
+- **P1 — byte engine + async seam + renderer: done** (#15265). Covered by store
+  client tests + verified in the integrated trace view. Materialization +
+  wide-container pagination (LFE-11082) are built inside the engine; the
+  streaming backend (LFE-11081, #15239) is merged.
 - **P2 — integrate into IOPreview, MAIN-THREAD, no Worker (LFE-11084): NEXT.**
   Replace the eager JSON Beta path with the lazy renderer; add in-viewer find
   (Ctrl+F replacement, LFE-11083 main-thread slice); retire the gate for this

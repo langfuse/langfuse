@@ -1,8 +1,9 @@
 "use client";
 
 import { type PropsWithChildren, Children } from "react";
-import { useMediaQuery } from "react-responsive";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDataTableControls } from "./data-table-controls";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
@@ -28,8 +29,14 @@ const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open, setOpen, tableName } = useDataTableControls();
-  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const { open, setOpen, tableName, isMobile } = useDataTableControls();
+  const capture = usePostHogClientCapture();
+  // Single-source the breakpoint from the controls provider (which derives
+  // `open`/`setOpen` from the same value). Evaluating the media query
+  // independently here let a desktop→mobile resize render the bottom sheet
+  // while `open` still held the persisted DESKTOP open-state — briefly showing
+  // an open desktop sidebar as a mobile sheet.
+  const isDesktop = !isMobile;
 
   // Extract filter sidebar and table content from children
   const childrenArray = Children.toArray(children).filter(Boolean);
@@ -41,13 +48,48 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
     ? childrenArray.slice(1)
     : childrenArray;
 
-  // On mobile, honor the open state so the hide/show toggle works the same as
-  // on desktop — collapsed by default, expandable via the controls button.
+  // On mobile the desktop rail doesn't fit — the table takes the full width and
+  // the filter panel opens in a bottom sheet (driven by the same open state the
+  // "Filters" toggle in the toolbar controls), rather than squeezing the
+  // desktop sidebar inline alongside the table.
   if (!isDesktop) {
     return (
-      <div className="flex flex-1 overflow-hidden">
-        {open ? filterSidebar : null}
+      <div className="flex flex-1 flex-col overflow-hidden">
         {tableContent}
+        {filterSidebar && (
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent
+              side="bottom"
+              aria-describedby={undefined}
+              // Emit the same close-analytics event the header X / rail / menu
+              // fire, but ONLY for user-dismiss (backdrop + Escape) — these
+              // Radix callbacks don't run for the programmatic close from the
+              // header X, so this counts the previously-silent dismiss path
+              // without double-counting the others.
+              onInteractOutside={() =>
+                capture("filters:sidebar_toggled", {
+                  tableName,
+                  open: false,
+                  trigger: "mobile_sheet_dismiss",
+                })
+              }
+              onEscapeKeyDown={() =>
+                capture("filters:sidebar_toggled", {
+                  tableName,
+                  open: false,
+                  trigger: "mobile_sheet_dismiss",
+                })
+              }
+              // Hide the Sheet's own close button — the filter panel header
+              // renders its own close (X), so a second one just collides with
+              // the panel's controls.
+              className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
+            >
+              <SheetTitle className="sr-only">Filters</SheetTitle>
+              {filterSidebar}
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
     );
   }
