@@ -165,26 +165,22 @@ function IOPreviewJSONInner({
   // ensure_ascii=True) at the data source so that search-match offsets, comment
   // ranges, rendering and copy-to-clipboard all operate on the same decoded
   // strings. Decoding at the leaf renderer instead would desync highlight
-  // offsets. Already-decoded strings are a no-op. Over-limit fields skip decode
-  // and the tree entirely — they render the bounded fallback instead.
+  // offsets. Already-decoded strings are a no-op. We decode over-limit fields
+  // too: they no longer render the eager tree, but they DO render lazily (the
+  // byte-engine viewer over this decoded value), so skipping decode there would
+  // show literal \uXXXX only once a field crosses the limit — an inconsistency
+  // the small path never has.
   const effectiveInput = useMemo(
-    () =>
-      isParsing || inputTooLarge ? undefined : decodeUnicodeInJson(inputParsed),
-    [inputParsed, isParsing, inputTooLarge],
+    () => (isParsing ? undefined : decodeUnicodeInJson(inputParsed)),
+    [inputParsed, isParsing],
   );
   const effectiveOutput = useMemo(
-    () =>
-      isParsing || outputTooLarge
-        ? undefined
-        : decodeUnicodeInJson(outputParsed),
-    [outputParsed, isParsing, outputTooLarge],
+    () => (isParsing ? undefined : decodeUnicodeInJson(outputParsed)),
+    [outputParsed, isParsing],
   );
   const effectiveMetadata = useMemo(
-    () =>
-      isParsing || metadataTooLarge
-        ? undefined
-        : decodeUnicodeInJson(metadataParsed),
-    [metadataParsed, isParsing, metadataTooLarge],
+    () => (isParsing ? undefined : decodeUnicodeInJson(metadataParsed)),
+    [metadataParsed, isParsing],
   );
 
   // Probe over-limit fields once for the bounded fallback (preview + download).
@@ -431,7 +427,7 @@ function IOPreviewJSONInner({
               inputBgColor,
               inputProbe,
               inputRows,
-              inputParsed,
+              effectiveInput,
             )
           : {
               key: "input",
@@ -451,7 +447,7 @@ function IOPreviewJSONInner({
               outputBgColor,
               outputProbe,
               outputRows,
-              outputParsed,
+              effectiveOutput,
             )
           : {
               key: "output",
@@ -494,7 +490,7 @@ function IOPreviewJSONInner({
               metadataBgColor,
               metadataProbe,
               metadataRows,
-              metadataParsed,
+              effectiveMetadata,
             )
           : {
               key: "metadata",
@@ -516,9 +512,6 @@ function IOPreviewJSONInner({
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
-    inputParsed,
-    outputParsed,
-    metadataParsed,
     inputProbe,
     outputProbe,
     metadataProbe,
