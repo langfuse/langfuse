@@ -107,14 +107,7 @@ function MobileFiltersSheetDemo(
   const [open, setOpen] = useState(true);
   return (
     <ControlsContext.Provider
-      value={{
-        open,
-        setOpen,
-        tableName: "storybook",
-        isMobile: true,
-        revealedColumns: [],
-        setRevealedColumns: () => {},
-      }}
+      value={{ open, setOpen, tableName: "storybook", isMobile: true }}
     >
       <MobileFiltersSheet {...props} />
     </ControlsContext.Provider>

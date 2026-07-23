@@ -88,12 +88,6 @@ interface ControlsContextType {
   /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
    *  so its header shows a plain close instead of the collapse-to-rail chrome. */
   isMobile: boolean;
-  /** Facets the user explicitly revealed via "Add filter" (promoted even while
-   *  inactive). Lifted to the provider so a "Clear all" outside the facet panel
-   *  — the mobile Filters sheet's footer — can reset it too, matching the facet
-   *  kebab's "Clear all filters". */
-  revealedColumns: string[];
-  setRevealedColumns: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -123,18 +117,10 @@ export function DataTableControlsProvider({
   const [mobileOpen, setMobileOpen] = useState(false);
   const open = isDesktop ? desktopOpen : mobileOpen;
   const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
-  const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
 
   return (
     <ControlsContext.Provider
-      value={{
-        open,
-        setOpen,
-        tableName,
-        isMobile: !isDesktop,
-        revealedColumns,
-        setRevealedColumns,
-      }}
+      value={{ open, setOpen, tableName, isMobile: !isDesktop }}
     >
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
@@ -157,8 +143,6 @@ export function useDataTableControls() {
       setOpen: () => {},
       tableName: undefined,
       isMobile: false,
-      revealedColumns: [],
-      setRevealedColumns: () => {},
     };
   }
 
@@ -209,8 +193,7 @@ export function DataTableControls({
   layout = "panel",
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen, tableName, isMobile, revealedColumns, setRevealedColumns } =
-    useDataTableControls();
+  const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -226,8 +209,10 @@ export function DataTableControls({
     `${storagePrefix}-active-only`,
     false,
   );
-  // `revealedColumns`/`setRevealedColumns` come from the controls provider (so
-  // an out-of-panel "Clear all" can reset them) — see ControlsContextType.
+  // Local (not lifted to the provider): the render sites key DataTableControls
+  // by selectedViewId, so this transient "which facets are revealed" state
+  // resets on a saved-view switch by remount — the desired behavior.
+  const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
 
   // Selected filters on top: a facet is PROMOTED when it carries an active
   // filter OR the user explicitly added it via "Add filter" — the explicit

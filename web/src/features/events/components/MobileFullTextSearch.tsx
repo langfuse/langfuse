@@ -79,6 +79,14 @@ export function MobileFullTextSearch({
         onKeyDown={(event) => {
           if (event.key === "Enter") submit(draft);
         }}
+        // Commit on blur too, so tapping the sheet's "Show results" (or anywhere
+        // outside the field) applies a typed-but-not-Entered query instead of
+        // discarding it — matching the grammar bar's commit-on-blur. Guarded so
+        // a focus/blur without changes (or right after an icon/Enter submit)
+        // doesn't re-fire.
+        onBlur={() => {
+          if (draft !== committed) submit(draft);
+        }}
         className="w-full min-w-0 border-none bg-transparent px-0 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
       />
     </div>

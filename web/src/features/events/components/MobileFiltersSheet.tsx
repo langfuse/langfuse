@@ -45,7 +45,12 @@ interface MobileFiltersSheetProps {
 function Section({ label, children }: { label: string; children: ReactNode }) {
   if (!children) return null;
   return (
-    <section className="flex flex-col gap-2">
+    // `if (!children)` only catches a null PROP; a child COMPONENT that renders
+    // null (e.g. CategoryPresetChips while its query loads, or with no system
+    // presets) leaves a truthy element but no DOM. Hide the section via CSS when
+    // the heading is its only rendered child, so no bare label floats over empty
+    // space.
+    <section className="flex flex-col gap-2 [&:has(>h3:only-child)]:hidden">
       <h3 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
         {label}
       </h3>
@@ -75,7 +80,7 @@ export function MobileFiltersSheet({
   savedViews,
   facets,
 }: MobileFiltersSheetProps) {
-  const { open, setOpen, setRevealedColumns } = useDataTableControls();
+  const { open, setOpen } = useDataTableControls();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -141,17 +146,7 @@ export function MobileFiltersSheet({
         </div>
 
         <div className="flex shrink-0 items-center gap-2 border-t px-4 py-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => {
-              onClearAll();
-              // Also un-reveal facets added via "Add filter", matching the
-              // facet panel's own "Clear all filters" (revealedColumns lives in
-              // the controls provider now).
-              setRevealedColumns([]);
-            }}
-          >
+          <Button variant="outline" className="flex-1" onClick={onClearAll}>
             Clear all
           </Button>
           <SheetClose asChild>
