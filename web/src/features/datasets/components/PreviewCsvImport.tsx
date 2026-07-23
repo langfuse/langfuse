@@ -9,7 +9,7 @@ import {
 import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { Progress } from "@/src/components/ui/progress";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
@@ -281,7 +281,6 @@ export function PreviewCsvImport({
                   csvImport.progress.totalItems) *
                 100
               }
-              className="w-full"
             />
           </div>
         )}

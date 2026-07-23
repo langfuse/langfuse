@@ -12,6 +12,7 @@ const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
   "Checkbox/Checkbox",
   "LangfuseIcon/LangfuseIcon",
+  "Progress/Progress",
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;

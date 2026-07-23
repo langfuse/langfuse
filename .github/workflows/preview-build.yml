@@ -152,7 +152,10 @@ jobs:
             image: ${{ needs.meta.outputs.web_image }}
             dockerfile: web/Dockerfile
             # web disables sign-up on previews; worker has no such arg.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true
+            # The cloud region must be baked at build time (NEXT_PUBLIC_* is
+            # inlined into the client bundle) so previews render the cloud-only
+            # AI features; the worker reads it from runtime env instead.
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
