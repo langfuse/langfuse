@@ -502,6 +502,73 @@ describe("traces trpc", () => {
       expect(traces.traces.length).toBeGreaterThan(0);
       expect(traces.traces.some((t) => t.id === trace.id)).toBe(true);
     });
+
+    it("returns hasMore and paginates without overlap", async () => {
+      const tag = `has-more-${randomUUID()}`;
+      const seededTraces = Array(3)
+        .fill(0)
+        .map(() =>
+          createTrace({
+            project_id: projectId,
+            tags: [tag],
+          }),
+        );
+
+      await createTracesCh(seededTraces);
+
+      const filter = [
+        {
+          column: "timestamp",
+          type: "datetime" as const,
+          operator: ">=" as const,
+          value: new Date(new Date().getTime() - 1000).toISOString(),
+        },
+        {
+          column: "tags",
+          operator: "any of" as const,
+          value: [tag],
+          type: "arrayOptions" as const,
+        },
+      ];
+
+      const firstPage = await caller.traces.all({
+        projectId,
+        filter,
+        searchQuery: null,
+        searchType: ["id"],
+        page: 0,
+        limit: 2,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(firstPage.traces.length).toBe(2);
+      expect(firstPage.hasMore).toBe(true);
+
+      const secondPage = await caller.traces.all({
+        projectId,
+        filter,
+        searchQuery: null,
+        searchType: ["id"],
+        page: 1,
+        limit: 2,
+        orderBy: {
+          column: "timestamp",
+          order: "DESC",
+        },
+      });
+
+      expect(secondPage.traces.length).toBe(1);
+      expect(secondPage.hasMore).toBe(false);
+
+      const allIds = [...firstPage.traces, ...secondPage.traces].map(
+        (t) => t.id,
+      );
+      expect(new Set(allIds).size).toBe(3);
+      expect(allIds.sort()).toEqual(seededTraces.map((t) => t.id).sort());
+    });
   });
 
   describe("traces.countAll", () => {

@@ -278,6 +278,73 @@ describe("traces trpc", () => {
 
       expect(outputSearchResults.generations).toBeDefined();
     });
+
+    it("returns hasMore and paginates without overlap", async () => {
+      const traceId = randomUUID();
+      const generationName = `has-more-generation-${randomUUID()}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          name: "has-more-trace",
+        }),
+      ]);
+
+      await createObservationsCh(
+        Array(3)
+          .fill(0)
+          .map(() =>
+            createObservation({
+              id: randomUUID(),
+              project_id: projectId,
+              trace_id: traceId,
+              type: "GENERATION",
+              name: generationName,
+            }),
+          ),
+      );
+
+      const filter = [
+        {
+          column: "Name",
+          operator: "=" as const,
+          value: generationName,
+          type: "string" as const,
+        },
+      ];
+
+      const firstPage = await caller.generations.all({
+        projectId,
+        searchQuery: null,
+        searchType: ["id"],
+        filter,
+        orderBy: { column: "startTime", order: "DESC" },
+        limit: 2,
+        page: 0,
+      });
+
+      expect(firstPage.generations.length).toBe(2);
+      expect(firstPage.hasMore).toBe(true);
+
+      const secondPage = await caller.generations.all({
+        projectId,
+        searchQuery: null,
+        searchType: ["id"],
+        filter,
+        orderBy: { column: "startTime", order: "DESC" },
+        limit: 2,
+        page: 1,
+      });
+
+      expect(secondPage.generations.length).toBe(1);
+      expect(secondPage.hasMore).toBe(false);
+
+      const allIds = [...firstPage.generations, ...secondPage.generations].map(
+        (g) => g.id,
+      );
+      expect(new Set(allIds).size).toBe(3);
+    });
   });
 
   describe("generations.countAll", () => {

@@ -172,6 +172,10 @@ export type FetchTracesTableProps = {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  // Overrides the offset derived from limit * page. Needed when limit is
+  // padded (e.g. limit + 1 to detect a next page) but the offset must still
+  // advance by the caller's page size.
+  offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
   tags?: Record<string, string>;
   traceDeleteCursor?: TraceDeleteBatchActionCursor | null;
@@ -216,6 +220,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
     orderBy,
     limit,
     page,
+    offset,
     searchQuery,
     searchType,
     clickhouseConfigs,
@@ -475,7 +480,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       const limitClause =
         limit !== undefined && traceDeleteCursorOrder
           ? "LIMIT {limit: Int32}"
-          : limit !== undefined && page !== undefined
+          : limit !== undefined && (page !== undefined || offset !== undefined)
             ? "LIMIT {limit: Int32} OFFSET {offset: Int32}"
             : "";
 
@@ -511,7 +516,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         query: query,
         params: {
           limit: limit,
-          offset: limit && page ? limit * page : 0,
+          offset: offset ?? (limit && page ? limit * page : 0),
           traceTimestamp: timeStampFilter?.value.getTime(),
           ...(traceDeleteCursor
             ? {
@@ -582,6 +587,7 @@ export const getTracesTable = async (p: {
   orderBy?: OrderByState;
   limit?: number;
   page?: number;
+  offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 }) => {
   const {
@@ -592,6 +598,7 @@ export const getTracesTable = async (p: {
     orderBy,
     limit,
     page,
+    offset,
     clickhouseConfigs,
   } = p;
   const rows = await getTracesTableGeneric({
@@ -603,6 +610,7 @@ export const getTracesTable = async (p: {
     orderBy,
     limit,
     page,
+    offset,
     clickhouseConfigs,
   });
 
