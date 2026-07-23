@@ -16,6 +16,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(value, {
       processCandidate,
       onInvalidCandidate,
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath,
     });
 
@@ -23,6 +24,28 @@ describe("transformMediaPayload", () => {
     expect(processCandidate).not.toHaveBeenCalled();
     expect(onInvalidCandidate).not.toHaveBeenCalled();
     expect(onDetectionPath).not.toHaveBeenCalled();
+  });
+
+  it("ignores data prefixes embedded in a larger identifier", async () => {
+    const processCandidate = vi.fn();
+    const onInvalidCandidate = vi.fn();
+    const onIgnoredCandidate = vi.fn();
+    const value = `metadata:image/png;base64,${PNG_BASE64}`;
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate,
+      onInvalidCandidate,
+      onIgnoredCandidate,
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(transformed.value).toBe(value);
+    expect(processCandidate).not.toHaveBeenCalled();
+    expect(onInvalidCandidate).not.toHaveBeenCalled();
+    expect(onIgnoredCandidate).toHaveBeenCalledWith(
+      "data_uri",
+      "implausible_data_uri_prefix",
+    );
   });
 
   it("scans adversarial repeated data prefixes in linear time", async () => {
@@ -35,6 +58,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(value, {
       processCandidate,
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath,
     });
     const elapsedMs = performance.now() - startedAt;
@@ -59,6 +83,7 @@ describe("transformMediaPayload", () => {
       {
         processCandidate,
         onInvalidCandidate: vi.fn(),
+        onIgnoredCandidate: vi.fn(),
         onDetectionPath,
       },
     );
@@ -74,6 +99,27 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it.each([".", ";", "?", "!"])(
+    "processes an embedded Data URI followed by %s",
+    async (punctuation) => {
+      const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
+      const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+
+      const transformed = await transformMediaPayload(
+        `media: ${dataUri}${punctuation}`,
+        {
+          processCandidate,
+          onInvalidCandidate: vi.fn(),
+          onIgnoredCandidate: vi.fn(),
+          onDetectionPath: vi.fn(),
+        },
+      );
+
+      expect(transformed.value).toBe(`media: ${MEDIA_REFERENCE}${punctuation}`);
+      expect(processCandidate).toHaveBeenCalledOnce();
+    },
+  );
+
   it("processes Data URIs with media type parameters", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const textBase64 = Buffer.from("hello").toString("base64");
@@ -82,6 +128,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(`file: ${dataUri}`, {
       processCandidate,
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath: vi.fn(),
     });
 
@@ -111,6 +158,7 @@ describe("transformMediaPayload", () => {
       {
         processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
         onInvalidCandidate: vi.fn(),
+        onIgnoredCandidate: vi.fn(),
         onDetectionPath,
       },
     );
@@ -137,6 +185,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(value, {
       processCandidate,
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath: vi.fn(),
     });
 
@@ -165,6 +214,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(value, {
       processCandidate,
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath,
     });
 
@@ -182,6 +232,7 @@ describe("transformMediaPayload", () => {
     const transformed = await transformMediaPayload(value, {
       processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath,
     });
 
@@ -209,6 +260,7 @@ describe("transformMediaPayload", () => {
     await transformMediaPayload(value, {
       processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath: vi.fn(),
     });
 
@@ -234,6 +286,7 @@ describe("transformMediaPayload", () => {
     await transformMediaPayload(value, {
       processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
       onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
       onDetectionPath: vi.fn(),
     });
 
