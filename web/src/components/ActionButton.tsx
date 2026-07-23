@@ -18,7 +18,7 @@ const BUTTON_STATE_MESSAGES = {
   entitlement: "This feature is not available in your current plan.",
 } as const;
 
-interface ActionButtonProps extends ButtonProps {
+type ActionButtonProps = ButtonProps & {
   icon?: React.ReactNode;
   loading?: boolean;
   hasAccess?: boolean;
@@ -27,9 +27,18 @@ interface ActionButtonProps extends ButtonProps {
   limit?: number | false;
   children: React.ReactNode;
   href?: string;
-  trackingEventName?: Parameters<ReturnType<typeof usePostHogClientCapture>>[0];
-  trackingProps?: Record<string, unknown>;
-}
+} & (
+    | {
+        trackingEventName?: never;
+        trackingProps?: never;
+      }
+    | {
+        trackingEventName: Parameters<
+          ReturnType<typeof usePostHogClientCapture>
+        >[0];
+        trackingProps?: Record<string, unknown>;
+      }
+  );
 
 export const ActionButton = React.forwardRef<
   HTMLButtonElement,
