@@ -16,12 +16,14 @@ import {
   createScoresCh,
   createTraceScore,
   queryClickhouse,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 const integrationHooks = vi.hoisted(() => ({
   failExactEnrichmentForProjectId: null as string | null,
+  failExactEnrichmentOnReadOnly: true,
   omitExactEnrichmentForProjectId: null as string | null,
   failCandidateStreamAfterFirstRow: false,
   activeCandidateStreams: 0,
@@ -61,7 +63,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
         Array.isArray(candidateProjectIds) &&
         candidateProjectIds.includes(
           integrationHooks.failExactEnrichmentForProjectId,
-        )
+        ) &&
+        (opts.preferredClickhouseService === undefined ||
+          integrationHooks.failExactEnrichmentOnReadOnly)
       ) {
         throw new Error("forced exact enrichment failure");
       }
@@ -107,6 +111,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       integrationHooks.incrementCalls.push([args[0], args[1]]);
       return actual.recordIncrement(...args);
     },
+    traceException: vi.fn(actual.traceException),
   };
 });
 
@@ -499,6 +504,7 @@ describe("BatchDataRetentionCleaner", () => {
         env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT;
       timestampColumns[tableName] = "start_time";
       integrationHooks.failExactEnrichmentForProjectId = null;
+      integrationHooks.failExactEnrichmentOnReadOnly = true;
       integrationHooks.omitExactEnrichmentForProjectId = null;
       integrationHooks.failCandidateStreamAfterFirstRow = false;
       integrationHooks.activeCandidateStreams = 0;
@@ -506,6 +512,7 @@ describe("BatchDataRetentionCleaner", () => {
       integrationHooks.exactEnrichmentRequests = [];
       integrationHooks.gaugeCalls = [];
       integrationHooks.incrementCalls = [];
+      vi.mocked(traceException).mockClear();
       await createRetentionTestTable(tableName);
     });
 
@@ -685,6 +692,37 @@ describe("BatchDataRetentionCleaner", () => {
           "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
         ),
       ).toBe(0);
+    });
+
+    it("traces recovered enrichment without failing the runner outcome", async () => {
+      const [projectId] = await createProjectsWithRetention(1);
+      await insertRetentionTestRows(tableName, [
+        {
+          projectId: projectId!,
+          startTime: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        },
+      ]);
+      integrationHooks.failExactEnrichmentForProjectId = projectId!;
+      integrationHooks.failExactEnrichmentOnReadOnly = false;
+
+      const cleaner = new BatchDataRetentionCleaner(table);
+      const markRunFailed = vi.spyOn(
+        cleaner as unknown as {
+          markRunFailed(error: unknown): void;
+        },
+        "markRunFailed",
+      );
+
+      await cleaner.processBatch();
+
+      expect(
+        integrationHooks.exactEnrichmentRequests.map(
+          (request) => request.preferredClickhouseService,
+        ),
+      ).toEqual([undefined, "ReadOnly"]);
+      expect(await getRetentionTestRowCount(tableName)).toBe(0);
+      expect(traceException).toHaveBeenCalledTimes(1);
+      expect(markRunFailed).not.toHaveBeenCalled();
     });
 
     it("keeps sibling enrichment when a candidate disappears", async () => {

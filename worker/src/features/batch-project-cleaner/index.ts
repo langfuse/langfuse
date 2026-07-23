@@ -3,7 +3,6 @@ import {
   logger,
   queryClickhouse,
   commandClickhouse,
-  traceException,
   recordIncrement,
 } from "@langfuse/shared/src/server";
 
@@ -57,6 +56,8 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: `BatchProjectCleaner(${tableName})`,
+      metricName: "batch_project_cleaner",
+      metricScope: tableName,
       lockKey: `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
     });
@@ -97,7 +98,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       logger.error(`${this.instanceName}: Failed to query deleted projects`, {
         error,
       });
-      traceException(error);
+      this.markRunFailed(error);
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
@@ -112,7 +113,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         `${this.instanceName}: Failed to query ClickHouse counts`,
         error,
       );
-      traceException(error);
+      this.markRunFailed(error);
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
