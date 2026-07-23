@@ -265,8 +265,15 @@ export const experimentsRouter = createTRPCRouter({
         }),
       };
 
-      const datasetRun = await ctx.prisma.datasetRuns.create({
-        data: {
+      const datasetRun = await ctx.prisma.datasetRuns.upsert({
+        where: {
+          datasetId_projectId_name: {
+            datasetId: input.datasetId,
+            projectId: input.projectId,
+            name: input.runName,
+          },
+        },
+        create: {
           name: input.runName,
           description: input.description,
           datasetId: input.datasetId,
@@ -277,6 +284,7 @@ export const experimentsRouter = createTRPCRouter({
           },
           projectId: input.projectId,
         },
+        update: {},
       });
 
       const queue = ExperimentCreateQueue.getInstance();
