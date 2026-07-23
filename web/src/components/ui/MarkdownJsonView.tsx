@@ -94,7 +94,7 @@ export function MarkdownJsonView({
   title?: string;
   titleIcon?: React.ReactNode;
   className?: string;
-  customCodeHeaderClassName?: "bg-card" | "bg-secondary";
+  customCodeHeaderClassName?: "bg-card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   controlButtons?: React.ReactNode;

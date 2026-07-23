@@ -182,10 +182,8 @@ export function ChatMessage({
       </>
     );
 
-    let customCodeHeaderClassName: "bg-card" | "bg-secondary" | undefined;
-    if (message.role === "assistant") {
-      customCodeHeaderClassName = "bg-secondary";
-    } else if (message.role === "system") {
+    let customCodeHeaderClassName: "bg-card" | undefined;
+    if (message.role === "system") {
       customCodeHeaderClassName = "bg-card";
     }
 

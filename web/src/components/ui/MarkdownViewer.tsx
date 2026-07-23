@@ -226,7 +226,7 @@ function MarkdownRenderer({
   markdown: string;
   theme?: string;
   className?: string;
-  customCodeHeaderClassName?: "bg-card" | "bg-secondary";
+  customCodeHeaderClassName?: "bg-card";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -490,7 +490,7 @@ export function MarkdownView({
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
-  customCodeHeaderClassName?: "bg-card" | "bg-secondary";
+  customCodeHeaderClassName?: "bg-card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
