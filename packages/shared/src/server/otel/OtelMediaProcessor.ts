@@ -231,7 +231,7 @@ function decodePythonBytesLiteral(value: string): Buffer {
     throw new Error("Invalid Python bytes literal");
   }
 
-  const output = Buffer.allocUnsafe(decodedLength);
+  const output = Buffer.alloc(decodedLength);
   const written = scanPythonBytesLiteral(value, output);
   if (written !== decodedLength) {
     throw new Error("Invalid Python bytes literal");
