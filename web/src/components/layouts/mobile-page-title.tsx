@@ -52,47 +52,53 @@ export const MobilePageTitle = ({
         {breadcrumbBadges}
       </div>
 
-      <div className="mt-1.5 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {itemType && <ItemBadge type={itemType} showLabel />}
-          <h1 className="text-primary text-2xl leading-tight font-bold wrap-break-word">
-            {titleContent ? (
-              titleContent
-            ) : titleTooltip ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-help">{title}</span>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs">
-                    {titleTooltip}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <span title={title}>{title}</span>
-            )}
-            {help && (
-              <span className="align-middle whitespace-nowrap">
-                &nbsp;
-                <DocPopup
-                  description={help.description}
-                  href={help.href}
-                  className={help.className}
-                />
-              </span>
-            )}
-          </h1>
-          {titleBadges && (
-            <div className="flex items-center gap-1">{titleBadges}</div>
+      {/* Title on its own full-width line. On desktop the PageHeader packs the
+          title and its action clusters onto one justified row, but at phone
+          width there is no room: a `shrink-0` action cluster sharing the row
+          crushes the `min-w-0` title (a fixed-width search input, or a
+          dashboard selector + edit + setup, would overlap the heading). So the
+          mobile title owns its line and every action cluster wraps onto its
+          own row below — matching how the controls/agent row already behaves. */}
+      <div className="mt-1.5 flex min-w-0 items-center gap-2">
+        {itemType && <ItemBadge type={itemType} showLabel />}
+        <h1 className="text-primary text-2xl leading-tight font-bold wrap-break-word">
+          {titleContent ? (
+            titleContent
+          ) : titleTooltip ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-help">{title}</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  {titleTooltip}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <span title={title}>{title}</span>
           )}
-        </div>
-        {actionButtonsRight && (
-          <div className="flex shrink-0 items-center gap-1">
-            {actionButtonsRight}
-          </div>
+          {help && (
+            <span className="align-middle whitespace-nowrap">
+              &nbsp;
+              <DocPopup
+                description={help.description}
+                href={help.href}
+                className={help.className}
+              />
+            </span>
+          )}
+        </h1>
+        {titleBadges && (
+          <div className="flex items-center gap-1">{titleBadges}</div>
         )}
       </div>
+
+      {actionButtonsRight && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {actionButtonsRight}
+        </div>
+      )}
 
       {actionButtonsLeft && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
