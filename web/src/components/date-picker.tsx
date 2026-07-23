@@ -501,15 +501,24 @@ export function TimeRangePicker({
 
   const getDisplayContent = () => {
     if (rangeType === "custom") {
+      const customLabel = dateRange
+        ? formatDateRange(dateRange.from, dateRange.to)
+        : "Select from calendar";
+      // Compact: drop the icon and truncate, like the named branch — a custom
+      // range's long formatted string would otherwise overflow the tight
+      // mobile Filters header.
+      if (compact) {
+        return (
+          <span className="min-w-0 truncate" title={customLabel}>
+            {customLabel}
+          </span>
+        );
+      }
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4" />
-          <span>
-            {dateRange
-              ? formatDateRange(dateRange.from, dateRange.to)
-              : "Select from calendar"}
-          </span>
+          <span>{customLabel}</span>
         </div>
       );
     } else if (rangeType === "named") {
@@ -537,6 +546,13 @@ export function TimeRangePicker({
       );
     }
     // No time range selected
+    if (compact) {
+      return (
+        <span className="min-w-0 truncate" title="Select time range">
+          Select time range
+        </span>
+      );
+    }
     return (
       <div className="flex items-center gap-2">
         <CalendarIcon className="h-4 w-4" />

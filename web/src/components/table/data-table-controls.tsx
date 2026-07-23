@@ -726,24 +726,32 @@ export function DataTableControls({
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "header");
-                  }}
-                  aria-label="Hide filters"
-                  className="-ml-1 h-6 w-6"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Hide filters</TooltipContent>
-            </Tooltip>
-            <span className="text-sm font-bold">Filters</span>
+            {/* Inline (mobile Filters sheet) owns its own header X + "Filters"
+                title, and there is no collapse-to-rail there — so hide this
+                close button and duplicate title; tapping them would just
+                dismiss the whole sheet. */}
+            {layout !== "inline" && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setOpen(false);
+                        emitSidebarToggled(false, "header");
+                      }}
+                      aria-label="Hide filters"
+                      className="-ml-1 h-6 w-6"
+                    >
+                      <PanelLeftClose className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Hide filters</TooltipContent>
+                </Tooltip>
+                <span className="text-sm font-bold">Filters</span>
+              </>
+            )}
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
                 {activeFilterCount}
@@ -861,16 +869,23 @@ export function DataTableControls({
                   Show only active
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "menu");
-                  }}
-                  className="cursor-pointer"
-                >
-                  Collapse sidebar
-                </DropdownMenuItem>
+                {/* No collapse-to-rail inside the mobile Filters sheet — this
+                    would just dismiss the whole sheet (the sheet's footer owns
+                    close). Desktop only. */}
+                {layout !== "inline" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        emitSidebarToggled(false, "menu");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Collapse sidebar
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
