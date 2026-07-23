@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Input } from "@/src/components/ui/input";
@@ -37,7 +38,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
@@ -215,7 +215,7 @@ export const InnerEvalTemplateForm = (props: {
   // If existing template has no provider, it was using default model
   const shouldUseDefaultModel =
     props.preFilledFormValues?.shouldUseDefaultModel ??
-    (props.preFilledFormValues?.selectedModel ? false : true);
+    !props.preFilledFormValues?.selectedModel;
 
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId: props.projectId },
@@ -361,13 +361,9 @@ export const InnerEvalTemplateForm = (props: {
 
   const utils = api.useUtils();
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.models.invalidate();
-      if (
-        form.getValues("referencedEvaluators") ===
-          EvalReferencedEvaluators.UPDATE &&
-        props.existingEvalTemplateId
-      ) {
+      if (data.updatedConfigCount > 0) {
         showSuccessToast({
           title: "Updated evaluators",
           description:
@@ -378,27 +374,49 @@ export const InnerEvalTemplateForm = (props: {
     onError: (error) => setFormError(error.message),
   });
 
-  const evaluatorsByTemplateNameQuery =
-    api.evals.jobConfigsByTemplateName.useQuery(
-      {
-        projectId: props.projectId,
-        evalTemplateName: props.existingEvalTemplateName as string,
-      },
-      {
-        enabled: !!props.existingEvalTemplateName,
-      },
-    );
-
-  useEffect(() => {
-    if (evaluatorsByTemplateNameQuery.data) {
-      form.setValue(
-        "referencedEvaluators",
-        Boolean(evaluatorsByTemplateNameQuery.data.evaluators.length)
-          ? EvalReferencedEvaluators.UPDATE
-          : EvalReferencedEvaluators.PERSIST,
-      );
+  const isNewTemplate = !props.existingEvalTemplateId && !props.cloneSourceId;
+  const existingTemplatesQuery = api.evals.allTemplates.useQuery(
+    { projectId: props.projectId },
+    {
+      enabled: isNewTemplate,
+    },
+  );
+  // keep the latest version per name so the error message links to the current template
+  const existingTemplateByName = new Map<
+    string,
+    { id: string; version: number }
+  >();
+  for (const template of existingTemplatesQuery.data?.templates ?? []) {
+    if (template.projectId !== props.projectId) continue;
+    const existing = existingTemplateByName.get(template.name);
+    if (!existing || template.version > existing.version) {
+      existingTemplateByName.set(template.name, {
+        id: template.id,
+        version: template.version,
+      });
     }
-  }, [evaluatorsByTemplateNameQuery.data, form]);
+  }
+  const getExistingTemplateForName = (name: string) =>
+    isNewTemplate ? existingTemplateByName.get(name.trim()) : undefined;
+
+  const getCreateTemplateIntent = () => {
+    if (props.existingEvalTemplateId) {
+      return {
+        intent: "new-version" as const,
+        sourceTemplateId: props.existingEvalTemplateId,
+      };
+    }
+
+    if (props.cloneSourceId) {
+      return {
+        intent: "clone" as const,
+        cloneSourceId: props.cloneSourceId,
+        retargetUsingJobConfigs: false,
+      };
+    }
+
+    return { intent: "new" as const };
+  };
 
   async function submitEvalTemplate(
     evalTemplate: RouterInput["evals"]["createTemplate"],
@@ -411,22 +429,23 @@ export const InnerEvalTemplateForm = (props: {
     await createEvalTemplateMutation
       .mutateAsync(evalTemplate)
       .then((res) => {
-        props.onFormSuccess?.(res);
+        props.onFormSuccess?.(res.template);
         form.reset();
         props.setIsEditing?.(false);
         if (props.preventRedirect) {
           return;
         }
-        router.push(`/project/${props.projectId}/evals/templates/${res.id}`);
+        router.push(
+          `/project/${props.projectId}/evals/templates/${res.template.id}`,
+        );
       })
       .catch((error) => {
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
-        } else {
-          setFormError(JSON.stringify(error));
-          console.error(error);
         }
+        setFormError(JSON.stringify(error));
+        console.error(error);
       });
   }
 
@@ -436,6 +455,15 @@ export const InnerEvalTemplateForm = (props: {
         ? "eval_templates:update_form_submit"
         : "eval_templates:new_form_submit",
     );
+
+    if (getExistingTemplateForName(values.name)) {
+      form.setError("name", {
+        type: "validate",
+        message:
+          "Template with this name already exists. Edit this template or delete it to create a new template with this name.",
+      });
+      return;
+    }
 
     if (values.type === EvalTemplateType.CODE) {
       const submittedSourceCodeLanguage =
@@ -460,8 +488,7 @@ export const InnerEvalTemplateForm = (props: {
         projectId: props.projectId,
         sourceCode: formattedSourceCode,
         sourceCodeLanguage: submittedSourceCodeLanguage,
-        referencedEvaluators: values.referencedEvaluators,
-        cloneSourceId: props.cloneSourceId ?? undefined,
+        ...getCreateTemplateIntent(),
       } satisfies RouterInput["evals"]["createTemplate"];
 
       await submitEvalTemplate(evalTemplate);
@@ -501,8 +528,7 @@ export const InnerEvalTemplateForm = (props: {
         : getFinalModelParams(modelParams),
       vars: extractedVariables ?? [],
       outputDefinition,
-      referencedEvaluators: values.referencedEvaluators,
-      cloneSourceId: props.cloneSourceId ?? undefined,
+      ...getCreateTemplateIntent(),
     } satisfies RouterInput["evals"]["createTemplate"];
 
     // Only validate model if not using default
@@ -539,17 +565,34 @@ export const InnerEvalTemplateForm = (props: {
             <FormField
               control={form.control}
               name="name"
-              render={({ field }) => (
-                <>
+              render={({ field }) => {
+                const existingTemplate = getExistingTemplateForName(
+                  field.value,
+                );
+                return (
                   <FormItem>
                     <FormLabel>Name</FormLabel>
                     <FormControl>
                       <Input {...field} placeholder="Select a name" />
                     </FormControl>
+                    {existingTemplate && (
+                      <p className="text-destructive text-sm font-bold">
+                        Template with this name already exists.{" "}
+                        <Link
+                          href={`/project/${props.projectId}/evals/templates/${existingTemplate.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          Edit this template
+                        </Link>{" "}
+                        or delete it to create a new template with this name.
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
-                </>
-              )}
+                );
+              }}
             />
           </div>
           <div className="col-span-1 row-span-1 lg:col-span-0"></div>
@@ -594,7 +637,7 @@ export const InnerEvalTemplateForm = (props: {
           {/* Model Selection Section */}
           <Card>
             <CardContent>
-              <p className="my-2 font-semibold">Model</p>
+              <p className="my-2 font-bold">Model</p>
               <FormField
                 control={form.control}
                 name="shouldUseDefaultModel"
@@ -650,7 +693,7 @@ export const InnerEvalTemplateForm = (props: {
                 ) : (
                   <ModelParameters
                     customHeader={
-                      <p className="text-sm leading-none font-medium">
+                      <p className="text-sm leading-none font-bold">
                         Custom model configuration
                       </p>
                     }
@@ -673,7 +716,7 @@ export const InnerEvalTemplateForm = (props: {
           <Card>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <p className="my-2 font-semibold">Prompt</p>
+                <p className="my-2 font-bold">Prompt</p>
                 <FormField
                   control={form.control}
                   name="prompt"
@@ -871,7 +914,7 @@ export const InnerEvalTemplateForm = (props: {
                         )}
                       />
                       {categoriesErrorMessage ? (
-                        <p className="text-destructive text-sm font-medium">
+                        <p className="text-destructive text-sm font-bold">
                           {categoriesErrorMessage}
                         </p>
                       ) : null}
@@ -946,9 +989,7 @@ export const InnerEvalTemplateForm = (props: {
         </Button>
       )}
       {formError ? (
-        <p className="w-full text-center">
-          <span className="font-bold">Error:</span> {formError}
-        </p>
+        <p className="text-destructive text-sm">{formError}</p>
       ) : null}
     </div>
   );
@@ -962,7 +1003,7 @@ export const InnerEvalTemplateForm = (props: {
         {props.useDialog ? <DialogBody>{formBody}</DialogBody> : formBody}
 
         {props.useDialog ? (
-          <DialogFooter>{formFooter}</DialogFooter>
+          <DialogFooter variant="action">{formFooter}</DialogFooter>
         ) : (
           formFooter
         )}
@@ -992,7 +1033,7 @@ function CodeEvalSdkVersionCallout({
       <AlertTriangle className="text-dark-yellow h-4 w-4" />
       <AlertDescription>
         <div className="flex flex-col gap-1">
-          <span className="text-foreground font-medium">
+          <span className="text-foreground font-bold">
             Please verify your SDK version
           </span>
           <span className="text-foreground text-sm">
@@ -1003,7 +1044,7 @@ function CodeEvalSdkVersionCallout({
               href="https://langfuse.com/docs/observability/sdk/upgrade-path"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Learn more
             </a>

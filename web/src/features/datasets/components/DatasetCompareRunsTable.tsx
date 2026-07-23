@@ -70,13 +70,15 @@ function DatasetCompareRunsTableInternal(props: {
     page: "pageIndex",
     limit: "pageSize",
   });
+  const activeRunFilters = convertToColumnFilterList();
+  const hasActiveRunFilters = activeRunFilters.length > 0;
 
   const datasetItemsWithRunData = api.datasets.datasetItemsWithRunData.useQuery(
     {
       projectId: props.projectId,
       datasetId: props.datasetId,
       runIds: props.runIds,
-      filterByRun: convertToColumnFilterList(),
+      filterByRun: activeRunFilters,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -86,7 +88,7 @@ function DatasetCompareRunsTableInternal(props: {
     projectId: props.projectId,
     datasetId: props.datasetId,
     runIds: props.runIds,
-    filterByRun: convertToColumnFilterList(),
+    filterByRun: activeRunFilters,
   });
 
   const totalCount = totalCountQuery.data?.totalCount ?? null;
@@ -105,7 +107,10 @@ function DatasetCompareRunsTableInternal(props: {
   }, [datasetItemsWithRunData.isSuccess, datasetItemsWithRunData.data]);
 
   const { closePeek, expandPeek } = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp"],
+    // traceId: not written here, but cleared (and preferred by the trace
+    // reader) so a stray param cannot pin the peek to a foreign trace
+    // (LFE-11041).
+    queryParams: ["observation", "display", "timestamp", "traceId"],
     expandConfig: {
       basePath: `/project/${props.projectId}/traces`,
     },
@@ -264,11 +269,11 @@ function DatasetCompareRunsTableInternal(props: {
       <FilteredRunPills
         projectId={props.projectId}
         datasetId={props.datasetId}
-        filteredRuns={convertToColumnFilterList()}
+        filteredRuns={activeRunFilters}
         className="px-2 pb-2"
       />
       <DataTable
-        tableName={"datasetCompareRuns"}
+        tableName="datasetCompareRuns"
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
@@ -298,6 +303,16 @@ function DatasetCompareRunsTableInternal(props: {
           m: "h-64",
           l: "h-96",
         }}
+        noResultsMessage={
+          hasActiveRunFilters ? (
+            <div className="text-muted-foreground flex flex-col items-center gap-1 text-sm">
+              <span>No dataset run items match the current filters.</span>
+              <span className="text-xs">
+                Adjust or clear filters to compare items again.
+              </span>
+            </div>
+          ) : undefined
+        }
         peekView={peekConfig}
       />
       <TablePeekViewTraceDetail {...peekConfig} projectId={props.projectId} />

@@ -4,10 +4,9 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
-  LEGACY_BLOB_EXPORT_SOURCES,
-  LEGACY_BLOB_EXPORTER_CUTOFF,
-  isLegacyBlobExporter,
-  type BlobStorageIntegrationFileType,
+  areLegacyWritesActive,
+  validateExportSource,
+  BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -25,7 +24,9 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to PARQUET on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
@@ -119,7 +120,7 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      select: { exportMode: true, lastError: true, runStartedAt: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -145,9 +146,15 @@ export async function upsertBlobStorageIntegration(params: {
     // at INSERT time regardless of what findUnique saw. UPDATE uses
     // writeData.exportSource (undefined → Prisma omits the column → preserves
     // the existing value), so the caller intent is always honored on both paths.
+    // Under events_only a new row must never fall back to the legacy Prisma
+    // column default; force EVENTS in-transaction, deployment-agnostic
+    // (see export-source-policy.ts).
+    const legacyWritesActive = areLegacyWritesActive(
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    );
     const createExportSource =
       data.exportSource ??
-      (params.forceEventsOnCreate
+      (params.forceEventsOnCreate || !legacyWritesActive
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
 
@@ -156,6 +163,10 @@ export async function upsertBlobStorageIntegration(params: {
       create: {
         ...writeData,
         exportSource: createExportSource,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -164,31 +175,39 @@ export async function upsertBlobStorageIntegration(params: {
         // Only overwrite secretAccessKey when a new value is provided,
         // so partial updates don't wipe the existing encrypted secret.
         ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        // Schedule an immediate retry when saving an errored integration
+        // so the scheduler picks it up via the nextSyncAt clause.
+        ...(existing?.lastError && data.enabled && !modeChanged
+          ? { nextSyncAt: new Date() }
+          : {}),
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
+        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        runStartedAt: null,
       },
     });
 
-    // Race-free integration-cutoff backstop. The pre-flight `existing` snapshot
-    // (and the router's pre-flight gate) are racy under READ COMMITTED: a
-    // concurrent DELETE can flip this upsert to a CREATE after those reads.
-    // Validate the *persisted* row instead — its `createdAt` reflects the actual
-    // CREATE/UPDATE outcome (CREATE → now(); UPDATE → preserved). If the row
-    // that now exists is a brand-new post-cutoff Cloud exporter carrying a legacy
-    // source, throw to roll back. UPDATEs of pre-cutoff rows keep their
-    // original createdAt and are unaffected.
-    if (
-      params.refuseLegacyOnCreate &&
-      !isLegacyBlobExporter(result.createdAt, !isSelfHosted) &&
-      (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
-        result.exportSource,
-      )
-    ) {
-      throw new InvalidRequestError(
-        `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
-      );
+    // Race-free backstop over the *persisted* row. The pre-flight `existing`
+    // snapshot (and the router's pre-flight gate) are racy under READ
+    // COMMITTED: a concurrent DELETE can flip this upsert to a CREATE after
+    // those reads. `result.createdAt` reflects the actual CREATE/UPDATE
+    // outcome (CREATE → now(); UPDATE → preserved), so validating it catches a
+    // brand-new post-cutoff Cloud row born with a legacy source and rolls the
+    // transaction back. See export-source-policy.ts.
+    const backstop = validateExportSource(result.exportSource, {
+      isCloud: !isSelfHosted,
+      enrichedAvailable: true,
+      legacyWritesActive,
+      integrationCreatedAt: params.refuseLegacyOnCreate
+        ? result.createdAt
+        : undefined,
+    });
+    if (!backstop.ok) {
+      throw new InvalidRequestError(backstop.message);
     }
 
     return result;

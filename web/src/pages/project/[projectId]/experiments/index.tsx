@@ -88,7 +88,7 @@ export default function Experiments() {
         ),
       }}
     >
-      <ExperimentsTable projectId={projectId} />
+      <ExperimentsTable projectId={projectId} showControlsInPageHeader />
     </Page>
   );
 }

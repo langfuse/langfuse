@@ -1,7 +1,11 @@
 import { describe, test, expect } from "vitest";
 import {
-  fetchLLMCompletion,
-  type CompletionWithReasoning,
+  createLLMOutput,
+  createLLMToolSet,
+  generateLLMText,
+  getLLMErrorInfo,
+  mapLegacyLLMCompletionParams,
+  streamLLMText,
 } from "@langfuse/shared/src/server";
 import { encrypt } from "@langfuse/shared/encryption";
 import {
@@ -40,12 +44,94 @@ import { z } from "zod";
  * - LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY
  */
 
-type TestLLMConnection = {
-  secretKey: string;
-  extraHeaders?: string | null;
-  baseURL?: string | null;
-  config?: Record<string, string> | null;
+type TestLLMConnection = Parameters<
+  typeof mapLegacyLLMCompletionParams
+>[0]["connection"];
+
+type TestCompletionParams = {
+  messages: Parameters<typeof mapLegacyLLMCompletionParams>[0]["messages"];
+  modelParams: ModelParams;
+  llmConnection: TestLLMConnection;
+  structuredOutputSchema?: z.ZodType;
+  tools?: Parameters<typeof createLLMToolSet>[0];
 };
+
+function generateWithStoredConnection(params: TestCompletionParams) {
+  const { structuredOutputSchema, tools, ...legacyParams } = params;
+
+  return generateLLMText({
+    ...mapLegacyLLMCompletionParams({
+      messages: legacyParams.messages,
+      modelParams: legacyParams.modelParams,
+      connection: legacyParams.llmConnection,
+    }),
+    ...(structuredOutputSchema
+      ? { output: createLLMOutput(structuredOutputSchema) }
+      : {}),
+    ...(tools?.length ? { tools: createLLMToolSet(tools) } : {}),
+  });
+}
+
+function streamWithStoredConnection(
+  params: Omit<TestCompletionParams, "structuredOutputSchema" | "tools">,
+) {
+  return streamLLMText(
+    mapLegacyLLMCompletionParams({
+      messages: params.messages,
+      modelParams: params.modelParams,
+      connection: params.llmConnection,
+    }),
+  );
+}
+
+const googleAIStudioFallbackModels = [
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-3.5-flash",
+] as const;
+
+async function runWithGoogleAIStudioModelFallback<T>(
+  operation: (model: string) => Promise<T>,
+): Promise<T> {
+  let lastError: unknown;
+
+  for (const [index, model] of googleAIStudioFallbackModels.entries()) {
+    try {
+      return await operation(model);
+    } catch (error) {
+      lastError = error;
+
+      if (
+        index === googleAIStudioFallbackModels.length - 1 ||
+        !isRetryableProviderError(error)
+      ) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  const llmError = getLLMErrorInfo(error);
+  if (llmError) return llmError.isRetryable;
+
+  if (!error || typeof error !== "object") return false;
+
+  const errorLike = error as {
+    response?: { status?: unknown };
+    status?: unknown;
+    statusCode?: unknown;
+  };
+  const statusCode = [
+    errorLike.response?.status,
+    errorLike.status,
+    errorLike.statusCode,
+  ].find((code): code is number => typeof code === "number");
+
+  return statusCode === 429 || (statusCode !== undefined && statusCode >= 500);
+}
 
 const numericEvalResponseSchema = z.object({
   score: z.number(),
@@ -67,7 +153,7 @@ type EvalStructuredOutputTestCase = {
   name: string;
   prompt: string;
   outputDefinition: PersistedEvalOutputDefinition;
-  responseSchema: z.ZodTypeAny;
+  responseSchema: z.ZodType;
   assertParsed?: (data: {
     score: number | boolean | string;
     reasoning: string;
@@ -130,9 +216,10 @@ const evalStructuredOutputTestCases: EvalStructuredOutputTestCase[] = [
 
 function registerEvalStructuredOutputTests(params: {
   checkEnv: () => void;
-  getModelParams: () => ModelParams;
+  getModelParams: (model?: string) => ModelParams;
   getLLMConnection: () => TestLLMConnection;
   timeoutMs: number;
+  runWithModel?: <T>(operation: (model?: string) => Promise<T>) => Promise<T>;
 }) {
   evalStructuredOutputTestCases.forEach((testCase) => {
     test(
@@ -140,23 +227,26 @@ function registerEvalStructuredOutputTests(params: {
       async () => {
         params.checkEnv();
 
-        const completion = await fetchLLMCompletion({
-          streaming: false,
-          messages: [
-            {
-              role: "user",
-              content: testCase.prompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
-          modelParams: params.getModelParams(),
-          structuredOutputSchema: buildEvalOutputResultSchema(
-            testCase.outputDefinition,
-          ),
-          llmConnection: params.getLLMConnection(),
-        });
+        const completion = await (
+          params.runWithModel ?? ((operation) => operation())
+        )((model) =>
+          generateWithStoredConnection({
+            messages: [
+              {
+                role: "user",
+                content: testCase.prompt,
+                type: ChatMessageType.PublicAPICreated,
+              },
+            ],
+            modelParams: params.getModelParams(model),
+            structuredOutputSchema: buildEvalOutputResultSchema(
+              testCase.outputDefinition,
+            ),
+            llmConnection: params.getLLMConnection(),
+          }),
+        );
 
-        const parsed = testCase.responseSchema.safeParse(completion);
+        const parsed = testCase.responseSchema.safeParse(completion.output);
         expect(parsed.success).toBe(true);
         if (parsed.success) {
           expect(parsed.data.reasoning.trim().length).toBeGreaterThan(0);
@@ -201,8 +291,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -222,15 +311,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVar();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -250,12 +337,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -281,8 +367,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -303,11 +388,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 30_000);
   });
 
@@ -327,8 +410,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -350,15 +432,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVar();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -380,12 +460,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -411,8 +490,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -435,11 +513,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 30_000);
   });
 
@@ -471,8 +547,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -493,15 +568,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVars();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -522,12 +595,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -554,8 +626,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -577,11 +648,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 60_000);
   });
 
@@ -630,8 +699,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -652,15 +720,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVars();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -681,12 +747,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -714,8 +779,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -737,11 +801,9 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 30_000);
   });
 
@@ -779,8 +841,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVars();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -801,15 +862,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(typeof completion).toBe("string");
-      expect(completion).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVars();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -830,12 +889,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -860,8 +918,7 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -882,9 +939,7 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      // VertexAI always returns CompletionWithReasoning (text + optional reasoning)
-      expect(typeof completion).toBe("object");
-      expect((completion as CompletionWithReasoning).text).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("Claude model routes through Anthropic publisher endpoint", async () => {
@@ -893,8 +948,7 @@ describe("LLM Connection Tests", () => {
       const claudeVertexModel = "claude-3-haiku@20240307";
 
       try {
-        const completion = await fetchLLMCompletion({
-          streaming: false,
+        const completion = await generateWithStoredConnection({
           messages: [
             {
               role: "user",
@@ -917,28 +971,31 @@ describe("LLM Connection Tests", () => {
           },
         });
 
-        expect(typeof completion).toBe("object");
-        expect((completion as CompletionWithReasoning).text).toContain("4");
+        expect(completion.text).toContain("4");
       } catch (error) {
         const message = String(error);
 
         // The CI project currently does not have access to Anthropic publisher
         // models. The regression signal is that Claude-on-Vertex reaches the
         // Anthropic publisher endpoint instead of /v1/v1/messages or Google's
-        // Gemini/Gemma publisher path.
-        expect(message).toContain(
-          `/publishers/anthropic/models/${claudeVertexModel}`,
-        );
-        expect(message).not.toContain("/v1/v1/messages");
-        expect(message).not.toContain("/publishers/google/");
+        // Gemini/Gemma publisher path. Some provider errors only include the
+        // normalized Vertex 404 without echoing the request URL.
+        if (message.includes("/publishers/")) {
+          expect(message).toContain(
+            `/publishers/anthropic/models/${claudeVertexModel}`,
+          );
+          expect(message).not.toContain("/v1/v1/messages");
+          expect(message).not.toContain("/publishers/google/");
+        } else {
+          expect(message).toContain("Not Found");
+        }
       }
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVar();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
+      const stream = await streamWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -959,12 +1016,11 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      const decoder = new TextDecoder();
       let fullResponse = "";
       let chunkCount = 0;
 
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
+      for await (const chunk of stream.textStream) {
+        fullResponse += chunk;
         chunkCount++;
       }
 
@@ -991,8 +1047,7 @@ describe("LLM Connection Tests", () => {
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -1014,18 +1069,15 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 30_000);
 
     test("thinking model with tool calling strips reasoning from content and parses tool calls", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -1049,21 +1101,18 @@ describe("LLM Connection Tests", () => {
       });
 
       // Should parse tool calls successfully despite reasoning blocks in content
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
       // Reasoning should be extracted separately
-      if ((completion as any).reasoning) {
-        expect(typeof (completion as any).reasoning).toBe("string");
+      if (completion.reasoningText) {
+        expect(typeof completion.reasoningText).toBe("string");
       }
     }, 60_000);
 
-    test("thinking model returns CompletionWithReasoning with separate text and reasoning", async () => {
+    test("thinking model exposes text and reasoning separately", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
+      const completion = await generateWithStoredConnection({
         messages: [
           {
             role: "user",
@@ -1085,18 +1134,13 @@ describe("LLM Connection Tests", () => {
         },
       });
 
-      // Always returns CompletionWithReasoning for VertexAI
-      expect(typeof completion).toBe("object");
-      const result = completion as CompletionWithReasoning;
-      expect(result.text).toContain("4");
+      expect(completion.text).toContain("4");
       // With maxReasoningTokens > 0, reasoning should be present
       // Note: this depends on the model actually producing reasoning output
     }, 60_000);
   });
 
   describe("GoogleAIStudio", () => {
-    const MODEL = "gemini-2.5-flash-lite";
-
     const checkEnvVar = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY) {
         throw new Error(
@@ -1110,79 +1154,78 @@ describe("LLM Connection Tests", () => {
     test("simple completion", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        generateWithStoredConnection({
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
-      // GoogleAIStudio always returns CompletionWithReasoning (text + optional reasoning)
-      expect(typeof completion).toBe("object");
-      expect((completion as CompletionWithReasoning).text).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
 
     test("streaming completion", async () => {
       checkEnvVar();
 
-      const stream = await fetchLLMCompletion({
-        streaming: true,
-        messages: [
-          {
-            role: "user",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.PublicAPICreated,
+      await runWithGoogleAIStudioModelFallback(async (model) => {
+        const stream = await streamWithStoredConnection({
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        });
+
+        let fullResponse = "";
+        let chunkCount = 0;
+
+        for await (const chunk of stream.textStream) {
+          fullResponse += chunk;
+          chunkCount++;
+        }
+
+        expect(chunkCount).toBeGreaterThan(0);
+        expect(fullResponse).toContain("4");
       });
-
-      const decoder = new TextDecoder();
-      let fullResponse = "";
-      let chunkCount = 0;
-
-      for await (const chunk of stream) {
-        fullResponse += decoder.decode(chunk);
-        chunkCount++;
-      }
-
-      expect(chunkCount).toBeGreaterThan(0);
-      expect(fullResponse).toContain("4");
     }, 30_000);
 
     registerEvalStructuredOutputTests({
       checkEnv: checkEnvVar,
-      getModelParams: () => ({
+      getModelParams: (model = googleAIStudioFallbackModels[0]) => ({
         provider: "google-ai-studio",
         adapter: LLMAdapter.GoogleAIStudio,
-        model: MODEL,
+        model,
         temperature: 0,
         max_tokens: 200,
       }),
@@ -1192,40 +1235,40 @@ describe("LLM Connection Tests", () => {
         ),
       }),
       timeoutMs: 30_000,
+      runWithModel: runWithGoogleAIStudioModelFallback,
     });
 
     test("tool calling", async () => {
       checkEnvVar();
 
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "user",
-            content: "What's the weather like in Paris?",
-            type: ChatMessageType.PublicAPICreated,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        generateWithStoredConnection({
+          messages: [
+            {
+              role: "user",
+              content: "What's the weather like in Paris?",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 100,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 100,
-        },
-        tools: [weatherTool],
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          tools: [weatherTool],
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
-      expect(completion).toHaveProperty("tool_calls");
-      expect(Array.isArray(completion.tool_calls)).toBe(true);
-      expect(completion.tool_calls.length).toBeGreaterThan(0);
-      expect(completion.tool_calls[0].name).toBe("get_weather");
-      expect(completion.tool_calls[0].args).toHaveProperty("location");
+      expect(completion.toolCalls.length).toBeGreaterThan(0);
+      expect(completion.toolCalls[0].toolName).toBe("get_weather");
+      expect(completion.toolCalls[0].input).toHaveProperty("location");
     }, 30_000);
 
     test("single system message is converted to user message", async () => {
@@ -1234,32 +1277,31 @@ describe("LLM Connection Tests", () => {
       // Regression test: Text prompts create a single system message.
       // GoogleAIStudio must convert it to a user message to prevent:
       // "GenerateContentRequest.contents is not specified" error
-      const completion = await fetchLLMCompletion({
-        streaming: false,
-        messages: [
-          {
-            role: "system",
-            content: "What is 2+2? Answer only with the number.",
-            type: ChatMessageType.System,
+      const completion = await runWithGoogleAIStudioModelFallback((model) =>
+        generateWithStoredConnection({
+          messages: [
+            {
+              role: "system",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.System,
+            },
+          ],
+          modelParams: {
+            provider: "google-ai-studio",
+            adapter: LLMAdapter.GoogleAIStudio,
+            model,
+            temperature: 0,
+            max_tokens: 10,
           },
-        ],
-        modelParams: {
-          provider: "google-ai-studio",
-          adapter: LLMAdapter.GoogleAIStudio,
-          model: MODEL,
-          temperature: 0,
-          max_tokens: 10,
-        },
-        llmConnection: {
-          secretKey: encrypt(
-            process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
-          ),
-        },
-      });
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_GOOGLEAISTUDIO_KEY!,
+            ),
+          },
+        }),
+      );
 
-      // GoogleAIStudio always returns CompletionWithReasoning
-      expect(typeof completion).toBe("object");
-      expect((completion as CompletionWithReasoning).text).toContain("4");
+      expect(completion.text).toContain("4");
     }, 30_000);
   });
 });

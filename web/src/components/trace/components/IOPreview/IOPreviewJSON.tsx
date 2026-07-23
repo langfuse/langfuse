@@ -25,7 +25,13 @@ import { InlineCommentBubble } from "@/src/features/comments/components/InlineCo
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
+import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
+import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
+import {
+  JSON_VIEW_RENDER_ROW_LIMIT,
+  probeJsonField,
+} from "./lib/jsonViewSizeGate";
 
 const VIRTUALIZATION_THRESHOLD = 3333;
 
@@ -121,35 +127,113 @@ function IOPreviewJSONInner({
   );
 
   // Fall back to raw values when caller does not provide pre-parsed fields
-  // (e.g. session events rows in v4 mode).
-  const effectiveInput = useMemo(() => {
-    if (isParsing) return undefined;
-    return parsedInput ?? deepParseJson(input);
-  }, [parsedInput, input, isParsing]);
+  // (e.g. session events rows in v4 mode). Parse once here, BEFORE the decode
+  // and tree-build, so the node-count gate below can act on the parsed shape.
+  const inputParsed = useMemo(
+    () => (isParsing ? undefined : (parsedInput ?? deepParseJson(input))),
+    [parsedInput, input, isParsing],
+  );
+  const outputParsed = useMemo(
+    () => (isParsing ? undefined : (parsedOutput ?? deepParseJson(output))),
+    [parsedOutput, output, isParsing],
+  );
+  const metadataParsed = useMemo(
+    () => (isParsing ? undefined : (parsedMetadata ?? deepParseJson(metadata))),
+    [parsedMetadata, metadata, isParsing],
+  );
 
-  const effectiveOutput = useMemo(() => {
-    if (isParsing) return undefined;
-    return parsedOutput ?? deepParseJson(output);
-  }, [parsedOutput, output, isParsing]);
+  // Node-count gate (LFE-10847): the Beta viewer virtualizes the DOM but still
+  // builds the full node tree on the main thread, so a field with too many
+  // nodes (a large conversation / deeply nested JSON) freezes the tab even
+  // here. Count rows once per field — cheap (~integer add per node) and, unlike
+  // a char limit, correctly lets a huge single string (one node, e.g. a base64
+  // data-URI) through while gating million-node payloads. `countJsonRows` also
+  // feeds the virtualization decision below, so a gated field contributes 0.
+  const inputRows = useMemo(() => countJsonRows(inputParsed), [inputParsed]);
+  const outputRows = useMemo(() => countJsonRows(outputParsed), [outputParsed]);
+  const metadataRows = useMemo(
+    () => countJsonRows(metadataParsed),
+    [metadataParsed],
+  );
 
-  const effectiveMetadata = useMemo(() => {
-    if (isParsing) return undefined;
-    return parsedMetadata ?? deepParseJson(metadata);
-  }, [parsedMetadata, metadata, isParsing]);
+  const inputTooLarge = inputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const outputTooLarge = outputRows > JSON_VIEW_RENDER_ROW_LIMIT;
+  const metadataTooLarge = metadataRows > JSON_VIEW_RENDER_ROW_LIMIT;
 
-  const showInput = !hideInput && !(hideIfNull && effectiveInput === undefined);
+  // Decode \uXXXX escapes (e.g. Japanese ingested with Python
+  // ensure_ascii=True) at the data source so that search-match offsets, comment
+  // ranges, rendering and copy-to-clipboard all operate on the same decoded
+  // strings. Decoding at the leaf renderer instead would desync highlight
+  // offsets. Already-decoded strings are a no-op. Over-limit fields skip decode
+  // and the tree entirely — they render the bounded fallback instead.
+  const effectiveInput = useMemo(
+    () =>
+      isParsing || inputTooLarge ? undefined : decodeUnicodeInJson(inputParsed),
+    [inputParsed, isParsing, inputTooLarge],
+  );
+  const effectiveOutput = useMemo(
+    () =>
+      isParsing || outputTooLarge
+        ? undefined
+        : decodeUnicodeInJson(outputParsed),
+    [outputParsed, isParsing, outputTooLarge],
+  );
+  const effectiveMetadata = useMemo(
+    () =>
+      isParsing || metadataTooLarge
+        ? undefined
+        : decodeUnicodeInJson(metadataParsed),
+    [metadataParsed, isParsing, metadataTooLarge],
+  );
+
+  // Probe over-limit fields once for the bounded fallback (preview + download).
+  // Probe the PARSED value — the same value the row-count gate ran on — so the
+  // preview, download and reported size all reflect what tripped the gate (a
+  // string field that deep-parses into a large tree would otherwise show its
+  // short raw length).
+  const inputProbe = useMemo(
+    () => (inputTooLarge ? probeJsonField(inputParsed) : null),
+    [inputParsed, inputTooLarge],
+  );
+  const outputProbe = useMemo(
+    () => (outputTooLarge ? probeJsonField(outputParsed) : null),
+    [outputParsed, outputTooLarge],
+  );
+  const metadataProbe = useMemo(
+    () => (metadataTooLarge ? probeJsonField(metadataParsed) : null),
+    [metadataParsed, metadataTooLarge],
+  );
+
+  // A gated field parses to undefined above but is not empty — it is too big.
+  // Treat it as present so hideIfNull callers still show the fallback instead
+  // of silently dropping the field.
+  const showInput =
+    !hideInput &&
+    (inputTooLarge || !(hideIfNull && effectiveInput === undefined));
   const showOutput =
-    !hideOutput && !(hideIfNull && effectiveOutput === undefined);
-  const showMetadata = !(hideIfNull && effectiveMetadata === undefined);
+    !hideOutput &&
+    (outputTooLarge || !(hideIfNull && effectiveOutput === undefined));
+  const showMetadata =
+    metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined);
 
-  // Count rows for each section to determine if virtualization is needed
+  const downloadName = observationId ?? traceId;
+
+  // Row counts drive the virtualization decision. Gated fields render as a
+  // fallback (not inside the viewer), so they contribute 0.
   const rowCounts = useMemo(() => {
     return {
-      input: countJsonRows(effectiveInput),
-      output: countJsonRows(effectiveOutput),
-      metadata: countJsonRows(effectiveMetadata),
+      input: inputTooLarge ? 0 : inputRows,
+      output: outputTooLarge ? 0 : outputRows,
+      metadata: metadataTooLarge ? 0 : metadataRows,
     };
-  }, [effectiveInput, effectiveOutput, effectiveMetadata]);
+  }, [
+    inputTooLarge,
+    outputTooLarge,
+    metadataTooLarge,
+    inputRows,
+    outputRows,
+    metadataRows,
+  ]);
 
   // Determine if virtualization is needed based on threshold
   const needsVirtualization = useMemo(() => {
@@ -219,16 +303,25 @@ function IOPreviewJSONInner({
   }, []);
 
   const handleCopy = useCallback(() => {
+    // Gated fields have no materialized value (effective* is undefined), so
+    // copy a placeholder rather than silently dropping the key — the field is
+    // visibly present on screen (fallback + download), it just can't be inlined.
+    const TOO_LARGE = "<omitted: too large to render — use the field download>";
     const dataObj: Record<string, unknown> = {};
-    if (showInput) dataObj.input = effectiveInput;
-    if (showOutput) dataObj.output = effectiveOutput;
-    if (showMetadata) dataObj.metadata = effectiveMetadata;
+    if (showInput) dataObj.input = inputTooLarge ? TOO_LARGE : effectiveInput;
+    if (showOutput)
+      dataObj.output = outputTooLarge ? TOO_LARGE : effectiveOutput;
+    if (showMetadata)
+      dataObj.metadata = metadataTooLarge ? TOO_LARGE : effectiveMetadata;
     const jsonString = JSON.stringify(dataObj, null, 2);
     navigator.clipboard.writeText(jsonString);
   }, [
     showInput,
     showOutput,
     showMetadata,
+    inputTooLarge,
+    outputTooLarge,
+    metadataTooLarge,
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
@@ -246,26 +339,88 @@ function IOPreviewJSONInner({
     [stringWrapMode],
   );
 
-  // Build sections - memoized to prevent re-creation
+  // Build sections - memoized to prevent re-creation. A gated field renders as
+  // a section with no data (hideData → the viewer builds no tree for it, so it
+  // can't freeze) whose footer is the bounded fallback. Keeping it a section —
+  // rather than a block outside the viewer — preserves the natural
+  // Input → Output → Metadata order and the shared search/scroll. The section
+  // header shows the field name, so the fallback hides its own title.
   const sections = useMemo(() => {
+    const gatedSection = (
+      fieldKey: string,
+      title: string,
+      backgroundColor: string,
+      probe: ReturnType<typeof probeJsonField> | null,
+      rowCount: number,
+    ) => ({
+      // Use a key distinct from the field's normal section key so the fallback
+      // does not inherit a persisted collapsed state from an earlier trace
+      // where the same field rendered normally — that would silently hide the
+      // download escape hatch (its collapse persists per section key). A gated
+      // field gets its own key, so it always defaults to expanded.
+      key: `${fieldKey}__oversized`,
+      title,
+      data: null,
+      hideData: true,
+      backgroundColor,
+      minHeight: "4px",
+      // A gated field has no tree to expand/collapse — only the download escape
+      // hatch below. Render a header WITHOUT a collapse toggle, so the section
+      // can never be collapsed: its collapse is therefore never persisted, and
+      // the download can't be hidden — not silently (inherited state) and not
+      // by a user collapsing one gated field then viewing another of the same
+      // name (the gated→gated leak the plain key still allowed).
+      renderHeader: () => (
+        <div className="flex items-center px-2 py-1.5">
+          <span className="text-xs font-bold">{title}</span>
+        </div>
+      ),
+      renderFooter: () =>
+        probe ? (
+          <LargeJsonFieldFallback
+            title={title}
+            hideTitle
+            serialized={probe.serialized}
+            isString={probe.isString}
+            charCount={probe.size}
+            rowCount={rowCount}
+            downloadFileBase={`${fieldKey}-${downloadName}`}
+          />
+        ) : null,
+    });
+
     const result = [];
     if (showInput) {
-      result.push({
-        key: "input",
-        title: "Input",
-        data: effectiveInput,
-        backgroundColor: inputBgColor,
-        minHeight: "200px",
-      });
+      result.push(
+        inputTooLarge
+          ? gatedSection("input", "Input", inputBgColor, inputProbe, inputRows)
+          : {
+              key: "input",
+              title: "Input",
+              data: effectiveInput,
+              backgroundColor: inputBgColor,
+              minHeight: "200px",
+            },
+      );
     }
     if (showOutput) {
-      result.push({
-        key: "output",
-        title: "Output",
-        data: effectiveOutput,
-        backgroundColor: outputBgColor,
-        minHeight: "200px",
-      });
+      result.push(
+        outputTooLarge
+          ? gatedSection(
+              "output",
+              "Output",
+              outputBgColor,
+              outputProbe,
+              outputRows,
+            )
+          : {
+              key: "output",
+              title: "Output",
+              data: effectiveOutput,
+              backgroundColor: outputBgColor,
+              minHeight: "200px",
+            },
+      );
     }
     if (showCorrections) {
       result.push({
@@ -279,6 +434,7 @@ function IOPreviewJSONInner({
         renderFooter: () => (
           <CorrectedOutputField
             actualOutput={effectiveOutput}
+            actualOutputTooLarge={outputTooLarge}
             existingCorrection={outputCorrection}
             observationId={observationId}
             projectId={projectId}
@@ -290,22 +446,42 @@ function IOPreviewJSONInner({
       });
     }
     if (showMetadata) {
-      result.push({
-        key: "metadata",
-        title: "Metadata",
-        data: effectiveMetadata,
-        backgroundColor: metadataBgColor,
-        minHeight: "200px",
-      });
+      result.push(
+        metadataTooLarge
+          ? gatedSection(
+              "metadata",
+              "Metadata",
+              metadataBgColor,
+              metadataProbe,
+              metadataRows,
+            )
+          : {
+              key: "metadata",
+              title: "Metadata",
+              data: effectiveMetadata,
+              backgroundColor: metadataBgColor,
+              minHeight: "200px",
+            },
+      );
     }
     return result;
   }, [
     showInput,
     showOutput,
     showMetadata,
+    inputTooLarge,
+    outputTooLarge,
+    metadataTooLarge,
     effectiveInput,
     effectiveOutput,
     effectiveMetadata,
+    inputProbe,
+    outputProbe,
+    metadataProbe,
+    inputRows,
+    outputRows,
+    metadataRows,
+    downloadName,
     inputBgColor,
     outputBgColor,
     metadataBgColor,
@@ -461,13 +637,13 @@ function IOPreviewJSONInner({
         {needsVirtualization && (
           <HoverCard>
             <HoverCardTrigger asChild>
-              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-medium">
+              <span className="bg-muted text-muted-foreground ml-auto cursor-help rounded px-1.5 py-px text-[10px] font-bold">
                 Virtualized
               </span>
             </HoverCardTrigger>
             <HoverCardContent className="w-80" side="bottom" align="end">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Virtualized View</p>
+                <p className="text-sm font-bold">Virtualized View</p>
                 <p className="text-muted-foreground text-xs">
                   This view is using virtualization due to a large number of
                   keys ({rowCounts.input.toLocaleString()} input,{" "}

@@ -1,10 +1,10 @@
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
-import { v4 as uuidv4 } from "uuid";
 
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MediaContentType } from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
+import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { type DatasetItemMediaField } from "@langfuse/shared";
 
 const SUPPORTED_CONTENT_TYPES = new Set<string>(
@@ -86,9 +86,7 @@ export function useDatasetItemMediaUpload({
         return null;
       }
 
-      // uuid's v4() falls back to crypto.getRandomValues, so it works on
-      // non-secure (HTTP) origins where crypto.randomUUID is unavailable.
-      const pendingId = uuidv4();
+      const pendingId = safeRandomUUID();
       setPendingUploads((prev) => [
         ...prev,
         { id: pendingId, fileName: file.name },
@@ -98,26 +96,29 @@ export function useDatasetItemMediaUpload({
         const buffer = await file.arrayBuffer();
         const sha256Hash = await sha256Base64(buffer);
 
-        const { mediaId, uploadUrl } = await getUploadUrl.mutateAsync({
-          projectId,
-          datasetId,
-          datasetItemId,
-          field,
-          contentType: file.type as MediaContentType,
-          contentLength: file.size,
-          sha256Hash,
-        });
+        const { mediaId, uploadUrl, uploadHeaders } =
+          await getUploadUrl.mutateAsync({
+            projectId,
+            datasetId,
+            datasetItemId,
+            field,
+            contentType: file.type as MediaContentType,
+            contentLength: file.size,
+            sha256Hash,
+          });
 
         // uploadUrl is null when the content already exists (dedupe by hash)
         if (uploadUrl) {
           const uploadStart = Date.now();
+          const headers = new Headers({ "Content-Type": file.type });
+          Object.entries(uploadHeaders).forEach(([key, value]) => {
+            if (value) headers.set(key, value);
+          });
+
           const response = await fetch(uploadUrl, {
             method: "PUT",
             body: file,
-            headers: {
-              "Content-Type": file.type,
-              "x-amz-checksum-sha256": sha256Hash,
-            },
+            headers,
           });
 
           await markUploadComplete.mutateAsync({

@@ -7,6 +7,7 @@ import * as React from "react";
 import { Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
+import { ScoreTag } from "@/src/components/score-tag";
 import type {
   CompletionOption,
   CompletionPlan,
@@ -127,9 +128,16 @@ export function AutocompleteListbox({
               onMouseMove={highlightOnMove?.(o.id)}
             >
               <OptionIcon kind={o.kind} />
-              <span className="max-w-[480px] min-w-0 flex-none truncate">
+              <span
+                className="max-w-[480px] min-w-0 flex-none truncate"
+                title={o.label}
+              >
                 {o.label}
               </span>
+              {o.kind === "field" &&
+                o.scoreLevels?.map((level) => (
+                  <ScoreTag key={level} level={level} className="flex-none" />
+                ))}
               {o.kind === "value" && o.active && (
                 <Check
                   className="text-foreground/80 h-3.5 w-3.5 flex-none"

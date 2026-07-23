@@ -197,7 +197,13 @@ export class PromptService {
 
     const prefix = this.getCacheKeyPrefix(params, epoch);
 
-    return `${prefix}:${params.version ?? params.label}`;
+    // Numeric labels must not share a cache entry with the same prompt version.
+    const selector =
+      typeof params.version === "number"
+        ? `version:${params.version}`
+        : `label:${params.label}`;
+
+    return `${prefix}:${selector}`;
   }
 
   private getCacheKeyPrefix(
@@ -376,11 +382,11 @@ export class PromptService {
           seen.delete(currentPrompt.id);
 
           return JSON.parse(resolvedPrompt);
-        } else {
-          seen.delete(currentPrompt.id);
-
-          return currentPrompt.prompt;
         }
+
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
       };
 
       const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
@@ -404,7 +410,7 @@ export class PromptService {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {

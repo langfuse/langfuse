@@ -5,6 +5,7 @@ import { FilterState } from "../../types";
 import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
@@ -27,6 +28,7 @@ export type SessionDataReturnType = {
   trace_environment?: string;
   scores_avg?: Array<Array<[string, number]>>;
   score_categories?: Array<Array<string>>;
+  score_booleans?: Array<Array<string>>;
 };
 
 export type SessionWithMetricsReturnType = SessionDataReturnType & {
@@ -56,7 +58,6 @@ export const getSessionsTableCount = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -76,7 +77,6 @@ export const getSessionsTable = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "list" },
   });
 
   return rows.map((row) => ({
@@ -101,7 +101,6 @@ export const getSessionsWithMetrics = async (props: {
     limit: props.limit,
     page: props.page,
     clickhouseConfigs: props.clickhouseConfigs,
-    tags: { kind: "analytic" },
   });
 
   return rows.map((row) => ({
@@ -164,7 +163,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         session_output_usage,
         session_total_usage,
         scores_avg,
-        score_categories`;
+        score_categories,
+        score_booleans`;
       break;
     default: {
       const exhaustiveCheckDefault: never = select;
@@ -232,6 +232,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         "session_input_usage",
         "scores_avg",
         "score_categories",
+        "score_booleans",
       ].includes(f.field),
     ) ||
     (orderBy &&
@@ -261,7 +262,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
       groupArrayIf(
         concat(name, ':', string_value),
         data_type = 'CATEGORICAL' AND notEmpty(string_value)
-      ) AS score_categories
+      ) AS score_categories,
+      ${scoreBooleansAggregation()} AS score_booleans
     FROM (
       SELECT
         project_id,
@@ -280,7 +282,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         name,
         data_type,
         string_value
-      ) tmp
+    ) tmp
     GROUP BY
       project_id, session_id
   )`;
@@ -345,7 +347,8 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                       ${
                         select === "metrics" || requiresScoresJoin
                           ? `groupUniqArrayArray(s.scores_avg) as scores_avg,
-                      groupUniqArrayArray(s.score_categories) as score_categories,`
+                      groupUniqArrayArray(s.score_categories) as score_categories,
+                      groupUniqArrayArray(s.score_booleans) as score_booleans,`
                           : ""
                       }
                       arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sumMap(o.sum_cost_details)))) as session_input_cost,
@@ -395,13 +398,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
             }
           : {}),
       },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "sessions-table",
-        projectId,
-        operation_name: `getSessionsTableGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({

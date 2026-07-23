@@ -2,6 +2,8 @@ import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
 import {
+  InvalidRequestError,
+  LangfuseNotFoundError,
   Model,
   ObservationLevel,
   PrismaClient,
@@ -49,7 +51,8 @@ import {
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
-  tagsWithTraceId,
+  buildClickHouseLogComment,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -76,12 +79,37 @@ function parseUInt16(value: string | null | undefined): number | undefined {
   return num;
 }
 
+export type EventInput = InternalTraceEventInput;
 type InsertRecord =
   | TraceRecordInsertType
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-export type EventInput = InternalTraceEventInput;
+type MergeAndWriteParams = {
+  eventType: IngestionEntityTypes;
+  projectId: string;
+  entityId: string;
+  createdAtTimestamp: Date;
+  events: IngestionEventType[];
+  forwardToEventsTable: boolean;
+  attribution: IngestionAttribution;
+};
+
+/**
+ * Returns a new event record whose `event_bytes` value is the UTF-8 size of
+ * the final JSONEachRow payload, excluding the self-referential accounting
+ * field. The supplied record is not mutated.
+ */
+function withSerializedEventByteLength(
+  eventRecord: EventRecordInsertType,
+): EventRecordInsertType {
+  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
+
+  return {
+    ...eventWithoutSize,
+    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
+  };
+}
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -146,14 +174,17 @@ export class IngestionService {
     this.promptService = new PromptService(prisma, redis);
   }
 
-  public async mergeAndWrite(
-    eventType: IngestionEntityTypes,
-    projectId: string,
-    entityId: string,
-    createdAtTimestamp: Date,
-    events: IngestionEventType[],
-    forwardToEventsTable: boolean,
-  ): Promise<void> {
+  public async mergeAndWrite(params: MergeAndWriteParams): Promise<void> {
+    const {
+      eventType,
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      events,
+      forwardToEventsTable,
+      attribution,
+    } = params;
+
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
@@ -166,6 +197,7 @@ export class IngestionService {
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
+          attribution,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -174,6 +206,7 @@ export class IngestionService {
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
+          attribution,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -181,6 +214,7 @@ export class IngestionService {
           entityId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          attribution,
         });
       }
       case "dataset_run_item": {
@@ -222,6 +256,14 @@ export class IngestionService {
     // fields as strings, so stringify at this schema boundary.
     const input = this.stringify(eventData.input);
     const output = this.stringify(eventData.output);
+
+    // Runs outside the modelName gate below so model-less events with provided
+    // usage are still checked.
+    this.warnOnUsageTotalMismatch(
+      eventData.providedUsageDetails ?? {},
+      { id: eventData.spanId, project_id: eventData.projectId },
+      "events",
+    );
 
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
@@ -344,6 +386,9 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
+      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_sdk_name: eventData.ingestionSdkName ?? "",
+      ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,
@@ -387,10 +432,17 @@ export class IngestionService {
    * A materialized view auto-populates events_core from events_full.
    * Use createEventRecord() first to get the record, then call this to write.
    *
+   * Enqueues a new record whose `event_bytes` describes the final normalized
+   * event rather than the raw OTEL span measured before media processing. The
+   * supplied record is not mutated.
+   *
    * @param eventRecord - The event record to write
    */
   public writeEventRecord(eventRecord: EventRecordInsertType): void {
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, eventRecord);
+    this.clickHouseWriter.addToQueue(
+      TableName.EventsFull,
+      withSerializedEventByteLength(eventRecord),
+    );
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -492,8 +544,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    attribution: IngestionAttribution;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      scoreEventList,
+      attribution,
+    } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -508,6 +567,8 @@ export class IngestionService {
       minTimestamp === Infinity
         ? undefined
         : convertDateToClickhouseDateTime(new Date(minTimestamp));
+    const unexpectedScoreValidationErrors: unknown[] = [];
+    let expectedScoreValidationDrops = 0;
     const [clickhouseScoreRecord, scoreRecords] = await Promise.all([
       this.getClickhouseRecord({
         projectId,
@@ -551,6 +612,9 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
+              ingestion_api_key: attribution.ingestionApiKey,
+              ingestion_sdk_name: attribution.ingestionSdkName,
+              ingestion_sdk_version: attribution.ingestionSdkVersion,
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -558,6 +622,15 @@ export class IngestionService {
             };
             // Gracefully handle any score schema validation errors, skip the score insert and reject silently.
           } catch (error) {
+            if (
+              error instanceof InvalidRequestError ||
+              error instanceof LangfuseNotFoundError
+            ) {
+              expectedScoreValidationDrops += 1;
+            } else {
+              unexpectedScoreValidationErrors.push(error);
+            }
+
             logger.info(
               `Failed to validate and enrich score body for project: ${projectId} and score: ${entityId}`,
               error,
@@ -579,6 +652,41 @@ export class IngestionService {
       });
     }
 
+    if (unexpectedScoreValidationErrors.length > 0) {
+      throw new AggregateError(
+        unexpectedScoreValidationErrors,
+        `Unexpected error(s) validating score batch for project: ${projectId} and score: ${entityId}`,
+      );
+    }
+
+    // Count drops only on an attempt that proceeds: a rethrowing batch is
+    // redelivered, and counting it would inflate the metric once per retry.
+    for (let i = 0; i < expectedScoreValidationDrops; i++) {
+      recordIncrement("langfuse.ingestion.metadata_dropped", 1, {
+        reason: "score_validation_dropped",
+        source: "api",
+        domain: "score",
+      });
+    }
+
+    if (scoreRecords.length === 0 && !clickhouseScoreRecord) {
+      logger.warn(
+        `No valid score records found for project: ${projectId} and score: ${entityId}`,
+      );
+      return;
+    }
+
+    // Update = merging new events with a pre-existing record, found either in
+    // ClickHouse or as earlier event-log files for the same score id.
+    if (
+      scoreRecords.length > 0 &&
+      (clickhouseScoreRecord || scoreRecords.length > 1)
+    ) {
+      recordIncrement("langfuse.ingestion.score_update", 1, {
+        store: clickhouseScoreRecord ? "clickhouse" : "event_log",
+      });
+    }
+
     const finalScoreRecord: ScoreRecordInsertType =
       await this.mergeScoreRecords({
         clickhouseScoreRecord,
@@ -596,6 +704,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -603,6 +712,7 @@ export class IngestionService {
       createdAtTimestamp,
       traceEventList,
       createEventTraceRecord,
+      attribution,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -695,6 +805,7 @@ export class IngestionService {
       const traceAsStagingObservation = convertTraceToStagingObservation(
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
+        attribution,
       );
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
@@ -713,26 +824,26 @@ export class IngestionService {
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
       );
       return;
-    } else {
-      // Job configs present, so we add to the TraceUpsert queue.
-      const shardingKey = `${projectId}-${entityId}`;
-      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
-      if (!traceUpsertQueue) {
-        logger.error("TraceUpsertQueue is not initialized");
-        return;
-      }
-      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-        payload: {
-          projectId,
-          traceId: entityId,
-          exactTimestamp: new Date(finalTraceRecord.timestamp),
-          traceEnvironment: finalTraceRecord.environment,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.TraceUpsert as const,
-      });
     }
+
+    // Job configs present, so we add to the TraceUpsert queue.
+    const shardingKey = `${projectId}-${entityId}`;
+    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+    if (!traceUpsertQueue) {
+      logger.error("TraceUpsertQueue is not initialized");
+      return;
+    }
+    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+      payload: {
+        projectId,
+        traceId: entityId,
+        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        traceEnvironment: finalTraceRecord.environment,
+      },
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.TraceUpsert as const,
+    });
   }
 
   private async processObservationEventList(params: {
@@ -741,6 +852,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
+    attribution: IngestionAttribution;
   }) {
     const {
       projectId,
@@ -748,6 +860,7 @@ export class IngestionService {
       createdAtTimestamp,
       observationEventList,
       writeToStagingTables,
+      attribution,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -841,6 +954,20 @@ export class IngestionService {
       mergedObservationRecord.tool_call_names = normalizedTools.toolCallNames;
     }
 
+    // Only check when the incoming events carry usage themselves — partial
+    // updates merge stale usage back in from ClickHouse and must not re-fire.
+    if (
+      observationRecords.some(
+        (record) => Object.keys(record.provided_usage_details ?? {}).length > 0,
+      )
+    ) {
+      this.warnOnUsageTotalMismatch(
+        mergedObservationRecord.provided_usage_details ?? {},
+        mergedObservationRecord,
+        "legacy",
+      );
+    }
+
     const generationUsage = await this.getGenerationUsage({
       projectId,
       observationRecord: mergedObservationRecord,
@@ -886,6 +1013,9 @@ export class IngestionService {
     if (writeToStagingTables) {
       const stagingRecord = {
         ...finalObservationRecord,
+        ingestion_api_key: attribution.ingestionApiKey,
+        ingestion_sdk_name: attribution.ingestionSdkName,
+        ingestion_sdk_version: attribution.ingestionSdkVersion,
         s3_first_seen_timestamp:
           this.getPartitionAwareTimestamp(createdAtTimestamp),
       };
@@ -1154,19 +1284,9 @@ export class IngestionService {
       "usage_details" | "provided_usage_details"
     >
   > {
-    // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
-    // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
-    const providedUsageDetails: Record<string, number> = {};
-    for (const [key, value] of Object.entries(
+    const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
-    )) {
-      if (value != null) {
-        const numValue = Number(value);
-        if (!isNaN(numValue) && numValue >= 0) {
-          providedUsageDetails[key] = numValue;
-        }
-      }
-    }
+    );
 
     if (
       // Manual tokenisation when no user provided usage and generation has not status ERROR
@@ -1278,6 +1398,83 @@ export class IngestionService {
       usage_details: usageDetails,
       provided_usage_details: providedUsageDetails,
     };
+  }
+
+  // Convert all values to numbers to handle cases where ClickHouse returns UInt64 as strings.
+  // This prevents string concatenation bugs like "100" + "200" = "100200" instead of 300.
+  private static normalizeProvidedUsageDetails(
+    providedUsageDetails: Record<string, unknown>,
+  ): Record<string, number> {
+    const normalized: Record<string, number> = {};
+    for (const [key, value] of Object.entries(providedUsageDetails)) {
+      if (value != null) {
+        const numValue = Number(value);
+        if (!isNaN(numValue) && numValue >= 0) {
+          normalized[key] = numValue;
+        }
+      }
+    }
+    return normalized;
+  }
+
+  private static lastUsageTotalMismatchLogAt = 0;
+  private static readonly USAGE_TOTAL_MISMATCH_TOLERANCE = 0.01;
+  private static readonly USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS = 60_000;
+
+  /**
+   * Detects the double-count class from
+   * https://github.com/langfuse/langfuse/issues/10592: instrumentors that send
+   * an inclusive `input` alongside cache buckets while providing a smaller
+   * `total`. Warn only — buckets can be genuinely additive (e.g. Bedrock cache
+   * writes), so auto-correcting could corrupt valid payloads.
+   *
+   * Called once per write path (`legacy` merge path, `events` direct path);
+   * dual-write mode fires both, so the metric carries a write_path tag to keep
+   * the counts reconcilable.
+   */
+  private warnOnUsageTotalMismatch(
+    rawProvidedUsageDetails: Record<string, unknown>,
+    observationRecord: Pick<ObservationRecordInsertType, "id" | "project_id">,
+    writePath: "legacy" | "events",
+  ): void {
+    const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
+      rawProvidedUsageDetails,
+    );
+    const providedTotal = providedUsageDetails.total;
+    if (providedTotal == null) return;
+
+    const bucketSum = Object.entries(providedUsageDetails)
+      .filter(([key]) => key !== "total")
+      .reduce((sum, [, value]) => sum + value, 0);
+    const tolerance = Math.max(
+      1,
+      providedTotal * IngestionService.USAGE_TOTAL_MISMATCH_TOLERANCE,
+    );
+    if (bucketSum <= providedTotal + tolerance) return;
+
+    recordIncrement("langfuse.ingestion.usage_details.total_mismatch", 1, {
+      write_path: writePath,
+    });
+
+    const now = Date.now();
+    if (
+      now - IngestionService.lastUsageTotalMismatchLogAt <
+      IngestionService.USAGE_TOTAL_MISMATCH_LOG_INTERVAL_MS
+    ) {
+      return;
+    }
+    IngestionService.lastUsageTotalMismatchLogAt = now;
+    logger.warn(
+      "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
+      {
+        projectId: observationRecord.project_id,
+        observationId: observationRecord.id,
+        providedTotal,
+        bucketSum,
+        providedUsageDetails,
+        writePath,
+      },
+    );
   }
 
   static calculateUsageCosts(
@@ -1436,12 +1633,9 @@ export class IngestionService {
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
-            log_comment: JSON.stringify(
-              tagsWithTraceId({
-                feature: "ingestion",
-                projectId,
-              }),
-            ),
+            log_comment: buildClickHouseLogComment({
+              projectId,
+            }),
           },
         });
 

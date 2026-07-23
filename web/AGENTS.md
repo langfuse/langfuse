@@ -62,21 +62,42 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 - Shared browser-review workflow for user-visible frontend changes:
   [`../.agents/skills/frontend-browser-review/SKILL.md`](../.agents/skills/frontend-browser-review/SKILL.md)
-- Large frontend feature, virtualized-list, and local state architecture:
+- Large frontend feature, virtualized-list, local state, and React
+  effect-free data-flow architecture:
   [`../.agents/skills/frontend-large-feature-architecture/SKILL.md`](../.agents/skills/frontend-large-feature-architecture/SKILL.md)
+- Avoidable React effect audits, refactors, and module migrations:
+  [`../.agents/skills/refactor-react-effects/SKILL.md`](../.agents/skills/refactor-react-effects/SKILL.md)
 - React composition and component API design:
   [`web/.agents/skills/vercel-composition-patterns/SKILL.md`](.agents/skills/vercel-composition-patterns/SKILL.md)
 - React/Next.js performance and rendering best practices:
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
+- PostHog product analytics — when and how to instrument user actions:
+  [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
+- Sentry error capture — whether and how an error path should report:
+  [`../.agents/skills/sentry-instrumentation/SKILL.md`](../.agents/skills/sentry-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
 performance, virtualized lists, local feature stores, bundle size,
 React/Next.js performance patterns, or browser-based signoff of user-visible
-changes.
+changes. If you are about to write a `useEffect` or wire form initial values
+from loaded data, read the frontend-large-feature-architecture skill first —
+most effects that derive or sync state should not exist. When adding a
+meaningful user action (button, handler, form, mutation, feature surface),
+read the PostHog instrumentation skill and decide explicitly whether the
+action should emit an analytics event. When adding or touching an error path —
+a `captureException` or `console.error` call, an error boundary, a `catch`
+block, a Worker `onerror`, or a Sentry `beforeSend`/denylist filter — read the
+Sentry instrumentation skill first and decide whether it should capture at all
+(and, for any suppression change, answer "does this rule hide a real error?").
 
 ## Web Conventions
 
+- **Before adding or modifying a chart, dashboard, or chart formatter, read
+  `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
+  manifesto. It owns the data → preparer → visualiser contract: presentation
+  decisions (formatting, colors, axis scale, overload) live in the preparer,
+  not the chart components.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
@@ -85,8 +106,24 @@ changes.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
+- When you surface a score in the UI, always show its level
+  (trace/observation/session/experiment) with the `<ScoreTag>` component
+  (`src/components/score-tag.tsx`) and its global color coding (see the
+  ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
+- Do not add `useEffect` by default. Use it only when a component must
+  synchronize with a concrete system outside React, such as a subscription,
+  browser event listener, observer, timer, or imperative third-party API.
+  Before writing an effect, name that external system and its setup/cleanup
+  lifecycle. If there is no external system, do not use an effect. In
+  particular, do not use effects to derive render state, mirror props or query
+  data into local state, react to user actions, or reset state when an ID
+  changes. Derive during render, run work in the initiating event handler, use
+  query APIs for server state, or mount a keyed child once required data is
+  available. Do not evade this rule with `useLayoutEffect`, a custom wrapper
+  hook, an ESLint suppression, or disabled dependency checks. Use
+  `../.agents/skills/refactor-react-effects/SKILL.md` for effect work.
 - In flex layouts, prefer `gap-*` over margin-based `space-x-*`/`space-y-*`.
 - Treat `!` Tailwind classes as a smell. Step back and fix the owning layout,
   variant, or primitive before overriding with higher specificity.
@@ -119,12 +156,30 @@ changes.
   it). **To put something on top of something else, use a layer, not a
   z-index.** The app renders inside `#__next`, isolated into one stacking
   context (`globals.css`), so its z-indexes can't escape; overlays go in layers
-  that sit outside it and always win. Today there's one layer, `tooltip`:
-  containers declared in `_document.tsx`, ordered by `LAYER_ORDER` (later = on
-  top), no z-index; render via `<Layer name="…">` (`src/components/ui/layer.tsx`).
-  Add a layer only when an overlay must escape the app (else use a Radix
-  `*.Portal`) by adding a name to `LAYER_ORDER`. z-index stays local to a layer
-  or component (1–2 max), never to escape the app.
+  that sit outside it and always win. `LAYER_ORDER` is
+  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
+  `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
+  `modal` is for true blocking Dialog and AlertDialog surfaces.
+  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
+  fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
+  `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
+  imperatively-positioned content renders via `<Layer name="…">`. z-index stays
+  local to a layer or component (1–2 max), never to escape the app — the
+  `@repo/no-overlay-zindex` lint rule enforces it.
+- **Overlay lifecycle — a dropdown that opens a modal should close first**, not
+  linger under it (a lifecycle bug, not z-order — don't fix it by re-ranking
+  layers). Radix unmounts a Select/DropdownMenu's content on close, so render the
+  Dialog as a SIBLING (trigger inside, dialog outside), as
+  `useAddLlmConnectionSelect` in `src/components/ModelParameters/index.tsx` does
+  (LFE-10615).
+- Never import `prettier/plugins/typescript` in client code — it embeds the
+  TypeScript compiler, which the SWC minifier miscompiles (dropped bindings →
+  production-only `ReferenceError`; caught by the CI client-bundle scan,
+  LFE-10645). Format TypeScript with `parser: "babel-ts"` +
+  `prettier/plugins/babel` instead, as the eval-template editor does
+  (`src/features/evals/components/code-eval-template-form-body.tsx`).
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
@@ -185,7 +240,10 @@ changes.
 1. Prefer `src/features/<feature>/*` for feature-local code.
 2. Put broadly reusable components in `src/components/*`.
 3. Keep server logic near feature server folders when possible.
-4. Review the affected user flow in a real browser with the Playwright MCP
+4. For meaningful user actions (buttons, form submits, mode switches), decide
+   explicitly whether to instrument them with PostHog. Use
+   `../.agents/skills/posthog-instrumentation/SKILL.md`.
+5. Review the affected user flow in a real browser with the Playwright MCP
    server before signoff. Use
    `../.agents/skills/frontend-browser-review/SKILL.md`.
 

@@ -18,12 +18,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { Badge } from "@/src/components/ui/badge";
 
 export interface ComboboxOption<
   T extends string | number | boolean | { id: string },
 > {
   value: T;
   label?: string;
+  /** Rendered before the label (e.g. a brand/ownership icon). */
+  icon?: React.ReactNode;
+  /** Small tag rendered after the label (e.g. "Default"). */
+  badge?: string;
   disabled?: boolean;
 }
 
@@ -104,6 +109,10 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     return options.find((option) => isEqual(option.value, value));
   }, [options, value]);
 
+  const buttonText = selectedOption
+    ? (selectedOption.label ?? String(selectedOption.value))
+    : placeholder;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -119,11 +128,19 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           disabled={disabled}
           name={name}
         >
-          <span className="truncate">
-            {selectedOption
-              ? (selectedOption.label ?? String(selectedOption.value))
-              : placeholder}
+          {selectedOption?.icon && (
+            <span className="mr-1.5 flex shrink-0 items-center">
+              {selectedOption.icon}
+            </span>
+          )}
+          <span className="truncate" title={buttonText}>
+            {buttonText}
           </span>
+          {selectedOption?.badge && (
+            <Badge variant="secondary" className="ml-1.5 shrink-0">
+              {selectedOption.badge}
+            </Badge>
+          )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -143,7 +160,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                           ? (option.value as { id: string }).id
                           : String(option.value)
                       }
-                      value={option.label ?? String(option.value)}
+                      value={
+                        typeof option.value === "object"
+                          ? (option.value as { id: string }).id
+                          : String(option.value)
+                      }
+                      keywords={[option.label ?? String(option.value)]}
                       disabled={option.disabled}
                       onSelect={() => {
                         if (!option.disabled && onValueChange) {
@@ -164,7 +186,17 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                             : "opacity-0",
                         )}
                       />
+                      {option.icon && (
+                        <span className="mr-1.5 flex shrink-0 items-center">
+                          {option.icon}
+                        </span>
+                      )}
                       {option.label ?? String(option.value)}
+                      {option.badge && (
+                        <Badge variant="secondary" className="ml-auto">
+                          {option.badge}
+                        </Badge>
+                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -179,7 +211,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                         ? (option.value as { id: string }).id
                         : String(option.value)
                     }
-                    value={option.label ?? String(option.value)}
+                    value={
+                      typeof option.value === "object"
+                        ? (option.value as { id: string }).id
+                        : String(option.value)
+                    }
+                    keywords={[option.label ?? String(option.value)]}
                     disabled={option.disabled}
                     onSelect={() => {
                       if (!option.disabled && onValueChange) {
@@ -200,7 +237,17 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
                           : "opacity-0",
                       )}
                     />
+                    {option.icon && (
+                      <span className="mr-1.5 flex shrink-0 items-center">
+                        {option.icon}
+                      </span>
+                    )}
                     {option.label ?? String(option.value)}
+                    {option.badge && (
+                      <Badge variant="secondary" className="ml-auto">
+                        {option.badge}
+                      </Badge>
+                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>

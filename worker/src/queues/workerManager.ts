@@ -1,6 +1,8 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
+import { context as otelContext } from "@opentelemetry/api";
 import {
   convertQueueNameToMetricName,
+  contextWithLangfuseProps,
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
@@ -20,6 +22,24 @@ import {
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
 
+  private static extractProjectId(job: Job): string | undefined {
+    const data = job.data as {
+      payload?: {
+        projectId?: unknown;
+        authCheck?: { scope?: { projectId?: unknown } };
+      };
+    };
+
+    const candidates = [
+      data.payload?.projectId,
+      data.payload?.authCheck?.scope?.projectId,
+    ];
+
+    return candidates.find((candidate): candidate is string => {
+      return typeof candidate === "string" && candidate.length > 0;
+    });
+  }
+
   private static resolveMetricInfo(queueName: QueueName): {
     baseMetric: string;
     shardTag: { shard: string } | undefined;
@@ -36,6 +56,16 @@ export class WorkerManager {
       baseMetric: convertQueueNameToMetricName(queueName),
       shardTag: undefined,
     };
+  }
+
+  // Empty failed set emits 0 so monitors see the gauge reset after a DLQ
+  // drain.
+  public static computeDlqOldestAgeMs(
+    jobs: (Job | undefined)[],
+    nowMs: number,
+  ): number {
+    const oldest = jobs.find(Boolean);
+    return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
   }
 
   private static metricWrapper(
@@ -64,7 +94,16 @@ export class WorkerManager {
         ...shardTag,
       });
 
-      const result = await processor(job);
+      const clickHouseCtx = contextWithLangfuseProps({
+        projectId: WorkerManager.extractProjectId(job),
+        clickhouse: {
+          surface: "worker",
+          route: baseMetric,
+        },
+      });
+      const result = await otelContext.with(clickHouseCtx, () =>
+        processor(job),
+      );
 
       const queue = resolveQueueInstance(queueName);
       // Sample queue depth gauges for sharded queues to reduce metric volume.
@@ -84,6 +123,15 @@ export class WorkerManager {
             recordGauge(oldMetric + ".dlq_length", count, {
               unit: "records",
             });
+          }),
+          // getFailed returns newest-first (ZREVRANGE on failure time), so
+          // index -1 is the oldest job.
+          queue?.getFailed(-1, -1).then((jobs) => {
+            recordGauge(
+              oldMetric + ".dlq_oldest_age",
+              WorkerManager.computeDlqOldestAgeMs(jobs, Date.now()),
+              { unit: "milliseconds" },
+            );
           }),
           queue?.getActiveCount().then((count) => {
             recordGauge(oldMetric + ".active", count, {

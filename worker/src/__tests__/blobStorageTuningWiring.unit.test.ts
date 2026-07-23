@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Readable } from "stream";
 
 // Records of every uploadFileBuffered call so we can assert the resolved tuning
 // was threaded through. Hoisted so the module mock can close over it.
@@ -33,12 +34,36 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
           }
           return undefined;
         }),
+        // Manifest write; string body, no stream to drain.
+        uploadFile: vi.fn(async () => undefined),
       }),
     },
     getTracesForBlobStorageExport: () => empty(),
     getObservationsForBlobStorageExport: () => empty(),
     getScoresForBlobStorageExport: () => empty(),
     getEventsForBlobStorageExport: () => empty(),
+    // LFE-10463 Parquet path: each returns an already-resolved
+    // { stream } (the binary body) — a tiny Readable with the Parquet magic.
+    getTracesForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getScoresForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getObservationsForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getEventsForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
     createModelCache: () => ({ getModel: async () => null }),
     blobStorageEndpointConnectionValidationOptions: () => undefined,
   };
@@ -127,6 +152,26 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
       // backend keeps its native default (Azure 5, buffered S3 env, etc.).
       expect(call.maxConcurrentParts).toBeUndefined();
       expect(call.maxPartAttempts).toBeUndefined();
+    }
+  });
+
+  // Parquet is a first-class fileType: fileType=PARQUET routes every table
+  // through the Parquet path, ignoring the compressed flag (no .gz suffix).
+  it("produces .parquet files when fileType is PARQUET", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
+      ...baseRow(undefined),
+      fileType: "PARQUET",
+      compressed: true,
+    });
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    // exportSource TRACES_OBSERVATIONS → scores, traces, observations.
+    expect(uploadCalls.length).toBe(3);
+    for (const call of uploadCalls) {
+      expect(call.fileName.endsWith(".parquet")).toBe(true);
+      expect(call.fileName).not.toContain(".gz");
+      expect(call.fileType).toBe("application/vnd.apache.parquet");
     }
   });
 });

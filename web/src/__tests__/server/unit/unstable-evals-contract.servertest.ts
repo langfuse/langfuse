@@ -28,10 +28,8 @@ import {
   PUBLIC_EVALUATOR_TYPE_CODE,
   PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
-  getCodeEvalVariableMapping,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@langfuse/shared";
+import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 
 const numericOutputDefinition = createNumericEvalOutputDefinition({
   reasoningDescription: "Why the score was assigned",
@@ -471,6 +469,83 @@ describe("unstable public eval adapters", () => {
     ]);
   });
 
+  it("reads a toolCalls mapping column id as the tool_calls source", () => {
+    const evaluationRule = toApiEvaluationRule({
+      id: "ceval_123",
+      projectId: "project_123",
+      evalTemplateId: "tmpl_project_v2",
+      scoreName: "tool_call_check",
+      targetObject: EvalTargetObject.EVENT,
+      filter: [],
+      variableMapping: [
+        {
+          templateVariable: "calls",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ],
+      sampling: 1,
+      status: JobConfigState.ACTIVE,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      createdAt: new Date("2026-03-30T08:00:00.000Z"),
+      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
+      evalTemplate: {
+        id: "tmpl_project_v2",
+        projectId: "project_123",
+        name: "Tool call check",
+        vars: ["calls"],
+        prompt: "Judge {{calls}}",
+      },
+    } as unknown as StoredPublicEvaluationRuleConfig);
+
+    expect(evaluationRule.mapping).toEqual([
+      {
+        variable: "calls",
+        source: "tool_calls",
+        jsonPath: "$[*].name",
+      },
+    ]);
+  });
+
+  it("rejects a stored snake_case tool_calls mapping column id as corrupted", () => {
+    // Deliberate asymmetry with expected_output: no legacy snake_case rows
+    // exist for tool calls, so an accidental "tool_calls" write must surface
+    // at the corrupted-mapping boundary instead of being absorbed.
+    expect(() =>
+      toApiEvaluationRule({
+        id: "ceval_123",
+        projectId: "project_123",
+        evalTemplateId: "tmpl_project_v2",
+        scoreName: "tool_call_check",
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        variableMapping: [
+          {
+            templateVariable: "calls",
+            selectedColumnId: "tool_calls",
+            jsonSelector: null,
+          },
+        ],
+        sampling: 1,
+        status: JobConfigState.ACTIVE,
+        blockedAt: null,
+        blockReason: null,
+        blockMessage: null,
+        createdAt: new Date("2026-03-30T08:00:00.000Z"),
+        updatedAt: new Date("2026-03-30T08:00:00.000Z"),
+        evalTemplate: {
+          id: "tmpl_project_v2",
+          projectId: "project_123",
+          name: "Tool call check",
+          vars: ["calls"],
+          prompt: "Judge {{calls}}",
+        },
+      } as unknown as StoredPublicEvaluationRuleConfig),
+    ).toThrow("Evaluation rule mapping is corrupted");
+  });
+
   it("rejects invalid static filter option values", () => {
     expectUnstablePublicApiError(
       () =>
@@ -561,6 +636,33 @@ describe("unstable public eval adapters", () => {
         },
       },
     );
+  });
+
+  it("accepts tool_calls mappings for both targets", () => {
+    for (const target of ["observation", "experiment"] as const) {
+      const writeModel = toJobConfigurationInput({
+        input: {
+          name: "tool_call_check",
+          target,
+          enabled: true,
+          sampling: 1,
+          filter: [],
+          mapping: [
+            { variable: "calls", source: "tool_calls", jsonPath: "$[*].name" },
+          ],
+        },
+        evaluatorVariables: ["calls"],
+        evaluatorType: PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+      });
+
+      expect(writeModel.variableMapping).toEqual([
+        {
+          templateVariable: "calls",
+          selectedColumnId: "toolCalls",
+          jsonSelector: "$[*].name",
+        },
+      ]);
+    }
   });
 
   it("rejects missing evaluator variable mappings", () => {
@@ -743,7 +845,9 @@ describe("unstable public eval adapters", () => {
           jsonSelector: null,
         },
       ],
-      sampling: 1,
+      // Stored configs carry a Prisma Decimal; the adapter only reads it as a
+      // number, so a plain 1 is a faithful stand-in.
+      sampling: 1 as unknown as StoredPublicEvaluationRuleConfig["sampling"],
       status: JobConfigState.ACTIVE,
       blockedAt: null,
       blockReason: null,

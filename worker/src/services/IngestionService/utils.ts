@@ -9,7 +9,11 @@ export const convertJsonSchemaToRecord = (
   const record: Record<string, string> = {};
 
   // if it's a literal, return the value with "metadata" prefix
-  if (typeof jsonSchema === "string" || typeof jsonSchema === "number") {
+  if (
+    typeof jsonSchema === "string" ||
+    typeof jsonSchema === "number" ||
+    typeof jsonSchema === "boolean"
+  ) {
     record["metadata"] = jsonSchema.toString();
     return record;
   }
@@ -75,9 +79,9 @@ export function overwriteObject(
         Object.keys(srcValue).length === 0) // empty object check for cost / usage details
     ) {
       return objValue;
-    } else {
-      return srcValue;
     }
+
+    return srcValue;
   });
 
   result.metadata =

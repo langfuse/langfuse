@@ -160,7 +160,7 @@ export default function RemapEvaluatorPage() {
               href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-dark-blue font-medium hover:opacity-80"
+              className="text-dark-blue font-bold hover:opacity-80"
             >
               Follow our step-by-step guide
             </a>{" "}
@@ -199,7 +199,7 @@ export default function RemapEvaluatorPage() {
               {/* LEFT: Read-only old config */}
               <div className="space-y-4 p-3">
                 <div className="flex items-center gap-2 pb-2">
-                  <h3 className="text-lg font-semibold">
+                  <h3 className="text-lg font-bold">
                     Legacy Configuration{" "}
                     {isTraceTarget(oldConfig.targetObject)
                       ? "(runs on traces)"
@@ -229,7 +229,7 @@ export default function RemapEvaluatorPage() {
 
               {/* RIGHT: Editable new config form */}
               <div className="space-y-4 p-3">
-                <h3 className="pb-2 text-lg font-semibold">
+                <h3 className="pb-2 text-lg font-bold">
                   New Configuration{" "}
                   {isTraceTarget(oldConfig.targetObject)
                     ? "(runs on observations)"
@@ -248,7 +248,7 @@ export default function RemapEvaluatorPage() {
                   hideAdvancedSettings={true}
                   evalCapabilities={evalCapabilities}
                   oldConfigId={evalConfigId}
-                  renderFooter={({ isLoading, formError }) => (
+                  renderFooter={({ isLoading }) => (
                     <div className="flex w-full flex-col items-end gap-4">
                       <div className="flex items-center">
                         <Button
@@ -294,11 +294,6 @@ export default function RemapEvaluatorPage() {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
-                      {formError ? (
-                        <p className="w-full text-center">
-                          <span className="font-bold">Error:</span> {formError}
-                        </p>
-                      ) : null}
                     </div>
                   )}
                 />

@@ -9,10 +9,16 @@ import { costFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
+import { cn } from "@/src/utils/tailwind";
+
+// Target height of one bar row (bar + spacing) and the x-axis strip; matches
+// TracesBarListChart so bars are the same thickness across the two cards.
+const BAR_ROW_HEIGHT = 40;
+const CHART_AXIS_PADDING = 30;
 
 type BarChartDataPoint = {
   name: string;
@@ -159,15 +165,21 @@ export const UserChart = ({
     0,
   );
 
-  const BAR_ROW_HEIGHT = 36;
-  const CHART_AXIS_PADDING = 32;
+  // Fit the number of bars to the tile height (see TracesBarListChart): render
+  // exactly the bars that fill the measured chart area, no scrollbar, and defer
+  // the rest to "Show all". The measured `height` flows one-way into the pure
+  // BarListChartArea chart. (LFE-11035, LFE-11060)
+  const { containerRef, rowCount, height } = useFitRowCount({
+    rowHeightPx: BAR_ROW_HEIGHT,
+    reservedPx: CHART_AXIS_PADDING,
+    min: 1,
+    fallback: maxNumberOfEntries.collapsed,
+  });
 
   const data = [
     {
       tabTitle: "Token cost",
-      data: isExpanded
-        ? transformedCost.slice(0, maxNumberOfEntries.expanded)
-        : transformedCost.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedCost,
       totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
       chartMetricLabel: "USD",
@@ -175,9 +187,7 @@ export const UserChart = ({
     },
     {
       tabTitle: "Count of Traces",
-      data: isExpanded
-        ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
-        : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedNumberOfTraces,
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
@@ -189,57 +199,50 @@ export const UserChart = ({
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the chart area measures the
+      // AVAILABLE height, not its own content; min-h-0 lets the flex column
+      // shrink so the chart viewport scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="User consumption"
       isLoading={isLoading || user.isPending}
     >
       <TabComponent
         tabs={data.map((item) => {
+          const shown = item.data.slice(
+            0,
+            isExpanded
+              ? Math.min(maxNumberOfEntries.expanded, item.data.length)
+              : Math.min(rowCount, item.data.length),
+          );
           return {
             tabTitle: item.tabTitle,
             content: (
               <>
                 {item.data.length > 0 ? (
-                  <div className="flex flex-col">
+                  <div className="flex min-h-0 grow flex-col">
                     <TotalMetric
                       metric={item.totalMetric}
                       description={item.metricDescription}
                     />
-                    <div
-                      className="mt-4 w-full"
-                      style={{
-                        minHeight: 200,
-                        height: Math.max(
-                          200,
-                          item.data.length * BAR_ROW_HEIGHT +
-                            CHART_AXIS_PADDING,
-                        ),
-                      }}
-                    >
-                      <Chart
-                        chartType="HORIZONTAL_BAR"
-                        data={barListToDataPoints(item.data)}
-                        config={{
-                          metric: {
-                            label: item.chartMetricLabel,
-                          },
-                        }}
-                        rowLimit={maxNumberOfEntries.expanded}
-                        chartConfig={{
-                          type: "HORIZONTAL_BAR",
-                          row_limit: maxNumberOfEntries.expanded,
-                          unit: item.chartUnit,
-                          show_value_labels: true,
-                          subtle_fill: true,
-                        }}
-                      />
-                    </div>
+                    <BarListChartArea
+                      containerRef={containerRef}
+                      measuredHeightPx={height}
+                      isExpanded={isExpanded}
+                      data={shown}
+                      barRowHeightPx={BAR_ROW_HEIGHT}
+                      axisPaddingPx={CHART_AXIS_PADDING}
+                      maxExpandedBars={maxNumberOfEntries.expanded}
+                      metricLabel={item.chartMetricLabel}
+                      unit={item.chartUnit}
+                    />
                   </div>
                 ) : (
                   <NoDataOrLoading
                     isLoading={isLoading || user.isPending}
                     description="Consumption per user is tracked by passing their ids on traces."
                     href="https://langfuse.com/docs/observability/features/users"
+                    className="h-auto grow"
                   />
                 )}
               </>
@@ -251,7 +254,7 @@ export const UserChart = ({
         isExpanded={isExpanded}
         setExpanded={setIsExpanded}
         totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
+        maxLength={Math.min(rowCount, transformedCost.length)}
         expandText={
           transformedCost.length > maxNumberOfEntries.expanded
             ? `Show top ${maxNumberOfEntries.expanded}`

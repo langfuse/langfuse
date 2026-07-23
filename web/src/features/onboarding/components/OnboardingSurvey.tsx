@@ -12,7 +12,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
@@ -115,15 +115,13 @@ export function OnboardingSurvey() {
     return (
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
         <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="h-8 w-8" />
+          <LangfuseIcon size={32} />
         </div>
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
             <Spinner size="xl" variant="muted" />
-            <h1 className="mt-6 text-xl font-semibold">
-              Setting up your project
-            </h1>
+            <h1 className="mt-6 text-xl font-bold">Setting up your project</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               Taking you to tracing...
             </p>
@@ -137,12 +135,12 @@ export function OnboardingSurvey() {
     return (
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
         <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="h-8 w-8" />
+          <LangfuseIcon size={32} />
         </div>
 
         <div className="bg-background mt-6 rounded-lg px-6 py-10 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-12">
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-xl font-semibold">Failed to load onboarding</h1>
+            <h1 className="text-xl font-bold">Failed to load onboarding</h1>
             <p className="text-muted-foreground mt-2 text-sm">
               Refresh the page to try again.
             </p>
@@ -155,7 +153,7 @@ export function OnboardingSurvey() {
   return (
     <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-start sm:px-6 sm:py-12 lg:px-8">
       <div className="flex items-center justify-center gap-2 sm:mx-auto sm:w-full sm:max-w-md">
-        <LangfuseIcon className="h-8 w-8" />
+        <LangfuseIcon size={32} />
       </div>
 
       <div className="bg-background mt-6 rounded-lg px-6 py-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-[480px] sm:px-12 sm:py-10">
@@ -176,7 +174,7 @@ export function OnboardingSurvey() {
                 name="referralSource"
                 render={({ field }) => (
                   <FormItem className="flex flex-col gap-2">
-                    <FormLabel className="text-xl font-semibold">
+                    <FormLabel className="text-xl font-bold">
                       Where did you hear about us?
                     </FormLabel>
                     <FormControl>

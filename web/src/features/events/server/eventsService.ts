@@ -6,45 +6,25 @@ import {
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
-  getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
-  getEventsGroupedByModel,
-  getEventsGroupedByModelId,
-  getEventsGroupedByName,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByPromptName,
-  getEventsGroupedByType,
-  getEventsGroupedByUserId,
-  getEventsGroupedByVersion,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
   getEventsNumericStatsByFilterColumn,
-  getEventsGroupedBySessionId,
-  getEventsGroupedByLevel,
-  getEventsGroupedByEnvironment,
-  getEventsGroupedByExperimentDatasetId,
-  getEventsGroupedByExperimentId,
-  getEventsGroupedByExperimentName,
-  getEventsGroupedByHasParentObservation,
-  getEventsGroupedByIsRootObservation,
-  getEventsGroupedByToolName,
-  getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
+  getBooleanScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
   getScoresForTraces,
   logger,
   traceException,
+  type EventBatchIOResult,
+  type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
-import {
-  monitorEvaluationOffsetMs,
-  type MonitorWindow,
-  windowToMs,
-} from "@langfuse/shared/monitors";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { assertUnreachable } from "@/src/utils/types";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -59,6 +39,36 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
     type: "null",
     column: "observationId",
     operator: "is null",
+    value: "",
+  },
+];
+
+const OBSERVATION_SCORE_SCOPE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "traceId",
+    operator: "is not null",
+    value: "",
+  },
+  {
+    type: "null",
+    column: "observationId",
+    operator: "is not null",
+    value: "",
+  },
+];
+
+// The level-agnostic "Scores" groups (`scores_avg` / `score_categories`) match a
+// score whether it sits at observation or trace level, but only if it rolls up
+// into a trace — i.e. `trace_id IS NOT NULL`. Session-level and dataset-run
+// scores (`trace_id IS NULL`) can never match the events union, so scope
+// discovery to trace-attached scores to keep offered-set == matchable-set
+// (LFE-10596). Mirrors `scoreFilters.forTraceScopedAggregates`.
+const TRACE_SCOPED_SCORE_FILTER: FilterCondition[] = [
+  {
+    type: "null",
+    column: "traceId",
+    operator: "is not null",
     value: "",
   },
 ];
@@ -84,10 +94,10 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
-  monitorWindow?: MonitorWindow;
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
+  columns?: readonly EventFilterOptionsColumn[];
 }
 
 type EventFilterValueOption = {
@@ -95,12 +105,43 @@ type EventFilterValueOption = {
   count?: number;
 };
 
-type GroupedEventsFilterOptions = {
-  extraWhereRaw?: string;
-  limit?: number;
-  offset?: number;
-  orderBy?: string;
-};
+// Subset of event filter option columns returned by the bulk filter-options response.
+const EVENT_FILTER_OPTION_COLUMNS = [
+  "providedModelName",
+  "modelId",
+  "name",
+  "promptName",
+  "traceTags",
+  "traceName",
+  "type",
+  "userId",
+  "version",
+  "sessionId",
+  "level",
+  "environment",
+  "experimentDatasetId",
+  "experimentId",
+  "experimentName",
+  "isRootObservation",
+  "toolNames",
+  "calledToolNames",
+] as const satisfies readonly EventFilterOptionColumn[];
+
+const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
+  "scores_avg",
+  "score_categories",
+  "score_booleans",
+  "trace_scores_avg",
+  "trace_score_categories",
+  "trace_score_booleans",
+] as const;
+
+export const EVENT_FILTER_OPTIONS_COLUMNS = [
+  ...EVENT_FILTER_OPTION_COLUMNS,
+  ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
+] as const;
+
+type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
 
 const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
@@ -127,29 +168,6 @@ const getDefaultEventFilterOptionsStartTimeFilter = (): TimeFilter[] => [
   },
 ];
 
-const getMonitorWindowStartTimeFilter = (
-  monitorWindow: MonitorWindow,
-): TimeFilter[] => {
-  const windowMs = Number(windowToMs(monitorWindow));
-  const to = new Date(Date.now() - monitorEvaluationOffsetMs);
-  const from = new Date(to.getTime() - windowMs);
-
-  return [
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: ">=",
-      value: from,
-    },
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: "<=",
-      value: to,
-    },
-  ];
-};
-
 const ensureStartTimeFilterForEventFilterOptions = <
   TParams extends GetObservationsFilterOptionsParams,
 >(
@@ -157,16 +175,6 @@ const ensureStartTimeFilterForEventFilterOptions = <
 ): TParams => {
   if (hasEventFilterOptionsLowerBoundStartTimeFilter(params.startTimeFilter)) {
     return params;
-  }
-
-  if (params.monitorWindow) {
-    return {
-      ...params,
-      startTimeFilter: [
-        ...getMonitorWindowStartTimeFilter(params.monitorWindow),
-        ...(params.startTimeFilter ?? []),
-      ],
-    };
   }
 
   logger.warn(
@@ -323,19 +331,30 @@ export async function getEventList(params: GetObservationsListParams) {
     }
   }
 
-  const observationsWithScores = observations.map((observation) => ({
-    ...observation,
-    scores: aggregateScores(scoresByObservationId.get(observation.id) ?? []),
-    traceScores: observation.traceId
-      ? aggregateScores(scoresByTraceId.get(observation.traceId) ?? [])
-      : {},
-  }));
+  const observationsWithScores = observations.map((observation) => {
+    const observationScores = scoresByObservationId.get(observation.id) ?? [];
+    const traceScores = observation.traceId
+      ? (scoresByTraceId.get(observation.traceId) ?? [])
+      : [];
+    return {
+      ...observation,
+      // Level-agnostic "Scores": roll up this observation's scores together with
+      // the trace's trace-level scores into a single aggregate, so a trace-level
+      // score (e.g. CSAT) shows in the one "Scores" column — matching the
+      // level-agnostic score filter (LFE-10596). aggregateScores groups by
+      // name/source/dataType, so a score present at both levels merges cleanly.
+      scores: aggregateScores([...observationScores, ...traceScores]),
+      // Trace-only aggregate, retained for callers that need the breakdown.
+      traceScores: aggregateScores(traceScores),
+    };
+  });
 
   return { observations: observationsWithScores, hasMore };
 }
 
 /**
- * Get total count of events matching filters
+ * Get total count of events matching filters, plus the approximate number of
+ * unique traces they span (single ClickHouse pass).
  */
 export async function getEventCount(params: GetObservationsCountParams) {
   const queryOpts = {
@@ -348,22 +367,58 @@ export async function getEventCount(params: GetObservationsCountParams) {
     offset: 0,
   };
 
-  const totalCount = await getObservationsCountFromEventsTable(queryOpts);
+  const { totalCount, uniqueTraceCount } =
+    await getObservationsCountsFromEventsTable(queryOpts);
 
-  return { totalCount };
+  return { totalCount, uniqueTraceCount };
 }
 
-const toFilterValueOptions = <
-  TKey extends string,
-  TItem extends Record<TKey, string | null> & { count: number },
->(
-  items: TItem[],
-  key: TKey,
-) =>
-  items.flatMap((item) => {
-    const value = item[key];
-    return value === null ? [] : [{ value, count: item.count }];
-  });
+type EventFilterOptionRow = Awaited<
+  ReturnType<typeof getEventsFilterOptionsForColumns>
+>[number];
+
+const toFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] =>
+  items
+    .filter((item) => item.column === column)
+    .map((item) => ({ value: item.value, count: item.count }));
+
+const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
+  "traceTags",
+  "toolNames",
+  "calledToolNames",
+]);
+
+type EventFilterOptionsByColumn = Record<
+  (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
+  EventFilterValueOption[]
+>;
+
+const toEventFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] => {
+  const options = toFilterValueOptions(items, column);
+
+  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+    ? options.map(({ value }) => ({ value }))
+    : options;
+};
+
+// Only emit the columns that were actually requested. Returning every column
+// (with `[]` for the unrequested ones) would make a lazily-loaded facet
+// indistinguishable from a loaded-but-empty one on the client, defeating
+// on-demand loading — the FE keys "needs loading" on a column key being absent.
+const toEventFilterOptionsByColumn = (
+  items: EventFilterOptionRow[],
+  columns: readonly (keyof EventFilterOptionsByColumn)[],
+): Partial<EventFilterOptionsByColumn> =>
+  columns.reduce((acc, column) => {
+    acc[column] = toEventFilterValueOptions(items, column);
+    return acc;
+  }, {} as Partial<EventFilterOptionsByColumn>);
 
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
@@ -454,126 +509,27 @@ export async function getEventFilterValuePage(
   const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
   const queryLimit = limit + 1;
 
-  const createResultFromGroupedQuery = async <T>(
-    query: (
-      projectId: string,
-      filter: FilterState,
-      opts?: GroupedEventsFilterOptions,
-    ) => Promise<Array<T & { count?: number }>>,
-    valueGetter: (item: T) => string,
-  ) => {
-    const values = await query(projectId, eventsFilter, {
-      limit: queryLimit,
-      offset,
-    }).then((items) =>
-      items.map(
-        (item) =>
-          ({
-            value: valueGetter(item),
-            count: item.count,
-          }) satisfies EventFilterValueOption,
-      ),
-    );
+  const rows = await getEventsFilterOptionValuesPage({
+    projectId,
+    filter: eventsFilter,
+    column,
+    limit: queryLimit,
+    offset,
+  });
 
-    return {
-      values: values.slice(0, limit),
-      nextOffset: values.length > limit ? offset + limit : undefined,
-    };
+  const values = rows.map((row) =>
+    column === "traceTags"
+      ? ({ value: row.value } satisfies EventFilterValueOption)
+      : ({
+          value: row.value,
+          count: row.count,
+        } satisfies EventFilterValueOption),
+  );
+
+  return {
+    values: values.slice(0, limit),
+    nextOffset: values.length > limit ? offset + limit : undefined,
   };
-
-  if (column === "hasParentObservation") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByHasParentObservation,
-      (item) => (item.hasParentObservation ? "true" : "false"),
-    );
-  }
-
-  if (column === "traceTags") {
-    // Trace tags do not support counting right now
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceTags,
-      (item) => item.tag,
-    );
-  }
-
-  if (column === "providedModelName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModel,
-      (item) => item.model,
-    );
-  }
-
-  if (column === "modelId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModelId,
-      (item) => item.modelId,
-    );
-  }
-
-  if (column === "name") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByName,
-      (item) => item.name,
-    );
-  }
-
-  if (column === "traceName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceName,
-      (item) => item.traceName,
-    );
-  }
-
-  if (column === "type") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByType,
-      (item) => item.type,
-    );
-  }
-
-  if (column === "userId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByUserId,
-      (item) => item.userId,
-    );
-  }
-
-  if (column === "version") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByVersion,
-      (item) => item.version,
-    );
-  }
-
-  if (column === "sessionId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedBySessionId,
-      (item) => item.sessionId,
-    );
-  }
-
-  if (column === "level") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByLevel,
-      (item) => item.level,
-    );
-  }
-
-  if (column === "environment") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByEnvironment,
-      (item) => item.environment,
-    );
-  }
-
-  if (column === "promptName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByPromptName,
-      (item) => item.promptName,
-    );
-  }
-
-  return assertUnreachable(column);
 }
 
 export async function getEventFilterNumericRange(
@@ -598,57 +554,106 @@ export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
-  const { projectId } = scopedParams;
+  const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
+  const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
+    requestedColumns.has(column),
+  );
+  const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
+  const shouldLoadScoreCategories = requestedColumns.has("score_categories");
+  const shouldLoadScoreBooleans = requestedColumns.has("score_booleans");
+  const shouldLoadTraceScores = requestedColumns.has("trace_scores_avg");
+  const shouldLoadTraceScoreCategories = requestedColumns.has(
+    "trace_score_categories",
+  );
+  const shouldLoadTraceScoreBooleans = requestedColumns.has(
+    "trace_score_booleans",
+  );
+  // Level provenance for the level-agnostic "Scores" groups: which level(s)
+  // each offered score name exists at, so the UI can tag every score option
+  // with its level (ScoreTag, LFE-10596). Loaded with the agnostic groups.
+  const shouldLoadScoreNameLevels =
+    shouldLoadScoresAvg || shouldLoadScoreCategories || shouldLoadScoreBooleans;
 
+  // The `scores_avg` / `score_categories` / `score_booleans` groups are
+  // level-agnostic (their filter matches observation- OR trace-level scores;
+  // see `toLevelAgnosticScoreFilter` in events-observation-row-selection.ts),
+  // so they offer every score that rolls up into a trace — matchable-set ==
+  // offered-set (LFE-10596). Scoping to trace-attached scores (`trace_id IS
+  // NOT NULL`) excludes session-/dataset-run scores the union can never match.
+  // The trace-scoped discovery below stays trace-only to back the search bar's
+  // `traceScores.` escape hatch.
   const [
     numericScoreNames,
+    booleanScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
-    providedModelName,
-    name,
-    promptNames,
-    traceTags,
-    traceNames,
-    modelId,
-    types,
-    userIds,
-    versions,
-    sessionIds,
-    levels,
-    environments,
-    experimentDatasetIds,
-    experimentIds,
-    experimentNames,
-    isRootObservationResults,
-    toolNames,
-    calledToolNames,
+    traceCategoricalScoreColumns,
+    traceBooleanScoreColumns,
+    observationLevelScoreNames,
+    traceLevelScoreNames,
+    eventFilterOptions,
   ] = await Promise.all([
-    getNumericScoresGroupedByName(projectId, traceTimestampFilters),
-    getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getScoresGroupedByNameSourceType({
-      projectId,
-      filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
-    }),
-    getEventsGroupedByModel(projectId, eventsFilter),
-    getEventsGroupedByName(projectId, eventsFilter),
-    getEventsGroupedByPromptName(projectId, eventsFilter),
-    getEventsGroupedByTraceTags(projectId, eventsFilter),
-    getEventsGroupedByTraceName(projectId, eventsFilter),
-    getEventsGroupedByModelId(projectId, eventsFilter),
-    getEventsGroupedByType(projectId, eventsFilter),
-    getEventsGroupedByUserId(projectId, eventsFilter),
-    getEventsGroupedByVersion(projectId, eventsFilter),
-    getEventsGroupedBySessionId(projectId, eventsFilter),
-    getEventsGroupedByLevel(projectId, eventsFilter),
-    getEventsGroupedByEnvironment(projectId, eventsFilter),
-    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
-    getEventsGroupedByExperimentId(projectId, eventsFilter),
-    getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByIsRootObservation(projectId, eventsFilter),
-    getEventsGroupedByToolName(projectId, eventsFilter),
-    getEventsGroupedByCalledToolName(projectId, eventsFilter),
+    shouldLoadScoresAvg
+      ? getNumericScoresGroupedByName(projectId, [
+          ...TRACE_SCOPED_SCORE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadScoreBooleans
+      ? getBooleanScoresGroupedByName(projectId, [
+          ...TRACE_SCOPED_SCORE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, [
+          ...TRACE_SCOPED_SCORE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadTraceScores
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
+    shouldLoadTraceScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, [
+          ...TRACE_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadTraceScoreBooleans
+      ? getBooleanScoresGroupedByName(projectId, [
+          ...TRACE_SCORE_SCOPE_FILTER,
+          ...traceTimestampFilters,
+        ])
+      : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [
+            ...OBSERVATION_SCORE_SCOPE_FILTER,
+            ...traceScoreTimestampFilters,
+          ],
+        })
+      : Promise.resolve([]),
+    shouldLoadScoreNameLevels
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
+    eventColumns.length > 0
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: eventsFilter,
+          columns: eventColumns,
+        })
+      : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -660,56 +665,84 @@ export async function getEventFilterOptions(
         .map((score) => score.name),
     ),
   );
-  const traceCategoricalScoreNames = new Set(
-    traceScoreColumns
-      .filter((score) => score.dataType === "CATEGORICAL")
-      .map((score) => score.name),
+  const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
+    eventFilterOptions,
+    eventColumns,
   );
 
+  // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
+  // class: a name can be reused across types at different levels (a NUMERIC
+  // observation-level "accuracy" next to an unrelated CATEGORICAL trace-level
+  // "accuracy"), and a name-only map would mislabel both. Each type-scoped
+  // facet reads its own map; the search bar's merged suggestion unions them.
+  // Discovery rows are grouped by (name, source, dataType) — dedupe per level.
+  const scoreNameLevelsByType = {
+    numeric: {} as Record<string, ("observation" | "trace")[]>,
+    categorical: {} as Record<string, ("observation" | "trace")[]>,
+    boolean: {} as Record<string, ("observation" | "trace")[]>,
+  };
+  const addScoreNameLevel = (
+    score: { name: string; dataType: string },
+    level: "observation" | "trace",
+  ): void => {
+    const typeClass =
+      score.dataType === "NUMERIC"
+        ? "numeric"
+        : score.dataType === "BOOLEAN"
+          ? "boolean"
+          : "categorical"; // CATEGORICAL + TEXT
+    const levels = (scoreNameLevelsByType[typeClass][score.name] ??= []);
+    if (!levels.includes(level)) levels.push(level);
+  };
+  observationLevelScoreNames.forEach((score) =>
+    addScoreNameLevel(score, "observation"),
+  );
+  traceLevelScoreNames.forEach((score) => addScoreNameLevel(score, "trace"));
+
+  // Only include a score key when its column was requested, so an unrequested
+  // (lazily-loadable) score facet stays absent from the payload rather than
+  // arriving as an empty list (which the client cannot tell from "loaded, no
+  // values"). When everything is requested (the default), all keys are present.
+  // Score names come from the observation-/trace-scoped discovery above so each
+  // column only offers names its filter can match (LFE-10596).
   return {
-    providedModelName: toFilterValueOptions(providedModelName, "model"),
-    modelId: toFilterValueOptions(modelId, "modelId"),
-    name: toFilterValueOptions(name, "name"),
-    scores_avg: numericScoreNames.map((score) => score.name),
-    score_categories: categoricalScoreNames,
-    trace_scores_avg: traceNumericScoreNames,
-    trace_score_categories: categoricalScoreNames.filter((score) =>
-      traceCategoricalScoreNames.has(score.label),
-    ),
-    promptName: toFilterValueOptions(promptNames, "promptName"),
-    traceTags: traceTags
-      .filter((i) => i.tag !== null)
-      .map((i) => ({
-        value: i.tag,
-      })),
-    traceName: toFilterValueOptions(traceNames, "traceName"),
-    type: toFilterValueOptions(types, "type"),
-    userId: toFilterValueOptions(userIds, "userId"),
-    version: toFilterValueOptions(versions, "version"),
-    sessionId: toFilterValueOptions(sessionIds, "sessionId"),
-    level: toFilterValueOptions(levels, "level"),
-    environment: toFilterValueOptions(environments, "environment"),
-    experimentDatasetId: toFilterValueOptions(
-      experimentDatasetIds,
-      "experimentDatasetId",
-    ),
-    experimentId: toFilterValueOptions(experimentIds, "experimentId"),
-    experimentName: toFilterValueOptions(experimentNames, "experimentName"),
-    isRootObservation: isRootObservationResults.map((i) => ({
-      // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
-      value: i.isRootObservation ? "true" : "false",
-      count: i.count,
-    })),
-    toolNames: toolNames
-      .filter((i) => i.toolName !== null)
-      .map((i) => ({ value: i.toolName })),
-    calledToolNames: calledToolNames
-      .filter((i) => i.calledToolName !== null)
-      .map((i) => ({ value: i.calledToolName })),
+    ...eventFilterOptionsByColumn,
+    ...(shouldLoadScoresAvg
+      ? { scores_avg: numericScoreNames.map((score) => score.name) }
+      : {}),
+    ...(shouldLoadScoreCategories
+      ? { score_categories: categoricalScoreNames }
+      : {}),
+    ...(shouldLoadScoreBooleans
+      ? { score_booleans: booleanScoreNames.map((score) => score.name) }
+      : {}),
+    ...(shouldLoadTraceScores
+      ? { trace_scores_avg: traceNumericScoreNames }
+      : {}),
+    ...(shouldLoadTraceScoreCategories
+      ? { trace_score_categories: traceCategoricalScoreColumns }
+      : {}),
+    ...(shouldLoadTraceScoreBooleans
+      ? {
+          trace_score_booleans: traceBooleanScoreColumns.map(
+            (score) => score.name,
+          ),
+        }
+      : {}),
+    ...(shouldLoadScoreNameLevels
+      ? {
+          score_name_levels_numeric: scoreNameLevelsByType.numeric,
+          score_name_levels_categorical: scoreNameLevelsByType.categorical,
+          score_name_levels_boolean: scoreNameLevelsByType.boolean,
+        }
+      : {}),
   };
 }
 
-interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
+interface GetEventBatchIOParams<
+  TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
+> {
   projectId: string;
   observations: Array<{
     id: string;
@@ -719,31 +752,19 @@ interface GetEventBatchIOParams<TIncludeExperiment extends boolean = false> {
   maxStartTime: Date;
   truncated?: boolean;
   includeExperimentFields?: TIncludeExperiment;
+  /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
+  includeToolCallFields?: TIncludeToolCalls;
 }
-
-type EventBatchIOStringOutput = Awaited<
-  ReturnType<typeof getObservationsBatchIOFromEventsTable>
->[number];
-
-type EventBatchIOWithExperimentOutput = EventBatchIOStringOutput & {
-  experimentItemExpectedOutput: string | null;
-  experimentItemMetadata: unknown;
-};
 
 /**
  * Batch fetch input/output and metadata for multiple observations
  */
 export async function getEventBatchIO<
   TIncludeExperiment extends boolean = false,
+  TIncludeToolCalls extends boolean = false,
 >(
-  params: GetEventBatchIOParams<TIncludeExperiment>,
-): Promise<
-  Array<
-    TIncludeExperiment extends true
-      ? EventBatchIOWithExperimentOutput
-      : EventBatchIOStringOutput
-  >
-> {
+  params: GetEventBatchIOParams<TIncludeExperiment, TIncludeToolCalls>,
+): Promise<Array<EventBatchIOResult<TIncludeExperiment, TIncludeToolCalls>>> {
   return getObservationsBatchIOFromEventsTable({
     projectId: params.projectId,
     observations: params.observations,
@@ -751,13 +772,6 @@ export async function getEventBatchIO<
     maxStartTime: params.maxStartTime,
     truncated: params.truncated,
     includeExperimentFields: params.includeExperimentFields,
-  } as Parameters<typeof getObservationsBatchIOFromEventsTable>[0] & {
-    includeExperimentFields?: TIncludeExperiment;
-  }) as Promise<
-    Array<
-      TIncludeExperiment extends true
-        ? EventBatchIOWithExperimentOutput
-        : EventBatchIOStringOutput
-    >
-  >;
+    includeToolCallFields: params.includeToolCallFields,
+  });
 }

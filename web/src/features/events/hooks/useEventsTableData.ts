@@ -10,6 +10,10 @@ import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import {
+  removeAppRootDefaultFilter,
+  shouldRunAppRootFallbackQuery,
+} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
@@ -32,6 +36,13 @@ type UseEventsTableDataParams = {
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
+  appRootFallbackEnabled?: boolean;
+  /**
+   * Gate the row + batched-I/O queries. Defaults to true; the events table
+   * passes `false` in chart mode so the (hidden) table's expensive row/IO
+   * fetches don't run alongside the chart's aggregate query.
+   */
+  rowsEnabled?: boolean;
 };
 
 export function useEventsTableData({
@@ -44,6 +55,8 @@ export function useEventsTableData({
   selectedRows,
   selectAll,
   setSelectedRows,
+  appRootFallbackEnabled = false,
+  rowsEnabled = true,
 }: UseEventsTableDataParams) {
   // Prepare query payloads
   const getCountPayload = useMemo(
@@ -75,6 +88,7 @@ export function useEventsTableData({
   const silentHttpCodes = [422];
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    enabled: rowsEnabled,
     refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
     meta: {
@@ -82,13 +96,46 @@ export function useEventsTableData({
     },
   });
 
+  const fallbackPayload = useMemo(
+    () => ({
+      ...getAllPayload,
+      filter: removeAppRootDefaultFilter(getAllPayload.filter),
+    }),
+    [getAllPayload],
+  );
+  const shouldRunAppRootFallback = shouldRunAppRootFallbackQuery({
+    enabled: appRootFallbackEnabled,
+    filters: getAllPayload.filter,
+    page: paginationState.page,
+    rootQuerySucceeded: observations.isSuccess,
+    rootQueryIsPlaceholder: observations.isPlaceholderData,
+    rootRowCount: observations.data?.observations.length ?? 0,
+  });
+  const appRootFallbackQuery = api.events.all.useQuery(fallbackPayload, {
+    // Also gate on rowsEnabled (matches the primary + I/O queries): otherwise a
+    // stale-cached fallback condition could fire a real row fetch in chart mode.
+    enabled: rowsEnabled && shouldRunAppRootFallback,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    retry: false,
+    meta: { silentHttpCodes },
+  });
+  const activeObservations =
+    shouldRunAppRootFallback && !appRootFallbackQuery.isError
+      ? appRootFallbackQuery
+      : observations;
+  const usedAppRootFallback =
+    shouldRunAppRootFallback &&
+    appRootFallbackQuery.isSuccess &&
+    appRootFallbackQuery.data.observations.length > 0;
+
   const batchIOPayload = useMemo(() => {
-    if (observations.isPlaceholderData) {
+    if (activeObservations.isPlaceholderData) {
       return null;
     }
 
     const validObservations =
-      observations.data?.observations?.filter(
+      activeObservations.data?.observations?.filter(
         (o) => o.id && o.traceId && o.startTime,
       ) ?? [];
 
@@ -113,37 +160,38 @@ export function useEventsTableData({
       maxStartTime,
     };
   }, [
-    observations.data?.observations,
-    observations.isPlaceholderData,
+    activeObservations.data?.observations,
+    activeObservations.isPlaceholderData,
     projectId,
   ]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
     ...sendAsPostOption,
-    enabled: observations.isSuccess && batchIOPayload !== null,
+    enabled:
+      rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
   // Extract error information for display (only from observations.all, not batchIO)
-  const error = observations.error;
+  const error = activeObservations.error;
 
-  const errorHttpStatus = observations.error?.data?.httpStatus;
+  const errorHttpStatus = activeObservations.error?.data?.httpStatus;
 
   const isSilencedError =
-    observations.isError &&
+    activeObservations.isError &&
     errorHttpStatus &&
     silentHttpCodes.includes(errorHttpStatus);
 
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (observations.isLoading || observations.isPlaceholderData) {
+    if (activeObservations.isLoading || activeObservations.isPlaceholderData) {
       return { status: "loading" as const, rows: undefined };
     }
 
-    if (observations.isError) {
+    if (activeObservations.isError) {
       if (isSilencedError) {
         // Treat silenced errors as successful with no data
         return { status: "success" as const, rows: [] };
@@ -153,14 +201,14 @@ export function useEventsTableData({
 
     // Success case - join the data
     return joinTableCoreAndMetrics<FullEventsObservation, EventBatchIOOutput>(
-      observations.data?.observations,
+      activeObservations.data?.observations,
       ioDataQuery.data,
     );
   }, [
-    observations.isLoading,
-    observations.isPlaceholderData,
-    observations.isError,
-    observations.data?.observations,
+    activeObservations.isLoading,
+    activeObservations.isPlaceholderData,
+    activeObservations.isError,
+    activeObservations.data?.observations,
     ioDataQuery.data,
     isSilencedError,
   ]);
@@ -174,6 +222,11 @@ export function useEventsTableData({
   const totalCount = selectAll
     ? (totalCountQuery.data?.totalCount ?? null)
     : null;
+  // Approximate distinct trace_id count over the same filtered set, computed
+  // alongside totalCount; shares its loading/error state below.
+  const uniqueTraceCount = selectAll
+    ? (totalCountQuery.data?.uniqueTraceCount ?? null)
+    : null;
   const isTotalCountLoading =
     selectAll && totalCount === null && totalCountQuery.isFetching;
   const isTotalCountError =
@@ -181,7 +234,7 @@ export function useEventsTableData({
     totalCount === null &&
     totalCountQuery.isError &&
     !totalCountQuery.isFetching;
-  const hasMore = observations.data?.hasMore ?? false;
+  const hasMore = activeObservations.data?.hasMore ?? false;
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -206,7 +259,7 @@ export function useEventsTableData({
     targetId: string;
   }) => {
     const visibleObservationIds = new Set(
-      (observations.data?.observations ?? [])
+      (activeObservations.data?.observations ?? [])
         .map((observation) => observation.id)
         .filter((id): id is string => Boolean(id)),
     );
@@ -231,8 +284,9 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    dataUpdatedAt: observations.dataUpdatedAt,
+    dataUpdatedAt: activeObservations.dataUpdatedAt,
     totalCount,
+    uniqueTraceCount,
     isTotalCountLoading,
     isTotalCountError,
     hasMore,
@@ -242,5 +296,6 @@ export function useEventsTableData({
     error,
     errorHttpStatus,
     isSilencedError,
+    usedAppRootFallback,
   };
 }

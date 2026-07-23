@@ -260,13 +260,15 @@ export function resolveBlobExportTuning(
 
   const obj = raw as Record<string, unknown>;
 
+  const rawPassthrough = resolveBoolean(
+    "rawPassthrough",
+    obj.rawPassthrough,
+    warnings,
+  );
+
   return {
     resolved: {
-      rawPassthrough: resolveBoolean(
-        "rawPassthrough",
-        obj.rawPassthrough,
-        warnings,
-      ),
+      rawPassthrough,
       gzipLevel: resolveGzipLevel(obj.gzipLevel, warnings),
       partSizeBytes: resolveNumber(
         "partSizeBytes",

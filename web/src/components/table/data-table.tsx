@@ -4,10 +4,13 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
+  useEffect,
   type CSSProperties,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
@@ -220,6 +223,45 @@ export function DataTable<TData extends object, TValue>({
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
+  // Releasing a column-resize drag fires a synthetic `click` on the underlying
+  // header (the resize handle is a child of <TableHead>), which would otherwise
+  // toggle the column sort. We stamp the resized column + time when a resize
+  // ends and ignore a header click only on that same column within a short
+  // window after it — so a deliberate sort click on a *different* header right
+  // after a resize is not dropped. The stamp is set from a document listener
+  // registered on resize start, so it fires before the click regardless of
+  // where the pointer is released.
+  const lastColumnResizeEndRef = useRef<{ columnId: string; at: number }>({
+    columnId: "",
+    at: 0,
+  });
+  // Removes the in-flight resize listener pair; cleared once it has run so we
+  // never leak listeners if the table unmounts mid-drag.
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null);
+  const beginColumnResize = useCallback(
+    (columnId: string, handler: (event: unknown) => void) =>
+      (event: React.MouseEvent | React.TouchEvent) => {
+        handler(event);
+        // Drop any listener pair still attached from a prior resize.
+        activeResizeCleanupRef.current?.();
+        const onResizeEnd = () => {
+          lastColumnResizeEndRef.current = { columnId, at: Date.now() };
+          cleanup();
+        };
+        const cleanup = () => {
+          document.removeEventListener("mouseup", onResizeEnd);
+          document.removeEventListener("touchend", onResizeEnd);
+          activeResizeCleanupRef.current = null;
+        };
+        activeResizeCleanupRef.current = cleanup;
+        document.addEventListener("mouseup", onResizeEnd);
+        document.addEventListener("touchend", onResizeEnd);
+      },
+    [],
+  );
+  // Detach any in-flight resize listeners if the table unmounts mid-drag.
+  useEffect(() => () => activeResizeCleanupRef.current?.(), []);
+
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
@@ -274,9 +316,8 @@ export function DataTable<TData extends object, TValue>({
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
         return row.id;
-      } else {
-        return index.toString();
       }
+      return index.toString();
     },
     state: {
       columnFilters,
@@ -352,7 +393,12 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className="relative min-h-full w-full overflow-auto border-t"
+          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
+          // last column's resize handle is never flush against the scrollbar/edge and
+          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
+          // browser still clamps the cursor at the screen edge, so this guarantees room
+          // to the right, not a complete fix.
+          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -389,6 +435,17 @@ export function DataTable<TData extends object, TValue>({
                         onClick={(event) => {
                           event.preventDefault();
 
+                          // Ignore the click synthesized when this column's own
+                          // resize drag is released over its header (other
+                          // headers stay clickable during that window).
+                          const lastResize = lastColumnResizeEndRef.current;
+                          if (
+                            lastResize.columnId === header.column.id &&
+                            Date.now() - lastResize.at < 250
+                          ) {
+                            return;
+                          }
+
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
                           }
@@ -424,7 +481,15 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <div className="flex items-center select-none">
-                            <span className="truncate">
+                            <span
+                              className="truncate leading-normal"
+                              title={getPlainTextFromReactNode(
+                                flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                ),
+                              )}
+                            >
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
@@ -448,8 +513,14 @@ export function DataTable<TData extends object, TValue>({
                                 e.stopPropagation();
                               }}
                               onDoubleClick={() => header.column.resetSize()}
-                              onMouseDown={header.getResizeHandler()}
-                              onTouchStart={header.getResizeHandler()}
+                              onMouseDown={beginColumnResize(
+                                header.column.id,
+                                header.getResizeHandler(),
+                              )}
+                              onTouchStart={beginColumnResize(
+                                header.column.id,
+                                header.getResizeHandler(),
+                              )}
                               className={cn(
                                 "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
@@ -507,7 +578,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium">
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
             isLoading={data.isLoading}
@@ -524,12 +595,11 @@ export function DataTable<TData extends object, TValue>({
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
-  else
-    return (
-      <span className="ml-1" title="Sort by this column">
-        ▼
-      </span>
-    );
+  return (
+    <span className="ml-1" title="Sort by this column">
+      ▼
+    </span>
+  );
 }
 
 interface TableBodyComponentProps<TData> {
@@ -745,7 +815,15 @@ function TableBodyComponent<TData>({
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate leading-none">
+                      <div
+                        className="min-w-0 truncate leading-normal"
+                        title={getPlainTextFromReactNode(
+                          flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          ),
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),

@@ -360,6 +360,146 @@ describe("batch export test suite", () => {
     expect(mediumAccuracyRow?.accuracy).toEqual([0.75]);
   });
 
+  it("should export observations filtered by boolean scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const trace = createTrace({
+      project_id: projectId,
+      id: randomUUID(),
+    });
+
+    await createTracesCh([trace]);
+
+    const observations = [
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "flagged",
+        start_time: new Date("2024-01-01").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "not-flagged",
+        start_time: new Date("2024-01-02").getTime(),
+      }),
+      createObservation({
+        project_id: projectId,
+        trace_id: trace.id,
+        id: randomUUID(),
+        type: "GENERATION",
+        name: "unscored",
+        start_time: new Date("2024-01-03").getTime(),
+      }),
+    ];
+
+    await createObservationsCh(observations);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[0].id,
+        name: "is_hallucination",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: trace.id,
+        observation_id: observations[1].id,
+        name: "is_hallucination",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+      }),
+    ]);
+
+    const stream = await getObservationStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "booleanObject",
+          column: "Scores (boolean)",
+          key: "is_hallucination",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe("flagged");
+  });
+
+  it("should export traces filtered by boolean scores", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traces = [
+      createTrace({ project_id: projectId, id: randomUUID() }),
+      createTrace({ project_id: projectId, id: randomUUID() }),
+      createTrace({ project_id: projectId, id: randomUUID() }),
+    ];
+
+    await createTracesCh(traces);
+
+    await createScoresCh([
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traces[0].id,
+        name: "is_valid",
+        value: 1,
+        string_value: "True",
+        data_type: "BOOLEAN",
+        observation_id: null,
+      }),
+      createTraceScore({
+        project_id: projectId,
+        trace_id: traces[1].id,
+        name: "is_valid",
+        value: 0,
+        string_value: "False",
+        data_type: "BOOLEAN",
+        observation_id: null,
+      }),
+    ]);
+
+    const stream = await getTraceStream({
+      projectId: projectId,
+      cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+      filter: [
+        {
+          type: "booleanObject",
+          column: "Scores (boolean)",
+          key: "is_valid",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
+
+    const rows: any[] = [];
+
+    for await (const chunk of stream) {
+      rows.push(chunk);
+    }
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(traces[0].id);
+  });
+
   it("should export sessions", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
@@ -2594,6 +2734,117 @@ describe("batch export test suite", () => {
       expect(generationRow?.totalUsage).toBeGreaterThan(0);
     });
 
+    it("matches a trace-level score via the observation-scoped score filter on export (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "unscored-trace",
+          start_time: now,
+        }),
+      ];
+      await createEventsCh(events);
+
+      // Trace-level score (observation_id NULL) on the first trace only.
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        // The observation-scoped `scores_avg` filter is level-agnostic on export
+        // too: it must match the trace-level CSAT (pre-fix this returned empty,
+        // diverging from the UI — LFE-10596).
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            key: "CSAT",
+            operator: ">",
+            value: 0,
+          },
+        ],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("help-assistant");
+      // The matched row must also EXPORT the trace-level score's value —
+      // matching-but-blank diverges from the UI's unified Scores column.
+      expect(rows[0].CSAT).toEqual([1]);
+    });
+
+    it("exports trace-level score values without any score filter (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      // No filter: the export must still carry the trace-level score value,
+      // mirroring the UI's unified Scores column (LFE-10596).
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].CSAT).toEqual([1]);
+    });
+
     it("should apply observation-level score filters and ignore trace-level score filters when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -2653,9 +2904,11 @@ describe("batch export test suite", () => {
       ];
       await createScoresCh(scores);
 
-      // Observation-level score filter applies (accuracy >= 0.7); the
-      // trace-level score filter references the trace_scores_agg CTE that the
-      // export does not join, so it is dropped rather than failing the export.
+      // Observation-scoped score filter applies (accuracy >= 0.7). The explicit
+      // trace-only "Trace Scores (numeric)" filter is dropped before the query
+      // (the `traceScores.` escape hatch is not wired on this export path), so
+      // it is ignored rather than failing the export. Here `accuracy` exists
+      // only at observation level, so the level-agnostic union adds nothing.
       const stream = await getObservationStream({
         projectId,
         cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
@@ -2878,6 +3131,63 @@ describe("batch export test suite", () => {
       );
     });
 
+    it("exports trace-level score values on the events export (LFE-10596)", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const scoredTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          type: "SPAN",
+          name: "help-assistant",
+          start_time: now,
+        }),
+      ]);
+
+      // One trace-level (observation_id NULL) numeric score and one
+      // trace-level categorical score: both must land in the exported row —
+      // pre-fix this path never joined the trace-score aggregate, so every
+      // trace-level score exported blank (diverging from the UI's unified
+      // Scores column).
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          observation_id: null,
+          name: "sentiment",
+          value: null,
+          string_value: "positive",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const stream = await getEventsStream({
+        projectId: projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0].name).toBe("help-assistant");
+      expect(rows[0].CSAT).toEqual([1]);
+      expect(rows[0].sentiment).toEqual(["positive"]);
+    });
     it("should export events with filters", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

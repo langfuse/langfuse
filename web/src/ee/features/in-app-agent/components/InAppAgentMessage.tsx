@@ -1,14 +1,15 @@
 "use client";
-
 import {
   ArrowRight,
+  Ban,
   Check,
+  ChevronDown,
+  CircleX,
   Copy,
   BookOpenText,
   Loader2,
   ThumbsDown,
   ThumbsUp,
-  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -25,10 +26,10 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import type {
-  InAppAgentMessageFeedback,
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
+import {
+  type InAppAgentMessageFeedback,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
 } from "@/src/ee/features/in-app-agent/schema";
 import {
   Popover,
@@ -40,7 +41,15 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import {
+  expandMarkdownSelection,
+  getMarkdownSourceRangeFromRenderedOffsets,
+  projectMarkdownToRenderedText,
+} from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
+import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
+import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
+import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
@@ -52,6 +61,7 @@ type InAppAgentRedirectActionContent = {
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
+  | { type: "reasoning"; text: string; isStreaming: boolean }
   | {
       type: "text";
       text: string;
@@ -65,14 +75,6 @@ export type InAppAgentMessageContent =
       tools: InAppAgentToolCallContent[];
       isLoading?: boolean;
     };
-
-export type InAppAgentToolCallContent = {
-  type: "tool";
-  name: string;
-  args: string;
-  result?: string;
-  error?: string;
-};
 
 const parseAbsoluteUrl = (href: string): URL | null => {
   try {
@@ -147,7 +149,6 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
-  windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -159,7 +160,6 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
-  windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
@@ -168,21 +168,16 @@ export function InAppAgentMessage({
 
   if (content.type === "toolGroup") {
     return (
-      <div
-        className={cn(
-          "bg-card dark:bg-header text-foreground border-border rounded-2xl border py-2 shadow-xs",
-          isCompact
-            ? "rounded-xl py-1 text-[0.775rem]"
-            : "rounded-2xl py-1.5 text-sm",
-        )}
-      >
-        <ToolCallGroup
-          tools={content.tools}
-          isLoading={content.isLoading}
-          isCompact={isCompact}
-        />
-      </div>
+      <ToolCallGroup
+        tools={content.tools}
+        isLoading={content.isLoading}
+        isCompact={isCompact}
+      />
     );
+  }
+
+  if (content.type === "reasoning") {
+    return <InAppAgentReasoningBlock content={content} isCompact={isCompact} />;
   }
 
   if (content.type === "text" && role === "assistant") {
@@ -191,7 +186,6 @@ export function InAppAgentMessage({
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
-        windowZIndex={windowZIndex}
         onSubmitFeedback={onSubmitFeedback}
       />
     );
@@ -206,7 +200,7 @@ const MessageCard = forwardRef<
     role: InAppAgentMessageRole;
     content: Exclude<
       InAppAgentMessageContent,
-      { type: "toolGroup" | "redirectAction" }
+      { type: "toolGroup" | "redirectAction" | "reasoning" }
     >;
     isCompact: boolean;
   }
@@ -223,7 +217,7 @@ const MessageCard = forwardRef<
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-foreground border-border border",
+          : "bg-card text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
@@ -249,13 +243,11 @@ function AssistantMessageWithFeedback({
   content,
   isCompact,
   isFeedbackDisabled,
-  windowZIndex,
   onSubmitFeedback,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
-  windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -292,16 +284,11 @@ function AssistantMessageWithFeedback({
                 feedback={content.feedback}
                 isCompact={isCompact}
                 isFeedbackDisabled={isFeedbackDisabled}
-                windowZIndex={windowZIndex}
                 onSubmitFeedback={onSubmitFeedback}
               />
             ) : null}
             {hasSources ? (
-              <SourcesPopover
-                sources={sources}
-                isCompact={isCompact}
-                windowZIndex={windowZIndex}
-              />
+              <SourcesPopover sources={sources} isCompact={isCompact} />
             ) : null}
           </div>
         </div>
@@ -310,17 +297,79 @@ function AssistantMessageWithFeedback({
   );
 }
 
+function InAppAgentReasoningBlock({
+  content,
+  isCompact,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "reasoning" }>;
+  isCompact: boolean;
+}) {
+  // null until the user toggles manually; until then the disclosure follows
+  // the streaming state (open while streaming, collapsed when done).
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? content.isStreaming;
+
+  return (
+    <details
+      open={isOpen}
+      onToggle={(event) => {
+        // The browser also fires toggle when React flips `open` at stream
+        // start/end; only record toggles that diverge from the current state.
+        if (event.currentTarget.open !== isOpen) {
+          setUserToggled(event.currentTarget.open);
+        }
+      }}
+      className={cn(
+        "text-muted-foreground max-w-full",
+        isCompact ? "text-[0.775rem]" : "text-sm",
+      )}
+    >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+        <span
+          className={cn(
+            "min-w-0 flex-1",
+            content.isStreaming && styles.thinkingShimmer,
+          )}
+        >
+          {content.isStreaming ? "Thinking" : "Thought"}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+        />
+      </summary>
+      {isOpen ? (
+        // The block grows with its content instead of scrolling internally;
+        // the drawer's auto-follow keeps the newest text visible while
+        // streaming, and the block collapses when streaming ends.
+        <div
+          aria-label="Assistant reasoning"
+          data-testid="in-app-agent-reasoning-content"
+          className={cn(
+            // Vertical spacing is margin, not padding, so the left border
+            // hugs the text instead of extending past it.
+            "border-border/70 mt-2 mb-1 border-l px-3 leading-5 wrap-break-word whitespace-pre-wrap",
+            isCompact && "px-2.5 leading-4",
+          )}
+        >
+          {content.text || "Thinking..."}
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
 function MessageFeedbackControls({
   feedback,
   isCompact,
   isFeedbackDisabled,
-  windowZIndex,
   onSubmitFeedback,
 }: {
   feedback?: InAppAgentMessageFeedback;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
-  windowZIndex?: number;
   onSubmitFeedback: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -396,6 +445,8 @@ function MessageFeedbackControls({
       .catch(() => undefined);
   };
 
+  const commentButtonText = `Comment: ${committedComment}`;
+
   return (
     <Popover
       open={!isFeedbackDisabled && isCommentPopoverOpen}
@@ -410,7 +461,9 @@ function MessageFeedbackControls({
           label="Good response"
           isSelected={selectedValue === "thumbs_up"}
           disabled={isDisabled}
-          onClick={() => handleSelectFeedback("thumbs_up")}
+          onClick={() => {
+            handleSelectFeedback("thumbs_up");
+          }}
         >
           <ThumbsUp
             className={cn(
@@ -424,7 +477,9 @@ function MessageFeedbackControls({
         label="Bad response"
         isSelected={selectedValue === "thumbs_down"}
         disabled={isDisabled}
-        onClick={() => handleSelectFeedback("thumbs_down")}
+        onClick={() => {
+          handleSelectFeedback("thumbs_down");
+        }}
       >
         <ThumbsDown
           className={cn(
@@ -437,10 +492,13 @@ function MessageFeedbackControls({
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+          title={commentButtonText}
           disabled={isDisabled}
-          onClick={() => setIsCommentPopoverOpen(true)}
+          onClick={() => {
+            setIsCommentPopoverOpen(true);
+          }}
         >
-          Comment: {committedComment}
+          {commentButtonText}
         </button>
       ) : null}
       {selectedValue ? (
@@ -448,22 +506,19 @@ function MessageFeedbackControls({
           align="start"
           side="top"
           className="w-72 space-y-1.5 p-2"
-          style={
-            typeof windowZIndex === "number"
-              ? { zIndex: windowZIndex + 1 }
-              : undefined
-          }
         >
           <div>
             <textarea
               value={comment}
-              onChange={(event) => setComment(event.target.value)}
+              onChange={(event) => {
+                setComment(event.target.value);
+              }}
               disabled={isDisabled}
               placeholder="Optional feedback comment"
               rows={3}
               maxLength={500}
               className={cn(
-                "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
+                "border-input bg-background text-foreground placeholder:text-foreground-tertiary w-full resize-none rounded-md border px-2 py-1",
                 isCompact ? "text-xs" : "text-sm",
               )}
             />
@@ -486,11 +541,9 @@ function MessageFeedbackControls({
 function SourcesPopover({
   sources,
   isCompact,
-  windowZIndex,
 }: {
   sources: InAppAgentMessageSource[];
   isCompact: boolean;
-  windowZIndex?: number;
 }) {
   return (
     <Popover>
@@ -498,7 +551,7 @@ function SourcesPopover({
         <button
           type="button"
           className={cn(
-            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium",
+            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-bold",
             isCompact && "py-0.5",
           )}
         >
@@ -506,16 +559,7 @@ function SourcesPopover({
           Sources
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        className="w-72 p-1.5"
-        style={
-          typeof windowZIndex === "number"
-            ? { zIndex: windowZIndex + 1 }
-            : undefined
-        }
-      >
+      <PopoverContent align="start" side="top" className="w-72 p-1.5">
         <div className="space-y-0.5">
           {sources.map((source) => (
             <a
@@ -530,7 +574,10 @@ function SourcesPopover({
                 className="bg-muted size-3.5 shrink-0 rounded-sm bg-cover bg-center"
                 style={{ backgroundImage: `url("${source.faviconUrl}")` }}
               />
-              <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+              <span
+                className="text-foreground min-w-0 flex-1 truncate text-xs"
+                title={source.title}
+              >
                 {source.title}
               </span>
             </a>
@@ -550,7 +597,7 @@ const CommentButton = forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}
@@ -621,115 +668,109 @@ function ToolCallGroup({
   isLoading?: boolean;
   isCompact?: boolean;
 }) {
-  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`;
-
-  const paddingX = cn(isCompact ? "px-2.5" : "px-3");
-  const iconSize = isCompact ? "size-3" : "size-4";
+  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${
+    tools.length === 1 ? "tool" : "tools"
+  }`;
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? isLoading;
 
   return (
-    <details className="group/tool-group min-w-0">
-      <summary
-        className={cn(
-          "flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden",
-          paddingX,
-        )}
-      >
-        {isLoading ? (
-          <Loader2
-            className={cn(
-              "text-muted-foreground shrink-0 animate-spin",
-              iconSize,
-            )}
-          />
-        ) : (
-          <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
-        )}
-        <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
-        <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool-group:inline">
-          Hide
-        </span>
+    <details
+      open={isOpen}
+      onToggle={(event) => {
+        if (event.currentTarget.open !== isOpen) {
+          setUserToggled(event.currentTarget.open);
+        }
+      }}
+      className={cn(
+        "text-muted-foreground max-w-full",
+        isCompact ? "text-[0.775rem]" : "text-sm",
+      )}
+    >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+        <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+        />
       </summary>
-      <div
-        className={cn("border-border mt-2 space-y-2 border-t pt-2", paddingX)}
-      >
+      <div className="mt-0.5 flex flex-col gap-0">
         {tools.map((tool, index) => (
-          <div key={`${tool.name}-${index}`} className="rounded-lg">
-            <ToolCallDetails tool={tool} />
-          </div>
+          <ToolCallDisclosure
+            key={`${tool.name}-${index}`}
+            tool={tool}
+            isCompact={isCompact}
+          />
         ))}
       </div>
     </details>
   );
 }
 
-function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
-  const resultLabel = tool.error ? "Error" : "Result";
+function ToolCallDisclosure({
+  tool,
+  isCompact,
+}: {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+}) {
+  const status = tool.status;
 
   return (
     <details className="group/tool min-w-0">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
-        <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate py-0.5">Used {tool.name}</span>
-        <span className="text-muted-foreground text-xs group-open/tool:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
-          Hide
+      <summary
+        aria-label={`${tool.name}: ${status}`}
+        className={cn(
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          isCompact && "px-0.5",
+        )}
+      >
+        <ToolCallStatusIcon status={status} />
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate py-0.5",
+            status === "failed" && "text-destructive",
+            status === "denied" && "text-dark-yellow",
+          )}
+          title={tool.name}
+        >
+          {tool.name}
         </span>
       </summary>
-      <div className="mt-2 space-y-2">
-        <ToolPayload label="Arguments" value={tool.args} />
-        {tool.result !== undefined || tool.error !== undefined ? (
-          <ToolPayload
-            label={resultLabel}
-            value={tool.error ?? tool.result ?? ""}
-            isError={Boolean(tool.error)}
+      <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
+        <div className="flex flex-col gap-2">
+          <InAppAgentToolPayload
+            label="Arguments"
+            value={tool.args}
+            variant="default"
           />
-        ) : null}
+          <InAppAgentToolResultPayload tool={tool} />
+        </div>
       </div>
     </details>
   );
 }
 
-function ToolPayload({
-  label,
-  value,
-  isError = false,
+function ToolCallStatusIcon({
+  status,
 }: {
-  label: string;
-  value: string;
-  isError?: boolean;
+  status: InAppAgentToolCallContent["status"];
 }) {
-  const toolPayload = useMemo(() => {
-    const trimmedValue = value.trim();
+  if (status === "running") {
+    return <Loader2 className="size-3.5 shrink-0 animate-spin" />;
+  }
 
-    if (!trimmedValue) {
-      return "{}";
-    }
+  if (status === "succeeded") {
+    return <Check className="text-dark-green size-3.5 shrink-0" />;
+  }
 
-    try {
-      return JSON.stringify(JSON.parse(trimmedValue), null, 2);
-    } catch {
-      return value;
-    }
-  }, [value]);
+  if (status === "failed") {
+    return <CircleX className="text-destructive size-3.5 shrink-0" />;
+  }
 
-  return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground text-xs font-medium">{label}</p>
-      <pre
-        className={cn(
-          "bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
-          isError && "text-destructive",
-        )}
-      >
-        {toolPayload}
-      </pre>
-    </div>
-  );
+  return <Ban className="text-dark-yellow size-3.5 shrink-0" />;
 }
 
 function MessageText({
@@ -757,6 +798,24 @@ function MessageText({
   return (
     <div
       data-compact={isCompact}
+      onCopy={(event) => {
+        const browserSelection =
+          event.currentTarget.ownerDocument.getSelection();
+
+        const result = getSelectedMarkdownFromSource(
+          event.currentTarget,
+          browserSelection,
+          text,
+        );
+
+        if (!result) {
+          return;
+        }
+
+        event.preventDefault();
+        event.clipboardData.setData("text/plain", result.markdown);
+        event.clipboardData.setData("text/html", result.html);
+      }}
       className={cn(styles.Streamdown, isCompact && styles.compact)}
     >
       <Streamdown
@@ -801,6 +860,113 @@ function MessageText({
   );
 }
 
+function getSelectedMarkdownFromSource(
+  root: HTMLElement,
+  selection: Selection | null,
+  markdown: string,
+): { markdown: string; html: string } | null {
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (
+    !(range.startContainer === root || root.contains(range.startContainer)) ||
+    !(range.endContainer === root || root.contains(range.endContainer))
+  ) {
+    return null;
+  }
+
+  const selectedText = selection.toString();
+  if (!selectedText.trim()) {
+    return null;
+  }
+
+  const projection = projectMarkdownToRenderedText(markdown);
+
+  const renderedStart = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.startContainer, range.startOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const renderedEnd = (() => {
+    const prefixRange = root.ownerDocument.createRange();
+    prefixRange.selectNodeContents(root);
+    prefixRange.setEnd(range.endContainer, range.endOffset);
+    return prefixRange.toString().length;
+  })();
+
+  const fallbackStart = projection.plain.indexOf(selectedText, renderedStart);
+  const exactTextSelection =
+    fallbackStart === -1
+      ? null
+      : getMarkdownSourceRangeFromRenderedOffsets(
+          projection,
+          fallbackStart,
+          fallbackStart + selectedText.length,
+        );
+  const offsetSelection = getMarkdownSourceRangeFromRenderedOffsets(
+    projection,
+    renderedStart,
+    renderedEnd,
+  );
+
+  const sourceRange = exactTextSelection ?? offsetSelection;
+
+  if (!sourceRange) {
+    return null;
+  }
+
+  const { start, end } = expandMarkdownSelection(
+    markdown,
+    sourceRange.start,
+    sourceRange.end,
+  );
+  const selectedMarkdown = trimTrailingFenceNewline(markdown, start, end);
+
+  const htmlContainer = root.ownerDocument.createElement("div");
+  htmlContainer.append(range.cloneContents());
+  htmlContainer
+    .querySelectorAll("[data-in-app-agent-code-copy-button]")
+    .forEach((node) => {
+      node.remove();
+    });
+
+  return {
+    markdown: selectedMarkdown,
+    html: htmlContainer.innerHTML,
+  };
+}
+
+function trimTrailingFenceNewline(
+  markdown: string,
+  start: number,
+  end: number,
+) {
+  const selectedMarkdown = markdown.slice(start, end);
+
+  if (
+    !selectedMarkdown.endsWith("\n") ||
+    !markdown.slice(end).startsWith("```")
+  ) {
+    return selectedMarkdown;
+  }
+
+  const openingFenceIndex = markdown.lastIndexOf("```", start);
+  if (openingFenceIndex === -1) {
+    return selectedMarkdown;
+  }
+
+  const previousClosingFenceIndex = markdown.lastIndexOf("\n```", start);
+  if (previousClosingFenceIndex > openingFenceIndex) {
+    return selectedMarkdown;
+  }
+
+  return selectedMarkdown.slice(0, -1);
+}
+
 function CodeBlock({ children }: { children: ReactNode }) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
 
@@ -823,13 +989,15 @@ function CodeBlock({ children }: { children: ReactNode }) {
     <pre className="group/code-block relative pr-10">
       <button
         type="button"
+        data-in-app-agent-code-copy-button="true"
         aria-label={isCopied ? "Copied code" : "Copy code"}
         title={isCopied ? "Copied" : "Copy code"}
+        contentEditable={false}
         disabled={!code}
         onClick={() => {
           copy(code).catch(() => undefined);
         }}
-        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition select-none hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
       >
         {isCopied ? (
           <Check className="size-3.5" />

@@ -105,4 +105,24 @@ describe("defineTool", () => {
       }),
     ).toThrow("Union and intersection schemas are not supported");
   });
+
+  it("preserves ASCII-safe patterns", () => {
+    const schema = z.object({
+      label: z.string().regex(/^[a-z0-9_\-.]+$/),
+    });
+
+    const [tool] = defineTool({
+      name: "asciiPatternTool",
+      description: "",
+      baseSchema: schema,
+      inputSchema: schema,
+      handler: async (input) => input,
+    });
+
+    expect(tool.inputSchema.properties).toEqual(
+      expect.objectContaining({
+        label: expect.objectContaining({ pattern: "^[a-z0-9_\\-.]+$" }),
+      }),
+    );
+  });
 });

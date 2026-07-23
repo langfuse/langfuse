@@ -88,7 +88,9 @@ export const LogViewObservationCell = memo(function LogViewObservationCell({
       style={{ paddingLeft: indent }}
     >
       <ItemBadge type={item.node.type} isSmall />
-      <span className="truncate">{displayName}</span>
+      <span className="truncate" title={displayName}>
+        {displayName}
+      </span>
       {childrenCount > 0 && (
         <span className="text-muted-foreground shrink-0 text-xs">
           {childrenCount} {childrenCount === 1 ? "item" : "items"}

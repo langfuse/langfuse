@@ -6,13 +6,22 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/components/ui/layer";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
-const DialogPortal = DialogPrimitive.Portal;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const DialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <DialogPrimitive.Portal container={container} {...props} />;
+};
+DialogPortal.displayName = "DialogPortal";
 
 const DialogClose = DialogPrimitive.Close;
 
@@ -29,22 +38,29 @@ const DialogOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
     overlayMode?: DialogOverlayMode;
   }
->(({ className, overlayMode = "subtle", ...props }, ref) => (
+>(({ className, overlayMode = "subtle", onClick, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
       motionStyles.overlay,
-      "fixed inset-0 z-50",
+      "fixed inset-0",
       dialogOverlayClasses[overlayMode],
       className,
     )}
+    // The dialog portals its DOM out of the app tree, but React synthetic
+    // events still bubble through the REACT tree — into whatever rendered the
+    // dialog (e.g. a clickable table row). Backdrop clicks must not leak there.
+    onClick={(e) => {
+      onClick?.(e);
+      e.stopPropagation();
+    }}
     {...props}
   />
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-modal shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -62,12 +78,15 @@ const dialogContentVariants = cva(
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    confirmCloseOnEscape?: string;
-    overlayMode?: DialogOverlayMode;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      stopPropagationOnEnterSpace?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {
@@ -78,6 +97,7 @@ const DialogContent = React.forwardRef<
       overlayMode = "subtle",
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
+      onClick,
       size,
       ...props
     },
@@ -116,6 +136,12 @@ const DialogContent = React.forwardRef<
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
           onEscapeKeyDown={handleEscapeKeyDown}
+          // See DialogOverlay: clicks inside the dialog must not bubble
+          // through the React tree into the component that rendered it.
+          onClick={(e) => {
+            onClick?.(e);
+            e.stopPropagation();
+          }}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();
@@ -142,15 +168,34 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+const dialogHeaderVariants = cva(
+  "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  {
+    variants: {
+      variant: {
+        default: "border-b",
+        // Borderless confirm dialogs drop the divider, so trim the bottom
+        // padding to keep title and body from drifting apart.
+        action: "pb-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogHeader = ({
   className,
   children,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogHeaderVariants>) => (
   <div
     className={cn(
-      "dialog-header bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg border-b p-4",
-      className,
+      "dialog-header",
+      dialogHeaderVariants({ variant, className }),
     )}
     {...props}
   >
@@ -180,14 +225,33 @@ const DialogBody = React.forwardRef<
 ));
 DialogBody.displayName = "DialogBody";
 
+const dialogFooterVariants = cva(
+  "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  {
+    variants: {
+      variant: {
+        default: "border-t",
+        // Borderless confirm dialogs drop the divider, so trim the top padding
+        // to pull the buttons closer to the content.
+        action: "pt-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogFooter = ({
   className,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogFooterVariants>) => (
   <div
     className={cn(
-      "dialog-footer bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg border-t p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
-      className,
+      "dialog-footer",
+      dialogFooterVariants({ variant, className }),
     )}
     {...props}
   />
@@ -200,10 +264,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-xl leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-xl leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));

@@ -30,6 +30,7 @@ import {
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
   buildS3RequestDiagnostics,
+  isS3DiagnosableError,
   type S3DiagnosticsContext,
 } from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
@@ -143,11 +144,15 @@ function createS3RequestHandler(
 
 /**
  * Register a diagnostics middleware on an {@link S3Client} that logs the
- * structured error and request context when any S3 request fails.
+ * structured error and request context when a request fails with a
+ * signing/authorization or backend-configuration error (see
+ * {@link isS3DiagnosableError}).
  *
- * Runs at the `deserialize` step so the SDK has already turned an error
- * response into a typed exception with request IDs and status code.
- * Best-effort: never alters or masks the original failure.
+ * Runs at the `deserialize` step so the SDK has already turned the response
+ * into a typed exception with request IDs and status code. Logging is gated to
+ * actionable, non-retryable errors so unrelated or transient failures
+ * (`NoSuchKey`, throttling/`SlowDown`, timeouts) don't emit noise or one line
+ * per SDK retry. Best-effort: never alters or masks the original failure.
  */
 function addS3DiagnosticsMiddleware(
   client: S3Client,
@@ -167,7 +172,9 @@ function addS3DiagnosticsMiddleware(
             err,
             context,
           );
-          logger.warn("S3 request failed; emitting diagnostics", diagnostics);
+          if (isS3DiagnosableError(diagnostics.error)) {
+            logger.warn("S3 request failed; emitting diagnostics", diagnostics);
+          }
         } catch {
           // Never let diagnostics logging mask the original failure.
         }
@@ -263,6 +270,11 @@ export interface StorageService {
 
   deleteFiles(paths: string[]): Promise<void>;
 }
+
+// Keys per S3 DeleteObjects request. The API hard limit is 1000; 900 leaves a
+// margin. Exported so callers that batch their own deletes can size a batch to
+// exactly one request instead of duplicating the number.
+export const S3_DELETE_OBJECTS_CHUNK_SIZE = 900;
 
 export class StorageServiceFactory {
   /**
@@ -500,12 +512,12 @@ class AzureBlobStorageService implements StorageService {
     readableStream: NodeJS.ReadableStream,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const chunks: string[] = [];
+      const chunks: Buffer[] = [];
       readableStream.on("data", (data) => {
-        chunks.push(data.toString());
+        chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
       readableStream.on("end", () => {
-        resolve(chunks.join(""));
+        resolve(Buffer.concat(chunks).toString("utf-8"));
       });
       readableStream.on("error", reject);
     });
@@ -891,7 +903,7 @@ class S3StorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -918,7 +930,7 @@ class S3StorageService implements StorageService {
   }
 
   async deleteFilesNonRetrying(paths: string[]): Promise<void> {
-    const chunkSize = 900;
+    const chunkSize = S3_DELETE_OBJECTS_CHUNK_SIZE;
     const chunks = [];
 
     for (let i = 0; i < paths.length; i += chunkSize) {
@@ -929,6 +941,11 @@ class S3StorageService implements StorageService {
       for (const chunk of chunks) {
         const command = new DeleteObjectsCommand({
           Bucket: this.bucketName,
+          // Unset keeps the SDK default (CRC32). Some S3-compatible stores
+          // reject CRC32 with 400 MissingContentMD5 and need "MD5", which the
+          // SDK sends as the legacy Content-MD5 header, e.g. MinIO before
+          // RELEASE.2025-02-03 (langfuse/langfuse-k8s#356).
+          ChecksumAlgorithm: env.LANGFUSE_S3_DELETE_OBJECTS_CHECKSUM_ALGORITHM,
           Delete: {
             Objects: chunk.map((path) => ({ Key: path })),
             Quiet: true,
@@ -1045,10 +1062,11 @@ class GoogleCloudStorageService implements StorageService {
             .on("finish", () => {
               resolve();
             });
+          return;
         });
-      } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      throw new Error("Unsupported data type. Must be Readable or string.");
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,
@@ -1149,7 +1167,18 @@ class GoogleCloudStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = false,
+    asAttachment = false,
+  ): Promise<string> {
+    return backOff(
+      () => this.getSignedUrlNonRetrying(fileName, ttlSeconds, asAttachment),
+      { numOfAttempts: 3 },
+    );
+  }
+
+  async getSignedUrlNonRetrying(
+    fileName: string,
+    ttlSeconds: number,
+    asAttachment = false,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1176,6 +1205,18 @@ class GoogleCloudStorageService implements StorageService {
   }
 
   public async getSignedUploadUrl(params: {
+    path: string;
+    ttlSeconds: number;
+    sha256Hash: string;
+    contentType: string;
+    contentLength: number;
+  }): Promise<string> {
+    return backOff(() => this.getSignedUploadUrlNonRetrying(params), {
+      numOfAttempts: 3,
+    });
+  }
+
+  async getSignedUploadUrlNonRetrying(params: {
     path: string;
     ttlSeconds: number;
     sha256Hash: string;
@@ -1231,7 +1272,7 @@ class OCIObjectStorageService implements StorageService {
   private clientInit: Promise<void>;
   private bucketName: string;
   private externalEndpoint?: string;
-  private namespaceName: string = "";
+  private namespaceName = "";
 
   constructor(params: {
     bucketName: string;
@@ -1612,7 +1653,7 @@ class OCIObjectStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();

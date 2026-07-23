@@ -54,7 +54,7 @@ export default function NewEvaluatorPage() {
     scope: "evalTemplate:CUD",
   });
 
-  const evalTemplates = api.evals.allTemplates.useQuery(
+  const evalTemplates = api.evals.latestTemplates.useQuery(
     {
       projectId,
       limit: 500,
@@ -65,11 +65,26 @@ export default function NewEvaluatorPage() {
     },
   );
 
-  const currentTemplate = evalTemplates.data?.templates
-    .filter((template) =>
-      shouldShowEvalTemplate(template, codeEvalCapabilities),
-    )
-    .find((t) => t.id === evaluatorId);
+  // resolve by id (not via the latest-only list) so deep links to older
+  // template versions keep working and trigger the "use updated" banner
+  const currentTemplateQuery = api.evals.templateById.useQuery(
+    { projectId, id: evaluatorId as string },
+    { enabled: hasAccess && !!evaluatorId },
+  );
+  const currentTemplate =
+    currentTemplateQuery.data &&
+    shouldShowEvalTemplate(currentTemplateQuery.data, codeEvalCapabilities)
+      ? currentTemplateQuery.data
+      : undefined;
+
+  // deep links may reference an older version that the latest-only list
+  // does not contain; include it so the form can still render it
+  const latestEvalTemplates = evalTemplates.data?.templates ?? [];
+  const formEvalTemplates =
+    currentTemplate &&
+    !latestEvalTemplates.some((template) => template.id === currentTemplate.id)
+      ? [...latestEvalTemplates, currentTemplate]
+      : latestEvalTemplates;
 
   const templatesForCurrentName = api.evals.allTemplatesForName.useQuery(
     {
@@ -162,7 +177,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 step !== "select"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               1. Select Evaluator
@@ -176,7 +191,7 @@ export default function NewEvaluatorPage() {
             <BreadcrumbPage
               className={cn(
                 isProviderStepActive
-                  ? "text-foreground font-semibold"
+                  ? "text-foreground font-bold"
                   : "text-muted-foreground",
               )}
             >
@@ -192,7 +207,7 @@ export default function NewEvaluatorPage() {
               className={cn(
                 step !== "run"
                   ? "text-muted-foreground"
-                  : "text-foreground font-semibold",
+                  : "text-foreground font-bold",
               )}
             >
               <div className="flex flex-row">
@@ -260,7 +275,7 @@ export default function NewEvaluatorPage() {
             <RunEvaluatorForm
               projectId={projectId}
               evaluatorId={evaluatorId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
+              evalTemplates={formEvalTemplates}
             />
           </div>
         )

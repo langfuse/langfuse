@@ -156,7 +156,7 @@ ensure_migrate_binary() {
       ;;
   esac
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "$tmp_dir"' RETURN
+  trap 'rm -rf "${tmp_dir:-}"' RETURN
 
   download_and_verify_sha256 \
     "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_RELEASE_TAG}/migrate.linux-${migrate_arch}.tar.gz" \

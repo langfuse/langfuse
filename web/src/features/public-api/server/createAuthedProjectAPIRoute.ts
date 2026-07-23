@@ -25,6 +25,7 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -74,10 +75,10 @@ export type AuthedProjectAPIRouteConfig<
   allowInAppAgentKey?: boolean;
   /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
-   * "events_only". Set this on routes that read from the legacy traces or
-   * observations ClickHouse tables without an events_full fallback — those
-   * tables are no longer populated in events_only mode and would silently
-   * return stale or empty data.
+   * "events_only". Set this on routes that read from the legacy traces,
+   * observations, or dataset_run_items ClickHouse tables without an
+   * events_full fallback — those tables are no longer populated in
+   * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
   fn: (params: {
@@ -433,6 +434,10 @@ export const createAuthedProjectAPIRoute = <
       headers: req.headers,
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
+      clickhouse: {
+        surface: "publicapi",
+        route: clickHouseRouteForRequest(req),
+      },
     });
     return opentelemetry.context.with(ctx, async () => {
       const response = await routeConfig.fn({

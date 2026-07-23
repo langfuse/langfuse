@@ -630,7 +630,7 @@ export function DatasetRunsTable(props: {
                         key={key}
                         className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -664,7 +664,7 @@ export function DatasetRunsTable(props: {
                         key={key}
                         className="flex h-full max-w-full min-w-80 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -681,7 +681,7 @@ export function DatasetRunsTable(props: {
                       key={key}
                       className="flex h-full max-w-full min-w-80 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">
@@ -693,9 +693,6 @@ export function DatasetRunsTable(props: {
                             type: chartType,
                             unit: getCompareViewChartUnit(key),
                           }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
                         />
                       </div>
                     </div>
@@ -711,6 +708,7 @@ export function DatasetRunsTable(props: {
           >
             <DataTableToolbar
               columns={columns}
+              tableName="dataset-runs"
               filterColumnDefinition={transformedFilterOptions}
               filterState={userFilterState}
               setFilterState={setFilterState}
@@ -738,7 +736,7 @@ export function DatasetRunsTable(props: {
               ]}
             />
             <DataTable
-              tableName={"datasetRuns"}
+              tableName="datasetRuns"
               columns={columns}
               data={
                 runs.isPending
@@ -776,6 +774,7 @@ export function DatasetRunsTable(props: {
         <>
           <DataTableToolbar
             columns={columns}
+            tableName="dataset-runs"
             filterColumnDefinition={transformedFilterOptions}
             filterState={userFilterState}
             setFilterState={setFilterState}
@@ -802,7 +801,7 @@ export function DatasetRunsTable(props: {
             ]}
           />
           <DataTable
-            tableName={"datasetRuns"}
+            tableName="datasetRuns"
             columns={columns}
             data={
               runs.isPending

@@ -62,7 +62,7 @@ export default function ExperimentAnalytics() {
             <FlaskConical className="text-muted-foreground h-8 w-8" />
           </div>
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold tracking-tight">
+            <h3 className="text-xl font-bold tracking-tight">
               Analytics Coming Soon
             </h3>
             <p className="text-muted-foreground text-sm leading-relaxed">

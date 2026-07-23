@@ -61,7 +61,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   };
 
   // Fetch templates
-  const templates = api.evals.allTemplates.useQuery(
+  const templates = api.evals.latestTemplates.useQuery(
     {
       projectId,
     },
@@ -119,7 +119,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
     <>
       <div className="mb-4 flex max-h-full min-h-0 flex-col gap-5">
         <div className="shrink-0 space-y-2">
-          <h2 className="text-base font-semibold">Create from scratch</h2>
+          <h2 className="text-base font-bold">Create from scratch</h2>
           <div className="flex flex-wrap gap-3">
             {isCodeEvalEnabled ? (
               <Button
@@ -130,7 +130,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
               >
                 <Code2 className="h-5 w-5 shrink-0" />
                 <span className="flex flex-col gap-1">
-                  <span className="font-medium">Code evaluator</span>
+                  <span className="font-bold">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
                     Use code to create Langfuse scores.
                   </span>
@@ -147,7 +147,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             >
               <Bot className="h-5 w-5 shrink-0" />
               <span className="flex flex-col gap-1">
-                <span className="font-medium">LLM as a judge evaluator</span>
+                <span className="font-bold">LLM as a judge evaluator</span>
                 <span className="text-muted-foreground text-sm font-normal">
                   Use a prompt and model to score traces or observations.
                 </span>
@@ -157,7 +157,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         </div>
 
         <div className="flex max-h-full min-h-0 flex-col gap-2">
-          <h2 className="shrink-0 text-base font-semibold">Use existing</h2>
+          <h2 className="shrink-0 text-base font-bold">Use existing</h2>
           <Card className="grid max-h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-y-auto p-3">
             <div className="flex min-h-0 flex-col overflow-hidden">
               {templates.isLoading ? (
@@ -244,7 +244,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                     setIsCreateTemplateOpen(false);
                     setCustomEvaluatorType(null);
                     setUseLlmCreateWizard(false);
-                    utils.evals.allTemplates.invalidate();
+                    utils.evals.latestTemplates.invalidate();
                     if (newTemplate) {
                       handleSelectEvaluator(newTemplate);
                     }
@@ -265,7 +265,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 }
                 setIsCreateTemplateOpen(false);
                 setCustomEvaluatorType(null);
-                utils.evals.allTemplates.invalidate();
+                utils.evals.latestTemplates.invalidate();
                 if (newTemplate) {
                   handleSelectEvaluator(newTemplate);
                 }
@@ -313,7 +313,7 @@ function CreateLlmEvaluatorWizard({
               <Fragment key={step.id}>
                 <BreadcrumbItem>
                   {isActive ? (
-                    <BreadcrumbPage className="flex items-center font-semibold">
+                    <BreadcrumbPage className="flex items-center font-bold">
                       {isComplete ? (
                         <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
                       ) : null}

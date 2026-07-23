@@ -36,7 +36,6 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
-import { seedMediaTraces } from "./seed-media";
 
 const options = {
   environment: { type: "string" },
@@ -50,10 +49,20 @@ const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
   "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
 );
 
-const inAppAgentSystemPrompt = readFileSync(
-  IN_APP_AGENT_SYSTEM_PROMPT_PATH,
-  "utf-8",
-);
+// The path above resolves to `web/src` relative to this file, which only exists
+// in a monorepo checkout. In built/published packages (e.g. the worker image
+// that runs the seeder in deployed environments) the web source isn't present,
+// so fall back to an empty prompt instead of throwing at import time — the
+// in-app-agent demo prompt is optional seed content.
+let inAppAgentSystemPrompt = "";
+try {
+  inAppAgentSystemPrompt = readFileSync(
+    IN_APP_AGENT_SYSTEM_PROMPT_PATH,
+    "utf-8",
+  );
+} catch {
+  inAppAgentSystemPrompt = "";
+}
 
 async function main() {
   const environment = parseArgs({
@@ -99,6 +108,7 @@ async function main() {
     where: { id: seedOrgId },
     update: {
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -127,6 +137,12 @@ async function main() {
   });
 
   await upsertInAppAgentSystemPrompt(project1.id);
+  // Skip on examples/load: those paths seed this prompt via generatePrompts
+  // (SEED_PROMPT_VERSIONS), whose upsert takes the create branch against a
+  // pre-existing row and violates the (projectId, name, version) constraint.
+  if (environment !== "examples" && environment !== "load") {
+    await upsertNaturalLanguageFilterPrompt(project1.id);
+  }
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -385,9 +401,6 @@ async function main() {
 
     await createDashboardsAndWidgets([project1, project2]);
     await seedDatasetVersions(prisma, [project1.id, project2.id]);
-
-    // Seed media test traces (uploads to MinIO + creates Media/TraceMedia records)
-    await seedMediaTraces(project1.id);
 
     await prisma.llmSchema.createMany({
       data: [
@@ -822,6 +835,42 @@ async function upsertInAppAgentSystemPrompt(projectId: string) {
       prompt: inAppAgentSystemPrompt,
       type: "text",
       labels: ["production", "latest"],
+    },
+  });
+}
+
+// The legacy natural-language filter feature fetches this prompt from the
+// AI-features project at runtime; on self-referential deployments (previews)
+// that project is llm-app, so it must exist on the default seed path too.
+const NATURAL_LANGUAGE_FILTER_PROMPT_NAME = "get-filter-conditions-from-query";
+
+async function upsertNaturalLanguageFilterPrompt(projectId: string) {
+  const seedPrompt = SEED_PROMPT_VERSIONS.find(
+    (p) => p.name === NATURAL_LANGUAGE_FILTER_PROMPT_NAME,
+  );
+  if (!seedPrompt) return;
+
+  await prisma.prompt.upsert({
+    where: {
+      projectId_name_version: {
+        projectId,
+        name: seedPrompt.name,
+        version: seedPrompt.version,
+      },
+    },
+    create: {
+      projectId,
+      createdBy: seedPrompt.createdBy,
+      prompt: seedPrompt.prompt,
+      name: seedPrompt.name,
+      type: seedPrompt.type ?? "text",
+      version: seedPrompt.version,
+      labels: seedPrompt.labels,
+    },
+    update: {
+      prompt: seedPrompt.prompt,
+      type: seedPrompt.type ?? "text",
+      labels: seedPrompt.labels,
     },
   });
 }

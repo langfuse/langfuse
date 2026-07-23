@@ -20,6 +20,7 @@ type DatasetRunFilterColumnLiterals = ExtractLiterals<
 const CLICKHOUSE_FILTER_COLUMNS: DatasetRunFilterColumnLiterals[] = [
   "Scores (categorical)",
   "Scores (numeric)",
+  "Scores (boolean)",
 ];
 const CLICKHOUSE_FILTER_COLUMNS_SET = new Set(CLICKHOUSE_FILTER_COLUMNS);
 
@@ -52,11 +53,19 @@ export const datasetRunsTableCols: ColumnDefinition[] = [
     options: [], // to be filled in at runtime
     nullable: true,
   },
+  {
+    name: "Scores (boolean)",
+    id: "agg_score_booleans",
+    type: "booleanObject",
+    internal: "agg_score_booleans",
+    nullable: true,
+  },
 ];
 
 export type DatasetRunsOptions = {
   agg_scores_avg?: Array<string>;
   agg_score_categories?: Array<MultiValueOption>;
+  agg_score_booleans?: Array<string>;
 };
 
 export function datasetRunsTableColsWithOptions(
@@ -69,6 +78,9 @@ export function datasetRunsTableColsWithOptions(
     }
     if (col.id === "agg_score_categories") {
       return formatColumnOptions(col, options?.agg_score_categories ?? []);
+    }
+    if (col.id === "agg_score_booleans") {
+      return formatColumnOptions(col, options?.agg_score_booleans ?? []);
     }
     return col;
   });

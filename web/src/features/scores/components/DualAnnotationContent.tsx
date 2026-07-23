@@ -30,7 +30,7 @@ export function DualAnnotationContent({
     <div className="flex max-h-[95vh] flex-col gap-4 overflow-y-auto">
       {/* Observation-level scores */}
       <div>
-        <div className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+        <div className="text-muted-foreground mb-2 text-xs font-bold tracking-wide uppercase">
           Observation Scores
         </div>
         <AnnotationForm
@@ -55,7 +55,7 @@ export function DualAnnotationContent({
 
       {/* Trace-level scores */}
       <div>
-        <div className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+        <div className="text-muted-foreground mb-2 text-xs font-bold tracking-wide uppercase">
           Trace Scores
         </div>
         <AnnotationForm

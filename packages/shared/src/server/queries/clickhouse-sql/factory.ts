@@ -18,6 +18,7 @@ import {
   NumberFilter,
   ArrayOptionsFilter,
   BooleanFilter,
+  BooleanObjectFilter,
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
@@ -30,6 +31,42 @@ export class QueryBuilderError extends Error {
     this.name = "QueryBuilderError";
   }
 }
+
+const LEGACY_SCORE_FILTER_COLUMNS: Partial<
+  Record<EventsTableFilterState[number]["type"], string>
+> = {
+  categoryOptions: "score_categories",
+  numberObject: "scores_avg",
+  booleanObject: "score_booleans",
+};
+
+export const resolveLegacyScoreFilterColumn = (
+  filter: EventsTableFilterState[number],
+  columnMapping: UiColumnMappings,
+): string => {
+  if (filter.column.toLowerCase() !== "scores") {
+    return filter.column;
+  }
+
+  const typedColumn = LEGACY_SCORE_FILTER_COLUMNS[filter.type];
+
+  if (!typedColumn) {
+    throw new InvalidRequestError(
+      `Invalid filter type '${filter.type}' for legacy score column '${filter.column}'. Expected one of 'categoryOptions', 'numberObject', or 'booleanObject'.`,
+    );
+  }
+
+  // The legacy scores mapping aliases only the numeric score aggregate.
+  // Categorical and boolean filters must resolve to their typed mappings.
+  if (
+    filter.type === "numberObject" &&
+    !findUiColumnMapping(columnMapping, typedColumn)
+  ) {
+    return filter.column;
+  }
+
+  return typedColumn;
+};
 
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
@@ -44,8 +81,16 @@ export const createFilterFromFilterState = (
   );
 
   return applicableFilters.map((frontEndFilter) => {
+    const filterColumn = resolveLegacyScoreFilterColumn(
+      frontEndFilter,
+      columnMapping,
+    );
     // checks if the column exists in the clickhouse schema
-    const column = matchAndVerifyTracesUiColumn(frontEndFilter, columnMapping);
+    const column = matchAndVerifyTracesUiColumn(
+      frontEndFilter,
+      columnMapping,
+      filterColumn,
+    );
 
     if (columnDefinitions && frontEndFilter.type !== "null") {
       const colDef = columnDefinitions.find((c) => c.id === column.uiTableId);
@@ -131,6 +176,15 @@ export const createFilterFromFilterState = (
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
         });
+      case "booleanObject":
+        return new BooleanObjectFilter({
+          clickhouseTable: column.clickhouseTableName,
+          field: column.clickhouseSelect,
+          key: frontEndFilter.key,
+          operator: frontEndFilter.operator,
+          value: frontEndFilter.value,
+          tablePrefix: column.queryPrefix,
+        });
       case "stringObject":
         return new StringObjectFilter({
           clickhouseTable: column.clickhouseTableName,
@@ -189,14 +243,15 @@ const validateEventsTableMatchesFilter = (
 const matchAndVerifyTracesUiColumn = (
   filter: EventsTableFilterState[number],
   uiTableDefinitions: UiColumnMappings,
+  filterColumn = filter.column,
 ) => {
   // tries to match the column name to the clickhouse table name
-  const uiTable = findUiColumnMapping(uiTableDefinitions, filter.column);
+  const uiTable = findUiColumnMapping(uiTableDefinitions, filterColumn);
 
   if (!uiTable) {
-    const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;
+    const errorMessage = `Column ${filterColumn} does not match a UI / CH table mapping.`;
     logger.error(errorMessage, {
-      filterColumn: filter.column,
+      filterColumn,
       filterType: filter.type,
       availableColumns: uiTableDefinitions.map(
         (col) => col.uiTableId ?? col.uiTableName,

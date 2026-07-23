@@ -117,9 +117,7 @@ export default function SlackIntegrationSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h4 className="mb-2 text-sm font-medium">
-                  Select Test Channel
-                </h4>
+                <h4 className="mb-2 text-sm font-bold">Select Test Channel</h4>
                 <div className="max-w-md">
                   <ChannelSelector
                     projectId={projectId}
@@ -135,18 +133,18 @@ export default function SlackIntegrationSettings() {
               {selectedChannel && (
                 <div className="space-y-4 border-t pt-4">
                   <div>
-                    <h4 className="mb-3 text-sm font-medium">
+                    <h4 className="mb-3 text-sm font-bold">
                       Channel Information
                     </h4>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
-                        <p className="text-sm font-medium">Channel Name</p>
+                        <p className="text-sm font-bold">Channel Name</p>
                         <p className="text-muted-foreground text-sm">
                           #{selectedChannel.name}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Channel Type</p>
+                        <p className="text-sm font-bold">Channel Type</p>
                         {isManualEntry ? (
                           <span className="text-muted-foreground text-xs">
                             Available after sending a test message
@@ -158,7 +156,7 @@ export default function SlackIntegrationSettings() {
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-medium">Channel ID</p>
+                        <p className="text-sm font-bold">Channel ID</p>
                         {isManualEntry ? (
                           <span className="text-muted-foreground text-xs">
                             Available after sending a test message

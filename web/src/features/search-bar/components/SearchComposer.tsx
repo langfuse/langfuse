@@ -16,7 +16,7 @@
 
 import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, WandSparkles, X } from "lucide-react";
 
 import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
@@ -25,13 +25,13 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
+  applyPick,
   flattenOptions,
   planInputCompletions,
   type CompletionOption,
@@ -52,6 +52,10 @@ import {
   COMPOSER_PLACEHOLDER,
   optionDomId,
 } from "@/src/features/search-bar/components/presentation";
+import {
+  COMPOSER_SURFACE_CLASSES,
+  COMPOSER_TEXT_CLASSES,
+} from "@/src/features/search-bar/components/composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -286,10 +290,32 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  erroredColumns,
+  onActivateAi,
+  onRequestColumns,
+  fieldReason,
+  freeTextReason,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** Columns whose lazy fetch terminally errored — settle the value-stage
+   *  loading row to empty (per column) instead of pinning it (matches the
+   *  sidebar), without blocking other columns from loading. */
+  erroredColumns?: ReadonlySet<string>;
+  /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
+  onActivateAi?: () => void;
+  /**
+   * Lazy filter-options: request a field's observed values on demand when the
+   * caret enters its value stage (e.g. typing `userId:`). No-op unless lazy
+   * loading is wired by the host table.
+   */
+  onRequestColumns?: (columns: readonly string[]) => void;
+  /** Given a filter token's field, the reason it is not applied on the current
+   *  surface (dims the pill + hover), or null. Undefined leaves all active. */
+  fieldReason?: (field: string) => string | null;
+  /** Reason free-text tokens are not applied on the current surface, or null. */
+  freeTextReason?: string | null;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -350,10 +376,20 @@ export function SearchComposer({
           input: draft,
           caret: Math.min(caret, draft.length),
           observed,
+          erroredColumns,
           recents,
           currentQueryText: draft,
         })
       : null;
+  // Lazy filter-options: when the current completion stage needs option columns
+  // that have not loaded yet, ask the host table to fetch them. Keyed on the
+  // joined column list so it fires once per distinct need, not every keystroke.
+  const requestColumnsKey = plan?.requestColumns?.join(",") ?? "";
+  React.useEffect(() => {
+    if (!onRequestColumns || requestColumnsKey.length === 0) return;
+    onRequestColumns(requestColumnsKey.split(","));
+  }, [requestColumnsKey, onRequestColumns]);
+
   const options = flattenOptions(plan);
   // Highlight policy: Enter only picks what typing narrowed. Explicit user
   // highlights (arrows/hover) always win; otherwise only plans that completed
@@ -678,7 +714,9 @@ export function SearchComposer({
       // it reveals the invalid draft and returns null. On success it returns the
       // CANONICAL committed text in its RESTING form (trailing space when
       // non-empty) — the same text the resetTo effect re-derives.
-      const committedText = commitToFilterState();
+      const committedText = commitToFilterState(
+        advanceToTrailingSpace ? "enter" : "blur",
+      );
       if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
@@ -727,7 +765,7 @@ export function SearchComposer({
   // (the `commit` path above) or blur. writeDraft ran synchronously, so the
   // freshly-set draftValid is current here.
   const commitStructuredEdit = React.useCallback(() => {
-    if (storeApi.getState().draftValid) commitToFilterState();
+    if (storeApi.getState().draftValid) commitToFilterState("pick");
   }, [storeApi, commitToFilterState]);
 
   const pickOption = React.useCallback(
@@ -747,82 +785,24 @@ export function SearchComposer({
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
         // recent stored before a grammar tightening, or a since-retyped score).
         const state = storeApi.getState();
-        if (state.draftValid) commitToFilterState();
+        if (state.draftValid) commitToFilterState("pick");
         else state.actions.revealInvalid();
         setAutocompleteOpen(false);
         return;
       }
 
-      const current = draftRef.current;
-      let insert: string;
-      let keepOpen: boolean;
-      let replaceFrom = currentPlan.from;
-      let replaceTo = currentPlan.to;
-      if (option.kind === "field") {
-        // Replacing the key of an existing filter: the span ends AT the colon,
-        // so the insert must not bring its own.
-        const colonFollows = current.slice(currentPlan.to).startsWith(":");
-        insert = option.fieldId.endsWith(".")
-          ? option.fieldId
-          : colonFollows
-            ? option.fieldId
-            : `${option.fieldId}:`;
-        keepOpen = true;
-        // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
-        // partial key. When an existing `:value` follows the replaced key, the
-        // bare prefix would splice in front of it (`meta:foo` -> broken
-        // `metadata.:foo`). Consume the whole term so the user re-picks the key
-        // from observed options instead.
-        if (option.fieldId.endsWith(".") && colonFollows) {
-          replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
-        }
-      } else if (option.kind === "value") {
-        insert = serializeValue(option.value);
-        keepOpen = currentPlan.keepOpenOnPick ?? false;
-      } else {
-        insert = option.insert;
-        // A scope rewrite carries its own span (the whole coalesced free-text
-        // run), so it replaces that, not just the token under the caret.
-        if (option.kind === "pattern" && option.replaceSpan) {
-          replaceFrom = option.replaceSpan.from;
-          replaceTo = option.replaceSpan.to;
-        }
-        // A trailing `:`, ` `, or `(` drops the caret into an interactive
-        // context (value stage, next field, or an open array group like
-        // `tags:(`) — keep the popover open so the next pick is immediate.
-        keepOpen =
-          option.insert.endsWith(":") ||
-          option.insert.endsWith(" ") ||
-          option.insert.endsWith("(");
-      }
-
-      // A pick that COMPLETES a filter token — a value (`name:checkout`) or a
-      // ready-to-run suggestion (`level:DEFAULT`) — and sits at the END of the
-      // draft advances to a fresh token: append a trailing space, drop the caret
-      // AFTER it (OUTSIDE the just-completed pill), and reopen field suggestions
-      // for the next filter, instead of leaving the caret inside the pill where
-      // typing would edit what was just picked. Picks that invite more input (a
-      // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
-      // value entry, and mid-query edits (non-whitespace follows) stay put.
-      const grouped = currentPlan.keepOpenOnPick ?? false;
-      const invitesMoreInput =
-        option.kind === "field" || // a `field:` key always needs a value next
-        insert.endsWith(":") ||
-        insert.endsWith(" ") ||
-        insert.endsWith("(");
-      const completesFilterAtEnd =
-        !grouped &&
-        !invitesMoreInput &&
-        current.slice(replaceTo).trim().length === 0;
-      if (completesFilterAtEnd) {
-        insert += " ";
-        // Consume any existing trailing whitespace so the space never doubles.
-        replaceTo = current.length;
-        keepOpen = true;
-      }
-
-      const next = replaceRange(current, replaceFrom, replaceTo, insert);
-      const caretAt = replaceFrom + insert.length;
+      // The pure text/caret computation — insert, caret placement, and whether
+      // to keep the popover open — lives in `applyPick` (unit-tested). A pick
+      // that COMPLETES a filter at the END of the draft appends a trailing space
+      // and drops the caret OUTSIDE the pill (next-filter affordance); a pick
+      // that INVITES MORE INPUT (a `field:` key, a `metadata.` prefix, an open
+      // `tags:(` group, a comparison/logical operator awaiting its value) keeps
+      // the caret in place.
+      const {
+        next,
+        caret: caretAt,
+        keepOpen,
+      } = applyPick(option, draftRef.current, currentPlan);
       setDraftWithSelection(next, caretAt);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
@@ -1298,15 +1278,27 @@ export function SearchComposer({
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
           // centers a single line near min-h-9 and the box grows when wrapped.
-          // pr-8 keeps the top-right error icon clear of the last token.
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-8",
+          // Right gutter keeps the last token clear of the top-right control:
+          // the "Ask AI" button (pr-20), or the error icon (pr-8).
+          // Box + text metrics are shared with the preview surface
+          // (composer-chrome.ts) so the overlay renders pixel-identical.
+          COMPOSER_SURFACE_CLASSES,
+          onActivateAi !== undefined && !showGlobalDiagnostics
+            ? "pr-20"
+            : "pr-8",
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",
         )}
       >
         {draft.length === 0 && (
-          <div className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate pr-8 font-mono text-xs">
+          <div
+            className={cn(
+              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+              onActivateAi !== undefined ? "pr-20" : "pr-8",
+            )}
+            title={COMPOSER_PLACEHOLDER}
+          >
             {COMPOSER_PLACEHOLDER}
           </div>
         )}
@@ -1339,7 +1331,10 @@ export function SearchComposer({
           // below the ~24px pills ("too big"). 24px matches the pill height so
           // the caret aligns with the pills. Trade-off: tighter gap between
           // wrapped lines of pills (single-line is unaffected).
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className={cn(
+            COMPOSER_TEXT_CLASSES,
+            "caret-[hsl(var(--foreground))] outline-none",
+          )}
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
@@ -1362,8 +1357,45 @@ export function SearchComposer({
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
+            fieldReason={fieldReason}
+            freeTextReason={freeTextReason}
           />
         </div>
+        {/* "Ask AI" affordance — a plain button, always available so filters can
+            be built from scratch OR refined. Placed AFTER the field in the DOM so
+            forward Tab moves from the field onto this button (not past the bar).
+            Deliberately NOT a Tab shortcut: while typing, Tab belongs to
+            autocomplete navigation. Hidden while the error icon occupies the
+            corner. bg-background keeps it legible; onMouseDown preventDefault so a
+            click doesn't blur the editor first. */}
+        {onActivateAi !== undefined && !showGlobalDiagnostics && (
+          <button
+            type="button"
+            data-testid="search-bar-ask-ai"
+            aria-label="Ask AI to build or refine filters"
+            title={
+              draft.trim().length === 0
+                ? "Describe filters in natural language"
+                : "Refine these filters with AI"
+            }
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivateAi();
+            }}
+            className={cn(
+              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "bg-background text-muted-foreground font-sans text-xs",
+              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+              // Match the app's focus ring (ring-ring) instead of the browser's
+              // default blue outline, like the shared Button used elsewhere.
+              "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+            )}
+          >
+            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Ask AI</span>
+          </button>
+        )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
             (z-20) < autocomplete popover (z-50). Both the X and the popover drop
             BELOW the bar, staying in-flow inside the table. The error tooltip is

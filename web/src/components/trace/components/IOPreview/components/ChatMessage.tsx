@@ -22,6 +22,7 @@ import {
   hasRedactedThinkingContent,
 } from "./chat-message-utils";
 import { ThinkingBlock, RedactedThinkingBlock } from "./ThinkingBlock";
+import { type IOPreviewContentMode } from "../IOPreview";
 
 // View mode for pretty/json toggle
 export type ViewMode = "pretty" | "json";
@@ -33,6 +34,7 @@ export interface ChatMessageProps {
   currentView: ViewMode;
   toolCallNumbers?: number[];
   isOutputMessage?: boolean;
+  contentMode?: IOPreviewContentMode;
 }
 
 /**
@@ -50,31 +52,37 @@ export function ChatMessage({
   currentView,
   toolCallNumbers,
   isOutputMessage,
+  contentMode = "all",
 }: ChatMessageProps) {
   const [showTableView, setShowTableView] = useState(false);
 
   const title = getMessageTitle(message);
   const toolCalls = parseToolCallsFromMessage(message);
   const hasContent = hasRenderableContent(message);
+  // Collapse from the raw role: the title is the message `name` when present,
+  // so name-bearing system prompts would otherwise never collapse.
+  const isSystemPrompt = message.role === "system";
+  const showData = contentMode !== "conversation";
 
   // Toggle button for passthrough JSON
-  const passthroughToggleButton = hasPassthroughJson(message) ? (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      onClick={() => setShowTableView((v) => !v)}
-      title={
-        showTableView ? "Show formatted view" : "Show passthrough JSON data"
-      }
-      className="hover:bg-border -mr-2"
-    >
-      {showTableView ? (
-        <ListChevronsDownUp className="text-primary h-3 w-3" />
-      ) : (
-        <ListChevronsUpDown className="h-3 w-3" />
-      )}
-    </Button>
-  ) : undefined;
+  const passthroughToggleButton =
+    showData && hasPassthroughJson(message) ? (
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        onClick={() => setShowTableView((v) => !v)}
+        title={
+          showTableView ? "Show formatted view" : "Show passthrough JSON data"
+        }
+        className="hover:bg-border -mr-2"
+      >
+        {showTableView ? (
+          <ListChevronsDownUp className="text-primary h-3 w-3" />
+        ) : (
+          <ListChevronsUpDown className="h-3 w-3" />
+        )}
+      </Button>
+    ) : undefined;
 
   // Placeholder message
   if (isPlaceholderMessage(message)) {
@@ -84,7 +92,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderClassName="bg-primary-foreground"
+            customCodeHeaderClassName="bg-card"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -184,13 +192,14 @@ export function ChatMessage({
             content={message.content || ""}
             customCodeHeaderClassName={cn(
               message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-primary-foreground",
+              message.role === "system" && "bg-card",
             )}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
+            isSystemPrompt={isSystemPrompt}
           />
-          {toolCalls.length > 0 && (
+          {showData && toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
                 message={message}
@@ -208,8 +217,9 @@ export function ChatMessage({
             currentView={currentView}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
+            isSystemPrompt={isSystemPrompt}
           />
-          {toolCalls.length > 0 && (
+          {showData && toolCalls.length > 0 && (
             <div className="mt-2">
               <ToolCallInvocationsView
                 message={message}

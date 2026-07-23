@@ -26,9 +26,11 @@ export * from "./domain/webhooks";
 export * from "./domain/dataset-run-items";
 export * from "./domain/dataset-items";
 export * from "./domain/score-configs";
+export * from "./domain/home-dashboard";
 
 // llm api
 export * from "./server/llm/types";
+export * from "./server/llm/promptToolConfig";
 
 // evals
 export * from "./features/evals/types";
@@ -90,6 +92,7 @@ export * from "./errors/index";
 
 export * from "./utils/environment";
 export * from "./interfaces/search";
+export { normalizeIngestionSdkName } from "./server/ingestion/ingestionAttribution";
 
 // domain
 export * from "./domain";

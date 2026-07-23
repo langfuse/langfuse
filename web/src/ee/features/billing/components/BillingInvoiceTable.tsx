@@ -282,11 +282,11 @@ export function BillingInvoiceTable() {
   return (
     <div className="space-y-0">
       <div className="flex items-center justify-between pt-4">
-        <h3 className="font-medium">Invoice History</h3>
+        <h3 className="font-bold">Invoice History</h3>
       </div>
       <DataTableToolbar columns={columns} />
       <DataTable
-        tableName={"invoices"}
+        tableName="invoices"
         columns={columns}
         data={data}
         pagination={{
@@ -304,5 +304,3 @@ export function BillingInvoiceTable() {
     </div>
   );
 }
-
-export default BillingInvoiceTable;
