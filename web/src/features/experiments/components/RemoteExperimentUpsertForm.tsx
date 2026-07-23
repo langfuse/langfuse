@@ -1,7 +1,8 @@
-import React from "react";
-import { useForm } from "react-hook-form";
+import React, { useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Lock, LockOpen, Plus, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -26,15 +27,25 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
+import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { type Prisma } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { REMOTE_EXPERIMENT_PROTECTED_HEADERS } from "@/src/features/datasets/remoteExperimentConstants";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
   enabled: z.boolean(),
+  headers: z.array(
+    z.object({
+      name: z.string(),
+      value: z.string(),
+      isSecret: z.boolean(),
+      displayValue: z.string().optional(),
+    }),
+  ),
 });
 
 type RemoteExperimentSetupForm = z.infer<typeof RemoteExperimentSetupSchema>;
@@ -52,6 +63,8 @@ export const RemoteExperimentUpsertForm = ({
     url: string;
     payload: Prisma.JsonValue;
     enabled?: boolean;
+    displaySecretKey?: string | null;
+    displayHeaders?: Record<string, { secret: boolean; value: string }>;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
   onBack?: () => void;
@@ -67,27 +80,51 @@ export const RemoteExperimentUpsertForm = ({
   });
   const utils = api.useUtils();
 
+  // Set when the mutation generated a new signing secret; shown exactly once.
+  const [oneTimeSecret, setOneTimeSecret] = useState<string | null>(null);
+
   const form = useForm<RemoteExperimentSetupForm>({
     resolver: zodResolver(RemoteExperimentSetupSchema),
     defaultValues: {
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
       enabled: existingRemoteExperiment?.enabled ?? true,
+      headers: Object.entries(
+        existingRemoteExperiment?.displayHeaders ?? {},
+      ).map(([name, header]) => ({
+        name,
+        value: "",
+        isSecret: header.secret,
+        displayValue: header.value,
+      })),
     },
+  });
+
+  const {
+    fields: headerFields,
+    append: appendHeader,
+    remove: removeHeader,
+  } = useFieldArray({
+    control: form.control,
+    name: "headers",
   });
 
   const upsertRemoteExperimentMutation =
     api.datasets.upsertRemoteExperiment.useMutation({
-      onSuccess: () => {
+      onSuccess: (data) => {
         showSuccessToast({
           title: "Setup successfully",
           description: "Your changes have been saved.",
         });
-        setShowRemoteExperimentUpsertForm(false);
         utils.datasets.getRemoteExperiment.invalidate({
           projectId,
           datasetId,
         });
+        if (data.unencryptedSecretKey) {
+          setOneTimeSecret(data.unencryptedSecretKey);
+        } else {
+          setShowRemoteExperimentUpsertForm(false);
+        }
       },
       onError: (error) => {
         showErrorToast(
@@ -131,12 +168,30 @@ export const RemoteExperimentUpsertForm = ({
       }
     }
 
+    const requestHeaders: Record<string, { secret: boolean; value: string }> =
+      {};
+    for (const [index, header] of data.headers.entries()) {
+      const name = header.name.trim();
+      if (!name) continue;
+      if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(name.toLowerCase())) {
+        form.setError(`headers.${index}.name`, {
+          message: `"${name}" is set by Langfuse and cannot be overridden`,
+        });
+        return;
+      }
+      requestHeaders[name] = {
+        secret: header.isSecret,
+        value: header.value,
+      };
+    }
+
     upsertRemoteExperimentMutation.mutate({
       projectId,
       datasetId,
       url: data.url,
       defaultPayload: data.defaultPayload,
       enabled: data.enabled,
+      requestHeaders,
     });
   };
 
@@ -159,6 +214,33 @@ export const RemoteExperimentUpsertForm = ({
 
   if (dataset.isPending) {
     return <Skeleton className="h-48 w-full" />;
+  }
+
+  if (oneTimeSecret) {
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle>Save your signing secret</DialogTitle>
+          <DialogDescription>
+            Langfuse signs every remote experiment request with this secret via
+            the <code>x-langfuse-signature</code> header. Store it in your
+            service to verify that requests come from Langfuse. It can only be
+            viewed once.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <CodeView content={oneTimeSecret} defaultCollapsed={false} />
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            onClick={() => setShowRemoteExperimentUpsertForm(false)}
+          >
+            {"I've saved the secret"}
+          </Button>
+        </DialogFooter>
+      </>
+    );
   }
 
   return (
@@ -244,6 +326,124 @@ export const RemoteExperimentUpsertForm = ({
                 </FormItem>
               )}
             />
+
+            <div>
+              <FormLabel>Custom headers</FormLabel>
+              <FormDescription className="mb-2">
+                Optional headers to include in the request, e.g. for
+                authenticating with your service. Secret header values are
+                stored encrypted and shown masked.
+              </FormDescription>
+
+              {headerFields.map((field, index) => {
+                const isSecret = form.watch(`headers.${index}.isSecret`);
+                const displayValue = form.watch(
+                  `headers.${index}.displayValue`,
+                );
+
+                return (
+                  <div
+                    key={field.id}
+                    className="mb-2 grid grid-cols-[1fr_1fr_auto_auto] gap-2"
+                  >
+                    <FormField
+                      control={form.control}
+                      name={`headers.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Header Name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`headers.${index}.value`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              placeholder={displayValue || "Value"}
+                              {...field}
+                              type={isSecret ? "password" : "text"}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() =>
+                        form.setValue(`headers.${index}.isSecret`, !isSecret)
+                      }
+                      title={
+                        isSecret ? "Make header public" : "Make header secret"
+                      }
+                    >
+                      {isSecret ? (
+                        <Lock className="h-4 w-4 text-orange-500" />
+                      ) : (
+                        <LockOpen className="text-muted-foreground h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeHeader(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  appendHeader({
+                    name: "",
+                    value: "",
+                    isSecret: false,
+                    displayValue: "",
+                  })
+                }
+                className="mt-2"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Add Custom Header
+              </Button>
+            </div>
+
+            <div>
+              <FormLabel>Signing secret</FormLabel>
+              <FormDescription className="mb-2">
+                Requests are signed with the <code>x-langfuse-signature</code>{" "}
+                header so your service can verify they come from Langfuse.
+              </FormDescription>
+              {existingRemoteExperiment?.displaySecretKey ? (
+                <div className="rounded-md border p-3">
+                  <CodeView
+                    className="bg-muted/50"
+                    content={existingRemoteExperiment.displaySecretKey}
+                    defaultCollapsed={false}
+                  />
+                  <div className="text-muted-foreground mt-1 text-xs">
+                    Secret is encrypted and can only be viewed when generated
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
+                  A signing secret will be generated when you save.
+                </div>
+              )}
+            </div>
 
             <FormField
               control={form.control}

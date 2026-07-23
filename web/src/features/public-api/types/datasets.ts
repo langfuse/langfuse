@@ -137,6 +137,10 @@ export const transformDbDatasetToAPIDataset = (
     "remoteExperimentUrl",
     "remoteExperimentPayload",
     "remoteExperimentEnabled",
+    "remoteExperimentSecretKey",
+    "remoteExperimentDisplaySecretKey",
+    "remoteExperimentRequestHeaders",
+    "remoteExperimentDisplayHeaders",
   ]);
 
 /**
