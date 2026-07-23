@@ -93,6 +93,7 @@ export function ChatMessage({
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
             customCodeHeaderClassName="bg-card"
+            bordered
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -198,6 +199,7 @@ export function ChatMessage({
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}
             isSystemPrompt={isSystemPrompt}
+            bordered
           />
           {showData && toolCalls.length > 0 && (
             <div className="mt-2">

@@ -36,6 +36,10 @@ export interface IOPreviewJSONSimpleProps {
   onOutputExpandedChange?: (expanded: boolean) => void;
   onMetadataExpandedChange?: (expanded: boolean) => void;
   showCorrections?: boolean;
+  // Whether to render the inline Metadata section (default: true, the
+  // historical JSON-view behavior). Panels that host their own Metadata
+  // accordion (TraceSidePanel/TraceDetailView) pass false.
+  showMetadata?: boolean;
 }
 
 /**
@@ -78,6 +82,7 @@ export function IOPreviewJSONSimple({
   traceId,
   environment = "default",
   showCorrections = true,
+  showMetadata: showMetadataProp = true,
 }: IOPreviewJSONSimpleProps) {
   // Size-gate each field: the JSON view renders through react18-json-view,
   // which is not virtualized, so multi-MB payloads freeze and crash the tab
@@ -123,7 +128,9 @@ export function IOPreviewJSONSimple({
     !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
   const showOutput =
     !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
-  const showMetadata = metadataTooLarge || !(hideIfNull && !effectiveMetadata);
+  const showMetadata =
+    showMetadataProp &&
+    (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
 
   const downloadName = observationId ?? traceId;
 
@@ -141,7 +148,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Input"
-            json={input}
+            json={input ?? null}
             parsedJson={effectiveInput}
             isLoading={isLoading}
             isParsing={isParsing}
@@ -168,7 +175,7 @@ export function IOPreviewJSONSimple({
         ) : (
           <PrettyJsonView
             title="Output"
-            json={output}
+            json={output ?? null}
             parsedJson={effectiveOutput}
             isLoading={isLoading}
             isParsing={isParsing}

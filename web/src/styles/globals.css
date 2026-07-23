@@ -625,7 +625,36 @@
   }
 }
 
-/* 
+/*
+ * Trace side panel: cap markdown heading scale to the panel's text rhythm
+ * (io-style-fixes finding #4). Markdown body already renders at text-sm, but
+ * uncapped `#`/`##` headings from LLM output (h1 = --text-2xl) dwarf the
+ * adjacent text-xs JSON/table sections. Values step the heading ladder down
+ * two sizes on the --text-* scale (lg/base/sm/sm/xs/xs); font-weight is
+ * untouched so headings stay bold. Scoped to `[data-panel-markdown-scale]`
+ * (TraceSidePanel/TraceDetailView bodies) — other MarkdownView consumers
+ * (session conversation feed, comments, prompts) keep the default scale.
+ */
+[data-panel-markdown-scale] .io-message-content h1 {
+  font-size: 1.1rem; /* --text-lg */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h2 {
+  font-size: 0.9rem; /* --text-base */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h3,
+[data-panel-markdown-scale] .io-message-content h4 {
+  font-size: 0.825rem; /* --text-sm */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h5,
+[data-panel-markdown-scale] .io-message-content h6 {
+  font-size: 0.7rem; /* --text-xs */
+  line-height: 1.4;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}

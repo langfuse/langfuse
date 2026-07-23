@@ -75,8 +75,10 @@ export interface IOPreviewProps extends ExpansionStateProps {
   enableInlineComments?: boolean;
   onAddInlineComment?: IOPreviewJSONProps["onAddInlineComment"];
   commentedPathsByField?: IOPreviewJSONProps["commentedPathsByField"];
-  // Whether to show metadata section in pretty view (default: false)
-  // JSON view always shows metadata
+  // Whether to show the inline metadata section. Defaults preserve the
+  // historical split: pretty view hides metadata unless opted in, the simple
+  // JSON view shows it unless the caller opts out. Panels that render their
+  // own Metadata accordion pass an explicit false so both views match.
   showMetadata?: boolean;
   // Callback to inform parent if virtualization is being used (for scroll handling)
   onVirtualizationChange?: (isVirtualized: boolean) => void;
@@ -138,7 +140,7 @@ export function IOPreview({
   enableInlineComments,
   onAddInlineComment,
   commentedPathsByField,
-  showMetadata = false,
+  showMetadata,
   onVirtualizationChange,
   observationId,
   projectId,
@@ -282,6 +284,7 @@ export function IOPreview({
           onInputExpandedChange={onJsonInputExpandedChange}
           onOutputExpandedChange={onJsonOutputExpandedChange}
           onMetadataExpandedChange={onJsonMetadataExpandedChange}
+          showMetadata={showMetadata ?? true}
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}
@@ -292,7 +295,7 @@ export function IOPreview({
         <IOPreviewPretty
           {...sharedProps}
           observationName={observationName}
-          showMetadata={showMetadata}
+          showMetadata={showMetadata ?? false}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}
         />

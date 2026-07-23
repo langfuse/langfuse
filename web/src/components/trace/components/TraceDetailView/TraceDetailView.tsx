@@ -245,8 +245,10 @@ export function TraceDetailView({
         />
       )}
 
-      {/* Body */}
+      {/* Body. data-panel-markdown-scale caps markdown heading sizes to the
+          panel's text scale (see globals.css). */}
       <div
+        data-panel-markdown-scale
         className={`flex min-h-0 w-full flex-1 flex-col ${
           currentView === "json-beta" && isJSONBetaVirtualized
             ? "overflow-hidden"
@@ -324,8 +326,9 @@ export function TraceDetailView({
         />
         {/* Details zone: Scores + Metadata accordions, per the inspector
             design. Skipped in virtualized JSON Beta (IOPreview owns the
-            scroll there). Metadata accordion only in the formatted view —
-            the JSON views still render metadata inline themselves. */}
+            scroll there). Metadata lives in the accordion for both the
+            formatted and the simple JSON view (showMetadata=false above);
+            JSON Beta still renders metadata inline itself. */}
         {!(currentView === "json-beta" && isJSONBetaVirtualized) && (
           <>
             <div className="h-4 w-full shrink-0" />
@@ -336,34 +339,35 @@ export function TraceDetailView({
                 hasAnnotationAccess={hasAnnotationAccess && !isAnnotationMode}
                 onAddScore={() => setIsAnnotateDrawerOpen(true)}
               />
-              {currentView === "pretty" && accordionMetadata !== undefined && (
-                <>
-                  <div className="border-t" />
-                  <MetadataAccordion itemCount={metadataItemCount}>
-                    <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
-                      <PrettyJsonView
-                        title="Metadata"
-                        json={accordionMetadata}
-                        isParsing={isParsing}
-                        media={
-                          traceMedia.data?.filter(
-                            (m) => m.field === "metadata",
-                          ) ?? []
-                        }
-                        currentView="pretty"
-                        externalExpansionState={formattedExpansion.metadata}
-                        onExternalExpansionChange={(exp) =>
-                          setFormattedFieldExpansion(
-                            "metadata",
-                            exp as Record<string, boolean>,
-                          )
-                        }
-                        metadataActions={metadataActions}
-                      />
-                    </div>
-                  </MetadataAccordion>
-                </>
-              )}
+              {(currentView === "pretty" || currentView === "json") &&
+                accordionMetadata !== undefined && (
+                  <>
+                    <div className="border-t" />
+                    <MetadataAccordion itemCount={metadataItemCount}>
+                      <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+                        <PrettyJsonView
+                          title="Metadata"
+                          json={accordionMetadata}
+                          isParsing={isParsing}
+                          media={
+                            traceMedia.data?.filter(
+                              (m) => m.field === "metadata",
+                            ) ?? []
+                          }
+                          currentView="pretty"
+                          externalExpansionState={formattedExpansion.metadata}
+                          onExternalExpansionChange={(exp) =>
+                            setFormattedFieldExpansion(
+                              "metadata",
+                              exp as Record<string, boolean>,
+                            )
+                          }
+                          metadataActions={metadataActions}
+                        />
+                      </div>
+                    </MetadataAccordion>
+                  </>
+                )}
             </div>
           </>
         )}
