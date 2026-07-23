@@ -26,7 +26,7 @@ const TagCommandItem = ({
         });
       }}
     >
-      <Checkbox className="mr-1 h-4 w-4" />
+      <Checkbox className="mr-1" />
       <Button variant="ghost" size="xs" className="font-normal">
         {value}
       </Button>

@@ -2270,7 +2270,8 @@ export function FilterValueCheckbox({
           checked={checked}
           onCheckedChange={onCheckedChange}
           disabled={disabled}
-          className="pointer-events-auto h-3.5 w-3.5 [&_svg]:h-3 [&_svg]:w-3"
+          size="sm"
+          className="pointer-events-auto"
         />
       </div>
 
