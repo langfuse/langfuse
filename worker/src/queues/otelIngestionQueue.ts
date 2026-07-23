@@ -46,7 +46,11 @@ import {
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
 } from "../features/evaluation/observationEval";
-import { processOtelEventMedia } from "../features/otel-media/processOtelMedia";
+import {
+  createDirectOtelMediaTargets,
+  createLegacyOtelMediaTargets,
+  processOtelEventMedia,
+} from "../features/otel-media/processOtelMedia";
 
 /**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
@@ -445,6 +449,23 @@ export const otelIngestionQueueProcessorBuilder = (
         const shouldForwardToEventsTable =
           !useDirectEventWrite && v4WritesToEventsTable(env);
 
+        if (
+          env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
+          shouldForwardToEventsTable
+        ) {
+          // Process the exact normalized representation that the legacy path
+          // writes and forwards. Targets retain body references, so successful
+          // replacements reach both destinations without cloning large values.
+          await processOtelEventMedia({
+            targets: createLegacyOtelMediaTargets(traces.concat(observations)),
+            writePath: "legacy",
+            projectId,
+            fileKey,
+            mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+            mediaPrefix: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
+          });
+        }
+
         // Running everything concurrently might be detrimental to the event loop, but has probably
         // the highest possible throughput. Therefore, we start with a Promise.all.
         // If necessary, we may use a for each instead.
@@ -517,7 +538,8 @@ export const otelIngestionQueueProcessorBuilder = (
         shouldWriteToEventsTable
       ) {
         await processOtelEventMedia({
-          eventInputs,
+          targets: createDirectOtelMediaTargets(eventInputs),
+          writePath: "direct",
           projectId,
           fileKey,
           mediaBucket: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
