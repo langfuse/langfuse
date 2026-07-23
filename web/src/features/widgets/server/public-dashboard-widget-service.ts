@@ -42,6 +42,7 @@ const viewMapping: Record<DashboardWidgetViewOutputType, DashboardWidgetViews> =
   {
     observations: DashboardWidgetViews.OBSERVATIONS,
     "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+    "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
     "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
     traces: DashboardWidgetViews.TRACES,
   };
@@ -53,6 +54,7 @@ const reverseViewMapping: Record<
   [DashboardWidgetViews.TRACES]: "traces",
   [DashboardWidgetViews.OBSERVATIONS]: "observations",
   [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
+  [DashboardWidgetViews.SCORES_BOOLEAN]: "scores-boolean",
   [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
 };
 

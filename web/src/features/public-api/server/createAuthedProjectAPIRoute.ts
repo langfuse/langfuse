@@ -75,10 +75,10 @@ export type AuthedProjectAPIRouteConfig<
   allowInAppAgentKey?: boolean;
   /**
    * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
-   * "events_only". Set this on routes that read from the legacy traces or
-   * observations ClickHouse tables without an events_full fallback — those
-   * tables are no longer populated in events_only mode and would silently
-   * return stale or empty data.
+   * "events_only". Set this on routes that read from the legacy traces,
+   * observations, or dataset_run_items ClickHouse tables without an
+   * events_full fallback — those tables are no longer populated in
+   * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
   fn: (params: {

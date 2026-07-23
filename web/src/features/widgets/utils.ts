@@ -1,4 +1,5 @@
 import startCase from "lodash/startCase";
+import { type z } from "zod";
 import { type FilterState } from "@langfuse/shared";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
@@ -11,6 +12,7 @@ import {
   type MetricFormatterFunction,
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -58,6 +60,50 @@ export function sanitizePivotTableDefaultSort(
   );
 
   return validDimensionSort || validMetricSort ? defaultSort : undefined;
+}
+
+/**
+ * Merges a widget's own filters with the dashboard-injected global filters (the
+ * dashboard's environment selector + its filter bar) for the dashboard query.
+ * Both sets are ANDed together in the query.
+ *
+ * A widget's own environment filter WINS: when the widget declares its own
+ * environment filter, the dashboard's global environment filter is dropped for
+ * that widget. Otherwise the two AND together into an impossible predicate
+ * (e.g. `environment IN ("langfuse-llm-as-a-judge") AND environment IN
+ * ("production", "default")`) that returns zero rows, so the widget renders
+ * blank on the dashboard while showing fine in the edit screen (which applies
+ * only the widget's own filter). Widgets WITHOUT their own environment filter
+ * still receive the dashboard's global environment filter, preserving the
+ * default-hide-`langfuse-*` behavior. The override is scoped to the
+ * `environment` column only; every other dashboard-global filter still merges
+ * as before. (LFE-14333; keeps LFE-7448 intact.)
+ */
+export function mergeWidgetAndDashboardFilters({
+  view,
+  widgetFilters,
+  dashboardFilters,
+}: {
+  view: z.infer<typeof views>;
+  widgetFilters: FilterState;
+  dashboardFilters: FilterState;
+}): FilterState {
+  const mappedWidgetFilters = mapLegacyUiTableFilterToView(view, widgetFilters);
+  const mappedDashboardFilters = mapLegacyUiTableFilterToView(
+    view,
+    dashboardFilters,
+  );
+  const widgetHasEnvironmentFilter = mappedWidgetFilters.some(
+    (filter) => filter.column === "environment",
+  );
+  return [
+    ...mappedWidgetFilters,
+    ...(widgetHasEnvironmentFilter
+      ? mappedDashboardFilters.filter(
+          (filter) => filter.column !== "environment",
+        )
+      : mappedDashboardFilters),
+  ];
 }
 
 /**

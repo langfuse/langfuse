@@ -225,5 +225,3 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     </div>
   );
 };
-
-export default AreaChartTimeSeries;

@@ -165,5 +165,3 @@ export const UsageThresholdSuspensionEmailTemplate = ({
     </Html>
   );
 };
-
-export default UsageThresholdSuspensionEmailTemplate;

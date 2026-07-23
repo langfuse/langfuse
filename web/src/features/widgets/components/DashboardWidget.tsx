@@ -12,7 +12,6 @@ import {
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
@@ -54,6 +53,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import {
   formatMetricName,
+  mergeWidgetAndDashboardFilters,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
@@ -238,24 +238,26 @@ export function DashboardWidget({
         })
       : { type: chartType };
 
+    const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
+
+    // A widget's own environment filter overrides the dashboard's global
+    // environment selector; other dashboard-global filters still merge in.
+    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+
     return {
-      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      view,
       dimensions: widget.data?.dimensions ?? [],
       metrics:
         widget.data?.metrics.map((metric) => ({
           measure: metric.measure,
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
-      filters: [
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          widget.data?.filters ?? [],
-        ),
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          filterState,
-        ),
-      ],
+      filters: mergedFilters,
       timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
@@ -468,14 +470,23 @@ export function DashboardWidget({
   // global) translated to the traces/observations table's applicable filters,
   // plus the widget's time range. Filters the table can't express are dropped
   // (surfaced as a hint), never errored. The widget-filter merge mirrors the
-  // query build above (widget.data.filters + dashboard filterState).
+  // query build above via mergeWidgetAndDashboardFilters, so the environment
+  // override applies here too: a widget with its own environment filter must
+  // deep-link to a table scoped to ITS environment, not one carrying both the
+  // widget's and the dashboard selector's contradictory environment filters
+  // (which the table treats as applicable → empty table). (LFE-14333)
+  // buildTableFilterHref maps to view space again internally; that re-map is
+  // idempotent for the already-canonical columns this helper returns
+  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
+  // double-mapped or dropped.
   const tableView = useMemo(() => {
     const view = widget.data?.view;
     if (!view) return undefined;
-    const mergedFilters: FilterState = [
-      ...(widget.data?.filters ?? []),
-      ...filterState,
-    ];
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view: view as z.infer<typeof views>,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
     return buildTableFilterHref(
       projectId,
       view as z.infer<typeof views>,

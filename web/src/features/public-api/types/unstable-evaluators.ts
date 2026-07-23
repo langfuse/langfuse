@@ -56,8 +56,10 @@ export const GetUnstableEvaluatorQuery = z.object({
   evaluatorId: z.string(),
 });
 
+/** @alias */
 export const GetUnstableEvaluatorResponse = APIEvaluator;
 
+/** @alias */
 export const DeleteUnstableEvaluatorQuery = GetUnstableEvaluatorQuery;
 
 export const DeleteUnstableEvaluatorResponse = z
@@ -111,4 +113,5 @@ export type PostUnstableEvaluatorBodyParsedType = z.infer<
   typeof PostUnstableTypedEvaluatorBody
 >;
 
+/** @alias */
 export const PostUnstableEvaluatorResponse = APIEvaluator;
