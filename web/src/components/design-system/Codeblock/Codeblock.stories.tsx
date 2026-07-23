@@ -1,4 +1,4 @@
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { CodeBlock } from "./Codeblock";
 
 const meta = preview.meta({
