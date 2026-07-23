@@ -142,4 +142,72 @@ describe("InAppAgentWindow quick actions", () => {
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
   });
+
+  it("keeps the busy composer enabled while navigation stays disabled and edits preserve the draft", () => {
+    const onEditQueuedMessage = vi.fn();
+
+    render(
+      windowElement({
+        conversations: [
+          {
+            id: "conversation-1",
+            title: "Running conversation",
+            updatedAt: new Date(),
+          },
+        ],
+        selectedConversationId: "conversation-1",
+        isAssistantTurnInProgress: true,
+        isInputDisabled: false,
+        isNavigationDisabled: true,
+        draft: "Unsent draft",
+        queuedMessages: [{ id: "queued-1", content: "Queued follow-up" }],
+        messages: [
+          {
+            id: "message-1",
+            role: "user",
+            content: { type: "text", text: "First" },
+          },
+        ],
+        onDraftChange: vi.fn(),
+        onEditQueuedMessage,
+        onDeleteQueuedMessage: vi.fn(),
+      }),
+    );
+
+    expect(screen.getByLabelText("Message the assistant")).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Conversation history" }),
+    ).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit queued message 1" }),
+    );
+    const editor = screen.getByRole("textbox", { name: "Edit queued message" });
+    expect(editor).toHaveValue("Queued follow-up");
+    fireEvent.change(editor, { target: { value: "Discarded edit" } });
+    fireEvent.keyDown(editor, { key: "Escape" });
+    expect(onEditQueuedMessage).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Message the assistant")).toHaveValue(
+      "Unsent draft",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit queued message 1" }),
+    );
+    const savedEditor = screen.getByRole("textbox", {
+      name: "Edit queued message",
+    });
+    fireEvent.change(savedEditor, { target: { value: "Edited follow-up" } });
+    fireEvent.keyDown(savedEditor, { key: "Enter" });
+    expect(onEditQueuedMessage).toHaveBeenCalledWith(
+      "queued-1",
+      "Edited follow-up",
+    );
+    expect(screen.getByLabelText("Message the assistant")).toHaveValue(
+      "Unsent draft",
+    );
+  });
 });

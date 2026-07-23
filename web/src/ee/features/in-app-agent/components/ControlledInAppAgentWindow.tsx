@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { InAppAgentWindow } from "./InAppAgentWindow";
 import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
@@ -41,6 +41,9 @@ export function ControlledInAppAgentWindow(
   const router = useRouter();
   const {
     conversations,
+    deleteQueuedMessage,
+    draft,
+    editQueuedMessage,
     error,
     hasMoreConversations,
     isLoadingMoreConversations,
@@ -52,11 +55,14 @@ export function ControlledInAppAgentWindow(
     liveMessageVersion,
     messages,
     pendingToolApprovals,
+    queuedMessages,
     approveToolCall,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
     selectedConversationIsWriteLocked,
+    setDraft,
+    setTranscriptAnimating,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
@@ -71,13 +77,25 @@ export function ControlledInAppAgentWindow(
     pendingToolApprovals,
     shouldFlush: error !== null,
   });
+  useEffect(() => {
+    setTranscriptAnimating(isAnimating);
+  }, [isAnimating, setTranscriptAnimating]);
+  useEffect(
+    () => () => {
+      setTranscriptAnimating(false);
+    },
+    [setTranscriptAnimating],
+  );
   const isInputDisabled =
+    selectedConversationIsWriteLocked || isSelectedConversationHydrating;
+  const isNavigationDisabled =
     isRunning ||
     isAnimating ||
     isSubmitting ||
     selectedConversationIsWriteLocked ||
     isSelectedConversationHydrating ||
-    pendingToolApprovals.length > 0;
+    pendingToolApprovals.length > 0 ||
+    queuedMessages.length > 0;
   const displayError = selectedConversationIsWriteLocked
     ? ({
         type: "generic",
@@ -129,8 +147,11 @@ export function ControlledInAppAgentWindow(
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
+      isNavigationDisabled={isNavigationDisabled}
       disablePendingToolApprovalActions={selectedConversationIsWriteLocked}
       messages={drawerMessages}
+      draft={draft}
+      queuedMessages={queuedMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}
       quickActionResetKey={quickActionResetKey}
@@ -148,6 +169,9 @@ export function ControlledInAppAgentWindow(
       }}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onDraftChange={setDraft}
+      onEditQueuedMessage={editQueuedMessage}
+      onDeleteQueuedMessage={deleteQueuedMessage}
       onApproveToolCall={approveToolCall}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
