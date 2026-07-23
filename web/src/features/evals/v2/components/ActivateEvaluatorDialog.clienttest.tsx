@@ -87,11 +87,11 @@ describe("ActivateEvaluatorDialog", () => {
     const { onOpenChange, onComplete } = renderDialog();
 
     expect(
-      screen.getByText("Run evaluator on incoming observations?"),
+      screen.getByText("Start running this evaluator?"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This creates an evaluation rule using the filters you configured to select sample observations.",
+        "Your evaluator is saved. Run it on new observations that match the filters from step 1, or leave it inactive and start it later.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Configured filters")).not.toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("ActivateEvaluatorDialog", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Keep disabled" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run later" }));
 
     expect(mocks.activate).not.toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalledOnce();
@@ -115,9 +115,7 @@ describe("ActivateEvaluatorDialog", () => {
   it("enables the evaluator on its configured filters", async () => {
     const { onOpenChange, onComplete } = renderDialog();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Run on matching observations" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Run evaluator" }));
 
     expect(mocks.activate).toHaveBeenCalledWith({
       projectId: "project-1",

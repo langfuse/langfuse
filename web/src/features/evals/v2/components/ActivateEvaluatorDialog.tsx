@@ -63,15 +63,15 @@ export function ActivateEvaluatorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" closeOnInteractionOutside>
+      <DialogContent className="sm:max-w-xl" closeOnInteractionOutside>
         <DialogHeader variant="action">
-          <DialogTitle>Run evaluator on incoming observations?</DialogTitle>
+          <DialogTitle>Start running this evaluator?</DialogTitle>
         </DialogHeader>
 
         <DialogBody className="gap-4">
           <DialogDescription>
-            This creates an evaluation rule using the filters you configured to
-            select sample observations.
+            Your evaluator is saved. Run it on new observations that match the
+            filters from step 1, or leave it inactive and start it later.
           </DialogDescription>
 
           <ActivationCostEstimate
@@ -92,14 +92,14 @@ export function ActivateEvaluatorDialog({
             disabled={activate.isPending}
             onClick={onComplete}
           >
-            Keep disabled
+            Run later
           </Button>
           <Button
             type="button"
             loading={activate.isPending}
             onClick={handleActivate}
           >
-            Run on matching observations
+            Run evaluator
           </Button>
         </DialogFooter>
       </DialogContent>

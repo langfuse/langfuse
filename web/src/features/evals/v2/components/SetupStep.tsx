@@ -72,7 +72,7 @@ export function SetupStep({
           <span className="text-lg font-bold">{title}</span>
         </button>
         {expanded && (
-          <div className="mt-3 flex flex-col gap-4 pl-5.5">
+          <div className="mt-2 flex flex-col gap-4 pl-5.5">
             {description ? (
               <p className="text-muted-foreground text-sm">{description}</p>
             ) : null}

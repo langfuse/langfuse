@@ -1123,8 +1123,8 @@ export function EvaluatorSetupForm({
           <div className="flex min-w-0 flex-col gap-3 p-6">
             <SetupStep
               number={1}
-              title="Select sample data"
-              description="Choose a representative observation to preview prompt variables and test the evaluator."
+              title="Choose data to evaluate on"
+              description="Filter observations to include only the spans you want to evaluate—extra matches can increase costs—then select one sample to preview the variable mapping."
               compactBottomSpacing
               open={sampleStepOpen}
               onOpenChange={setSampleStepOpen}
@@ -1378,8 +1378,8 @@ export function EvaluatorSetupForm({
                               </pre>
                             ) : (
                               <p className="text-muted-foreground bg-muted/30 rounded-b-md border p-3 text-sm">
-                                Select sample data in step 1 to preview the
-                                interpolated prompt.
+                                Select a sample observation in step 1 to preview
+                                the interpolated prompt.
                               </p>
                             )
                           }
@@ -1545,7 +1545,7 @@ export function EvaluatorSetupForm({
                         </p>
                       ) : (
                         <p className="text-muted-foreground text-xs">
-                          Select sample data in step 1 first.
+                          Select a sample observation in step 1 first.
                         </p>
                       )}
                       {!isCodeMode && unmappedVariables.length > 0 && (
