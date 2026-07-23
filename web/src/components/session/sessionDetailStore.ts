@@ -2,17 +2,26 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type LoadedTraceIds = Record<string, true>;
 
+/** Identifies the observation shown in the Modern Session inspector panel. */
+export interface InspectedObservation {
+  traceId: string;
+  observationId: string;
+}
+
 export interface SessionDetailStoreState {
   loadedTraceIds: LoadedTraceIds;
   showCorrections: boolean;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
+  inspectedObservation: InspectedObservation | null;
   sessionId: string;
   actions: {
     markTraceLoaded: (traceId: string) => void;
     setShowCorrections: (showCorrections: boolean) => void;
     setShowInlineToolCalls: (showInlineToolCalls: boolean) => void;
     setShowSystemPrompt: (showSystemPrompt: boolean) => void;
+    openInspector: (inspectedObservation: InspectedObservation) => void;
+    closeInspector: () => void;
     resetForSession: (sessionId: string) => void;
   };
 }
@@ -31,6 +40,7 @@ export function createSessionDetailStore({
     showCorrections: initialShowCorrections,
     showInlineToolCalls: false,
     showSystemPrompt: false,
+    inspectedObservation: null,
     sessionId: initialSessionId,
     actions: {
       markTraceLoaded: (traceId: string) => {
@@ -55,12 +65,20 @@ export function createSessionDetailStore({
         if (showSystemPrompt === get().showSystemPrompt) return;
         set({ showSystemPrompt });
       },
+      openInspector: (inspectedObservation: InspectedObservation) => {
+        set({ inspectedObservation });
+      },
+      closeInspector: () => {
+        if (get().inspectedObservation === null) return;
+        set({ inspectedObservation: null });
+      },
       resetForSession: (sessionId: string) => {
         if (sessionId === get().sessionId) return;
         set({
           loadedTraceIds: {},
           showInlineToolCalls: false,
           showSystemPrompt: false,
+          inspectedObservation: null,
           sessionId,
         });
       },

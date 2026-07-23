@@ -4,6 +4,7 @@ import { type FilterState } from "@langfuse/shared";
 
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { ObservationInspector } from "@/src/components/session/inspector/ObservationInspector";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
@@ -265,7 +266,7 @@ export function ModernSession({
   const restoreScrollSpy = () => setSelectedTraceId(undefined);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
       <ModernSessionMinimap
         traces={traces}
         activeTraceId={activeTraceId}
@@ -323,6 +324,13 @@ export function ModernSession({
           })}
         </div>
       </div>
+      <ObservationInspector
+        projectId={projectId}
+        sessionId={sessionId}
+        traces={traces}
+        filterState={filterState}
+        openPeek={openPeek}
+      />
     </div>
   );
 }

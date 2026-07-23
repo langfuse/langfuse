@@ -7,7 +7,10 @@ import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
+import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { FilterX } from "lucide-react";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
@@ -94,13 +97,44 @@ const ModernSessionObservation = ({
         )
       : !chatMLParserResult.allMessages.every(isOnlyJsonMessage));
 
+  const capture = usePostHogClientCapture();
+  const openInspector = useSessionDetailStore(
+    (state) => state.actions.openInspector,
+  );
+  const isInspected = useSessionDetailStore(
+    (state) => state.inspectedObservation?.observationId === observation.id,
+  );
+
+  // Selects the observation for the inspector panel. Clicks on interactive
+  // children (links, buttons, copy controls) and text selections pass through.
+  const handleInspectClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (
+      target.closest(
+        "a,button,input,textarea,select,[role='button'],[contenteditable='true']",
+      )
+    )
+      return;
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    capture("session_detail:observation_inspector_open", {
+      observationType: observation.type,
+    });
+    openInspector({ traceId, observationId: observation.id });
+  };
+
   return (
     <div
-      className={
+      onClick={handleInspectClick}
+      className={cn(
+        "cursor-pointer rounded-md transition-shadow",
+        isInspected
+          ? "ring-primary/50 ring-1"
+          : "hover:ring-border hover:ring-1",
         isConversation
           ? "flex flex-col gap-2"
-          : "bg-muted/20 flex flex-col gap-2 rounded-md border p-3"
-      }
+          : "bg-muted/20 flex flex-col gap-2 border p-3",
+      )}
     >
       {!isConversation ? <ObservationHeader observation={observation} /> : null}
       <SessionObservationIO

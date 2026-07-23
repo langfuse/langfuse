@@ -14,6 +14,11 @@ feature-flagged choice between the existing card layout and Modern Session.
   DOM-safe dynamic row measurement.
 - `SessionObservationIO.tsx`: bounded observation payload rendering and the
   bridge into `IOPreview` full/conversation modes.
+- `inspector/ObservationInspector.tsx`: Modern Session's right-hand
+  observation inspector panel. Opens by clicking an observation in the feed;
+  shows a type-aware overview grid, I/O zones, scores, and metadata without
+  leaving the session. Selection state (`inspectedObservation`) lives in the
+  session detail store.
 
 Modern Session prepares each events-backed observation once inside its narrow
 row container and passes the parsed I/O plus ChatML result through `IOPreview`.
