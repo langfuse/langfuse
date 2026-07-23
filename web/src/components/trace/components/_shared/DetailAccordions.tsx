@@ -131,7 +131,8 @@ export const MetadataAccordion = ({
   itemCount: number;
   children: ReactNode;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Open by default: a collapsed accordion read as "metadata was removed".
+  const [isOpen, setIsOpen] = useState(true);
 
   return (
     <div>
@@ -143,11 +144,9 @@ export const MetadataAccordion = ({
       >
         <EyebrowLabel className="tracking-[0.1em]">Metadata</EyebrowLabel>
         <span className="flex items-center gap-2">
-          {!isOpen ? (
-            <span className="text-muted-foreground font-mono text-[10px]">
-              {itemCount} {itemCount === 1 ? "item" : "items"}
-            </span>
-          ) : null}
+          <span className="text-muted-foreground font-mono text-[10px]">
+            {itemCount} {itemCount === 1 ? "item" : "items"}
+          </span>
           <ChevronDown
             className={cn(
               "text-muted-foreground h-3.5 w-3.5 transition-transform",

@@ -42,6 +42,7 @@ const run = async (
   const traceCount = params["traces"] as number;
   const observationsPerTrace = params["observations-per-trace"] as number;
   const payloadBytes = params["payload-bytes"] as number;
+  const metadataBytes = params["metadata-bytes"] as number;
   const windowMinutes = params["minutes"] as number;
   const withV4 = params["v4"] as boolean;
   const sessionId =
@@ -71,6 +72,22 @@ const run = async (
       "larger payloads exceed V8 string limits during generation",
     );
   }
+  if (metadataBytes < 0 || metadataBytes > 50_000_000) {
+    throw new SeedError(
+      `--metadata-bytes must be between 0 and 50000000 (50 MB), got ${metadataBytes}`,
+      "larger payloads exceed V8 string limits during generation",
+    );
+  }
+  // Deterministic filler that does NOT consume the rng stream (a flag-gated
+  // rng draw would shift stream positions and re-key rows on re-run).
+  // Above 300K chars this exceeds the session view's per-value inline cap,
+  // so the observation ships capped metadata + metadataTruncated (LFE-10958).
+  const bulkMetadataValue =
+    metadataBytes > 0
+      ? "long-session bulk metadata filler. ".repeat(
+          Math.ceil(metadataBytes / 36),
+        )
+      : null;
 
   if (ctx.dryRun) {
     // counts are derivable from the flags — skip payload/array generation
@@ -227,7 +244,14 @@ const run = async (
           output: isGeneration
             ? buildPayload("text", rng.int(100, 600), rng)
             : null,
-          metadata: { scenario: "long-session", turn: String(t) },
+          metadata:
+            isRoot && bulkMetadataValue !== null
+              ? {
+                  scenario: "long-session",
+                  turn: String(t),
+                  bulk: bulkMetadataValue,
+                }
+              : { scenario: "long-session", turn: String(t) },
           provided_model_name: isGeneration ? "gpt-4o" : null,
           internal_model_id: null,
           model_parameters: isGeneration
@@ -460,6 +484,13 @@ export const longSessionScenario: ScenarioDefinition = {
       default: 2_000,
       description:
         "approx max bytes for regular trace payloads (generation granularity is ~one paragraph/object, so very small values overshoot)",
+    },
+    {
+      flag: "metadata-bytes",
+      type: "number",
+      default: 0,
+      description:
+        "if > 0, add one ~this-many-chars metadata value ('bulk') to each trace's root observation; above 300000 the session view caps it and flags metadataTruncated (LFE-10958)",
     },
     {
       flag: "minutes",

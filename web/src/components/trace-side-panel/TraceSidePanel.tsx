@@ -87,6 +87,10 @@ export interface TraceSidePanelProps {
   onClose?: () => void;
   /** observation-only variant: escape hatch to the trace view. */
   onOpenTraceView?: () => void;
+  /** Rendered inside the Metadata accordion, below the values — e.g. the
+      session adapter's "metadata capped, open the trace view" hint for
+      metadataTruncated observations (LFE-10958). */
+  metadataNotice?: ReactNode;
 }
 
 export function TraceSidePanel({
@@ -109,6 +113,7 @@ export function TraceSidePanel({
   treeNodeTotalCost,
   onClose,
   onOpenTraceView,
+  metadataNotice,
 }: TraceSidePanelProps) {
   // UI-preference contexts (both surfaces mount the providers)
   const {
@@ -404,6 +409,7 @@ export function TraceSidePanel({
                           metadataActions={metadataActions}
                         />
                       </div>
+                      {metadataNotice}
                     </MetadataAccordion>
                   </>
                 )}
