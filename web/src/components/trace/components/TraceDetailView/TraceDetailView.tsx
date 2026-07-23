@@ -212,7 +212,9 @@ export function TraceDetailView({
   const outputCorrection = getMostRecentCorrection(traceCorrections);
 
   // Tab visibility: hide Log View and Scores tabs in annotation mode
-  const showLogViewTab = observations.length > 0 && !isAnnotationMode;
+  // Log View tab removed per the session-redesign review (see
+  // ObservationDetailView) — constant keeps the machinery revertible.
+  const showLogViewTab = false;
 
   // Check if log view will be virtualized (affects JSON tab availability)
   const isLogViewVirtualized =

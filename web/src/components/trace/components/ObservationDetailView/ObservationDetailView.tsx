@@ -10,7 +10,6 @@
  * Hooks:
  * - useViewPreferences() - for JSON view preference
  * - useState() - for tab selection
- * - useV4Beta() - for v4 mode detection (enables log tab)
  *
  * Re-renders when:
  * - Observation prop changes (new observation selected)
@@ -67,7 +66,6 @@ import { deepParseJson } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
@@ -92,8 +90,6 @@ export function ObservationDetailView({
   } = useSelection();
   const utils = api.useUtils();
 
-  // V4 beta mode and observations for log tab
-  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const { observations, roots, nodeMap } = useTraceData();
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
@@ -108,9 +104,10 @@ export function ObservationDetailView({
     isAnnotationMode,
   } = useViewPreferences();
 
-  // Tab visibility: hide Log View and Scores tabs in annotation mode
-  const showLogViewTab =
-    isV4Enabled && observations.length > 0 && !isAnnotationMode;
+  // Log View tab removed per the session-redesign review (no usage
+  // instrumentation existed; Preview + Scores remain). Kept as a constant so
+  // the tab machinery stays intact for an easy revert.
+  const showLogViewTab = false;
   const showScoresTab = !isAnnotationMode;
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
