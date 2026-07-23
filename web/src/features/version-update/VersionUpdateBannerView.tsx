@@ -13,9 +13,11 @@ export type VersionUpdateBannerViewProps = {
 /**
  * Presentational "Langfuse just got an update" notification — a floating,
  * frosted-glass pill pinned center-top, NOT a layout-pushing top bar. It sits
- * over the content (the connected banner renders it into the top-most overlay
+ * over page content (the connected banner renders it into the top-most overlay
  * layer), so it may cover whatever is directly behind it; the rest of the app
- * stays interactive (there is no backdrop).
+ * stays interactive (there is no backdrop). It does respect the top-banner
+ * offset, so it drops below a full-width top banner (e.g. the payment banner)
+ * instead of overlapping it.
  *
  * Purely props-driven (no store/context/data) so it renders in isolation — see
  * `VersionUpdateBannerView.stories.tsx`. The connected {@link VersionUpdateBanner}
@@ -34,7 +36,11 @@ export function VersionUpdateBannerView({
       role="status"
       aria-live="polite"
       className={cn(
-        "fixed top-4 left-1/2 -translate-x-1/2",
+        // `top-banner-offset` = safe-area + any registered top banner's height,
+        // so the pill sits below a full-width top banner (e.g. PaymentBanner)
+        // rather than overlapping it; `mt-4` keeps a 16px gap (and, with no top
+        // banner, places it ~16px from the viewport top).
+        "top-banner-offset fixed left-1/2 mt-4 -translate-x-1/2",
         "flex items-center gap-3 rounded-full py-1.5 pr-1.5 pl-4",
         "border-border/60 bg-background/80 border shadow-xl ring-1 ring-black/5 backdrop-blur-xl dark:ring-white/10",
         // `fill-mode-both` holds the entrance keyframes' start state on the

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VersionUpdateBanner } from "./VersionUpdateBanner";
 import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
@@ -7,7 +7,9 @@ import { VersionUpdateBannerView } from "./VersionUpdateBannerView";
 const h = vi.hoisted(() => ({
   capture: vi.fn(),
   dismiss: vi.fn(),
-  visible: true,
+  markShownReported: vi.fn(() => true),
+  available: true,
+  settled: true,
 }));
 
 // The connected banner portals into the top-most overlay layer, whose DOM
@@ -19,10 +21,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => h.capture,
 }));
 vi.mock("./versionUpdateStore", () => ({
-  versionUpdateStore: { dismiss: h.dismiss },
+  versionUpdateStore: {
+    dismiss: h.dismiss,
+    markShownReported: h.markShownReported,
+  },
 }));
 vi.mock("./useVersionUpdateAvailable", () => ({
-  useVersionUpdateAvailable: () => h.visible,
+  useVersionUpdateAvailable: () => h.available,
+}));
+vi.mock("./useAppSettled", () => ({
+  useAppSettled: () => h.settled,
 }));
 
 describe("VersionUpdateBannerView", () => {
@@ -51,12 +59,12 @@ describe("VersionUpdateBannerView", () => {
 
 describe("VersionUpdateBanner (connected)", () => {
   beforeEach(() => {
-    // The banner is gated behind a startup grace period (setTimeout); fake
-    // timers let us fast-forward past it deterministically.
-    vi.useFakeTimers();
     h.capture.mockClear();
     h.dismiss.mockClear();
-    h.visible = true;
+    h.markShownReported.mockClear();
+    h.markShownReported.mockReturnValue(true);
+    h.available = true;
+    h.settled = true;
     // Reload is invoked on the Reload click; stub it so jsdom doesn't complain.
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -65,30 +73,11 @@ describe("VersionUpdateBanner (connected)", () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  // Advance past the app-settle grace period so the banner is allowed to render.
-  const settle = () =>
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
-
-  it("stays hidden during the startup grace period, then appears", () => {
+  it("shows and reports banner_shown when an update is available and the app has settled", () => {
     render(<VersionUpdateBanner />);
-    expect(
-      screen.queryByRole("button", { name: "Reload" }),
-    ).not.toBeInTheDocument();
-    expect(h.capture).not.toHaveBeenCalled();
-
-    settle();
-    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-  });
-
-  it("reports banner_shown once when it appears", () => {
-    render(<VersionUpdateBanner />);
-    settle();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(h.capture).toHaveBeenCalledWith("version_update:banner_shown");
     expect(
@@ -98,9 +87,35 @@ describe("VersionUpdateBanner (connected)", () => {
     ).toHaveLength(1);
   });
 
+  it("delegates the once-per-appearance guard to the store (no banner_shown when it returns false)", () => {
+    // Simulates a remount for an appearance the store already reported.
+    h.markShownReported.mockReturnValue(false);
+    render(<VersionUpdateBanner />);
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+    expect(h.capture).not.toHaveBeenCalledWith("version_update:banner_shown");
+  });
+
+  it("stays hidden until the app has settled", () => {
+    h.settled = false;
+    render(<VersionUpdateBanner />);
+    expect(
+      screen.queryByRole("button", { name: "Reload" }),
+    ).not.toBeInTheDocument();
+    expect(h.capture).not.toHaveBeenCalled();
+    expect(h.markShownReported).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing when no update is available", () => {
+    h.available = false;
+    render(<VersionUpdateBanner />);
+    expect(
+      screen.queryByRole("button", { name: "Reload" }),
+    ).not.toBeInTheDocument();
+    expect(h.capture).not.toHaveBeenCalled();
+  });
+
   it("captures reload_clicked and reloads on Reload", () => {
     render(<VersionUpdateBanner />);
-    settle();
     fireEvent.click(screen.getByRole("button", { name: "Reload" }));
     expect(h.capture).toHaveBeenCalledWith("version_update:reload_clicked");
     expect(window.location.reload).toHaveBeenCalledTimes(1);
@@ -108,19 +123,8 @@ describe("VersionUpdateBanner (connected)", () => {
 
   it("captures dismissed and calls the store on Dismiss", () => {
     render(<VersionUpdateBanner />);
-    settle();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(h.capture).toHaveBeenCalledWith("version_update:dismissed");
     expect(h.dismiss).toHaveBeenCalledTimes(1);
-  });
-
-  it("renders nothing when no update is available", () => {
-    h.visible = false;
-    render(<VersionUpdateBanner />);
-    settle();
-    expect(
-      screen.queryByRole("button", { name: "Reload" }),
-    ).not.toBeInTheDocument();
-    expect(h.capture).not.toHaveBeenCalled();
   });
 });

@@ -151,4 +151,44 @@ describe("versionUpdateStore", () => {
     store.reportObservedBuildId("deployed");
     expect(store.getServerSnapshot()).toBe(false);
   });
+
+  // `banner_shown` fires once per appearance; the guard lives here (not in
+  // component state) so a banner remount cannot double-count one appearance.
+  describe("markShownReported (banner_shown once-per-appearance guard)", () => {
+    it("returns true once per appearance, then false", () => {
+      const store = createVersionUpdateStore(() => "running");
+      store.reportObservedBuildId("deployed");
+
+      expect(store.markShownReported()).toBe(true);
+      // A remount / StrictMode-double-invoked effect calls it again for the same
+      // appearance — must not count twice.
+      expect(store.markShownReported()).toBe(false);
+      expect(store.markShownReported()).toBe(false);
+    });
+
+    it("resets for a genuinely new build id (a fresh appearance)", () => {
+      const store = createVersionUpdateStore(() => "running");
+
+      store.reportObservedBuildId("deployed-1");
+      expect(store.markShownReported()).toBe(true);
+      expect(store.markShownReported()).toBe(false);
+
+      // A new, never-seen build id is a new appearance → report again.
+      store.reportObservedBuildId("deployed-2");
+      expect(store.markShownReported()).toBe(true);
+      expect(store.markShownReported()).toBe(false);
+    });
+
+    it("does not reset when an already-seen build id is re-observed", () => {
+      const store = createVersionUpdateStore(() => "running");
+
+      store.reportObservedBuildId("deployed");
+      expect(store.markShownReported()).toBe(true);
+
+      // Re-observing the same (or the running) id is a no-op — no new appearance.
+      store.reportObservedBuildId("deployed");
+      store.reportObservedBuildId("running");
+      expect(store.markShownReported()).toBe(false);
+    });
+  });
 });

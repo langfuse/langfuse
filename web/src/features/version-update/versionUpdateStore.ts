@@ -50,6 +50,16 @@ export type VersionUpdateStore = {
    * already-seen build (an old pod during a rolling deploy).
    */
   dismiss: () => void;
+  /**
+   * Returns `true` exactly once per appearance, `false` afterwards; the flag
+   * resets when a genuinely new build id arrives (a fresh appearance). Kept in
+   * the store — not in component state — so the `banner_shown` analytics event
+   * fires once per logical appearance even if the banner component unmounts and
+   * remounts in between (e.g. AppLayout switching between AuthenticatedLayout
+   * and MinimalLayout), and once (not twice) under a StrictMode double-invoked
+   * effect.
+   */
+  markShownReported: () => boolean;
 };
 
 /**
@@ -80,6 +90,9 @@ export function createVersionUpdateStore(
   // Sticky: set true the first time a differing build id is seen, never unset.
   let updateAvailable = false;
   let dismissed = false;
+  // `banner_shown` analytics guard — true once the current appearance has been
+  // reported. Reset when a genuinely new build id arrives (new appearance).
+  let shownReported = false;
 
   const compute = (): boolean => updateAvailable && !dismissed;
 
@@ -117,13 +130,20 @@ export function createVersionUpdateStore(
       seenDifferingBuildIds.add(observedBuildId);
       updateAvailable = true; // sticky
       // A genuinely new (never-seen) differing build → worth re-prompting even
-      // if the user dismissed an earlier one.
+      // if the user dismissed an earlier one, and worth counting as a fresh
+      // appearance for analytics.
       dismissed = false;
+      shownReported = false;
       emitChange();
     },
     dismiss() {
       dismissed = true;
       emitChange();
+    },
+    markShownReported() {
+      if (shownReported) return false;
+      shownReported = true;
+      return true;
     },
   };
 }
