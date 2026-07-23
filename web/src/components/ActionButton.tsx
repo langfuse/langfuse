@@ -18,7 +18,12 @@ const BUTTON_STATE_MESSAGES = {
   entitlement: "This feature is not available in your current plan.",
 } as const;
 
-type ActionButtonProps = ButtonProps & {
+type ForwardedButtonProps = Pick<
+  ButtonProps,
+  "disabled" | "onClick" | "size" | "title" | "type" | "variant"
+>;
+
+type ActionButtonProps = ForwardedButtonProps & {
   icon?: React.ReactNode;
   loading?: boolean;
   hasAccess?: boolean;
@@ -53,7 +58,6 @@ export const ActionButton = React.forwardRef<
     disabled = false,
     children,
     icon,
-    className,
     href,
     trackingEventName,
     trackingProps,
@@ -100,7 +104,6 @@ export const ActionButton = React.forwardRef<
       hasAccess={hasAccess}
       hasEntitlement={hasEntitlement}
       hasReachedLimit={hasReachedLimit}
-      className={className}
       buttonProps={buttonProps}
       href={href}
       onLinkClick={handleLinkClick}
@@ -144,8 +147,7 @@ const ButtonContent = React.forwardRef<
     hasAccess: boolean;
     hasEntitlement: boolean;
     hasReachedLimit: boolean;
-    className?: string;
-    buttonProps: Omit<ButtonProps, "disabled" | "loading" | "className">;
+    buttonProps: Omit<ForwardedButtonProps, "disabled">;
     children: React.ReactNode;
     href?: string;
     onLinkClick?: () => void;
@@ -158,7 +160,6 @@ const ButtonContent = React.forwardRef<
     hasAccess,
     hasEntitlement,
     hasReachedLimit,
-    className,
     buttonProps,
     children,
     href,
@@ -189,7 +190,6 @@ const ButtonContent = React.forwardRef<
       ref={ref}
       disabled={isDisabled}
       loading={loading}
-      className={className}
       {...buttonProps}
       asChild={renderLink ? true : undefined}
     >
