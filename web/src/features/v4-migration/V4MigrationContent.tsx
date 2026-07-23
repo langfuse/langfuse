@@ -20,6 +20,11 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
+import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import {
+  formatSdkVersion,
+  getV4MigrationSdkStatus,
+} from "@/src/features/v4-migration/sdkVersionStatus";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -34,19 +39,8 @@ const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 3. Replace calls to deprecated APIs (GET /api/public/traces, GET /api/public/sessions, GET /api/public/metrics) with their v4 replacements.
 Docs: ${V4_DOCS_URL}`;
 
-// Demo-only copy variants: all data below is hardcoded until the backend can
-// report a project's actual SDK, eval, API, and integration setup. Which
-// variant renders is picked by the DEMO_SDK_CASE/DEMO_EVAL_CASE constants.
-const SDK_CASES = [
-  { label: "Pre-OTel SDK (JS 3.x, Python 2.x)", isCurrent: false },
-  { label: "Direct API, pre-OTel (no SDK)", isCurrent: false },
-  { label: "Direct API, OTel + write header (no SDK)", isCurrent: true },
-  { label: "Direct API, OTel, no header (no SDK)", isCurrent: false },
-  { label: "OTel SDK (JS 4, Python 3)", isCurrent: false },
-  { label: "v4 SDK (JS 5, Python 4)", isCurrent: false },
-  { label: "Latest v4 SDK (JS 5.x, Python 4.x)", isCurrent: true },
-] as const;
-
+// Demo-only copy variants until the backend can report a project's actual
+// eval, API, and integration setup.
 const EVAL_CASES = [
   { label: "Targets spans, new SDK", deprecated: false },
   { label: "Targets spans, old SDK", deprecated: false },
@@ -54,7 +48,6 @@ const EVAL_CASES = [
   { label: "Targets trace I/O, old SDK", deprecated: true },
 ] as const;
 
-const DEMO_SDK_CASE = 1 as number;
 const DEMO_EVAL_CASE = 3 as number;
 
 const LEGACY_APIS = [
@@ -151,55 +144,52 @@ function ExternalLink({
   );
 }
 
-function SdkCaseCopy({ sdkCase }: { sdkCase: number }) {
-  switch (sdkCase) {
-    case 1:
-      return (
-        <>
-          This project is on <MonoValue>Python v2.x</MonoValue>, which is a few
-          major versions behind. Upgrading gets you real-time data.
-        </>
-      );
-    case 2:
-      return (
-        <>
-          You&apos;re sending traces via the legacy ingestion API directly.
-          Consider switching to the{" "}
-          <ExternalLink href={SDK_UPGRADE_URL}>Langfuse SDK</ExternalLink> or{" "}
-          <ExternalLink href={V4_DOCS_URL}>OTel API</ExternalLink> to get
-          real-time data.
-        </>
-      );
-    case 4:
-      return (
-        <>
-          This project sends traces via OTel, which adds a{" "}
-          <span className="text-dark-yellow">~15 min</span> delay. To see
-          real-time data, update your OTel instrumentation to include the write
-          header.
-        </>
-      );
-    case 5:
-      return (
-        <>
-          This project uses <MonoValue>SDK v3</MonoValue>, which adds a{" "}
-          <span className="text-dark-yellow">~15 min</span> delay. Update for
-          real-time data. Requires changes to your instrumentation to adjust how
-          traces are sent.
-        </>
-      );
-    case 6:
-      return (
-        <>
-          This project uses <MonoValue>SDK v4</MonoValue>, upgrade for a better
-          tracing experience in the UI.
-        </>
-      );
-    case 7:
-      return <>You&apos;re on the latest SDK. Nothing to do.</>;
-    default:
-      return null;
-  }
+function V4MigrationSdkSection({ projectId }: { projectId?: string }) {
+  const sdkVersionState = useProjectSdkVersionInfo({
+    projectId: projectId ?? "",
+    enabled: Boolean(projectId),
+    refreshMode: "always",
+  });
+  const status = getV4MigrationSdkStatus(sdkVersionState);
+  const detectedSdk = formatSdkVersion(sdkVersionState.sdkVersion);
+
+  const chip =
+    status === "latest" ? (
+      <Chip variant="success">Up to date</Chip>
+    ) : status === "checking" ? (
+      <Chip variant="warning">Checking</Chip>
+    ) : status === "unknown" ? (
+      <Chip variant="warning">Not detected</Chip>
+    ) : (
+      <Chip variant="warning">Legacy</Chip>
+    );
+
+  return (
+    <Section title="Tracing Instrumentation" chip={chip}>
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        {status === "checking" ? (
+          "Checking the latest traces for this project…"
+        ) : status === "unknown" ? (
+          <>
+            We couldn&apos;t detect an attributed Langfuse SDK in traces from
+            the last 7 days. If this project uses one, verify that it is up to
+            date.
+          </>
+        ) : status === "latest" ? (
+          <>
+            This project uses <MonoValue>{detectedSdk}</MonoValue>. Nothing to
+            do.
+          </>
+        ) : (
+          <>
+            This project uses <MonoValue>{detectedSdk}</MonoValue>.{" "}
+            <ExternalLink href={SDK_UPGRADE_URL}>Upgrade the SDK</ExternalLink>{" "}
+            for real-time data and the latest tracing experience.
+          </>
+        )}
+      </p>
+    </Section>
+  );
 }
 
 // Title, description, and the primary agent CTA.
@@ -222,15 +212,8 @@ export function V4MigrationHeaderContent({
         )}
       </p>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
-        Some of your setup is outdated.
-        {DEMO_SDK_CASE !== 3 && (
-          <>
-            {" "}
-            Live data is currently{" "}
-            <span className="text-dark-yellow">15 minutes behind</span>.
-          </>
-        )}{" "}
-        Update for faster performance.
+        Review the items below and update anything still using the legacy data
+        model.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
@@ -310,22 +293,7 @@ export function V4MigrationDetailsContent({
           <span className="text-dark-yellow">Oct 1</span>.
         </p>
         <div>
-          {DEMO_SDK_CASE !== 3 && (
-            <Section
-              title="Tracing Instrumentation"
-              chip={
-                SDK_CASES[DEMO_SDK_CASE - 1].isCurrent ? (
-                  <Chip variant="success">Up to date</Chip>
-                ) : (
-                  <Chip variant="warning">Legacy</Chip>
-                )
-              }
-            >
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                <SdkCaseCopy sdkCase={DEMO_SDK_CASE} />
-              </p>
-            </Section>
-          )}
+          <V4MigrationSdkSection projectId={projectId} />
 
           <Section
             title="Evals"

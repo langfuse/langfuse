@@ -22,6 +22,11 @@ import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useProjectsSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import {
+  getV4MigrationSdkStatus,
+  type V4MigrationSdkStatus,
+} from "@/src/features/v4-migration/sdkVersionStatus";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -31,59 +36,62 @@ const OBSERVATIONS_FAQ_URL =
   "https://langfuse.com/faq/all/explore-observations-in-v4";
 const API_REFERENCE_URL = "https://api.reference.langfuse.com";
 
-// Demo-only per-project statuses until backend per-project detection exists.
-// Affected counts per category: a number is the count of affected items
-// (0 = feature in use, nothing affected), null = feature not used at all.
-type DemoStatus = {
-  sdkUpToDate: boolean;
+// Demo-only affected counts until their backend detection exists. A number is
+// the count of affected items (0 = feature in use, nothing affected), null =
+// feature not used at all. SDK status is detected from real project events.
+type AffectedStatus = {
   evals: number | null;
   apis: number | null;
   exports: number | null;
 };
 
-const DEMO_STATUSES: DemoStatus[] = [
-  { sdkUpToDate: false, evals: 2, apis: 3, exports: 2 },
-  { sdkUpToDate: false, evals: 0, apis: 1, exports: null },
-  { sdkUpToDate: true, evals: 0, apis: 0, exports: 0 },
+type MigrationStatus = AffectedStatus & {
+  sdk: V4MigrationSdkStatus;
+};
+
+const DEMO_AFFECTED_STATUSES: AffectedStatus[] = [
+  { evals: 2, apis: 3, exports: 2 },
+  { evals: 0, apis: 1, exports: null },
+  { evals: 0, apis: 0, exports: 0 },
 ];
 
-const isReady = (s: DemoStatus) =>
-  s.sdkUpToDate && !(s.evals ?? 0) && !(s.apis ?? 0) && !(s.exports ?? 0);
+const isReady = (s: MigrationStatus) =>
+  s.sdk === "latest" && !(s.evals ?? 0) && !(s.apis ?? 0) && !(s.exports ?? 0);
 
 // Dummy projects appended to the first organization so every cell state is
 // visible while iterating on the design. Remove with the backend work.
 const DEMO_EXTRA_PROJECTS: {
   id: string;
   name: string;
-  status: DemoStatus;
+  status: MigrationStatus;
   lastTraceLabel: string;
   lastTraceOffsetMs: number | null;
 }[] = [
   {
     id: "dummy-prod-agent-eu",
     name: "prod-agent-eu",
-    status: { sdkUpToDate: false, evals: 4, apis: 2, exports: 1 },
+    status: { sdk: "legacy", evals: 4, apis: 2, exports: 1 },
     lastTraceLabel: "3m ago",
     lastTraceOffsetMs: 3 * 60 * 1000,
   },
   {
     id: "dummy-staging",
     name: "staging",
-    status: { sdkUpToDate: false, evals: null, apis: null, exports: null },
+    status: { sdk: "unknown", evals: null, apis: null, exports: null },
     lastTraceLabel: "2d ago",
     lastTraceOffsetMs: 2 * 24 * 60 * 60 * 1000,
   },
   {
     id: "dummy-ml-pipeline",
     name: "ml-pipeline",
-    status: { sdkUpToDate: true, evals: 3, apis: 0, exports: 1 },
+    status: { sdk: "latest", evals: 3, apis: 0, exports: 1 },
     lastTraceLabel: "1h ago",
     lastTraceOffsetMs: 60 * 60 * 1000,
   },
   {
     id: "dummy-chatbot-poc",
     name: "chatbot-poc",
-    status: { sdkUpToDate: true, evals: null, apis: null, exports: null },
+    status: { sdk: "latest", evals: null, apis: null, exports: null },
     lastTraceLabel: "—",
     lastTraceOffsetMs: null,
   },
@@ -181,7 +189,7 @@ function OrgStatusSection({
   includeDemoProjects = false,
 }: {
   org: OrgWithProjects;
-  statusByProjectId: Map<string, DemoStatus>;
+  statusByProjectId: Map<string, MigrationStatus>;
   includeDemoProjects?: boolean;
 }) {
   const capture = usePostHogClientCapture();
@@ -261,7 +269,13 @@ function OrgStatusSection({
       case "status":
         return row.status && isReady(row.status) ? 1 : 0;
       case "sdk":
-        return row.status?.sdkUpToDate ? 1 : 0;
+        return row.status?.sdk === "latest"
+          ? 3
+          : row.status?.sdk === "legacy"
+            ? 2
+            : row.status?.sdk === "unknown"
+              ? 1
+              : 0;
       case "evals":
         return row.status?.evals ?? 0;
       case "apis":
@@ -374,8 +388,14 @@ function OrgStatusSection({
                     <StatusPill ready={ready} />
                   </TableCell>
                   <TableCell density="comfortable">
-                    {row.status.sdkUpToDate ? (
+                    {row.status.sdk === "latest" ? (
                       <span className="text-foreground-tertiary">Latest</span>
+                    ) : row.status.sdk === "checking" ? (
+                      <span className="text-foreground-tertiary">
+                        Checking…
+                      </span>
+                    ) : row.status.sdk === "unknown" ? (
+                      <span className="text-foreground-tertiary">Unknown</span>
                     ) : (
                       <span>Legacy</span>
                     )}
@@ -412,13 +432,28 @@ function OrgStatusSection({
 }
 
 // Account-wide migration status: every organization and project the user
-// belongs to, with per-project readiness. Statuses are demo data (see
-// DEMO_STATUSES / DEMO_EXTRA_PROJECTS); names and last-trace times are real
-// for the user's own projects.
+// belongs to, with per-project readiness. SDK and last-trace data are real;
+// eval/API/export counts remain demo data (see DEMO_AFFECTED_STATUSES /
+// DEMO_EXTRA_PROJECTS).
 export default function V4MigrationStatusPage() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+
+  const orgs: OrgWithProjects[] =
+    session.data?.user?.organizations?.map((org) => ({
+      id: org.id,
+      name: org.name,
+      projects: org.projects.map((p) => ({ id: p.id, name: p.name })),
+    })) ?? [];
+  const projectIds = orgs.flatMap((org) =>
+    org.projects.map((project) => project.id),
+  );
+  const sdkVersionByProjectId = useProjectsSdkVersionInfo({
+    projectIds,
+    enabled: v4UpgradeUiEnabled,
+    refreshMode: "always",
+  });
 
   // Same eligibility gate as every other v4-migration surface; the page is
   // reachable by URL regardless of whether the nav entry is shown.
@@ -495,22 +530,19 @@ export default function V4MigrationStatusPage() {
     },
   ];
 
-  const orgs: OrgWithProjects[] =
-    session.data?.user?.organizations?.map((org) => ({
-      id: org.id,
-      name: org.name,
-      projects: org.projects.map((p) => ({ id: p.id, name: p.name })),
-    })) ?? [];
-
-  // Deterministic demo status per project, stable across renders and orgs.
-  const statusByProjectId = new Map<string, DemoStatus>();
+  // Real SDK readiness plus deterministic demo counts for the remaining
+  // migration categories.
+  const statusByProjectId = new Map<string, MigrationStatus>();
   orgs
     .flatMap((org) => org.projects)
     .forEach((project, i) => {
-      statusByProjectId.set(
-        project.id,
-        DEMO_STATUSES[i % DEMO_STATUSES.length],
-      );
+      const sdkVersionState = sdkVersionByProjectId.get(project.id);
+      statusByProjectId.set(project.id, {
+        ...DEMO_AFFECTED_STATUSES[i % DEMO_AFFECTED_STATUSES.length]!,
+        sdk: sdkVersionState
+          ? getV4MigrationSdkStatus(sdkVersionState)
+          : "unknown",
+      });
     });
 
   const allStatuses = [
