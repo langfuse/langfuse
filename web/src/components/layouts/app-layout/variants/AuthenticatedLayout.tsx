@@ -13,6 +13,7 @@ import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
 import { TopBannerProvider } from "@/src/features/top-banner";
+import { VersionUpdateBanner } from "@/src/features/version-update";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -173,6 +174,7 @@ export function AuthenticatedLayout({
           <SidebarProvider>
             <div className="flex h-dvh w-full flex-col">
               <PaymentBanner />
+              <VersionUpdateBanner />
               <div className="pt-banner-offset flex min-h-0 flex-1">
                 <AppSidebar
                   navItems={navigation.mainNavigation}

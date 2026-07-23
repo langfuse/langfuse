@@ -4503,7 +4503,7 @@
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-07-22T00:00:00.000Z",
+    "updatedAt": "2026-07-23T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
@@ -4517,8 +4517,6 @@
           "input_modality_1": 0.3e-6,
           "prompt_token_count": 0.3e-6,
           "promptTokenCount": 0.3e-6,
-          "input_cached_tokens": 0.03e-6,
-          "cached_content_token_count": 0.03e-6,
           "output": 2.5e-6,
           "output_text": 2.5e-6,
           "output_modality_1": 2.5e-6,
