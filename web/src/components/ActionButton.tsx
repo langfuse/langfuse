@@ -147,7 +147,10 @@ const ButtonContent = React.forwardRef<
     hasAccess: boolean;
     hasEntitlement: boolean;
     hasReachedLimit: boolean;
-    buttonProps: Omit<ForwardedButtonProps, "disabled">;
+    buttonProps: Pick<
+      ForwardedButtonProps,
+      "onClick" | "size" | "title" | "type" | "variant"
+    >;
     children: React.ReactNode;
     href?: string;
     onLinkClick?: () => void;
