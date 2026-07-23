@@ -140,6 +140,10 @@ type GetDatasetRunByIdInput = {
   datasetRunId: string;
 };
 
+type DeleteDatasetInput = DatasetAuditScope & {
+  datasetName: string;
+};
+
 type DeleteDatasetRunInput = DatasetAuditScope &
   z.infer<typeof GetDatasetRunV1Query>;
 
@@ -1131,6 +1135,65 @@ export const getDatasetRunByIdForApi = async ({
       datasetName: dataset.name,
     }),
     datasetRunItems,
+  };
+};
+
+export const deleteDatasetForApi = async ({
+  projectId,
+  orgId,
+  apiKeyId,
+  datasetName,
+}: DeleteDatasetInput) => {
+  const dataset = await prisma.dataset.findFirst({
+    where: {
+      name: datasetName,
+      projectId,
+    },
+  });
+
+  if (!dataset) {
+    throw new LangfuseNotFoundError("Dataset not found");
+  }
+
+  try {
+    await prisma.dataset.delete({
+      where: {
+        id_projectId: {
+          id: dataset.id,
+          projectId,
+        },
+      },
+    });
+  } catch (error) {
+    // Dataset was deleted concurrently between the lookup and the delete
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      throw new LangfuseNotFoundError("Dataset not found");
+    }
+    throw error;
+  }
+
+  await auditLog({
+    action: "delete",
+    resourceType: "dataset",
+    resourceId: dataset.id,
+    projectId,
+    orgId,
+    apiKeyId,
+    before: dataset,
+  });
+
+  // Trigger async delete of dataset items, runs, and run items
+  await addToDeleteDatasetQueue({
+    deletionType: "dataset",
+    projectId,
+    datasetId: dataset.id,
+  });
+
+  return {
+    message: "Dataset successfully deleted" as const,
   };
 };
 

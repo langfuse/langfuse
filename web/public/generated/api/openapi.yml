@@ -1386,6 +1386,52 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+    delete:
+      description: >-
+        Delete a dataset and all its items, runs, and run items. This action is
+        irreversible.
+      operationId: datasets_delete
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteDatasetResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
@@ -10920,6 +10966,14 @@ components:
       required:
         - data
         - meta
+    DeleteDatasetResponse:
+      title: DeleteDatasetResponse
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     DeleteDatasetRunResponse:
       title: DeleteDatasetRunResponse
       type: object
