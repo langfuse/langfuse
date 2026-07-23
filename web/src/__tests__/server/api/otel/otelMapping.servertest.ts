@@ -3928,6 +3928,129 @@ describe("OTel Resource Span Mapping", () => {
       },
     );
 
+    describe("gen_ai.system_instructions", () => {
+      const inputMessages = [
+        { role: "user", parts: [{ type: "text", content: "Hello" }] },
+      ];
+
+      const convertWithSystemInstructions = async (
+        systemInstructions: unknown,
+      ) => {
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes: [
+                    {
+                      key: "gen_ai.operation.name",
+                      value: { stringValue: "chat" },
+                    },
+                    {
+                      key: "gen_ai.input.messages",
+                      value: { stringValue: JSON.stringify(inputMessages) },
+                    },
+                    {
+                      key: "gen_ai.system_instructions",
+                      value: {
+                        stringValue: JSON.stringify(systemInstructions),
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(
+          resourceSpan,
+          new Set(),
+        );
+
+        return events.find((event) => event.type === "generation-create")?.body
+          .input;
+      };
+
+      it("should preserve complete system messages instead of coercing them to strings", async () => {
+        const systemMessages = [
+          {
+            role: "system",
+            parts: [{ type: "text", content: "Be concise." }],
+          },
+          {
+            role: "system",
+            parts: [{ type: "text", content: "Use plain language." }],
+          },
+        ];
+
+        expect(await convertWithSystemInstructions(systemMessages)).toBe(
+          JSON.stringify([...systemMessages, ...inputMessages]),
+        );
+      });
+
+      it("should preserve non-text OpenTelemetry system instruction parts", async () => {
+        const systemInstructionParts = [
+          { type: "provider_defined", policy_id: "policy-1" },
+        ];
+
+        expect(
+          await convertWithSystemInstructions(systemInstructionParts),
+        ).toBe(
+          JSON.stringify([
+            { role: "system", parts: systemInstructionParts },
+            ...inputMessages,
+          ]),
+        );
+      });
+
+      it("should join string system instruction parts", async () => {
+        expect(
+          await convertWithSystemInstructions([
+            "Be concise.",
+            "Use plain language.",
+          ]),
+        ).toBe(
+          JSON.stringify([
+            {
+              role: "system",
+              content: "Be concise.\nUse plain language.",
+            },
+            ...inputMessages,
+          ]),
+        );
+      });
+
+      it.each([
+        ["an empty array", []],
+        ["an empty complete system message", [{ role: "system", parts: [] }]],
+        ["empty objects", [{}, {}]],
+        [
+          "object-valued text content",
+          [
+            { type: "text", content: {} },
+            { type: "text", content: {} },
+          ],
+        ],
+        ["null", null],
+        [
+          "mixed-role complete messages",
+          [
+            { role: "system", content: "Policy" },
+            { role: "user", content: "Do not reinterpret me" },
+          ],
+        ],
+      ])(
+        "should not prepend a synthetic system message for %s",
+        async (_name, systemInstructions) => {
+          expect(await convertWithSystemInstructions(systemInstructions)).toBe(
+            JSON.stringify(inputMessages),
+          );
+        },
+      );
+    });
+
     describe("prompt linking gated to GENERATION observations", () => {
       const buildResourceSpan = (attributes: Record<string, any>[]) =>
         ({

@@ -2050,9 +2050,9 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
-   * consistent with how gen_ai.system.message events are mapped.
-   * No-ops if messages already contain a system message.
+   * Prepends gen_ai.system_instructions as system message content or parts.
+   * No-ops if instructions cannot be represented safely or input already
+   * contains a system message.
    */
   private prependSystemInstructions(
     input: unknown,
@@ -2067,29 +2067,76 @@ export class OtelIngestionProcessor {
       );
       if (hasSystemMessage) return input;
 
-      let content: string;
-      try {
-        const parsed =
-          typeof systemInstructions === "string"
-            ? JSON.parse(systemInstructions)
-            : systemInstructions;
-        if (Array.isArray(parsed)) {
-          content = parsed
-            .map((p: Record<string, unknown>) =>
-              typeof p === "object" && p?.content
-                ? String(p.content)
-                : String(p),
-            )
-            .join("\n");
-        } else {
-          content = String(parsed);
+      let parsed = systemInstructions;
+      if (typeof systemInstructions === "string") {
+        try {
+          parsed = JSON.parse(systemInstructions);
+        } catch {
+          parsed = systemInstructions;
         }
-      } catch {
-        content = String(systemInstructions);
       }
 
-      const systemMessage = { role: "system", content };
-      const merged = [systemMessage, ...messages];
+      let systemMessages: unknown[];
+      if (Array.isArray(parsed)) {
+        if (parsed.length === 0) return input;
+
+        const isSystemMessage = (
+          value: unknown,
+        ): value is Record<string, unknown> =>
+          OtelIngestionProcessor.isPlainObject(value) &&
+          value.role === "system" &&
+          (Array.isArray(value.parts) || typeof value.content === "string");
+        const isInstructionPart = (
+          value: unknown,
+        ): value is Record<string, unknown> =>
+          OtelIngestionProcessor.isPlainObject(value) &&
+          typeof value.type === "string" &&
+          (value.type !== "text" || typeof value.content === "string");
+        const isTextInstructionPart = (
+          value: unknown,
+        ): value is Record<"type" | "content", string> =>
+          OtelIngestionProcessor.isPlainObject(value) &&
+          value.type === "text" &&
+          typeof value.content === "string";
+
+        // Some instrumentations, including LiteLLM, emit complete system
+        // messages instead of instruction parts. Preserve those messages
+        // rather than nesting them as parts.
+        if (parsed.every(isSystemMessage)) {
+          systemMessages = parsed.filter(
+            (message) =>
+              (typeof message.content === "string" &&
+                message.content.trim().length > 0) ||
+              (Array.isArray(message.parts) && message.parts.length > 0),
+          );
+          if (systemMessages.length === 0) return input;
+        } else if (parsed.every((part) => typeof part === "string")) {
+          const content = parsed
+            .filter((part) => part.trim().length > 0)
+            .join("\n");
+          if (!content) return input;
+          systemMessages = [{ role: "system", content }];
+        } else {
+          if (!parsed.every(isInstructionPart)) return input;
+
+          if (parsed.every(isTextInstructionPart)) {
+            const content = parsed
+              .map((part) => part.content)
+              .filter((part) => part.trim().length > 0)
+              .join("\n");
+            if (!content) return input;
+            systemMessages = [{ role: "system", content }];
+          } else {
+            systemMessages = [{ role: "system", parts: parsed }];
+          }
+        }
+      } else if (typeof parsed === "string" && parsed.trim().length > 0) {
+        systemMessages = [{ role: "system", content: parsed }];
+      } else {
+        return input;
+      }
+
+      const merged = systemMessages.concat(messages);
       return typeof input === "string" ? JSON.stringify(merged) : merged;
     } catch {
       return input;
