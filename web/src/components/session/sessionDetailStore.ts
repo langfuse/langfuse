@@ -39,16 +39,19 @@ export type SessionDetailStore = StoreApi<SessionDetailStoreState>;
 export function createSessionDetailStore({
   initialSessionId,
   initialShowCorrections,
+  initialInspectedObservation = null,
 }: {
   initialSessionId: string;
   initialShowCorrections: boolean;
+  /** Restored from the URL (?inspectedTrace / ?inspectedObs) on load. */
+  initialInspectedObservation?: InspectedObservation | null;
 }): SessionDetailStore {
   return createStore<SessionDetailStoreState>((set, get) => ({
     loadedTraceIds: {},
     showCorrections: initialShowCorrections,
     showInlineToolCalls: false,
     showSystemPrompt: false,
-    inspectedObservation: null,
+    inspectedObservation: initialInspectedObservation,
     generationView: "all",
     sessionId: initialSessionId,
     actions: {

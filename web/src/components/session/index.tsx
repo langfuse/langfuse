@@ -75,7 +75,7 @@ import {
   buildSidebarFilterQueryStorageKey,
   readPersistedSidebarFilterQuery,
 } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { StringParam, useQueryParam } from "use-query-params";
+import { StringParam, useQueryParam, useQueryParams } from "use-query-params";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -100,6 +100,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import {
   createSessionDetailStore,
   type GenerationView,
+  type InspectedObservation,
 } from "@/src/components/session/sessionDetailStore";
 import { cn } from "@/src/utils/tailwind";
 import { ModernSession } from "@/src/components/session/ModernSession";
@@ -954,12 +955,45 @@ const LoadedSessionEventsPage: React.FC<{
     "showCorrections",
     false,
   );
+  // The inspector selection restored from a shared URL. Read from
+  // window.location synchronously during store creation (not useQueryParam,
+  // which can lag a render on mount) — same pattern as readUrlViewId below.
+  const readUrlInspectedObservation = (): InspectedObservation | null => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const traceId = params.get("inspectedTrace");
+    if (!traceId) return null;
+    return { traceId, observationId: params.get("inspectedObs") };
+  };
   const [sessionDetailStore] = useState(() =>
     createSessionDetailStore({
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
+      initialInspectedObservation: isModernSessionEnabled
+        ? readUrlInspectedObservation()
+        : null,
     }),
   );
+  // Mirror the inspector selection into the URL (?inspectedTrace /
+  // ?inspectedObs) so it is shareable. `replaceIn` keeps selection changes out
+  // of the history stack; the URL is the external system this effect syncs.
+  const [, setInspectedParams] = useQueryParams({
+    inspectedTrace: StringParam,
+    inspectedObs: StringParam,
+  });
+  useEffect(() => {
+    if (!isModernSessionEnabled) return;
+    return sessionDetailStore.subscribe((state, previous) => {
+      if (state.inspectedObservation === previous.inspectedObservation) return;
+      setInspectedParams(
+        {
+          inspectedTrace: state.inspectedObservation?.traceId,
+          inspectedObs: state.inspectedObservation?.observationId ?? undefined,
+        },
+        "replaceIn",
+      );
+    });
+  }, [isModernSessionEnabled, sessionDetailStore, setInspectedParams]);
   const showInlineToolCalls = useStore(
     sessionDetailStore,
     (state) => state.showInlineToolCalls,
