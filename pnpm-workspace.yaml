@@ -32,6 +32,7 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.2.11"
   - "eslint-config-next@16.2.11"
   - "next@16.2.11"
+  - "next-auth@4.24.15"
   - "ws@8.21.1"
   - "fast-uri@3.1.4"
 allowBuilds:
@@ -86,7 +87,7 @@ overrides:
   # Remove once next-auth allows nodemailer ^9.
   "next-auth>nodemailer": "^9.0.3"
 patchedDependencies:
-  next-auth@4.24.14: patches/next-auth@4.24.14.patch
+  next-auth@4.24.15: patches/next-auth@4.24.15.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
