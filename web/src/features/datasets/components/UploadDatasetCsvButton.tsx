@@ -9,7 +9,6 @@ import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDia
 export const UploadDatasetCsvButton = (props: {
   projectId: string;
   datasetId: string;
-  className?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -28,7 +27,6 @@ export const UploadDatasetCsvButton = (props: {
       <DialogTrigger asChild className="hidden md:flex">
         <ActionButton
           variant="outline"
-          className={props.className}
           disabled={!hasAccess}
           hasAccess={hasAccess}
           onClick={() => capture("dataset_item:upload_csv_button_click")}

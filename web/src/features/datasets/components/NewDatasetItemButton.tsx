@@ -15,7 +15,6 @@ import { ActionButton } from "@/src/components/ActionButton";
 export const NewDatasetItemButton = (props: {
   projectId: string;
   datasetId?: string;
-  className?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const hasAccess = useHasProjectAccess({
@@ -28,7 +27,6 @@ export const NewDatasetItemButton = (props: {
       <DialogTrigger asChild>
         <ActionButton
           variant="outline"
-          className={props.className}
           hasAccess={hasAccess}
           onClick={() => capture("dataset_item:new_form_open")}
           icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
