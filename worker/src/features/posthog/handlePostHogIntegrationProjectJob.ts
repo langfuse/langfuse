@@ -41,6 +41,9 @@ type PostHogExecutionConfig = {
 
 const postHogSettings = {
   flushAt: 1000,
+  // Must be >= the capture loops' manual flush cadence (every 10k events);
+  // past this cap the SDK silently drops the oldest queued event.
+  maxQueueSize: 10000,
 };
 
 type PostHogClientOptions = NonNullable<
