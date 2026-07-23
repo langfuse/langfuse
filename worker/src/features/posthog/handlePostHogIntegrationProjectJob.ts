@@ -79,6 +79,8 @@ type PostHogClientOptions = NonNullable<
 export const countingFetch =
   (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
   (url, options) => {
+    // Extend the existing V0 counter to cover the additional capture mode
+    // supported by newer posthog-node releases.
     const captureEndpoint =
       url.endsWith("/batch/") || url.endsWith("/i/v1/analytics/events");
     if (captureEndpoint) {
