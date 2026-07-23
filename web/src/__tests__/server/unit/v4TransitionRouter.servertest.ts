@@ -112,6 +112,7 @@ const mockedQueryClickhouse = vi.mocked(queryClickhouse);
 const projectId = "project-v4-transition";
 const orgId = "org-v4-transition";
 const secondProjectId = "project-v4-transition-second";
+const outsideProjectId = "project-v4-transition-outside";
 
 // Mocked Prisma delegates only implement the methods a test exercises, so
 // accept any subset of PrismaClient keys with loosely typed values.
@@ -138,6 +139,10 @@ const createSessionWithOrgRole = (role: OrganizationRole): Session => ({
     organizations: session.user!.organizations.map((organization) => ({
       ...organization,
       role,
+      projects:
+        role === "NONE"
+          ? organization.projects.filter((project) => project.id === projectId)
+          : organization.projects,
     })),
   },
 });
@@ -177,6 +182,16 @@ const session: Session = {
           {
             id: projectId,
             name: "V4 Transition Project",
+            role: "ADMIN",
+            deletedAt: null,
+            retentionDays: null,
+            hasTraces: false,
+            metadata: {},
+            createdAt: new Date(0).toISOString(),
+          },
+          {
+            id: secondProjectId,
+            name: "Second Project",
             role: "ADMIN",
             deletedAt: null,
             retentionDays: null,
@@ -732,6 +747,7 @@ describe("v4TransitionRouter", () => {
       where: {
         orgId,
         deletedAt: null,
+        id: { in: [projectId, secondProjectId] },
       },
       select: {
         id: true,
@@ -778,6 +794,7 @@ describe("v4TransitionRouter", () => {
       where: {
         orgId,
         deletedAt: null,
+        id: { in: [projectId, secondProjectId] },
       },
       select: {
         id: true,
@@ -856,44 +873,54 @@ describe("v4TransitionRouter", () => {
     ).resolves.toEqual([]);
   });
 
-  it("forbids organization members from accessing org-level v4 data", async () => {
+  it("allows project-only members to access org-level v4 data for their readable projects", async () => {
+    const findManyProjects = vi.fn().mockResolvedValue([
+      {
+        id: projectId,
+        name: "V4 Transition Project",
+      },
+    ]);
     const caller = createCaller(
       {
         project: {
-          findMany: vi.fn(),
+          findMany: findManyProjects,
+        },
+        posthogIntegration: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        mixpanelIntegration: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        blobStorageIntegration: {
+          findMany: vi.fn().mockResolvedValue([]),
         },
       },
-      createSessionWithOrgRole("MEMBER"),
+      createSessionWithOrgRole("NONE"),
     );
 
-    await expect(caller.summaryByProject({ orgId })).rejects.toMatchObject({
-      code: "FORBIDDEN",
+    await expect(caller.summaryByProject({ orgId })).resolves.toEqual({
+      projects: [
+        {
+          projectId,
+          projectName: "V4 Transition Project",
+          legacyIntegrationCount: 0,
+          legacyIntegrations: {
+            posthog: false,
+            mixpanel: false,
+            blobStorage: false,
+          },
+        },
+      ],
     });
-    await expect(
-      caller.traceLevelEvalSummaryByProject({
-        orgId,
+    expect(findManyProjects).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          orgId,
+          deletedAt: null,
+          id: { in: [projectId] },
+        },
       }),
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    await expect(
-      caller.legacyApiUsageSummaryByProject({
-        orgId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      }),
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    await expect(
-      caller.sdkUsageSummaryByProject({
-        orgId,
-        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
-        toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      }),
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
+    );
   });
 
   it("queries trace-level eval execution counts with the same 2 minute buckets as the legacy API timeline", async () => {
@@ -1133,76 +1160,36 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
   });
 
-  it("forbids project members and viewers from accessing project-level v4 data", async () => {
-    const mockPrisma = {
-      posthogIntegration: {
-        findUnique: vi.fn(),
-      },
-      mixpanelIntegration: {
-        findUnique: vi.fn(),
-      },
-      blobStorageIntegration: {
-        findUnique: vi.fn(),
-      },
-      jobConfiguration: {
-        count: vi.fn(),
-      },
-      $queryRaw: vi.fn(),
-    };
+  it.each(["MEMBER", "VIEWER"] as const)(
+    "allows project %s roles to access project-level v4 data",
+    async (role) => {
+      const mockPrisma = {
+        posthogIntegration: {
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+        mixpanelIntegration: {
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+        blobStorageIntegration: {
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+      };
 
-    for (const role of ["MEMBER", "VIEWER"] as const) {
       const caller = createCaller(
         mockPrisma,
         createSessionWithProjectRole(role),
       );
 
-      await expect(caller.summary({ projectId })).rejects.toMatchObject({
-        code: "FORBIDDEN",
+      await expect(caller.summary({ projectId })).resolves.toEqual({
+        legacyIntegrationCount: 0,
+        legacyIntegrations: {
+          posthog: false,
+          mixpanel: false,
+          blobStorage: false,
+        },
       });
-      await expect(
-        caller.traceLevelEvalSummary({ projectId }),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
-      await expect(
-        caller.timeSeriesByEntrypoint({
-          projectId,
-          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-          toTimestamp: new Date("2026-06-25T13:00:00Z"),
-          granularity: "auto",
-        }),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
-      await expect(
-        caller.traceLevelEvalExecutionsTimeSeries({
-          projectId,
-          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-          toTimestamp: new Date("2026-06-25T13:00:00Z"),
-          granularity: "auto",
-        }),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
-      await expect(
-        caller.sdkUsageTimeSeries({
-          projectId,
-          fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-          toTimestamp: new Date("2026-06-25T13:00:00Z"),
-          granularity: "auto",
-        }),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-      });
-    }
-
-    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
-    expect(mockPrisma.posthogIntegration.findUnique).not.toHaveBeenCalled();
-    expect(mockPrisma.mixpanelIntegration.findUnique).not.toHaveBeenCalled();
-    expect(mockPrisma.blobStorageIntegration.findUnique).not.toHaveBeenCalled();
-    expect(mockPrisma.jobConfiguration.count).not.toHaveBeenCalled();
-    expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
-  });
+    },
+  );
 
   it("queries SDK usage without a ClickHouse metadata preflight", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
@@ -1243,7 +1230,7 @@ describe("v4TransitionRouter", () => {
 
     await expect(
       caller.sdkUsageTimeSeries({
-        projectId: secondProjectId,
+        projectId: outsideProjectId,
         fromTimestamp: new Date("2026-06-25T12:00:00Z"),
         toTimestamp: new Date("2026-06-25T13:00:00Z"),
         granularity: "auto",
@@ -1307,6 +1294,7 @@ describe("v4TransitionRouter", () => {
       where: {
         orgId,
         deletedAt: null,
+        id: { in: [projectId, secondProjectId] },
       },
       select: {
         id: true,

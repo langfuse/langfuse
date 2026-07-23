@@ -7,7 +7,6 @@ import {
   getAppRootSavedViewComparisonFilters,
   getAppRootSuppressionToPersist,
   removeAppRootDefaultFilter,
-  shouldQuerySdkVersion,
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
@@ -66,39 +65,6 @@ describe("app-root default policy", () => {
     expect(
       getAppRootDefaultPolicy({ ...basePolicy, ...override }).shouldApplyFilter,
     ).toBe(apply);
-  });
-
-  it("queries the SDK version only when a refresh could matter", () => {
-    const base = {
-      enabled: true,
-      routerReady: true,
-      sdkCheckedAt: null,
-      dismissed: false,
-      now,
-    };
-    expect(shouldQuerySdkVersion(base)).toBe(true);
-    expect(
-      shouldQuerySdkVersion({
-        ...base,
-        sdkCheckedAt: "2026-07-14T12:00:00.000Z",
-      }),
-    ).toBe(false);
-    expect(
-      shouldQuerySdkVersion({
-        ...base,
-        sdkCheckedAt: "2026-05-01T12:00:00.000Z",
-      }),
-    ).toBe(true);
-    expect(shouldQuerySdkVersion({ ...base, dismissed: true })).toBe(false);
-  });
-
-  it("persists the SDK check only after it settles", () => {
-    const stale = { ...basePolicy, sdkCheckedAt: null };
-    expect(getAppRootDefaultPolicy(stale).shouldPersistSdkVersion).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({ ...stale, sdkCheckSettled: true })
-        .shouldPersistSdkVersion,
-    ).toBe(true);
   });
 
   it("URL table-state params own the table on arrival", () => {

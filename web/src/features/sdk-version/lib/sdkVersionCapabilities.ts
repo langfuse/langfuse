@@ -1,6 +1,6 @@
 import { normalizeIngestionSdkName } from "@langfuse/shared";
 
-export type SdkMetadata = {
+type SdkMetadata = {
   isOtel: boolean;
   name?: string;
   version?: string;
@@ -19,14 +19,14 @@ export const sdkVersionStorageKeys = (projectId: string) => ({
   checkedAt: `events-sdk-checkedAt:${projectId}`,
 });
 
-export const SDK_VERSION_CAPABILITIES = {
+const SDK_VERSION_CAPABILITIES = {
   appRootObservations: {
     javascript: [5, 4, 0],
     python: [4, 7, 0],
   },
 } as const;
 
-export type SdkVersionCapability = keyof typeof SDK_VERSION_CAPABILITIES;
+type SdkVersionCapability = keyof typeof SDK_VERSION_CAPABILITIES;
 
 export const toSdkVersionInfo = (
   sdk: SdkMetadata | undefined,

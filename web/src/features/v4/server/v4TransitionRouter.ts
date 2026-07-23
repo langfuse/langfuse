@@ -4,14 +4,11 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { v4MigrationProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   AnalyticsIntegrationExportSource,
   Prisma,
 } from "@langfuse/shared/src/db";
+import type { Session } from "next-auth";
 import {
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
@@ -321,26 +318,23 @@ const fillTraceLevelEvalExecutionBuckets = ({
   return filledRows;
 };
 
-const protectedV4MigrationOrgProcedure = protectedOrganizationProcedure.use(
-  ({ ctx, next }) => {
-    throwIfNoOrganizationAccess({
-      role: ctx.session.orgRole,
-      scope: v4MigrationOrgScope,
-    });
-    return next();
-  },
-);
+const getAccessibleOrganizationProjectWhere = ({
+  orgId,
+  session,
+}: {
+  orgId: string;
+  session: Session;
+}): Prisma.ProjectWhereInput => {
+  const projectIds = session.user?.organizations
+    .find((organization) => organization.id === orgId)
+    ?.projects.map((project) => project.id);
 
-const protectedV4MigrationProjectProcedure = protectedProjectProcedure.use(
-  ({ ctx, next }) => {
-    throwIfNoProjectAccess({
-      role: ctx.session.projectRole,
-      admin: ctx.session.user.admin,
-      scope: v4MigrationProjectScope,
-    });
-    return next();
-  },
-);
+  return {
+    orgId,
+    deletedAt: null,
+    ...(session.user?.admin ? {} : { id: { in: projectIds ?? [] } }),
+  };
+};
 
 const getLegacyIntegrations = ({
   posthogIntegration,
@@ -366,7 +360,7 @@ const getLegacyIntegrations = ({
 });
 
 export const v4TransitionRouter = createTRPCRouter({
-  summary: protectedV4MigrationProjectProcedure
+  summary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       const [posthogIntegration, mixpanelIntegration, blobStorageIntegration] =
@@ -398,7 +392,7 @@ export const v4TransitionRouter = createTRPCRouter({
       };
     }),
 
-  traceLevelEvalSummary: protectedV4MigrationProjectProcedure
+  traceLevelEvalSummary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       const traceLevelEvalCount = await ctx.prisma.jobConfiguration.count({
@@ -412,14 +406,14 @@ export const v4TransitionRouter = createTRPCRouter({
       return { traceLevelEvalCount };
     }),
 
-  summaryByProject: protectedV4MigrationOrgProcedure
+  summaryByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
-        where: {
+        where: getAccessibleOrganizationProjectWhere({
           orgId: input.orgId,
-          deletedAt: null,
-        },
+          session: ctx.session,
+        }),
         select: {
           id: true,
           name: true,
@@ -495,14 +489,14 @@ export const v4TransitionRouter = createTRPCRouter({
       };
     }),
 
-  traceLevelEvalSummaryByProject: protectedV4MigrationOrgProcedure
+  traceLevelEvalSummaryByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
-        where: {
+        where: getAccessibleOrganizationProjectWhere({
           orgId: input.orgId,
-          deletedAt: null,
-        },
+          session: ctx.session,
+        }),
         select: {
           id: true,
         },
@@ -533,7 +527,7 @@ export const v4TransitionRouter = createTRPCRouter({
       );
     }),
 
-  traceLevelEvalExecutionsTimeSeries: protectedV4MigrationProjectProcedure
+  traceLevelEvalExecutionsTimeSeries: protectedProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input, ctx }) => {
       const granularity = resolveTimelineGranularity(
@@ -585,7 +579,7 @@ ORDER BY bucket_time ASC, score_name ASC
       });
     }),
 
-  sdkUsageTimeSeries: protectedV4MigrationProjectProcedure
+  sdkUsageTimeSeries: protectedProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(
@@ -666,14 +660,14 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
       } satisfies SdkUsageTimeSeriesResult;
     }),
 
-  sdkUsageSummaryByProject: protectedV4MigrationOrgProcedure
+  sdkUsageSummaryByProject: protectedOrganizationProcedure
     .input(organizationTimeRangeInputSchema)
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
-        where: {
+        where: getAccessibleOrganizationProjectWhere({
           orgId: input.orgId,
-          deletedAt: null,
-        },
+          session: ctx.session,
+        }),
         select: {
           id: true,
         },
@@ -767,14 +761,14 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
       );
     }),
 
-  legacyApiUsageSummaryByProject: protectedV4MigrationOrgProcedure
+  legacyApiUsageSummaryByProject: protectedOrganizationProcedure
     .input(organizationTimeRangeInputSchema)
     .query(async ({ input, ctx }) => {
       const projects = await ctx.prisma.project.findMany({
-        where: {
+        where: getAccessibleOrganizationProjectWhere({
           orgId: input.orgId,
-          deletedAt: null,
-        },
+          session: ctx.session,
+        }),
         select: {
           id: true,
         },
@@ -880,7 +874,7 @@ SETTINGS skip_unavailable_shards = 1
       );
     }),
 
-  timeSeriesByEntrypoint: protectedV4MigrationProjectProcedure
+  timeSeriesByEntrypoint: protectedProjectProcedure
     .input(timelineInputSchema)
     .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(
