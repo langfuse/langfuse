@@ -1880,6 +1880,9 @@ export default function ObservationsEventsTable({
                     onRequestColumns={requestColumns}
                     aiDataContext={aiDataContext}
                     aiScoreNames={aiScoreNames}
+                    // Flush inside the sheet: the section container owns the
+                    // padding, so the bar lines up with time range / presets.
+                    className="p-0"
                   />
                 ) : undefined
               }

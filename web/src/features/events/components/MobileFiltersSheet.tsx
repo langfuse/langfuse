@@ -95,7 +95,10 @@ export function MobileFiltersSheet({
         aria-describedby={undefined}
         // Hide the wrapper's default close X (our header provides one) and
         // drop the default padding/gap so header/body/footer own their spacing.
-        className="flex max-h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
+        // A DEFINITE height (not max-h) is required so the flex chain hands the
+        // facet list's ScrollArea a bounded height — otherwise it can't scroll
+        // on mobile (max-h alone doesn't propagate a resolvable height).
+        className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
       >
         {/* Accessible name for the dialog; the visible heading is below. */}
         <SheetTitle className="sr-only">Filters</SheetTitle>
@@ -118,7 +121,9 @@ export function MobileFiltersSheet({
               preset chips on a short screen) never starves the facet list. */}
           {(search || timeRange || presets || savedViews) && (
             <div className="flex max-h-[45svh] shrink-0 flex-col gap-5 overflow-y-auto border-b px-4 py-4">
-              <Section label="Search">{search}</Section>
+              {/* Search leads without a header — the bar itself reads as
+                  search, and a "SEARCH" label just adds noise. */}
+              {search}
               <Section label="Time range">{timeRange}</Section>
               <Section label="Quick presets">{presets}</Section>
               <Section label="My views">{savedViews}</Section>
