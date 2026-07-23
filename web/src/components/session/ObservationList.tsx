@@ -65,6 +65,9 @@ const TurnObservationRows = ({
   search: string;
   onSelectTurn: () => void;
 }) => {
+  const openInspector = useSessionDetailStore(
+    (state) => state.actions.openInspector,
+  );
   const observationsQuery =
     api.sessions.observationsForTraceFromEvents.useQuery(
       { projectId, sessionId, traceId: trace.id, filter: filterState },
@@ -112,7 +115,15 @@ const TurnObservationRows = ({
         <button
           key={observation.id}
           type="button"
-          onClick={onSelectTurn}
+          onClick={() => {
+            // Scroll the conversation to the turn AND open the span in the
+            // inspector (review decision — supersedes the scroll-only spec).
+            onSelectTurn();
+            openInspector({
+              traceId: trace.id,
+              observationId: observation.id,
+            });
+          }}
           className="hover:bg-muted/40 flex w-full items-center gap-2 border-t px-2.5 py-1.5 text-left"
         >
           <span className="bg-muted/40 text-muted-foreground min-w-[46px] shrink-0 rounded-sm border px-1 py-px text-center font-mono text-[8.5px] font-bold tracking-wide uppercase">
