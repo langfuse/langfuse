@@ -38,6 +38,7 @@ import {
   PanelLeftOpen,
   Plus,
   UnfoldVertical,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -84,6 +85,9 @@ interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tableName?: string;
+  /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
+   *  so its header shows a plain close instead of the collapse-to-rail chrome. */
+  isMobile: boolean;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -115,7 +119,9 @@ export function DataTableControlsProvider({
   const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
+    <ControlsContext.Provider
+      value={{ open, setOpen, tableName, isMobile: !isDesktop }}
+    >
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -132,7 +138,12 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {}, tableName: undefined };
+    return {
+      open: false,
+      setOpen: () => {},
+      tableName: undefined,
+      isMobile: false,
+    };
   }
 
   return context as ControlsContextType;
@@ -182,7 +193,7 @@ export function DataTableControls({
   layout = "panel",
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen, tableName } = useDataTableControls();
+  const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -726,31 +737,49 @@ export function DataTableControls({
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            {/* Inline (mobile Filters sheet) owns its own header X + "Filters"
-                title, and there is no collapse-to-rail there — so hide this
-                close button and duplicate title; tapping them would just
-                dismiss the whole sheet. */}
+            {/* Three contexts for the header's close affordance:
+                - inline (events MobileFiltersSheet): the sheet owns its own X +
+                  "Filters" title, so render neither here — a second X would
+                  duplicate it and tapping it just dismisses the whole sheet.
+                - mobile panel (other tables' ResizableFilterLayout bottom
+                  sheet): this panel IS the sheet, so its header X is the close.
+                  No tooltip (the sheet auto-focuses it on open and a Radix
+                  tooltip would pop up unprompted); an X is self-evident.
+                - desktop: collapse-to-rail via the Hide-filters button. */}
+            {layout === "inline" ? null : isMobile ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setOpen(false);
+                  emitSidebarToggled(false, "header");
+                }}
+                aria-label="Close filters"
+                className="-ml-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setOpen(false);
+                      emitSidebarToggled(false, "header");
+                    }}
+                    aria-label="Hide filters"
+                    className="-ml-1 h-6 w-6"
+                  >
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hide filters</TooltipContent>
+              </Tooltip>
+            )}
             {layout !== "inline" && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setOpen(false);
-                        emitSidebarToggled(false, "header");
-                      }}
-                      aria-label="Hide filters"
-                      className="-ml-1 h-6 w-6"
-                    >
-                      <PanelLeftClose className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Hide filters</TooltipContent>
-                </Tooltip>
-                <span className="text-sm font-bold">Filters</span>
-              </>
+              <span className="text-sm font-bold">Filters</span>
             )}
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
@@ -869,10 +898,11 @@ export function DataTableControls({
                   Show only active
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
-                {/* No collapse-to-rail inside the mobile Filters sheet — this
-                    would just dismiss the whole sheet (the sheet's footer owns
-                    close). Desktop only. */}
-                {layout !== "inline" && (
+                {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
+                    on mobile (either sheet), where the header X / sheet footer
+                    already close it. Covers both the other-tables mobile sheet
+                    and the events inline sheet (inline is always mobile). */}
+                {!isMobile && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
