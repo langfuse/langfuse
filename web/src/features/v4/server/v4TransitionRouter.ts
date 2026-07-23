@@ -16,6 +16,7 @@ import {
   systemTableRef,
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
+import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 import {
   addTimelineBucket,
   floorTimelineBucket,
@@ -145,12 +146,22 @@ type SdkUsageSummaryByProjectRow = {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
-  count: string | number;
+  lastSeen: string;
+};
+
+type SdkUsageSummaryByProjectSeries = {
+  sdkName: string;
+  sdkVersion: string;
+  canonicalSdkName: "python" | "javascript" | null;
+  publicKey: string;
+  lastSeen: string;
+  v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
 };
 
 type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
+  sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
 const getEmptyTimelineBuckets = (
@@ -681,6 +692,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
 
   SELECT
     project_id,
+    timestamp AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key
@@ -698,6 +710,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
 WITH selected AS (
   SELECT
     project_id,
+    start_time AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key
@@ -717,7 +730,7 @@ SELECT
   sdk_name AS sdkName,
   sdk_version AS sdkVersion,
   public_key AS publicKey,
-  count() AS count
+  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
 FROM selected
 GROUP BY project_id, sdk_name, sdk_version, public_key
 ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
@@ -734,6 +747,10 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
       });
 
       const outdatedCountsByProjectId = new Map<string, number>();
+      const sdkUsageSeriesByProjectId = new Map<
+        string,
+        SdkUsageSummaryByProjectSeries[]
+      >();
 
       for (const row of rows) {
         const classification = classifyIngestionSdkVersion({
@@ -741,15 +758,33 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           sdkVersion: row.sdkVersion,
         });
 
-        if (
-          classification.status === "outdated_major" &&
-          Number(row.count) > 0
-        ) {
+        if (classification.status === "outdated_major") {
           outdatedCountsByProjectId.set(
             row.projectId,
             (outdatedCountsByProjectId.get(row.projectId) ?? 0) + 1,
           );
         }
+
+        const capabilityStatus = getSdkVersionCapabilityStatus(
+          { language: row.sdkName, version: row.sdkVersion },
+          "appRootObservations",
+        );
+        const projectSeries =
+          sdkUsageSeriesByProjectId.get(row.projectId) ?? [];
+        projectSeries.push({
+          sdkName: row.sdkName,
+          sdkVersion: row.sdkVersion,
+          canonicalSdkName: classification.canonicalSdkName,
+          publicKey: row.publicKey,
+          lastSeen: row.lastSeen,
+          v4MigrationStatus:
+            capabilityStatus === "supported"
+              ? "compatible"
+              : capabilityStatus === "unsupported"
+                ? "upgrade_required"
+                : "unknown",
+        });
+        sdkUsageSeriesByProjectId.set(row.projectId, projectSeries);
       }
 
       return projectIds.map(
@@ -757,6 +792,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           projectId,
           outdatedSdkUsageSeriesCount:
             outdatedCountsByProjectId.get(projectId) ?? 0,
+          sdkUsageSeries: sdkUsageSeriesByProjectId.get(projectId) ?? [],
         }),
       );
     }),

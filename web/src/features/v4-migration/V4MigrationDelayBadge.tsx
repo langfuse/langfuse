@@ -2,23 +2,21 @@ import { ChevronRight } from "lucide-react";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
-import { getV4MigrationSdkStatus } from "@/src/features/v4-migration/sdkVersionStatus";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const openMigrationPanel = useOpenV4MigrationPanel();
-  const { project } = useQueryProject();
+  const { project, organization } = useQueryProject();
   const capture = usePostHogClientCapture();
-  const sdkVersionState = useProjectSdkVersionInfo({
-    projectId: project?.id ?? "",
+  const sdk = useProjectV4SdkData({
+    projectId: project?.id,
+    orgId: organization?.id,
     enabled: v4UpgradeUiEnabled && Boolean(project),
-    refreshMode: "always",
   });
-  const sdkStatus = getV4MigrationSdkStatus(sdkVersionState);
 
-  if (!v4UpgradeUiEnabled || !project || sdkStatus !== "legacy") {
+  if (!v4UpgradeUiEnabled || !project || sdk.status !== "legacy") {
     return null;
   }
 

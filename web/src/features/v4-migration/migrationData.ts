@@ -1,6 +1,6 @@
 import { type RouterOutputs } from "@/src/utils/api";
 import { normalizeLegacyApiEntrypoint } from "@/src/features/v4/utils";
-import { type V4MigrationSdkStatus } from "@/src/features/v4-migration/sdkVersionStatus";
+import { type V4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
 
 export const V4_MIGRATION_LOOKBACK_DAYS = 7;
 
@@ -52,7 +52,7 @@ export const getMigrationCountState = <T>(
 };
 
 export type ProjectMigrationStatus = {
-  sdk: V4MigrationSdkStatus;
+  sdk: V4MigrationSdkState;
   evals: MigrationCountState;
   apis: MigrationCountState;
   exports: MigrationCountState;
@@ -70,18 +70,21 @@ export const getProjectMigrationReadiness = (
   const counts = [status.evals, status.apis, status.exports];
 
   if (
-    status.sdk === "error" ||
+    status.sdk.status === "error" ||
     counts.some((count) => count.status === "error")
   ) {
     return "unavailable";
   }
   if (
-    status.sdk === "checking" ||
+    status.sdk.status === "checking" ||
     counts.some((count) => count.status === "loading")
   ) {
     return "checking";
   }
-  if (status.sdk === "latest" && counts.every((count) => count.count === 0)) {
+  if (
+    status.sdk.status === "latest" &&
+    counts.every((count) => count.count === 0)
+  ) {
     return "ready";
   }
   return "action-needed";

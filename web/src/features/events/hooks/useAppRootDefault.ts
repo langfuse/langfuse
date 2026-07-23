@@ -80,7 +80,6 @@ export function useAppRootDefault(params: {
   const sdkVersionState = useProjectSdkVersionInfo({
     projectId,
     enabled: enabled && router.isReady && !dismissed,
-    refreshMode: "if-stale",
   });
 
   const defaultViewQuery = api.TableViewPresets.getDefault.useQuery(
@@ -104,7 +103,6 @@ export function useAppRootDefault(params: {
     routerReady: router.isReady,
     appRootSupported,
     sdkCheckedAt: sdkVersionState.checkedAt,
-    sdkCheckSettled: sdkVersionState.querySettled,
     preference,
     defaultViewSettled: !defaultViewQuery.isLoading,
     savedViewOwnsState,

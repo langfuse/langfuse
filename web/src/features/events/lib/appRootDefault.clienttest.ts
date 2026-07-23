@@ -12,6 +12,7 @@ import {
 } from "./appRootDefaultFilterPolicy";
 import {
   getSdkVersionCapability,
+  getSdkVersionCapabilityStatus,
   toSdkVersionInfo,
 } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
@@ -27,7 +28,6 @@ const basePolicy = {
   routerReady: true,
   appRootSupported: true,
   sdkCheckedAt: "2026-07-14T12:00:00.000Z",
-  sdkCheckSettled: false,
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
@@ -37,21 +37,25 @@ const basePolicy = {
 
 describe("app-root default policy", () => {
   it.each([
-    ["javascript", "5.4.0", true],
-    ["javascript", "5.3.9", false],
-    ["typescript", "5.10.0", true],
-    ["python", "4.7.0", true],
-    ["python", "4.6.9", false],
-    ["python", "4.7.0rc1", false],
-    ["unknown", "99.0.0", false],
-  ])("classifies %s %s", (name, version, expected) => {
-    expect(
-      getSdkVersionCapability(
-        toSdkVersionInfo({ isOtel: true, name, version }),
-        "appRootObservations",
-      ),
-    ).toBe(expected);
-  });
+    ["javascript", "5.4.0", "supported"],
+    ["javascript", "5.3.9", "unsupported"],
+    ["typescript", "5.10.0", "supported"],
+    ["python", "4.7.0", "supported"],
+    ["python", "4.6.9", "unsupported"],
+    ["python", "4.7.0rc1", "unknown"],
+    ["custom", "1.0.0", "unknown"],
+  ] as const)(
+    "reports the %s %s capability status as %s",
+    (name, version, expected) => {
+      const sdkVersion = toSdkVersionInfo({ isOtel: true, name, version });
+      expect(
+        getSdkVersionCapabilityStatus(sdkVersion, "appRootObservations"),
+      ).toBe(expected);
+      expect(getSdkVersionCapability(sdkVersion, "appRootObservations")).toBe(
+        expected === "supported",
+      );
+    },
+  );
 
   it.each([
     [{}, true],

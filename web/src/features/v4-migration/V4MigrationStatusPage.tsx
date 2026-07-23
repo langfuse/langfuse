@@ -201,13 +201,13 @@ function OrgStatusSection({
             }[getProjectMigrationReadiness(row.status)]
           : 0;
       case "sdk":
-        return row.status?.sdk === "latest"
+        return row.status?.sdk.status === "latest"
           ? 4
-          : row.status?.sdk === "legacy"
+          : row.status?.sdk.status === "legacy"
             ? 3
-            : row.status?.sdk === "unknown"
+            : row.status?.sdk.status === "unknown"
               ? 2
-              : row.status?.sdk === "checking"
+              : row.status?.sdk.status === "checking"
                 ? 1
                 : 0;
       case "evals":
@@ -317,22 +317,24 @@ function OrgStatusSection({
                       <StatusPill readiness={readiness} />
                     </TableCell>
                     <TableCell density="comfortable">
-                      {row.status.sdk === "latest" ? (
+                      {row.status.sdk.status === "latest" ? (
                         <span className="text-foreground-tertiary">Latest</span>
-                      ) : row.status.sdk === "checking" ? (
+                      ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
                           Checking…
                         </span>
-                      ) : row.status.sdk === "unknown" ? (
+                      ) : row.status.sdk.status === "unknown" ? (
                         <span className="text-foreground-tertiary">
                           Unknown
                         </span>
-                      ) : row.status.sdk === "error" ? (
+                      ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">
                           Unavailable
                         </span>
                       ) : (
-                        <span>Legacy</span>
+                        <span>
+                          {row.status.sdk.upgradeRequiredCount} outdated
+                        </span>
                       )}
                     </TableCell>
                     <TableCell density="comfortable">

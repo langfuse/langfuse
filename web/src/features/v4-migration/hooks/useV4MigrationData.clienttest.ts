@@ -7,8 +7,8 @@ const mocks = vi.hoisted(() => ({
   summaryByProject: vi.fn(),
   traceLevelEvalSummaryByProject: vi.fn(),
   legacyApiUsageSummaryByProject: vi.fn(),
+  sdkUsageSummaryByProject: vi.fn(),
   queryResultSets: [] as unknown[][],
-  sdkVersions: new Map(),
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -19,6 +19,7 @@ vi.mock("@/src/utils/api", () => ({
           summaryByProject: typeof mocks.summaryByProject;
           traceLevelEvalSummaryByProject: typeof mocks.traceLevelEvalSummaryByProject;
           legacyApiUsageSummaryByProject: typeof mocks.legacyApiUsageSummaryByProject;
+          sdkUsageSummaryByProject: typeof mocks.sdkUsageSummaryByProject;
         };
       }) => unknown,
     ) => {
@@ -27,6 +28,7 @@ vi.mock("@/src/utils/api", () => ({
           summaryByProject: mocks.summaryByProject,
           traceLevelEvalSummaryByProject: mocks.traceLevelEvalSummaryByProject,
           legacyApiUsageSummaryByProject: mocks.legacyApiUsageSummaryByProject,
+          sdkUsageSummaryByProject: mocks.sdkUsageSummaryByProject,
         },
       });
       return mocks.queryResultSets.shift() ?? [];
@@ -34,33 +36,26 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/sdk-version/hooks/useProjectSdkVersionInfo", () => ({
-  useProjectsSdkVersionInfo: () => mocks.sdkVersions,
-  useProjectSdkVersionInfo: vi.fn(),
-}));
-
 const loadedQuery = <T>(data: T) => ({
   data,
   isError: false,
 });
+
+const currentSdkSeries = {
+  sdkName: "python",
+  sdkVersion: "4.7.0",
+  canonicalSdkName: "python" as const,
+  publicKey: "pk-lf-python",
+  lastSeen: "2026-07-23T10:00:00Z",
+  v4MigrationStatus: "compatible" as const,
+};
 
 describe("account v4 migration data", () => {
   beforeEach(() => {
     mocks.summaryByProject.mockReset();
     mocks.traceLevelEvalSummaryByProject.mockReset();
     mocks.legacyApiUsageSummaryByProject.mockReset();
-    mocks.sdkVersions = new Map([
-      [
-        "project-1",
-        {
-          sdkVersion: { language: "python", version: "4.7.0" },
-          checkedAt: "2026-07-23T10:00:00.000Z",
-          isRefreshing: false,
-          querySettled: true,
-          isError: false,
-        },
-      ],
-    ]);
+    mocks.sdkUsageSummaryByProject.mockReset();
     mocks.queryResultSets = [
       [
         loadedQuery({
@@ -83,6 +78,15 @@ describe("account v4 migration data", () => {
           {
             projectId: "project-1",
             traceLevelEvalCount: 2,
+          },
+        ]),
+      ],
+      [
+        loadedQuery([
+          {
+            projectId: "project-1",
+            outdatedSdkUsageSeriesCount: 0,
+            sdkUsageSeries: [currentSdkSeries],
           },
         ]),
       ],
@@ -118,7 +122,11 @@ describe("account v4 migration data", () => {
     );
 
     expect(result.current.get("project-1")).toEqual({
-      sdk: "latest",
+      sdk: {
+        status: "latest",
+        sdkUsageSeries: [currentSdkSeries],
+        upgradeRequiredCount: 0,
+      },
       evals: { status: "loaded", count: 2 },
       apis: { status: "loaded", count: 2 },
       exports: { status: "loaded", count: 1 },
@@ -128,6 +136,10 @@ describe("account v4 migration data", () => {
       expect.objectContaining({ enabled: true }),
     );
     expect(mocks.legacyApiUsageSummaryByProject).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: "org-1" }),
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(mocks.sdkUsageSummaryByProject).toHaveBeenCalledWith(
       expect.objectContaining({ orgId: "org-1" }),
       expect.objectContaining({ enabled: true }),
     );
