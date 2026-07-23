@@ -90,8 +90,9 @@ function hasFilterWarnings(
  * run of adjacent free-text words is one contiguous phrase (`type error`), so
  * only a word standing on its own — alone, or isolated from other free text by
  * a filter (`name:x type`, `type name:x error`) — is a candidate incomplete
- * filter. `isStandaloneFieldText` in langQ.ts serializes with the SAME rule so
- * the flag and the round-trip quoting stay in lockstep (mirror invariant).
+ * filter. `serializeText` in langQ.ts force-quotes with the SAME standalone
+ * rule so the flag and the round-trip quoting stay in lockstep (mirror
+ * invariant).
  */
 function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
   switch (node.kind) {
