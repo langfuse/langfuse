@@ -28,6 +28,7 @@ import { type OrganizationScope } from "@/src/features/rbac/constants/organizati
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -220,8 +221,13 @@ export const ROUTES: Route[] = [
     pathname: "",
     menuNode: <CloudStatusMenu />,
   },
-  // The Preview (fast) toggle is temporarily hidden while the v4-migration
-  // entry point is trialled; restore by re-adding menuNode: <V4SidebarToggle />.
+  {
+    title: "Preview (fast)",
+    pathname: "",
+    section: RouteSection.Secondary,
+    featureFlag: "v4BetaToggleVisible",
+    menuNode: <V4SidebarToggle />,
+  },
   {
     title: "Update",
     pathname: "",

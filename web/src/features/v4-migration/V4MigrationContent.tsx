@@ -20,11 +20,17 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
-import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import { type ProjectSdkVersionState } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
 import {
   formatSdkVersion,
-  getV4MigrationSdkStatus,
+  type V4MigrationSdkStatus,
 } from "@/src/features/v4-migration/sdkVersionStatus";
+import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import {
+  V4_MIGRATION_LOOKBACK_DAYS,
+  type MigrationCountState,
+} from "@/src/features/v4-migration/migrationData";
+import { numberFormatter } from "@/src/utils/numbers";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -38,27 +44,6 @@ const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 2. Repoint evals that target trace input/output to observations instead.
 3. Replace calls to deprecated APIs (GET /api/public/traces, GET /api/public/sessions, GET /api/public/metrics) with their v4 replacements.
 Docs: ${V4_DOCS_URL}`;
-
-// Demo-only copy variants until the backend can report a project's actual
-// eval, API, and integration setup.
-const EVAL_CASES = [
-  { label: "Targets spans, new SDK", deprecated: false },
-  { label: "Targets spans, old SDK", deprecated: false },
-  { label: "Targets trace I/O, new SDK", deprecated: true },
-  { label: "Targets trace I/O, old SDK", deprecated: true },
-] as const;
-
-const DEMO_EVAL_CASE = 3 as number;
-
-const LEGACY_APIS = [
-  { endpoint: "GET /api/public/traces", volume: "8,680 / week" },
-  { endpoint: "GET /api/public/sessions", volume: "2,170 / week" },
-  { endpoint: "GET /api/public/metrics", volume: "315 / week" },
-];
-
-const LEGACY_INTEGRATIONS = ["PostHog", "Mixpanel", "Blob Storage"];
-
-const DEPRECATED_EVALS = ["hallucination-check", "answer-relevance"];
 
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
@@ -144,13 +129,36 @@ function ExternalLink({
   );
 }
 
-function V4MigrationSdkSection({ projectId }: { projectId?: string }) {
-  const sdkVersionState = useProjectSdkVersionInfo({
-    projectId: projectId ?? "",
-    enabled: Boolean(projectId),
-    refreshMode: "always",
-  });
-  const status = getV4MigrationSdkStatus(sdkVersionState);
+function MigrationCountChip({
+  state,
+  affectedLabel,
+}: {
+  state: MigrationCountState;
+  affectedLabel: string;
+}) {
+  if (state.status === "loading") {
+    return <Chip variant="warning">Checking</Chip>;
+  }
+  if (state.status === "error") {
+    return <Chip variant="warning">Check failed</Chip>;
+  }
+  if (state.count === 0) {
+    return <Chip variant="success">Up to date</Chip>;
+  }
+  return (
+    <Chip variant="warning">
+      {state.count} {affectedLabel}
+    </Chip>
+  );
+}
+
+function V4MigrationSdkSection({
+  sdkVersionState,
+  status,
+}: {
+  sdkVersionState: ProjectSdkVersionState;
+  status: V4MigrationSdkStatus;
+}) {
   const detectedSdk = formatSdkVersion(sdkVersionState.sdkVersion);
 
   const chip =
@@ -160,6 +168,8 @@ function V4MigrationSdkSection({ projectId }: { projectId?: string }) {
       <Chip variant="warning">Checking</Chip>
     ) : status === "unknown" ? (
       <Chip variant="warning">Not detected</Chip>
+    ) : status === "error" ? (
+      <Chip variant="warning">Check failed</Chip>
     ) : (
       <Chip variant="warning">Legacy</Chip>
     );
@@ -171,10 +181,11 @@ function V4MigrationSdkSection({ projectId }: { projectId?: string }) {
           "Checking the latest traces for this project…"
         ) : status === "unknown" ? (
           <>
-            We couldn&apos;t detect an attributed Langfuse SDK in traces from
-            the last 7 days. If this project uses one, verify that it is up to
-            date.
+            We could not detect an attributed Langfuse SDK in traces from the
+            last 7 days. If this project uses one, verify that it is up to date.
           </>
+        ) : status === "error" ? (
+          "We could not check the latest traces for this project. Try again later."
         ) : status === "latest" ? (
           <>
             This project uses <MonoValue>{detectedSdk}</MonoValue>. Nothing to
@@ -205,10 +216,11 @@ export function V4MigrationHeaderContent({
       <p className="mb-1.5 text-lg font-bold">
         {projectName ? (
           <>
-            Migrate <span className="underline">{projectName}</span> to v4
+            Review v4 migration for{" "}
+            <span className="underline">{projectName}</span>
           </>
         ) : (
-          "Migrate to v4"
+          "Review v4 migration"
         )}
       </p>
       <p className="text-muted-foreground mb-3 text-sm leading-relaxed">
@@ -246,6 +258,10 @@ export function V4MigrationDetailsContent({
   const projectId =
     projectIdProp ??
     (typeof routeProjectId === "string" ? routeProjectId : undefined);
+  const migrationData = useProjectV4MigrationData({
+    projectId,
+    enabled: Boolean(projectId),
+  });
 
   const handleEmailEngineer = () => {
     capture("v4_migration:contact_support_clicked");
@@ -254,8 +270,10 @@ export function V4MigrationDetailsContent({
   };
   const evalsUrl =
     typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
-
-  const evalDeprecated = EVAL_CASES[DEMO_EVAL_CASE - 1].deprecated;
+  const integrationsUrl =
+    typeof projectId === "string"
+      ? `/project/${projectId}/settings/integrations`
+      : undefined;
 
   return (
     <>
@@ -293,110 +311,159 @@ export function V4MigrationDetailsContent({
           <span className="text-dark-yellow">Oct 1</span>.
         </p>
         <div>
-          <V4MigrationSdkSection projectId={projectId} />
+          <V4MigrationSdkSection
+            sdkVersionState={migrationData.sdkVersionState}
+            status={migrationData.sdkStatus}
+          />
 
           <Section
             title="Evals"
             chip={
-              evalDeprecated ? (
-                <Chip variant="warning">2 deprecated</Chip>
-              ) : (
-                <Chip variant="warning">Almost ready</Chip>
-              )
+              <MigrationCountChip
+                state={migrationData.evals}
+                affectedLabel="deprecated"
+              />
             }
           >
-            {evalDeprecated ? (
+            {migrationData.evals.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking configured evals…
+              </p>
+            ) : migrationData.evals.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check configured evals. Try again later.
+              </p>
+            ) : migrationData.evals.count > 0 ? (
               <>
                 <p className="text-muted-foreground mb-2 text-sm">
-                  These evals target trace input/output, which is frozen and
-                  stops running <span className="text-dark-yellow">Oct 1</span>.
-                  Point them at an observation instead:
+                  {migrationData.evals.count} configured{" "}
+                  {migrationData.evals.count === 1
+                    ? "eval targets"
+                    : "evals target"}{" "}
+                  trace input/output, which stops running{" "}
+                  <span className="text-dark-yellow">Oct 1</span>. Point{" "}
+                  {migrationData.evals.count === 1 ? "it" : "them"} at an
+                  observation instead.
                 </p>
-                <div className="flex flex-col gap-1">
-                  {DEPRECATED_EVALS.map((name) =>
-                    evalsUrl ? (
-                      <Link
-                        key={name}
-                        href={evalsUrl}
-                        onClick={onNavigate}
-                        className="text-dark-blue self-start text-sm hover:underline"
-                      >
-                        {name}
-                      </Link>
-                    ) : (
-                      <span key={name} className="text-sm">
-                        {name}
-                      </span>
-                    ),
-                  )}
-                </div>
+                {evalsUrl ? (
+                  <Link
+                    href={evalsUrl}
+                    onClick={onNavigate}
+                    className="text-dark-blue text-sm hover:underline"
+                  >
+                    Review trace-level evals
+                  </Link>
+                ) : null}
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                Review minimal config changes
+                No configured trace-level evals detected.
               </p>
             )}
           </Section>
 
           <Section
             title="Legacy APIs"
-            chip={<Chip variant="warning">3 deprecated</Chip>}
+            chip={
+              <MigrationCountChip
+                state={migrationData.apis}
+                affectedLabel="deprecated"
+              />
+            }
           >
-            <p className="text-muted-foreground mb-2 text-sm">
-              You&apos;ve called these deprecated endpoints in the last 7 days.
-              They stop working <span className="text-dark-yellow">Oct 1</span>;
-              the{" "}
-              <ExternalLink href="https://api.reference.langfuse.com">
-                new APIs
-              </ExternalLink>{" "}
-              cover the same data.
-            </p>
-            <div className="flex flex-col">
-              {LEGACY_APIS.map((api) => (
-                <div
-                  key={api.endpoint}
-                  className="flex items-center justify-between gap-2 py-0.5"
-                >
-                  <ExternalLink
-                    href="https://api.reference.langfuse.com"
-                    className="text-sm"
-                  >
-                    {api.endpoint}
-                  </ExternalLink>
-                  <span className="text-muted-foreground text-xs">
-                    {api.volume}
-                  </span>
+            {migrationData.apis.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking public API usage…
+              </p>
+            ) : migrationData.apis.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check public API usage. Try again later.
+              </p>
+            ) : migrationData.apiUsage.length > 0 ? (
+              <>
+                <p className="text-muted-foreground mb-2 text-sm">
+                  You&apos;ve called these deprecated endpoints in the last{" "}
+                  {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
+                  <span className="text-dark-yellow">Oct 1</span>; the{" "}
+                  <ExternalLink href="https://api.reference.langfuse.com">
+                    new APIs
+                  </ExternalLink>{" "}
+                  cover the same data.
+                </p>
+                <div className="flex flex-col">
+                  {migrationData.apiUsage.map((usage) => (
+                    <div
+                      key={usage.endpoint}
+                      className="flex items-center justify-between gap-2 py-0.5"
+                    >
+                      <ExternalLink
+                        href="https://api.reference.langfuse.com"
+                        className="text-sm"
+                      >
+                        {usage.endpoint}
+                      </ExternalLink>
+                      <span className="text-muted-foreground text-xs whitespace-nowrap">
+                        {numberFormatter(usage.count, 0, 2)} calls
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No legacy public API usage detected in the last{" "}
+                {V4_MIGRATION_LOOKBACK_DAYS} days.
+              </p>
+            )}
           </Section>
 
           <Section
             title="Legacy Integrations"
-            chip={<Chip variant="warning">3 deprecated</Chip>}
+            chip={
+              <MigrationCountChip
+                state={migrationData.exports}
+                affectedLabel="deprecated"
+              />
+            }
           >
-            <p className="text-muted-foreground mb-2 text-sm">
-              These exports still read from the old data source. Switching them
-              over can change what downstream consumers receive, so worth a
-              quick check.
-            </p>
-            <div className="flex flex-col">
-              {LEGACY_INTEGRATIONS.map((name) => (
-                <div key={name} className="flex items-center py-0.5">
-                  {typeof projectId === "string" ? (
-                    <Link
-                      href={`/project/${projectId}/settings/integrations`}
-                      onClick={onNavigate}
-                      className="text-dark-blue text-sm hover:underline"
-                    >
-                      {name}
-                    </Link>
-                  ) : (
-                    <span className="text-sm">{name}</span>
-                  )}
+            {migrationData.exports.status === "loading" ? (
+              <p className="text-muted-foreground text-sm">
+                Checking integrations…
+              </p>
+            ) : migrationData.exports.status === "error" ? (
+              <p className="text-muted-foreground text-sm">
+                We could not check integrations. Try again later.
+              </p>
+            ) : migrationData.legacyIntegrations.length > 0 ? (
+              <>
+                <p className="text-muted-foreground mb-2 text-sm">
+                  These exports still read from the old data source. Switching
+                  them over can change what downstream consumers receive, so
+                  worth a quick check.
+                </p>
+                <div className="flex flex-col">
+                  {migrationData.legacyIntegrations.map((name) => (
+                    <div key={name} className="flex items-center py-0.5">
+                      {integrationsUrl ? (
+                        <Link
+                          href={integrationsUrl}
+                          onClick={onNavigate}
+                          className="text-dark-blue text-sm hover:underline"
+                        >
+                          {name}
+                        </Link>
+                      ) : (
+                        <span className="text-sm">{name}</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No legacy integration exports detected.
+              </p>
+            )}
           </Section>
         </div>
       </div>

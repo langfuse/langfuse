@@ -5,10 +5,9 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import { getV4MigrationSdkStatus } from "@/src/features/v4-migration/sdkVersionStatus";
 
-// Page-title badge flagging delayed ingestion; expands on hover and opens the
-// v4 migration side panel on click. Delay copy is hardcoded until the backend
-// reports per-project ingestion mode.
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { openForProject } = useV4MigrationPanel();
@@ -16,8 +15,14 @@ export function V4MigrationDelayBadge() {
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
+  const sdkVersionState = useProjectSdkVersionInfo({
+    projectId: project?.id ?? "",
+    enabled: v4UpgradeUiEnabled && Boolean(project),
+    refreshMode: "always",
+  });
+  const sdkStatus = getV4MigrationSdkStatus(sdkVersionState);
 
-  if (!v4UpgradeUiEnabled || !project) {
+  if (!v4UpgradeUiEnabled || !project || sdkStatus !== "legacy") {
     return null;
   }
 

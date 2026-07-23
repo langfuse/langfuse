@@ -12,14 +12,27 @@ import {
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { api } from "@/src/utils/api";
 
 // Modal variant of the migration panel (experiment): mounted on pages that
 // use deprecated features (currently Evals) and opens on arrival.
 export function V4MigrationModal() {
   const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
+    { projectId: project?.id ?? "" },
+    {
+      enabled: v4UpgradeUiEnabled && Boolean(project),
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
 
-  if (!v4UpgradeUiEnabled || !project) {
+  if (
+    !v4UpgradeUiEnabled ||
+    !project ||
+    !traceLevelEvalSummary.data?.traceLevelEvalCount
+  ) {
     return null;
   }
 
@@ -43,7 +56,7 @@ function V4MigrationModalContent({
         closeOnInteractionOutside
       >
         <DialogTitle className="sr-only">
-          {`Migrate ${project.name} to v4`}
+          {`Review v4 migration for ${project.name}`}
         </DialogTitle>
         <DialogBody className="gap-0 p-4">
           <V4MigrationHeaderContent projectName={project.name} />

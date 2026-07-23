@@ -2,27 +2,35 @@ import {
   useV4MigrationPanel,
   type V4MigrationTargetProject,
 } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import {
+  getProjectMigrationReadiness,
+  type ProjectMigrationStatus,
+} from "@/src/features/v4-migration/migrationData";
 
-// Per-project migration status chip on the home page project cards. Demo:
-// shown on every project until backend per-project SDK detection exists.
 export function V4MigrationProjectChip({
   project,
+  status,
 }: {
   project: V4MigrationTargetProject;
+  status: ProjectMigrationStatus | undefined;
 }) {
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { openForProject } = useV4MigrationPanel();
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const capture = usePostHogClientCapture();
 
-  if (!v4UpgradeUiEnabled) {
-    return null;
-  }
+  const readiness = status ? getProjectMigrationReadiness(status) : "checking";
+  const label =
+    readiness === "ready"
+      ? "Up to date"
+      : readiness === "checking"
+        ? "Checking"
+        : readiness === "unavailable"
+          ? "Check status"
+          : "Update";
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
@@ -39,9 +47,13 @@ export function V4MigrationProjectChip({
     >
       <span
         aria-hidden
-        className="size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
+        className={
+          readiness === "ready"
+            ? "size-1.75 shrink-0 rounded-full bg-green-500 dark:bg-green-500"
+            : "size-1.75 shrink-0 rounded-full bg-orange-400 dark:bg-orange-400"
+        }
       ></span>
-      Update
+      {label}
     </button>
   );
 }

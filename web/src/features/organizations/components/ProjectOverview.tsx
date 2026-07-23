@@ -38,6 +38,7 @@ import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationP
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 
 const OrganizationProjectTiles = ({
   org,
@@ -52,6 +53,18 @@ const OrganizationProjectTiles = ({
       { orgId: org.id },
       { enabled: v4UpgradeUiEnabled },
     );
+  const migrationStatusByProjectId = useAccountV4MigrationData({
+    organizations: [
+      {
+        id: org.id,
+        name: org.name,
+        projects: org.projects
+          .filter((project) => !project.deletedAt)
+          .map((project) => ({ id: project.id, name: project.name })),
+      },
+    ],
+    enabled: v4UpgradeUiEnabled,
+  });
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {org.projects
@@ -82,6 +95,7 @@ const OrganizationProjectTiles = ({
                   {!project.deletedAt && (
                     <V4MigrationProjectChip
                       project={{ id: project.id, name: project.name }}
+                      status={migrationStatusByProjectId.get(project.id)}
                     />
                   )}
                 </div>

@@ -22,11 +22,16 @@ import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useProjectsSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
 import {
-  getV4MigrationSdkStatus,
-  type V4MigrationSdkStatus,
-} from "@/src/features/v4-migration/sdkVersionStatus";
+  useAccountV4MigrationData,
+  type V4MigrationOrganization,
+} from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import {
+  getProjectMigrationReadiness,
+  type MigrationCountState,
+  type ProjectMigrationReadiness,
+  type ProjectMigrationStatus,
+} from "@/src/features/v4-migration/migrationData";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -35,67 +40,6 @@ const DATA_MODEL_URL = "https://langfuse.com/docs/observability/data-model";
 const OBSERVATIONS_FAQ_URL =
   "https://langfuse.com/faq/all/explore-observations-in-v4";
 const API_REFERENCE_URL = "https://api.reference.langfuse.com";
-
-// Demo-only affected counts until their backend detection exists. A number is
-// the count of affected items (0 = feature in use, nothing affected), null =
-// feature not used at all. SDK status is detected from real project events.
-type AffectedStatus = {
-  evals: number | null;
-  apis: number | null;
-  exports: number | null;
-};
-
-type MigrationStatus = AffectedStatus & {
-  sdk: V4MigrationSdkStatus;
-};
-
-const DEMO_AFFECTED_STATUSES: AffectedStatus[] = [
-  { evals: 2, apis: 3, exports: 2 },
-  { evals: 0, apis: 1, exports: null },
-  { evals: 0, apis: 0, exports: 0 },
-];
-
-const isReady = (s: MigrationStatus) =>
-  s.sdk === "latest" && !(s.evals ?? 0) && !(s.apis ?? 0) && !(s.exports ?? 0);
-
-// Dummy projects appended to the first organization so every cell state is
-// visible while iterating on the design. Remove with the backend work.
-const DEMO_EXTRA_PROJECTS: {
-  id: string;
-  name: string;
-  status: MigrationStatus;
-  lastTraceLabel: string;
-  lastTraceOffsetMs: number | null;
-}[] = [
-  {
-    id: "dummy-prod-agent-eu",
-    name: "prod-agent-eu",
-    status: { sdk: "legacy", evals: 4, apis: 2, exports: 1 },
-    lastTraceLabel: "3m ago",
-    lastTraceOffsetMs: 3 * 60 * 1000,
-  },
-  {
-    id: "dummy-staging",
-    name: "staging",
-    status: { sdk: "unknown", evals: null, apis: null, exports: null },
-    lastTraceLabel: "2d ago",
-    lastTraceOffsetMs: 2 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "dummy-ml-pipeline",
-    name: "ml-pipeline",
-    status: { sdk: "latest", evals: 3, apis: 0, exports: 1 },
-    lastTraceLabel: "1h ago",
-    lastTraceOffsetMs: 60 * 60 * 1000,
-  },
-  {
-    id: "dummy-chatbot-poc",
-    name: "chatbot-poc",
-    status: { sdk: "latest", evals: null, apis: null, exports: null },
-    lastTraceLabel: "—",
-    lastTraceOffsetMs: null,
-  },
-];
 
 function FaqLink({ href, children }: { href: string; children: ReactNode }) {
   return (
@@ -110,33 +54,41 @@ function FaqLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-type OrgWithProjects = {
-  id: string;
-  name: string;
-  projects: { id: string; name: string }[];
-};
-
-// Cell for affected-count columns: amber count when action is needed, muted 0
-// otherwise (in-use-but-fine and not-used render the same; the per-project
-// panel carries the distinction).
-function AffectedCell({ count }: { count: number | null }) {
-  if (!count) {
+function AffectedCell({ count }: { count: MigrationCountState }) {
+  if (count.status === "loading") {
+    return <span className="text-foreground-tertiary">Checking…</span>;
+  }
+  if (count.status === "error") {
+    return <span className="text-foreground-tertiary">Unavailable</span>;
+  }
+  if (count.count === 0) {
     return <span className="text-foreground-tertiary">0</span>;
   }
-  return <span>{count}</span>;
+  return <span>{count.count}</span>;
 }
 
-function StatusPill({ ready }: { ready: boolean }) {
+function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
+  const label =
+    readiness === "ready"
+      ? "Ready"
+      : readiness === "checking"
+        ? "Checking"
+        : readiness === "unavailable"
+          ? "Unavailable"
+          : "Action needed";
+
   return (
     <span
       className={cn(
         "inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap",
-        ready
+        readiness === "ready"
           ? "bg-light-green text-dark-green"
-          : "bg-light-yellow text-dark-yellow",
+          : readiness === "checking" || readiness === "unavailable"
+            ? "bg-muted text-muted-foreground"
+            : "bg-light-yellow text-dark-yellow",
       )}
     >
-      {ready ? "Ready" : "Action needed"}
+      {label}
     </span>
   );
 }
@@ -186,11 +138,9 @@ function SortableHead({
 function OrgStatusSection({
   org,
   statusByProjectId,
-  includeDemoProjects = false,
 }: {
-  org: OrgWithProjects;
-  statusByProjectId: Map<string, MigrationStatus>;
-  includeDemoProjects?: boolean;
+  org: V4MigrationOrganization;
+  statusByProjectId: Map<string, ProjectMigrationStatus>;
 }) {
   const capture = usePostHogClientCapture();
   const { openForProject } = useV4MigrationPanel();
@@ -202,13 +152,7 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const handleRowClick = (row: {
-    id: string;
-    name: string;
-    isDummy: boolean;
-  }) => {
-    // Demo placeholder rows have no backing project to open a panel for.
-    if (row.isDummy) return;
+  const handleRowClick = (row: { id: string; name: string }) => {
     capture("v4_migration:status_row_clicked");
     setAiAgentOpen(false);
     setSupportDrawerOpen(false);
@@ -231,33 +175,20 @@ function OrgStatusSection({
     setOrderBy(next);
   };
 
-  const rows = [
-    ...org.projects.map((project) => {
-      const lastTraceAt = lastTraceTimes?.find(
-        (t) => t.projectId === project.id,
-      )?.lastTraceAt;
-      return {
-        id: project.id,
-        name: project.name,
-        status: statusByProjectId.get(project.id),
-        lastTraceLabel: lastTraceAt
-          ? formatCompactRelativeTime(new Date(lastTraceAt))
-          : "—",
-        lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
-        isDummy: false,
-      };
-    }),
-    ...(includeDemoProjects
-      ? DEMO_EXTRA_PROJECTS.map((p) => ({
-          ...p,
-          lastTraceSort:
-            p.lastTraceOffsetMs === null
-              ? -1
-              : Date.now() - p.lastTraceOffsetMs,
-          isDummy: true,
-        }))
-      : []),
-  ];
+  const rows = org.projects.map((project) => {
+    const lastTraceAt = lastTraceTimes?.find(
+      (trace) => trace.projectId === project.id,
+    )?.lastTraceAt;
+    return {
+      id: project.id,
+      name: project.name,
+      status: statusByProjectId.get(project.id),
+      lastTraceLabel: lastTraceAt
+        ? formatCompactRelativeTime(new Date(lastTraceAt))
+        : "—",
+      lastTraceSort: lastTraceAt ? new Date(lastTraceAt).getTime() : -1,
+    };
+  });
 
   const sortValue = (
     row: (typeof rows)[number],
@@ -267,21 +198,30 @@ function OrgStatusSection({
       case "name":
         return row.name.toLowerCase();
       case "status":
-        return row.status && isReady(row.status) ? 1 : 0;
+        return row.status
+          ? {
+              unavailable: 0,
+              checking: 1,
+              "action-needed": 2,
+              ready: 3,
+            }[getProjectMigrationReadiness(row.status)]
+          : 0;
       case "sdk":
         return row.status?.sdk === "latest"
-          ? 3
+          ? 4
           : row.status?.sdk === "legacy"
-            ? 2
+            ? 3
             : row.status?.sdk === "unknown"
-              ? 1
-              : 0;
+              ? 2
+              : row.status?.sdk === "checking"
+                ? 1
+                : 0;
       case "evals":
-        return row.status?.evals ?? 0;
+        return row.status?.evals.count ?? 0;
       case "apis":
-        return row.status?.apis ?? 0;
+        return row.status?.apis.count ?? 0;
       case "exports":
-        return row.status?.exports ?? 0;
+        return row.status?.exports.count ?? 0;
       case "lastTrace":
         return row.lastTraceSort;
     }
@@ -307,159 +247,158 @@ function OrgStatusSection({
         {org.name}
       </h3>
       <Card className="overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortableHead
-                label="Project"
-                column="name"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="Status"
-                column="status"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="SDK"
-                column="sdk"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="Affected Evals"
-                column="evals"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="Affected APIs"
-                column="apis"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="Affected Exports"
-                column="exports"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <SortableHead
-                label="Last trace"
-                column="lastTrace"
-                orderBy={orderBy}
-                onSort={handleSort}
-              />
-              <TableHead className="w-24" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedRows.map((row) => {
-              if (!row.status) return null;
-              const ready = isReady(row.status);
-              return (
-                <TableRow
-                  key={row.id}
-                  className={cn("group/row", !row.isDummy && "cursor-pointer")}
-                  onClick={() => handleRowClick(row)}
-                >
-                  <TableCell density="comfortable" className="max-w-48">
-                    {row.isDummy ? (
-                      <span
-                        className="block truncate font-bold"
-                        title={row.name}
-                      >
-                        {row.name}
-                      </span>
-                    ) : (
+        <div className="overflow-x-auto">
+          <Table className="min-w-[60rem] table-auto">
+            <TableHeader>
+              <TableRow>
+                <SortableHead
+                  label="Project"
+                  column="name"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Status"
+                  column="status"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="SDK"
+                  column="sdk"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected Evals"
+                  column="evals"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected APIs"
+                  column="apis"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Affected Exports"
+                  column="exports"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <SortableHead
+                  label="Last trace"
+                  column="lastTrace"
+                  orderBy={orderBy}
+                  onSort={handleSort}
+                />
+                <TableHead className="w-24" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedRows.map((row) => {
+                if (!row.status) return null;
+                const readiness = getProjectMigrationReadiness(row.status);
+                return (
+                  <TableRow
+                    key={row.id}
+                    className="group/row cursor-pointer"
+                    onClick={() => handleRowClick(row)}
+                  >
+                    <TableCell density="comfortable" className="max-w-48">
                       <Link
                         href={`/project/${row.id}`}
                         className="block truncate font-bold hover:underline"
                         title={row.name}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
                       >
                         {row.name}
                       </Link>
-                    )}
-                  </TableCell>
-                  <TableCell density="comfortable" className="overflow-hidden">
-                    <StatusPill ready={ready} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    {row.status.sdk === "latest" ? (
-                      <span className="text-foreground-tertiary">Latest</span>
-                    ) : row.status.sdk === "checking" ? (
-                      <span className="text-foreground-tertiary">
-                        Checking…
+                    </TableCell>
+                    <TableCell
+                      density="comfortable"
+                      className="overflow-hidden"
+                    >
+                      <StatusPill readiness={readiness} />
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      {row.status.sdk === "latest" ? (
+                        <span className="text-foreground-tertiary">Latest</span>
+                      ) : row.status.sdk === "checking" ? (
+                        <span className="text-foreground-tertiary">
+                          Checking…
+                        </span>
+                      ) : row.status.sdk === "unknown" ? (
+                        <span className="text-foreground-tertiary">
+                          Unknown
+                        </span>
+                      ) : row.status.sdk === "error" ? (
+                        <span className="text-foreground-tertiary">
+                          Unavailable
+                        </span>
+                      ) : (
+                        <span>Legacy</span>
+                      )}
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <AffectedCell count={row.status.evals} />
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <AffectedCell count={row.status.apis} />
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <AffectedCell count={row.status.exports} />
+                    </TableCell>
+                    <TableCell
+                      density="comfortable"
+                      className="text-muted-foreground truncate"
+                      title={row.lastTraceLabel}
+                    >
+                      {row.lastTraceLabel}
+                    </TableCell>
+                    <TableCell density="comfortable">
+                      <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
+                        Review <ArrowRight className="h-3 w-3 shrink-0" />
                       </span>
-                    ) : row.status.sdk === "unknown" ? (
-                      <span className="text-foreground-tertiary">Unknown</span>
-                    ) : (
-                      <span>Legacy</span>
-                    )}
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <AffectedCell count={row.status.evals} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <AffectedCell count={row.status.apis} />
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <AffectedCell count={row.status.exports} />
-                  </TableCell>
-                  <TableCell
-                    density="comfortable"
-                    className="text-muted-foreground truncate"
-                    title={row.lastTraceLabel}
-                  >
-                    {row.lastTraceLabel}
-                  </TableCell>
-                  <TableCell density="comfortable">
-                    <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-                      Update <ArrowRight className="h-3 w-3 shrink-0" />
-                    </span>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
     </div>
   );
 }
 
-// Account-wide migration status: every organization and project the user
-// belongs to, with per-project readiness. SDK and last-trace data are real;
-// eval/API/export counts remain demo data (see DEMO_AFFECTED_STATUSES /
-// DEMO_EXTRA_PROJECTS).
 export default function V4MigrationStatusPage() {
-  const session = useSession();
-  const handleCopyPrompt = useCopyMigrationPrompt();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
-  const orgs: OrgWithProjects[] =
-    session.data?.user?.organizations?.map((org) => ({
-      id: org.id,
-      name: org.name,
-      projects: org.projects.map((p) => ({ id: p.id, name: p.name })),
-    })) ?? [];
-  const projectIds = orgs.flatMap((org) =>
-    org.projects.map((project) => project.id),
-  );
-  const sdkVersionByProjectId = useProjectsSdkVersionInfo({
-    projectIds,
-    enabled: v4UpgradeUiEnabled,
-    refreshMode: "always",
-  });
-
-  // Same eligibility gate as every other v4-migration surface; the page is
-  // reachable by URL regardless of whether the nav entry is shown.
   if (!v4UpgradeUiEnabled) {
     return null;
   }
+
+  return <V4MigrationStatusPageContent />;
+}
+
+function V4MigrationStatusPageContent() {
+  const session = useSession();
+  const handleCopyPrompt = useCopyMigrationPrompt();
+
+  const orgs: V4MigrationOrganization[] =
+    session.data?.user?.organizations?.map((org) => ({
+      id: org.id,
+      name: org.name,
+      projects: org.projects
+        .filter((project) => !project.deletedAt)
+        .map((project) => ({ id: project.id, name: project.name })),
+    })) ?? [];
+  const statusByProjectId = useAccountV4MigrationData({
+    organizations: orgs,
+    enabled: true,
+  });
 
   const faqItems: { q: string; a: ReactNode }[] = [
     {
@@ -530,30 +469,18 @@ export default function V4MigrationStatusPage() {
     },
   ];
 
-  // Real SDK readiness plus deterministic demo counts for the remaining
-  // migration categories.
-  const statusByProjectId = new Map<string, MigrationStatus>();
-  orgs
-    .flatMap((org) => org.projects)
-    .forEach((project, i) => {
-      const sdkVersionState = sdkVersionByProjectId.get(project.id);
-      statusByProjectId.set(project.id, {
-        ...DEMO_AFFECTED_STATUSES[i % DEMO_AFFECTED_STATUSES.length]!,
-        sdk: sdkVersionState
-          ? getV4MigrationSdkStatus(sdkVersionState)
-          : "unknown",
-      });
-    });
-
-  const allStatuses = [
-    ...statusByProjectId.values(),
-    ...DEMO_EXTRA_PROJECTS.map((p) => p.status),
-  ];
+  const allStatuses = [...statusByProjectId.values()];
   const totalProjects = allStatuses.length;
-  const readyProjects = allStatuses.filter(isReady).length;
-  const projectsNeedingAction = totalProjects - readyProjects;
+  const readiness = allStatuses.map(getProjectMigrationReadiness);
+  const readyProjects = readiness.filter((state) => state === "ready").length;
+  const isChecking =
+    session.status === "loading" ||
+    readiness.some((state) => state === "checking");
+  const projectsNeedingAction = readiness.filter(
+    (state) => state === "action-needed",
+  ).length;
   const shouldShowUpdateAllButton =
-    totalProjects === 0 || projectsNeedingAction > 0;
+    !isChecking && totalProjects > 0 && projectsNeedingAction > 0;
 
   return (
     <ContainerPage
@@ -568,12 +495,24 @@ export default function V4MigrationStatusPage() {
               Langfuse v4 is here. Real-time and up to 165× faster
             </p>
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-              <span className="text-2xl leading-none font-bold tracking-tight">
-                {readyProjects}
-              </span>
-              <span className="text-muted-foreground text-sm">
-                of {totalProjects} projects migrated
-              </span>
+              {isChecking ? (
+                <span className="text-muted-foreground text-sm">
+                  Checking project status…
+                </span>
+              ) : totalProjects === 0 ? (
+                <span className="text-muted-foreground text-sm">
+                  No active projects
+                </span>
+              ) : (
+                <>
+                  <span className="text-2xl leading-none font-bold tracking-tight">
+                    {readyProjects}
+                  </span>
+                  <span className="text-muted-foreground text-sm">
+                    of {totalProjects} projects migrated
+                  </span>
+                </>
+              )}
             </div>
           </div>
           {shouldShowUpdateAllButton && (
@@ -586,12 +525,11 @@ export default function V4MigrationStatusPage() {
           )}
         </Card>
 
-        {orgs.map((org, i) => (
+        {orgs.map((org) => (
           <OrgStatusSection
             key={org.id}
             org={org}
             statusByProjectId={statusByProjectId}
-            includeDemoProjects={i === 0}
           />
         ))}
 
