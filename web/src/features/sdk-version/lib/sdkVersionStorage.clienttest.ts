@@ -28,6 +28,7 @@ describe("SDK version storage", () => {
     });
   });
   beforeEach(() => window.localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
 
   it("caches an unknown result without stale language/version values", () => {
     const projectId = "project-1";
@@ -61,5 +62,16 @@ describe("SDK version storage", () => {
     expect(window.localStorage.getItem(keys.language)).toBeNull();
     expect(window.localStorage.getItem(keys.version)).toBeNull();
     expect(window.localStorage.getItem(keys.checkedAt)).toBeNull();
+  });
+
+  it("does not rewrite an unchanged SDK detection result", () => {
+    const checkedAt = "2026-07-23T10:00:00.000Z";
+    const sdkVersion = { language: "javascript", version: "5.4.0" };
+    persistProjectSdkVersionInfo("project-1", sdkVersion, checkedAt);
+    const setItem = vi.spyOn(window.localStorage, "setItem");
+
+    persistProjectSdkVersionInfo("project-1", sdkVersion, checkedAt);
+
+    expect(setItem).not.toHaveBeenCalled();
   });
 });

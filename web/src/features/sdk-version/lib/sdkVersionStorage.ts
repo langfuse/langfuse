@@ -20,6 +20,8 @@ export const persistProjectSdkVersionInfo = (
 
   const keys = sdkVersionStorageKeys(projectId);
   try {
+    if (window.localStorage.getItem(keys.checkedAt) === checkedAt) return;
+
     writeStorageValue(keys.language, sdkVersion.language);
     writeStorageValue(keys.version, sdkVersion.version);
     writeStorageValue(keys.checkedAt, checkedAt);
