@@ -94,7 +94,7 @@
     "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^5.0.8",
+    "@ai-sdk/amazon-bedrock": "^5.0.24",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",

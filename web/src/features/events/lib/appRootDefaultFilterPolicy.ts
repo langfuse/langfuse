@@ -1,6 +1,4 @@
 import type { FilterState } from "@langfuse/shared";
-import { sdkVersionNeedsRefresh } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-
 const URL_STATE_PARAMS = ["filter", "search", "searchType", "orderBy"];
 
 export const APP_ROOT_OBSERVATION_FILTER = {
@@ -31,18 +29,6 @@ export const urlOwnsEventsTableState = (
 export const storedViewOwnsEventsTableState = (value: string | null) =>
   Boolean(value) && value !== "null";
 
-export const shouldQuerySdkVersion = (params: {
-  enabled: boolean;
-  routerReady: boolean;
-  sdkCheckedAt: string | null;
-  dismissed: boolean;
-  now: number;
-}) =>
-  params.enabled &&
-  params.routerReady &&
-  !params.dismissed &&
-  sdkVersionNeedsRefresh(params.sdkCheckedAt, params.now);
-
 export const getAppRootDefaultPolicy = (params: {
   enabled: boolean;
   routerReady: boolean;
@@ -70,8 +56,6 @@ export const getAppRootDefaultPolicy = (params: {
   return {
     shouldApplyFilter,
     shouldPersistAuto: shouldApplyFilter && params.preference === null,
-    shouldPersistSdkVersion:
-      shouldQuerySdkVersion(params) && params.sdkCheckSettled,
   };
 };
 

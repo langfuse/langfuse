@@ -12,18 +12,11 @@ import {
 const IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX = 8;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_WIDTH_PX = 448;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_MAX_HEIGHT_PX = 672;
-const IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX = 1296;
-const IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX = 760;
 const IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR =
   "[data-in-app-agent-window-drag-handle='true']";
 const IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE = {
   width: 360,
   height: 420,
-} satisfies MovableResizablePanelSize;
-
-const IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE = {
-  width: IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX,
-  height: IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX,
 } satisfies MovableResizablePanelSize;
 
 export function useInAppAgentWindowShellPanelControl({
@@ -61,7 +54,6 @@ export function useInAppAgentWindowShellPanelControl({
   return useMovableResizablePanelControl({
     boundsPadding: IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX,
     getInitialGeometry,
-    maxSize: IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE,
     minSize: IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE,
   });
 }

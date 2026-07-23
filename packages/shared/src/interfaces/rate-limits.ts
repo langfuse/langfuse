@@ -15,6 +15,7 @@ export const RateLimitResource = z.enum([
   "trace-delete",
   "score-delete",
   "in-app-agent-run",
+  "feedback",
 ]);
 
 // result of the rate limit check.
