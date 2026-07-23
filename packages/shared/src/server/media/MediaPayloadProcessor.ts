@@ -17,7 +17,8 @@ export type MediaPayloadKind =
   | "ai_sdk_v7";
 
 export type MediaPayloadCandidate = {
-  base64Data: string;
+  encodedData: string;
+  encoding: "base64" | "python_bytes_literal";
   contentType: MediaContentType;
   kind: MediaPayloadKind;
   source: "base64_data_uri" | "bytes";
@@ -278,7 +279,8 @@ function findDataUris(value: string): DataUriOccurrence[] {
         base64Data.length % 4 !== 1 &&
         isMediaContentType(contentType)
           ? {
-              base64Data,
+              encodedData: base64Data,
+              encoding: "base64",
               contentType,
               kind: "data_uri",
               source: "base64_data_uri",
@@ -470,7 +472,7 @@ async function replaceStructuredMedia(
 ): Promise<number | undefined> {
   if (isMediaReference(media.content) || isRemoteUrl(media.content)) return;
 
-  const candidate = parseRawBase64(media);
+  const candidate = parseStructuredMediaCandidate(media);
   if (!candidate) {
     params.onInvalidCandidate(media.kind);
     return;
@@ -487,7 +489,7 @@ async function replaceStructuredMedia(
   }
 }
 
-function parseRawBase64(
+function parseStructuredMediaCandidate(
   media: StructuredMedia,
 ): MediaPayloadCandidate | undefined {
   if (!isMediaContentType(media.contentType)) return;
@@ -510,14 +512,35 @@ function parseRawBase64(
       : undefined;
   }
 
+  if (isPythonBytesLiteral(media.content)) {
+    return {
+      encodedData: media.content,
+      encoding: "python_bytes_literal",
+      contentType: media.contentType,
+      kind: media.kind,
+      source: "bytes",
+    };
+  }
+
   return isValidBase64(media.content)
     ? {
-        base64Data: media.content,
+        encodedData: media.content,
+        encoding: "base64",
         contentType: media.contentType,
         kind: media.kind,
         source: "bytes",
       }
     : undefined;
+}
+
+function isPythonBytesLiteral(value: string): boolean {
+  const quote = value[1];
+  return (
+    value.length >= 3 &&
+    value[0] === "b" &&
+    (quote === "'" || quote === '"') &&
+    value.at(-1) === quote
+  );
 }
 
 /**
