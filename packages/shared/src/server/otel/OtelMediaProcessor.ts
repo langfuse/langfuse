@@ -226,7 +226,11 @@ async function processCandidate(
     recordDistribution(
       "langfuse.ingestion.otel.media.byte_length",
       contentBytes.length,
-      { media_kind: candidate.kind, write_path: context.writePath },
+      {
+        outcome: uploadResult.outcome,
+        media_kind: candidate.kind,
+        write_path: context.writePath
+      },
     );
 
     return `@@@langfuseMedia:type=${candidate.contentType}|id=${uploadResult.mediaId}|source=${candidate.source}@@@`;
