@@ -159,7 +159,10 @@ async function processCandidate(
 
   let contentBytes: Buffer;
   try {
-    contentBytes = Buffer.from(candidate.base64Data, "base64");
+    contentBytes =
+      candidate.encoding === "base64"
+        ? Buffer.from(candidate.encodedData, "base64")
+        : decodePythonBytesLiteral(candidate.encodedData);
     if (contentBytes.length === 0) {
       recordInvalidCandidate(candidate.kind, context);
       return;
@@ -215,6 +218,84 @@ async function processCandidate(
       },
     );
   }
+}
+
+/**
+ * Strictly decodes the subset of Python bytes-literal syntax emitted by
+ * `bytes.__repr__`. Returns an exact-size Buffer and rejects malformed escapes
+ * instead of interpreting arbitrary Python expressions.
+ */
+function decodePythonBytesLiteral(value: string): Buffer {
+  const decodedLength = scanPythonBytesLiteral(value);
+  if (decodedLength === undefined) {
+    throw new Error("Invalid Python bytes literal");
+  }
+
+  const output = Buffer.allocUnsafe(decodedLength);
+  const written = scanPythonBytesLiteral(value, output);
+  if (written !== decodedLength) {
+    throw new Error("Invalid Python bytes literal");
+  }
+  return output;
+}
+
+function scanPythonBytesLiteral(
+  value: string,
+  output?: Buffer,
+): number | undefined {
+  const quote = value.charCodeAt(1);
+  const end = value.length - 1;
+  if (
+    value.length < 3 ||
+    value.charCodeAt(0) !== 98 ||
+    (quote !== 34 && quote !== 39) ||
+    value.charCodeAt(end) !== quote
+  ) {
+    return;
+  }
+
+  let offset = 0;
+  for (let index = 2; index < end; index += 1) {
+    let byte = value.charCodeAt(index);
+    if (byte !== 92) {
+      if (byte < 32 || byte > 126 || byte === quote) return;
+    } else {
+      index += 1;
+      if (index >= end) return;
+
+      const escape = value.charCodeAt(index);
+      if (escape === 120) {
+        if (index + 2 >= end) return;
+        const high = hexValue(value.charCodeAt(index + 1));
+        const low = hexValue(value.charCodeAt(index + 2));
+        if (high === undefined || low === undefined) return;
+        byte = high * 16 + low;
+        index += 2;
+      } else {
+        const escapedByte = escapedByteValue(escape);
+        if (escapedByte === undefined) return;
+        byte = escapedByte;
+      }
+    }
+
+    if (output) output[offset] = byte;
+    offset += 1;
+  }
+
+  return offset;
+}
+
+function escapedByteValue(code: number): number | undefined {
+  if (code === 34 || code === 39 || code === 92) return code;
+  if (code === 110) return 10;
+  if (code === 114) return 13;
+  if (code === 116) return 9;
+}
+
+function hexValue(code: number): number | undefined {
+  if (code >= 48 && code <= 57) return code - 48;
+  if (code >= 65 && code <= 70) return code - 55;
+  if (code >= 97 && code <= 102) return code - 87;
 }
 
 function recordDetectionCheck(

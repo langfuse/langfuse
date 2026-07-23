@@ -21,6 +21,16 @@ const SPAN_ID = "0123456789abcdef";
 const MEDIA_ID = "test-media-id";
 const PNG_BYTES = Buffer.from("test-image");
 const PNG_BASE64 = PNG_BYTES.toString("base64");
+const PYTHON_BYTES = Buffer.from([
+  0xff,
+  0xd8,
+  0xff,
+  0xe0,
+  ...Buffer.from("test\nquote'slash\\"),
+  0x00,
+]);
+const PYTHON_BYTES_LITERAL =
+  "b'\\xff\\xd8\\xff\\xe0test\\nquote\\'slash\\\\\\x00'";
 const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
 function createEvent(params: { value: unknown; field?: MediaField }): {
@@ -202,6 +212,54 @@ describe("processOtelMedia", () => {
       `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=bytes@@@`,
     );
     expect(result.detectionChecks.stringified_json).toBe(1);
+  });
+
+  it("processes Gemini media serialized as a Python bytes literal", async () => {
+    const { event, body } = createEvent({
+      value: JSON.stringify({
+        inline_data: {
+          mime_type: "image/jpeg",
+          data: PYTHON_BYTES_LITERAL,
+        },
+      }),
+    });
+    const uploadMedia = createUploadMock();
+
+    const result = await processEvents([event], uploadMedia);
+
+    expect(uploadMedia).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentType: "image/jpeg",
+        contentBytes: PYTHON_BYTES,
+      }),
+    );
+    expect(JSON.parse(body.input as string).inline_data.data).toBe(
+      `@@@langfuseMedia:type=image/jpeg|id=${MEDIA_ID}|source=bytes@@@`,
+    );
+    expect(result).toMatchObject({
+      uploaded: 1,
+      invalid: 0,
+      candidates: 1,
+      bytesProcessed: PYTHON_BYTES.length,
+    });
+  });
+
+  it("leaves malformed Python bytes literals unchanged", async () => {
+    const value = {
+      inline_data: {
+        mime_type: "image/jpeg",
+        data: "b'\\xff\\x0g'",
+      },
+    };
+    const { event, body } = createEvent({ value });
+    const uploadMedia = createUploadMock();
+
+    const result = await processEvents([event], uploadMedia);
+
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(body.input).toBe(value);
+    expect(value.inline_data.data).toBe("b'\\xff\\x0g'");
+    expect(result.invalid).toBe(1);
   });
 
   it("leaves normalized values unchanged when upload fails", async () => {
