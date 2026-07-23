@@ -10,6 +10,8 @@ import {
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { CardContent } from "@/src/components/ui/card";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
@@ -30,6 +32,18 @@ const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
   dark: "hsl(var(--chart-1))",
 } as const;
+
+/**
+ * Chart types whose recharts primitive draws nothing but empty axes/grid when
+ * every point is null/zero — a blank canvas rather than guidance (manifesto
+ * principle 8). Decided once here so no time-series component re-derives the
+ * emptiness check. (LFE-14333)
+ */
+const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
+  "LINE_TIME_SERIES",
+  "AREA_TIME_SERIES",
+  "BAR_TIME_SERIES",
+]);
 
 const ChartComponent = ({
   chartType,
@@ -127,6 +141,19 @@ const ChartComponent = ({
   }, [config]);
 
   const renderChart = () => {
+    // A time-series query densifies an empty range into zero/null-filled
+    // bucket rows rather than an empty array, so recharts still gets data —
+    // it just draws blank axes with no series. Fail into guidance instead of
+    // that blank box; skip while loading so a first paint doesn't flash "No
+    // data" before the real result arrives. (LFE-14333, manifesto principle 8)
+    if (
+      EMPTY_STATE_CHART_TYPES.has(chartType) &&
+      !isLoading &&
+      isChartDataEmpty(data)
+    ) {
+      return <NoDataOrLoading isLoading={false} />;
+    }
+
     switch (chartType) {
       case "LINE_TIME_SERIES":
         return (
