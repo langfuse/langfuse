@@ -70,6 +70,12 @@ export interface AddToDropdownMenuProps {
   /** Opens the caller-owned comment drawer. */
   onOpenComments: () => void;
   commentCount: number | undefined;
+  /**
+   * Extra menu items appended after the observation actions (e.g. the session
+   * inspector's trace-level actions). Overlays these items open must be
+   * mounted by the CALLER as siblings of this menu (overlay lifecycle rule).
+   */
+  extraMenuItems?: ReactNode;
 }
 
 const normalizePrefillValue = (
@@ -95,6 +101,7 @@ export function AddToDropdownMenu({
   showAnnotate,
   onOpenComments,
   commentCount,
+  extraMenuItems,
 }: AddToDropdownMenuProps) {
   const capture = usePostHogClientCapture();
   const [isDatasetFormOpen, setIsDatasetFormOpen] = useState(false);
@@ -178,6 +185,12 @@ export function AddToDropdownMenu({
               </span>
             ) : null}
           </DropdownMenuItem>
+          {extraMenuItems ? (
+            <>
+              <DropdownMenuSeparator />
+              {extraMenuItems}
+            </>
+          ) : null}
           {objectInDatasets.data && objectInDatasets.data.length > 0 ? (
             <>
               <DropdownMenuSeparator />
