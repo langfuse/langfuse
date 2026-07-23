@@ -106,6 +106,7 @@ describe("processOtelMedia", () => {
       {
         outcome: "uploaded",
         media_kind: "data_uri",
+        write_path: "direct",
       },
     );
     expect(result).toMatchObject({
@@ -136,6 +137,7 @@ describe("processOtelMedia", () => {
       {
         outcome: "reused",
         media_kind: "data_uri",
+        write_path: "direct",
       },
     );
   });

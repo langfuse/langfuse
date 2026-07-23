@@ -53,6 +53,17 @@ import {
 } from "../features/otel-media/processOtelMedia";
 
 /**
+ * Legacy media processing follows legacy persistence, independently of
+ * whether the same batch also qualifies for a direct events-table write.
+ */
+export function shouldProcessLegacyOtelMedia(params: {
+  mediaUploadEnabled: boolean;
+  writesToLegacyTables: boolean;
+}): boolean {
+  return params.mediaUploadEnabled && params.writesToLegacyTables;
+}
+
+/**
  * Check if HTTP headers from the SDK request indicate the batch is eligible
  * for direct event writes.
  *
@@ -437,7 +448,12 @@ export const otelIngestionQueueProcessorBuilder = (
       // validation already guarantees useDirectEventWrite is true here, so
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
-      const skipLegacyWrites = !v4WritesToLegacyTables(env);
+      const writesToLegacyTables = v4WritesToLegacyTables(env);
+      const skipLegacyWrites = !writesToLegacyTables;
+      const shouldProcessLegacyMedia = shouldProcessLegacyOtelMedia({
+        mediaUploadEnabled: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true",
+        writesToLegacyTables,
+      });
 
       if (skipLegacyWrites) {
         span?.setAttribute(
@@ -449,13 +465,10 @@ export const otelIngestionQueueProcessorBuilder = (
         const shouldForwardToEventsTable =
           !useDirectEventWrite && v4WritesToEventsTable(env);
 
-        if (
-          env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED === "true" &&
-          shouldForwardToEventsTable
-        ) {
-          // Process the exact normalized representation that the legacy path
-          // writes and forwards. Targets retain body references, so successful
-          // replacements reach both destinations without cloning large values.
+        if (shouldProcessLegacyMedia) {
+          // Process the exact normalized representation written by the legacy
+          // path. Targets retain body references, so replacements also reach
+          // events-table forwarding when that destination is enabled.
           await processOtelEventMedia({
             targets: createLegacyOtelMediaTargets(traces.concat(observations)),
             writePath: "legacy",

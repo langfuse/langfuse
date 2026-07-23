@@ -421,17 +421,22 @@ function hasPlausibleDataUriBoundary(value: string, start: number): boolean {
 }
 
 function isDataUriTerminator(code: number): boolean {
+  // Embedded Data URIs commonly end immediately before sentence punctuation.
   return (
     Number.isNaN(code) ||
     code === 9 ||
     code === 10 ||
     code === 13 ||
     code === 32 ||
+    code === 33 ||
     code === 34 ||
     code === 39 ||
     code === 41 ||
     code === 44 ||
+    code === 46 ||
+    code === 59 ||
     code === 62 ||
+    code === 63 ||
     code === 93 ||
     code === 125
   );

@@ -99,6 +99,27 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it.each([".", ";", "?", "!"])(
+    "processes an embedded Data URI followed by %s",
+    async (punctuation) => {
+      const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
+      const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+
+      const transformed = await transformMediaPayload(
+        `media: ${dataUri}${punctuation}`,
+        {
+          processCandidate,
+          onInvalidCandidate: vi.fn(),
+          onIgnoredCandidate: vi.fn(),
+          onDetectionPath: vi.fn(),
+        },
+      );
+
+      expect(transformed.value).toBe(`media: ${MEDIA_REFERENCE}${punctuation}`);
+      expect(processCandidate).toHaveBeenCalledOnce();
+    },
+  );
+
   it("processes Data URIs with media type parameters", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const textBase64 = Buffer.from("hello").toString("base64");

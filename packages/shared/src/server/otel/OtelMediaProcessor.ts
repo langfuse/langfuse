@@ -229,7 +229,7 @@ async function processCandidate(
       {
         outcome: uploadResult.outcome,
         media_kind: candidate.kind,
-        write_path: context.writePath
+        write_path: context.writePath,
       },
     );
 
