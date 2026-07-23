@@ -115,7 +115,7 @@
     "@opentelemetry/otlp-transformer": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
-    "@prisma/client": "^6.19.3",
+    "@prisma/client": "^7.8.0",
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
     "@slack/oauth": "3.0.5",
@@ -160,7 +160,7 @@
     "@types/react": "19.2.14",
     "dotenv-cli": "^7.4.4",
     "eslint": "^9.39.2",
-    "prisma": "^6.19.3",
+    "prisma": "^7.8.0",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
     "vitest": "^4.1.10"
