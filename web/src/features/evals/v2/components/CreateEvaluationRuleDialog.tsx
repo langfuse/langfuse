@@ -55,10 +55,12 @@ export function CreateEvaluationRuleDialog({
   projectId,
   open,
   onOpenChange,
+  initialEvaluatorIds = [],
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialEvaluatorIds?: string[];
 }) {
   const utils = api.useUtils();
   const [observationsOpen, setObservationsOpen] = useState(true);
@@ -72,7 +74,7 @@ export function CreateEvaluationRuleDialog({
   ]);
   const [sampling, setSampling] = useState(1);
   const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
-    [],
+    () => [...initialEvaluatorIds],
   );
   const [validatedEvaluatorIds, setValidatedEvaluatorIds] = useState<string[]>(
     [],
@@ -208,6 +210,9 @@ export function CreateEvaluationRuleDialog({
     await Promise.all([
       utils.evalsV2.rules.invalidate({ projectId }),
       utils.evalsV2.invalidate(),
+      ...selectedEvaluatorIds.map((evaluatorId) =>
+        utils.evals.configById.invalidate({ projectId, id: evaluatorId }),
+      ),
     ]).catch(() => undefined);
     showSuccessToast({
       title: "Rule created",
@@ -308,6 +313,7 @@ export function CreateEvaluationRuleDialog({
                     projectId={projectId}
                     filterState={filterState}
                     timeRange={absoluteTimeRange}
+                    columnVisibilityStorageKeySuffix="create-rule"
                     onSelectObservation={(row) => {
                       if (row.traceId) setTraceId(row.traceId);
                     }}

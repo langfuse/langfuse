@@ -41,6 +41,7 @@ export function EvaluationRulePreviewTable({
   selectedObservationId,
   onRowsChange,
   columnsPickerContainer,
+  columnVisibilityStorageKeySuffix,
 }: {
   projectId: string;
   filterState: FilterState;
@@ -58,6 +59,9 @@ export function EvaluationRulePreviewTable({
   onRowsChange?: (rows: EventsTableRow[]) => void;
   /** Where to render the columns picker (e.g. next to the section label). */
   columnsPickerContainer?: HTMLElement | null;
+  /** Distinguishes concurrently mounted previews that otherwise synchronize
+      through the same local-storage event key. */
+  columnVisibilityStorageKeySuffix?: string;
 }) {
   // EventsTable ignores externalDateRange for the rows query when an external
   // filter state is set, so the time bound goes into the filter itself;
@@ -73,7 +77,11 @@ export function EvaluationRulePreviewTable({
   >(
     // v2: input/output joined the default set — a fresh key so stored
     // pre-change visibility doesn't mask the new defaults.
-    `evaluationRulePreviewColumns-v2-${projectId}`,
+    `evaluationRulePreviewColumns-v2-${projectId}${
+      columnVisibilityStorageKeySuffix
+        ? `-${columnVisibilityStorageKeySuffix}`
+        : ""
+    }`,
     PREVIEW_DEFAULT_COLUMNS,
   );
 
@@ -136,6 +144,7 @@ export function EvaluationRulePreviewTable({
             externalColumnVisibility={columnVisibility}
             onExternalColumnVisibilityChange={setColumnVisibility}
             columnsPickerContainer={columnsPickerContainer}
+            tableStateStorageKeySuffix={columnVisibilityStorageKeySuffix}
             onExternalRowClick={onSelectObservation}
             externalSelectedRowId={selectedObservationId}
             onExternalRowPick={onPickObservation}

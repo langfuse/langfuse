@@ -258,6 +258,11 @@ export type EventsTableProps = {
   /** External element to render the embedded columns picker into. */
   columnsPickerContainer?: HTMLElement | null;
   /**
+   * Keeps column visibility/order state independent when multiple embedded
+   * event tables are mounted for the same project.
+   */
+  tableStateStorageKeySuffix?: string;
+  /**
    * When set (embedded previews), row clicks call this instead of opening
    * the peek view.
    */
@@ -334,6 +339,7 @@ export default function ObservationsEventsTable({
   externalColumnVisibility,
   onExternalColumnVisibilityChange,
   columnsPickerContainer,
+  tableStateStorageKeySuffix,
   onExternalRowClick,
   externalSelectedRowId,
   onExternalRowPick,
@@ -1783,7 +1789,9 @@ export default function ObservationsEventsTable({
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<EventsTableRow>(
-      `eventsColumnVisibility-${projectId}`,
+      `eventsColumnVisibility-${projectId}${
+        tableStateStorageKeySuffix ? `-${tableStateStorageKeySuffix}` : ""
+      }`,
       columns,
     );
 
@@ -1835,7 +1843,9 @@ export default function ObservationsEventsTable({
   })();
 
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
-    `eventsColumnOrder-${projectId}`,
+    `eventsColumnOrder-${projectId}${
+      tableStateStorageKeySuffix ? `-${tableStateStorageKeySuffix}` : ""
+    }`,
     columns,
   );
 

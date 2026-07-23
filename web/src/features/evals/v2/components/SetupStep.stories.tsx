@@ -29,3 +29,16 @@ export const Collapsed = meta.story({
     ),
   },
 });
+
+export const CompactBottomSpacing = meta.story({
+  args: {
+    number: 2,
+    title: "Define the evaluation",
+    description:
+      "Configure how the evaluator turns the selected sample into a score.",
+    compactBottomSpacing: true,
+    children: (
+      <div className="bg-muted rounded-md border p-4 text-sm">Step content</div>
+    ),
+  },
+});

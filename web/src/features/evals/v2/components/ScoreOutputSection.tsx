@@ -72,6 +72,8 @@ const DEFAULT_CHOICES: ScoreOutputChoice[] = [
   { label: "", value: "0" },
   { label: "", value: "1" },
 ];
+const DEFAULT_MIN_VALUE = "0";
+const DEFAULT_MAX_VALUE = "1";
 
 /** "" → null, otherwise the parsed number ("abc" → NaN, callers reject). */
 function parseOptionalNumber(value: string): number | null {
@@ -105,8 +107,8 @@ export function toScoreOutputFormState(
       scoreDescription: "",
       reasoningDescription: "",
       choices: [],
-      minValue: "",
-      maxValue: "",
+      minValue: DEFAULT_MIN_VALUE,
+      maxValue: DEFAULT_MAX_VALUE,
     };
   }
   const resolved = resolvePersistedEvalOutputDefinition(parsed.data);
@@ -273,6 +275,10 @@ function CategoryEditorPopover({
             <Label htmlFor={`score-output-category-value-${idSuffix}`}>
               Numeric score
             </Label>
+            <p className="text-muted-foreground text-xs">
+              Used as this category&apos;s value in numeric analyses, such as
+              averages and comparisons.
+            </p>
             <Input
               id={`score-output-category-value-${idSuffix}`}
               type="number"
@@ -348,6 +354,18 @@ export function ScoreOutputSection({
         dataType === ScoreDataTypeEnum.CATEGORICAL && state.choices.length === 0
           ? DEFAULT_CHOICES
           : state.choices,
+      minValue:
+        dataType === ScoreDataTypeEnum.NUMERIC &&
+        state.minValue.trim() === "" &&
+        state.maxValue.trim() === ""
+          ? DEFAULT_MIN_VALUE
+          : state.minValue,
+      maxValue:
+        dataType === ScoreDataTypeEnum.NUMERIC &&
+        state.minValue.trim() === "" &&
+        state.maxValue.trim() === ""
+          ? DEFAULT_MAX_VALUE
+          : state.maxValue,
     });
   };
 
@@ -514,7 +532,7 @@ export function ScoreOutputSection({
                   trigger={
                     <button
                       type="button"
-                      className="bg-muted hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-default disabled:opacity-70"
+                      className="bg-background hover:bg-muted/80 focus-visible:ring-ring inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-default disabled:opacity-70"
                       disabled={readOnly}
                     >
                       <span>
@@ -541,7 +559,7 @@ export function ScoreOutputSection({
                       type="button"
                       variant="outline"
                       size="icon"
-                      className="bg-muted hover:bg-muted/80 h-8 w-8"
+                      className="bg-background hover:bg-muted/80 h-8 w-8"
                       aria-label="Add category"
                     >
                       <Plus className="h-4 w-4" />
@@ -555,14 +573,12 @@ export function ScoreOutputSection({
           {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
             <>
               <span>as</span>
-              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
+              <span className="bg-background inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
                 true
-                <span className="text-muted-foreground font-normal">· 1</span>
               </span>
               <span>or</span>
-              <span className="bg-muted inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
+              <span className="bg-background inline-flex h-8 items-center gap-1.5 rounded-md border px-2 font-bold">
                 false
-                <span className="text-muted-foreground font-normal">· 0</span>
               </span>
             </>
           )}

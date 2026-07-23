@@ -34,7 +34,6 @@ describe("ActivationCostEstimate", () => {
     const { container } = render(
       <ActivationCostEstimate
         projectId="project-1"
-        evaluatorId="evaluator-1"
         filter={[]}
         sampling={1}
         testRunCostUsd={null}
@@ -50,7 +49,6 @@ describe("ActivationCostEstimate", () => {
     render(
       <ActivationCostEstimate
         projectId="project-1"
-        evaluatorId="evaluator-1"
         filter={[]}
         sampling={1}
         testRunCostUsd={0.002}

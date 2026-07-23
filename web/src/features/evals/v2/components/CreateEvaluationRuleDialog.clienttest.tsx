@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   createRule: vi.fn(),
   invalidateEvaluationRules: vi.fn(),
   invalidateEvaluators: vi.fn(),
+  invalidateEvaluatorConfig: vi.fn(),
   showSuccessToast: vi.fn(),
   capture: vi.fn(),
   getEvaluator: vi.fn(),
@@ -139,6 +140,9 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
+      evals: {
+        configById: { invalidate: mocks.invalidateEvaluatorConfig },
+      },
       client: {
         evals: { configById: { query: mocks.getEvaluator } },
         events: { all: { query: mocks.getSample } },
@@ -198,6 +202,7 @@ describe("CreateEvaluationRuleDialog", () => {
     mocks.createRule.mockResolvedValue({ id: "rule-1" });
     mocks.invalidateEvaluationRules.mockResolvedValue(undefined);
     mocks.invalidateEvaluators.mockResolvedValue(undefined);
+    mocks.invalidateEvaluatorConfig.mockResolvedValue(undefined);
     mocks.getEvaluator.mockResolvedValue({
       scoreName: "Correctness",
       targetObject: "event",
@@ -327,12 +332,43 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(mocks.invalidateEvaluationRules).toHaveBeenCalledWith({
       projectId: "project-1",
     });
+    expect(mocks.invalidateEvaluatorConfig).toHaveBeenCalledWith({
+      projectId: "project-1",
+      id: "evaluator-1",
+    });
+    expect(mocks.invalidateEvaluatorConfig).toHaveBeenCalledWith({
+      projectId: "project-1",
+      id: "evaluator-2",
+    });
     expect(mocks.showSuccessToast).toHaveBeenCalledWith({
       title: "Rule created",
       description:
         "Production observations is active with 2 evaluators attached.",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("starts with the evaluator that opened rule creation selected", () => {
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          initialEvaluatorIds={["evaluator-1"]}
+          onOpenChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("list", { name: "Selected evaluators" }),
+    ).toHaveTextContent("Correctness");
+    expect(
+      screen.getByRole("button", { name: "Remove Correctness" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Validate selected evaluators" }),
+    ).toBeInTheDocument();
   });
 
   it("opens later steps progressively and lets every unlocked step collapse and reopen", async () => {

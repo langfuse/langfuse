@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useRouter } from "next/router";
 import {
+  ChevronDown,
   Code2,
   InfoIcon,
   PanelRightClose,
@@ -17,9 +18,11 @@ import {
 } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { Slider } from "@/src/components/ui/slider";
 // Animated tab variants: the active pill slides between options.
 import {
   Tabs,
@@ -80,6 +83,7 @@ import {
   type TestRunPayload,
 } from "@/src/features/evals/v2/components/TestRunSection";
 import { CodeSampleContextDrawer } from "@/src/features/evals/v2/components/CodeSampleContextPreview";
+import { CreateEvaluatorActivationDialog } from "@/src/features/evals/v2/components/CreateEvaluatorActivationDialog";
 import { getCodeEvalVariableMapping } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   MAPPABLE_COLUMNS,
@@ -101,6 +105,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
+import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
   extractValueFromObjectAsString,
@@ -120,6 +125,7 @@ export type EvaluatorSetupRuleControls = {
   setFilterState: (filterState: FilterState) => void;
   sampling: number;
   setSampling: (sampling: number) => void;
+  applyRule: (rule: { filter: FilterState; sampling: number }) => void;
 };
 
 /** A sample candidate from the rule-preview table. */
@@ -240,8 +246,10 @@ export function EvaluatorSetupForm({
   attachedRuleIds = [],
   activeFilterSourceLabel,
   renderRuleControls,
+  renderDataSourceControls,
   renderFilterActions,
   filterEditingDisabled = false,
+  samplingEditingDisabled = false,
   ruleEditorExpanded = true,
   onFiltersEdited,
   onBeforeSave,
@@ -263,8 +271,12 @@ export function EvaluatorSetupForm({
   attachedRuleIds?: string[];
   activeFilterSourceLabel?: string;
   renderRuleControls?: (controls: EvaluatorSetupRuleControls) => ReactNode;
+  renderDataSourceControls?: (
+    controls: EvaluatorSetupRuleControls,
+  ) => ReactNode;
   renderFilterActions?: (controls: EvaluatorSetupRuleControls) => ReactNode;
   filterEditingDisabled?: boolean;
+  samplingEditingDisabled?: boolean;
   ruleEditorExpanded?: boolean;
   onFiltersEdited?: () => void;
   onBeforeSave?: (controls: EvaluatorSetupRuleControls) => Promise<boolean>;
@@ -288,6 +300,10 @@ export function EvaluatorSetupForm({
   const [testPanelCollapsed, setTestPanelCollapsed] = useState(true);
   const testPanelRef = usePanelRef();
   const [isSaveWorkflowPending, setIsSaveWorkflowPending] = useState(false);
+  const [activationDialogOpen, setActivationDialogOpen] = useState(false);
+  const [activationTestRunCostUsd, setActivationTestRunCostUsd] = useState<
+    number | null
+  >(null);
   // Rule assignments are saved separately in the edit view. Keep the
   // evaluator-definition baseline here so only left-pane changes enable Save.
   const [initialScoreName] = useState(() => scoreName);
@@ -325,12 +341,16 @@ export function EvaluatorSetupForm({
       : [...EVALUATION_OBSERVATION_EXCLUSION_FILTERS],
   );
   // Sample rate follows a shared rule picked during setup and is persisted
-  // with the setup filters for optional activation after saving.
+  // with the setup filters after the user makes the pre-save activation choice.
   const [sampling, setSampling] = useState(initialSampling);
+  const [samplingOpen, setSamplingOpen] = useState(false);
 
   const [selectedObservationId, setSelectedObservationId] = useState<
     string | null
   >(null);
+  const sampleSelectionRef = useRef<HTMLDivElement>(null);
+  const [sampleSelectionPrompted, setSampleSelectionPrompted] = useState(false);
+  const sampleSelectionHighlightTimeoutRef = useRef<number | null>(null);
 
   // Test mutations live here so the trigger and result surface share state.
   const testRun = useTestRunMutation();
@@ -476,8 +496,20 @@ export function EvaluatorSetupForm({
       ? pickedObservation
       : null);
 
+  const applyRule = (rule: { filter: FilterState; sampling: number }) => {
+    setFilterState(rule.filter);
+    setSampling(rule.sampling);
+    setSelectedObservationId(null);
+    setPickedObservation(null);
+  };
+
   const pickObservation = (row: EventsTableRow) => {
     if (!row.traceId) return;
+    if (sampleSelectionHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(sampleSelectionHighlightTimeoutRef.current);
+      sampleSelectionHighlightTimeoutRef.current = null;
+    }
+    setSampleSelectionPrompted(false);
     setSelectedObservationId(row.id);
     setPickedObservation({
       id: row.id,
@@ -488,6 +520,24 @@ export function EvaluatorSetupForm({
     setDefinitionStepOpen(true);
     testPanelRef.current?.expand();
     setTestPanelCollapsed(false);
+  };
+
+  const focusSampleSelection = () => {
+    setSampleStepOpen(true);
+    setSampleSelectionPrompted(true);
+    if (sampleSelectionHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(sampleSelectionHighlightTimeoutRef.current);
+    }
+    sampleSelectionHighlightTimeoutRef.current = window.setTimeout(() => {
+      setSampleSelectionPrompted(false);
+      sampleSelectionHighlightTimeoutRef.current = null;
+    }, 2000);
+    requestAnimationFrame(() => {
+      sampleSelectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
   };
 
   const handleSelectObservationFromPreview = (row: EventsTableRow) => {
@@ -784,8 +834,7 @@ export function EvaluatorSetupForm({
   const selectSharedRule = (id: string) => {
     const rule = reusableRules.find((candidate) => candidate.id === id);
     if (!rule) return;
-    setFilterState(rule.filter);
-    setSampling(rule.sampling);
+    applyRule(rule);
   };
 
   const updateDraftFilters = (nextFilterState: FilterState) => {
@@ -882,6 +931,48 @@ export function EvaluatorSetupForm({
     };
   };
 
+  const createNewEvaluator = async (runContinuously: boolean) => {
+    const fields = buildRuleFields();
+    if (!fields) return;
+    setIsSaveWorkflowPending(true);
+    try {
+      await createEvaluator.mutateAsync({
+        ...fields,
+        rule: runContinuously
+          ? {
+              mode: "new",
+              name: `Evaluator rule ${new Date().toISOString()}`,
+              targetObject: "event",
+              filter: filterState,
+              sampling,
+              delay: 30_000,
+            }
+          : {
+              mode: "none",
+              targetObject: "event",
+              filter: filterState,
+              sampling,
+            },
+        runContinuously,
+        backfill: null,
+        status: runContinuously ? "ACTIVE" : "INACTIVE",
+      });
+      await Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]);
+      setActivationDialogOpen(false);
+      showSuccessToast({
+        title: runContinuously ? "Evaluator is live" : "Evaluator saved",
+        description: runContinuously
+          ? `“${fields.scoreName}” will evaluate new matching observations.`
+          : "The evaluator is inactive and can be started later.",
+      });
+      await router.push(`/project/${projectId}/evals/v2`);
+    } catch {
+      // Mutation callbacks surface create errors.
+    } finally {
+      setIsSaveWorkflowPending(false);
+    }
+  };
+
   const handleSaveEvaluator = async () => {
     const fields = buildRuleFields();
     if (!fields) return;
@@ -926,36 +1017,9 @@ export function EvaluatorSetupForm({
           // Cost estimation is best-effort and must not block evaluator save.
         }
       }
-
-      try {
-        const data = await createEvaluator.mutateAsync({
-          ...fields,
-          rule: {
-            mode: "none",
-            targetObject: "event",
-            filter: filterState,
-            sampling,
-          },
-          runContinuously: false,
-          backfill: null,
-          status: "INACTIVE",
-        });
-        await Promise.all([
-          utils.evals.invalidate(),
-          utils.evalsV2.invalidate(),
-        ]);
-        const activationQuery = new URLSearchParams({ activate: "1" });
-        if (estimatedCostUsd !== null) {
-          activationQuery.set("estimatedCostUsd", String(estimatedCostUsd));
-        }
-        await router.push(
-          `/project/${projectId}/evals/v2/${data.id}?${activationQuery.toString()}`,
-        );
-      } catch {
-        // Mutation callbacks surface create errors.
-      } finally {
-        setIsSaveWorkflowPending(false);
-      }
+      setActivationTestRunCostUsd(estimatedCostUsd);
+      setActivationDialogOpen(true);
+      setIsSaveWorkflowPending(false);
       return;
     }
 
@@ -967,6 +1031,7 @@ export function EvaluatorSetupForm({
         setFilterState,
         sampling,
         setSampling,
+        applyRule,
       });
       if (shouldContinue === false) return;
 
@@ -1113,6 +1178,7 @@ export function EvaluatorSetupForm({
         setFilterState,
         sampling,
         setSampling,
+        applyRule,
       })}
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         <ResizablePanel
@@ -1129,7 +1195,7 @@ export function EvaluatorSetupForm({
               open={sampleStepOpen}
               onOpenChange={setSampleStepOpen}
             >
-              <div className="flex min-w-0 flex-col gap-6">
+              <div className="flex min-w-0 flex-col gap-4">
                 {activeFilterSourceLabel ? (
                   <div className="bg-muted/40 flex min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-sm">
                     <span className="text-muted-foreground shrink-0">
@@ -1146,15 +1212,25 @@ export function EvaluatorSetupForm({
                       setFilterState,
                       sampling,
                       setSampling,
+                      applyRule,
                     })}
                   </div>
                 ) : null}
 
                 <div className="flex min-w-0 flex-col gap-2">
                   <div className="flex items-center justify-between gap-3">
-                    <LabelWithTooltip tooltip="Only matching observations are available as evaluator samples.">
-                      Filter observations
-                    </LabelWithTooltip>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <LabelWithTooltip tooltip="Only matching observations are available as evaluator samples.">
+                        Filter observations
+                      </LabelWithTooltip>
+                      {renderDataSourceControls?.({
+                        filterState,
+                        setFilterState,
+                        sampling,
+                        setSampling,
+                        applyRule,
+                      })}
+                    </div>
                     <TableHeaderControls
                       timeRange={timeRange}
                       setTimeRange={setTimeRange}
@@ -1163,9 +1239,10 @@ export function EvaluatorSetupForm({
                   <div
                     inert={filterEditingDisabled ? true : undefined}
                     aria-disabled={filterEditingDisabled}
-                    className={
-                      filterEditingDisabled ? "min-w-0 opacity-60" : "min-w-0"
-                    }
+                    className={cn(
+                      "min-w-0",
+                      filterEditingDisabled && "opacity-60",
+                    )}
                   >
                     <RuleFilterSearchBar
                       projectId={projectId}
@@ -1197,27 +1274,80 @@ export function EvaluatorSetupForm({
                 </div>
 
                 <div className="flex min-w-0 flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <LabelWithTooltip tooltip="Pick one observation to preview mappings and test the evaluator against.">
-                      Matching observations
-                      {ruleMatchCount.count !== null && (
-                        <span className="text-muted-foreground font-normal">
-                          {`(${compactNumberFormatter(ruleMatchCount.count)})`}
-                        </span>
-                      )}
-                    </LabelWithTooltip>
-                    <div ref={setPreviewColumnsPickerEl} />
+                  <div
+                    ref={sampleSelectionRef}
+                    className={cn(
+                      "flex min-w-0 flex-col gap-2 rounded-md transition-shadow",
+                      sampleSelectionPrompted &&
+                        !selectedObservation &&
+                        "ring-primary-accent ring-2 ring-offset-4",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <LabelWithTooltip tooltip="Pick one observation to preview mappings and test the evaluator against.">
+                        Matching observations
+                        {ruleMatchCount.count !== null && (
+                          <span className="text-muted-foreground font-normal">
+                            {`(${compactNumberFormatter(ruleMatchCount.count)})`}
+                          </span>
+                        )}
+                      </LabelWithTooltip>
+                      <div ref={setPreviewColumnsPickerEl} />
+                    </div>
+                    <EvaluationRulePreviewTable
+                      projectId={projectId}
+                      filterState={filterState}
+                      timeRange={absoluteTimeRange}
+                      onSelectObservation={handleSelectObservationFromPreview}
+                      onPickObservation={pickObservation}
+                      selectedObservationId={selectedObservationId}
+                      onRowsChange={handlePreviewRowsChange}
+                      columnsPickerContainer={previewColumnsPickerEl}
+                      columnVisibilityStorageKeySuffix="evaluator-setup"
+                    />
                   </div>
-                  <EvaluationRulePreviewTable
-                    projectId={projectId}
-                    filterState={filterState}
-                    timeRange={absoluteTimeRange}
-                    onSelectObservation={handleSelectObservationFromPreview}
-                    onPickObservation={pickObservation}
-                    selectedObservationId={selectedObservationId}
-                    onRowsChange={handlePreviewRowsChange}
-                    columnsPickerContainer={previewColumnsPickerEl}
-                  />
+
+                  <button
+                    type="button"
+                    className="flex w-fit items-center text-sm"
+                    aria-expanded={samplingOpen}
+                    onClick={() => setSamplingOpen((open) => !open)}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        "text-muted-foreground -ml-0.5 h-4 w-4 transition-transform",
+                        !samplingOpen && "-rotate-90",
+                      )}
+                    />
+                    Sampling
+                    <span className="text-muted-foreground ml-1.5 font-normal">
+                      {(sampling * 100).toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}
+                      %
+                    </span>
+                  </button>
+                  {samplingOpen ? (
+                    <div className="flex w-full max-w-md flex-col gap-2">
+                      <Slider
+                        min={0.0001}
+                        max={1}
+                        step={0.0001}
+                        value={[sampling]}
+                        disabled={samplingEditingDisabled}
+                        onValueChange={(value) =>
+                          setSampling(value[0] ?? sampling)
+                        }
+                        showInput
+                        displayAsPercentage
+                      />
+                      <p className="text-muted-foreground text-xs">
+                        {samplingEditingDisabled
+                          ? "Sampling is configured on the selected evaluation rule."
+                          : "Choose the share of matching observations to evaluate."}
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </SetupStep>
@@ -1228,8 +1358,30 @@ export function EvaluatorSetupForm({
               description="Configure how the evaluator turns the selected sample into a score."
               open={definitionStepOpen}
               onOpenChange={setDefinitionStepOpen}
+              compactBottomSpacing
             >
-              <div className="flex min-w-0 flex-col gap-6">
+              <div className="flex min-w-0 flex-col gap-4">
+                {!selectedObservation ? (
+                  <Alert variant="info">
+                    <InfoIcon className="h-4 w-4" />
+                    <AlertTitle>Select a sample observation first</AlertTitle>
+                    <AlertDescription className="flex flex-col items-start gap-2">
+                      <p>
+                        Choose one matching observation in step 1 to preview
+                        variable mappings and test this evaluator.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={focusSampleSelection}
+                      >
+                        Choose sample
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
                 <div className="flex flex-col gap-2">
                   <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
                     Evaluation
@@ -1595,8 +1747,22 @@ export function EvaluatorSetupForm({
           trace" in the test result surfaces. */}
       <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
 
+      <CreateEvaluatorActivationDialog
+        projectId={projectId}
+        setupFilter={filterState}
+        setupSampling={sampling}
+        testRunCostUsd={activationTestRunCostUsd}
+        isCodeEvaluator={isCodeMode}
+        open={activationDialogOpen}
+        loading={isSaving}
+        onOpenChange={setActivationDialogOpen}
+        onSave={(runContinuously) => {
+          createNewEvaluator(runContinuously).catch(() => undefined);
+        }}
+      />
+
       {/* Fixed action bar: cancel abandons setup; save persists the evaluator
-          before the optional live-data activation flow. */}
+          after the user decides whether it should start running. */}
       <div className="bg-background flex shrink-0 items-center justify-end gap-2 border-t px-4 py-2">
         <Button
           type="button"

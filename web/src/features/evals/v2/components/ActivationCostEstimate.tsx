@@ -22,7 +22,7 @@ export function ActivationCostEstimate({
   enabled,
 }: {
   projectId: string;
-  evaluatorId: string;
+  evaluatorId?: string;
   filter: FilterState;
   sampling: number;
   testRunCostUsd: number | null;
@@ -51,9 +51,13 @@ export function ActivationCostEstimate({
     { enabled: enabled && !isCodeEvaluator, refetchOnWindowFocus: false },
   );
   const historicalCost = api.evals.avgCostByEvaluatorIds.useQuery(
-    { projectId, evaluatorIds: [evaluatorId] },
+    { projectId, evaluatorIds: evaluatorId ? [evaluatorId] : [] },
     {
-      enabled: enabled && !isCodeEvaluator && testRunCostUsd === null,
+      enabled:
+        enabled &&
+        !isCodeEvaluator &&
+        testRunCostUsd === null &&
+        Boolean(evaluatorId),
       refetchOnWindowFocus: false,
     },
   );
@@ -61,7 +65,9 @@ export function ActivationCostEstimate({
   if (isCodeEvaluator) return null;
 
   const matchingObservations = matchCount.data?.totalCount ?? null;
-  const historicalCostEntry = historicalCost.data?.[evaluatorId];
+  const historicalCostEntry = evaluatorId
+    ? historicalCost.data?.[evaluatorId]
+    : undefined;
   const costPerEvaluation =
     testRunCostUsd ?? historicalCostEntry?.avgCost ?? null;
   const evaluatedObservations =
