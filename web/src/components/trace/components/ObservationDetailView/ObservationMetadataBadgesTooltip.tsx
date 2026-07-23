@@ -1,10 +1,11 @@
 /**
- * Tooltip-based metadata badges for ObservationDetailView
- * These badges use BreakdownTooltip to show detailed cost/usage information
+ * Tooltip-backed overview-grid rows for ObservationDetailView.
+ * Cost and token usage render as mono values with a trailing ⓘ that opens
+ * the BreakdownTooltip with the detailed cost/usage breakdown.
  */
 
 import { type ObservationType, isGenerationLike } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { OverviewRow } from "@/src/components/trace/components/_shared/InspectorElements";
 import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
@@ -20,12 +21,14 @@ export function CostBadge({
   if (totalCost == null || totalCost === 0 || !costDetails) return null;
 
   return (
-    <BreakdownTooltip details={costDetails} isCost={true}>
-      <Badge variant="tertiary" className="flex items-center gap-1">
-        <span>{usdFormatter(totalCost)}</span>
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
-    </BreakdownTooltip>
+    <OverviewRow label="Cost">
+      <BreakdownTooltip details={costDetails} isCost={true}>
+        <span className="inline-flex items-center gap-1">
+          {usdFormatter(totalCost)}
+          <InfoIcon className="text-muted-foreground h-2.5 w-2.5 shrink-0" />
+        </span>
+      </BreakdownTooltip>
+    </OverviewRow>
   );
 }
 
@@ -54,14 +57,17 @@ export function UsageBadge({
   const hasText = tokenText.length > 0;
 
   return (
-    <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge
-        variant="tertiary"
-        className={`flex items-center gap-1 ${!hasText ? "h-6 pl-2" : ""}`}
-      >
-        {hasText && <span>{tokenText}</span>}
-        <InfoIcon className="h-3 w-3" />
-      </Badge>
-    </BreakdownTooltip>
+    <OverviewRow label="Tokens" title={hasText ? tokenText : undefined}>
+      <BreakdownTooltip details={usageDetails} isCost={false}>
+        <span className="inline-flex max-w-full items-center gap-1">
+          {hasText && (
+            <span className="truncate" title={tokenText}>
+              {tokenText}
+            </span>
+          )}
+          <InfoIcon className="text-muted-foreground h-2.5 w-2.5 shrink-0" />
+        </span>
+      </BreakdownTooltip>
+    </OverviewRow>
   );
 }
