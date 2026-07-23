@@ -3,6 +3,7 @@
 import { type PropsWithChildren, Children } from "react";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDataTableControls } from "./data-table-controls";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead
@@ -29,6 +30,7 @@ const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
   const { open, setOpen, tableName, isMobile } = useDataTableControls();
+  const capture = usePostHogClientCapture();
   // Single-source the breakpoint from the controls provider (which derives
   // `open`/`setOpen` from the same value). Evaluating the media query
   // independently here let a desktop→mobile resize render the bottom sheet
@@ -59,6 +61,25 @@ export function ResizableFilterLayout({ children }: PropsWithChildren) {
             <SheetContent
               side="bottom"
               aria-describedby={undefined}
+              // Emit the same close-analytics event the header X / rail / menu
+              // fire, but ONLY for user-dismiss (backdrop + Escape) — these
+              // Radix callbacks don't run for the programmatic close from the
+              // header X, so this counts the previously-silent dismiss path
+              // without double-counting the others.
+              onInteractOutside={() =>
+                capture("filters:sidebar_toggled", {
+                  tableName,
+                  open: false,
+                  trigger: "mobile_sheet_dismiss",
+                })
+              }
+              onEscapeKeyDown={() =>
+                capture("filters:sidebar_toggled", {
+                  tableName,
+                  open: false,
+                  trigger: "mobile_sheet_dismiss",
+                })
+              }
               // Hide the Sheet's own close button — the filter panel header
               // renders its own close (X), so a second one just collides with
               // the panel's controls.
