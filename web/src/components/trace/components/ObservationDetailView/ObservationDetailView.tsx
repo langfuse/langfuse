@@ -40,7 +40,10 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { PencilLine } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
+import { useCorrectionData } from "@/src/components/trace/components/IOPreview/components/hooks/useCorrectionData";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/components/trace/api/useMedia";
@@ -233,6 +236,25 @@ export function ObservationDetailView({
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);
+
+  // Corrected-output visibility, aligned with the session inspector
+  // (ObservationInspector): the empty editor stays hidden until the user
+  // clicks the "Correct" toggle; an EXISTING correction (server data merged
+  // with the optimistic correction cache) stays visible regardless.
+  // Annotation mode keeps the previous always-on behavior — the tabs bar
+  // hosting the toggle is hidden there.
+  const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
+  const { correctionValue: existingCorrectionValue } = useCorrectionData(
+    outputCorrection,
+    observation.id,
+    traceId,
+  );
+  const hasExistingCorrection = existingCorrectionValue.trim().length > 0;
+  // Correct is strictly GENERATION (per the inspector design);
+  // isGenerationLike is wider (AGENT, TOOL, ...) and would leak it.
+  const isGeneration = observation.type === "GENERATION";
+  const showCorrections =
+    isAnnotationMode || hasExistingCorrection || isCorrectionOpen;
 
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
@@ -475,6 +497,25 @@ export function ObservationDetailView({
                     )}
                 </>
               )}
+
+              {/* "Correct" toggle — same styling/gating as the session
+                  inspector's Output-heading button (GENERATION-only,
+                  scores:CUD). Lives in the panel chrome next to the
+                  Formatted/JSON controls; reveals the corrected-output
+                  editor below the output. */}
+              {selectedTab === "preview" &&
+                isGeneration &&
+                hasAnnotationAccess && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-muted-foreground mr-2 h-6 px-2 text-[11px]"
+                    onClick={() => setIsCorrectionOpen((current) => !current)}
+                  >
+                    <PencilLine className="mr-1 h-3 w-3" />
+                    Correct
+                  </Button>
+                )}
             </TabsBarList>
           </TooltipProvider>
         )}
@@ -569,6 +610,7 @@ export function ObservationDetailView({
               projectId={projectId}
               traceId={traceId}
               environment={observation.environment}
+              showCorrections={showCorrections}
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full shrink-0" />

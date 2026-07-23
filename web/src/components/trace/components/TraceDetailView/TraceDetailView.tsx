@@ -56,6 +56,9 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
+import { PencilLine } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { useCorrectionData } from "@/src/components/trace/components/IOPreview/components/hooks/useCorrectionData";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export interface TraceDetailViewProps {
@@ -210,6 +213,22 @@ export function TraceDetailView({
   );
 
   const outputCorrection = getMostRecentCorrection(traceCorrections);
+
+  // Corrected-output visibility, aligned with the session inspector
+  // (ObservationInspector): the empty editor stays hidden until the user
+  // clicks the "Correct" toggle; an EXISTING correction (server data merged
+  // with the optimistic correction cache) stays visible regardless.
+  // Annotation mode keeps the previous always-on behavior — the tabs bar
+  // hosting the toggle is hidden there.
+  const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
+  const { correctionValue: existingCorrectionValue } = useCorrectionData(
+    outputCorrection,
+    undefined,
+    trace.id,
+  );
+  const hasExistingCorrection = existingCorrectionValue.trim().length > 0;
+  const showCorrections =
+    isAnnotationMode || hasExistingCorrection || isCorrectionOpen;
 
   // Tab visibility: hide Log View and Scores tabs in annotation mode
   // Log View tab removed per the session-redesign review (see
@@ -394,6 +413,23 @@ export function TraceDetailView({
                     )}
                 </>
               )}
+
+              {/* "Correct" toggle — same styling/gating as the session
+                  inspector's Output-heading button (scores:CUD; traces have
+                  no observation-type gate). Lives in the panel chrome next
+                  to the Formatted/JSON controls; reveals the trace-level
+                  corrected-output editor below the output. */}
+              {selectedTab === "preview" && hasAnnotationAccess && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-muted-foreground mr-2 h-6 px-2 text-[11px]"
+                  onClick={() => setIsCorrectionOpen((current) => !current)}
+                >
+                  <PencilLine className="mr-1 h-3 w-3" />
+                  Correct
+                </Button>
+              )}
             </TabsBarList>
           </TooltipProvider>
         )}
@@ -483,6 +519,7 @@ export function TraceDetailView({
               projectId={projectId}
               traceId={trace.id}
               environment={trace.environment}
+              showCorrections={showCorrections}
             />
             {/* Details zone: Scores + Metadata accordions, per the inspector
                 design. Skipped in virtualized JSON Beta (IOPreview owns the
