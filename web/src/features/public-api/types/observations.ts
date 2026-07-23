@@ -178,6 +178,9 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude isRootObservation from V1; it is a V2 events-based field.
+    isRootObservation,
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
@@ -364,6 +367,7 @@ const APIObservationV2 = z
     public: z.boolean().optional(),
     userId: z.string().nullable().optional(),
     sessionId: z.string().nullable().optional(),
+    isRootObservation: z.boolean().optional(),
 
     // Time fields (field group: time)
     completionStartTime: z.coerce.date().nullable().optional(),

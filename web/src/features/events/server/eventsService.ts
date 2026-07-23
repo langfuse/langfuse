@@ -489,6 +489,7 @@ export async function getEventFilterValuePage(
     column:
       | "traceTags"
       | "hasParentObservation"
+      | "isRootObservation"
       | "providedModelName"
       | "modelId"
       | "name"

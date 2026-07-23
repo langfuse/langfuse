@@ -299,6 +299,7 @@ const createObservationEvent = (params: {
   userId?: string;
   sessionId?: string;
   totalCost?: number;
+  isAppRoot?: boolean;
 }) => {
   const observationId = params.observationId ?? randomUUID();
   const startTime = params.startTime ?? new Date();
@@ -310,6 +311,7 @@ const createObservationEvent = (params: {
     span_id: observationId,
     trace_id: params.traceId ?? randomUUID(),
     parent_span_id: params.parentObservationId ?? null,
+    is_app_root: params.isAppRoot ?? false,
     project_id: params.projectId,
     name: params.name ?? `mcp-observation-${nanoid()}`,
     type: params.type ?? "GENERATION",
@@ -824,6 +826,7 @@ describe("MCP Read Tools", () => {
       ["providedModelName", "stringOptions", true],
       ["tags", "arrayOptions", false],
       ["hasParentObservation", "boolean", false],
+      ["isRootObservation", "boolean", false],
     ])(
       "should expose the %s column used by observation filter values",
       async (column, type, nullable) => {
@@ -982,6 +985,54 @@ describe("MCP Read Tools", () => {
           }),
         },
       ]);
+    });
+
+    it("should filter by isRootObservation including app roots with dangling parents", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const trueRoot = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-true-root-${nanoid()}`,
+        parentObservationId: null,
+      });
+      // App root: OTel parent span was never ingested
+      const appRoot = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-app-root-${nanoid()}`,
+        parentObservationId: randomUUID(),
+        isAppRoot: true,
+      });
+      const child = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-child-${nanoid()}`,
+        parentObservationId: trueRoot.id,
+      });
+
+      await createEventsCh([trueRoot, appRoot, child]);
+
+      const result = (await handleListObservations(
+        {
+          filter: [
+            {
+              type: "boolean",
+              column: "isRootObservation",
+              operator: "=",
+              value: true,
+            },
+          ],
+          fields: ["id"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      const ids = result.data.map((row) => row.id);
+      expect(ids).toHaveLength(2);
+      expect(ids).toContain(trueRoot.id);
+      expect(ids).toContain(appRoot.id);
     });
 
     it("should list observations with compact default projection", async () => {
@@ -2159,6 +2210,46 @@ describe("MCP Read Tools", () => {
       expect(result.values).toEqual([
         expect.objectContaining({ value: false, count: 1 }),
         expect.objectContaining({ value: true, count: 1 }),
+      ]);
+    });
+
+    it("should return boolean values for isRootObservation counting app roots as roots", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+
+      await createEventsCh([
+        // True root: no parent
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-true-root-${nanoid()}`,
+          parentObservationId: null,
+        }),
+        // App root: dangling parent that was never ingested
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-app-root-${nanoid()}`,
+          parentObservationId: randomUUID(),
+          isAppRoot: true,
+        }),
+        // Non-root child
+        createObservationEvent({
+          projectId,
+          name: `mcp-filter-child-${nanoid()}`,
+          parentObservationId: randomUUID(),
+        }),
+      ]);
+
+      const result = (await handleGetObservationFilterValues(
+        { column: "isRootObservation", limit: 100 },
+        context,
+      )) as {
+        column: string;
+        values: Array<{ value: boolean; count?: number }>;
+      };
+
+      expect(result.column).toBe("isRootObservation");
+      expect(result.values).toEqual([
+        expect.objectContaining({ value: false, count: 1 }),
+        expect.objectContaining({ value: true, count: 2 }),
       ]);
     });
 
