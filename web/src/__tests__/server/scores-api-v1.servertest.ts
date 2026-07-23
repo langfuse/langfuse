@@ -1,6 +1,7 @@
 import {
   clickhouseClient,
   createObservation,
+  createDatasetRunScore,
   createTraceScore,
   createTrace,
   createSessionScore,
@@ -513,6 +514,7 @@ describe("/api/public/scores API Endpoint", () => {
       const scoreId_5 = v4();
       const scoreId_6 = v4();
       const scoreId_7 = v4();
+      const scoreId_8 = v4();
       const textScoreId_1 = v4();
       const textScoreId_2 = v4();
       let authentication: string;
@@ -661,6 +663,15 @@ describe("/api/public/scores API Endpoint", () => {
           data_type: "NUMERIC",
         });
 
+        const datasetRunScore = createDatasetRunScore({
+          id: scoreId_8,
+          project_id: newProjectId,
+          dataset_run_id: datasetRunId,
+          name: scoreName,
+          value: 100.5,
+          data_type: "NUMERIC",
+        });
+
         await createScoresCh([
           score1,
           score2,
@@ -671,6 +682,7 @@ describe("/api/public/scores API Endpoint", () => {
           textScore2,
           sessionScore1,
           sessionScore2,
+          datasetRunScore,
         ]);
       });
 
@@ -686,7 +698,7 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 7, // 9 scores in total, but only 7 are trace scores
+          totalItems: 7, // 10 scores in total, but only 7 are trace scores
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
