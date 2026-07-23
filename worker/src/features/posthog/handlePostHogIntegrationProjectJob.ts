@@ -66,7 +66,6 @@ const flushPostHog = async (
   await posthog.flush();
   throwIfPostHogSendError(config);
   await sleep(env.LANGFUSE_POSTHOG_FLUSH_DELAY_MS);
-  throwIfPostHogSendError(config);
 };
 
 type PostHogClientOptions = NonNullable<
