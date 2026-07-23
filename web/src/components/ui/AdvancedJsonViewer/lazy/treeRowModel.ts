@@ -107,6 +107,13 @@ export class TreeRowModel implements RowModel {
     state.loadedCount += page.children.length;
     state.total = page.total;
     state.hasMore = page.hasMore;
+    // The container has now been scanned (childrenPage built its child table),
+    // so re-describe it. The descriptor captured pre-scan (from the parent's
+    // page) carries the raw-JSON preview and an unknown childCount; the
+    // refreshed one carries the Object(N)/Array(N) summary and the exact count
+    // (including 0 for an empty container) — so the row's preview isn't a stale
+    // duplicate of its own children, and the count badge survives a collapse.
+    state.descriptor = this.source.describe(state.descriptor.nodeId);
     if (state.hasMore && state.loadMoreId === null) {
       state.loadMoreId = this.nextLoadMoreId--;
       this.loadMoreOwner.set(state.loadMoreId, state.descriptor.nodeId);
@@ -174,16 +181,15 @@ export class TreeRowModel implements RowModel {
       depth: state.depth,
       keyOrIndex: state.keyOrIndex,
       type: d.type,
-      // Prefer the scanned `total` once the container has been paged at least
-      // once (loadedCount > 0) — it stays authoritative after a collapse, so
-      // the [N]/{N} badge doesn't vanish. Fall back to the descriptor's count
-      // only before any scan (may be known from the parent scan, or undefined).
-      childCount:
-        state.expandable && (state.expanded || state.loadedCount > 0)
+      // `d` is refreshed post-scan (see loadPage), so `d.childCount` is the
+      // exact count after a container has been expanded — including 0 for an
+      // empty one — and the badge survives a collapse. Before any scan it's the
+      // parent-provided count (or undefined).
+      childCount: state.expandable
+        ? state.expanded
           ? state.total
-          : state.expandable
-            ? d.childCount
-            : undefined,
+          : d.childCount
+        : undefined,
       preview: d.preview,
       truncatedPreview: d.truncatedPreview,
       expandable: state.expandable,

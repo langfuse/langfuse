@@ -123,4 +123,30 @@ describe("TreeRowModel over the byte engine", () => {
     expect(await m.getValue(-1)).toMatchObject({ ok: false }); // load-more id
     expect(await m.getValue(999999)).toMatchObject({ ok: false }); // unknown id
   });
+
+  it("refreshes a container's descriptor after scan (summary preview + count survives collapse)", async () => {
+    const m = await model({ obj: { a: 1, b: 2, c: 3 }, empty: {} });
+
+    // Symptom 1: an expanded container's OWN row shows a structural summary, not
+    // the stale pre-scan raw-JSON preview duplicating the child rows below it.
+    const objId = (await allRows(m)).find(
+      (r) => r.keyOrIndex === "obj",
+    )!.nodeId;
+    await m.expand(objId);
+    const objRow = (await allRows(m)).find((r) => r.keyOrIndex === "obj")!;
+    expect(objRow.preview).not.toContain('"a"'); // not the raw {"a":1,...}
+    expect(objRow.childCount).toBe(3);
+
+    // Symptom 2: an EMPTY container keeps its 0 count after expand→collapse.
+    // loadedCount stays 0 for an empty container, so the earlier
+    // `loadedCount > 0` fallback dropped the badge; the refreshed descriptor
+    // (childCount === 0) fixes it.
+    const emptyId = (await allRows(m)).find(
+      (r) => r.keyOrIndex === "empty",
+    )!.nodeId;
+    await m.expand(emptyId);
+    await m.collapse(emptyId);
+    const emptyRow = (await allRows(m)).find((r) => r.keyOrIndex === "empty")!;
+    expect(emptyRow.childCount).toBe(0);
+  });
 });
