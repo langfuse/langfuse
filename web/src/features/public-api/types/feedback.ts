@@ -11,14 +11,16 @@ export const FeedbackTargetType = z.enum([
 
 export const PostFeedbackBody = z
   .object({
-    targetType: FeedbackTargetType.describe("What the feedback is about."),
+    targetType: FeedbackTargetType.describe(
+      "Category of the thing the feedback is about.",
+    ),
     target: z
       .string()
       .trim()
       .min(1)
       .max(200)
       .describe(
-        "Specific skill, MCP tool, CLI command, API endpoint, or docs page.",
+        "The specific instance within targetType: the skill name, MCP tool name, CLI command, API endpoint path, or docs page path (e.g. 'queryMetrics', '/docs/mcp'). An identifier, not a sentence.",
       ),
     feedback: z
       .string()

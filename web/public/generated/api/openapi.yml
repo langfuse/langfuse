@@ -11164,12 +11164,14 @@ components:
       properties:
         targetType:
           $ref: '#/components/schemas/FeedbackTargetType'
-          description: What the feedback is about.
+          description: Category of the thing the feedback is about.
         target:
           type: string
           description: >-
-            Specific skill, MCP tool, CLI command, API endpoint, or docs page.
-            Must be between 1 and 200 characters.
+            The specific instance within targetType: the skill name, MCP tool
+            name, CLI command, API endpoint path, or docs page path (e.g.
+            'queryMetrics', '/docs/mcp'). An identifier, not a sentence. Must be
+            between 1 and 200 characters.
         feedback:
           type: string
           description: >-

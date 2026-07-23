@@ -28,10 +28,10 @@ types:
     properties:
       targetType:
         type: FeedbackTargetType
-        docs: What the feedback is about.
+        docs: Category of the thing the feedback is about.
       target:
         type: string
-        docs: Specific skill, MCP tool, CLI command, API endpoint, or docs page. Must be between 1 and 200 characters.
+        docs: "The specific instance within targetType: the skill name, MCP tool name, CLI command, API endpoint path, or docs page path (e.g. 'queryMetrics', '/docs/mcp'). An identifier, not a sentence. Must be between 1 and 200 characters."
       feedback:
         type: string
         docs: Concise feedback text approved by the user. Must be between 1 and 3000 characters.
