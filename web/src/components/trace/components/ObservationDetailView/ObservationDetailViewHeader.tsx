@@ -18,8 +18,8 @@ import {
   TypeChip,
 } from "@/src/components/trace/components/_shared/InspectorElements";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AddToDropdownMenu } from "@/src/components/trace/components/_shared/AddToDropdownMenu";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
@@ -50,14 +50,6 @@ import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shar
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
-import { Button } from "@/src/components/ui/button";
-import { LockIcon, SquarePen } from "lucide-react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/src/components/ui/drawer";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 
 export interface ObservationDetailViewHeaderProps {
@@ -80,6 +72,9 @@ export interface ObservationDetailViewHeaderProps {
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
+  // Annotate drawer is view-owned so the Scores accordion can open it too
+  isAnnotateDrawerOpen: boolean;
+  onAnnotateDrawerOpenChange: (open: boolean) => void;
   subtreeMetrics?: AggregatedTraceMetrics | null;
   treeNodeTotalCost?: Decimal;
 }
@@ -97,6 +92,8 @@ export const ObservationDetailViewHeader = memo(
     onSelectionUsed,
     isCommentDrawerOpen,
     onCommentDrawerOpenChange,
+    isAnnotateDrawerOpen,
+    onAnnotateDrawerOpenChange,
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
@@ -110,11 +107,9 @@ export const ObservationDetailViewHeader = memo(
       [serverScores],
     );
 
-    // Access check for annotation drawer
-    const hasAnnotationAccess = useHasProjectAccess({
-      projectId,
-      scope: "scores:CUD",
-    });
+    const hasNonAnnotationScores = observationScores.some(
+      (score) => score.source !== "ANNOTATION",
+    );
 
     // Format cost and usage values
     const totalCost = observation.totalCost;
@@ -139,96 +134,86 @@ export const ObservationDetailViewHeader = memo(
               />
             </div>
           </div>
-          {/* Action buttons */}
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithIO && (
-              <NewDatasetItemFromExistingObject
-                traceId={traceId}
-                observationId={observation.id}
-                projectId={projectId}
-                input={observationWithIO.input}
-                output={observationWithIO.output}
-                metadata={observationWithIO.metadata}
-                key={observation.id}
-                size="sm"
-              />
-            )}
-            {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-            {!isAnnotationMode && (
-              <div className="flex items-start">
-                {isV4Enabled ? (
-                  <Drawer key={"annotation-drawer-" + observation.id}>
-                    <DrawerTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={!hasAnnotationAccess}
-                        className="rounded-r-none"
-                      >
-                        {!hasAnnotationAccess ? (
-                          <LockIcon className="mr-1.5 h-3 w-3" />
-                        ) : (
-                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        <span>Annotate</span>
-                      </Button>
-                    </DrawerTrigger>
-                    <DrawerContent className="p-3">
-                      <DualAnnotationContent
-                        projectId={projectId}
-                        traceId={traceId}
-                        observationId={observation.id}
-                        traceEnvironment={trace.environment}
-                        observationEnvironment={observation.environment}
-                        observationScores={observationScores}
-                        traceScores={traceScores}
-                      />
-                    </DrawerContent>
-                  </Drawer>
-                ) : (
-                  <AnnotateDrawer
-                    key={"annotation-drawer-" + observation.id}
-                    projectId={projectId}
-                    scoreTarget={{
-                      type: "trace",
-                      traceId: traceId,
-                      observationId: observation.id,
-                    }}
-                    scores={observationScores}
-                    scoreMetadata={{
-                      projectId: projectId,
-                      environment: observation.environment,
-                    }}
-                    size="sm"
-                  />
-                )}
-                <CreateNewAnnotationQueueItem
-                  projectId={projectId}
-                  objectId={observation.id}
-                  objectType={AnnotationQueueObjectType.OBSERVATION}
-                  size="sm"
-                />
-              </div>
-            )}
+          {/* Action buttons — grouped per the inspector design */}
+          <div className="flex h-full flex-wrap content-start items-center justify-start gap-1 @2xl:mr-1 @2xl:justify-end">
             {observationWithIO && isGenerationLike(observationWithIO.type) && (
               <JumpToPlaygroundButton
                 source="generation"
                 generation={observationWithIO}
                 analyticsEventName="trace_detail:test_in_playground_button_click"
+                variant="outline"
                 size="sm"
+                className="md:hidden"
               />
             )}
-            <CommentDrawerButton
+            <AddToDropdownMenu
               projectId={projectId}
-              objectId={observation.id}
-              objectType="OBSERVATION"
-              count={commentCount}
-              size="sm"
-              pendingSelection={pendingSelection}
-              onSelectionUsed={onSelectionUsed}
-              isOpen={isCommentDrawerOpen}
-              onOpenChange={onCommentDrawerOpenChange}
+              traceId={traceId}
+              observationId={observation.id}
+              datasetPrefill={
+                observationWithIO
+                  ? {
+                      input: observationWithIO.input,
+                      output: observationWithIO.output,
+                      metadata: observationWithIO.metadata,
+                    }
+                  : undefined
+              }
+              annotateContent={
+                isV4Enabled ? (
+                  <DualAnnotationContent
+                    projectId={projectId}
+                    traceId={traceId}
+                    observationId={observation.id}
+                    traceEnvironment={trace.environment}
+                    observationEnvironment={observation.environment}
+                    observationScores={observationScores}
+                    traceScores={traceScores}
+                  />
+                ) : (
+                  <>
+                    <AnnotationForm
+                      serverScores={observationScores}
+                      scoreTarget={{
+                        type: "trace",
+                        traceId: traceId,
+                        observationId: observation.id,
+                      }}
+                      scoreMetadata={{
+                        projectId: projectId,
+                        environment: observation.environment,
+                      }}
+                      analyticsData={{ type: "trace", source: "TraceDetail" }}
+                    />
+                    {hasNonAnnotationScores && (
+                      <div className="text-muted-foreground mt-4 text-xs">
+                        API and eval scores visible on left. Add manual
+                        annotations above.
+                      </div>
+                    )}
+                  </>
+                )
+              }
+              isAnnotateDrawerOpen={isAnnotateDrawerOpen}
+              onAnnotateDrawerOpenChange={onAnnotateDrawerOpenChange}
+              hasExistingScores={observationScores.length > 0}
+              showAnnotate={!isAnnotationMode}
+              onOpenComments={() => onCommentDrawerOpenChange?.(true)}
+              commentCount={commentCount}
             />
+            {/* Annotation-queue toggles need their own checkbox dropdown, so
+                this stays a compact chevron button next to the menu. */}
+            {!isAnnotationMode && (
+              <div className="[&>button]:h-7 [&>button]:rounded-md [&>button]:border-l">
+                <CreateNewAnnotationQueueItem
+                  projectId={projectId}
+                  objectId={observation.id}
+                  objectType={AnnotationQueueObjectType.OBSERVATION}
+                  variant="outline"
+                  size="sm"
+                />
+              </div>
+            )}
             <DetailHeaderActionsMenu
               idItems={[
                 { id: traceId, name: "Trace ID" },
@@ -243,6 +228,22 @@ export const ObservationDetailViewHeader = memo(
                 sessionId: observation.sessionId ?? null,
               }}
             />
+            {/* Hidden host for the comment drawer: keeps deep-link auto-open
+                (?comments=open) and inline-comment selection wiring intact;
+                opened from the "Add comment" menu item via controlled state. */}
+            <span className="hidden">
+              <CommentDrawerButton
+                projectId={projectId}
+                objectId={observation.id}
+                objectType="OBSERVATION"
+                count={commentCount}
+                size="sm"
+                pendingSelection={pendingSelection}
+                onSelectionUsed={onSelectionUsed}
+                isOpen={isCommentDrawerOpen}
+                onOpenChange={onCommentDrawerOpenChange}
+              />
+            </span>
           </div>
         </div>
 

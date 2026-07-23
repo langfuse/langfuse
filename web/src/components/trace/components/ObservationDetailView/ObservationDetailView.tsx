@@ -57,6 +57,14 @@ import { api } from "@/src/utils/api";
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
 import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
+import {
+  MetadataAccordion,
+  ScoresAccordion,
+} from "@/src/components/trace/components/_shared/DetailAccordions";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
+import { deepParseJson } from "@langfuse/shared";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -191,6 +199,14 @@ export function ObservationDetailView({
     useState<SelectionData | null>(null);
   const [isCommentDrawerOpen, setIsCommentDrawerOpen] = useState(false);
 
+  // Annotate drawer state is view-owned so both the header "+ Add to" menu
+  // and the Scores accordion's "+ Add score" can open the same drawer.
+  const [isAnnotateDrawerOpen, setIsAnnotateDrawerOpen] = useState(false);
+  const hasAnnotationAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+
   const handleAddInlineComment = useCallback((selection: SelectionData) => {
     setPendingSelection(selection);
     setIsCommentDrawerOpen(true);
@@ -271,6 +287,30 @@ export function ObservationDetailView({
 
   const commentedPathsByField = useCommentedPaths(observationComments.data);
 
+  // Metadata for the accordion in the details zone — same parse fallback
+  // IOPreviewPretty used before metadata moved out of it (showMetadata=false).
+  const accordionMetadata = useMemo(
+    () =>
+      isWaitingForParsing
+        ? undefined
+        : (parsedMetadata ??
+          deepParseJson(observationWithIO?.metadata, {
+            maxSize: 100_000,
+            maxDepth: 2,
+          })),
+    [isWaitingForParsing, parsedMetadata, observationWithIO?.metadata],
+  );
+  const metadataItemCount =
+    accordionMetadata !== null &&
+    typeof accordionMetadata === "object" &&
+    !Array.isArray(accordionMetadata)
+      ? Object.keys(accordionMetadata).length
+      : 1;
+  const metadataActions = useMemo<MetadataFilterActions>(
+    () => ({ projectId, filterTarget: "observations" }),
+    [projectId],
+  );
+
   // Calculate latency in seconds if not provided
   const latencySeconds = useMemo(() => {
     if (observation.latency) {
@@ -299,6 +339,8 @@ export function ObservationDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        isAnnotateDrawerOpen={isAnnotateDrawerOpen}
+        onAnnotateDrawerOpenChange={setIsAnnotateDrawerOpen}
         subtreeMetrics={subtreeMetrics}
         treeNodeTotalCost={treeNode?.totalCost}
       />
@@ -524,7 +566,7 @@ export function ObservationDetailView({
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}
               commentedPathsByField={commentedPathsByField}
-              showMetadata
+              showMetadata={false}
               observationId={observation.id}
               onVirtualizationChange={setIsJSONBetaVirtualized}
               projectId={projectId}
@@ -533,6 +575,56 @@ export function ObservationDetailView({
             />
             {currentView !== "json-beta" && (
               <div className="h-4 w-full shrink-0" />
+            )}
+            {/* Details zone: Scores + Metadata accordions, per the inspector
+                design. Skipped in virtualized JSON Beta (IOPreview owns the
+                scroll there). Metadata accordion only in the formatted view —
+                the JSON views still render metadata inline themselves. */}
+            {!(currentView === "json-beta" && isJSONBetaVirtualized) && (
+              <>
+                <ZoneDivider />
+                <div className="shrink-0 px-3 pt-1">
+                  <ScoresAccordion
+                    scores={observationScores}
+                    hasAnnotationAccess={
+                      hasAnnotationAccess && !isAnnotationMode
+                    }
+                    onAddScore={() => setIsAnnotateDrawerOpen(true)}
+                  />
+                  {currentView === "pretty" &&
+                    accordionMetadata !== undefined && (
+                      <>
+                        <div className="border-t" />
+                        <MetadataAccordion itemCount={metadataItemCount}>
+                          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+                            <PrettyJsonView
+                              title="Metadata"
+                              json={accordionMetadata}
+                              isLoading={observationWithIOCompat.isLoading}
+                              isParsing={isWaitingForParsing}
+                              media={
+                                observationMedia.data?.filter(
+                                  (m) => m.field === "metadata",
+                                ) ?? []
+                              }
+                              currentView="pretty"
+                              externalExpansionState={
+                                formattedExpansion.metadata
+                              }
+                              onExternalExpansionChange={(exp) =>
+                                setFormattedFieldExpansion(
+                                  "metadata",
+                                  exp as Record<string, boolean>,
+                                )
+                              }
+                              metadataActions={metadataActions}
+                            />
+                          </div>
+                        </MetadataAccordion>
+                      </>
+                    )}
+                </div>
+              </>
             )}
           </div>
         </TabsBarContent>

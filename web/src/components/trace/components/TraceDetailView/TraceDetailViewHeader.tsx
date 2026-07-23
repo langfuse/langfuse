@@ -25,8 +25,8 @@ import {
 } from "@/src/components/trace/components/_shared/InspectorElements";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
-import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
-import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
+import { AddToDropdownMenu } from "@/src/components/trace/components/_shared/AddToDropdownMenu";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import {
@@ -62,6 +62,9 @@ export interface TraceDetailViewHeaderProps {
   onSelectionUsed?: () => void;
   isCommentDrawerOpen?: boolean;
   onCommentDrawerOpenChange?: (open: boolean) => void;
+  // Annotate drawer is view-owned so the Scores accordion can open it too
+  isAnnotateDrawerOpen: boolean;
+  onAnnotateDrawerOpenChange: (open: boolean) => void;
 }
 
 export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
@@ -75,11 +78,17 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   onSelectionUsed,
   isCommentDrawerOpen,
   onCommentDrawerOpenChange,
+  isAnnotateDrawerOpen,
+  onAnnotateDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
     [observations],
+  );
+
+  const hasNonAnnotationScores = traceScores.some(
+    (score) => score.source !== "ANNOTATION",
   );
 
   const targetTraceId =
@@ -104,53 +113,58 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             />
           </div>
         </div>
-        {/* Action buttons */}
-        <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-          <NewDatasetItemFromExistingObject
-            traceId={trace.id}
+        {/* Action buttons — grouped per the inspector design */}
+        <div className="flex h-full flex-wrap content-start items-center justify-start gap-1 @2xl:mr-1 @2xl:justify-end">
+          <AddToDropdownMenu
             projectId={projectId}
-            input={trace.input}
-            output={trace.output}
-            metadata={trace.metadata}
-            key={trace.id}
-            size="sm"
+            traceId={trace.id}
+            datasetPrefill={{
+              input: trace.input,
+              output: trace.output,
+              metadata: trace.metadata,
+            }}
+            annotateContent={
+              <>
+                <AnnotationForm
+                  serverScores={traceScores}
+                  scoreTarget={{
+                    type: "trace",
+                    traceId: trace.id,
+                  }}
+                  scoreMetadata={{
+                    projectId: projectId,
+                    environment: trace.environment,
+                  }}
+                  analyticsData={{ type: "trace", source: "TraceDetail" }}
+                />
+                {hasNonAnnotationScores && (
+                  <div className="text-muted-foreground mt-4 text-xs">
+                    API and eval scores visible on left. Add manual annotations
+                    above.
+                  </div>
+                )}
+              </>
+            }
+            isAnnotateDrawerOpen={isAnnotateDrawerOpen}
+            onAnnotateDrawerOpenChange={onAnnotateDrawerOpenChange}
+            hasExistingScores={traceScores.length > 0}
+            showAnnotate={!isAnnotationMode}
+            onOpenComments={() => onCommentDrawerOpenChange?.(true)}
+            commentCount={commentCount}
           />
-          {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+          {/* Annotation-queue toggles need their own checkbox dropdown, so
+              this stays a compact chevron button next to the menu. */}
           {!isAnnotationMode && (
-            <div className="flex items-start">
-              <AnnotateDrawer
-                key={"annotation-drawer-" + trace.id}
-                projectId={projectId}
-                scoreTarget={{
-                  type: "trace",
-                  traceId: trace.id,
-                }}
-                scores={traceScores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: trace.environment,
-                }}
-                size="sm"
-              />
+            <div className="[&>button]:h-7 [&>button]:rounded-md [&>button]:border-l">
               <CreateNewAnnotationQueueItem
                 projectId={projectId}
                 objectId={trace.id}
                 objectType={AnnotationQueueObjectType.TRACE}
+                variant="outline"
                 size="sm"
               />
             </div>
           )}
-          <CommentDrawerButton
-            projectId={projectId}
-            objectId={trace.id}
-            objectType="TRACE"
-            count={commentCount}
-            size="sm"
-            pendingSelection={pendingSelection}
-            onSelectionUsed={onSelectionUsed}
-            isOpen={isCommentDrawerOpen}
-            onOpenChange={onCommentDrawerOpenChange}
-          />
           <DetailHeaderActionsMenu
             idItems={[{ id: trace.id, name: "Trace ID" }]}
             projectId={projectId}
@@ -159,6 +173,22 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               sessionId: trace.sessionId ?? null,
             }}
           />
+          {/* Hidden host for the comment drawer: keeps deep-link auto-open
+              (?comments=open) and inline-comment selection wiring intact;
+              opened from the "Add comment" menu item via controlled state. */}
+          <span className="hidden">
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={commentCount}
+              size="sm"
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
+              isOpen={isCommentDrawerOpen}
+              onOpenChange={onCommentDrawerOpenChange}
+            />
+          </span>
         </div>
       </div>
 

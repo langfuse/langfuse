@@ -45,6 +45,14 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
 import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
+import {
+  MetadataAccordion,
+  ScoresAccordion,
+} from "@/src/components/trace/components/_shared/DetailAccordions";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
+import { deepParseJson } from "@langfuse/shared";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -88,6 +96,14 @@ export function TraceDetailView({
   const handleSelectionUsed = useCallback(() => {
     setPendingSelection(null);
   }, []);
+
+  // Annotate drawer state is view-owned so both the header "+ Add to" menu
+  // and the Scores accordion's "+ Add score" can open the same drawer.
+  const [isAnnotateDrawerOpen, setIsAnnotateDrawerOpen] = useState(false);
+  const hasAnnotationAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
 
   // Get jsonViewPreference directly from ViewPreferencesContext for "json-beta" support
   const {
@@ -172,6 +188,27 @@ export function TraceDetailView({
     [corrections],
   );
 
+  // Metadata for the accordion in the details zone — same parse fallback
+  // IOPreviewPretty used before metadata moved out of it (showMetadata=false).
+  const accordionMetadata = useMemo(
+    () =>
+      isParsing
+        ? undefined
+        : (parsedMetadata ??
+          deepParseJson(trace.metadata, { maxSize: 100_000, maxDepth: 2 })),
+    [isParsing, parsedMetadata, trace.metadata],
+  );
+  const metadataItemCount =
+    accordionMetadata !== null &&
+    typeof accordionMetadata === "object" &&
+    !Array.isArray(accordionMetadata)
+      ? Object.keys(accordionMetadata).length
+      : 1;
+  const metadataActions = useMemo<MetadataFilterActions>(
+    () => ({ projectId, filterTarget: "traces" }),
+    [projectId],
+  );
+
   const outputCorrection = getMostRecentCorrection(traceCorrections);
 
   // Tab visibility: hide Log View and Scores tabs in annotation mode
@@ -222,6 +259,8 @@ export function TraceDetailView({
         onSelectionUsed={handleSelectionUsed}
         isCommentDrawerOpen={isCommentDrawerOpen}
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
+        isAnnotateDrawerOpen={isAnnotateDrawerOpen}
+        onAnnotateDrawerOpenChange={setIsAnnotateDrawerOpen}
       />
 
       {/* Zone divider between header/overview and tabbed content */}
@@ -437,12 +476,62 @@ export function TraceDetailView({
               enableInlineComments={true}
               onAddInlineComment={handleAddInlineComment}
               commentedPathsByField={commentedPathsByField}
-              showMetadata
+              showMetadata={false}
               onVirtualizationChange={setIsJSONBetaVirtualized}
               projectId={projectId}
               traceId={trace.id}
               environment={trace.environment}
             />
+            {/* Details zone: Scores + Metadata accordions, per the inspector
+                design. Skipped in virtualized JSON Beta (IOPreview owns the
+                scroll there). Metadata accordion only in the formatted view —
+                the JSON views still render metadata inline themselves. */}
+            {!(currentView === "json-beta" && isJSONBetaVirtualized) && (
+              <>
+                <div className="h-4 w-full shrink-0" />
+                <ZoneDivider />
+                <div className="shrink-0 px-3 pt-1">
+                  <ScoresAccordion
+                    scores={traceScores}
+                    hasAnnotationAccess={
+                      hasAnnotationAccess && !isAnnotationMode
+                    }
+                    onAddScore={() => setIsAnnotateDrawerOpen(true)}
+                  />
+                  {currentView === "pretty" &&
+                    accordionMetadata !== undefined && (
+                      <>
+                        <div className="border-t" />
+                        <MetadataAccordion itemCount={metadataItemCount}>
+                          <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+                            <PrettyJsonView
+                              title="Metadata"
+                              json={accordionMetadata}
+                              isParsing={isParsing}
+                              media={
+                                traceMedia.data?.filter(
+                                  (m) => m.field === "metadata",
+                                ) ?? []
+                              }
+                              currentView="pretty"
+                              externalExpansionState={
+                                formattedExpansion.metadata
+                              }
+                              onExternalExpansionChange={(exp) =>
+                                setFormattedFieldExpansion(
+                                  "metadata",
+                                  exp as Record<string, boolean>,
+                                )
+                              }
+                              metadataActions={metadataActions}
+                            />
+                          </div>
+                        </MetadataAccordion>
+                      </>
+                    )}
+                </div>
+              </>
+            )}
           </div>
         </TabsBarContent>
 
