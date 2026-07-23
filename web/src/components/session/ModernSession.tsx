@@ -152,7 +152,7 @@ export function ModernSession({
   return (
     <div
       className={cn(
-        "bg-muted/40 dark:bg-background relative grid min-h-0 flex-1 gap-x-2.5 overflow-hidden px-3 pt-2.5 pb-3 lg:grid-rows-1",
+        "bg-background relative grid min-h-0 flex-1 gap-x-2.5 overflow-hidden px-3 pt-2.5 pb-3 lg:grid-rows-1",
         isSpanListOpen
           ? "grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)]"
           : "grid-rows-[2.25rem_minmax(0,1fr)] lg:grid-cols-[36px_minmax(0,1fr)]",

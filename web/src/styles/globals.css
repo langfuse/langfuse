@@ -234,10 +234,15 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    /* PROPOSED (review): warm paper canvas from the sessions-view handoff.
+       Previous value: 0 0% 100%. */
+    --background: 60 14% 96%;
     --foreground: 222.2 84% 4.9%;
 
-    --muted: 210 40% 96.1%;
+    /* PROPOSED (review): raised warm grey (#EDEDE8) from the sessions-view
+       handoff — one clear step below the paper canvas. Previous value:
+       210 40% 96.1% (indistinguishable from the new canvas). */
+    --muted: 60 12% 92%;
     --muted-foreground: 215.4 16.3% 46.9%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
@@ -262,11 +267,16 @@
     --header: 210 40% 98%;
     --header-foreground: var(--foreground);
 
-    --border: 214.3 31.8% 91.4%;
+    /* PROPOSED (review): the handoff's structure line #CFCFC9 — warmer and a
+       full step darker than before ("Sharp" crisp hairline). Previous value:
+       214.3 31.8% 91.4%. --input follows --border, as before. */
+    --border: 60 6% 80%;
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
-       one clear step stronger than the hairline --border. */
-    --border-contrast: 214.3 20% 80%;
-    --input: 214.3 31.8% 91.4%;
+       one clear step stronger than the hairline --border.
+       PROPOSED (review): handoff dashed-divider tone #BEBEB6. Previous
+       value: 214.3 20% 80%. */
+    --border-contrast: 60 6% 73%;
+    --input: 60 6% 80%;
 
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
