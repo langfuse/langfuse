@@ -41,8 +41,8 @@ while true; do
   bytes=${bytes:-0}
   gb=$(awk -v b="${bytes}" 'BEGIN { printf "%.4f", b/1024/1024/1024 }')
 
-  # Number of traces actually stored (in the configured database)
-  trace_count=$(ch_query "SELECT count() FROM ${CH_DB}.traces")
+  # Number of load-test traces actually stored (tagged to isolate this run)
+  trace_count=$(ch_query "SELECT count() FROM ${CH_DB}.traces WHERE tags CONTAINS 'load-test'")
   trace_count=${trace_count:-0}
 
   if [ "${trace_count}" -gt 0 ]; then
