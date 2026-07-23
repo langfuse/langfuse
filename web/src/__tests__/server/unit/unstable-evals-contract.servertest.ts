@@ -8,6 +8,7 @@ import { EvalTemplateType } from "@langfuse/shared/src/db";
 import {
   toApiEvaluationRule,
   toApiEvaluator,
+  toApiWritableEvaluationRule,
   toJobConfigurationInput,
 } from "@/src/features/evals/server/unstable-public-api/adapters";
 import { UnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
@@ -459,6 +460,75 @@ describe("unstable public eval adapters", () => {
         },
       ],
     });
+  });
+
+  it("returns legacy dataset evaluation rules with legacy filters and mappings", () => {
+    const config = {
+      id: "ceval_dataset_123",
+      projectId: "project_123",
+      evalTemplateId: "tmpl_project_v2",
+      scoreName: "dataset_critic",
+      targetObject: EvalTargetObject.DATASET,
+      filter: [
+        {
+          type: "stringOptions",
+          column: "datasetId",
+          operator: "any of",
+          value: ["dataset_123"],
+        },
+      ],
+      variableMapping: [
+        {
+          templateVariable: "input",
+          langfuseObject: "dataset_item",
+          objectName: null,
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+      ],
+      sampling: 1,
+      delay: 30_000,
+      timeScope: ["NEW"],
+      status: JobConfigState.ACTIVE,
+      blockedAt: null,
+      blockReason: null,
+      blockMessage: null,
+      createdAt: new Date("2026-03-30T08:00:00.000Z"),
+      updatedAt: new Date("2026-03-30T08:00:00.000Z"),
+      evalTemplate: {
+        id: "tmpl_project_v2",
+        projectId: "project_123",
+        name: "Dataset critic",
+        type: EvalTemplateType.LLM_AS_JUDGE,
+      },
+    } as unknown as StoredPublicEvaluationRuleConfig;
+    const evaluationRule = toApiEvaluationRule(config);
+
+    expect(() =>
+      GetUnstableEvaluationRuleResponse.parse(evaluationRule),
+    ).not.toThrow();
+    expect(evaluationRule).toMatchObject({
+      target: "dataset",
+      filter: [
+        {
+          type: "stringOptions",
+          column: "datasetId",
+          operator: "any of",
+          value: ["dataset_123"],
+        },
+      ],
+      mapping: [
+        {
+          variable: "input",
+          langfuseObject: "dataset_item",
+          objectName: null,
+          source: "input",
+        },
+      ],
+    });
+    expect(() => toApiWritableEvaluationRule(config)).toThrow(
+      "Evaluation rule target is corrupted",
+    );
   });
 
   it("translates evaluation rule writes into job configuration inputs", () => {

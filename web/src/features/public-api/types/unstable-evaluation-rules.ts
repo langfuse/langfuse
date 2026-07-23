@@ -12,6 +12,7 @@ import {
   PublicEvaluationRuleEvaluatorReference,
   PublicEvaluationRuleEvaluatorReferencePatch,
   PublicEvaluationRuleMapping,
+  PublicEvaluationRuleLegacyTarget,
   PublicEvaluationRuleStatus,
   PublicEvaluationRuleTarget,
   UnstablePublicApiPaginationQuery,
@@ -43,7 +44,7 @@ export const APIEvaluationRule = z
 export const APILegacyEvaluationRule = z
   .object({
     ...APIEvaluationRuleBase,
-    target: z.literal("trace"),
+    target: PublicEvaluationRuleLegacyTarget,
     delay: z.number().int().nonnegative(),
     timeScope: z.array(JobTimeScopeZod),
     filter: z.array(singleFilter),

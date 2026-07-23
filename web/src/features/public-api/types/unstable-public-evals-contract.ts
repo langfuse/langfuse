@@ -80,9 +80,10 @@ export const PublicEvaluatorOutputDefinition = z.discriminatedUnion(
 );
 
 export const PublicEvaluationRuleTarget = z.enum(["observation", "experiment"]);
+export const PublicEvaluationRuleLegacyTarget = z.enum(["trace", "dataset"]);
 export const PublicEvaluationRuleReadTarget = z.union([
   PublicEvaluationRuleTarget,
-  z.literal("trace"),
+  PublicEvaluationRuleLegacyTarget,
 ]);
 
 export const PublicEvaluationRuleStatus = z.enum([
@@ -247,6 +248,9 @@ export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
 export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget
+>;
+export type PublicEvaluationRuleLegacyTargetType = z.infer<
+  typeof PublicEvaluationRuleLegacyTarget
 >;
 export type PublicEvaluationRuleReadTargetType = z.infer<
   typeof PublicEvaluationRuleReadTarget

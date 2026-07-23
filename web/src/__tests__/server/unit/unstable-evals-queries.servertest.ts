@@ -32,6 +32,7 @@ vi.mock("@langfuse/shared/src/db", async () => {
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   countActiveEvaluationRules,
+  countEvaluationRulesForEvaluator,
   countEvaluationRulesForEvaluatorIds,
   findPublicEvaluationRuleOrThrow,
   findReadablePublicEvaluationRuleOrThrow,
@@ -128,7 +129,7 @@ describe("unstable public eval queries", () => {
       where: {
         projectId: "project_123",
         targetObject: {
-          in: ["event", "experiment"],
+          in: ["event", "experiment", "trace", "dataset"],
         },
         evalTemplateId: {
           in: ["tmpl_project_v2", "tmpl_managed_v7"],
@@ -142,6 +143,26 @@ describe("unstable public eval queries", () => {
       tmpl_project_v2: 2,
       tmpl_managed_v7: 1,
     });
+  });
+
+  it("counts legacy rules in the evaluator detail count", async () => {
+    mockJobConfigurationCount.mockResolvedValueOnce(3);
+
+    const result = await countEvaluationRulesForEvaluator({
+      projectId: "project_123",
+      evaluatorId: "tmpl_project_v2",
+    });
+
+    expect(mockJobConfigurationCount).toHaveBeenCalledWith({
+      where: {
+        projectId: "project_123",
+        targetObject: {
+          in: ["event", "experiment", "trace", "dataset"],
+        },
+        evalTemplateId: "tmpl_project_v2",
+      },
+    });
+    expect(result).toBe(3);
   });
 
   it("counts all active evaluation rules in the project", async () => {
@@ -170,7 +191,7 @@ describe("unstable public eval queries", () => {
     expect(result).toBe(17);
   });
 
-  it("lists legacy trace rules alongside evaluation rules", async () => {
+  it("lists legacy trace and dataset rules alongside evaluation rules", async () => {
     mockJobConfigurationFindMany.mockResolvedValueOnce([]);
     mockJobConfigurationCount.mockResolvedValueOnce(0);
 
@@ -184,7 +205,7 @@ describe("unstable public eval queries", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           targetObject: {
-            in: ["event", "experiment", "trace"],
+            in: ["event", "experiment", "trace", "dataset"],
           },
         }),
       }),
@@ -192,13 +213,13 @@ describe("unstable public eval queries", () => {
     expect(mockJobConfigurationCount).toHaveBeenCalledWith({
       where: expect.objectContaining({
         targetObject: {
-          in: ["event", "experiment", "trace"],
+          in: ["event", "experiment", "trace", "dataset"],
         },
       }),
     });
   });
 
-  it("exposes legacy trace rules only through read operations", async () => {
+  it("exposes legacy trace and dataset rules only through read operations", async () => {
     mockJobConfigurationFindFirst.mockResolvedValue({ id: "trace_rule_123" });
 
     await findReadablePublicEvaluationRuleOrThrow({
@@ -215,7 +236,7 @@ describe("unstable public eval queries", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           targetObject: {
-            in: ["event", "experiment", "trace"],
+            in: ["event", "experiment", "trace", "dataset"],
           },
         }),
       }),

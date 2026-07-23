@@ -11,6 +11,7 @@ import type {
   PublicEvaluationRuleEvaluatorType,
   PublicEvaluationRuleFilterType,
   PublicEvaluationRuleMappingType,
+  PublicEvaluationRuleLegacyTargetType,
   PublicEvaluationRuleStatusType,
   PublicEvaluationRuleTargetType,
   PublicEvaluatorModelConfigType,
@@ -75,7 +76,7 @@ export type ApiWritableEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
 };
 
 export type ApiLegacyEvaluationRuleRecord = ApiEvaluationRuleRecordBase & {
-  target: "trace";
+  target: PublicEvaluationRuleLegacyTargetType;
   delay: number;
   timeScope: JobTimeScope[];
   filter: FilterCondition[];

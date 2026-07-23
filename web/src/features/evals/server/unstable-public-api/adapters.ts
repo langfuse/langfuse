@@ -75,6 +75,7 @@ const INTERNAL_TARGET_OBJECT_TO_PUBLIC_TARGET: Record<
   [EvalTargetObject.EVENT]: "observation",
   [EvalTargetObject.EXPERIMENT]: "experiment",
   [EvalTargetObject.TRACE]: "trace",
+  [EvalTargetObject.DATASET]: "dataset",
 };
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
@@ -315,7 +316,7 @@ function toApiMappings(mappings: unknown): PublicEvaluationRuleMappingType[] {
   });
 }
 
-function toApiTraceMappings(
+function toApiLegacyMappings(
   mappings: unknown,
 ): LegacyEvaluationRuleMappingType[] {
   const parsed = variableMappingList.safeParse(mappings);
@@ -365,7 +366,7 @@ function toApiFilters(
   return parsedPublicFilters.data;
 }
 
-function toApiTraceFilters(filters: unknown) {
+function toApiLegacyFilters(filters: unknown) {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
@@ -447,7 +448,7 @@ export function toApiEvaluationRule(
     updatedAt: config.updatedAt,
   } as const;
 
-  if (target === "trace") {
+  if (target === "trace" || target === "dataset") {
     const parsedTimeScope = z
       .array(JobTimeScopeZod)
       .safeParse(config.timeScope);
@@ -468,8 +469,8 @@ export function toApiEvaluationRule(
       target,
       delay: config.delay,
       timeScope: parsedTimeScope.data,
-      filter: toApiTraceFilters(config.filter),
-      mapping: toApiTraceMappings(config.variableMapping),
+      filter: toApiLegacyFilters(config.filter),
+      mapping: toApiLegacyMappings(config.variableMapping),
     };
   }
 
@@ -490,7 +491,10 @@ export function toApiWritableEvaluationRule(
 ): ApiWritableEvaluationRuleRecord {
   const evaluationRule = toApiEvaluationRule(config);
 
-  if (evaluationRule.target === "trace") {
+  if (
+    evaluationRule.target !== "observation" &&
+    evaluationRule.target !== "experiment"
+  ) {
     throw new InternalServerError("Evaluation rule target is corrupted");
   }
 

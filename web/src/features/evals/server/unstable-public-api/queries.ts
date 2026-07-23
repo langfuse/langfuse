@@ -19,6 +19,7 @@ const PUBLIC_WRITABLE_EVAL_TARGETS = [
 const PUBLIC_READABLE_EVAL_TARGETS = [
   ...PUBLIC_WRITABLE_EVAL_TARGETS,
   EvalTargetObject.TRACE,
+  EvalTargetObject.DATASET,
 ];
 
 export function getPrismaClient(client?: PrismaClientLike) {
@@ -87,7 +88,7 @@ export async function countEvaluationRulesForEvaluator(params: {
     where: {
       projectId: params.projectId,
       targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        in: PUBLIC_READABLE_EVAL_TARGETS,
       },
       evalTemplateId: params.evaluatorId,
     },
@@ -109,7 +110,7 @@ export async function countEvaluationRulesForEvaluatorIds(params: {
     where: {
       projectId: params.projectId,
       targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        in: PUBLIC_READABLE_EVAL_TARGETS,
       },
       evalTemplateId: {
         in: params.evaluatorIds,

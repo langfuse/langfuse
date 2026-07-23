@@ -217,7 +217,7 @@ service:
       docs: |
         List evaluation rules in the authenticated project.
 
-        This includes legacy `trace` rules so they can be inspected and migrated to observation-level rules. Trace rules are read-only through this API; create, update, and delete continue to support only `observation` and `experiment` rules.
+        This includes legacy `trace` and `dataset` rules so they can be inspected and migrated to v4 rules. Legacy rules are read-only through this API; create, update, and delete continue to support only `observation` and `experiment` rules.
       method: GET
       path: /evaluation-rules
       request:
@@ -242,7 +242,7 @@ service:
       docs: |
         Get one evaluation rule by its identifier.
 
-        Use this endpoint to inspect the current evaluator, target, mapping, filters, execution timing, and effective runtime status. Legacy `trace` rules are returned for migration and are read-only through this API.
+        Use this endpoint to inspect the current evaluator, target, mapping, filters, execution timing, and effective runtime status. Legacy `trace` and `dataset` rules are returned for migration and are read-only through this API.
       method: GET
       path: /evaluation-rules/{evaluationRuleId}
       path-parameters:
@@ -422,13 +422,13 @@ types:
 
   LegacyEvaluationRule:
     docs: |
-      Legacy trace-level evaluation rule returned by list and get for migration.
+      Legacy trace- or dataset-level evaluation rule returned by list and get for migration.
 
-      This resource is read-only through the unstable public API. Its mapping preserves the trace or named observation that each evaluator variable previously read from.
+      This resource is read-only through the unstable public API. Its mapping preserves the trace, dataset item, or named observation that each evaluator variable previously read from. Its filters use the persisted legacy filter format so migration clients can read the configuration without losing information.
     extends: EvaluationRuleBase
     properties:
       target:
-        type: literal<"trace">
+        type: LegacyEvaluationRuleTarget
       delay:
         type: integer
         docs: Delay in milliseconds before the legacy evaluation job runs.
@@ -437,13 +437,13 @@ types:
         docs: Whether the legacy rule evaluates newly ingested data, existing data, or both.
       filter:
         type: list<commons.EvaluationRuleFilter>
-        docs: Stored filters used by the legacy trace rule.
+        docs: Stored filters used by the legacy trace or dataset rule.
       mapping:
         type: list<LegacyEvaluationRuleMapping>
-        docs: Stored variable mappings, including the trace or named observation selected for each variable.
+        docs: Stored variable mappings, including the trace, dataset item, or named observation selected for each variable.
 
   ReadableEvaluationRule:
-    docs: Evaluation rule returned by list and get, including read-only legacy trace rules.
+    docs: Evaluation rule returned by list and get, including read-only legacy trace and dataset rules.
     discriminated: false
     union:
       - EvaluationRule
@@ -645,21 +645,26 @@ types:
       - NEW
       - EXISTING
 
+  LegacyEvaluationRuleTarget:
+    enum:
+      - trace
+      - dataset
+
   LegacyEvaluationRuleMapping:
-    docs: Maps one evaluator variable to a trace field or a field on a named observation in a legacy trace-level rule.
+    docs: Maps one evaluator variable to a trace, dataset item, or field on a named observation in a legacy rule.
     properties:
       variable:
         type: string
         docs: Evaluator prompt variable populated by this mapping.
       langfuseObject:
         type: LegacyEvaluationObject
-        docs: Trace or observation type from which the value is read.
+        docs: Trace, dataset item, or observation type from which the value is read.
       objectName:
         type: nullable<string>
         docs: Observation name to match, or `null` when `langfuseObject` is `trace` or `dataset_item`.
       source:
         type: string
-        docs: Stored field selected from the trace or observation.
+        docs: Stored field selected from the trace, dataset item, or observation.
       jsonPath:
         type: optional<string>
         docs: Optional JSONPath selector applied to the selected field.
