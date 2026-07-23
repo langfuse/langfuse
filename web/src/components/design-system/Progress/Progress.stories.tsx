@@ -1,5 +1,5 @@
-import preview from "../../../.storybook/preview";
-import { Progress } from "./progress";
+import preview from "../../../../.storybook/preview";
+import { Progress } from "./Progress";
 
 const meta = preview.meta({
   component: Progress,
