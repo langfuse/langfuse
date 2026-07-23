@@ -1289,7 +1289,7 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         projectId,
-        outdatedSdkUsageSeriesCount: 1,
+        outdatedSdkUsageSeriesCount: 2,
         sdkUsageSeries: [
           {
             sdkName: "python",
@@ -1319,7 +1319,7 @@ describe("v4TransitionRouter", () => {
       },
       {
         projectId: secondProjectId,
-        outdatedSdkUsageSeriesCount: 0,
+        outdatedSdkUsageSeriesCount: 1,
         sdkUsageSeries: [
           {
             sdkName: "@langfuse/tracing",

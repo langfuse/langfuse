@@ -757,18 +757,17 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           sdkName: row.sdkName,
           sdkVersion: row.sdkVersion,
         });
-
-        if (classification.status === "outdated_major") {
+        const capabilityStatus = getSdkVersionCapabilityStatus(
+          { language: row.sdkName, version: row.sdkVersion },
+          "appRootObservations",
+        );
+        if (capabilityStatus === "unsupported") {
           outdatedCountsByProjectId.set(
             row.projectId,
             (outdatedCountsByProjectId.get(row.projectId) ?? 0) + 1,
           );
         }
 
-        const capabilityStatus = getSdkVersionCapabilityStatus(
-          { language: row.sdkName, version: row.sdkVersion },
-          "appRootObservations",
-        );
         const projectSeries =
           sdkUsageSeriesByProjectId.get(row.projectId) ?? [];
         projectSeries.push({

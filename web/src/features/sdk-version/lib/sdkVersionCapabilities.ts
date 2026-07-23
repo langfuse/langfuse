@@ -52,10 +52,10 @@ export const sdkVersionNeedsRefresh = (
   );
 };
 
-const parseStableVersion = (version?: string | null) => {
+const parseVersionCore = (version?: string | null) => {
   const match = version
     ?.trim()
-    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/);
+    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+.]?[0-9A-Za-z][0-9A-Za-z.-]*)?$/);
   if (!match) return null;
 
   const parsed = match.slice(1, 4).map(Number);
@@ -69,7 +69,7 @@ export const getSdkVersionCapabilityStatus = (
   if (!sdk) return "unknown";
 
   const sdkName = normalizeIngestionSdkName(sdk.language);
-  const version = parseStableVersion(sdk.version);
+  const version = parseVersionCore(sdk.version);
   if (!sdkName || !version) return "unknown";
 
   const minimum = SDK_VERSION_CAPABILITIES[capability][sdkName];

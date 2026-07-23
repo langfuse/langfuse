@@ -42,7 +42,10 @@ describe("app-root default policy", () => {
     ["typescript", "5.10.0", "supported"],
     ["python", "4.7.0", "supported"],
     ["python", "4.6.9", "unsupported"],
-    ["python", "4.7.0rc1", "unknown"],
+    ["python", "4.7.0rc1", "supported"],
+    ["python", "4.6.9rc1", "unsupported"],
+    ["javascript", "5.4.0-beta.1", "supported"],
+    ["javascript", "5.3.9-beta.1", "unsupported"],
     ["custom", "1.0.0", "unknown"],
   ] as const)(
     "reports the %s %s capability status as %s",
