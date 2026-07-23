@@ -87,6 +87,11 @@ export interface TraceSidePanelProps {
   onClose?: () => void;
   /** observation-only variant: escape hatch to the trace view. */
   onOpenTraceView?: () => void;
+  /** Rendered as the Metadata accordion's footer, below the height-capped
+      values (visible even while the body is clipped) — e.g. the session
+      adapter's "metadata capped, open the trace view" hint for
+      metadataTruncated observations (LFE-10958). */
+  metadataNotice?: ReactNode;
 }
 
 export function TraceSidePanel({
@@ -109,6 +114,7 @@ export function TraceSidePanel({
   treeNodeTotalCost,
   onClose,
   onOpenTraceView,
+  metadataNotice,
 }: TraceSidePanelProps) {
   // UI-preference contexts (both surfaces mount the providers)
   const {
@@ -382,7 +388,10 @@ export function TraceSidePanel({
                 accordionMetadata !== undefined && (
                   <>
                     <div className="border-t" />
-                    <MetadataAccordion itemCount={metadataItemCount}>
+                    <MetadataAccordion
+                      itemCount={metadataItemCount}
+                      footer={metadataNotice}
+                    >
                       <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
                         <PrettyJsonView
                           title="Metadata"

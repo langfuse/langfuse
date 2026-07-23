@@ -49,6 +49,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { api } from "@/src/utils/api";
@@ -91,6 +92,7 @@ function SessionObservationSidePanelInner({
   onClose?: () => void;
   onOpenTraceView?: () => void;
 }) {
+  const capture = usePostHogClientCapture();
   const traceId = observation.traceId ?? trace?.id ?? "";
   const [traceOverlay, setTraceOverlay] = React.useState<TraceOverlay>(null);
 
@@ -266,6 +268,35 @@ function SessionObservationSidePanelInner({
         enableInlineComments={isAuthenticatedAndProjectMember}
         onClose={onClose}
         onOpenTraceView={onOpenTraceView}
+        metadataNotice={
+          // Session queries cap large metadata values (and drop metadata
+          // entirely past the per-trace budget) — same hint the conversation
+          // feed's SessionObservationIO shows for metadataTruncated (LFE-10958).
+          observation.metadataTruncated ? (
+            <p className="text-muted-foreground pb-1 text-xs">
+              Some metadata values are too large to show here.{" "}
+              {onOpenTraceView ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      capture(
+                        "session_detail:truncated_observation_open_trace_click",
+                      );
+                      onOpenTraceView();
+                    }}
+                    className="text-primary underline underline-offset-2 hover:no-underline"
+                  >
+                    Open Trace View
+                  </button>{" "}
+                  for full metadata.
+                </>
+              ) : (
+                <>Open the trace view for full metadata.</>
+              )}
+            </p>
+          ) : undefined
+        }
       />
 
       {/* Trace-level overlays opened from the "+ Add to" menu — siblings, per
