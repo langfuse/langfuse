@@ -87,10 +87,14 @@ vi.mock("posthog-node", () => ({
   },
 }));
 
-// Path is relative to this test file -> resolves to worker/src/env (the
-// module the exportWriteModeGuard reads its write mode from).
+// Resolves to worker/src/env (read by exportWriteModeGuard and the score
+// routing); the helpers mirror the real implementations.
 vi.mock("../env", () => ({
   env: { LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy" },
+  v4WritesToLegacyTables: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
+    e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only",
+  v4WritesToEventsTable: (e: { LANGFUSE_MIGRATION_V4_WRITE_MODE: string }) =>
+    e.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy",
 }));
 
 // Import after mocks are registered.
@@ -135,7 +139,7 @@ describe("handlePostHogIntegrationProjectJob events_only legacy guard (LFE-10148
     expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
   });
 
-  it("exports an EVENTS source normally on events_only", async () => {
+  it("exports an EVENTS source normally on events_only, routing score enrichment to events", async () => {
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     h.db.integration = {
       ...h.defaultIntegration(),
@@ -147,14 +151,67 @@ describe("handlePostHogIntegrationProjectJob events_only legacy guard (LFE-10148
     expect(h.getEvents).toHaveBeenCalledTimes(1);
     expect(h.getTraces).not.toHaveBeenCalled();
     expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
+    expect(h.getScores).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      expect.any(Date),
+      expect.any(Date),
+      expect.objectContaining({ traceAttributesSource: "events" }),
+    );
   });
 
-  it("exports a legacy source normally on dual write mode", async () => {
+  it("exports a legacy source normally on dual write mode, enriching scores from traces", async () => {
     (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
 
     await handlePostHogIntegrationProjectJob(makeJob());
 
     expect(h.getTraces).toHaveBeenCalledTimes(1);
+    expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
+    expect(h.getScores).toHaveBeenCalledWith(
+      "project-1",
+      "Test Project",
+      expect.any(Date),
+      expect.any(Date),
+      expect.objectContaining({ traceAttributesSource: "traces" }),
+    );
+  });
+});
+
+// LFE-11009: enriched sources on legacy write mode must fail loudly instead
+// of silently exporting empty data while lastSyncAt advances.
+describe("handlePostHogIntegrationProjectJob legacy-mode enriched guard (LFE-11009)", () => {
+  beforeEach(() => {
+    h.posthogIntegrationUpdate.mockClear();
+    h.getTraces.mockClear();
+    h.getGenerations.mockClear();
+    h.getScores.mockClear();
+    h.getEvents.mockClear();
+    h.db.integration = h.defaultIntegration();
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+  });
+
+  it.each(["EVENTS", "TRACES_OBSERVATIONS_EVENTS"])(
+    "throws before export and does not advance lastSyncAt on legacy + %s source",
+    async (exportSource) => {
+      h.db.integration = { ...h.defaultIntegration(), exportSource };
+
+      await expect(
+        handlePostHogIntegrationProjectJob(makeJob()),
+      ).rejects.toThrow(/does not write them/);
+
+      expect(h.getScores).not.toHaveBeenCalled();
+      expect(h.getEvents).not.toHaveBeenCalled();
+      expect(h.posthogIntegrationUpdate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("exports an EVENTS source normally on dual write mode", async () => {
+    (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    h.db.integration = { ...h.defaultIntegration(), exportSource: "EVENTS" };
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    expect(h.getEvents).toHaveBeenCalledTimes(1);
     expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
   });
 });
