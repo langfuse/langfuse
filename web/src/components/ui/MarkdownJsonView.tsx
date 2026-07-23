@@ -6,7 +6,8 @@ import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { Check, Copy } from "lucide-react";
+import { useMarkdownContext } from "@/src/features/theming/useMarkdownContext";
+import { Check, Copy, LetterText, RemoveFormatting } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
 import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
@@ -23,12 +24,13 @@ type MarkdownJsonViewHeaderProps = {
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
+  handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
+  canEnableMarkdown = true,
   controlButtons,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
+  const { isMarkdownEnabled } = useMarkdownContext();
 
   return (
     <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-bold capitalize transition-colors">
@@ -38,6 +40,22 @@ export function MarkdownJsonViewHeader({
       </div>
       <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
         {controlButtons}
+        {canEnableMarkdown && (
+          <Button
+            title={isMarkdownEnabled ? "View as plain text" : "Render markdown"}
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={handleOnValueChange}
+            className="hover:bg-border"
+          >
+            {isMarkdownEnabled ? (
+              <RemoveFormatting className="h-3 w-3" />
+            ) : (
+              <LetterText className="h-3 w-3" />
+            )}
+          </Button>
+        )}
         <Button
           title="Copy to clipboard"
           variant="ghost"
@@ -76,8 +94,10 @@ const isSupportedMarkdownFormat = (
   return true;
 };
 
-// MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+// MarkdownJsonView renders markdown-capable content via MarkdownView: as
+// markdown when `isMarkdownEnabled` (global, persisted context) is true,
+// otherwise as preformatted plain text with a header toggle between the two
+// (#14778). Non-markdown-capable content falls back to PrettyJsonView.
 export function MarkdownJsonView({
   content,
   title,
@@ -108,6 +128,7 @@ export function MarkdownJsonView({
     () => OpenAIContentSchema.safeParse(content),
     [content],
   );
+  const { isMarkdownEnabled } = useMarkdownContext();
 
   const canEnableMarkdown = isSupportedMarkdownFormat(
     content,
@@ -121,6 +142,7 @@ export function MarkdownJsonView({
           markdown={
             validatedOpenAIContent.success ? validatedOpenAIContent.data : null
           }
+          renderMarkdown={isMarkdownEnabled}
           title={title}
           titleIcon={titleIcon}
           customCodeHeaderClassName={customCodeHeaderClassName}

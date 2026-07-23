@@ -6,6 +6,7 @@
  * normal small string still mounts the viewer.
  */
 import { render, screen } from "@testing-library/react";
+import { type ReactElement } from "react";
 import type * as CodeJsonViewerModule from "@/src/components/ui/CodeJsonViewer";
 
 // LargeStringFallback's only provider-bound dependency — stub it so the test
@@ -29,11 +30,18 @@ vi.mock("@/src/components/ui/CodeJsonViewer", async (importOriginal) => {
 
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
+import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
+
+// PrettyJsonView reads the global markdown preference (raw/markdown toggle).
+const renderWithProviders = (ui: ReactElement) =>
+  render(<MarkdownContextProvider>{ui}</MarkdownContextProvider>);
 
 describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   it("renders the bounded fallback and mounts neither the JSON viewer nor the table for an over-limit string", () => {
     const huge = "x".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    const { container } = render(<PrettyJsonView json={huge} title="Input" />);
+    const { container } = renderWithProviders(
+      <PrettyJsonView json={huge} title="Input" />,
+    );
 
     // Bounded fallback + download affordance are shown...
     expect(screen.getByText(/Large string —/i)).toBeInTheDocument();
@@ -50,7 +58,9 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
   });
 
   it("renders normally (JSON viewer mounted, no fallback) for small I/O", () => {
-    render(<PrettyJsonView json={{ foo: "bar", n: 1 }} title="Input" />);
+    renderWithProviders(
+      <PrettyJsonView json={{ foo: "bar", n: 1 }} title="Input" />,
+    );
 
     expect(screen.queryByText(/Large string —/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("json-view")).toBeInTheDocument();
@@ -66,7 +76,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
     });
     expect(hugeRawJson.length).toBeGreaterThan(LARGE_STRING_RENDER_CHAR_LIMIT);
 
-    render(
+    renderWithProviders(
       <PrettyJsonView
         json={hugeRawJson}
         parsedJson={undefined}
@@ -85,7 +95,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
 
   it("still gates a genuinely huge SETTLED top-level string (parse finished)", () => {
     const hugePlainString = "z".repeat(LARGE_STRING_RENDER_CHAR_LIMIT + 1);
-    render(
+    renderWithProviders(
       <PrettyJsonView
         json="ignored-raw"
         parsedJson={hugePlainString}

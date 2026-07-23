@@ -222,11 +222,15 @@ function MarkdownRenderer({
   theme,
   className,
   customCodeHeaderClassName,
+  renderMarkdown = true,
 }: {
   markdown: string;
   theme?: string;
   className?: string;
   customCodeHeaderClassName?: string;
+  /** When false, render preformatted plain text with real line breaks
+      instead of markdown — the user-facing raw view (#14778). */
+  renderMarkdown?: boolean;
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -238,6 +242,16 @@ function MarkdownRenderer({
     () => exceedsMarkdownRenderLimits(markdown),
     [markdown],
   );
+
+  if (!renderMarkdown) {
+    return (
+      <div className={cn("space-y-2 overflow-x-auto text-sm", className)}>
+        <pre className="text-sm break-words whitespace-pre-wrap">
+          {markdown}
+        </pre>
+      </div>
+    );
+  }
 
   if (tooLargeOrDeep) {
     return (
@@ -486,6 +500,7 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  renderMarkdown = true,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -501,10 +516,14 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
+  /** When false, text content renders as preformatted plain text with real
+      line breaks instead of markdown; the header toggle flips the persisted
+      global preference (#14778). */
+  renderMarkdown?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
-  const { setIsMarkdownEnabled } = useMarkdownContext();
+  const { isMarkdownEnabled, setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
@@ -535,10 +554,13 @@ export function MarkdownView({
     copyTextToClipboard(markdownContent);
   };
 
+  // Toggle relative to the context value, not the `renderMarkdown` prop: the
+  // header icon reads the context, so this keeps icon and action consistent
+  // even for a caller that passes a static `renderMarkdown`.
   const handleOnValueChange = () => {
-    setIsMarkdownEnabled(false);
+    setIsMarkdownEnabled(!isMarkdownEnabled);
     capture("trace_detail:io_pretty_format_toggle_group", {
-      renderMarkdown: false,
+      renderMarkdown: !isMarkdownEnabled,
     });
   };
 
@@ -602,6 +624,7 @@ export function MarkdownView({
                 markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
+                renderMarkdown={renderMarkdown}
               />
               {collapseToggle}
             </>
@@ -614,6 +637,7 @@ export function MarkdownView({
                 markdown={truncatedContent}
                 theme={theme}
                 customCodeHeaderClassName={customCodeHeaderClassName}
+                renderMarkdown={renderMarkdown}
               />
             ) : (
               (markdown ?? []).map((content, index) => {
@@ -624,6 +648,7 @@ export function MarkdownView({
                       markdown={content.text}
                       theme={theme}
                       customCodeHeaderClassName={customCodeHeaderClassName}
+                      renderMarkdown={renderMarkdown}
                     />
                   );
                 }
@@ -673,6 +698,7 @@ export function MarkdownView({
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
               customCodeHeaderClassName={customCodeHeaderClassName}
+              renderMarkdown={renderMarkdown}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}
