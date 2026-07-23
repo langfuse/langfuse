@@ -14,10 +14,10 @@ import {
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
-  formatAxisLabel,
   formatMetric,
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
+import { BreakdownCategoryTick } from "@/src/features/widgets/chart-library/BreakdownCategoryTick";
 
 const CHAR_WIDTH_PX = 7;
 const LABEL_PADDING_PX = 16;
@@ -42,6 +42,9 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   showValueLabels = false,
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
+  categoryHrefs,
+  onCategoryLabelCopy,
+  onCategoryLabelViewAsTable,
 }) => {
   const formatValue = useCallback(
     (value: number) =>
@@ -105,19 +108,14 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
                 ? payload
                 : ((payload as { value?: string })?.value ?? String(payload));
             return (
-              <g transform={`translate(${x},${y})`}>
-                <title>{fullLabel}</title>
-                <text
-                  textAnchor="end"
-                  x={0}
-                  y={0}
-                  dy={4}
-                  fill="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                >
-                  {formatAxisLabel(fullLabel)}
-                </text>
-              </g>
+              <BreakdownCategoryTick
+                x={x}
+                y={y}
+                label={fullLabel}
+                href={categoryHrefs?.get(fullLabel)}
+                onCopy={onCategoryLabelCopy}
+                onViewAsTable={onCategoryLabelViewAsTable}
+              />
             );
           }}
         />

@@ -176,6 +176,10 @@ export const events = {
     "widget_json_downloaded",
     "widget_copied_to_clipboard",
     "widget_view_as_table",
+    // A breakdown chart's Y-axis category label popover (LFE-10962): copying
+    // the full value, or following its "View filtered table" link.
+    "widget_breakdown_label_copied",
+    "widget_breakdown_label_view_as_table",
     "widget_pasted",
     "widget_paste_rejected",
     "widget_duplicated",

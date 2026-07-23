@@ -466,34 +466,41 @@ export function DashboardWidget({
     [chartPresentation],
   );
 
-  // "View as table" navigation: the widget's own filters (config + dashboard
-  // global) translated to the traces/observations table's applicable filters,
-  // plus the widget's time range. Filters the table can't express are dropped
-  // (surfaced as a hint), never errored. The widget-filter merge mirrors the
+  // Shared inputs for every table deep-link this widget can build: its view
+  // plus its own filters merged with the dashboard-global ones (mirrors the
   // query build above via mergeWidgetAndDashboardFilters, so the environment
-  // override applies here too: a widget with its own environment filter must
-  // deep-link to a table scoped to ITS environment, not one carrying both the
-  // widget's and the dashboard selector's contradictory environment filters
-  // (which the table treats as applicable → empty table). (LFE-14333)
-  // buildTableFilterHref maps to view space again internally; that re-map is
-  // idempotent for the already-canonical columns this helper returns
-  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
-  // double-mapped or dropped.
-  const tableView = useMemo(() => {
+  // override applies here too — LFE-14333). Both the plain "View as table"
+  // link and the per-category drill-in links derive from this so they never
+  // drift apart.
+  const tableViewInputs = useMemo(() => {
     const view = widget.data?.view;
     if (!view) return undefined;
-    const mergedFilters = mergeWidgetAndDashboardFilters({
+    return {
       view: view as z.infer<typeof views>,
-      widgetFilters: widget.data?.filters ?? [],
-      dashboardFilters: filterState,
-    });
+      mergedFilters: mergeWidgetAndDashboardFilters({
+        view: view as z.infer<typeof views>,
+        widgetFilters: widget.data?.filters ?? [],
+        dashboardFilters: filterState,
+      }),
+    };
+  }, [widget.data, filterState]);
+
+  // "View as table" navigation: the widget's own filters translated to the
+  // traces/observations table's applicable filters, plus the widget's time
+  // range. Filters the table can't express are dropped (surfaced as a hint),
+  // never errored. buildTableFilterHref maps to view space again internally;
+  // that re-map is idempotent for the already-canonical columns this helper
+  // returns (isCanonicalViewFilterColumn short-circuits them), so no filter
+  // is double-mapped or dropped.
+  const tableView = useMemo(() => {
+    if (!tableViewInputs) return undefined;
     return buildTableFilterHref(
       projectId,
-      view as z.infer<typeof views>,
-      mergedFilters,
+      tableViewInputs.view,
+      tableViewInputs.mergedFilters,
       dateRange,
     );
-  }, [projectId, widget.data, filterState, dateRange]);
+  }, [projectId, tableViewInputs, dateRange]);
 
   const handleViewAsTable = () => {
     if (!tableView) return;
@@ -514,6 +521,51 @@ export function DashboardWidget({
     () => (tableView ? buildViewAsTableHint(tableView) : null),
     [tableView],
   );
+
+  // Per-category "drill in" links for a breakdown chart's bars: the widget's
+  // single breakdown dimension (e.g. "userId") pinned to one clicked bar's
+  // exact value, on top of the widget's own table view. Built once for every
+  // unique dimension value in the rendered data (a bounded set — the chart
+  // itself caps rows), keyed by the label so the visualiser only ever does a
+  // lookup, never a decision (see chart-library/ARCHITECTURE.md). A value
+  // that can't be expressed as a table filter (categoryFilterApplied=false —
+  // e.g. a metadata/score breakdown) is omitted rather than linking to an
+  // unfiltered table under a "drill in" label. Scoped to HORIZONTAL_BAR (the
+  // only consumer today): PIVOT_TABLE reuses the same `dimension` field for
+  // something else entirely (the dimension's NAME, not a value — see
+  // transformedData above), so computing this for it would be meaningless.
+  // (LFE-10962)
+  const breakdownDimensionField =
+    widget.data?.chartType === "HORIZONTAL_BAR"
+      ? widget.data.dimensions.slice().shift()?.field
+      : undefined;
+  const categoryTableHrefs = useMemo(() => {
+    if (!tableViewInputs || !breakdownDimensionField) return undefined;
+
+    const hrefs = new Map<string, string>();
+    for (const row of transformedData) {
+      const value = row.dimension;
+      if (typeof value !== "string" || hrefs.has(value)) continue;
+
+      const result = buildTableFilterHref(
+        projectId,
+        tableViewInputs.view,
+        tableViewInputs.mergedFilters,
+        dateRange,
+        { column: breakdownDimensionField, value },
+      );
+      if (result.categoryFilterApplied) {
+        hrefs.set(value, result.href);
+      }
+    }
+    return hrefs;
+  }, [
+    tableViewInputs,
+    breakdownDimensionField,
+    transformedData,
+    projectId,
+    dateRange,
+  ]);
 
   const handleEdit = () => {
     router.push(
@@ -557,6 +609,24 @@ export function DashboardWidget({
       onDeleteWidget(placement.id);
     }
   };
+
+  // Analytics for the per-category label popover (LFE-10962): copying the
+  // full value, or following the "View filtered table" link. The href itself
+  // is decided in categoryTableHrefs above; this only reports the action.
+  const handleCategoryLabelCopy = useCallback(() => {
+    capture("dashboard:widget_breakdown_label_copied", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+    });
+  }, [capture, placement.widgetId, dashboardId]);
+
+  const handleCategoryLabelViewAsTable = useCallback(() => {
+    capture("dashboard:widget_breakdown_label_view_as_table", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+      view: widget.data?.view,
+    });
+  }, [capture, placement.widgetId, dashboardId, widget.data?.view]);
 
   if (widget.isPending) {
     return (
@@ -725,7 +795,7 @@ export function DashboardWidget({
               )}
               <DropdownMenuItem onClick={handleCopyToClipboard}>
                 <CopyIcon className="mr-2 h-4 w-4" />
-                Copy to clipboard
+                Copy widget as JSON
               </DropdownMenuItem>
               {onPasteWidget && (
                 <DropdownMenuItem
@@ -811,6 +881,9 @@ export function DashboardWidget({
               missingValue={getWidgetMissingBucketValue(
                 widget.data.metrics[0]?.agg ?? "count",
               )}
+              categoryHrefs={categoryTableHrefs}
+              onCategoryLabelCopy={handleCategoryLabelCopy}
+              onCategoryLabelViewAsTable={handleCategoryLabelViewAsTable}
             />
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}

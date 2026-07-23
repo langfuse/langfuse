@@ -199,6 +199,20 @@ function reasonFor(view: ViewName, column: string): string {
 }
 
 /**
+ * The target-table column id a view-space dimension maps to, or `undefined`
+ * if the table can't express it. Exposed for callers (e.g.
+ * `buildTableFilterHref`'s category drill-in) that need to know a
+ * dimension's destination column WITHOUT rewriting a whole filter set — e.g.
+ * to look up the column's real type before constructing a new filter for it.
+ */
+export function tableColumnIdForViewDimension(
+  view: ViewName,
+  column: string,
+): string | undefined {
+  return VIEW_DIMENSION_TO_TABLE_COL[view]?.[column];
+}
+
+/**
  * Partition a view-space filter set into the filters the target data table can
  * express (rewritten to table column ids) and the dropped dimensions with a
  * reason each. Never throws: unknown columns degrade to not-applicable rather

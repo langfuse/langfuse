@@ -203,6 +203,124 @@ describe("buildTableFilterHref", () => {
     const decoded = decodeHrefFilters(href);
     expect(decoded.map((f) => f.column)).toEqual(["userId"]);
   });
+
+  describe("categoryFilter (breakdown-label drill-in)", () => {
+    it("pins a string-column category (e.g. userId) with an exact-match filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "userId", value: "u-42" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        { column: "userId", type: "string", operator: "=", value: "u-42" },
+      ]);
+    });
+
+    it("pins a stringOptions-column category (e.g. model) with an 'any of' filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "observations",
+        [],
+        DATE_RANGE,
+        { column: "providedModelName", value: "gpt-4" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        {
+          column: "model",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["gpt-4"],
+        },
+      ]);
+    });
+
+    it("pins an arrayOptions-column category (e.g. tags) with an array-membership filter", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "tags", value: "prod" },
+      );
+
+      expect(categoryFilterApplied).toBe(true);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toEqual([
+        {
+          column: "traceTags",
+          type: "arrayOptions",
+          operator: "any of",
+          value: ["prod"],
+        },
+      ]);
+    });
+
+    it("adds the category filter alongside the widget's own filters", () => {
+      const uiFilters: FilterState = [
+        { column: "user", type: "string", operator: "=", value: "u-1" },
+      ];
+      const { href } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        uiFilters,
+        DATE_RANGE,
+        { column: "environment", value: "production" },
+      );
+
+      const decoded = decodeHrefFilters(href);
+      expect(decoded.map((f) => f.column)).toEqual(["userId", "environment"]);
+      expect(decoded[1]).toMatchObject({
+        column: "environment",
+        operator: "any of",
+        value: ["production"],
+      });
+    });
+
+    it("reports categoryFilterApplied=false and omits the filter for a column type it can't express (e.g. metadata)", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "metadata", value: "some-key-value" },
+      );
+
+      expect(categoryFilterApplied).toBe(false);
+      const decoded = decodeHrefFilters(href);
+      expect(decoded).toHaveLength(0);
+    });
+
+    it("reports categoryFilterApplied=true and is a no-op when no categoryFilter is passed", () => {
+      const { categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+      );
+      expect(categoryFilterApplied).toBe(true);
+    });
+
+    it("reports categoryFilterApplied=false when the dimension is unknown on the view", () => {
+      const { href, categoryFilterApplied } = buildTableFilterHref(
+        "proj-1",
+        "traces",
+        [],
+        DATE_RANGE,
+        { column: "totallyMadeUpDimension", value: "x" },
+      );
+
+      expect(categoryFilterApplied).toBe(false);
+      expect(decodeHrefFilters(href)).toHaveLength(0);
+    });
+  });
 });
 
 describe("buildViewAsTableHint", () => {
