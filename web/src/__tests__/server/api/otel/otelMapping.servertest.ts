@@ -3935,6 +3935,7 @@ describe("OTel Resource Span Mapping", () => {
 
       const convertWithSystemInstructions = async (
         systemInstructions: unknown,
+        options?: { serialize?: boolean },
       ) => {
         const resourceSpan = {
           scopeSpans: [
@@ -3954,7 +3955,10 @@ describe("OTel Resource Span Mapping", () => {
                     {
                       key: "gen_ai.system_instructions",
                       value: {
-                        stringValue: JSON.stringify(systemInstructions),
+                        stringValue:
+                          options?.serialize === false
+                            ? String(systemInstructions)
+                            : JSON.stringify(systemInstructions),
                       },
                     },
                   ],
@@ -4022,9 +4026,34 @@ describe("OTel Resource Span Mapping", () => {
         );
       });
 
+      it.each(["null", "true", "123"])(
+        "should preserve raw text that is valid JSON primitive syntax: %s",
+        async (systemInstructions) => {
+          expect(
+            await convertWithSystemInstructions(systemInstructions, {
+              serialize: false,
+            }),
+          ).toBe(
+            JSON.stringify([
+              { role: "system", content: systemInstructions },
+              ...inputMessages,
+            ]),
+          );
+        },
+      );
+
       it.each([
         ["an empty array", []],
         ["an empty complete system message", [{ role: "system", parts: [] }]],
+        [
+          "a complete system message with only blank text parts",
+          [
+            {
+              role: "system",
+              parts: [{ type: "text", content: "   " }],
+            },
+          ],
+        ],
         ["empty objects", [{}, {}]],
         [
           "object-valued text content",
@@ -4033,7 +4062,6 @@ describe("OTel Resource Span Mapping", () => {
             { type: "text", content: {} },
           ],
         ],
-        ["null", null],
         [
           "mixed-role complete messages",
           [

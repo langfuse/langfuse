@@ -2071,6 +2071,15 @@ export class OtelIngestionProcessor {
       if (typeof systemInstructions === "string") {
         try {
           parsed = JSON.parse(systemInstructions);
+          // OTLP string attributes cannot distinguish raw primitive-looking
+          // text from a JSON-encoded primitive, so preserve the original text.
+          if (
+            parsed === null ||
+            typeof parsed === "boolean" ||
+            typeof parsed === "number"
+          ) {
+            parsed = systemInstructions;
+          }
         } catch {
           parsed = systemInstructions;
         }
@@ -2098,6 +2107,11 @@ export class OtelIngestionProcessor {
           OtelIngestionProcessor.isPlainObject(value) &&
           value.type === "text" &&
           typeof value.content === "string";
+        const isMeaningfulInstructionPart = (value: unknown): boolean =>
+          isInstructionPart(value) &&
+          (value.type !== "text" ||
+            (typeof value.content === "string" &&
+              value.content.trim().length > 0));
 
         // Some instrumentations, including LiteLLM, emit complete system
         // messages instead of instruction parts. Preserve those messages
@@ -2107,7 +2121,8 @@ export class OtelIngestionProcessor {
             (message) =>
               (typeof message.content === "string" &&
                 message.content.trim().length > 0) ||
-              (Array.isArray(message.parts) && message.parts.length > 0),
+              (Array.isArray(message.parts) &&
+                message.parts.some(isMeaningfulInstructionPart)),
           );
           if (systemMessages.length === 0) return input;
         } else if (parsed.every((part) => typeof part === "string")) {
