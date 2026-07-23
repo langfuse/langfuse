@@ -122,8 +122,11 @@ export function JudgeModelSection({
                     </Badge>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">
-                    Select a model...
+                  <span className="flex items-center gap-1.5">
+                    <TriangleAlert className="text-dark-yellow h-3.5 w-3.5 shrink-0" />
+                    <span className="text-muted-foreground">
+                      Select a model...
+                    </span>
                   </span>
                 )
               ) : (
@@ -260,16 +263,6 @@ export function JudgeModelSection({
           />
         )}
       </div>
-
-      {mode === "default" && !defaultModel && (
-        <p className="text-dark-yellow flex items-center gap-1 text-sm">
-          <TriangleAlert className="h-4 w-4 shrink-0" />
-          <span>
-            No default evaluation model set — pick a model above or set a
-            project default.
-          </span>
-        </p>
-      )}
     </div>
   );
 }
