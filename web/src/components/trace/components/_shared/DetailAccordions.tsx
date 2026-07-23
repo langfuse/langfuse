@@ -8,7 +8,7 @@
  * "+ Add score" behavior come from the owning view.
  */
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { EyebrowLabel } from "@/src/components/trace/components/_shared/InspectorElements";
 import { cn } from "@/src/utils/tailwind";
@@ -120,16 +120,90 @@ export const ScoresAccordion = ({
 };
 
 /**
+ * Collapsed height of the metadata body — matches the inspector's output cap
+ * of 10 text-xs lines (12px × 1.625 leading ≈ 195px ≈ 200px).
+ */
+const METADATA_COLLAPSED_MAX_PX = 200;
+
+/**
+ * Measured max-height cap with the inspector's centered hairline
+ * "Show more"/"Show less" control (the LineCappedText pattern). The body is
+ * arbitrary content (PrettyJsonView), not plain text, so instead of a line
+ * clamp the wrapper measures the content's natural height via a
+ * ResizeObserver-backed callback ref and clips only when it actually
+ * overflows the cap; no hidden-line count is shown because table rows have
+ * no uniform line height. Expanding restores the full, interactive content.
+ */
+const HeightCappedContent = ({ children }: { children: ReactNode }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  // Callback ref owns the observer lifecycle: attach on mount, re-check on
+  // every content resize (JSON rows expand/collapse), detach on unmount.
+  const measureRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!node) return;
+    const check = () =>
+      setOverflows(node.scrollHeight > METADATA_COLLAPSED_MAX_PX + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(node);
+    observerRef.current = observer;
+  }, []);
+
+  const isCollapsed = !expanded && overflows;
+
+  const toggleControl = (label: string, rotated: boolean) => (
+    <button
+      type="button"
+      onClick={() => setExpanded((current) => !current)}
+      className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 pt-2"
+    >
+      <span className="border-border flex-1 border-t" />
+      <span className="flex items-center gap-1.5 font-mono text-[11px] font-bold">
+        {label}
+        <ChevronDown
+          className={cn("h-3 w-3", rotated ? "rotate-180" : "rotate-0")}
+        />
+      </span>
+      <span className="border-border flex-1 border-t" />
+    </button>
+  );
+
+  return (
+    <div>
+      <div
+        className="overflow-hidden"
+        style={
+          isCollapsed ? { maxHeight: METADATA_COLLAPSED_MAX_PX } : undefined
+        }
+      >
+        <div ref={measureRef}>{children}</div>
+      </div>
+      {isCollapsed ? toggleControl("Show more", false) : null}
+      {expanded && overflows ? toggleControl("Show less", true) : null}
+    </div>
+  );
+};
+
+/**
  * "METADATA · N items" accordion shell. The body (`children`) is the full
  * metadata rendering the owning view previously delegated to IOPreview, so
  * the complete JSON machinery survives — just relocated behind the accordion.
+ * The open body is height-capped (HeightCappedContent); `footer` renders
+ * below the cap and stays visible while the body is clipped — e.g. the
+ * session panel's truncated-metadata hint.
  */
 export const MetadataAccordion = ({
   itemCount,
   children,
+  footer,
 }: {
   itemCount: number;
   children: ReactNode;
+  footer?: ReactNode;
 }) => {
   // Open by default: a collapsed accordion read as "metadata was removed".
   const [isOpen, setIsOpen] = useState(true);
@@ -155,7 +229,12 @@ export const MetadataAccordion = ({
           />
         </span>
       </button>
-      {isOpen ? <div className="pb-3">{children}</div> : null}
+      {isOpen ? (
+        <div className="pb-3">
+          <HeightCappedContent>{children}</HeightCappedContent>
+          {footer}
+        </div>
+      ) : null}
     </div>
   );
 };
