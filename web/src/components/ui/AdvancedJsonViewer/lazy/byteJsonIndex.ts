@@ -632,6 +632,12 @@ export class ByteJsonIndexEngine {
 
   private ensureChildTable(node: NodeRecord): ChildTable {
     if (node.childTable) return node.childTable;
+    // KNOWN LIMITATION (LFE-11082 follow-up): this scans the WHOLE container to
+    // build the offset table on the first `childrenPage`, so a container with
+    // millions of immediate children costs O(all children) up front even to
+    // show the first page. Bounded in practice by the size tiering (LFE-14418):
+    // payloads large enough to make this scan jank the main thread are routed to
+    // the Worker source. The real fix is a resumable, page-at-a-time scan.
     const scanned = this.scanner!.scanContainer(node.valueStart);
     node.childTable = {
       isObject: scanned.isObject,
