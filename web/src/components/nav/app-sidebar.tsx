@@ -18,11 +18,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/src/components/ui/sidebar";
 import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
@@ -46,6 +48,8 @@ export function AppSidebar({
   userNavProps,
   ...props
 }: AppSidebarProps) {
+  const { isMobile } = useSidebar();
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
@@ -56,6 +60,7 @@ export function AppSidebar({
         <DemoBadge />
       </SidebarHeader>
       <SidebarContent>
+        {isMobile && <MobileNavSwitcher />}
         <NavMain items={navItems} />
         <div className="flex-1" />
         <div className="flex flex-col gap-2 p-2">

@@ -7,7 +7,6 @@ import {
   logger,
   recordGauge,
   recordIncrement,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -35,6 +34,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: "BatchProjectMediaCleaner",
+      metricName: "batch_project_media_cleaner",
       lockKey: "langfuse:batch-project-media-cleaner",
       lockTtlSeconds,
     });
@@ -64,7 +64,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
               `${this.instanceName}: Failed to query target project`,
               { error },
             );
-            traceException(error);
+            this.markRunFailed(error);
             return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
           }
 

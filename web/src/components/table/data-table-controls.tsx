@@ -38,6 +38,7 @@ import {
   PanelLeftOpen,
   Plus,
   UnfoldVertical,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -84,6 +85,9 @@ interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tableName?: string;
+  /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
+   *  so its header shows a plain close instead of the collapse-to-rail chrome. */
+  isMobile: boolean;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -115,7 +119,9 @@ export function DataTableControlsProvider({
   const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
+    <ControlsContext.Provider
+      value={{ open, setOpen, tableName, isMobile: !isDesktop }}
+    >
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -132,7 +138,12 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {}, tableName: undefined };
+    return {
+      open: false,
+      setOpen: () => {},
+      tableName: undefined,
+      isMobile: false,
+    };
   }
 
   return context as ControlsContextType;
@@ -173,7 +184,7 @@ export function DataTableControls({
   blockedColumnReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen, tableName } = useDataTableControls();
+  const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -613,23 +624,41 @@ export function DataTableControls({
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "header");
-                  }}
-                  aria-label="Hide filters"
-                  className="-ml-1 h-6 w-6"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Hide filters</TooltipContent>
-            </Tooltip>
+            {isMobile ? (
+              // No tooltip: the sheet auto-focuses this control on open, and a
+              // Radix tooltip opens on focus — it would pop up unprompted. An X
+              // is self-evident anyway.
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setOpen(false);
+                  emitSidebarToggled(false, "header");
+                }}
+                aria-label="Close filters"
+                className="-ml-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setOpen(false);
+                      emitSidebarToggled(false, "header");
+                    }}
+                    aria-label="Hide filters"
+                    className="-ml-1 h-6 w-6"
+                  >
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hide filters</TooltipContent>
+              </Tooltip>
+            )}
             <span className="text-sm font-bold">Filters</span>
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
@@ -748,16 +777,22 @@ export function DataTableControls({
                   Show only active
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "menu");
-                  }}
-                  className="cursor-pointer"
-                >
-                  Collapse sidebar
-                </DropdownMenuItem>
+                {/* "Collapse sidebar" is desktop-rail chrome; in the mobile
+                    sheet the header's X already closes it. */}
+                {!isMobile && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        emitSidebarToggled(false, "menu");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Collapse sidebar
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -973,7 +1008,7 @@ const FilterAccordionTrigger = ({
   // top-0: the panel header row sits outside the scroll container
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
   // The expand chevron leads the row (> closed, v open); the clear button
-  // overlays on hover without reserving layout space.
+  // sits at the row's right edge and stays visible whenever a value is set.
   <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 py-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
@@ -1133,9 +1168,12 @@ export function FilterAccordionItem({
           <Tooltip delayDuration={80}>
             <TooltipTrigger asChild>
               {/* div[role=button], not <Button>: the accordion trigger is
-                  already a <button> and buttons cannot nest. Rendered as a
-                  hover/focus-revealed OVERLAY (absolute, own background) so
-                  it never shifts the header layout. */}
+                  already a <button> and buttons cannot nest. Always visible
+                  while the facet has a selection (no hover gating) — the clear
+                  affordance used to reveal only on header hover, which hid the
+                  one obvious way to drop a filter. shrink-0 keeps it in flow at
+                  the row's right edge so the label/chip truncate before reaching
+                  it; self-start pins it to the top line on two-line headers. */}
               <div
                 role="button"
                 tabIndex={0}
@@ -1150,15 +1188,11 @@ export function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                // top-1 anchors the button to the label line — a 20px
-                // button in the 28px single-line header reads centered, and
-                // on two-line headers it stays top-right. bg-accent matches
-                // the hovered header band (the button is only visible while
-                // the band shows its hover color).
-                className="bg-accent text-muted-foreground hover:text-foreground absolute top-0.5 right-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
-                <IconX className="h-3 w-3" />
+                <IconX className="h-3 w-3 shrink-0" />
+                Clear
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
