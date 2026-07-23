@@ -6,6 +6,10 @@ import Link from "next/link";
 import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
+import {
+  buildTurnModel,
+  ConversationTurn,
+} from "@/src/components/session/ConversationTurn";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { api } from "@/src/utils/api";
@@ -283,6 +287,7 @@ export const TraceEventsRow = React.memo(
     contentMode = "all",
     showSystemPrompt,
     isActive = false,
+    turnNumber,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -297,6 +302,8 @@ export const TraceEventsRow = React.memo(
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
     isActive?: boolean;
+    /** 1-based turn index shown in the redesigned conversation footers. */
+    turnNumber?: number;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -409,6 +416,17 @@ export const TraceEventsRow = React.memo(
       return { visibleObservations, hasMoreObservations };
     }, [observations, trace.id]);
 
+    // Redesigned conversation turn (user bubble + generations). Null whenever
+    // the data doesn't fit that shape — the observation rendering below is
+    // the fallback, so nothing is ever hidden by the redesign.
+    const turnModel = React.useMemo(
+      () =>
+        surface === "modern" && visibleObservations
+          ? buildTurnModel(visibleObservations)
+          : null,
+      [surface, visibleObservations],
+    );
+
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
 
@@ -470,6 +488,12 @@ export const TraceEventsRow = React.memo(
               <div className="text-destructive p-2 text-xs">
                 Failed to load observations.
               </div>
+            ) : turnModel ? (
+              <ConversationTurn
+                model={turnModel}
+                turnNumber={turnNumber ?? 0}
+                traceId={trace.id}
+              />
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">
                 {visibleObservations.map((observation) => {
@@ -612,7 +636,11 @@ const LazyTraceEventsRowInner = (props: LazyTraceEventsRowProps) => {
 
   return (
     <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
-      {shouldLoad ? <TraceEventsRow {...cardProps} /> : <TraceEventsSkeleton />}
+      {shouldLoad ? (
+        <TraceEventsRow {...cardProps} turnNumber={index + 1} />
+      ) : (
+        <TraceEventsSkeleton />
+      )}
     </div>
   );
 };

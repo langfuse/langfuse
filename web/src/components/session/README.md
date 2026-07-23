@@ -26,6 +26,14 @@ card layout only.
   shows a type-aware overview grid, I/O zones, scores, and metadata without
   leaving the session. Selection state (`inspectedObservation`) lives in the
   session detail store.
+- `ObservationList.tsx`: Modern Session's COL 2 — collapsible turn cards with
+  per-turn observation rows, span search, and the funnel type filter.
+- `ConversationTurn.tsx`: Modern Session's redesigned conversation turn (user
+  bubble + unboxed generations + tool-call lines + hover footers).
+  `buildTurnModel` is deliberately conservative: any turn whose data doesn't
+  fit the user-message + generations shape returns null and TraceEventsRow
+  falls back to the existing observation rendering — the redesign must never
+  hide payloads it cannot express.
 
 Modern Session prepares each events-backed observation once inside its narrow
 row container and passes the parsed I/O plus ChatML result through `IOPreview`.
