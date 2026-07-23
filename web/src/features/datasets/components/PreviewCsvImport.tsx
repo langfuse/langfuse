@@ -281,7 +281,6 @@ export function PreviewCsvImport({
                   csvImport.progress.totalItems) *
                 100
               }
-              className="w-full"
             />
           </div>
         )}
