@@ -89,4 +89,36 @@ describe("InAppAgentWindowShell", () => {
       height: "1092px",
     });
   });
+
+  it("can be resized wider than the previous maximum width", () => {
+    render(<TestShell />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Initialize panel" }));
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const resizeHandle = screen.getByTestId(
+      "movable-resizable-panel-resize-left",
+    );
+
+    firePointerEvent(resizeHandle, "pointerdown", {
+      pointerId: 1,
+      clientX: 1144,
+      clientY: 800,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: 8,
+      clientY: 800,
+    });
+    firePointerEvent(panel, "pointerup", {
+      pointerId: 1,
+      clientX: 8,
+      clientY: 800,
+    });
+
+    expect(panel).toHaveStyle({
+      left: "8px",
+      width: "1584px",
+    });
+  });
 });
