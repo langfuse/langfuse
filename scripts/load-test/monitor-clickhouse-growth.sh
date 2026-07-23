@@ -19,6 +19,7 @@ NAMESPACE="${1:?namespace required}"
 POD="${2:?clickhouse pod name required}"
 INTERVAL="${3:-300}"
 OUTFILE="${4:-clickhouse-growth.csv}"
+CH_DB="${CLICKHOUSE_DB:-default}"
 
 echo "timestamp,total_bytes_on_disk,total_bytes_gb,trace_count,gb_per_1000_traces,pvc_used_kb" > "${OUTFILE}"
 
@@ -35,13 +36,13 @@ ch_query() {
 while true; do
   ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  # Total size of active parts (across all Langfuse tables)
-  bytes=$(ch_query "SELECT sum(bytes_on_disk) FROM system.parts WHERE active")
+  # Total size of active parts for the Langfuse database only
+  bytes=$(ch_query "SELECT sum(bytes_on_disk) FROM system.parts WHERE database = '${CH_DB}' AND active")
   bytes=${bytes:-0}
   gb=$(awk -v b="${bytes}" 'BEGIN { printf "%.4f", b/1024/1024/1024 }')
 
-  # Number of traces actually stored (adjust table/DB name if needed)
-  trace_count=$(ch_query "SELECT count() FROM traces")
+  # Number of traces actually stored (in the configured database)
+  trace_count=$(ch_query "SELECT count() FROM ${CH_DB}.traces")
   trace_count=${trace_count:-0}
 
   if [ "${trace_count}" -gt 0 ]; then
