@@ -23,9 +23,15 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
         await submitFeedback({
           input,
           source: "langfuse-mcp",
-          context: {
+          scope: {
             projectId: context.projectId,
             orgId: context.orgId,
+            accessLevel: "project",
+            plan: context.plan,
+            rateLimitOverrides: context.rateLimitOverrides,
+            apiKeyId: context.apiKeyId,
+            publicKey: context.publicKey,
+            isIngestionSuspended: false,
           },
         }),
     }),

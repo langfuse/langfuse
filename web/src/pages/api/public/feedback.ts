@@ -12,7 +12,6 @@ export default withMiddlewares({
     bodySchema: PostFeedbackBody,
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,
-    skipRateLimit: true,
     redactLogBody: (body) => {
       const candidate =
         typeof body === "object" && body !== null
@@ -27,7 +26,7 @@ export default withMiddlewares({
     fn: async ({ body, auth }) =>
       await submitFeedback({
         input: body,
-        context: auth.scope,
+        scope: auth.scope,
         source: "public-api",
       }),
   }),

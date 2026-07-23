@@ -58,16 +58,12 @@ const validBody = {
   referenceUrl: "https://langfuse.com/docs",
 };
 
-const createRequest = (
-  body: Record<string, unknown> | null,
-  client?: string,
-) => {
+const createRequest = (body: Record<string, unknown> | null) => {
   const mocks = createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
     headers: {
       authorization: "Basic test",
       "content-type": "application/json",
-      ...(client ? { "x-langfuse-client": client } : {}),
     },
     body: body ?? {},
   });
@@ -104,23 +100,10 @@ describe("POST /api/public/feedback", () => {
     });
     expect(mockSubmitFeedback).toHaveBeenCalledWith({
       input: validBody,
-      context: validScope,
+      scope: validScope,
       source: "public-api",
     });
-    expect(mockRateLimitRequest).not.toHaveBeenCalled();
-  });
-
-  it("treats client attribution headers as public API submissions", async () => {
-    const { req, res } = createRequest(validBody, "cli");
-
-    await handler(req, res);
-
-    expect(res._getStatusCode()).toBe(201);
-    expect(mockSubmitFeedback).toHaveBeenCalledWith({
-      input: validBody,
-      context: validScope,
-      source: "public-api",
-    });
+    expect(mockRateLimitRequest).toHaveBeenCalledWith(validScope, "public-api");
   });
 
   it("returns 400 for a null body", async () => {

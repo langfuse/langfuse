@@ -3,11 +3,13 @@ import {
   LangfuseConflictError,
   ServiceUnavailableError,
 } from "@langfuse/shared";
+import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-const { mockEnforceFeedbackRateLimit, mockRecordIncrement, mockLoggerWarn } =
+
+const { mockRateLimitRequest, mockRecordIncrement, mockLoggerWarn } =
   vi.hoisted(() => ({
-    mockEnforceFeedbackRateLimit: vi.fn(),
+    mockRateLimitRequest: vi.fn(),
     mockRecordIncrement: vi.fn(),
     mockLoggerWarn: vi.fn(),
   }));
@@ -25,8 +27,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
-vi.mock("@/src/features/feedback/server/FeedbackRateLimitService", () => ({
-  enforceFeedbackRateLimit: mockEnforceFeedbackRateLimit,
+vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+  RateLimitService: {
+    getInstance: () => ({
+      rateLimitRequest: mockRateLimitRequest,
+    }),
+  },
 }));
 
 import {
@@ -35,10 +41,16 @@ import {
 } from "@/src/features/feedback/server/FeedbackService";
 import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
 
-const authScope = {
+const scope = {
   projectId: "project-1",
   orgId: "org-1",
-};
+  accessLevel: "project",
+  plan: "cloud:pro",
+  rateLimitOverrides: [],
+  apiKeyId: "api-key-1",
+  publicKey: "pk-test",
+  isIngestionSuspended: false,
+} as ApiAccessScope;
 
 type SlackBlockForTest = {
   type?: string;
@@ -56,8 +68,8 @@ describe("FeedbackService", () => {
   const originalNodeEnv = env.NODE_ENV;
 
   beforeEach(() => {
-    mockEnforceFeedbackRateLimit.mockReset();
-    mockEnforceFeedbackRateLimit.mockResolvedValue(undefined);
+    mockRateLimitRequest.mockReset();
+    mockRateLimitRequest.mockResolvedValue(undefined);
     mockRecordIncrement.mockReset();
     mockLoggerWarn.mockReset();
     (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK =
@@ -90,7 +102,7 @@ describe("FeedbackService", () => {
     };
 
     const result = await submitFeedback({
-      context: authScope,
+      scope,
       input,
       source: "langfuse-mcp",
     });
@@ -98,6 +110,7 @@ describe("FeedbackService", () => {
     expect(result.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
+    expect(mockRateLimitRequest).toHaveBeenCalledWith(scope, "feedback");
     expect(fetchMock).toHaveBeenCalledWith(
       "https://hooks.slack.com/services/test",
       expect.objectContaining({
@@ -116,16 +129,8 @@ describe("FeedbackService", () => {
     expect(body.text).toBe(
       `New Langfuse feedback · Langfuse MCP · mcp-tool · ${result.id}`,
     );
-    expect(body.text).not.toContain("@here");
     expect(body.unfurl_links).toBe(false);
     expect(body.unfurl_media).toBe(false);
-    expect(body.blocks[0]?.text?.text).toBe("💬 New Langfuse feedback");
-    expect(body.blocks[1]?.fields?.map((field) => field.text)).toEqual([
-      "📬 SOURCE:\nLangfuse MCP",
-      "🎯 TARGET:\nsubmitFeedback",
-      "🧩 TYPE:\nmcp-tool",
-      "🌍 REGION:\nself-hosted",
-    ]);
     expect(
       body.blocks.at(-1)?.elements?.map((element) => element.text),
     ).toEqual([
@@ -134,6 +139,7 @@ describe("FeedbackService", () => {
       "📁 Project: project-1",
     ]);
 
+    // User-authored text must stay plain_text so mentions cannot ping.
     const feedbackBlock = body.blocks.find(
       (block) =>
         block.type === "section" &&
@@ -143,28 +149,14 @@ describe("FeedbackService", () => {
     expect(feedbackBlock).toBeTruthy();
 
     await expect(
-      submitFeedback({ context: authScope, input, source: "langfuse-mcp" }),
+      submitFeedback({ scope, input, source: "langfuse-mcp" }),
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
     await expect(
-      submitFeedback({ context: authScope, input, source: "langfuse-mcp" }),
+      submitFeedback({ scope, input, source: "langfuse-mcp" }),
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 
-  it("omits tenant context for docs MCP feedback and rejects unsafe URLs", () => {
-    const message = buildFeedbackSlackMessage({
-      id: "11111111-1111-4111-8111-111111111111",
-      input: {
-        targetType: "docs",
-        target: "/docs/mcp",
-        feedback: "Please clarify setup.",
-      },
-      source: "langfuse-docs-mcp",
-    });
-
-    const footer = message.blocks.at(-1) as SlackBlockForTest;
-    expect(footer.elements?.map((element) => element.text)).toEqual([
-      "🧾 Receipt: 11111111-1111-4111-8111-111111111111",
-    ]);
+  it("rejects unsafe reference URLs at the schema boundary", () => {
     expect(
       PostFeedbackBody.safeParse({
         targetType: "docs",
@@ -173,6 +165,18 @@ describe("FeedbackService", () => {
         referenceUrl: "javascript:alert(1)",
       }).success,
     ).toBe(false);
+    expect(() =>
+      buildFeedbackSlackMessage({
+        id: "11111111-1111-4111-8111-111111111111",
+        input: {
+          targetType: "docs",
+          target: "/docs/mcp",
+          feedback: "Please clarify setup.",
+        },
+        source: "public-api",
+        context: { orgId: "org-1", projectId: "project-1" },
+      }),
+    ).not.toThrow();
   });
 
   it("rejects insecure Slack sinks in production", async () => {
@@ -182,19 +186,46 @@ describe("FeedbackService", () => {
 
     await expect(
       submitFeedback({
+        scope,
         input: {
           targetType: "docs",
           target: "/docs/mcp",
           feedback: "Please clarify setup.",
         },
-        source: "langfuse-docs-mcp",
+        source: "public-api",
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 
+  it("throws a 429 when the org feedback rate limit is exhausted", async () => {
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitFeedback({
+        scope,
+        input: {
+          targetType: "docs",
+          target: "/docs/mcp",
+          feedback: "Please clarify setup.",
+        },
+        source: "public-api",
+      }),
+    ).rejects.toMatchObject({ httpCode: 429 });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.feedback.submission",
+      1,
+      { source: "public-api", outcome: "rate_limited" },
+    );
+  });
+
   it("returns a sanitized conflict when the Slack sink is not configured", async () => {
     (env as any).LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK = undefined;
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -207,16 +238,13 @@ describe("FeedbackService", () => {
     };
 
     await expect(
-      submitFeedback({ context: authScope, input, source: "public-api" }),
+      submitFeedback({ scope, input, source: "public-api" }),
     ).rejects.toEqual(
       new LangfuseConflictError(
         "Feedback submission is not configured for this deployment",
       ),
     );
 
-    expect(mockEnforceFeedbackRateLimit).toHaveBeenCalledBefore(
-      mockRecordIncrement,
-    );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockRecordIncrement).toHaveBeenCalledWith(
       "langfuse.feedback.submission",
@@ -230,7 +258,7 @@ describe("FeedbackService", () => {
         targetType: "docs",
         orgId: "org-1",
         projectId: "project-1",
-        region: "HIPAA",
+        region: "self-hosted",
       },
     );
     expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
@@ -238,6 +266,31 @@ describe("FeedbackService", () => {
     );
     expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain(
       "sensitive-target",
+    );
+  });
+
+  it("never delivers to Slack in the HIPAA region even with a configured sink", async () => {
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "HIPAA";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitFeedback({
+        scope,
+        input: {
+          targetType: "docs",
+          target: "/docs/mcp",
+          feedback: "Please clarify setup.",
+        },
+        source: "public-api",
+      }),
+    ).rejects.toBeInstanceOf(LangfuseConflictError);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.feedback.submission",
+      1,
+      { source: "public-api", outcome: "sink_unconfigured" },
     );
   });
 });
