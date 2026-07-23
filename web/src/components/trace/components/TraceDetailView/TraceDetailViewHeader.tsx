@@ -2,9 +2,9 @@
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
  * Contains:
- * - Title row with ItemBadge, trace name, options menu
+ * - Title row with type chip, trace name + mono timestamp, actions menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
- * - Metadata badges (timestamp, latency, session, user, environment, release, version, cost, usage)
+ * - Overview metrics grid (latency, session, user, environment, release, version, cost, usage)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
@@ -19,7 +19,10 @@ import {
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import {
+  OverviewGrid,
+  TypeChip,
+} from "@/src/components/trace/components/_shared/InspectorElements";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
@@ -85,22 +88,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       : null;
 
   return (
-    <div className="@container shrink-0 space-y-2 border-b p-2">
+    <div className="@container shrink-0 space-y-3 p-3 pb-2.5">
       {/* Title row with actions */}
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full flex-row items-center gap-1">
-          <ItemBadge type="TRACE" isSmall />
-          <span className="line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
-            {trace.name || trace.id}
-          </span>
-          <DetailHeaderActionsMenu
-            idItems={[{ id: trace.id, name: "Trace ID" }]}
-            projectId={projectId}
-            webCallout={{
-              traceId: trace.id,
-              sessionId: trace.sessionId ?? null,
-            }}
-          />
+        <div className="flex w-full flex-row items-start gap-2">
+          <TypeChip type="TRACE" className="mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <div className="line-clamp-2 min-w-0 text-sm font-bold break-all md:break-normal md:wrap-break-word">
+              {trace.name || trace.id}
+            </div>
+            <LocalIsoDate
+              date={trace.timestamp}
+              accuracy="millisecond"
+              className="text-muted-foreground font-mono text-[10px]"
+            />
+          </div>
         </div>
         {/* Action buttons */}
         <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
@@ -149,50 +151,46 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             isOpen={isCommentDrawerOpen}
             onOpenChange={onCommentDrawerOpenChange}
           />
-        </div>
-      </div>
-
-      {/* Metadata badges */}
-      <div className="flex flex-col gap-2">
-        {/* Timestamp */}
-        <div className="flex flex-wrap items-center gap-1">
-          <LocalIsoDate
-            date={trace.timestamp}
-            accuracy="millisecond"
-            className="text-sm"
+          <DetailHeaderActionsMenu
+            idItems={[{ id: trace.id, name: "Trace ID" }]}
+            projectId={projectId}
+            webCallout={{
+              traceId: trace.id,
+              sessionId: trace.sessionId ?? null,
+            }}
           />
         </div>
-
-        {/* Other badges */}
-        {!isAnnotationMode && (
-          <div className="flex flex-wrap items-center gap-1">
-            <LatencyBadge latencySeconds={trace.latency ?? null} />
-            <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
-            <UserIdBadge userId={trace.userId} projectId={projectId} />
-            <TargetTraceBadge
-              targetTraceId={targetTraceId}
-              projectId={projectId}
-            />
-            <EnvironmentBadge environment={trace.environment} />
-            <ReleaseBadge release={trace.release} />
-            <VersionBadge version={trace.version} />
-            <CostBadge
-              totalCost={aggregatedMetrics.totalCost}
-              costDetails={aggregatedMetrics.costDetails}
-            />
-            {aggregatedMetrics.hasGenerationLike &&
-              aggregatedMetrics.usageDetails && (
-                <UsageBadge
-                  type="GENERATION"
-                  inputUsage={aggregatedMetrics.inputUsage}
-                  outputUsage={aggregatedMetrics.outputUsage}
-                  totalUsage={aggregatedMetrics.totalUsage}
-                  usageDetails={aggregatedMetrics.usageDetails}
-                />
-              )}
-          </div>
-        )}
       </div>
+
+      {/* Overview metrics grid */}
+      {!isAnnotationMode && (
+        <OverviewGrid>
+          <LatencyBadge latencySeconds={trace.latency ?? null} />
+          <EnvironmentBadge environment={trace.environment} />
+          <UserIdBadge userId={trace.userId} projectId={projectId} />
+          <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
+          <TargetTraceBadge
+            targetTraceId={targetTraceId}
+            projectId={projectId}
+          />
+          <CostBadge
+            totalCost={aggregatedMetrics.totalCost}
+            costDetails={aggregatedMetrics.costDetails}
+          />
+          {aggregatedMetrics.hasGenerationLike &&
+            aggregatedMetrics.usageDetails && (
+              <UsageBadge
+                type="GENERATION"
+                inputUsage={aggregatedMetrics.inputUsage}
+                outputUsage={aggregatedMetrics.outputUsage}
+                totalUsage={aggregatedMetrics.totalUsage}
+                usageDetails={aggregatedMetrics.usageDetails}
+              />
+            )}
+          <ReleaseBadge release={trace.release} />
+          <VersionBadge version={trace.version} />
+        </OverviewGrid>
+      )}
     </div>
   );
 });

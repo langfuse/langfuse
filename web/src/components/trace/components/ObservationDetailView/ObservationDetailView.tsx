@@ -56,6 +56,7 @@ import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "./ObservationDetailViewHeader";
+import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
@@ -302,6 +303,9 @@ export function ObservationDetailView({
         treeNodeTotalCost={treeNode?.totalCost}
       />
 
+      {/* Zone divider between header/overview and tabbed content */}
+      <ZoneDivider />
+
       {/* Tabs section */}
       <TabsBar
         value={selectedTab}
@@ -314,12 +318,25 @@ export function ObservationDetailView({
         {showTabsBar && (
           <TooltipProvider>
             <TabsBarList>
-              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              <TabsBarTrigger
+                value="preview"
+                className="font-mono text-[11px] tracking-wide uppercase"
+              >
+                Preview
+              </TabsBarTrigger>
               {showScoresTab && (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger
+                  value="scores"
+                  className="font-mono text-[11px] tracking-wide uppercase"
+                >
+                  Scores
+                </TabsBarTrigger>
               )}
               {showLogViewTab && (
-                <TabsBarTrigger value="log">
+                <TabsBarTrigger
+                  value="log"
+                  className="font-mono text-[11px] tracking-wide uppercase"
+                >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span>Log View</span>

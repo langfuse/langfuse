@@ -2,22 +2,21 @@
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
- * - Title row with ItemBadge, observation name, options menu
+ * - Title row with type chip, observation name + mono timestamp, actions menu
  * - Action buttons (Dataset, Annotate, Queue, Playground, Comments)
- * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
+ * - Overview metrics grid (latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
 import { memo, useMemo } from "react";
-import {
-  type ObservationType,
-  AnnotationQueueObjectType,
-  isGenerationLike,
-} from "@langfuse/shared";
+import { AnnotationQueueObjectType, isGenerationLike } from "@langfuse/shared";
 import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import {
+  OverviewGrid,
+  TypeChip,
+} from "@/src/components/trace/components/_shared/InspectorElements";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
 import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer";
@@ -124,28 +123,21 @@ export const ObservationDetailViewHeader = memo(
     const outputUsage = observation.outputUsage;
 
     return (
-      <div className="@container shrink-0 space-y-2 border-b p-2">
+      <div className="@container shrink-0 space-y-3 p-3 pb-2.5">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-          <div className="flex w-full flex-row items-center gap-1">
-            <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span className="mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
-              {observation.name || observation.id}
-            </span>
-            <DetailHeaderActionsMenu
-              idItems={[
-                { id: traceId, name: "Trace ID" },
-                { id: observation.id, name: "Observation ID" },
-              ]}
-              observationType={observation.type}
-              projectId={projectId}
-              spanName={observation.name ?? ""}
-              webCallout={{
-                traceId,
-                observationId: observation.id,
-                sessionId: observation.sessionId ?? null,
-              }}
-            />
+          <div className="flex w-full flex-row items-start gap-2">
+            <TypeChip type={observation.type} className="mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-2 min-w-0 text-sm font-bold break-all md:break-normal md:wrap-break-word">
+                {observation.name || observation.id}
+              </div>
+              <LocalIsoDate
+                date={observation.startTime}
+                accuracy="millisecond"
+                className="text-muted-foreground font-mono text-[10px]"
+              />
+            </div>
           </div>
           {/* Action buttons */}
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
@@ -237,89 +229,89 @@ export const ObservationDetailViewHeader = memo(
               isOpen={isCommentDrawerOpen}
               onOpenChange={onCommentDrawerOpenChange}
             />
-          </div>
-        </div>
-
-        {/* Metadata badges */}
-
-        <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          <div className="flex flex-wrap items-center gap-1">
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-sm"
+            <DetailHeaderActionsMenu
+              idItems={[
+                { id: traceId, name: "Trace ID" },
+                { id: observation.id, name: "Observation ID" },
+              ]}
+              observationType={observation.type}
+              projectId={projectId}
+              spanName={observation.name ?? ""}
+              webCallout={{
+                traceId,
+                observationId: observation.id,
+                sessionId: observation.sessionId ?? null,
+              }}
             />
           </div>
+        </div>
 
-          {/* Other badges */}
-          {!isAnnotationMode && (
-            <div className="flex flex-wrap items-center gap-1">
-              <LatencyBadge latencySeconds={latencySeconds} />
-              <TimeToFirstTokenBadge
-                timeToFirstToken={observation.timeToFirstToken}
-              />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
-              <EnvironmentBadge environment={observation.environment} />
-              <CostBadge
-                totalCost={
-                  subtreeMetrics
-                    ? (treeNodeTotalCost?.toNumber() ??
-                      subtreeMetrics.totalCost)
-                    : totalCost
-                }
-                costDetails={
-                  subtreeMetrics?.costDetails ?? observation.costDetails
-                }
-              />
-              {subtreeMetrics ? (
-                subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.usageDetails && (
-                  <UsageBadge
-                    type="GENERATION"
-                    inputUsage={subtreeMetrics.inputUsage}
-                    outputUsage={subtreeMetrics.outputUsage}
-                    totalUsage={subtreeMetrics.totalUsage}
-                    usageDetails={subtreeMetrics.usageDetails}
-                  />
-                )
-              ) : (
+        {/* Overview metrics grid */}
+        {!isAnnotationMode && (
+          <OverviewGrid>
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
+            />
+            <EnvironmentBadge environment={observation.environment} />
+            <UserIdBadge
+              userId={observation.userId ?? null}
+              projectId={projectId}
+            />
+            <SessionBadge
+              sessionId={observation.sessionId ?? null}
+              projectId={projectId}
+            />
+            <CostBadge
+              totalCost={
+                subtreeMetrics
+                  ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+                  : totalCost
+              }
+              costDetails={
+                subtreeMetrics?.costDetails ?? observation.costDetails
+              }
+            />
+            {subtreeMetrics ? (
+              subtreeMetrics.hasGenerationLike &&
+              subtreeMetrics.usageDetails && (
                 <UsageBadge
-                  type={observation.type}
-                  inputUsage={inputUsage}
-                  outputUsage={outputUsage}
-                  totalUsage={totalUsage}
-                  usageDetails={observation.usageDetails}
+                  type="GENERATION"
+                  inputUsage={subtreeMetrics.inputUsage}
+                  outputUsage={subtreeMetrics.outputUsage}
+                  totalUsage={subtreeMetrics.totalUsage}
+                  usageDetails={subtreeMetrics.usageDetails}
                 />
-              )}
-              <VersionBadge version={observation.version} />
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
+              )
+            ) : (
+              <UsageBadge
+                type={observation.type}
+                inputUsage={inputUsage}
+                outputUsage={outputUsage}
+                totalUsage={totalUsage}
                 usageDetails={observation.usageDetails}
               />
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
+            )}
+            <ModelBadge
+              model={observation.model}
+              internalModelId={observation.internalModelId}
+              projectId={projectId}
+              usageDetails={observation.usageDetails}
+            />
+            <ModelParametersBadges
+              modelParameters={observation.modelParameters}
+            />
+            {observation.promptId && (
+              <PromptBadge
+                promptId={observation.promptId}
+                projectId={projectId}
               />
-              <LevelBadge level={observation.level} />
-              <StatusMessageBadge statusMessage={observation.statusMessage} />
-              {observation.promptId && (
-                <PromptBadge
-                  promptId={observation.promptId}
-                  projectId={projectId}
-                />
-              )}
-            </div>
-          )}
-        </div>
+            )}
+            <VersionBadge version={observation.version} />
+            <LevelBadge level={observation.level} />
+            <StatusMessageBadge statusMessage={observation.statusMessage} />
+          </OverviewGrid>
+        )}
       </div>
     );
   },

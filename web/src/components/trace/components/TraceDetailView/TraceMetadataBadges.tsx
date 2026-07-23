@@ -1,13 +1,14 @@
 /**
- * TraceMetadataBadges - Extracted badge components for trace metadata
+ * TraceMetadataBadges - Overview-grid rows for trace metadata
  *
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
+ * Each row handles its own null check and returns null when data is unavailable.
+ * Rendered inside `OverviewGrid` (see _shared/InspectorElements).
  */
 
 import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { ArrowUpRight } from "lucide-react";
+import { OverviewRow } from "@/src/components/trace/components/_shared/InspectorElements";
 
 export function SessionBadge({
   sessionId,
@@ -18,20 +19,18 @@ export function SessionBadge({
 }) {
   if (!sessionId) return null;
 
-  const text = `Session: ${sessionId}`;
-
   return (
-    <Link
-      href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
+    <OverviewRow label="Session" title={sessionId}>
+      <Link
+        href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
+        className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+      >
+        <span className="truncate" title={sessionId}>
+          {sessionId}
         </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+        <ArrowUpRight className="h-3 w-3 shrink-0" />
+      </Link>
+    </OverviewRow>
   );
 }
 
@@ -44,20 +43,18 @@ export function UserIdBadge({
 }) {
   if (!userId) return null;
 
-  const text = `User ID: ${userId}`;
-
   return (
-    <Link
-      href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
+    <OverviewRow label="User" title={userId}>
+      <Link
+        href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
+        className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+      >
+        <span className="truncate" title={userId}>
+          {userId}
         </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+        <ArrowUpRight className="h-3 w-3 shrink-0" />
+      </Link>
+    </OverviewRow>
   );
 }
 
@@ -70,20 +67,18 @@ export function TargetTraceBadge({
 }) {
   if (!targetTraceId) return null;
 
-  const text = `Target Trace: ${targetTraceId}`;
-
   return (
-    <Link
-      href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
-      className="inline-flex"
-    >
-      <Badge>
-        <span className="truncate" title={text}>
-          {text}
+    <OverviewRow label="Target Trace" title={targetTraceId}>
+      <Link
+        href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
+        className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+      >
+        <span className="truncate" title={targetTraceId}>
+          {targetTraceId}
         </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+        <ArrowUpRight className="h-3 w-3 shrink-0" />
+      </Link>
+    </OverviewRow>
   );
 }
 
@@ -93,15 +88,27 @@ export function EnvironmentBadge({
   environment: string | null;
 }) {
   if (!environment) return null;
-  return <Badge variant="tertiary">Env: {environment}</Badge>;
+  return (
+    <OverviewRow label="Env" title={environment}>
+      {environment}
+    </OverviewRow>
+  );
 }
 
 export function ReleaseBadge({ release }: { release: string | null }) {
   if (!release) return null;
-  return <Badge variant="tertiary">Release: {release}</Badge>;
+  return (
+    <OverviewRow label="Release" title={release}>
+      {release}
+    </OverviewRow>
+  );
 }
 
 export function VersionBadge({ version }: { version: string | null }) {
   if (!version) return null;
-  return <Badge variant="tertiary">Version: {version}</Badge>;
+  return (
+    <OverviewRow label="Version" title={version}>
+      {version}
+    </OverviewRow>
+  );
 }

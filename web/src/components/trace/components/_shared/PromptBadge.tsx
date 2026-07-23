@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { ExternalLinkIcon } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { ArrowUpRight } from "lucide-react";
+import { OverviewRow } from "@/src/components/trace/components/_shared/InspectorElements";
 import { api } from "@/src/utils/api";
 
+/**
+ * Prompt overview-grid row: links to the prompt version used by the
+ * observation. Rendered inside `OverviewGrid` (see InspectorElements).
+ */
 export const PromptBadge = (props: { promptId: string; projectId: string }) => {
   const prompt = api.prompts.byId.useQuery({
     id: props.promptId,
@@ -11,19 +15,19 @@ export const PromptBadge = (props: { promptId: string; projectId: string }) => {
 
   if (prompt.isLoading || !prompt.data) return null;
 
-  const text = `Prompt: ${prompt.data.name} - v${prompt.data.version}`;
+  const text = `${prompt.data.name} v${prompt.data.version}`;
 
   return (
-    <Link
-      href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
-      className="inline-flex"
-    >
-      <Badge variant="tertiary">
+    <OverviewRow label="Prompt" title={text}>
+      <Link
+        href={`/project/${props.projectId}/prompts/${encodeURIComponent(prompt.data.name)}?version=${prompt.data.version}`}
+        className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+      >
         <span className="truncate" title={text}>
           {text}
         </span>
-        <ExternalLinkIcon className="ml-1 h-3 w-3" />
-      </Badge>
-    </Link>
+        <ArrowUpRight className="h-3 w-3 shrink-0" />
+      </Link>
+    </OverviewRow>
   );
 };

@@ -44,6 +44,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 
 // Extracted components
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
+import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/components/trace/config/trace-view-config";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -223,6 +224,9 @@ export function TraceDetailView({
         onCommentDrawerOpenChange={setIsCommentDrawerOpen}
       />
 
+      {/* Zone divider between header/overview and tabbed content */}
+      <ZoneDivider />
+
       {/* Tabs section */}
       <TabsBar
         value={selectedTab}
@@ -233,9 +237,17 @@ export function TraceDetailView({
         {showTabsBar && (
           <TooltipProvider>
             <TabsBarList>
-              <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+              <TabsBarTrigger
+                value="preview"
+                className="font-mono text-[11px] tracking-wide uppercase"
+              >
+                Preview
+              </TabsBarTrigger>
               {showLogViewTab && (
-                <TabsBarTrigger value="log">
+                <TabsBarTrigger
+                  value="log"
+                  className="font-mono text-[11px] tracking-wide uppercase"
+                >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span>Log View</span>
@@ -249,7 +261,12 @@ export function TraceDetailView({
                 </TabsBarTrigger>
               )}
               {showScoresTab && (
-                <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                <TabsBarTrigger
+                  value="scores"
+                  className="font-mono text-[11px] tracking-wide uppercase"
+                >
+                  Scores
+                </TabsBarTrigger>
               )}
 
               {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
