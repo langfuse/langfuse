@@ -122,7 +122,15 @@ jobs:
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         with:
           release: ${{ github.sha }}
-          environment: ${{ inputs.environment }}
+          # Match the environment tag on REAL browser events — the web client
+          # inits Sentry with `environment: NEXT_PUBLIC_SENTRY_ENVIRONMENT`
+          # (baked from this same var in the Docker build above), which may be a
+          # coarse value like "production" rather than the raw deploy-environment
+          # name (prod-eu/…). Using `inputs.environment` here would land the
+          # deploy marker under an environment with no matching events. Empty
+          # (unset) → action-release omits the deploy marker; the release is
+          # still created and finalized.
+          environment: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
           # Suspect commits need the Sentry↔GitHub integration; keep deploys
           # reliable and enable "auto" once that is confirmed.
           set_commits: skip
