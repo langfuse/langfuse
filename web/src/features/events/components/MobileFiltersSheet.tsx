@@ -29,15 +29,16 @@ interface MobileFiltersSheetProps {
   onClearAll: () => void;
   /** Grammar search bar row (search-bar mode only). */
   search?: ReactNode;
-  /** Time-range picker (+ optional refresh). */
-  timeRange?: ReactNode;
+  /** Compact controls rendered in the header row, right of the title and left
+   *  of the close button — the time-range picker + refresh cluster. */
+  headerControls?: ReactNode;
   /** Category preset chips. */
   presets?: ReactNode;
   /** Saved-views drawer trigger ("My Views"). */
   savedViews?: ReactNode;
-  /** Facet sidebar (DataTableControls). Owns its own "Filters" header + count
-   *  badge and internal scroll, so it gets a bounded flex region rather than a
-   *  labeled section of its own. */
+  /** Facet list (DataTableControls, layout="inline"). Owns its own "Filters"
+   *  header + count badge and flows at NATURAL height inside the single body
+   *  scroll — no bounded region or nested scroll of its own. */
   facets?: ReactNode;
 }
 
@@ -69,7 +70,7 @@ export function MobileFiltersSheet({
   resultCount,
   onClearAll,
   search,
-  timeRange,
+  headerControls,
   presets,
   savedViews,
   facets,
@@ -94,46 +95,49 @@ export function MobileFiltersSheet({
         // No description; tell Radix it is intentional so it doesn't warn.
         aria-describedby={undefined}
         // Hide the wrapper's default close X (our header provides one) and
-        // drop the default padding/gap so header/body/footer own their spacing.
-        // A DEFINITE height (not max-h) is required so the flex chain hands the
-        // facet list's ScrollArea a bounded height — otherwise it can't scroll
-        // on mobile (max-h alone doesn't propagate a resolvable height).
+        // drop the default padding/gap so header/search/body/footer own their
+        // spacing. A DEFINITE height (not max-h) is required so the flex chain
+        // hands the single body scroll container a bounded, resolvable height —
+        // otherwise it can't scroll on mobile (max-h alone doesn't propagate).
         className="flex h-[85svh] flex-col gap-0 p-0 [&>button]:hidden"
       >
         {/* Accessible name for the dialog; the visible heading is below. */}
         <SheetTitle className="sr-only">Filters</SheetTitle>
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+        {/* Header: title (left) · compact time-range + refresh · close (right).
+            The controls that used to sit in the body move up here so the body
+            below is a single uninterrupted scroll. */}
+        <div className="flex shrink-0 items-center gap-2 border-b px-4 py-3">
           <span className="text-foreground text-lg font-bold">Filters</span>
-          <SheetClose asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Close filters"
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </SheetClose>
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            {headerControls}
+            <SheetClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close filters"
+                className="h-8 w-8 shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </SheetClose>
+          </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
-          {/* Short top controls. Capped + scrollable so a tall stack (wrapping
-              preset chips on a short screen) never starves the facet list. */}
-          {(search || timeRange || presets || savedViews) && (
-            <div className="flex max-h-[45svh] shrink-0 flex-col gap-5 overflow-y-auto border-b px-4 py-4">
-              {/* Search leads without a header — the bar itself reads as
-                  search, and a "SEARCH" label just adds noise. */}
-              {search}
-              <Section label="Time range">{timeRange}</Section>
+        {/* Search is the only PINNED body element: the bar itself reads as
+            search, so it needs no label. */}
+        {search && <div className="shrink-0 border-b px-4 py-3">{search}</div>}
+
+        {/* ONE scroll container: quick presets · my views · facets all flow
+            together in a single scroll. The facet list is layout="inline", so
+            it contributes its natural height here instead of a nested scroll. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {(presets || savedViews) && (
+            <div className="flex flex-col gap-5 px-4 py-4">
               <Section label="Quick presets">{presets}</Section>
               <Section label="My views">{savedViews}</Section>
             </div>
           )}
-          {/* Facets fill the remaining height; DataTableControls scrolls its
-              own list within this bounded region. */}
-          {facets && (
-            <div className="flex min-h-0 flex-1 flex-col">{facets}</div>
-          )}
+          {facets}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 border-t px-4 py-3">

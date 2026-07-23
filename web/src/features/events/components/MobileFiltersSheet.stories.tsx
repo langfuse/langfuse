@@ -1,6 +1,7 @@
 import preview from "../../../../.storybook/preview";
 import { useState, type ComponentProps } from "react";
 import { fn } from "storybook/test";
+import { ChevronDown, RefreshCw } from "lucide-react";
 
 import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
 import { ControlsContext } from "@/src/components/table/data-table-controls";
@@ -16,8 +17,9 @@ import { Input } from "@/src/components/ui/input";
 // drawer, facet sidebar) and passes them in as nodes. Those controllers depend
 // on tRPC, routing and several providers, so the story substitutes structural
 // placeholders that stand in for each section. This exercises the sheet's own
-// concerns — labeled sections, sticky footer, active-count badge, the bounded
-// facet region — without dragging the whole page into Storybook.
+// concerns — the header controls cluster, the pinned search, labeled sections,
+// sticky footer, active-count badge, and the single-scroll body (presets, saved
+// views and facets flowing together) — without dragging the whole page in.
 //
 // Open state is read from `ControlsContext` (the DataTableControls provider).
 // The demo wrapper supplies that context with `open: true` so the sheet renders
@@ -25,10 +27,30 @@ import { Input } from "@/src/components/ui/input";
 
 const fakeSearch = <Input placeholder="Search traces…" className="h-9" />;
 
-const fakeTimeRange = (
-  <Button variant="outline" size="sm" className="h-8">
-    Past 24 hours
-  </Button>
+// Compact time-range + refresh cluster, as EventsTable builds it for the header
+// row (label-only time range, refresh split with a chevron).
+const fakeHeaderControls = (
+  <div className="flex min-w-0 items-center gap-1">
+    <Button variant="outline" size="sm" className="h-8 min-w-0">
+      <span className="truncate">Past 24 hours</span>
+    </Button>
+    <div className="flex items-center">
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-8 rounded-r-none border-r-0"
+      >
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-auto rounded-l-none border-l-0 px-2"
+      >
+        <ChevronDown className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
 );
 
 const fakePresets = (
@@ -47,14 +69,15 @@ const fakeSavedViews = (
   </Button>
 );
 
-// Stand-in for DataTableControls: its own "Filters" header + a scrollable facet
-// list, so the bounded flex region reads correctly in the sheet.
+// Stand-in for DataTableControls in layout="inline": its own "Filters" header +
+// a facet list that flows at NATURAL height (no internal scroll), so it reads
+// correctly inside the sheet's single body scroll.
 const fakeFacets = (
-  <div className="bg-background flex min-h-0 flex-1 flex-col border-t">
+  <div className="bg-background flex w-full flex-col border-t">
     <div className="flex h-10 shrink-0 items-center gap-1.5 border-b px-3">
       <span className="text-sm font-bold">Filters</span>
     </div>
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="w-full">
       {[
         "Name",
         "Environment",
@@ -97,7 +120,7 @@ const meta = preview.meta({
     resultCount: null,
     onClearAll: fn(),
     search: fakeSearch,
-    timeRange: fakeTimeRange,
+    headerControls: fakeHeaderControls,
     presets: fakePresets,
     savedViews: fakeSavedViews,
     facets: fakeFacets,

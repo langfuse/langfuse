@@ -1886,15 +1886,19 @@ export default function ObservationsEventsTable({
                   />
                 ) : undefined
               }
-              timeRange={
-                <div className="flex flex-wrap items-center gap-2">
+              headerControls={
+                // Compact time-range + refresh, pulled up into the sheet's
+                // header row so the body is a single uninterrupted scroll.
+                <div className="flex min-w-0 items-center gap-1">
                   <TimeRangePicker
+                    compact
                     timeRange={timeRange}
                     onTimeRangeChange={setTimeRange}
                     timeRangePresets={TABLE_AGGREGATION_OPTIONS}
-                    className="my-0 max-w-full overflow-x-auto"
+                    className="my-0"
                   />
                   <DataTableRefreshButton
+                    compact
                     onRefresh={refreshConfig.onRefresh}
                     isRefreshing={refreshConfig.isRefreshing}
                     interval={refreshConfig.interval}
@@ -1942,6 +1946,9 @@ export default function ObservationsEventsTable({
                   blockedColumnReason={
                     chartActive ? chartFilterExclusionReason : undefined
                   }
+                  // inline: flow at natural height in the sheet's single scroll
+                  // (no internal ScrollArea). Desktop sidebar stays default.
+                  layout="inline"
                 />
               }
             />
