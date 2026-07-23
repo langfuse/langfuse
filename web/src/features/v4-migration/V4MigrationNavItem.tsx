@@ -1,19 +1,15 @@
 import { ChevronRight } from "lucide-react";
 import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationNavItem() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { openForProject } = useV4MigrationPanel();
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
+  const openMigrationPanel = useOpenV4MigrationPanel();
   const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
@@ -47,9 +43,7 @@ export function V4MigrationNavItem() {
     }
     setTimeout(() => {
       // push to next tick to avoid flickering when hiding sidebar on mobile
-      setAiAgentOpen(false);
-      setSupportDrawerOpen(false);
-      openForProject({ id: project.id, name: project.name });
+      openMigrationPanel({ id: project.id, name: project.name });
     }, 1);
   };
 

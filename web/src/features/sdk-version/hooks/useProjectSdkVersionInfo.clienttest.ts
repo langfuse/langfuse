@@ -162,13 +162,19 @@ describe("project SDK version hook", () => {
       },
     ];
 
-    renderHook(() =>
+    const { result } = renderHook(() =>
       useProjectSdkVersionInfo({
         projectId: "project-1",
         enabled: true,
         refreshMode: "always",
       }),
     );
+
+    expect(result.current).toMatchObject({
+      sdkVersion: { language: "python", version: "4.7.1" },
+      checkedAt: new Date(checkedAt).toISOString(),
+      querySettled: true,
+    });
 
     const keys = sdkVersionStorageKeys("project-1");
     await waitFor(() => {

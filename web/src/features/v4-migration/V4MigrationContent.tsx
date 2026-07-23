@@ -60,7 +60,7 @@ export function useCopyMigrationPrompt() {
   };
 }
 
-export function Chip({
+function Chip({
   children,
   variant,
 }: {

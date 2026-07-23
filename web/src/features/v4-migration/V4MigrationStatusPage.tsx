@@ -5,9 +5,6 @@ import { ArrowRight, Copy } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
 import { Card } from "@/src/components/ui/card";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import {
   Table,
   TableBody,
@@ -22,6 +19,7 @@ import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import {
   useAccountV4MigrationData,
   type V4MigrationOrganization,
@@ -143,9 +141,7 @@ function OrgStatusSection({
   statusByProjectId: Map<string, ProjectMigrationStatus>;
 }) {
   const capture = usePostHogClientCapture();
-  const { openForProject } = useV4MigrationPanel();
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
+  const openMigrationPanel = useOpenV4MigrationPanel();
   const { data: lastTraceTimes } =
     api.organizations.lastTraceByProject.useQuery(
       { orgId: org.id },
@@ -154,9 +150,7 @@ function OrgStatusSection({
 
   const handleRowClick = (row: { id: string; name: string }) => {
     capture("v4_migration:status_row_clicked");
-    setAiAgentOpen(false);
-    setSupportDrawerOpen(false);
-    openForProject({ id: row.id, name: row.name });
+    openMigrationPanel({ id: row.id, name: row.name });
   };
 
   const [orderBy, setOrderBy] = useState<OrderBy>(null);

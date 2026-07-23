@@ -90,7 +90,7 @@ export const getProjectMigrationReadiness = (
 type LegacyApiUsagePoint =
   RouterOutputs["v4Transition"]["timeSeriesByEntrypoint"][number];
 
-export type LegacyApiUsageSummary = {
+type LegacyApiUsageSummary = {
   endpoint: string;
   count: number;
 };

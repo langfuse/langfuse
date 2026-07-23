@@ -1,18 +1,14 @@
 import { ChevronRight } from "lucide-react";
-import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
 import { getV4MigrationSdkStatus } from "@/src/features/v4-migration/sdkVersionStatus";
+import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationDelayBadge() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const { openForProject } = useV4MigrationPanel();
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
+  const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
   const capture = usePostHogClientCapture();
   const sdkVersionState = useProjectSdkVersionInfo({
@@ -28,9 +24,7 @@ export function V4MigrationDelayBadge() {
 
   const handleClick = () => {
     capture("v4_migration:delay_badge_clicked");
-    setAiAgentOpen(false);
-    setSupportDrawerOpen(false);
-    openForProject({ id: project.id, name: project.name });
+    openMigrationPanel({ id: project.id, name: project.name });
   };
 
   return (

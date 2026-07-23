@@ -1,14 +1,10 @@
-import {
-  useV4MigrationPanel,
-  type V4MigrationTargetProject,
-} from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { type V4MigrationTargetProject } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getProjectMigrationReadiness,
   type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
+import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 
 export function V4MigrationProjectChip({
   project,
@@ -17,9 +13,7 @@ export function V4MigrationProjectChip({
   project: V4MigrationTargetProject;
   status: ProjectMigrationStatus | undefined;
 }) {
-  const { openForProject } = useV4MigrationPanel();
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
+  const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
@@ -34,9 +28,7 @@ export function V4MigrationProjectChip({
 
   const handleClick = () => {
     capture("v4_migration:project_chip_clicked");
-    setAiAgentOpen(false);
-    setSupportDrawerOpen(false);
-    openForProject(project);
+    openMigrationPanel(project);
   };
 
   return (
