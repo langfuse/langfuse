@@ -24,7 +24,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
-import { type Prisma } from "@langfuse/shared";
+import { deepParseJson, type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
@@ -57,10 +57,7 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
-import {
-  isValidDatasetJson,
-  parseDatasetJson,
-} from "../utils/parseDatasetJson";
+import { isValidDatasetJson } from "../utils/parseDatasetJson";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
@@ -105,17 +102,17 @@ type DatasetWithSchema = {
 const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
   if (value === undefined) return "";
 
-  if (typeof value === "string") {
-    try {
-      // Parse the string and re-stringify with proper formatting
-      const parsed = parseDatasetJson(value);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      // If it's not valid JSON, stringify the string itself
-      return JSON.stringify(value, null, 2);
-    }
+  try {
+    // Expand nested JSON strings (#14751); clone since deepParseJson mutates.
+    const parsed = deepParseJson(
+      typeof value === "object" && value !== null
+        ? structuredClone(value)
+        : value,
+    );
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return JSON.stringify(value, null, 2);
   }
-  return JSON.stringify(value, null, 2);
 };
 
 export const NewDatasetItemForm = (props: {
