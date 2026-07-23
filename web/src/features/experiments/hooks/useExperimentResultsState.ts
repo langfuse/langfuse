@@ -37,13 +37,19 @@ export function useExperimentResultsState(
     : (state.baseline as string | undefined);
   const hasBaseline = Boolean(baselineId);
 
-  // Parse comparison IDs - filter out null values and cast to string[]
+  // Parse comparison IDs - filter out null values and cast to string[].
+  // Memoized so the array keeps a stable identity while the `c` param is
+  // unchanged; allExperimentIds below depends on it.
   const rawIds = state.c as (string | null)[] | undefined;
-  const comparisonIds: string[] = isSingleExperiment
-    ? []
-    : (rawIds ?? []).filter(
-        (id): id is string => typeof id === "string" && id.length > 0,
-      );
+  const comparisonIds: string[] = useMemo(
+    () =>
+      isSingleExperiment
+        ? []
+        : (rawIds ?? []).filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+    [rawIds, isSingleExperiment],
+  );
 
   // Set baseline with reconciliation: remove from comparison if present
   const setBaseline = (id: string | undefined) => {
