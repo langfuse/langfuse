@@ -99,17 +99,24 @@ export const InAppAiAgentButton = ({
       <BotMessageSquare
         className={cn("h-4 w-4", prominent && open && "text-primary-accent")}
       />
-      <span className="hidden sm:inline">Assistant</span>
-      <KeyboardShortcut
-        className="bg-transparent shadow-none"
-        keys={[
-          typeof navigator !== "undefined" &&
-          navigator.userAgent.includes("Mac")
-            ? "⌘"
-            : "Ctrl",
-          "I",
-        ]}
-      />
+      {/* The prominent launcher is a fixed 36px square (top bar, below md), so
+          it stays strictly icon-only — the `sm:inline` label would otherwise
+          reveal in the 640–767px band and overflow the box. */}
+      {!prominent && (
+        <>
+          <span className="hidden sm:inline">Assistant</span>
+          <KeyboardShortcut
+            className="bg-transparent shadow-none"
+            keys={[
+              typeof navigator !== "undefined" &&
+              navigator.userAgent.includes("Mac")
+                ? "⌘"
+                : "Ctrl",
+              "I",
+            ]}
+          />
+        </>
+      )}
     </Button>
   );
 };
