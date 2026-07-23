@@ -13,8 +13,13 @@ Worker-backed ~1 GB stream tomorrow with no change. See
 | `LazyJsonViewer.tsx` | Controller / in-memory entry. Creates the store, builds the model over `value` in the feature's **one** effect (an external-engine lifecycle boundary), and gates render (spinner → list). |
 | `LazyJsonList.tsx` | Virtualized body (`@tanstack/react-virtual`). Positions row shells, reads rows from the store's per-revision cache, and reports the visible range back via the virtualizer's `onChange` — the external event that drives windowed loading. Owns no document state. |
 | `LazyJsonRow.tsx` | View-only row. Receives one `JsonRow` + stable callbacks; no state, no effects, no fetching. Memoized so scrolling never re-renders unchanged rows. |
-| `LazyJsonViewer.stories.tsx` | Demo surface (small / wide-20k / deep / huge-string). |
-| `rowModelStore.clienttest.ts` | Pins the store contract: laziness, expand/collapse counts, pagination + load-more, revision bumps, materialize. |
+| `rowModelStore.clienttest.ts` | Pins the store contract: laziness, expand/collapse counts, pagination + load-more, revision bumps, materialize, async-race + error capture. |
+
+> No Storybook story: `LazyJsonViewer` is a full-height, value-driven viewer, so
+> it can't render "as it is" in a canvas without a layout decorator (which the
+> Storybook guide forbids), and a scale demo needs large fixtures (also
+> discouraged). Correctness is covered by the store client tests and the
+> integrated trace-view flow (JSON Beta over a large seeded trace).
 
 ## Rules that keep it honest
 
