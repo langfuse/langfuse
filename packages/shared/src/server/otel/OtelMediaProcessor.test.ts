@@ -93,6 +93,14 @@ describe("processOtelMedia", () => {
       Buffer.byteLength(dataUri, "utf8"),
       { path: "data_uri" },
     );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      PNG_BYTES.length,
+      {
+        outcome: "uploaded",
+        media_kind: "data_uri",
+      },
+    );
     expect(result).toMatchObject({
       candidates: 1,
       bytesProcessed: PNG_BYTES.length,
@@ -107,6 +115,22 @@ describe("processOtelMedia", () => {
         structured_payload: 0,
       },
     });
+  });
+
+  it("tags reused media byte length separately from uploaded media", async () => {
+    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const { event } = createEvent({ value: dataUri });
+
+    await processEvents([event], createUploadMock("reused"));
+
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.ingestion.otel.media.byte_length",
+      PNG_BYTES.length,
+      {
+        outcome: "reused",
+        media_kind: "data_uri",
+      },
+    );
   });
 
   it("processes every normalized media field and ignores unrelated fields", async () => {
