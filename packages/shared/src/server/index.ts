@@ -5,6 +5,7 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
+export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
 export * from "./cache";
@@ -33,6 +34,7 @@ export * from "./evals/codeEvalDispatchers";
 export * from "./evals/codeEvalExecution";
 export * from "./evals/evalScoreIds";
 export * from "./evals/extractObservationVariables";
+export * from "./evals/classifyEvaluatorLlmError";
 export * from "./utils/traceId";
 export * from "./auth/apiKeyCache";
 export * from "./auth/apiKeys";
@@ -42,10 +44,11 @@ export * from "./auth/customSsoProvider";
 export * from "./auth/gitHubEnterpriseProvider";
 export * from "./auth/jumpcloudProvider";
 export * from "./auth/userProjectRoleAuth";
-export * from "./llm/fetchLLMCompletion";
+export * from "./llm/llmText";
 export * from "./llm/errors";
 export * from "./llm/utils";
 export * from "./llm/types";
+export * from "./llm/promptToolConfig";
 export * from "./llm/internalTraceEvents";
 export * from "./llm/compileChatMessages";
 export * from "./llm/testModelCall";

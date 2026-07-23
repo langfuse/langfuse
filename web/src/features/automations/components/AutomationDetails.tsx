@@ -51,6 +51,9 @@ export const AutomationDetails: React.FC<AutomationDetailsProps> = ({
       },
       {
         enabled: !!projectId && !!automationId,
+        // Suppress 404 toast: after deletion the invalidation can refetch this
+        // query before the component unmounts, producing a spurious error toast.
+        meta: { silentHttpCodes: [404] },
       },
     );
 

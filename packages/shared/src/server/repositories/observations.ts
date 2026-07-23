@@ -526,6 +526,20 @@ export type ObservationTableQuery = {
   offset?: number;
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
+  /**
+   * Per-field I/O size cap (events table only): fields whose full length is
+   * within `inlineChars` come back whole, larger fields come back as a
+   * `previewChars` head plus true lengths and truncation flags. Takes
+   * precedence over `renderingProps.truncated` for the I/O select.
+   */
+  ioSizeCap?: { inlineChars: number; previewChars: number };
+  /**
+   * Events table only: collapse un-merged ReplacingMergeTree row versions to
+   * one row per span (`ORDER BY ..., event_ts DESC` + `LIMIT 1 BY span_id`),
+   * so row counts equal distinct observations and the newest version wins.
+   * Required by callers whose limits/paging count observations.
+   */
+  dedupeBySpanId?: boolean;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -1871,7 +1885,8 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash

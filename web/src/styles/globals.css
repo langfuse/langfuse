@@ -9,6 +9,35 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
+   system stacks while the token system (families here, weight roles below,
+   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
+   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
+   :root from _app — next/font CSS is silently dropped in _document), prepend
+   its var to the stacks below, and retune the two weight-role numbers
+   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
+   can preview typefaces live without shipping them. Deliberately a plain
+   @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
+   and only non-inline themes emit the :root custom property. `static`: emit
+   the weight-role vars even when unused in source — the theme-lab tool and
+   inline styles read them at runtime. */
+@theme static {
+  --font-sans:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
+     Both are font-relative, so components never hardcode numbers.
+     `--font-weight-bold` deliberately overrides Tailwind's built-in bold
+     (700): the `font-bold` utility IS the bold role. font-medium /
+     font-semibold / raw numbers are drift — use font-bold or nothing. */
+  --font-weight-regular: 400;
+  --font-weight-bold: 600;
+}
+
 @theme inline {
   /* Disable unused built-in Tailwind color palettes. */
   --color-lime-*: initial;
@@ -19,9 +48,11 @@
   --color-neutral-*: initial;
   --color-stone-*: initial;
   --color-slate-*: initial;
+  --color-zinc-*: initial;
+  --color-indigo-*: initial;
 
   /* TODO: Disable the remaining default palettes: red, orange, amber, yellow,
-     green, emerald, teal, blue, indigo, violet, purple, pink, gray, zinc. */
+     green, emerald, teal, blue, violet, purple, pink, gray. */
 
   --spacing-banner-offset: var(--banner-offset);
   --spacing-screen-with-banner: calc(100svh - var(--banner-offset));
@@ -50,6 +81,10 @@
   --color-dark-blue: hsl(var(--dark-blue));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
+  --color-light-violet: hsl(var(--light-violet));
+  --color-dark-violet: hsl(var(--dark-violet));
+  --color-light-teal: hsl(var(--light-teal));
+  --color-dark-teal: hsl(var(--dark-teal));
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -80,6 +115,8 @@
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+  --color-modal: hsl(var(--modal));
+  --color-modal-foreground: hsl(var(--modal-foreground));
   --color-header: hsl(var(--header));
   --color-header-foreground: hsl(var(--header-foreground));
   --color-sidebar: hsl(var(--sidebar-background));
@@ -103,13 +140,26 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
+  /* Text styles: each size token carries its canonical weight, so `text-*`
+     alone yields a complete style (one weight per token — the design-system
+     rule). Weights reference the font-relative weight roles above; heavier
+     text opts in via `font-bold` (the bold role) — never a raw number.
+     Any other weight utility is drift (the theme-lab tool samples drift
+     per token). */
   --text-xs: 0.7rem;
+  --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
+  --text-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.9rem;
+  --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1.1rem;
+  --text-lg--font-weight: var(--font-weight-regular);
   --text-xl: 1.2rem;
+  --text-xl--font-weight: var(--font-weight-regular);
   --text-2xl: 1.3rem;
+  --text-2xl--font-weight: var(--font-weight-regular);
   --text-3xl: 1.5rem;
+  --text-3xl--font-weight: var(--font-weight-regular);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -195,10 +245,16 @@
     --surface-code: 0 0% 98%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: var(--foreground);
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: var(--foreground);
+
+    /* Blocking overlay surfaces (Dialog/AlertDialog/Sheet/Drawer/peek).
+       Light themes keep the alternating white model (Carbon: light layers
+       alternate, dark layers step lighter), so this matches --background. */
+    --modal: 0 0% 100%;
+    --modal-foreground: var(--foreground);
 
     --header: 210 40% 98%;
     --header-foreground: var(--foreground);
@@ -266,6 +322,16 @@
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
 
+    /* Violet + teal hue pairs, same bg/fg recipe as the light-X/dark-X pairs
+       above. Added for the score-level color coding (ScoreTag, LFE-10596):
+       observation=blue, trace=violet, session=teal, experiment=yellow — the
+       blue and yellow pairs are reused from above. */
+    --light-violet: 251 91% 95.5%;
+    --dark-violet: 262 72% 54%;
+
+    --light-teal: 167 85% 89%;
+    --dark-teal: 175 84% 28%;
+
     /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
        theme (like a code editor's theme), intentionally its own thing rather
        than the app palette: field=violet, value=green, number=orange,
@@ -315,34 +381,47 @@
   }
 
   .dark {
-    /* Linear-style surface ladder: elevation is carried by lightness steps
-       (background < header/sidebar < card < popover) plus hairline borders —
-       not shadows. Values from linear.app's [data-theme=dark] tokens. */
-    /* Neutral (zero-saturation) surface ladder — lightness steps carry the
-       elevation (Linear's structure, de-tinted per Trang's call after a
-       cool/neutral/warm A-B). Text hierarchy comes from the WIDE GAP between
-       tiers: emphasis 91% > body 88% > meta 54% > faint 40%, with sidebar nav
+    /* Surface ladder — "layers become one step lighter with each added
+       layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
+       follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
+       is the darkest tier; the content canvas sits one step above it, and
+       every stacked layer steps up from there:
+         chrome 2% < canvas 6% < card 7.5% < modal 9% < popover 12%.
+       The bottom step is the widest (chrome→canvas) — equal pp steps read
+       smaller near black, and the frame/content split carries the layout.
+       Popovers outrank modals because menus/tooltips open on top of dialogs.
+       Never paint a surface darker than what it floats above (Carbon rule).
+       --surface-code stays BELOW its surroundings — it is the one recessed
+       tier ("code is a well"). Elevation is carried by these lightness steps
+       plus hairline borders, not shadows. */
+    /* Neutral (zero-saturation) ladder — de-tinted per Trang's call after a
+       cool/neutral/warm A-B. Text hierarchy comes from the WIDE GAP between
+       tiers: emphasis 91% > body 70% > meta 54% > faint 40% (body tuned live 2026-07-16), with sidebar nav
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
-    --background: 0 0% 3.5%;
-    --foreground: 0 0% 88%;
+    --background: 0 0% 6%;
+    --foreground: 0 0% 70%;
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
 
-    --popover: 0 0% 10.2%;
-    --popover-foreground: 0 0% 88%;
+    --popover: 0 0% 12%;
+    --popover-foreground: var(--foreground);
 
-    --card: 0 0% 8.2%;
-    --card-foreground: 0 0% 88%;
+    --card: 0 0% 7.5%;
+    --card-foreground: var(--foreground);
 
-    --header: 0 0% 6.3%;
+    --modal: 0 0% 9%;
+    --modal-foreground: var(--foreground);
+
+    --header: 0 0% 2%;
     --header-foreground: var(--foreground);
 
-    --border: 0 0% 10.5%;
+    /* Hairline must read on EVERY surface tier, including popover (12%). */
+    --border: 0 0% 15%;
     --border-contrast: 0 0% 26%;
     --input: 0 0% 18%;
 
@@ -355,7 +434,7 @@
     --tertiary: 0 0% 16.5%;
     --tertiary-foreground: 0 0% 88%;
 
-    /* One clear step above --popover (10.2%) — focus:bg-accent is the only
+    /* One clear step above --popover (12%) — focus:bg-accent is the only
        focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
     --accent: 0 0% 18%;
     --accent-foreground: 0 0% 91%;
@@ -377,7 +456,7 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
-    /* Keeps ~4pp above --card so chart grids (--chart-grid) and disabled
+    /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */
     --muted-gray: 0 0% 16%;
@@ -404,6 +483,13 @@
     --accent-light-blue: 240 32.4% 13.9%;
     --accent-dark-blue: 246 70% 76%;
 
+    /* Score-level violet + teal (see :root): dark tinted bg + bright fg. */
+    --light-violet: 258 40% 16%;
+    --dark-violet: 255 92% 76%;
+
+    --light-teal: 175 40% 12%;
+    --dark-teal: 172 66% 50%;
+
     /* Search-bar query syntax highlighting (dark). Brighter than light so the
        key/value read against the dark surface. See :root for the contract. */
     --qlang-field: 255 92% 76%;
@@ -413,13 +499,13 @@
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 6.3%;
+    --sidebar-background: 0 0% 2%;
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
-    --sidebar-accent: 0 0% 11.6%;
+    --sidebar-accent: 0 0% 10%;
     --sidebar-accent-foreground: 0 0% 91%;
-    --sidebar-border: 0 0% 10.5%;
+    --sidebar-border: 0 0% 12%;
     --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;

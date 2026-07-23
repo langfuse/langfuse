@@ -1,14 +1,15 @@
 "use client";
 import {
   ArrowRight,
+  Ban,
   Check,
   ChevronDown,
+  CircleX,
   Copy,
   BookOpenText,
   Loader2,
   ThumbsDown,
   ThumbsUp,
-  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -25,10 +26,10 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import type {
-  InAppAgentMessageFeedback,
-  InAppAgentMessageFeedbackValue,
-  InAppAgentMessageSource,
+import {
+  type InAppAgentMessageFeedback,
+  type InAppAgentMessageFeedbackValue,
+  type InAppAgentMessageSource,
 } from "@/src/ee/features/in-app-agent/schema";
 import {
   Popover,
@@ -47,6 +48,7 @@ import {
 } from "./utils/markdown";
 import styles from "./InAppAgentMessage.module.css";
 import { InAppAgentToolPayload } from "./InAppAgentToolPayload";
+import { InAppAgentToolResultPayload } from "./InAppAgentToolResultPayload";
 import { type InAppAgentToolCallContent } from "@/src/ee/features/in-app-agent/components/utils/utils";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -166,20 +168,11 @@ export function InAppAgentMessage({
 
   if (content.type === "toolGroup") {
     return (
-      <div
-        className={cn(
-          "bg-card dark:bg-header text-foreground border-border rounded-2xl border py-2 shadow-xs",
-          isCompact
-            ? "rounded-xl py-1 text-[0.775rem]"
-            : "rounded-2xl py-1.5 text-sm",
-        )}
-      >
-        <ToolCallGroup
-          tools={content.tools}
-          isLoading={content.isLoading}
-          isCompact={isCompact}
-        />
-      </div>
+      <ToolCallGroup
+        tools={content.tools}
+        isLoading={content.isLoading}
+        isCompact={isCompact}
+      />
     );
   }
 
@@ -224,7 +217,7 @@ const MessageCard = forwardRef<
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-foreground border-border border",
+          : "bg-card text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
@@ -331,12 +324,7 @@ function InAppAgentReasoningBlock({
         isCompact ? "text-[0.775rem]" : "text-sm",
       )}
     >
-      <summary
-        className={cn(
-          "hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-medium outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
-          isCompact && "px-0.5",
-        )}
-      >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-none font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span
           className={cn(
             "min-w-0 flex-1",
@@ -563,7 +551,7 @@ function SourcesPopover({
         <button
           type="button"
           className={cn(
-            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium",
+            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-bold",
             isCompact && "py-0.5",
           )}
         >
@@ -609,7 +597,7 @@ const CommentButton = forwardRef<
       ref={ref}
       type="button"
       className={cn(
-        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
       {...props}
@@ -683,80 +671,106 @@ function ToolCallGroup({
   const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${
     tools.length === 1 ? "tool" : "tools"
   }`;
-
-  const paddingX = cn(isCompact ? "px-2.5" : "px-3");
-  const iconSize = isCompact ? "size-3" : "size-4";
+  const [userToggled, setUserToggled] = useState<boolean | null>(null);
+  const isOpen = userToggled ?? isLoading;
 
   return (
-    <details className="group/tool-group min-w-0">
-      <summary
-        className={cn(
-          "flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden",
-          paddingX,
-        )}
-      >
-        {isLoading ? (
-          <Loader2
-            className={cn(
-              "text-muted-foreground shrink-0 animate-spin",
-              iconSize,
-            )}
-          />
-        ) : (
-          <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
-        )}
-        <span className="min-w-0 flex-1 truncate py-0.5" title={label}>
-          {label}
-        </span>
-        <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool-group:inline">
-          Hide
-        </span>
+    <details
+      open={isOpen}
+      onToggle={(event) => {
+        if (event.currentTarget.open !== isOpen) {
+          setUserToggled(event.currentTarget.open);
+        }
+      }}
+      className={cn(
+        "text-muted-foreground max-w-full",
+        isCompact ? "text-[0.775rem]" : "text-sm",
+      )}
+    >
+      <summary className="hover:text-foreground focus-visible:ring-ring flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+        <span className={cn(isLoading && styles.thinkingShimmer)}>{label}</span>
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 transition-transform",
+            !isOpen && "-rotate-90",
+          )}
+        />
       </summary>
-      <div
-        className={cn("border-border mt-2 space-y-2 border-t pt-2", paddingX)}
-      >
-        {tools.map((tool, index) => {
-          const resultLabel = tool.error ? "Error" : "Result";
-          const toolLabel = `Used ${tool.name}`;
-
-          return (
-            <div key={`${tool.name}-${index}`} className="rounded-lg">
-              <details className="group/tool min-w-0">
-                <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
-                  <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-                  <span
-                    className="min-w-0 flex-1 truncate py-0.5"
-                    title={toolLabel}
-                  >
-                    {toolLabel}
-                  </span>
-                  <span className="text-muted-foreground text-xs group-open/tool:hidden">
-                    Show
-                  </span>
-                  <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
-                    Hide
-                  </span>
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <InAppAgentToolPayload label="Arguments" value={tool.args} />
-                  {tool.result !== undefined || tool.error !== undefined ? (
-                    <InAppAgentToolPayload
-                      label={resultLabel}
-                      value={tool.error ?? tool.result ?? ""}
-                      isError={Boolean(tool.error)}
-                    />
-                  ) : null}
-                </div>
-              </details>
-            </div>
-          );
-        })}
+      <div className="mt-0.5 flex flex-col gap-0">
+        {tools.map((tool, index) => (
+          <ToolCallDisclosure
+            key={`${tool.name}-${index}`}
+            tool={tool}
+            isCompact={isCompact}
+          />
+        ))}
       </div>
     </details>
   );
+}
+
+function ToolCallDisclosure({
+  tool,
+  isCompact,
+}: {
+  tool: InAppAgentToolCallContent;
+  isCompact: boolean;
+}) {
+  const status = tool.status;
+
+  return (
+    <details className="group/tool min-w-0">
+      <summary
+        aria-label={`${tool.name}: ${status}`}
+        className={cn(
+          "hover:text-foreground focus-visible:ring-ring flex cursor-pointer list-none items-center gap-1.5 rounded-md px-1 py-0.5 text-xs leading-4 font-bold outline-none focus-visible:ring-2 focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden",
+          isCompact && "px-0.5",
+        )}
+      >
+        <ToolCallStatusIcon status={status} />
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate py-0.5",
+            status === "failed" && "text-destructive",
+            status === "denied" && "text-dark-yellow",
+          )}
+          title={tool.name}
+        >
+          {tool.name}
+        </span>
+      </summary>
+      <div className={cn("mt-1.5 mb-1 ml-3 px-3", isCompact && "px-2.5")}>
+        <div className="flex flex-col gap-2">
+          <InAppAgentToolPayload
+            label="Arguments"
+            value={tool.args}
+            variant="default"
+          />
+          <InAppAgentToolResultPayload tool={tool} />
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function ToolCallStatusIcon({
+  status,
+}: {
+  status: InAppAgentToolCallContent["status"];
+}) {
+  if (status === "running") {
+    return <Loader2 className="size-3.5 shrink-0 animate-spin" />;
+  }
+
+  if (status === "succeeded") {
+    return <Check className="text-dark-green size-3.5 shrink-0" />;
+  }
+
+  if (status === "failed") {
+    return <CircleX className="text-destructive size-3.5 shrink-0" />;
+  }
+
+  return <Ban className="text-dark-yellow size-3.5 shrink-0" />;
 }
 
 function MessageText({

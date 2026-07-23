@@ -1,4 +1,8 @@
-import type { FilterState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  type APIScoreV3,
+  type FilterState,
+} from "@langfuse/shared";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
@@ -7,6 +11,74 @@ import {
 } from "@/src/utils/date-range-utils";
 
 type ProductPathQuery = Record<string, string | string[] | null | undefined>;
+
+export function parseSavedViewFromURL(
+  currentUrl: string,
+  isV4Enabled: boolean,
+) {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(currentUrl, "https://langfuse.local");
+  } catch {
+    return undefined;
+  }
+
+  const pathSegments = parsedUrl.pathname.split("/").filter(Boolean);
+  const projectSegmentIndex = pathSegments.indexOf("project");
+  const section = pathSegments[projectSegmentIndex + 2];
+  const detailId = pathSegments[projectSegmentIndex + 3];
+  const viewId = parsedUrl.searchParams.get("viewId");
+
+  if (projectSegmentIndex === -1 || !section || !viewId) {
+    return undefined;
+  }
+
+  if (section === "traces" && !detailId) {
+    return {
+      viewId,
+      tableName: isV4Enabled
+        ? TableViewPresetTableName.ObservationsEvents
+        : TableViewPresetTableName.Traces,
+    };
+  }
+
+  if (section === "observations" && !detailId) {
+    return {
+      viewId,
+      tableName: isV4Enabled
+        ? TableViewPresetTableName.ObservationsEvents
+        : TableViewPresetTableName.Observations,
+    };
+  }
+
+  if (section === "sessions") {
+    return {
+      viewId,
+      tableName: detailId
+        ? TableViewPresetTableName.SessionDetail
+        : TableViewPresetTableName.Sessions,
+    };
+  }
+
+  if (section === "datasets" && !detailId) {
+    return { viewId, tableName: TableViewPresetTableName.Datasets };
+  }
+
+  if (section === "scores" && !detailId) {
+    return { viewId, tableName: TableViewPresetTableName.Scores };
+  }
+
+  if (section === "experiments" && detailId === "results") {
+    return { viewId, tableName: TableViewPresetTableName.ExperimentItems };
+  }
+
+  if (section === "experiments" && !detailId) {
+    return { viewId, tableName: TableViewPresetTableName.Experiments };
+  }
+
+  return undefined;
+}
 
 type TracesPathTimeRange =
   | { preset: (typeof TABLE_AGGREGATION_OPTIONS)[number] }
@@ -409,6 +481,28 @@ export const buildScoreTargetUrl = (params: {
   return undefined;
 };
 
+export const buildScoreSubjectUrl = (
+  projectId: string,
+  subject: APIScoreV3["subject"],
+): string | undefined => {
+  if (!subject) return undefined;
+
+  switch (subject.kind) {
+    case "trace":
+      return buildScoreTargetUrl({ projectId, traceId: subject.id });
+    case "observation":
+      return buildScoreTargetUrl({
+        projectId,
+        traceId: subject.traceId,
+        observationId: subject.id,
+      });
+    case "session":
+      return buildScoreTargetUrl({ projectId, sessionId: subject.id });
+    case "experiment":
+      return buildExperimentUrl({ projectId, experimentId: subject.id });
+  }
+};
+
 export const buildPromptUrl = (params: {
   projectId: string;
   name: string;
@@ -475,10 +569,26 @@ export const buildModelUrl = (params: { projectId: string; modelId: string }) =>
     `/project/${encodeURIComponent(params.projectId)}/settings/models/${encodeURIComponent(params.modelId)}`,
   );
 
+export const buildMonitorUrl = (params: {
+  projectId: string;
+  monitorId: string;
+}) =>
+  buildProductUrl(
+    `${buildMonitorsPath(params)}/${encodeURIComponent(params.monitorId)}`,
+  );
+
 export const buildDashboardWidgetUrl = (params: {
   projectId: string;
   widgetId: string;
 }) => buildProductUrl(buildDashboardWidgetPath(params));
+
+export const buildDashboardUrl = (params: {
+  projectId: string;
+  dashboardId: string;
+}) =>
+  buildProductUrl(
+    `${buildDashboardsPath(params)}/${encodeURIComponent(params.dashboardId)}`,
+  );
 
 export const buildEvaluatorUrl = (params: {
   projectId: string;

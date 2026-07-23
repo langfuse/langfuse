@@ -30,10 +30,11 @@ import {
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
 import {
-  fetchLangfuseAICompletion,
+  generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
   isLangfuseAITracingConfigured,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 
 // Caps shared with `observedScoreNamesFromOptions` (the client-side builder),
 // which sends a set as undefined instead of ever exceeding them.
@@ -56,8 +57,10 @@ const GenerateFilterInput = z.object({
     .object({
       numeric: scoreNameList.optional(),
       categorical: scoreNameList.optional(),
+      booleans: scoreNameList.optional(),
       traceNumeric: scoreNameList.optional(),
       traceCategorical: scoreNameList.optional(),
+      traceBooleans: scoreNameList.optional(),
     })
     .optional(),
 });
@@ -135,7 +138,7 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
-        const llmCompletion = await fetchLangfuseAICompletion({
+        const llmCompletion = await generateLangfuseAIText({
           messages: [
             {
               role: ChatMessageRole.System,
@@ -160,6 +163,10 @@ export const searchBarRouter = createTRPCRouter({
                 userId: ctx.session.user.id,
                 metadata: {
                   langfuse_user_id: ctx.session.user.id,
+                  langfuse_project_url: new URL(
+                    `project/${encodeURIComponent(ctx.session.projectId)}`,
+                    getProductBaseUrl(),
+                  ).toString(),
                   ...(ctx.session.user.email
                     ? { langfuse_user_email: ctx.session.user.email }
                     : {}),
@@ -179,10 +186,6 @@ export const searchBarRouter = createTRPCRouter({
               })
             : undefined,
         });
-
-        if (typeof llmCompletion !== "string") {
-          throw new Error("Expected LLM completion to be a string");
-        }
 
         // Parse the model output and keep only the filters that round-trip to
         // bar grammar — a hallucinated/non-v4 column is dropped, never applied.

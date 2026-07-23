@@ -18,12 +18,19 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { Button } from "@/src/components/ui/button";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon, Download, ExternalLinkIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDown,
+  CopyIcon,
+  Download,
+  ExternalLinkIcon,
+} from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
@@ -66,6 +73,7 @@ import {
   type ColumnOrderState,
 } from "@tanstack/react-table";
 import {
+  SESSION_DETAIL_LLM_CALL_PRESETS,
   SESSION_DETAIL_SYSTEM_PRESETS,
   type SessionDetailSystemPreset,
   getSessionDetailPresetToApply,
@@ -76,6 +84,9 @@ import { downloadSessionAsJson } from "@/src/components/session/actions/download
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import { ModernSession } from "@/src/components/session/ModernSession";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
@@ -90,7 +101,7 @@ import {
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
-const INITIAL_USERS_DISPLAY_COUNT = 10;
+const INITIAL_USERS_DISPLAY_COUNT = 3;
 const USERS_PER_PAGE_IN_POPOVER = 50;
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.
 const SESSION_VIRTUALIZER_OVERSCAN = 5;
@@ -317,8 +328,12 @@ export const SessionPage: React.FC<{
     () => ({
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
+        pathParam: "traceId",
+        reader: "trace" as const,
       },
-      queryParams: ["observation", "display", "timestamp"],
+      // traceId: not written here, but cleared so a v4-dialect shared URL
+      // cannot pin the trace peek (LFE-11041).
+      queryParams: ["observation", "display", "timestamp", "traceId"],
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
       }),
@@ -414,16 +429,6 @@ export const SessionPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
-              {!router.query.peek && (
-                <DetailPageNav
-                  key="nav"
-                  currentId={encodeURIComponent(sessionId)}
-                  path={(entry) =>
-                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-                  }
-                  listKey="sessions"
-                />
-              )}
               <WebCalloutButton
                 projectId={projectId}
                 traceId={null}
@@ -438,6 +443,16 @@ export const SessionPage: React.FC<{
               >
                 <Download className="h-4 w-4" />
               </Button>
+              {!router.query.peek && (
+                <DetailPageNav
+                  key="nav"
+                  currentId={encodeURIComponent(sessionId)}
+                  path={(entry) =>
+                    `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                  }
+                  listKey="sessions"
+                />
+              )}
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -641,6 +656,10 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
+  const capture = usePostHogClientCapture();
+  const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
+    enableForAdmins: false,
+  });
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -658,6 +677,14 @@ const LoadedSessionEventsPage: React.FC<{
       initialSessionId: sessionId,
       initialShowCorrections: showCorrections,
     }),
+  );
+  const showInlineToolCalls = useStore(
+    sessionDetailStore,
+    (state) => state.showInlineToolCalls,
+  );
+  const showSystemPrompt = useStore(
+    sessionDetailStore,
+    (state) => state.showSystemPrompt,
   );
 
   useEffect(() => {
@@ -677,6 +704,37 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
+
+  const setInlineToolCallsForSession = (isEnabled: boolean) => {
+    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
+    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
+  };
+
+  const setShowSystemPromptForSession = (isEnabled: boolean) => {
+    capture("session_detail:system_prompt_toggled", {
+      isEnabled,
+      isV4: true,
+    });
+    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
+  };
+
+  const displayOptions = [
+    {
+      label: "corrections",
+      checked: showCorrections,
+      onCheckedChange: setShowCorrectionsForSession,
+    },
+    {
+      label: "tool calls",
+      checked: showInlineToolCalls,
+      onCheckedChange: setInlineToolCallsForSession,
+    },
+    {
+      label: "system prompt",
+      checked: showSystemPrompt,
+      onCheckedChange: setShowSystemPromptForSession,
+    },
+  ];
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -700,10 +758,17 @@ const LoadedSessionEventsPage: React.FC<{
     () => ({
       expandConfig: {
         basePath: `/project/${projectId}/traces`,
+        pathParam: "traceId",
+        reader: "trace" as const,
       },
-      queryParams: ["observation", "display", "timestamp"],
+      // traceId: not written here, but cleared so a v4-dialect shared URL
+      // cannot pin the trace peek (LFE-11041).
+      queryParams: ["observation", "display", "timestamp", "traceId"],
+      // observationId: set by a card's "Open in trace view" on a truncated
+      // observation so the peek opens AT that observation (LFE-10958).
       extractParamsValuesFromRow: (row: any) => ({
         timestamp: row.timestamp.toISOString(),
+        ...(row.observationId ? { observation: row.observationId } : {}),
       }),
     }),
     [projectId],
@@ -1019,6 +1084,27 @@ const LoadedSessionEventsPage: React.FC<{
       ? filterMatchedView
       : null;
   const viewLabel = matchedView?.name ?? null;
+  const isLlmCallPresetActive = SESSION_DETAIL_LLM_CALL_PRESETS.some(
+    (preset) => matchedView?.id === preset.id,
+  );
+
+  const applyLlmCallPreset = (preset: SessionDetailSystemPreset) => {
+    capture("saved_views:system_preset_selected", {
+      tableName: TableViewPresetTableName.SessionDetail,
+      presetId: preset.id,
+    });
+    viewControllers.handleSetViewId(preset.id);
+    viewControllers.applyViewState(
+      {
+        filters: preset.filters,
+        columnOrder: [],
+        columnVisibility: {},
+        orderBy: null,
+        searchQuery: "",
+      },
+      { trigger: "system_preset", viewId: preset.id },
+    );
+  };
 
   // Recover the system-preset viewId the view manager strips from the URL on
   // reload/shared-link (frontend presets aren't backend-fetchable). Idempotent
@@ -1122,6 +1208,72 @@ const LoadedSessionEventsPage: React.FC<{
           ),
           actionButtonsRight: (
             <>
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
+              {isModernSessionEnabled ? (
+                <>
+                  <div className="hidden items-center gap-3 pr-2 min-[1900px]:flex">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    {displayOptions.map(
+                      ({ label, checked, onCheckedChange }) => (
+                        <label
+                          key={label}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Switch
+                            checked={checked}
+                            onCheckedChange={onCheckedChange}
+                            size="sm"
+                          />
+                          <span className="text-muted-foreground text-xs">
+                            {label}
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 pr-2 min-[1900px]:hidden">
+                    <span className="text-muted-foreground text-xs">Show:</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1 px-2"
+                        >
+                          Options
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-52 p-2">
+                        <div className="flex flex-col gap-1">
+                          {displayOptions.map(
+                            ({ label, checked, onCheckedChange }) => (
+                              <label
+                                key={label}
+                                className="hover:bg-muted flex items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                              >
+                                <span className="text-sm capitalize">
+                                  {label}
+                                </span>
+                                <Switch
+                                  checked={checked}
+                                  onCheckedChange={onCheckedChange}
+                                  size="sm"
+                                />
+                              </label>
+                            ),
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              ) : null}
               {!router.query.peek && (
                 <DetailPageNav
                   key="nav"
@@ -1132,12 +1284,6 @@ const LoadedSessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
-              <WebCalloutButton
-                projectId={projectId}
-                traceId={null}
-                observationId={null}
-                sessionId={sessionId}
-              />
               <CommentDrawerButton
                 key="comment"
                 variant="outline"
@@ -1167,24 +1313,81 @@ const LoadedSessionEventsPage: React.FC<{
                   variant="outline"
                 />
               </div>
-              <div className="flex items-center">
-                <div className="mx-1">
+              {!isModernSessionEnabled ? (
+                <label className="flex items-center gap-1.5">
                   <Switch
                     checked={showCorrections}
                     onCheckedChange={setShowCorrectionsForSession}
                     size="sm"
                   />
-                </div>
-                <span className="text-muted-foreground text-xs">
-                  Show corrections
-                </span>
-              </div>
+                  <span className="text-muted-foreground text-xs">
+                    Show corrections
+                  </span>
+                </label>
+              ) : null}
             </>
           ),
         }}
       >
-        <div className="flex h-full flex-col overflow-auto">
+        <div
+          className={
+            isModernSessionEnabled
+              ? "flex h-full min-h-0 flex-col overflow-hidden"
+              : "flex h-full flex-col overflow-auto"
+          }
+        >
           <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
+            {isModernSessionEnabled ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-pressed={isLlmCallPresetActive}
+                    className={
+                      isLlmCallPresetActive ? "bg-primary/5" : undefined
+                    }
+                  >
+                    LLM Calls per Trace
+                    <ChevronDown className="ml-1 h-4 w-4" aria-hidden />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-1">
+                  <div className="text-muted-foreground px-2 py-1.5 text-xs font-bold">
+                    LLM Calls per Trace
+                  </div>
+                  {SESSION_DETAIL_LLM_CALL_PRESETS.map((preset) => {
+                    const isActive = matchedView?.id === preset.id;
+                    return (
+                      <PopoverClose asChild key={preset.id}>
+                        <button
+                          type="button"
+                          aria-current={isActive ? "true" : undefined}
+                          className="hover:bg-accent flex w-full items-start justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                          onClick={() => applyLlmCallPreset(preset)}
+                        >
+                          <span className="flex flex-col">
+                            <span className="font-bold">{preset.name}</span>
+                            {preset.description ? (
+                              <span className="text-muted-foreground text-xs">
+                                {preset.description}
+                              </span>
+                            ) : null}
+                          </span>
+                          {isActive ? (
+                            <CheckIcon
+                              className="mt-0.5 h-4 w-4 shrink-0"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </button>
+                      </PopoverClose>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            ) : null}
+
             {/* Saved Views */}
             <TableViewPresetsDrawer
               viewConfig={{
@@ -1221,11 +1424,18 @@ const LoadedSessionEventsPage: React.FC<{
             {/* Separator */}
             <Separator orientation="vertical" className="h-6" />
 
-            {/* Stats */}
-            <Badge variant="outline">Total traces: {session.countTraces}</Badge>
-            <Badge variant="outline">
-              Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
-            </Badge>
+            {/* Stats stay in the toolbar for the existing card layout. Modern
+                Session shows trace count and cost in its minimap header. */}
+            {!isModernSessionEnabled ? (
+              <>
+                <Badge variant="outline">
+                  Total traces: {session.countTraces}
+                </Badge>
+                <Badge variant="outline">
+                  Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
+                </Badge>
+              </>
+            ) : null}
 
             {/* Users */}
             {session.users?.length ? (
@@ -1235,44 +1445,60 @@ const LoadedSessionEventsPage: React.FC<{
             {/* Scores */}
             <SessionScores scores={session.scores} />
           </div>
-          <div ref={parentRef} className="flex-1 overflow-auto p-4">
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualItems.map((virtualItem) => {
-                const trace = traces?.[virtualItem.index];
-                if (!trace) return null;
+          {!isModernSessionEnabled ? (
+            <div ref={parentRef} className="flex-1 overflow-auto p-4">
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {virtualItems.map((virtualItem) => {
+                  const trace = traces?.[virtualItem.index];
+                  if (!trace) return null;
 
-                return (
-                  <SessionVirtualizedRow
-                    key={virtualItem.key}
-                    itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
-                    source="events"
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                  >
-                    <LazySessionTraceEventsRow
-                      trace={trace}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={asCommentCounts(
-                        traceCommentCounts.data,
-                      )}
-                      index={virtualItem.index}
-                      filterState={visibleFilterState}
-                      viewLabel={viewLabel}
-                    />
-                  </SessionVirtualizedRow>
-                );
-              })}
+                  return (
+                    <SessionVirtualizedRow
+                      key={virtualItem.key}
+                      itemKey={String(virtualItem.key)}
+                      measurementKey={`${String(virtualItem.key)}:${showCorrections}:${visibleFilterMeasurementKey}`}
+                      source="events"
+                      virtualItem={virtualItem}
+                      virtualizer={virtualizer}
+                    >
+                      <LazySessionTraceEventsRow
+                        trace={trace}
+                        projectId={projectId}
+                        sessionId={sessionId}
+                        openPeek={openPeek}
+                        traceCommentCounts={asCommentCounts(
+                          traceCommentCounts.data,
+                        )}
+                        index={virtualItem.index}
+                        filterState={visibleFilterState}
+                        viewLabel={viewLabel}
+                      />
+                    </SessionVirtualizedRow>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ) : (
+            <ModernSession
+              traces={traces ?? []}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+              traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
+              filterState={visibleFilterState}
+              filterMeasurementKey={visibleFilterMeasurementKey}
+              viewLabel={viewLabel}
+              totalCost={session.totalCost ?? 0}
+              showInlineToolCalls={showInlineToolCalls}
+              showSystemPrompt={showSystemPrompt}
+            />
+          )}
         </div>
         <TablePeekViewTraceDetail
           itemType="TRACE"

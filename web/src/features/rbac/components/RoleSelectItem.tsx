@@ -47,9 +47,9 @@ export const RoleSelectItem = ({
           ) : (
             <>
               <div className="font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-semibold">Organization Scopes</p>
+              <p className="mt-2 text-xs font-bold">Organization Scopes</p>
               <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
-              <p className="mt-2 text-xs font-semibold">Project Scopes</p>
+              <p className="mt-2 text-xs font-bold">Project Scopes</p>
               <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
               <p className="mt-2 border-t pt-2 text-xs">
                 Note:{" "}
@@ -103,7 +103,7 @@ const reduceScopesToListItems = (
               {inheritedActions.length > 0 ? inheritedActions.join(", ") : ""}
               {newActions.length > 0 && inheritedActions.length > 0 ? ", " : ""}
             </span>
-            <span className="font-semibold">
+            <span className="font-bold">
               {newActions.length > 0 ? newActions.join(", ") : ""}
             </span>
           </li>

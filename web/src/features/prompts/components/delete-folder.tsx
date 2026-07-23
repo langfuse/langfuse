@@ -78,7 +78,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
         <DialogBody>
           <p className="text-muted-foreground text-sm">
             This action permanently deletes the folder{" "}
-            <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold break-all">
+            <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold break-all">
               {folderPath}
             </code>{" "}
             and <b>all prompts inside it recursively</b>. This cannot be undone.
@@ -87,7 +87,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           </p>
 
           <div className="bg-muted/50 rounded-md border p-4">
-            <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
+            <h4 className="mb-2 text-sm font-bold">Prompts to delete:</h4>
             {prompts.isLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Spinner size="sm" variant="muted" />
@@ -128,7 +128,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">
+            <label className="text-sm font-bold">
               To confirm, type the full path of the folder to delete:
             </label>
             <Input
@@ -141,7 +141,7 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
 
           {error && (
             <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <p className="font-medium">Error:</p>
+              <p className="font-bold">Error:</p>
               <p className="whitespace-pre-wrap">{error}</p>
             </div>
           )}

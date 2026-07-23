@@ -21,6 +21,8 @@ import {
   singleFilter,
   timeFilter,
   type Observation,
+  hasValidTracingSearchTypes,
+  TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   TracingSearchType,
   type ScoreDomain,
   ScoreDataTypeArray,
@@ -69,14 +71,19 @@ import {
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
-const TraceCountOptions = z.object({
-  projectId: z.string(), // Required for protectedProjectProcedure
-  searchQuery: z.string().nullable(),
-  searchType: z.array(TracingSearchType),
-  filter: z.array(singleFilter).nullable(),
-  orderBy: orderBy,
-});
-const TraceFilterOptions = TraceCountOptions.extend({
+const TraceCountOptions = z
+  .object({
+    projectId: z.string(), // Required for protectedProjectProcedure
+    searchQuery: z.string().nullable(),
+    searchType: z.array(TracingSearchType),
+    filter: z.array(singleFilter).nullable(),
+    orderBy: orderBy,
+  })
+  .refine(hasValidTracingSearchTypes, {
+    message: TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
+    path: ["searchType"],
+  });
+const TraceFilterOptions = TraceCountOptions.safeExtend({
   ...paginationZod,
 });
 type TraceFilterOptions = z.infer<typeof TraceFilterOptions>;

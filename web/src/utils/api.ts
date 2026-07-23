@@ -5,7 +5,7 @@
  * We also create a few inference helpers for input and output types.
  */
 
-import { captureException } from "@sentry/nextjs";
+import { addBreadcrumb, captureException } from "@sentry/nextjs";
 import {
   createTRPCProxyClient,
   httpBatchLink,
@@ -67,6 +67,11 @@ const ERROR_DEBOUNCE_MS = 20000;
 const hasResponseMeta = (error: TRPCClientError<any>): boolean =>
   Boolean((error.meta as { response?: unknown } | undefined)?.response);
 
+const getHttpStatus = (error: unknown): number | undefined =>
+  error instanceof TRPCClientError && typeof error.data?.httpStatus === "number"
+    ? error.data.httpStatus
+    : undefined;
+
 const getCause = (error: unknown): unknown =>
   error instanceof Error ? error.cause : undefined;
 
@@ -87,6 +92,71 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
   return (
     (cause instanceof TypeError && hasReportedFailedFetchMessage(cause)) ||
     hasReportedFailedFetchMessage(error)
+  );
+};
+
+/**
+ * tRPC error codes that represent EXPECTED, user-facing product states rather
+ * than actionable application errors:
+ *  - NOT_FOUND     — a missing/deleted/never-existed resource (opening a trace
+ *                    URL that no longer resolves)
+ *  - FORBIDDEN     — the signed-in user may not access this resource (a trace in
+ *                    another org, a project they are not a member of)
+ *  - UNAUTHORIZED  — the session expired or the user is not signed in
+ *
+ * The UI already renders each of these as an error page or toast — it is the
+ * product working as designed, not a regression a human should act on. Sending
+ * them to Sentry turns the error tracker into a log of ordinary navigation
+ * (`Trace not found` alone is the #2 issue by volume, ~30k events / ~3.3k
+ * users) and drowns real signal.
+ *
+ * Suppressing capture here does NOT blind us to real authz/lookup regressions:
+ * the server owns that signal — a genuine regression surfaces as a 4xx-rate
+ * anomaly server-side and as user reports, whereas the client Sentry event is
+ * only an amplified, lower-fidelity copy. The server itself already logs
+ * NOT_FOUND / UNAUTHORIZED as non-errors (`web/src/server/api/trpc.ts`), and
+ * `handleTrpcError` leaves a breadcrumb for each suppressed error so its path +
+ * code stay in the trail of any real event captured later in the session.
+ *
+ * Deliberately narrow: only these codes on an actual `TRPCClientError`. A 5xx
+ * (`INTERNAL_SERVER_ERROR`), a `BAD_REQUEST`, an unrecognized code, or any
+ * non-tRPC error is not expected and keeps flowing to Sentry unchanged.
+ */
+export const EXPECTED_TRPC_ERROR_CODES = [
+  "NOT_FOUND",
+  "FORBIDDEN",
+  "UNAUTHORIZED",
+] as const;
+
+const getTrpcErrorData = (
+  error: unknown,
+): { code?: unknown; path?: unknown } | undefined =>
+  error instanceof TRPCClientError
+    ? (error.data as { code?: unknown; path?: unknown } | undefined)
+    : undefined;
+
+/** The tRPC error code (`data.code`) when `error` is a TRPCClientError. */
+export const getTrpcErrorCode = (error: unknown): string | undefined => {
+  const code = getTrpcErrorData(error)?.code;
+  return typeof code === "string" ? code : undefined;
+};
+
+/** The tRPC procedure path (`data.path`) when available — used as a Sentry tag. */
+export const getTrpcErrorPath = (error: unknown): string | undefined => {
+  const path = getTrpcErrorData(error)?.path;
+  return typeof path === "string" ? path : undefined;
+};
+
+/**
+ * True when `error` is a TRPCClientError whose code is an EXPECTED, user-facing
+ * state that should not be captured to Sentry.
+ * See {@link EXPECTED_TRPC_ERROR_CODES}.
+ */
+export const isExpectedTrpcClientError = (error: unknown): boolean => {
+  const code = getTrpcErrorCode(error);
+  return (
+    code !== undefined &&
+    (EXPECTED_TRPC_ERROR_CODES as readonly string[]).includes(code)
   );
 };
 
@@ -169,7 +239,33 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
       }
     }
 
-    captureException(error);
+    if (isExpectedTrpcClientError(error)) {
+      // Expected, user-facing states (a missing/forbidden resource, an expired
+      // session) are the product working as designed — don't mint a Sentry
+      // issue for them. Leave a breadcrumb so the path + code stay in the trail
+      // of any real event captured later this session; the server owns the real
+      // authz/lookup-regression signal. See `isExpectedTrpcClientError`.
+      addBreadcrumb({
+        category: "trpc",
+        type: "http",
+        level: "info",
+        message: "Suppressed expected tRPC error (not sent to Sentry)",
+        data: {
+          code: getTrpcErrorCode(error),
+          path: getTrpcErrorPath(error),
+          httpStatus,
+        },
+      });
+    } else {
+      // Real tRPC errors keep flowing to Sentry, now tagged by procedure/code
+      // so they group and route instead of collapsing into one opaque bucket.
+      captureException(error, {
+        tags: {
+          "trpc.code": getTrpcErrorCode(error),
+          "trpc.path": getTrpcErrorPath(error),
+        },
+      });
+    }
   } else {
     // For non-TRPC errors, still send to Sentry
     captureException(error);
@@ -280,10 +376,9 @@ const shouldSilenceError = (
   }
 
   if (Array.isArray(meta?.silentHttpCodes)) {
+    const httpStatus = getHttpStatus(error);
     return (
-      error instanceof TRPCClientError &&
-      typeof error.data?.httpStatus === "number" &&
-      meta.silentHttpCodes.includes(error.data?.httpStatus)
+      httpStatus !== undefined && meta.silentHttpCodes.includes(httpStatus)
     );
   }
 
@@ -349,6 +444,17 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
+            // Don't retry on 404s: a deleted/missing resource never appears via
+            // retry, so failing fast avoids piling up pointless refetches (and
+            // ClickHouse load for resources backed by it). Every other 4xx keeps
+            // the default retry/backoff — some (e.g. a route param that hasn't
+            // hydrated yet, a proxy-level 429) are transient and self-heal.
+            retry: (failureCount, error) => {
+              if (getHttpStatus(error) === 404) {
+                return false;
+              }
+              return failureCount < 3;
+            },
           },
           mutations: {
             onError: (error) => handleTrpcError(error),

@@ -1,4 +1,9 @@
 import * as Sentry from "@sentry/nextjs";
+import {
+  isDenylistedNoiseEvent,
+  isNoisyHttpClientPollEvent,
+  isReactDevtoolsInternalEvent,
+} from "@/src/utils/sentryFilters";
 
 const isEuOrUsRegionNonHipaa =
   process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined
@@ -11,21 +16,32 @@ Sentry.init({
   release: process.env.NEXT_PUBLIC_BUILD_ID,
 
   beforeSend(event) {
-    // const error = hint.originalException;
-    const errorValue = event.exception?.values?.[0]?.value || "";
-
-    // Filter invalid href errors - these are from user-inputted data containing malformed URLs
-    // The Next.js router correctly rejects them, no need to log as errors
-    if (
-      errorValue.includes("Invalid href") &&
-      errorValue.includes("passed to next/router")
-    ) {
+    // Drop React DevTools' internal probes against React's private fiber
+    // properties - benign, DevTools-only noise. See isReactDevtoolsInternalEvent
+    // for the rationale.
+    if (isReactDevtoolsInternalEvent(event)) {
       return null;
     }
 
-    // Filter React DevTools internal errors - these are benign errors from DevTools
-    // trying to access internal React properties
-    if (errorValue.includes("__reactContextDevtoolDebugId")) {
+    // Drop expected/poll 5xx noise from httpClientIntegration. It flags every
+    // 5xx fetch/XHR as an unhandled "HTTP Client Error"; the NextAuth session
+    // poll (/api/auth/session, every 5 min + on window focus) dominates this and
+    // creates huge false-positive issues. Only the known poll/health endpoints
+    // are dropped — genuine 5xx on real API/tRPC endpoints are kept, and a real
+    // session outage is still observable server-side via request tracing/APM
+    // spans and application logs.
+    if (isNoisyHttpClientPollEvent(event)) {
+      return null;
+    }
+
+    // Drop known-benign client-side noise: browser/transport failures (offline,
+    // flaky network, CORS, proxy/infra HTML error pages), transient
+    // framework/vendor poll logs (NextAuth CLIENT_FETCH_ERROR, PostHog notices),
+    // and expected browser artifacts (clipboard permission denials, intentional
+    // request cancellations). Each signature is narrow and cannot represent a
+    // real Langfuse app bug; real errors that merely quote a phrase still flow
+    // to Sentry. See isDenylistedNoiseEvent for the per-rule rationale.
+    if (isDenylistedNoiseEvent(event)) {
       return null;
     }
 

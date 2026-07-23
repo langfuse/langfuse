@@ -409,6 +409,7 @@ describe("calculateSchedulerBatchId", () => {
     for (const view of [
       "observations",
       "scores-numeric",
+      "scores-boolean",
       "scores-categorical",
     ] as const) {
       const id = calculateSchedulerBatchId({ ...base, view });

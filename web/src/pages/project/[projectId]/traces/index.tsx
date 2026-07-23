@@ -98,6 +98,7 @@ export default function Traces() {
         <ObservationsEventsTable
           projectId={projectId}
           showControlsInPageHeader
+          enableAppRootDefault
         />
       ) : (
         <TracesTable projectId={projectId} showControlsInPageHeader />

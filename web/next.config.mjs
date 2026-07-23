@@ -62,6 +62,14 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Emit and SERVE browser source maps in production. Langfuse is open source,
+  // so there is nothing to hide by shipping maps — and doing so makes every
+  // client stack legible: browser devtools de-minify automatically, and Sentry
+  // symbolicates by fetching the public map from each bundle's sourceMappingURL
+  // (no upload step, no auth token, no Sentry-specific magic). This is why the
+  // Sentry plugin's own source-map upload stays disabled (see `sourcemaps` in
+  // withSentryConfig below).
+  productionBrowserSourceMaps: true,
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
@@ -82,6 +90,10 @@ const nextConfig = {
     "bullmq",
     "@opentelemetry/sdk-node",
     "@opentelemetry/instrumentation-winston",
+    // The local-only dangerous-docker sandbox provider depends on dockerode,
+    // which pulls ssh2 assets that Turbopack cannot place into ESM chunks.
+    // Keep it external to the server bundle and load it only at runtime.
+    "dockerode",
   ],
   poweredByHeader: false,
   basePath: env.NEXT_PUBLIC_BASE_PATH,
@@ -274,7 +286,10 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // side errors will fail.
   // tunnelRoute: "/api/monitoring-tunnel",
 
-  // Hides source maps from generated client bundles
+  // Keep the Sentry plugin's own source-map generation/upload OFF. We serve
+  // browser source maps publicly instead (`productionBrowserSourceMaps: true`
+  // above); Sentry fetches them from the public sourceMappingURL, so uploading
+  // a second copy (with an auth token + build-time upload) is redundant here.
   sourcemaps: {
     disable: true,
   },

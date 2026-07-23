@@ -477,21 +477,6 @@ const EnvSchema = z.object({
     .positive()
     .default(120_000), // 2 minutes
 
-  // Comma-separated list of LLM adapters (LLMAdapter enum values: "openai",
-  // "anthropic", "azure", "bedrock", "google-vertex-ai", "google-ai-studio")
-  // whose completions run on the AI SDK execution engine instead of LangChain
-  LANGFUSE_LLM_COMPLETION_AI_SDK_ADAPTERS: z
-    .string()
-    .optional()
-    .transform((s) =>
-      s
-        ? s
-            .split(",")
-            .map((v) => v.trim().toLowerCase())
-            .filter(Boolean)
-        : [],
-    ),
-
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
