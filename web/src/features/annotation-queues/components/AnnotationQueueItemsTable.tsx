@@ -210,7 +210,7 @@ export function AnnotationQueueItemsTable({
       },
       cell: ({ row }) => {
         return (
-          <span className="mt-1 has-data-[state=checked]:mt-[5px]">
+          <span className="mt-1 inline-block has-data-[state=checked]:mt-[5px]">
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
