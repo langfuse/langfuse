@@ -301,23 +301,7 @@ export function V4MigrationDetailsContent({
 
       <Separator />
 
-      {!migrationData.hasMigrationAccess && (
-        <div className="border-border bg-muted/30 flex flex-col gap-1.5 rounded-md border p-3">
-          <p className="text-sm font-bold">
-            Only project owners and admins can review migration status
-          </p>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            Ask a project owner or admin to review and complete the v4 migration
-            for this project.
-          </p>
-        </div>
-      )}
-      <div
-        className={cn(
-          "flex flex-col gap-3",
-          !migrationData.hasMigrationAccess && "hidden",
-        )}
-      >
+      <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2 text-base font-bold">
           <TriangleAlert className="h-4 w-4" /> What happens if I don&apos;t
           update?

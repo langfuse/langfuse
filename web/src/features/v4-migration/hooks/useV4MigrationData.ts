@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import { api } from "@/src/utils/api";
 import { countLegacyApiEntrypoints } from "@/src/features/v4/utils";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   useProjectSdkVersionInfo,
   useProjectsSdkVersionInfo,
@@ -21,7 +20,6 @@ const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 export type V4MigrationOrganization = {
   id: string;
   name: string;
-  hasMigrationAccess: boolean;
   projects: { id: string; name: string }[];
 };
 
@@ -51,7 +49,7 @@ export function useAccountV4MigrationData(params: {
         { orgId: organization.id },
         {
           ...queryOptions,
-          enabled: enabled && organization.hasMigrationAccess,
+          enabled,
         },
       ),
     ),
@@ -62,7 +60,7 @@ export function useAccountV4MigrationData(params: {
         { orgId: organization.id },
         {
           ...queryOptions,
-          enabled: enabled && organization.hasMigrationAccess,
+          enabled,
           trpc: { context: { skipBatch: true } },
         },
       ),
@@ -77,7 +75,7 @@ export function useAccountV4MigrationData(params: {
         },
         {
           ...queryOptions,
-          enabled: enabled && organization.hasMigrationAccess,
+          enabled,
           trpc: { context: { skipBatch: true } },
         },
       ),
@@ -126,16 +124,11 @@ export function useProjectV4MigrationData(params: {
   enabled: boolean;
 }) {
   const { projectId, enabled } = params;
-  const hasMigrationAccess = useHasProjectAccess({
-    projectId,
-    scope: "v4Migration:read",
-  });
-  const sdkQueryEnabled = enabled && Boolean(projectId);
-  const queryEnabled = sdkQueryEnabled && hasMigrationAccess;
+  const queryEnabled = enabled && Boolean(projectId);
   const [detectionRange] = useState(createV4MigrationDetectionRange);
   const sdkVersionState = useProjectSdkVersionInfo({
     projectId: projectId ?? "",
-    enabled: sdkQueryEnabled,
+    enabled: queryEnabled,
     refreshMode: "always",
   });
   const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
@@ -165,7 +158,6 @@ export function useProjectV4MigrationData(params: {
   );
 
   return {
-    hasMigrationAccess,
     sdkVersionState,
     sdkStatus: getV4MigrationSdkStatus(sdkVersionState),
     evals: getMigrationCountState(

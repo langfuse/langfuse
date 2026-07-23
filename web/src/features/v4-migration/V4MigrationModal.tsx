@@ -12,7 +12,6 @@ import {
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 // Modal variant of the migration panel (experiment): mounted on pages that
@@ -20,14 +19,10 @@ import { api } from "@/src/utils/api";
 export function V4MigrationModal() {
   const { project } = useQueryProject();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const hasMigrationAccess = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "v4Migration:read",
-  });
   const traceLevelEvalSummary = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: project?.id ?? "" },
     {
-      enabled: v4UpgradeUiEnabled && Boolean(project) && hasMigrationAccess,
+      enabled: v4UpgradeUiEnabled && Boolean(project),
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,
     },

@@ -8,14 +8,17 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
     data: {
       user: {
+        admin: false,
         organizations: [
           {
             id: "org-1",
             name: "Test organization",
+            role: "MEMBER",
             projects: [
               {
                 id: "project-1",
                 name: "Test project",
+                role: "MEMBER",
                 deletedAt: null,
               },
             ],
@@ -89,5 +92,12 @@ describe("V4MigrationStatusPage", () => {
     const table = screen.getByRole("table");
     expect(table).toHaveClass("min-w-[60rem]", "table-auto");
     expect(table.parentElement).toHaveClass("overflow-x-auto");
+  });
+
+  it("shows migration readiness to project members", () => {
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
   });
 });

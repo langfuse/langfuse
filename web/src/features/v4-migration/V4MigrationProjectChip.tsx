@@ -9,19 +9,16 @@ import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOp
 export function V4MigrationProjectChip({
   project,
   status,
-  hasMigrationAccess,
 }: {
   project: V4MigrationTargetProject;
   status: ProjectMigrationStatus | undefined;
-  hasMigrationAccess: boolean;
 }) {
   const openMigrationPanel = useOpenV4MigrationPanel();
   const capture = usePostHogClientCapture();
 
   const readiness = status ? getProjectMigrationReadiness(status) : "checking";
-  const label = !hasMigrationAccess
-    ? "Ask admin"
-    : readiness === "ready"
+  const label =
+    readiness === "ready"
       ? "Up to date"
       : readiness === "checking"
         ? "Checking"
