@@ -41,12 +41,8 @@ type PostHogExecutionConfig = {
 
 const postHogSettings = {
   flushAt: 1000,
-  // The SDK evicts the oldest queued event (with only an info log, no error)
-  // once the queue reaches maxQueueSize, which defaults to max(flushAt, 1000).
-  // The capture loops below enqueue from the ClickHouse stream faster than
-  // background flushes drain and only await flush() every 10k events, so at
-  // high volume most events were silently dropped (LFE-14456). Matching the
-  // manual flush cadence keeps the queue below the cap at all times.
+  // Must be >= the capture loops' manual flush cadence (every 10k events);
+  // past this cap the SDK silently drops the oldest queued event.
   maxQueueSize: 10000,
 };
 
