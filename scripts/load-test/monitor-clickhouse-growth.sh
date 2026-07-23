@@ -26,7 +26,7 @@ echo "timestamp,total_bytes_on_disk,total_bytes_gb,trace_count,gb_per_1000_trace
 ch_query() {
   local result
   result=$(kubectl exec -n "${NAMESPACE}" "${POD}" -c clickhouse -- \
-    clickhouse-client --query "$1" 2>&1) || {
+    clickhouse-client --database "${CH_DB}" --query "$1" 2>&1) || {
     echo "ERROR: clickhouse-client query failed: $result" >&2
     exit 1
   }
@@ -36,13 +36,13 @@ ch_query() {
 while true; do
   ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-  # Total size of active parts for the Langfuse database only
-  bytes=$(ch_query "SELECT sum(bytes_on_disk) FROM system.parts WHERE database = '${CH_DB}' AND active")
+  # Total size of active parts for the configured database only
+  bytes=$(ch_query "SELECT sum(bytes_on_disk) FROM system.parts WHERE active")
   bytes=${bytes:-0}
   gb=$(awk -v b="${bytes}" 'BEGIN { printf "%.4f", b/1024/1024/1024 }')
 
   # Number of load-test traces actually stored (tagged to isolate this run)
-  trace_count=$(ch_query "SELECT count() FROM ${CH_DB}.traces WHERE tags CONTAINS 'load-test'")
+  trace_count=$(ch_query "SELECT count() FROM traces WHERE tags CONTAINS 'load-test'")
   trace_count=${trace_count:-0}
 
   if [ "${trace_count}" -gt 0 ]; then
