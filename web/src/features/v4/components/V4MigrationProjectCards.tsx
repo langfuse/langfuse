@@ -67,6 +67,12 @@ export type V4SdkUsagePoint = {
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
+  hasOtelEvents: boolean;
+  attributionStatus:
+    | "attributed"
+    | "missing_name"
+    | "missing_version"
+    | "missing_name_and_version";
   canonicalSdkName: "python" | "javascript" | null;
   latestMajor: number | null;
   major: number | null;
@@ -78,9 +84,20 @@ export type V4SdkUsagePoint = {
     | "invalid_version";
 };
 
+export type V4SdkUpgradeTransition = {
+  canonicalSdkName: "python" | "javascript";
+  publicKey: string;
+  fromVersions: string[];
+  toVersions: string[];
+  firstCurrentVersionSeenAt: string;
+  lastOutdatedVersionSeenAt: string;
+  status: "upgrade_detected" | "mixed_versions";
+};
+
 export type V4SdkUsageTimeSeries = {
   bucketTimes: string[];
   rows: V4SdkUsagePoint[];
+  upgradeTransitions: V4SdkUpgradeTransition[];
 };
 
 type ProductHref = string | { pathname: string; query: Record<string, string> };
@@ -102,6 +119,8 @@ type SdkUsageSeries = UsageSeries & {
   sdkVersion: string;
   publicKey: string;
   canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+  hasOtelEvents: boolean;
+  attributionStatus: V4SdkUsagePoint["attributionStatus"];
   firstSeen?: string;
   upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
   latestMajor: number | null;
@@ -262,6 +281,11 @@ const isUntrackedSdkUsage = (row: {
   (row.sdkName || "unknown") === "unknown" &&
   (row.sdkVersion || "unknown") === "unknown";
 
+const isMissingSdkAttribution = (row: {
+  hasOtelEvents: boolean;
+  attributionStatus: V4SdkUsagePoint["attributionStatus"];
+}) => row.hasOtelEvents && row.attributionStatus !== "attributed";
+
 const getSdkPackageLabel = (row: { sdkName: string; sdkVersion: string }) =>
   `${row.sdkName || "unknown"}@${row.sdkVersion || "unknown"}`;
 
@@ -269,10 +293,14 @@ const getSdkUsageSeriesName = (row: {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
+  hasOtelEvents: boolean;
+  attributionStatus: V4SdkUsagePoint["attributionStatus"];
 }) =>
-  isUntrackedSdkUsage(row)
-    ? "untracked"
-    : `${getSdkPackageLabel(row)} - ${getCompactPublicKey(row.publicKey)}`;
+  isMissingSdkAttribution(row)
+    ? `OTel writer - ${getCompactPublicKey(row.publicKey)}`
+    : isUntrackedSdkUsage(row)
+      ? "untracked"
+      : `${getSdkPackageLabel(row)} - ${getCompactPublicKey(row.publicKey)}`;
 
 const getSdkUpgradeStatusLabel = (status: V4SdkUsagePoint["upgradeStatus"]) => {
   switch (status) {
@@ -316,6 +344,8 @@ const groupSdkUsageSeries = ({
       sdkVersion: string;
       publicKey: string;
       canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+      hasOtelEvents: boolean;
+      attributionStatus: V4SdkUsagePoint["attributionStatus"];
       upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
       latestMajor: number | null;
       major: number | null;
@@ -335,6 +365,8 @@ const groupSdkUsageSeries = ({
         sdkVersion: row.sdkVersion,
         publicKey: row.publicKey,
         canonicalSdkName: row.canonicalSdkName,
+        hasOtelEvents: row.hasOtelEvents,
+        attributionStatus: row.attributionStatus,
         upgradeStatus: row.upgradeStatus,
         latestMajor: row.latestMajor,
         major: row.major,
@@ -345,6 +377,8 @@ const groupSdkUsageSeries = ({
         sdkVersion: string;
         publicKey: string;
         canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+        hasOtelEvents: boolean;
+        attributionStatus: V4SdkUsagePoint["attributionStatus"];
         upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
         latestMajor: number | null;
         major: number | null;
@@ -382,6 +416,8 @@ const groupSdkUsageSeries = ({
       sdkVersion: group.sdkVersion,
       publicKey: group.publicKey,
       canonicalSdkName: group.canonicalSdkName,
+      hasOtelEvents: group.hasOtelEvents,
+      attributionStatus: group.attributionStatus,
       upgradeStatus: group.upgradeStatus,
       latestMajor: group.latestMajor,
       major: group.major,
@@ -558,8 +594,8 @@ const NonActionDetails = ({
               <div>
                 <h4 className="text-sm font-bold">SDK telemetry</h4>
                 <p className="text-muted-foreground text-xs">
-                  Current, unknown with API keys, unsupported, and invalid SDK
-                  telemetry is shown for context only.
+                  Current, unsupported, and invalid SDK telemetry is shown for
+                  context only.
                 </p>
               </div>
               <SdkUsageDetails
@@ -814,13 +850,18 @@ const SdkUsageDetails = ({
         </div>
         <div className="max-h-80 overflow-y-auto">
           {series.map((item) => {
+            const missingAttribution = isMissingSdkAttribution(item);
             const upgradeHref =
               item.upgradeStatus === "outdated_major" && item.canonicalSdkName
                 ? SDK_UPGRADE_LINKS[item.canonicalSdkName]
                 : null;
             const publicKeyLabel = item.publicKey || "No API key";
             const detail = [
-              item.latestMajor ? `latest major: ${item.latestMajor}` : null,
+              missingAttribution
+                ? "Configure the x-langfuse-sdk-name and x-langfuse-sdk-version headers on the OTLP exporter."
+                : item.latestMajor
+                  ? `latest major: ${item.latestMajor}`
+                  : null,
             ]
               .filter(Boolean)
               .join(" - ");
@@ -833,25 +874,33 @@ const SdkUsageDetails = ({
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <Badge
-                      variant={getSdkUpgradeStatusBadgeVariant(
-                        item.upgradeStatus,
-                      )}
+                      variant={
+                        missingAttribution
+                          ? "warning"
+                          : getSdkUpgradeStatusBadgeVariant(item.upgradeStatus)
+                      }
                       size="sm"
                       className="shrink-0"
                     >
-                      {getSdkUpgradeStatusLabel(item.upgradeStatus)}
+                      {missingAttribution
+                        ? "Missing headers"
+                        : getSdkUpgradeStatusLabel(item.upgradeStatus)}
                     </Badge>
                     <span
                       className="truncate text-sm font-bold"
                       title={
-                        isUntrackedSdkUsage(item)
-                          ? "untracked"
-                          : getSdkPackageLabel(item)
+                        missingAttribution
+                          ? "OTel writer"
+                          : isUntrackedSdkUsage(item)
+                            ? "untracked"
+                            : getSdkPackageLabel(item)
                       }
                     >
-                      {isUntrackedSdkUsage(item)
-                        ? "untracked"
-                        : getSdkPackageLabel(item)}
+                      {missingAttribution
+                        ? "OTel writer"
+                        : isUntrackedSdkUsage(item)
+                          ? "untracked"
+                          : getSdkPackageLabel(item)}
                     </span>
                   </div>
                   <div
@@ -1011,6 +1060,10 @@ export const V4MigrationProjectCards = ({
     [sdkUsage?.bucketTimes],
   );
   const sdkUsageRows = sdkUsage?.rows;
+  const sdkUpgradeTransitions = useMemo(
+    () => sdkUsage?.upgradeTransitions ?? [],
+    [sdkUsage?.upgradeTransitions],
+  );
   const sdkUsageSeries = useMemo(
     () =>
       groupSdkUsageSeries({
@@ -1019,17 +1072,41 @@ export const V4MigrationProjectCards = ({
       }),
     [sdkUsageBucketTimes, sdkUsageRows],
   );
+  const completedUpgradeVersionKeys = useMemo(
+    () =>
+      new Set(
+        sdkUpgradeTransitions
+          .filter((transition) => transition.status === "upgrade_detected")
+          .flatMap((transition) =>
+            transition.fromVersions.map(
+              (version) =>
+                `${transition.canonicalSdkName}\u0000${version}\u0000${transition.publicKey}`,
+            ),
+          ),
+      ),
+    [sdkUpgradeTransitions],
+  );
+  const missingAttributionSdkUsageSeries = useMemo(
+    () => sdkUsageSeries.filter(isMissingSdkAttribution),
+    [sdkUsageSeries],
+  );
   const requiredSdkUsageSeries = useMemo(
     () =>
       sdkUsageSeries.filter(
-        (series) => series.upgradeStatus === "outdated_major",
+        (series) =>
+          !isMissingSdkAttribution(series) &&
+          series.upgradeStatus === "outdated_major" &&
+          !completedUpgradeVersionKeys.has(
+            `${series.canonicalSdkName}\u0000${series.sdkVersion}\u0000${series.publicKey}`,
+          ),
       ),
-    [sdkUsageSeries],
+    [completedUpgradeVersionKeys, sdkUsageSeries],
   );
   const nonActionSdkUsageSeries = useMemo(
     () =>
       sdkUsageSeries.filter(
         (series) =>
+          !isMissingSdkAttribution(series) &&
           series.upgradeStatus !== "outdated_major" &&
           !isUntrackedSdkUsage(series),
       ),
@@ -1057,7 +1134,8 @@ export const V4MigrationProjectCards = ({
     legacyApiSeries.length +
     traceLevelEvalCount +
     legacyIntegrationLinks.length +
-    requiredSdkUsageSeries.length;
+    requiredSdkUsageSeries.length +
+    missingAttributionSdkUsageSeries.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
   const isSummaryLoading =
     isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
@@ -1080,6 +1158,19 @@ export const V4MigrationProjectCards = ({
           sdkUsageSeries.length
             ? "No outdated major SDK usage detected."
             : "No SDK usage detected in this range.",
+        );
+      }
+      for (const transition of sdkUpgradeTransitions) {
+        if (transition.status !== "upgrade_detected") continue;
+
+        const sdkLabel =
+          transition.canonicalSdkName === "python" ? "Python" : "JavaScript";
+        checks.push(
+          `${sdkLabel} SDK upgrade from ${transition.fromVersions.join(
+            ", ",
+          )} to ${transition.toVersions.join(", ")} first detected ${getBucketLabel(
+            transition.firstCurrentVersionSeenAt,
+          )}.`,
         );
       }
     }
@@ -1117,6 +1208,7 @@ export const V4MigrationProjectCards = ({
     legacyApiSeries.length,
     legacyIntegrationLinks.length,
     requiredSdkUsageSeries.length,
+    sdkUpgradeTransitions,
     sdkUsageSeries.length,
     traceLevelEvalCount,
   ]);
@@ -1185,6 +1277,25 @@ export const V4MigrationProjectCards = ({
             <SdkUsageDetails
               bucketTimes={sdkUsageBucketTimes}
               series={requiredSdkUsageSeries}
+            />
+          </AuditSection>
+        ) : null}
+
+        {!isSdkUsageLoading &&
+        !hasSdkUsageError &&
+        missingAttributionSdkUsageSeries.length ? (
+          <AuditSection
+            title="OTel SDK attribution"
+            countLabel={`${numberFormatter(
+              missingAttributionSdkUsageSeries.length,
+              0,
+            )} missing`}
+            consequence="Configure the x-langfuse-sdk-name and x-langfuse-sdk-version headers on the OTLP exporter so Langfuse can identify the SDK and version."
+            detailsHref={`/project/${projectId}/settings/api-keys`}
+          >
+            <SdkUsageDetails
+              bucketTimes={sdkUsageBucketTimes}
+              series={missingAttributionSdkUsageSeries}
             />
           </AuditSection>
         ) : null}

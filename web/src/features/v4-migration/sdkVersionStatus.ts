@@ -7,6 +7,7 @@ export type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "unknown"
+  | "unattributed"
   | "legacy"
   | "latest";
 
@@ -27,6 +28,7 @@ export const getV4MigrationSdkStatus = (params: {
   }
 
   if (params.isError) return "error";
+  if (sdkVersion?.isOtel) return "unattributed";
 
   return params.isRefreshing && !params.checkedAt && !params.querySettled
     ? "checking"

@@ -36,6 +36,7 @@ const readCachedSdkVersion = (
         ? {
             language: window.localStorage.getItem(keys.language),
             version: window.localStorage.getItem(keys.version),
+            isOtel: window.localStorage.getItem(keys.isOtel) === "true",
           }
         : undefined,
       checkedAt,

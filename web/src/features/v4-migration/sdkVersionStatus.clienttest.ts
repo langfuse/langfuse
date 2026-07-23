@@ -44,6 +44,20 @@ describe("v4 migration SDK status", () => {
     ).toBe("unknown");
   });
 
+  it("distinguishes unattributed OTel traffic from no detected SDK usage", () => {
+    expect(
+      getV4MigrationSdkStatus({
+        ...baseState,
+        sdkVersion: {
+          language: null,
+          version: null,
+          isOtel: true,
+        },
+        querySettled: true,
+      }),
+    ).toBe("unattributed");
+  });
+
   it("distinguishes a failed first check from an unknown SDK", () => {
     expect(
       getV4MigrationSdkStatus({

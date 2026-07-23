@@ -3706,6 +3706,41 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result.version).toBeUndefined();
       expect(result.language).toBe("nodejs");
     });
+
+    it("should ignore newer internal OTel writer events", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.7.0",
+          telemetry_sdk_language: "python",
+        }),
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "langfuse-internal-otel-writer",
+          ingestion_sdk_version: "1.0.0",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result).toEqual({
+        isOtel: true,
+        name: "python",
+        version: "4.7.0",
+        language: "python",
+      });
+    });
   });
 
   // LFE-10596: in v4 the traces/observations list is served from the events

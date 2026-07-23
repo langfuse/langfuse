@@ -63,6 +63,7 @@ type ProjectTraceLevelEvalSummary = {
 type ProjectSdkUsageSummary = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
+  missingSdkAttributionSeriesCount: number;
 };
 
 type ProjectReadinessRow = ProjectSummary & {
@@ -70,7 +71,27 @@ type ProjectReadinessRow = ProjectSummary & {
   legacyApiEntrypointCount: number;
   legacyApiUsageCount: number;
   outdatedSdkUsageSeriesCount: number;
+  missingSdkAttributionSeriesCount: number;
   requiredActionCount: number;
+};
+
+const getSdkActionSummary = ({
+  outdatedSdkUsageSeriesCount,
+  missingSdkAttributionSeriesCount,
+}: {
+  outdatedSdkUsageSeriesCount: number;
+  missingSdkAttributionSeriesCount: number;
+}) => {
+  const actions = [
+    outdatedSdkUsageSeriesCount > 0
+      ? `${numberFormatter(outdatedSdkUsageSeriesCount, 0)} outdated`
+      : null,
+    missingSdkAttributionSeriesCount > 0
+      ? `${numberFormatter(missingSdkAttributionSeriesCount, 0)} missing attribution`
+      : null,
+  ].filter(Boolean);
+
+  return actions.length > 0 ? actions.join(", ") : "0";
 };
 
 const groupByProjectId = <T extends { projectId: string }>(
@@ -191,12 +212,7 @@ const ProjectReadinessTable = ({
                   ? "Loading..."
                   : hasSdkUsageError
                     ? "Failed"
-                    : project.outdatedSdkUsageSeriesCount > 0
-                      ? `${numberFormatter(
-                          project.outdatedSdkUsageSeriesCount,
-                          0,
-                        )} outdated`
-                      : "0"}
+                    : getSdkActionSummary(project)}
               </TableCell>
               <TableCell density="comfortable">
                 <Button
@@ -339,6 +355,16 @@ export default function OrganizationV4Page() {
       ),
     [sdkUsageRows],
   );
+  const missingSdkAttributionSeriesCountsByProjectId = useMemo(
+    () =>
+      new Map(
+        sdkUsageRows.map((row) => [
+          row.projectId,
+          row.missingSdkAttributionSeriesCount,
+        ]),
+      ),
+    [sdkUsageRows],
+  );
 
   const projectReadinessRows = useMemo(
     () =>
@@ -353,11 +379,16 @@ export default function OrganizationV4Page() {
             countLegacyApiEntrypoints(legacyApiRows);
           const outdatedSdkUsageSeriesCount =
             outdatedSdkUsageSeriesCountsByProjectId.get(project.projectId) ?? 0;
+          const missingSdkAttributionSeriesCount =
+            missingSdkAttributionSeriesCountsByProjectId.get(
+              project.projectId,
+            ) ?? 0;
           const requiredActionCount = getV4ProjectRequiredActionCount({
             traceLevelEvalCount,
             legacyIntegrationCount: project.legacyIntegrationCount,
             legacyApiEntrypointCount,
             outdatedSdkUsageSeriesCount,
+            missingSdkAttributionSeriesCount,
           });
 
           return {
@@ -366,6 +397,7 @@ export default function OrganizationV4Page() {
             legacyApiEntrypointCount,
             legacyApiUsageCount: sumLegacyApiUsage(legacyApiRows),
             outdatedSdkUsageSeriesCount,
+            missingSdkAttributionSeriesCount,
             requiredActionCount,
           };
         })
@@ -379,6 +411,7 @@ export default function OrganizationV4Page() {
       projects,
       legacyApiUsageRowsByProjectId,
       outdatedSdkUsageSeriesCountsByProjectId,
+      missingSdkAttributionSeriesCountsByProjectId,
       traceLevelEvalCountsByProjectId,
     ],
   );

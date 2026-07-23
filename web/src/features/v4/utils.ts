@@ -52,16 +52,19 @@ export const getV4ProjectRequiredActionCount = ({
   legacyIntegrationCount,
   legacyApiEntrypointCount,
   outdatedSdkUsageSeriesCount,
+  missingSdkAttributionSeriesCount,
 }: {
   traceLevelEvalCount: number;
   legacyIntegrationCount: number;
   legacyApiEntrypointCount: number;
   outdatedSdkUsageSeriesCount: number;
+  missingSdkAttributionSeriesCount: number;
 }): number =>
   traceLevelEvalCount +
   legacyIntegrationCount +
   legacyApiEntrypointCount +
-  outdatedSdkUsageSeriesCount;
+  outdatedSdkUsageSeriesCount +
+  missingSdkAttributionSeriesCount;
 
 export const splitV4ProjectsByRequiredChanges = <
   T extends { requiredActionCount: number },

@@ -168,6 +168,8 @@ function V4MigrationSdkSection({
       <Chip variant="warning">Checking</Chip>
     ) : status === "unknown" ? (
       <Chip variant="warning">Not detected</Chip>
+    ) : status === "unattributed" ? (
+      <Chip variant="warning">Attribution missing</Chip>
     ) : status === "error" ? (
       <Chip variant="warning">Check failed</Chip>
     ) : (
@@ -183,6 +185,13 @@ function V4MigrationSdkSection({
           <>
             We could not detect an attributed Langfuse SDK in traces from the
             last 7 days. If this project uses one, verify that it is up to date.
+          </>
+        ) : status === "unattributed" ? (
+          <>
+            OTel traffic was detected, but Langfuse SDK attribution is missing.
+            Configure the <MonoValue>x-langfuse-sdk-name</MonoValue> and{" "}
+            <MonoValue>x-langfuse-sdk-version</MonoValue> headers on the OTLP
+            exporter.
           </>
         ) : status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
