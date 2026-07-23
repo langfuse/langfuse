@@ -309,9 +309,11 @@ const EnvSchema = z.object({
   // public API routes that rely on the legacy traces/observations tables.
   // The worker owns the writes; the web only needs to know whether legacy
   // tables are still being populated to decide whether to serve reads.
+  // Defaults to `events_only` for the v4 target state (v3 shipped `legacy`);
+  // keep this value in sync with worker/src/env.ts and web/src/env.mjs.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
     .enum(["legacy", "dual", "events_only"])
-    .default("legacy"),
+    .default("events_only"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
