@@ -256,8 +256,13 @@ export const ConversationTurn = ({
                   className="text-session-tool h-3 w-3 shrink-0"
                   strokeWidth={2}
                 />
-                <span className="text-muted-foreground text-xs">Tool call</span>
-                <span className="text-foreground bg-session-tool/10 rounded-sm px-1.5 py-px font-mono text-[11px]">
+                <span className="text-muted-foreground text-xs whitespace-nowrap">
+                  Tool call
+                </span>
+                <span
+                  title={tool.name ?? tool.id}
+                  className="text-foreground bg-session-tool/10 min-w-0 truncate rounded-sm px-1.5 py-px font-mono text-[11px]"
+                >
                   {tool.name ?? tool.id}
                 </span>
                 <ChevronRight
