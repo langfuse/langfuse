@@ -176,6 +176,15 @@ export const ConversationTurn = ({
   const openInspector = useSessionDetailStore(
     (state) => state.actions.openInspector,
   );
+  // The generation view control (ex "LLM Calls per Trace" presets): show
+  // all generations of a turn, or only its first/last one.
+  const generationView = useSessionDetailStore((state) => state.generationView);
+  const visibleGenerations =
+    generationView === "first"
+      ? model.generations.slice(0, 1)
+      : generationView === "last"
+        ? model.generations.slice(-1)
+        : model.generations;
 
   const inspect = (observationId: string, observationType: string) => {
     capture("session_detail:observation_inspector_open", {
@@ -192,7 +201,7 @@ export const ConversationTurn = ({
           {model.userText}
         </div>
       </div>
-      {model.generations.map(({ observation, text, tools }) => (
+      {visibleGenerations.map(({ observation, text, tools }) => (
         <div key={observation.id} className="group mb-5">
           <MarkdownView markdown={text} />
           {tools.map((tool) => (

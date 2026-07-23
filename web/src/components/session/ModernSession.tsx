@@ -6,6 +6,7 @@ import { ObservationInspector } from "@/src/components/session/inspector/Observa
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
 import { ObservationList } from "@/src/components/session/ObservationList";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
+import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { cn } from "@/src/utils/tailwind";
 
@@ -41,6 +42,8 @@ export function ModernSession({
   const feedRef = useRef<HTMLDivElement>(null);
   const [selectedTraceId, setSelectedTraceId] = useState<string>();
   const [isSpanListOpen, setIsSpanListOpen] = useState(true);
+  // Row heights change with the generation view — remeasure on switch.
+  const generationView = useSessionDetailStore((state) => state.generationView);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
@@ -99,6 +102,7 @@ export function ModernSession({
         filterState={filterState}
         activeTraceId={activeTraceId}
         onSelect={selectTrace}
+        onOpenPeek={(trace) => openPeek(trace.id, trace)}
         isOpen={isSpanListOpen}
         onToggleOpen={() => setIsSpanListOpen((current) => !current)}
       />
@@ -126,7 +130,7 @@ export function ModernSession({
               <SessionVirtualizedRow
                 key={virtualItem.key}
                 itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
+                measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}:${generationView}`}
                 source="modern"
                 virtualItem={virtualItem}
                 virtualizer={virtualizer}

@@ -1,7 +1,14 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ChevronsLeft, ChevronsRight, Funnel } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
+  ExternalLink,
+  Funnel,
+} from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
+import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
@@ -136,6 +143,7 @@ const TurnCard = React.memo(
     isCollapsed,
     onToggleCollapse,
     onSelect,
+    onOpenPeek,
     projectId,
     sessionId,
     filterState,
@@ -148,82 +156,113 @@ const TurnCard = React.memo(
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number) => void;
+    onOpenPeek: (trace: EventSessionTrace) => void;
     projectId: string;
     sessionId: string;
     filterState: FilterState;
     typeFilter: Set<string>;
     search: string;
-  }) => (
-    <div
-      className={cn(
-        "bg-background mb-2 overflow-hidden rounded-sm border",
-        isActive && "ring-primary/60 border-primary/60 ring-1",
-      )}
-      data-observation-list-active={isActive}
-    >
-      <button
-        type="button"
-        onClick={() => onSelect(index)}
+  }) => {
+    const openInspector = useSessionDetailStore(
+      (state) => state.actions.openInspector,
+    );
+    return (
+      <div
         className={cn(
-          "flex w-full items-center gap-2 px-2.5 py-2 text-left",
-          isActive && "bg-primary/5",
+          "bg-background group mb-2 overflow-hidden rounded-sm border",
+          isActive && "ring-primary/60 border-primary/60 ring-1",
         )}
-        aria-current={isActive ? "true" : undefined}
+        data-observation-list-active={isActive}
       >
-        <span
-          className={cn(
-            "shrink-0 rounded-sm border px-1.5 py-px font-mono text-[9px] font-bold",
-            isActive
-              ? "border-primary/50 bg-primary/10 text-primary"
-              : "bg-muted/50 text-muted-foreground",
-          )}
-        >
-          {index + 1}
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-xs font-bold"
-          title={trace.name ?? "Trace"}
-        >
-          {trace.name ?? "Trace"}
-        </span>
-        <span
-          role="button"
-          tabIndex={0}
-          aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleCollapse(trace.id);
+        <button
+          type="button"
+          onClick={() => {
+            onSelect(index);
+            // Card click also opens the trace/turn inspector (trace identity,
+            // metrics, and scores that the minimal cards no longer show).
+            openInspector({ traceId: trace.id, observationId: null });
           }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
+          className={cn(
+            "flex w-full items-center gap-2 px-2.5 py-2 text-left",
+            isActive && "bg-primary/5",
+          )}
+          aria-current={isActive ? "true" : undefined}
+        >
+          <span
+            className={cn(
+              "shrink-0 rounded-sm border px-1.5 py-px font-mono text-[9px] font-bold",
+              isActive
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "bg-muted/50 text-muted-foreground",
+            )}
+          >
+            {index + 1}
+          </span>
+          <span
+            className="min-w-0 flex-1 truncate text-xs font-bold"
+            title={trace.name ?? "Trace"}
+          >
+            {trace.name ?? "Trace"}
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label="Open trace view"
+            title="Open trace view"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenPeek(trace);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenPeek(trace);
+              }
+            }}
+            className="hover:bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
+            onClick={(event) => {
               event.stopPropagation();
               onToggleCollapse(trace.id);
-            }
-          }}
-          className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
-        >
-          <ChevronDown
-            className={cn(
-              "text-muted-foreground h-3.5 w-3.5 transition-transform",
-              isCollapsed ? "-rotate-90" : "rotate-0",
-            )}
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleCollapse(trace.id);
+              }
+            }}
+            className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
+          >
+            <ChevronDown
+              className={cn(
+                "text-muted-foreground h-3.5 w-3.5 transition-transform",
+                isCollapsed ? "-rotate-90" : "rotate-0",
+              )}
+            />
+          </span>
+        </button>
+        {!isCollapsed ? (
+          <TurnObservationRows
+            trace={trace}
+            projectId={projectId}
+            sessionId={sessionId}
+            filterState={filterState}
+            typeFilter={typeFilter}
+            search={search}
+            onSelectTurn={() => onSelect(index)}
           />
-        </span>
-      </button>
-      {!isCollapsed ? (
-        <TurnObservationRows
-          trace={trace}
-          projectId={projectId}
-          sessionId={sessionId}
-          filterState={filterState}
-          typeFilter={typeFilter}
-          search={search}
-          onSelectTurn={() => onSelect(index)}
-        />
-      ) : null}
-    </div>
-  ),
+        ) : null}
+      </div>
+    );
+  },
 );
 TurnCard.displayName = "TurnCard";
 
@@ -240,6 +279,7 @@ export function ObservationList({
   filterState,
   activeTraceId,
   onSelect,
+  onOpenPeek,
   isOpen,
   onToggleOpen,
 }: {
@@ -249,6 +289,7 @@ export function ObservationList({
   filterState: FilterState;
   activeTraceId: string | undefined;
   onSelect: (index: number) => void;
+  onOpenPeek: (trace: EventSessionTrace) => void;
   isOpen: boolean;
   onToggleOpen: () => void;
 }) {
@@ -421,6 +462,7 @@ export function ObservationList({
                   isCollapsed={isCollapsed}
                   onToggleCollapse={toggleCollapse}
                   onSelect={onSelect}
+                  onOpenPeek={onOpenPeek}
                   projectId={projectId}
                   sessionId={sessionId}
                   filterState={filterState}

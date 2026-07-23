@@ -14,7 +14,12 @@ import {
   SquarePen,
   X,
 } from "lucide-react";
-import { deepParseJson, type FilterState } from "@langfuse/shared";
+import {
+  deepParseJson,
+  type FilterState,
+  type Observation,
+} from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -49,6 +54,8 @@ import { useSessionDetailStore } from "@/src/components/session/SessionDetailSto
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
+import { JumpToPlaygroundButton } from "@/src/features/playground/page/components/JumpToPlaygroundButton";
+import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -413,7 +420,38 @@ type InspectorOverlay =
   | "comments"
   | "traceDataset"
   | "traceComments"
+  | "traceAnnotate"
   | null;
+
+type IOView = "formatted" | "json";
+
+/** Tiny Formatted/JSON segmented control for the inspector's IO zones. */
+const IOViewToggle = ({
+  view,
+  onChange,
+}: {
+  view: IOView;
+  onChange: (view: IOView) => void;
+}) => (
+  <div className="bg-muted/40 flex items-center gap-0.5 rounded-sm border p-0.5">
+    {(["formatted", "json"] as const).map((candidate) => (
+      <button
+        key={candidate}
+        type="button"
+        aria-pressed={view === candidate}
+        onClick={() => onChange(candidate)}
+        className={cn(
+          "rounded-[3px] px-1.5 py-0.5 text-[10px] capitalize",
+          view === candidate
+            ? "bg-background text-foreground border shadow-sm"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {candidate === "json" ? "JSON" : "Formatted"}
+      </button>
+    ))}
+  </div>
+);
 
 const InspectorContent = ({
   observation,
@@ -437,6 +475,7 @@ const InspectorContent = ({
   const [systemPromptOpen, setSystemPromptOpen] = React.useState(false);
   const [toolsOpen, setToolsOpen] = React.useState(false);
   const [correctionOpen, setCorrectionOpen] = React.useState(false);
+  const [ioView, setIoView] = React.useState<IOView>("formatted");
 
   const hasAnnotationAccess = useHasProjectAccess({
     projectId,
@@ -507,23 +546,26 @@ const InspectorContent = ({
     (tool) => (chatML.toolCallCounts.get(tool.name) ?? 0) === 0,
   );
 
-  const inputText = isChat
-    ? conversationInputMessages
-        .map((message) => {
-          const text = messageContentToText(message);
-          return conversationInputMessages.length > 1
-            ? `${(message.role ?? "message").toUpperCase()}\n${text}`
-            : text;
-        })
-        .filter((text) => text.trim() !== "")
-        .join("\n\n")
-    : rawValueToText(parsed.input);
-  const outputText = isChat
-    ? outputMessages
-        .map(messageContentToText)
-        .filter((text) => text.trim() !== "")
-        .join("\n\n")
-    : rawValueToText(parsed.output);
+  const showFormatted = ioView === "formatted";
+  const inputText =
+    showFormatted && isChat
+      ? conversationInputMessages
+          .map((message) => {
+            const text = messageContentToText(message);
+            return conversationInputMessages.length > 1
+              ? `${(message.role ?? "message").toUpperCase()}\n${text}`
+              : text;
+          })
+          .filter((text) => text.trim() !== "")
+          .join("\n\n")
+      : rawValueToText(parsed.input);
+  const outputText =
+    showFormatted && isChat
+      ? outputMessages
+          .map(messageContentToText)
+          .filter((text) => text.trim() !== "")
+          .join("\n\n")
+      : rawValueToText(parsed.output);
   const systemPromptText = systemMessages
     .map(messageContentToText)
     .filter((text) => text.trim() !== "")
@@ -673,6 +715,37 @@ const InspectorContent = ({
             />
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {isGeneration ? (
+              <JumpToPlaygroundButton
+                source="generation"
+                generation={
+                  {
+                    ...observation,
+                    input:
+                      typeof observation.input === "string"
+                        ? observation.input
+                        : observation.input === null ||
+                            observation.input === undefined
+                          ? null
+                          : JSON.stringify(observation.input),
+                    output:
+                      typeof observation.output === "string"
+                        ? observation.output
+                        : observation.output === null ||
+                            observation.output === undefined
+                          ? null
+                          : JSON.stringify(observation.output),
+                  } as unknown as Omit<
+                    WithStringifiedMetadata<Observation>,
+                    "input" | "output"
+                  > & { input: string | null; output: string | null }
+                }
+                analyticsEventName="trace_detail:test_in_playground_button_click"
+                variant="outline"
+                size="sm"
+                className="md:hidden"
+              />
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 px-2.5">
@@ -768,13 +841,16 @@ const InspectorContent = ({
         <div className="flex flex-col gap-4 px-4 py-4">
           {hasContent(inputText) ? (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[13px] font-bold">Input</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-bold">Input</span>
+                <IOViewToggle view={ioView} onChange={setIoView} />
+              </div>
               <div className="bg-muted/30 rounded-sm border p-3 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">
                 {inputText}
               </div>
             </div>
           ) : null}
-          {systemPromptText ? (
+          {showFormatted && systemPromptText ? (
             <CollapsibleRow
               label="System prompt"
               isOpen={systemPromptOpen}
@@ -785,7 +861,7 @@ const InspectorContent = ({
               </div>
             </CollapsibleRow>
           ) : null}
-          {uncalledTools.length > 0 ? (
+          {showFormatted && uncalledTools.length > 0 ? (
             <CollapsibleRow
               label={`${uncalledTools.length} available tool${uncalledTools.length === 1 ? "" : "s"} not called`}
               isOpen={toolsOpen}
@@ -949,6 +1025,261 @@ const InspectorContent = ({
 };
 
 /**
+ * Trace/turn variant of the inspector, opened by clicking a turn card in the
+ * observation list: trace identity (name, id, timestamp), overview metrics
+ * (latency, env, user, spans), all of the turn's scores, and trace-level
+ * actions (dataset / annotate / comment / peek).
+ */
+const TraceInspectorContent = ({
+  trace,
+  projectId,
+  sessionId,
+  openPeek,
+  onClose,
+  overlay,
+  setOverlay,
+}: {
+  trace: EventSessionTrace;
+  projectId: string;
+  sessionId: string;
+  openPeek: OpenPeek;
+  onClose: () => void;
+  overlay: InspectorOverlay;
+  setOverlay: (overlay: InspectorOverlay) => void;
+}) => {
+  const hasAnnotationAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+  const hasDatasetAccess = useHasProjectAccess({
+    projectId,
+    scope: "datasets:CUD",
+  });
+  const traceForDatasetQuery = api.traces.byId.useQuery(
+    { traceId: trace.id, projectId, timestamp: trace.timestamp },
+    {
+      enabled: overlay === "traceDataset",
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+    },
+  );
+
+  const overviewRows: OverviewRow[] = [];
+  if (trace.latencyMs !== null && trace.latencyMs > 0) {
+    overviewRows.push({
+      label: "Latency",
+      value: formatIntervalSeconds(trace.latencyMs / 1000),
+    });
+  }
+  if (trace.environment) {
+    overviewRows.push({
+      label: "Env",
+      value: trace.environment,
+      title: trace.environment,
+    });
+  }
+  if (trace.userId) {
+    overviewRows.push({
+      label: "User",
+      title: trace.userId,
+      value: (
+        <Link
+          href={`/project/${projectId}/users/${encodeURIComponent(trace.userId)}`}
+          className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+        >
+          <span className="truncate" title={trace.userId}>
+            {trace.userId}
+          </span>
+          <ArrowUpRight className="h-3 w-3 shrink-0" />
+        </Link>
+      ),
+    });
+  }
+  overviewRows.push({
+    label: "Spans",
+    value: trace.observationCount ?? 0,
+  });
+  overviewRows.push({
+    label: "Session",
+    title: sessionId,
+    value: (
+      <Link
+        href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
+        className="hover:text-primary inline-flex max-w-full items-center gap-0.5"
+      >
+        <span className="truncate" title={sessionId}>
+          {sessionId}
+        </span>
+        <ArrowUpRight className="h-3 w-3 shrink-0" />
+      </Link>
+    ),
+  });
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 px-4 pt-3.5 pb-3">
+        <div className="flex items-start gap-2">
+          <span className="bg-muted text-foreground mt-0.5 shrink-0 rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wide uppercase">
+            Trace
+          </span>
+          <div className="min-w-0 flex-1">
+            <div
+              className="truncate text-sm font-bold"
+              title={trace.name ?? trace.id}
+            >
+              {trace.name ?? "Trace"}
+            </div>
+            <div
+              className="text-muted-foreground truncate font-mono text-[10px]"
+              title={trace.id}
+            >
+              {trace.id}
+            </div>
+            <LocalIsoDate
+              date={trace.timestamp}
+              accuracy="millisecond"
+              className="text-muted-foreground font-mono text-[10px]"
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-7 px-2.5">
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add to
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={!hasDatasetAccess}
+                  onClick={() => setOverlay("traceDataset")}
+                >
+                  <Database className="mr-2 h-3.5 w-3.5" />
+                  Add to dataset
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!hasAnnotationAccess}
+                  onClick={() => setOverlay("traceAnnotate")}
+                >
+                  <SquarePen className="mr-2 h-3.5 w-3.5" />
+                  Annotate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setOverlay("traceComments")}>
+                  <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                  Add comment
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="More actions"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openPeek(trace.id, trace)}>
+                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                  Open in trace view
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => copyTextToClipboard(trace.id)}>
+                  <Copy className="mr-2 h-3.5 w-3.5" />
+                  Copy trace ID
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Close inspector"
+              onClick={onClose}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        <OverviewGrid rows={overviewRows} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ZoneDivider />
+        <div className="px-4 pt-1 pb-4">
+          <ScoresSection
+            scores={trace.scores}
+            onAddScore={() => setOverlay("traceAnnotate")}
+            hasAnnotationAccess={hasAnnotationAccess}
+          />
+        </div>
+      </div>
+      <Dialog
+        open={overlay === "traceDataset"}
+        onOpenChange={(open) => setOverlay(open ? "traceDataset" : null)}
+      >
+        <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
+          <DialogHeader>
+            <DialogTitle>Add trace to datasets</DialogTitle>
+          </DialogHeader>
+          {overlay === "traceDataset" && traceForDatasetQuery.data ? (
+            <NewDatasetItemForm
+              traceId={trace.id}
+              projectId={projectId}
+              input={traceForDatasetQuery.data.input ?? null}
+              output={traceForDatasetQuery.data.output ?? null}
+              metadata={traceForDatasetQuery.data.metadata ?? null}
+              onFormSuccess={() => setOverlay(null)}
+              className="h-full overflow-y-auto"
+            />
+          ) : overlay === "traceDataset" ? (
+            <JsonSkeleton className="h-40 w-full" numRows={4} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Drawer
+        open={overlay === "traceAnnotate"}
+        onOpenChange={(open) => setOverlay(open ? "traceAnnotate" : null)}
+      >
+        <DrawerContent className="p-3">
+          {overlay === "traceAnnotate" ? (
+            <AnnotationForm
+              scoreTarget={{ type: "trace", traceId: trace.id }}
+              serverScores={trace.scores.filter(
+                (score) => !score.observationId,
+              )}
+              scoreMetadata={{
+                projectId,
+                environment: trace.environment ?? "default",
+              }}
+            />
+          ) : null}
+        </DrawerContent>
+      </Drawer>
+      <Drawer
+        open={overlay === "traceComments"}
+        onOpenChange={(open) => setOverlay(open ? "traceComments" : null)}
+      >
+        <DrawerContent className="p-3">
+          <DrawerHeader className="p-0 pb-2">
+            <DrawerTitle>Trace comments</DrawerTitle>
+          </DrawerHeader>
+          {overlay === "traceComments" ? (
+            <CommentList
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              isDrawerOpen
+            />
+          ) : null}
+        </DrawerContent>
+      </Drawer>
+    </>
+  );
+};
+
+/**
  * Right-hand observation inspector for the Modern Session view.
  *
  * Slides in over the conversation feed when an observation is selected
@@ -999,7 +1330,7 @@ export function ObservationInspector({
         filter: filterState,
       },
       {
-        enabled: inspected !== null,
+        enabled: inspected !== null && inspected.observationId !== null,
         trpc: { context: { skipBatch: true } },
         staleTime: 60 * 1000,
       },
@@ -1034,7 +1365,18 @@ export function ObservationInspector({
         aria-label="Observation details"
         className="bg-background animate-in slide-in-from-right absolute inset-y-0 right-0 z-20 flex w-[420px] max-w-full flex-col border-l shadow-[-10px_0_28px_hsl(var(--foreground)/0.09)] duration-200 dark:shadow-none"
       >
-        {observationsQuery.isLoading ? (
+        {inspected.observationId === null && trace ? (
+          <TraceInspectorContent
+            key={trace.id}
+            trace={trace}
+            projectId={projectId}
+            sessionId={sessionId}
+            openPeek={openPeek}
+            onClose={closeInspector}
+            overlay={overlay}
+            setOverlay={setOverlay}
+          />
+        ) : observationsQuery.isLoading ? (
           <div className="p-4">
             <JsonSkeleton className="h-full w-full" numRows={10} />
           </div>

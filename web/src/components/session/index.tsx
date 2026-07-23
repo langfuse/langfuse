@@ -91,10 +91,17 @@ import {
   findSessionDetailViewByFilters,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
 } from "@/src/components/session/session-detail-presets";
-import { downloadSessionAsJson } from "@/src/components/session/actions/downloadSessionAsJson";
+import {
+  downloadJsonFile,
+  downloadSessionAsJson,
+} from "@/src/components/session/actions/downloadSessionAsJson";
 import { SessionDetailStoreProvider } from "@/src/components/session/SessionDetailStoreProvider";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
+import {
+  createSessionDetailStore,
+  type GenerationView,
+} from "@/src/components/session/sessionDetailStore";
+import { cn } from "@/src/utils/tailwind";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useStore } from "zustand";
@@ -248,9 +255,12 @@ const SessionHeaderKebab: React.FC<{
   sessionId: string;
   bookmarked: boolean;
   isPublic: boolean;
-}> = ({ projectId, sessionId, bookmarked, isPublic }) => {
+  session: EventSession;
+  traces: EventSessionTrace[];
+}> = ({ projectId, sessionId, bookmarked, isPublic, session, traces }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const [isDownloading, setIsDownloading] = useState(false);
   const hasBookmarkAccess = useHasProjectAccess({
     projectId,
     scope: "objects:bookmark",
@@ -265,6 +275,63 @@ const SessionHeaderKebab: React.FC<{
   const publishMutation = api.sessions.publish.useMutation({
     onSuccess: () => utils.sessions.invalidate(),
   });
+
+  // Events-backed export: session metrics + traces + each trace's
+  // observations (as served to this view — payloads can be size-capped)
+  // + session/trace comments.
+  const onDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const [sessionComments, traceCommentsByTraceId] = await Promise.all([
+        utils.comments.getByObjectId.fetch({
+          projectId,
+          objectId: sessionId,
+          objectType: "SESSION",
+        }),
+        utils.comments.getTraceCommentsBySessionId.fetch({
+          projectId,
+          sessionId,
+        }),
+      ]);
+      const observationsByTraceId: Record<string, unknown> = {};
+      const chunkSize = 5;
+      for (let i = 0; i < traces.length; i += chunkSize) {
+        const chunk = traces.slice(i, i + chunkSize);
+        const results = await Promise.all(
+          chunk.map((trace) =>
+            utils.client.sessions.observationsForTraceFromEvents.query({
+              projectId,
+              sessionId,
+              traceId: trace.id,
+              filter: [],
+            }),
+          ),
+        );
+        chunk.forEach((trace, index) => {
+          observationsByTraceId[trace.id] = results[index];
+        });
+      }
+      const traceComments = traceCommentsByTraceId as unknown as Record<
+        string,
+        unknown[]
+      >;
+      downloadJsonFile({
+        data: {
+          ...session,
+          traces: traces.map((trace) => ({
+            ...trace,
+            observations: observationsByTraceId[trace.id] ?? [],
+            comments: traceComments?.[trace.id] ?? [],
+          })),
+          comments: sessionComments ?? [],
+        },
+        fileName: `session-${sessionId}.json`,
+      });
+      capture("session_detail:download_button_click");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -318,6 +385,10 @@ const SessionHeaderKebab: React.FC<{
           <CopyIcon className="mr-2 h-3.5 w-3.5" />
           Copy session ID
         </DropdownMenuItem>
+        <DropdownMenuItem disabled={isDownloading} onClick={onDownload}>
+          <Download className="mr-2 h-3.5 w-3.5" />
+          Download as JSON
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -335,6 +406,8 @@ const SessionMetricsLine: React.FC<{
   totalCost: number;
   users: string[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
+  generationView: GenerationView;
+  onGenerationViewChange: (view: GenerationView) => void;
 }> = ({
   projectId,
   countTraces,
@@ -343,6 +416,8 @@ const SessionMetricsLine: React.FC<{
   totalCost,
   users,
   scores,
+  generationView,
+  onGenerationViewChange,
 }) => {
   const metric = (label: string, value: React.ReactNode) => (
     <span className="whitespace-nowrap">
@@ -389,6 +464,30 @@ const SessionMetricsLine: React.FC<{
             ) : null}
           </>
         ) : null}
+        <span className="flex-1" />
+        {/* Generation view (ex "LLM Calls per Trace" presets): which
+            generations render per conversation turn. */}
+        <span className="flex items-center gap-1.5">
+          <span className="text-muted-foreground">Generations</span>
+          <span className="bg-muted/40 flex items-center gap-0.5 rounded-sm border p-0.5">
+            {(["all", "first", "last"] as const).map((view) => (
+              <button
+                key={view}
+                type="button"
+                aria-pressed={generationView === view}
+                onClick={() => onGenerationViewChange(view)}
+                className={cn(
+                  "rounded-[3px] px-1.5 py-0.5 text-[10px] capitalize",
+                  generationView === view
+                    ? "bg-background text-foreground border shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {view}
+              </button>
+            ))}
+          </span>
+        </span>
       </div>
       {scores.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -868,6 +967,10 @@ const LoadedSessionEventsPage: React.FC<{
   const showSystemPrompt = useStore(
     sessionDetailStore,
     (state) => state.showSystemPrompt,
+  );
+  const generationView = useStore(
+    sessionDetailStore,
+    (state) => state.generationView,
   );
 
   useEffect(() => {
@@ -1420,6 +1523,8 @@ const LoadedSessionEventsPage: React.FC<{
                   sessionId={sessionId}
                   bookmarked={session.bookmarked}
                   isPublic={session.public}
+                  session={session}
+                  traces={traces ?? []}
                 />
               )}
             </>
@@ -1442,6 +1547,10 @@ const LoadedSessionEventsPage: React.FC<{
               totalCost={session.totalCost ?? 0}
               users={session.users ?? []}
               scores={session.scores}
+              generationView={generationView}
+              onGenerationViewChange={(view) =>
+                sessionDetailStore.getState().actions.setGenerationView(view)
+              }
             />
           ) : (
             <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">

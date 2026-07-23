@@ -2,11 +2,17 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 export type LoadedTraceIds = Record<string, true>;
 
-/** Identifies the observation shown in the Modern Session inspector panel. */
+/**
+ * Identifies what the Modern Session inspector panel shows: an observation,
+ * or (observationId null) the trace/turn itself.
+ */
 export interface InspectedObservation {
   traceId: string;
-  observationId: string;
+  observationId: string | null;
 }
+
+/** Which generations render per conversation turn (ex LLM-call presets). */
+export type GenerationView = "all" | "first" | "last";
 
 export interface SessionDetailStoreState {
   loadedTraceIds: LoadedTraceIds;
@@ -14,6 +20,7 @@ export interface SessionDetailStoreState {
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
   inspectedObservation: InspectedObservation | null;
+  generationView: GenerationView;
   sessionId: string;
   actions: {
     markTraceLoaded: (traceId: string) => void;
@@ -22,6 +29,7 @@ export interface SessionDetailStoreState {
     setShowSystemPrompt: (showSystemPrompt: boolean) => void;
     openInspector: (inspectedObservation: InspectedObservation) => void;
     closeInspector: () => void;
+    setGenerationView: (generationView: GenerationView) => void;
     resetForSession: (sessionId: string) => void;
   };
 }
@@ -41,6 +49,7 @@ export function createSessionDetailStore({
     showInlineToolCalls: false,
     showSystemPrompt: false,
     inspectedObservation: null,
+    generationView: "all",
     sessionId: initialSessionId,
     actions: {
       markTraceLoaded: (traceId: string) => {
@@ -71,6 +80,10 @@ export function createSessionDetailStore({
       closeInspector: () => {
         if (get().inspectedObservation === null) return;
         set({ inspectedObservation: null });
+      },
+      setGenerationView: (generationView: GenerationView) => {
+        if (generationView === get().generationView) return;
+        set({ generationView });
       },
       resetForSession: (sessionId: string) => {
         if (sessionId === get().sessionId) return;
