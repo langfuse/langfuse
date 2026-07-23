@@ -60,6 +60,40 @@ const createTraceCreateEvent = () => {
   };
 };
 
+// Regression test fixture for langfuse/langfuse#14797: score-create events are
+// commonly sent without a client-supplied `body.id` (unlike traces/observations).
+const createScoreCreateEvent = () => {
+  const timestamp = "2024-10-12T12:13:15.123Z";
+
+  return {
+    id: "score-event-id",
+    timestamp,
+    type: eventTypes.SCORE_CREATE,
+    body: {
+      traceId: "trace-id",
+      name: "relevance",
+      value: 0.9,
+      dataType: "NUMERIC" as const,
+      environment: "default",
+    },
+  };
+};
+
+const createTraceCreateEventWithoutId = () => {
+  const timestamp = "2024-10-12T12:13:14.123Z";
+
+  return {
+    id: "trace-event-id",
+    timestamp,
+    type: eventTypes.TRACE_CREATE,
+    body: {
+      timestamp,
+      name: "trace",
+      environment: "default",
+    },
+  };
+};
+
 describe("processEventBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -146,5 +180,67 @@ describe("processEventBatch", () => {
       ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,
       ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
+  });
+
+  it("enqueues a score-create event that omits body.id (langfuse#14797)", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    const result = await processEventBatch(
+      [createScoreCreateEvent()],
+      authCheck,
+      {
+        delay: 0,
+        attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+      },
+    );
+
+    // The event is reported as a `201` success purely from passing schema
+    // validation — this is exactly what made the original drop invisible:
+    // the response says nothing about whether the event actually reached
+    // S3 or the ingestion queue.
+    expect(result).toEqual({
+      successes: [{ id: "score-event-id", status: 201 }],
+      errors: [],
+    });
+
+    // The real assertion: without a fallback id, this event never reaches
+    // either S3 or the queue, so both mocks stay uncalled.
+    expect(uploadJsonMock).toHaveBeenCalledTimes(1);
+    expect(queueAddMock).toHaveBeenCalledTimes(1);
+    const enqueuedData = queueAddMock.mock.calls[0][1].payload.data;
+    expect(enqueuedData.eventBodyId).toBeTypeOf("string");
+    expect(enqueuedData.eventBodyId.length).toBeGreaterThan(0);
+
+    // The invariant this fix relies on: the id backfilled into the S3-uploaded
+    // event body must be the exact same id used as the queue's eventBodyId,
+    // since IngestionService looks up/creates the score row by eventBodyId.
+    const uploadedEvents = uploadJsonMock.mock.calls[0][1];
+    expect(uploadedEvents[0].body.id).toBe(enqueuedData.eventBodyId);
+  });
+
+  it("enqueues a trace-create event that omits body.id", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    await processEventBatch([createTraceCreateEventWithoutId()], authCheck, {
+      delay: 0,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+    });
+
+    expect(uploadJsonMock).toHaveBeenCalledTimes(1);
+    expect(queueAddMock).toHaveBeenCalledTimes(1);
   });
 });
