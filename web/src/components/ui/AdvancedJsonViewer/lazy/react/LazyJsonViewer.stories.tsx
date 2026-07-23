@@ -44,7 +44,6 @@ const hugeStringPayload = {
 // the streamed/byte source (LFE-11082), not here.
 
 const meta = preview.meta({
-  title: "components/AdvancedJsonViewer/LazyJsonViewer",
   component: LazyJsonViewer,
   args: {
     value: { hello: "world", nested: { a: 1, b: [1, 2, 3] } },
