@@ -188,17 +188,29 @@ function IOPreviewJSONInner({
   // preview, download and reported size all reflect what tripped the gate (a
   // string field that deep-parses into a large tree would otherwise show its
   // short raw length).
+  // Probe the DECODED value (the same one the lazy viewer renders), so its
+  // serialized string is reused for BOTH the download and the byte engine — one
+  // JSON.stringify, not two (the lazy branch below passes `probe.serialized`).
   const inputProbe = useMemo(
-    () => (inputTooLarge ? probeJsonField(inputParsed) : null),
-    [inputParsed, inputTooLarge],
+    () =>
+      inputTooLarge && effectiveInput !== undefined
+        ? probeJsonField(effectiveInput)
+        : null,
+    [effectiveInput, inputTooLarge],
   );
   const outputProbe = useMemo(
-    () => (outputTooLarge ? probeJsonField(outputParsed) : null),
-    [outputParsed, outputTooLarge],
+    () =>
+      outputTooLarge && effectiveOutput !== undefined
+        ? probeJsonField(effectiveOutput)
+        : null,
+    [effectiveOutput, outputTooLarge],
   );
   const metadataProbe = useMemo(
-    () => (metadataTooLarge ? probeJsonField(metadataParsed) : null),
-    [metadataParsed, metadataTooLarge],
+    () =>
+      metadataTooLarge && effectiveMetadata !== undefined
+        ? probeJsonField(effectiveMetadata)
+        : null,
+    [effectiveMetadata, metadataTooLarge],
   );
 
   // A gated field parses to undefined above but is not empty — it is too big.
@@ -349,7 +361,6 @@ function IOPreviewJSONInner({
       backgroundColor: string,
       probe: ReturnType<typeof probeJsonField> | null,
       rowCount: number,
-      value: unknown,
     ) => ({
       // Use a key distinct from the field's normal section key so the fallback
       // does not inherit a persisted collapsed state from an earlier trace
@@ -400,7 +411,10 @@ function IOPreviewJSONInner({
               style={{ height: 400 }}
               className="overflow-hidden rounded-md border"
             >
-              <LazyJsonViewer value={value} />
+              {/* Feed the byte engine the probe's serialized JSON, so the field
+                  is stringified once (probe) and reused here — not a second time
+                  inside the viewer. */}
+              <LazyJsonViewer serialized={probe.serialized} />
             </div>
             <LargeJsonFieldFallback
               title={title}
@@ -421,14 +435,7 @@ function IOPreviewJSONInner({
     if (showInput) {
       result.push(
         inputTooLarge
-          ? gatedSection(
-              "input",
-              "Input",
-              inputBgColor,
-              inputProbe,
-              inputRows,
-              effectiveInput,
-            )
+          ? gatedSection("input", "Input", inputBgColor, inputProbe, inputRows)
           : {
               key: "input",
               title: "Input",
@@ -447,7 +454,6 @@ function IOPreviewJSONInner({
               outputBgColor,
               outputProbe,
               outputRows,
-              effectiveOutput,
             )
           : {
               key: "output",
@@ -490,7 +496,6 @@ function IOPreviewJSONInner({
               metadataBgColor,
               metadataProbe,
               metadataRows,
-              effectiveMetadata,
             )
           : {
               key: "metadata",
