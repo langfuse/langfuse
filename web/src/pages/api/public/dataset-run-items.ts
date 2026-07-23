@@ -13,10 +13,6 @@ import {
 import { DATASET_RUN_ITEMS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
-  // POST is a write: legacy writes carry only the Fern `availability: deprecated`
-  // marker (+ generated-SDK @deprecated), no runtime `_deprecation` body field
-  // (design decision — write responses are too thin to carry it). The GET below
-  // does get the runtime signal. rejectInEventsOnlyMode gates both at cutover.
   POST: createAuthedProjectAPIRoute({
     name: "Create Dataset Run Item",
     bodySchema: PostDatasetRunItemsV1Body,
