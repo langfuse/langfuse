@@ -2,7 +2,6 @@ import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import {
@@ -106,11 +105,12 @@ export const MobilePageTitle = ({
         </div>
       )}
 
-      {/* Hoisted page controls (time range, auto-refresh) + agent launcher.
-          Temporary home until the expandable bottom bar owns them. */}
+      {/* Hoisted page controls (time range, auto-refresh). The assistant
+          launcher lives in the sticky MobileTopBar now (prominent + always
+          reachable), not here where it wrapped onto its own line and shrank to
+          an easily-missed icon. */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <PageHeaderControlsSlotTarget />
-        <InAppAiAgentButton />
       </div>
 
       {tabsProps && <PageTabs {...tabsProps} scrollable className="mt-2" />}
