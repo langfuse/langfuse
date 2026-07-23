@@ -5,12 +5,14 @@ import { type ButtonProps } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
+type AutomationButtonProps = {
+  projectId: string;
+} & Pick<ButtonProps, never>;
+
 export const AutomationButton = ({
   projectId,
   ...buttonProps
-}: {
-  projectId: string;
-} & ButtonProps) => {
+}: AutomationButtonProps) => {
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "automations:read",
