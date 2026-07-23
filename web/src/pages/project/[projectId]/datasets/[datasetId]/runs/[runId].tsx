@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -23,49 +24,24 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-export default function Dataset() {
+function DatasetRunLegacy() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
   const runId = router.query.runId as string;
 
-  // Fast-preview (v4) users read experiment items directly from the events
-  // table; legacy users keep the dataset_run_items read path. Note that
-  // experiment_id === dataset_run_id, so the route's runId is the experiment id.
-  const { isExperimentsBetaActive } = useExperimentAccess();
-
   const dataset = api.datasets.byId.useQuery({
     datasetId,
     projectId,
   });
-  const run = api.datasets.runById.useQuery(
-    {
-      datasetId,
-      projectId,
-      runId,
-    },
-    {
-      enabled: !isExperimentsBetaActive,
-    },
-  );
-  // In fast-preview mode a direct-written experiment may not have a Postgres
-  // dataset-run row, so source the title/name from the events-backed experiment.
-  const experiment = api.experiments.byId.useQuery(
-    {
-      projectId,
-      experimentId: runId,
-    },
-    {
-      enabled: isExperimentsBetaActive && Boolean(runId),
-    },
-  );
-  const details = isExperimentsBetaActive ? experiment.data : run.data;
-  const isDetailsPending = isExperimentsBetaActive
-    ? experiment.isPending
-    : run.isPending;
+  const run = api.datasets.runById.useQuery({
+    datasetId,
+    projectId,
+    runId,
+  });
   const breadcrumb = getDatasetBreadcrumb(
     projectId,
     datasetId,
@@ -75,9 +51,7 @@ export default function Dataset() {
   return (
     <Page
       headerProps={{
-        title: isExperimentsBetaActive
-          ? (experiment.data?.name ?? run.data?.name ?? runId)
-          : (run.data?.name ?? runId),
+        title: run.data?.name ?? runId,
         itemType: "EXPERIMENT",
         breadcrumb: [
           ...breadcrumb,
@@ -129,16 +103,12 @@ export default function Dataset() {
     >
       <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          {isExperimentsBetaActive ? (
-            <ExperimentItemsTable projectId={projectId} experimentId={runId} />
-          ) : (
-            <DatasetRunItemsByRunTable
-              projectId={projectId}
-              datasetId={datasetId}
-              datasetRunId={runId}
-              datasetVersion={run.data?.datasetVersion}
-            />
-          )}
+          <DatasetRunItemsByRunTable
+            projectId={projectId}
+            datasetId={datasetId}
+            datasetRunId={runId}
+            datasetVersion={run.data?.datasetVersion}
+          />
         </div>
         <SidePanel
           mobileTitle="Experiment run details"
@@ -148,7 +118,7 @@ export default function Dataset() {
             <SidePanelTitle>Experiment run details</SidePanelTitle>
           </SidePanelHeader>
           <SidePanelContent>
-            {isDetailsPending ? (
+            {run.isPending ? (
               <Skeleton className="h-full w-full" />
             ) : (
               <>
@@ -163,21 +133,21 @@ export default function Dataset() {
                     </Link>
                   </div>
                 )}
-                {!!details?.description && (
+                {!!run.data?.description && (
                   <JSONView
-                    json={details.description}
+                    json={run.data.description}
                     title="Description"
                     className="w-full overflow-y-auto"
                   />
                 )}
-                {!!details?.metadata && (
+                {!!run.data?.metadata && (
                   <JSONView
-                    json={details.metadata}
+                    json={run.data.metadata}
                     title="Metadata"
                     className="w-full overflow-y-auto"
                   />
                 )}
-                {!details?.description && !details?.metadata && (
+                {!run.data?.description && !run.data?.metadata && (
                   <div className="text-muted-foreground mt-1 px-1 text-sm">
                     No description or metadata for this run
                   </div>
@@ -189,4 +159,31 @@ export default function Dataset() {
       </div>
     </Page>
   );
+}
+
+export default function DatasetRun() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runId = router.query.runId as string;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId ||
+      !runId
+    ) {
+      return;
+    }
+
+    router.replace(singleRunToExperimentsUrl(projectId, runId));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runId]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return <DatasetRunLegacy />;
 }
