@@ -87,7 +87,8 @@ describe("transformMediaPayload", () => {
 
     expect(transformed.value).toBe(`file: ${MEDIA_REFERENCE}`);
     expect(processCandidate).toHaveBeenCalledWith({
-      base64Data: textBase64,
+      encodedData: textBase64,
+      encoding: "base64",
       contentType: "text/plain",
       kind: "data_uri",
       source: "base64_data_uri",

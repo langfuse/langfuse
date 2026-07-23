@@ -39,6 +39,10 @@ const agentMocks = vi.hoisted(() => ({
   createAgUiStream: vi.fn(),
 }));
 
+const instrumentationMocks = vi.hoisted(() => ({
+  addUserToSpan: vi.fn(),
+}));
+
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
   "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
@@ -78,6 +82,11 @@ vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
 
 vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
   getLangfuseClient: langfuseClientMocks.getLangfuseClient,
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  addUserToSpan: instrumentationMocks.addUserToSpan,
 }));
 
 describe("in-app agent public API route auth", () => {
@@ -182,6 +191,21 @@ describe("in-app agent public API route auth", () => {
         },
       }),
     ).toEqual(tools);
+  });
+
+  it("adds the authenticated user to the request span", async () => {
+    authMocks.getServerSession.mockResolvedValue(
+      createInAppAgentSession({ orgId: "org-1", projectId: "project-1" }),
+    );
+
+    const { default: handler } =
+      await import("@/src/ee/features/in-app-agent/server/handler");
+    await handler(new Request("http://localhost/api/in-app-agent"));
+
+    expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
+      userId: "user-1",
+      email: "test@example.com",
+    });
   });
 
   it("passes validated resume forwarded props without requiring a user message", async () => {
@@ -791,6 +815,10 @@ describe("in-app agent public API route auth", () => {
         orgId: org.id,
         projectId: project.id,
       });
+      const sessionUser = session.user;
+      if (!sessionUser) {
+        throw new Error("Expected an authenticated session user");
+      }
       authMocks.getServerSession.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
@@ -850,6 +878,13 @@ describe("in-app agent public API route auth", () => {
         }),
         "in-app-agent-run",
       );
+      expect(instrumentationMocks.addUserToSpan).toHaveBeenLastCalledWith({
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        projectId: project.id,
+        orgId: org.id,
+        plan: "cloud:team",
+      });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
