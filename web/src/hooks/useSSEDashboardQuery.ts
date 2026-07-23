@@ -89,6 +89,11 @@ export function useSSEDashboardQuery(
   const [error, setError] = useState<string | null>(null);
   const [stateInputKey, setStateInputKey] = useState<string | null>(null);
   const maxPercentRef = useRef(0);
+  // Input key of the last run that produced a successful result currently held
+  // in `data`. Used to keep-previous-data across a same-input re-run so an
+  // already-rendered widget never blanks on a re-run it did not need (e.g. the
+  // scheduler re-promoting an item). A genuine input change still clears.
+  const lastSuccessfulInputKeyRef = useRef<string | null>(null);
   const basePath = env.NEXT_PUBLIC_BASE_PATH ?? "";
 
   // Stable reference for the input to avoid re-triggering on every render
@@ -97,11 +102,18 @@ export function useSSEDashboardQuery(
 
   const runQuery = useCallback(
     async (runInputKey: string, signal: AbortSignal) => {
+      const isSameInputAsLastSuccess =
+        lastSuccessfulInputKeyRef.current === runInputKey;
       setStateInputKey(runInputKey);
       setStatus("loading");
       setProgress(null);
       setError(null);
-      setData(undefined);
+      // Keep the previously loaded rows when re-running the exact same query, so
+      // the chart stays rendered instead of flashing empty; only clear when the
+      // input actually changed (a genuinely new query).
+      if (!isSameInputAsLastSuccess) {
+        setData(undefined);
+      }
       maxPercentRef.current = 0;
 
       try {
@@ -170,6 +182,7 @@ export function useSSEDashboardQuery(
           } else if (event.type === "done") {
             setData(rows);
             setStatus("success");
+            lastSuccessfulInputKeyRef.current = runInputKey;
             terminated = true;
           } else if (event.type === "error") {
             try {
@@ -209,6 +222,7 @@ export function useSSEDashboardQuery(
           if (rows.length > 0) {
             setData(rows);
             setStatus("success");
+            lastSuccessfulInputKeyRef.current = runInputKey;
           } else {
             setError("Stream ended unexpectedly");
             setStatus("error");

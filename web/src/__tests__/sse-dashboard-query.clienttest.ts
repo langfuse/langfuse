@@ -232,6 +232,106 @@ describe("useSSEDashboardQuery", () => {
     expect(result.current.data).toEqual([{ count_count: 42 }]);
   });
 
+  it("keeps previously loaded rows during a same-input re-run", async () => {
+    const encoder = new TextEncoder();
+    let releaseSecondResponse: (() => void) | null = null;
+
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () =>
+            createStreamReader([
+              encoder.encode(
+                'event: row\ndata: {"count_count":42}\n\n' +
+                  "event: done\ndata: {}\n\n",
+              ),
+            ]),
+        },
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () => {
+            let released = false;
+            let step = 0;
+            const waitForRelease = new Promise<void>((resolve) => {
+              releaseSecondResponse = () => {
+                released = true;
+                resolve();
+              };
+            });
+
+            return {
+              read: vi.fn().mockImplementation(async () => {
+                if (!released) {
+                  await waitForRelease;
+                }
+
+                if (step === 0) {
+                  step += 1;
+                  return {
+                    done: false,
+                    value: encoder.encode(
+                      'event: row\ndata: {"count_count":99}\n\n' +
+                        "event: done\ndata: {}\n\n",
+                    ),
+                  };
+                }
+
+                return { done: true, value: undefined };
+              }),
+            };
+          },
+        },
+      })) as typeof fetch;
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+
+    const input = createInput(
+      "2026-03-22T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z",
+    );
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useSSEDashboardQuery(input, {
+          enabled,
+          queryId: "widget-1",
+        }),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    expect(result.current.data).toEqual([{ count_count: 42 }]);
+
+    // Scheduler re-promotion: the widget is disabled, then re-enabled with the
+    // exact same query input (a re-run it did not need).
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+
+    // The second stream is in flight. The chart must NOT blank: the previously
+    // loaded rows stay rendered until fresh rows arrive.
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(true);
+    });
+    expect(result.current.data).toEqual([{ count_count: 42 }]);
+
+    (releaseSecondResponse as (() => void) | null)?.();
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual([{ count_count: 99 }]);
+    });
+    expect(result.current.isSuccess).toBe(true);
+  });
+
   it("treats a changed input as pending immediately and hides stale results", async () => {
     const encoder = new TextEncoder();
     let releaseSecondResponse: (() => void) | null = null;

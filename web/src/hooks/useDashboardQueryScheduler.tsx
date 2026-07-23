@@ -61,6 +61,33 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
   return 9;
 };
 
+/**
+ * Reset key for the dashboard query scheduler.
+ *
+ * When this key changes, the scheduler re-queues every in-flight and completed
+ * widget (see `resetQueue`). It must therefore reflect ONLY parameters that
+ * genuinely invalidate query results — time range, filters, environment — and
+ * NOT the set of widgets present on the dashboard. Adding or removing a widget
+ * registers/unregisters incrementally and must not disturb already-rendered
+ * siblings (which, on the SSE path, would blank while they re-stream).
+ */
+export const getDashboardSchedulerResetKey = (params: {
+  projectId: string;
+  dashboardId: string;
+  fromIso: string;
+  toIso: string;
+  filters: unknown;
+  environments: string[];
+}): string =>
+  [
+    params.projectId,
+    params.dashboardId,
+    params.fromIso,
+    params.toIso,
+    JSON.stringify(params.filters),
+    params.environments.join(","),
+  ].join("|");
+
 const parseIsoDateMs = (value: unknown): number | null => {
   if (typeof value !== "string") return null;
 
