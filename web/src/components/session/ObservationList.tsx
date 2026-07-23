@@ -366,7 +366,7 @@ export function ObservationList({
         type="button"
         onClick={onToggleOpen}
         aria-label="Expand span list"
-        className="bg-muted/30 hover:bg-muted/60 flex min-h-0 items-center gap-2.5 border-r px-3 lg:flex-col lg:px-0 lg:pt-3"
+        className="bg-muted/30 hover:bg-muted/60 relative z-20 flex min-h-0 items-center gap-2.5 border-r px-3 lg:flex-col lg:px-0 lg:pt-3"
       >
         <ChevronsRight className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-muted-foreground font-mono text-[9px] font-bold tracking-[0.1em] uppercase lg:[writing-mode:vertical-rl]">
@@ -380,7 +380,9 @@ export function ObservationList({
     <div
       role="complementary"
       aria-label="Session spans"
-      className="bg-background flex min-h-0 flex-col border-r"
+      // z-20 lifts the rail above the inspector's click-catcher (z-10) so
+      // clicking cards/rows swaps the inspector instead of merely closing it.
+      className="bg-background relative z-20 flex min-h-0 flex-col border-r"
     >
       <div className="flex shrink-0 items-center gap-1.5 border-b p-2">
         <Input
