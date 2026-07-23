@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -183,6 +182,13 @@ export function ChatMessage({
       </>
     );
 
+    let customCodeHeaderClassName: "bg-card" | "bg-secondary" | undefined;
+    if (message.role === "assistant") {
+      customCodeHeaderClassName = "bg-secondary";
+    } else if (message.role === "system") {
+      customCodeHeaderClassName = "bg-card";
+    }
+
     return (
       <div className="hover:bg-muted transition-colors">
         {/* Markdown view */}
@@ -190,10 +196,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title={title}
             content={message.content || ""}
-            customCodeHeaderClassName={cn(
-              message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-card",
-            )}
+            customCodeHeaderClassName={customCodeHeaderClassName}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}

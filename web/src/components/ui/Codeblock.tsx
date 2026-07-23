@@ -10,7 +10,7 @@ interface Props {
   language: string;
   value: string;
   theme?: string;
-  className?: string;
+  className?: "bg-card" | "bg-secondary";
 }
 
 interface languageMap {
