@@ -40,7 +40,7 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
-    ingestionService.writeEventRecord(eventRecord);
+    await ingestionService.writeEventRecord(eventRecord);
 
     expect(addToQueue).toHaveBeenCalledOnce();
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
@@ -52,6 +52,69 @@ describe("IngestionService unit tests", () => {
       Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
     );
     expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
+  });
+
+  it("spills only the persisted event copy and preserves the enriched record", async () => {
+    const addToQueue = vi.fn();
+    const fieldSpillProcessor = vi.fn().mockResolvedValue({
+      fields: {
+        input:
+          '{"_langfuse_field_size_limit_exceeded_file":"@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@"}',
+        output: "original output",
+        metadata: [
+          "small",
+          '{"_langfuse_field_size_limit_exceeded_file":"@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@"}',
+        ],
+      },
+      outcomes: [],
+    });
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+      fieldSpillProcessor,
+    );
+    const eventRecord = await ingestionService.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "observation-id",
+        parentSpanId: "",
+        name: "spill-copy",
+        type: "SPAN",
+        environment: "default",
+        startTimeISO: "2026-07-22T00:00:00.000Z",
+        endTimeISO: "2026-07-22T00:00:01.000Z",
+        input: "original input",
+        output: "original output",
+        metadata: { keep: "small", large: { nested: "large" } },
+        source: "otel",
+        eventBytes: 1234,
+      },
+      "raw-event.json",
+    );
+
+    await ingestionService.writeEventRecord(eventRecord);
+
+    expect(fieldSpillProcessor).toHaveBeenCalledWith({
+      projectId: "project-id",
+      traceId: "trace-id",
+      observationId: "observation-id",
+      fields: {
+        input: "original input",
+        output: "original output",
+        metadata: ["small", "large"],
+      },
+    });
+    expect(eventRecord.input).toBe("original input");
+    expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);
+    expect(addToQueue).toHaveBeenCalledOnce();
+    expect(addToQueue.mock.calls[0]?.[1]).toMatchObject({
+      input: expect.stringContaining("input-media"),
+      metadata_names: ["keep", "large.nested"],
+      metadata_values: ["small", expect.stringContaining("metadata-media")],
+    });
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {

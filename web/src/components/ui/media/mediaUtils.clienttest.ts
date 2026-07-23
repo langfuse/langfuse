@@ -14,6 +14,20 @@ describe("classifyMediaValue", () => {
       contentType: "image/png",
       mediaId: "cc48838a-3da8-4ca4-a007-2cf8df930e69",
       referenceString: ref,
+      source: "bytes",
+    });
+  });
+
+  it("preserves the field-size-limit source for warning rendering", () => {
+    const oversizedFieldRef =
+      "@@@langfuseMedia:type=text/plain|id=oversized-field|source=field_size_limit@@@";
+
+    expect(classifyMediaValue(oversizedFieldRef)).toEqual({
+      kind: "langfuseRef",
+      contentType: "text/plain",
+      mediaId: "oversized-field",
+      referenceString: oversizedFieldRef,
+      source: "field_size_limit",
     });
   });
 
@@ -157,6 +171,7 @@ describe("classifyMediaValue", () => {
           contentType: "image/png",
           mediaId: "cc48838a-3da8-4ca4-a007-2cf8df930e69",
           referenceString: ref,
+          source: "bytes",
         },
       },
       { type: "text", value: '"}' },

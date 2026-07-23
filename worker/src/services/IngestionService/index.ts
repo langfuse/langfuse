@@ -67,6 +67,10 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
+import {
+  processObservationFieldSpill,
+  type ProcessObservationFieldSpill,
+} from "../../features/observation-field-spill/processObservationFieldSpill";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -170,6 +174,7 @@ export class IngestionService {
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
+    private readonly fieldSpillProcessor: ProcessObservationFieldSpill = processObservationFieldSpill,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -438,10 +443,36 @@ export class IngestionService {
    *
    * @param eventRecord - The event record to write
    */
-  public writeEventRecord(eventRecord: EventRecordInsertType): void {
+  public async writeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<void> {
+    const spillResult = await this.fieldSpillProcessor({
+      projectId: eventRecord.project_id,
+      traceId: eventRecord.trace_id,
+      observationId: eventRecord.span_id,
+      fields: {
+        input: eventRecord.input,
+        output: eventRecord.output,
+        metadata: eventRecord.metadata_values,
+      },
+    });
+    const persistedMetadataValues = Array.isArray(spillResult.fields.metadata)
+      ? spillResult.fields.metadata
+      : [];
+    const persistedRecord: EventRecordInsertType = {
+      ...eventRecord,
+      input: spillResult.fields.input ?? undefined,
+      output: spillResult.fields.output ?? undefined,
+      metadata_values: persistedMetadataValues.map((value) =>
+        typeof value === "string"
+          ? value
+          : (JSON.stringify(value) ?? String(value)),
+      ),
+    };
+
     this.clickHouseWriter.addToQueue(
       TableName.EventsFull,
-      withSerializedEventByteLength(eventRecord),
+      withSerializedEventByteLength(persistedRecord),
     );
   }
 
@@ -963,6 +994,23 @@ export class IngestionService {
       ...mergedObservationRecord,
       ...generationUsage,
     };
+    const spillResult = await this.fieldSpillProcessor({
+      projectId,
+      traceId: finalObservationRecord.trace_id || finalObservationRecord.id,
+      observationId: finalObservationRecord.id,
+      fields: {
+        input: finalObservationRecord.input,
+        output: finalObservationRecord.output,
+        metadata: finalObservationRecord.metadata,
+      },
+    });
+    finalObservationRecord.input = spillResult.fields.input ?? undefined;
+    finalObservationRecord.output = spillResult.fields.output ?? undefined;
+    finalObservationRecord.metadata = convertRecordValuesToString(
+      !Array.isArray(spillResult.fields.metadata)
+        ? (spillResult.fields.metadata ?? {})
+        : {},
+    );
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId
     if (!finalObservationRecord.trace_id) {

@@ -579,7 +579,7 @@ export const otelIngestionQueueProcessorBuilder = (
           // Step 3: Write to events table (independent of eval scheduling)
           if (shouldWriteToEventsTable) {
             try {
-              ingestionService.writeEventRecord(eventRecord);
+              await ingestionService.writeEventRecord(eventRecord);
             } catch (error) {
               traceException(error);
               logger.error(

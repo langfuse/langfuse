@@ -4,6 +4,7 @@ import {
   File,
   Image as ImageIcon,
   ImageOff,
+  TriangleAlert,
   Video,
   Volume2,
   type LucideIcon,
@@ -40,6 +41,10 @@ export interface MediaTagProps {
   url?: string;
   /** Overrides the chip label (defaults to the MIME subtype, e.g. "JPEG"). */
   label?: string;
+  /** Optional context shown above the preview in the peek popover. */
+  description?: string;
+  /** Renders the chip as a warning rather than a generic media attachment. */
+  warning?: boolean;
   /** Controlled open state of the peek popover (used by stories/tests). */
   open?: boolean;
   /**
@@ -166,7 +171,19 @@ function PeekBody({
  * owning container (`JsonMediaTag`) gates a lazy fetch on `onOpenChange`.
  */
 export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
-  ({ contentType, status = "idle", url, label, open, onOpenChange }, ref) => {
+  (
+    {
+      contentType,
+      status = "idle",
+      url,
+      label,
+      description,
+      warning = false,
+      open,
+      onOpenChange,
+    },
+    ref,
+  ) => {
     const kind = getMediaKind(contentType);
     const chipLabel = label ?? getDefaultLabel(contentType);
     const canOpen = status === "ready" && Boolean(url);
@@ -201,7 +218,11 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
             data-media-tag=""
             aria-label={`${chipLabel} media`}
             aria-expanded={isOpen}
-            className="hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+            className={
+              warning
+                ? "focus-visible:ring-ring inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border border-amber-500/60 bg-amber-50 px-1 py-0 align-middle text-xs leading-none text-amber-900 transition-colors hover:bg-amber-100 focus-visible:ring-2 focus-visible:outline-hidden dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
+                : "hover:bg-accent focus-visible:ring-ring bg-background inline-flex h-3.5 max-w-full items-center gap-1 rounded-sm border px-1 py-0 align-middle text-xs leading-none transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+            }
             onClick={openPeek}
             onPointerDown={(event) => {
               if (event.pointerType !== "mouse") {
@@ -210,7 +231,11 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               }
             }}
           >
-            <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+            {warning ? (
+              <TriangleAlert className="h-2.5 w-2.5 shrink-0" />
+            ) : (
+              <KindIcon kind={kind} className="h-2.5 w-2.5 shrink-0" />
+            )}
             <span
               className="relative top-0.25 truncate align-baseline font-mono leading-none"
               // Empty while the peek is open: a native tooltip would render on
@@ -258,6 +283,11 @@ export const MediaTag = React.forwardRef<HTMLButtonElement, MediaTagProps>(
               </Button>
             )}
           </div>
+          {description ? (
+            <p className="text-muted-foreground max-w-64 text-xs">
+              {description}
+            </p>
+          ) : null}
           <PeekBody
             kind={kind}
             status={previewStatus}

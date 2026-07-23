@@ -113,6 +113,21 @@ export const PreviewFile = meta.story({
   },
 });
 
+// Oversized observation fields use the media surface as a deliberate warning,
+// rather than looking like ordinary user-attached media.
+export const OversizedField = meta.story({
+  args: {
+    contentType: "text/plain",
+    label: "Field over 2 MB",
+    description:
+      "This field exceeded the 2 MB storage limit. Open the file to view the original content.",
+    warning: true,
+    open: true,
+    status: "ready",
+    url: "data:text/plain,original%20oversized%20field",
+  },
+});
+
 // Design showcase: one chip per media kind, collapsed.
 export const AllKinds = meta.story({
   render: () => (
