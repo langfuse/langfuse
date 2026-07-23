@@ -237,27 +237,25 @@ export const CreateOrEditAnnotationQueueButton = ({
       }}
     />
   ) : (
-    <div className="justify-start">
-      <ActionButton
-        variant={variant}
-        onClick={() => setIsOpen(true)}
-        icon={
-          queueId ? (
-            <Edit className="h-4 w-4" aria-hidden="true" />
-          ) : (
-            <PlusIcon className="h-4 w-4" aria-hidden="true" />
-          )
-        }
-        hasAccess={hasQueueAccess}
-        limitValue={queueCountData.data}
-        limit={queueLimit}
-        size={size}
-      >
-        <span className="ml-1 text-sm font-normal">
-          {queueId ? "Edit" : "New queue"}
-        </span>
-      </ActionButton>
-    </div>
+    <ActionButton
+      variant={variant}
+      onClick={() => setIsOpen(true)}
+      icon={
+        queueId ? (
+          <Edit className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <PlusIcon className="h-4 w-4" aria-hidden="true" />
+        )
+      }
+      hasAccess={hasQueueAccess}
+      limitValue={queueCountData.data}
+      limit={queueLimit}
+      size={size}
+    >
+      <span className="ml-1 text-sm font-normal">
+        {queueId ? "Edit" : "New queue"}
+      </span>
+    </ActionButton>
   );
 
   return (

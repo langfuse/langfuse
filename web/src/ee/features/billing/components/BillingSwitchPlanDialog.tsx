@@ -256,7 +256,7 @@ export const BillingSwitchPlanDialog = ({
                     ) : (
                       // The default behavior when the user is not on a paid plan.
                       <div className="mt-2 flex gap-1">
-                        <div className="w-full">
+                        <div className="grid w-full">
                           <ActionButton
                             onClick={() => {
                               if (organization) {
@@ -289,7 +289,7 @@ export const BillingSwitchPlanDialog = ({
                         </div>
                         {/* Optional checkout CTA button for non-paid plan users */}
                         {product.checkout?.cta && (
-                          <div className="w-full">
+                          <div className="grid w-full">
                             <ActionButton
                               variant="secondary"
                               href={product.checkout.cta.href}
