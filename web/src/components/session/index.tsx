@@ -1486,7 +1486,6 @@ const LoadedSessionEventsPage: React.FC<{
               filterState={visibleFilterState}
               filterMeasurementKey={visibleFilterMeasurementKey}
               viewLabel={viewLabel}
-              totalCost={session.totalCost ?? 0}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
             />

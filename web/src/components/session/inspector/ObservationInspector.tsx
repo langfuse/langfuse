@@ -407,7 +407,13 @@ const MetadataSection = ({ metadata }: { metadata: unknown }) => {
   );
 };
 
-type InspectorOverlay = "dataset" | "annotate" | "comments" | null;
+type InspectorOverlay =
+  | "dataset"
+  | "annotate"
+  | "comments"
+  | "traceDataset"
+  | "traceComments"
+  | null;
 
 const InspectorContent = ({
   observation,
@@ -440,6 +446,21 @@ const InspectorContent = ({
     projectId,
     scope: "datasets:CUD",
   });
+
+  // Trace-level I/O for "Add trace to dataset" — fetched only when that
+  // overlay opens (same source as the old per-trace minimap action).
+  const traceForDatasetQuery = api.traces.byId.useQuery(
+    {
+      traceId: trace?.id ?? "",
+      projectId,
+      timestamp: trace?.timestamp ?? new Date(0),
+    },
+    {
+      enabled: overlay === "traceDataset" && trace !== undefined,
+      trpc: { context: { skipBatch: true } },
+      refetchOnMount: false,
+    },
+  );
 
   const parsed = React.useMemo(
     () => ({
@@ -679,6 +700,21 @@ const InspectorContent = ({
                   <MessageSquare className="mr-2 h-3.5 w-3.5" />
                   Add comment
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={!hasDatasetAccess || !trace}
+                  onClick={() => setOverlay("traceDataset")}
+                >
+                  <Database className="mr-2 h-3.5 w-3.5" />
+                  Add trace to dataset
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!trace}
+                  onClick={() => setOverlay("traceComments")}
+                >
+                  <MessageSquare className="mr-2 h-3.5 w-3.5" />
+                  Comment on trace
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <DropdownMenu>
@@ -856,12 +892,16 @@ const InspectorContent = ({
         </DrawerContent>
       </Drawer>
       <Drawer
-        open={overlay === "comments"}
-        onOpenChange={(open) => setOverlay(open ? "comments" : null)}
+        open={overlay === "comments" || overlay === "traceComments"}
+        onOpenChange={(open) => {
+          if (!open) setOverlay(null);
+        }}
       >
         <DrawerContent className="p-3">
           <DrawerHeader className="p-0 pb-2">
-            <DrawerTitle>Comments</DrawerTitle>
+            <DrawerTitle>
+              {overlay === "traceComments" ? "Trace comments" : "Comments"}
+            </DrawerTitle>
           </DrawerHeader>
           {overlay === "comments" ? (
             <CommentList
@@ -871,8 +911,39 @@ const InspectorContent = ({
               isDrawerOpen
             />
           ) : null}
+          {overlay === "traceComments" && trace ? (
+            <CommentList
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              isDrawerOpen
+            />
+          ) : null}
         </DrawerContent>
       </Drawer>
+      <Dialog
+        open={overlay === "traceDataset"}
+        onOpenChange={(open) => setOverlay(open ? "traceDataset" : null)}
+      >
+        <DialogContent className="h-[calc(100vh-5rem)] max-h-none w-[calc(100vw-5rem)] max-w-none">
+          <DialogHeader>
+            <DialogTitle>Add trace to datasets</DialogTitle>
+          </DialogHeader>
+          {overlay === "traceDataset" && trace && traceForDatasetQuery.data ? (
+            <NewDatasetItemForm
+              traceId={trace.id}
+              projectId={projectId}
+              input={traceForDatasetQuery.data.input ?? null}
+              output={traceForDatasetQuery.data.output ?? null}
+              metadata={traceForDatasetQuery.data.metadata ?? null}
+              onFormSuccess={() => setOverlay(null)}
+              className="h-full overflow-y-auto"
+            />
+          ) : overlay === "traceDataset" ? (
+            <JsonSkeleton className="h-40 w-full" numRows={4} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
