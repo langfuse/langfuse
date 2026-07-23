@@ -17,16 +17,19 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
 
   constructor(params: {
     name: string;
+    metricName: string;
+    metricScope?: string;
     lockKey: string;
     lockTtlSeconds: number;
     onUnavailable?: OnUnavailableBehavior;
   }) {
-    super();
+    super(params.metricName, params.metricScope);
     this.instanceName = params.name;
     this.lock = new RedisLock(params.lockKey, {
       ttlSeconds: params.lockTtlSeconds,
       name: params.name,
       onUnavailable: params.onUnavailable || "proceed",
+      onError: (error) => this.markRunFailed(error),
     });
   }
 
@@ -59,7 +62,8 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
         return await operation();
       } catch (error) {
         logger.error(`${this.instanceName}: Operation failed`, { error });
-        // Error will be traced by parent instrumentAsync in PeriodicRunner
+        // This error is intentionally handled below, so instrumentAsync will not see it.
+        this.markRunFailed(error);
         return await onFailure?.(error);
       }
     });
@@ -70,6 +74,7 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
     span?.setAttribute("lock.key", this.lock.key);
 
     if (result === null) {
+      this.markRunSkipped();
       logger.debug(
         `${this.instanceName}: Lock not acquired, another worker is processing`,
       );
