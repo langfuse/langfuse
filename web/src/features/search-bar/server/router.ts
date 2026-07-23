@@ -15,6 +15,7 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import {
+  type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
@@ -27,7 +28,10 @@ import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
 } from "../lib/observed-options";
-import { buildFilterSystemPrompt } from "./buildFilterPrompt";
+import {
+  buildFilterContextMessage,
+  buildFilterSystemPrompt,
+} from "./buildFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
 import {
   generateLangfuseAIText,
@@ -123,8 +127,13 @@ export const searchBarRouter = createTRPCRouter({
         const now = new Date();
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
-        const systemPrompt = buildFilterSystemPrompt(
-          currentDatetime,
+        const systemPrompt = buildFilterSystemPrompt(currentDatetime);
+        // The current query being refined and the observed project data are
+        // injected DATA, not instructions — sent as their own user message so
+        // a trace shows the prompt and the data it was handed as distinct
+        // messages. Omitted entirely (not sent as an empty message) when
+        // there's neither.
+        const contextMessage = buildFilterContextMessage(
           input.currentQuery,
           input.dataContext,
         );
@@ -138,19 +147,32 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
+        // Built imperatively (rather than a conditional-spread array literal)
+        // so each push is checked against `ChatMessage` individually — a
+        // ternary-spread literal loses the enum-member literal types TS needs
+        // to match the discriminated union.
+        const messages: ChatMessage[] = [
+          {
+            role: ChatMessageRole.System,
+            content: systemPrompt,
+            type: ChatMessageType.PublicAPICreated,
+          },
+        ];
+        if (contextMessage !== null) {
+          messages.push({
+            role: ChatMessageRole.User,
+            content: contextMessage,
+            type: ChatMessageType.PublicAPICreated,
+          });
+        }
+        messages.push({
+          role: ChatMessageRole.User,
+          content: input.prompt,
+          type: ChatMessageType.PublicAPICreated,
+        });
+
         const llmCompletion = await generateLangfuseAIText({
-          messages: [
-            {
-              role: ChatMessageRole.System,
-              content: systemPrompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-            {
-              role: ChatMessageRole.User,
-              content: input.prompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
+          messages,
           model,
           maxTokens: 2048,
           traceSinkParams: aiTelemetryEnabled
