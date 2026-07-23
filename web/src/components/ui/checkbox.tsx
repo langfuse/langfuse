@@ -6,9 +6,12 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 
-type CheckboxProps = Omit<
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
-  "className"
+type CheckboxProps = Pick<
+  Omit<
+    React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+    "className"
+  >,
+  "aria-label" | "checked" | "disabled" | "id" | "onCheckedChange" | "onClick"
 > & {
   size?: "sm";
   variant?: "muted";
