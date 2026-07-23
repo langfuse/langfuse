@@ -369,3 +369,107 @@ jobs:
             ### ⚠️ AWS preview build failed
 
             The image build/push failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # End-to-end deploy canary. The 🟢 comment above only proves the images
+  # pushed; the deploy half (Argo CD generate → sync → pods → ALB rule) had no
+  # verification, so a dead deploy pipeline is indistinguishable from a healthy
+  # one on the PR (2026-07-22: Argo CD sat on a node whose Auto Mode node-local
+  # DNS died — previews silently stopped deploying for ~17h while every build
+  # posted 🟢). This job polls the preview URL after a successful build and
+  # turns "built but never came up" into a red check, a 🔴 status comment, and
+  # — if the PREVIEW_ALERT_SLACK_WEBHOOK_URL secret is set — a Slack alert.
+  #
+  # Known noise sources, accepted for simplicity: a PR merged/closed while the
+  # poll runs races teardown (the 🔴 lands on a closed PR — ignore it), and
+  # until the infra-repo deploy gate is label-only (infrastructure#1171) a PR
+  # from an author missing from the Argo allowlist builds but never deploys,
+  # which this job correctly-but-noisily reports as down.
+  verify:
+    name: Verify preview comes up
+    needs: [meta, build]
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Poll preview URL
+        env:
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+        run: |
+          set -euo pipefail
+          # Previews sleep off-hours (kube-downscaler: Mon–Fri 08:00–24:00
+          # Europe/Berlin) and a scaled-to-zero preview never answers, so only
+          # verify well inside the uptime window (margin on both edges: the
+          # poll runs up to 15 min).
+          dow="$(TZ=Europe/Berlin date +%u)"
+          hour="$(TZ=Europe/Berlin date +%-H)"
+          if [ "${dow}" -gt 5 ] || [ "${hour}" -lt 8 ] || [ "${hour}" -ge 23 ]; then
+            echo "Off-hours in Europe/Berlin (day ${dow}, hour ${hour}) — previews sleep; skipping verification."
+            exit 0
+          fi
+          deadline=$(( $(date +%s) + 15 * 60 ))
+          while [ "$(date +%s)" -lt "${deadline}" ]; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+              "https://${PREVIEW_HOST}/api/public/health" || true)"
+            if [ "${code}" = "200" ]; then
+              echo "Preview is serving (health endpoint returned 200)."
+              exit 0
+            fi
+            echo "Not up yet (HTTP ${code}) — retrying in 20s."
+            sleep 20
+          done
+          echo "::error::Images pushed but nothing serves at https://${PREVIEW_HOST} after 15 min — the deploy pipeline (Argo CD → cluster → ALB) is likely broken."
+          exit 1
+
+      # Base checkout only on failure — the happy path needs no workspace.
+      - name: Checkout base local actions
+        if: failure()
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/actions
+
+      # failure() (not != 'success') so a superseding push that cancels this
+      # run posts nothing — same semantics as the notify job's guards.
+      - name: Mark preview missing
+        if: failure()
+        uses: ./.github/actions/preview-comment
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          body: |
+            ### 🔴 AWS preview did not come up
+
+            Images for `${{ needs.meta.outputs.commit_sha }}` pushed fine, but
+            https://${{ needs.meta.outputs.preview_host }} still isn't serving
+            after 15 minutes — the deploy side (Argo CD → cluster → ALB) needs
+            a look: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Debug guide (deploy allowlist, Argo CD state, pod status, sick-node
+            DNS): https://github.com/langfuse/langfuse/blob/main/.agents/skills/langfuse-previews/SKILL.md#debug-a-preview
+
+            If this PR was just closed or merged, teardown raced the check —
+            ignore this comment.
+
+      # Optional Slack alert — no-op until the PREVIEW_ALERT_SLACK_WEBHOOK_URL
+      # secret is configured (same feature-flag pattern as the ECR role var).
+      - name: Alert Slack
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PREVIEW_ALERT_SLACK_WEBHOOK_URL }}
+          PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+            echo "PREVIEW_ALERT_SLACK_WEBHOOK_URL not configured — skipping Slack alert."
+            exit 0
+          fi
+          payload="$(jq -n \
+            --arg text "🔴 Preview pr-${PR_NUMBER} built but never came up: https://${PREVIEW_HOST} — deploy pipeline may be down. ${RUN_URL}" \
+            '{text: $text}')"
+          curl -fsS -X POST -H 'Content-Type: application/json' -d "${payload}" "${SLACK_WEBHOOK_URL}"
