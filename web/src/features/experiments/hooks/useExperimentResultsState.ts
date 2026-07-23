@@ -8,22 +8,7 @@ import {
 
 const MAX_COMPARISONS = 4;
 
-type UseExperimentResultsStateOptions = {
-  /**
-   * When set, the state is fixed to a single experiment: this id becomes the
-   * baseline with no comparisons, a list layout and baseline-only visibility,
-   * ignoring the URL compare params. Used by the legacy dataset run-detail
-   * route (experiment_id === dataset_run_id) to show a single experiment.
-   */
-  singleExperimentId?: string;
-};
-
-export function useExperimentResultsState(
-  options?: UseExperimentResultsStateOptions,
-) {
-  const singleExperimentId = options?.singleExperimentId;
-  const isSingleExperiment = Boolean(singleExperimentId);
-
+export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
     baseline: withDefault(StringParam, undefined),
     c: withDefault(ArrayParam, []),
@@ -32,23 +17,13 @@ export function useExperimentResultsState(
   });
 
   // Parse baseline ID
-  const baselineId = isSingleExperiment
-    ? singleExperimentId
-    : (state.baseline as string | undefined);
+  const baselineId = state.baseline as string | undefined;
   const hasBaseline = Boolean(baselineId);
 
-  // Parse comparison IDs - filter out null values and cast to string[].
-  // Memoized so the array keeps a stable identity while the `c` param is
-  // unchanged; allExperimentIds below depends on it.
+  // Parse comparison IDs - filter out null values and cast to string[]
   const rawIds = state.c as (string | null)[] | undefined;
-  const comparisonIds: string[] = useMemo(
-    () =>
-      isSingleExperiment
-        ? []
-        : (rawIds ?? []).filter(
-            (id): id is string => typeof id === "string" && id.length > 0,
-          ),
-    [rawIds, isSingleExperiment],
+  const comparisonIds: string[] = (rawIds ?? []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
   );
 
   // Set baseline with reconciliation: remove from comparison if present
@@ -103,17 +78,14 @@ export function useExperimentResultsState(
   };
 
   // Layout management
-  const layout = isSingleExperiment
-    ? "list"
-    : ((state.layout as "grid" | "list") ?? "list");
+  const layout = (state.layout as "grid" | "list") ?? "list";
   const setLayout = (newLayout: "grid" | "list") => {
     setState({ layout: newLayout });
   };
 
   // Item visibility management
-  const itemVisibility = isSingleExperiment
-    ? "baseline-only"
-    : ((state.itemVisibility as "baseline-only" | "all") ?? "baseline-only");
+  const itemVisibility =
+    (state.itemVisibility as "baseline-only" | "all") ?? "baseline-only";
   const setItemVisibility = (newVisibility: "baseline-only" | "all") => {
     setState({ itemVisibility: newVisibility });
   };

@@ -161,14 +161,6 @@ export type ExperimentItemsTableProps = {
   hideControls?: boolean;
   /** Available experiments for filter targeting (baseline + comparisons) */
   availableExperiments?: ExperimentOption[];
-  /**
-   * When set, the table renders a single experiment's items (list layout, no
-   * comparisons) sourced from the events table. The id is used as the baseline
-   * experiment and overrides the URL-driven compare state. Used by the legacy
-   * dataset run-detail route to show events-backed experiment items for
-   * fast-preview users. Note: experiment_id === dataset_run_id.
-   */
-  experimentId?: string;
 };
 
 /**

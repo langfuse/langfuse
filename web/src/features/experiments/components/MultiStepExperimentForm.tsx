@@ -26,6 +26,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
+import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
 import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
 import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
@@ -55,6 +56,24 @@ import {
   PromptType,
 } from "@langfuse/shared";
 
+const LegacyExperimentNameValidation = ({
+  projectId,
+  datasetId,
+  form,
+}: {
+  projectId: string;
+  datasetId: string;
+  form: UseFormReturn<any>;
+}) => {
+  useExperimentNameValidation({
+    projectId,
+    datasetId,
+    form,
+  });
+
+  return null;
+};
+
 export const MultiStepExperimentForm = ({
   projectId,
   setFormOpen,
@@ -62,6 +81,7 @@ export const MultiStepExperimentForm = ({
   promptDefault,
   handleExperimentSettled,
   handleExperimentSuccess,
+  enableLegacyNameValidation = false,
 }: {
   projectId: string;
   setFormOpen: (open: boolean) => void;
@@ -82,6 +102,7 @@ export const MultiStepExperimentForm = ({
     runId: string;
     runName: string;
   }) => Promise<void>;
+  enableLegacyNameValidation?: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const [activeStep, setActiveStep] = useState("prompt");
@@ -463,6 +484,13 @@ export const MultiStepExperimentForm = ({
           to learn more.
         </DialogDescription>
       </DialogHeader>
+      {enableLegacyNameValidation && (
+        <LegacyExperimentNameValidation
+          projectId={projectId}
+          datasetId={datasetId}
+          form={form}
+        />
+      )}
       <Form {...form}>
         <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
           <DialogBody>
