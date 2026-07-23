@@ -312,6 +312,43 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
+  it("dedups repeated reads within the window: two GETs of the same trace write one audit row", async () => {
+    // The whole point of the feature is one row per (actor, trace) per window;
+    // this exercises the real Redis SET NX dedup end-to-end (the unit test only
+    // mocks Redis, and the single-GET test above never re-reads).
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "audit-trace-dedup",
+      project_id: projectId,
+    });
+    await createTracesCh([createdTrace]);
+
+    for (let i = 0; i < 2; i++) {
+      await makeZodVerifiedAPICall(
+        GetTraceV1Response,
+        "GET",
+        "/api/public/traces/" + traceId,
+        undefined,
+        auth,
+      );
+    }
+
+    // Wait for the first fire-and-forget write to land, then assert the second
+    // read did not add a row.
+    await waitForExpect(async () => {
+      const rows = await prisma.auditLog.findMany({
+        where: {
+          projectId,
+          resourceType: "trace",
+          resourceId: traceId,
+          action: "read",
+        },
+      });
+      expect(rows.length).toBe(1);
+    });
+  });
+
   it("should fetch a trace with core-only fields when fields=core", async () => {
     const traceId = randomUUID();
     const createdTrace = createTrace({

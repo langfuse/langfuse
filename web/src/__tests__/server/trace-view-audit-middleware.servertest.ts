@@ -31,17 +31,29 @@ import {
 } from "@/src/server/api/trpc";
 import { getTraceById } from "@langfuse/shared/src/server";
 
-// Register under the real `traces.*` paths so the middleware sees the same
-// `opts.path` it does in production. Both procedures share enforceTraceAccess,
-// but only byIdWithObservationsAndScores is a genuine single-trace view; byId
-// backs the per-row traces-table IO/metadata cells, so it must NOT be audited.
+// Register under the real `traces.*` / `events.*` paths so the middleware sees
+// the same `opts.path` it gates on in production (AUDITED_TRACE_VIEW_PROCEDURES).
+// All share enforceTraceAccess, but only the content-detail views are audited:
+// `traces.byIdWithObservationsAndScores` (v3) and `events.byTraceId` (v4). The
+// per-row table-cell fetch `traces.byId` must NOT be audited. That the audited
+// paths still resolve to real prod procedures is guarded separately by
+// recordTraceViewAudit.drift.servertest.ts.
+const traceViewInput = z.object({
+  traceId: z.string(),
+  projectId: z.string(),
+});
 const middlewareTestRouter = createTRPCRouter({
   traces: createTRPCRouter({
     byId: protectedGetTraceProcedure
-      .input(z.object({ traceId: z.string(), projectId: z.string() }))
+      .input(traceViewInput)
       .query(() => ({ ok: true })),
     byIdWithObservationsAndScores: protectedGetTraceProcedure
-      .input(z.object({ traceId: z.string(), projectId: z.string() }))
+      .input(traceViewInput)
+      .query(() => ({ ok: true })),
+  }),
+  events: createTRPCRouter({
+    byTraceId: protectedGetTraceProcedure
+      .input(traceViewInput)
       .query(() => ({ ok: true })),
   }),
 });
@@ -172,6 +184,53 @@ describe("trace-view audit in tRPC trace-access middleware", () => {
       },
       resourceId: TRACE_ID,
     });
+  });
+
+  it("records a read audit for the v4 events-backed detail view (events.byTraceId)", async () => {
+    // v4 beta fetches trace content via events.byTraceId, not
+    // traces.byIdWithObservationsAndScores. It hits the same middleware and
+    // must be audited too, or the audit guarantee silently fails for v4 users.
+    const { caller } = createTestCaller({ session: createMemberSession() });
+
+    await caller.events.byTraceId({
+      traceId: TRACE_ID,
+      projectId: PROJECT_ID,
+    });
+
+    expect(recordTraceViewAuditMock).toHaveBeenCalledTimes(1);
+    expect(recordTraceViewAuditMock).toHaveBeenCalledWith({
+      session: {
+        user: { id: "member-user-id" },
+        orgId: ORG_ID,
+        orgRole: "MEMBER",
+        projectId: PROJECT_ID,
+        projectRole: "MEMBER",
+      },
+      resourceId: TRACE_ID,
+    });
+  });
+
+  it("does NOT record an audit when a logged-in non-member views a public trace", async () => {
+    // Access is granted because the trace is public, but there is no
+    // member org to attribute and the user is not an admin, so there is no
+    // actor to audit — the view must pass through without an audit row.
+    mockGetTraceById.mockResolvedValue({
+      id: TRACE_ID,
+      input: "{}",
+      output: "{}",
+      public: true,
+      sessionId: null,
+    } as any);
+    const nonMemberSession = createAdminNonMemberSession();
+    nonMemberSession.user!.admin = false;
+    const { caller } = createTestCaller({ session: nonMemberSession });
+
+    await caller.traces.byIdWithObservationsAndScores({
+      traceId: TRACE_ID,
+      projectId: PROJECT_ID,
+    });
+
+    expect(recordTraceViewAuditMock).not.toHaveBeenCalled();
   });
 
   it("does NOT record an audit for traces.byId (table IO/metadata cell fetch)", async () => {

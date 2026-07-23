@@ -491,6 +491,25 @@ const inputTraceSchema = z.object({
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
+/**
+ * tRPC procedure paths (`opts.path`) that count as a genuine single-trace
+ * *content* view and are opted into durable read-audit logging in
+ * `enforceTraceAccess`. This is the single source of truth: the middleware
+ * gates on it and a drift-guard test (recordTraceViewAudit.drift.servertest.ts)
+ * asserts every entry still resolves to a real procedure, so a rename/move
+ * can't silently turn auditing off.
+ *
+ * Includes both detail-view paths: `traces.byIdWithObservationsAndScores`
+ * (v3/traces-table backing) and `events.byTraceId` (v4/events-table backing —
+ * fired first by the events detail hook, gating the rest). Deliberately EXCLUDES
+ * high-frequency table-cell fetches (`traces.byId`, `events.batchIO`) and
+ * non-content paths (`*.getAgentGraphData`, `events.scoresForTrace`).
+ */
+export const AUDITED_TRACE_VIEW_PROCEDURES: ReadonlySet<string> = new Set([
+  "traces.byIdWithObservationsAndScores",
+  "events.byTraceId",
+]);
+
 const enforceTraceAccess = t.middleware(async (opts) => {
   const { ctx, next } = opts;
   const actualInput = await opts.getRawInput();
@@ -610,13 +629,14 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   // access. Anonymous public-share views have no actor/org to attribute, so
   // they are skipped.
   //
-  // Only `traces.byIdWithObservationsAndScores` is a genuine single-trace view
-  // (full detail page and table peek both fetch through it). The same
-  // middleware also serves `traces.byId` (backs the per-row table
-  // input/output/metadata cells) and `traces.getAgentGraphData`; auditing
-  // those would be a false positive. Gate on the procedure path.
-  const isSingleTraceView =
-    opts.path === "traces.byIdWithObservationsAndScores";
+  // The audited set (AUDITED_TRACE_VIEW_PROCEDURES) is the single source of
+  // truth for which procedures count as a genuine single-trace content view:
+  // `traces.byIdWithObservationsAndScores` (v3 detail) and `events.byTraceId`
+  // (v4 events-backed detail). This middleware also serves high-frequency
+  // table-cell fetches (`traces.byId`, `events.batchIO`) and non-content paths
+  // (`*.getAgentGraphData`, `events.scoresForTrace`), which are excluded to
+  // avoid false positives.
+  const isSingleTraceView = AUDITED_TRACE_VIEW_PROCEDURES.has(opts.path);
   if (isSingleTraceView && traceId && ctx.session?.user?.id) {
     const userId = ctx.session.user.id;
     const memberOrg = ctx.session.user.organizations.find((org) =>
