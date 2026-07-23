@@ -74,7 +74,7 @@ export const InAppAiAgentButton = () => {
       <BotMessageSquare className="h-4 w-4" />
       <span className="hidden sm:inline">Assistant</span>
       <KeyboardShortcut
-        className="hidden bg-transparent shadow-none md:inline-flex"
+        className="bg-transparent shadow-none"
         keys={[
           typeof navigator !== "undefined" &&
           navigator.userAgent.includes("Mac")

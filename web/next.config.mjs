@@ -62,6 +62,14 @@ const reportToHeader = {
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  // Emit and serve browser source maps in production. Langfuse is open source,
+  // so there is nothing to hide by shipping maps, and browser devtools then
+  // de-minify client stacks automatically. NOTE: this alone does NOT make Sentry
+  // legible — the Sentry SDK rewrites frames to the `app:///` scheme, which is
+  // not a fetchable URL, so Sentry cannot pull these public maps. Sentry
+  // symbolication is handled separately by uploading maps with debug IDs (see
+  // `sourcemaps` in withSentryConfig below).
+  productionBrowserSourceMaps: true,
   // Allow building to alternate directory for parallel build checks while dev server runs
   distDir: process.env.NEXT_DIST_DIR || ".next",
   typescript: {
@@ -278,9 +286,23 @@ const sentryConfig = withSentryConfig(nextConfig, {
   // side errors will fail.
   // tunnelRoute: "/api/monitoring-tunnel",
 
-  // Hides source maps from generated client bundles
+  // Upload source maps to Sentry with debug IDs so Sentry can symbolicate
+  // minified production stack traces. This restores upload that regressed in the
+  // Sentry v8->v10 upgrade (#8934): it mistranslated the old `hideSourceMaps:
+  // true` (upload, then hide from the public bundle) into `sourcemaps.disable`
+  // (do not upload at all) — the correct v10 equivalent was
+  // `deleteSourcemapsAfterUpload: true` — so Sentry stacks have been minified
+  // since. Upload worked across all regions/orgs/projects under v8 via the same
+  // per-region SENTRY_ORG/SENTRY_PROJECT/SENTRY_AUTH_TOKEN this reads. Debug IDs
+  // match a map to an event by an embedded id, independent of URLs and the
+  // `app:///` frame rewrite — which is why serving maps at a public
+  // sourceMappingURL (#15277) can't symbolicate Sentry. Upload runs only when
+  // SENTRY_AUTH_TOKEN is present (prod builds) and targets the per-region
+  // org/project/release baked into each region's build. We also keep serving the
+  // maps publicly (`productionBrowserSourceMaps` above, for devtools), so unlike
+  // the old `hideSourceMaps` we do NOT delete them after upload.
   sourcemaps: {
-    disable: true,
+    deleteSourcemapsAfterUpload: false,
   },
 
   // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)

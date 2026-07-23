@@ -100,3 +100,38 @@ jobs:
           service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
+      # Register a Sentry release for this build and record the deploy, so Sentry
+      # can attribute regressions to a release ("first seen in <release>"), show
+      # deploy markers, resolve-in-release, and reopen issues that recur later.
+      # This job runs once per environment, so the release lands in that region's
+      # Sentry org + project via the environment-scoped vars/secret below. The web
+      # client already tags events with this exact identifier
+      # (Sentry.init({ release: process.env.NEXT_PUBLIC_BUILD_ID }), baked to
+      # github.sha in the Docker build above), so the release now gains metadata.
+      # We deliberately do NOT upload source maps here: they are served publicly
+      # in production (PR #15277), so `sourcemaps` is omitted. Best-effort — never
+      # block a deploy on a Sentry hiccup or a missing/mis-scoped token (e.g. the
+      # separate EU org needs its own token).
+      - name: Register Sentry release
+        if: ${{ inputs.service == 'web' && vars.SENTRY_ORG != '' }}
+        continue-on-error: true
+        uses: getsentry/action-release@ff07929a6537bac57790c3451cf4d364aca38528 # v3.7.0
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        with:
+          release: ${{ github.sha }}
+          # Match the environment tag on REAL browser events — the web client
+          # inits Sentry with `environment: NEXT_PUBLIC_SENTRY_ENVIRONMENT`
+          # (baked from this same var in the Docker build above), which may be a
+          # coarse value like "production" rather than the raw deploy-environment
+          # name (prod-eu/…). Using `inputs.environment` here would land the
+          # deploy marker under an environment with no matching events. Empty
+          # (unset) → action-release omits the deploy marker; the release is
+          # still created and finalized.
+          environment: ${{ vars.NEXT_PUBLIC_SENTRY_ENVIRONMENT }}
+          # Suspect commits need the Sentry↔GitHub integration; keep deploys
+          # reliable and enable "auto" once that is confirmed.
+          set_commits: skip
+          finalize: true
