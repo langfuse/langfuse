@@ -85,8 +85,8 @@ export function EvaluatorEditView({
         samplingEditingDisabled
         renderDataSourceControls={({ applyRule }) =>
           attachedRules.length > 0 ? (
-            <div className="flex shrink-0 items-center gap-1.5">
-              <span className="text-sm">from</span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="shrink-0 text-sm">using rule</span>
               <Label htmlFor="edit-evaluator-rule" className="sr-only">
                 Evaluation rule
               </Label>
@@ -107,7 +107,7 @@ export function EvaluatorEditView({
               >
                 <SelectTrigger
                   id="edit-evaluator-rule"
-                  className="w-auto max-w-72 min-w-48 text-left [&>span]:text-left"
+                  className="min-w-0 flex-1 text-left [&>span]:text-left"
                 >
                   <SelectValue placeholder="Select an attached rule" />
                 </SelectTrigger>

@@ -217,7 +217,10 @@ describe("EvaluatorEditView", () => {
       />,
     );
 
-    expect(screen.getByText("from")).toBeVisible();
+    expect(screen.getByText("using rule")).toBeVisible();
+    expect(
+      screen.getByRole("combobox", { name: "Evaluation rule" }),
+    ).toHaveClass("flex-1");
     fireEvent.click(screen.getByRole("combobox", { name: "Evaluation rule" }));
     fireEvent.click(screen.getByRole("option", { name: "Create new rule" }));
 

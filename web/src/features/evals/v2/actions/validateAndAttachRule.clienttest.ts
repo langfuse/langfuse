@@ -33,6 +33,7 @@ function dependencies() {
       id: "observation-1",
       traceId: "trace-1",
       startTime: new Date("2026-07-20T08:00:00.000Z"),
+      input: "A complete observation input",
     }),
     runLlmTest: vi.fn().mockResolvedValue({ success: true }),
     runCodeTest: vi.fn().mockResolvedValue({ success: true }),
@@ -42,7 +43,7 @@ function dependencies() {
 }
 
 describe("validateAndAttachRule", () => {
-  it("test-runs an LLM evaluator on a matching observation before attaching", async () => {
+  it("validates LLM mappings without running the evaluator", async () => {
     const deps = dependencies();
 
     await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
@@ -50,24 +51,33 @@ describe("validateAndAttachRule", () => {
     });
 
     expect(deps.getSample).toHaveBeenCalledWith([]);
-    expect(deps.runLlmTest).toHaveBeenCalledWith({
-      projectId: "project-1",
-      prompt: "Judge {{input}}",
-      provider: null,
-      model: null,
-      modelParams: null,
-      outputDefinition: null,
-      mapping: evaluator.variableMapping,
-      observationId: "observation-1",
-      traceId: "trace-1",
-      observationStartTime: new Date("2026-07-20T08:00:00.000Z"),
-    });
+    expect(deps.runLlmTest).not.toHaveBeenCalled();
     expect(deps.attach).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledOnce();
     expect(deps.captureValidation).toHaveBeenCalledWith({
       outcome: "passed",
       evaluatorType: "LLM_AS_JUDGE",
     });
+  });
+
+  it("keeps an LLM evaluator detached when a mapped variable is empty", async () => {
+    const deps = dependencies();
+    deps.getSample.mockResolvedValue({
+      id: "observation-1",
+      traceId: "trace-1",
+      startTime: new Date("2026-07-20T08:00:00.000Z"),
+      input: null,
+    });
+
+    await expect(validateAndAttachRule("project-1", deps)).resolves.toEqual({
+      attached: false,
+      outcome: "failed",
+      message:
+        "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule. The evaluator was not attached to the evaluation rule.",
+    });
+
+    expect(deps.runLlmTest).not.toHaveBeenCalled();
+    expect(deps.attach).not.toHaveBeenCalled();
   });
 
   it("does not let analytics failures block a validated attachment", async () => {

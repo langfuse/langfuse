@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   detachMutate: vi.fn(),
   attach: vi.fn(),
   attachmentHook: vi.fn(),
+  createRuleDialogProps: vi.fn(),
 }));
 
 vi.mock("@/src/features/notifications/showSuccessToast", () => ({
@@ -22,7 +23,16 @@ vi.mock("@/src/features/evals/v2/hooks/useValidatedRuleAttachment", () => ({
 vi.mock(
   "@/src/features/evals/v2/components/CreateEvaluationRuleDialog",
   () => ({
-    CreateEvaluationRuleDialog: () => null,
+    CreateEvaluationRuleDialog: ({
+      open,
+      initialEvaluatorIds,
+    }: {
+      open: boolean;
+      initialEvaluatorIds?: string[];
+    }) => {
+      mocks.createRuleDialogProps({ open, initialEvaluatorIds });
+      return open ? <div role="dialog">New rule dialog</div> : null;
+    },
   }),
 );
 
@@ -183,6 +193,31 @@ describe("EvaluatorRuleAssignments", () => {
 
     expect(screen.getByText("Create new rule")).toBeInTheDocument();
     expect(screen.getByText("Available rule")).toBeInTheDocument();
+  });
+
+  it("preselects the current evaluator when creating a rule", () => {
+    render(
+      <EvaluatorRuleAssignments
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        evaluatorName="Quality"
+        rules={[]}
+        hasWriteAccess
+        onView={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+      { wrapper: TooltipProvider },
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Attach to rule" }));
+    fireEvent.click(screen.getByText("Create new rule"));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("New rule dialog");
+    expect(mocks.createRuleDialogProps).toHaveBeenCalledWith(
+      expect.objectContaining({
+        initialEvaluatorIds: ["evaluator-1"],
+      }),
+    );
   });
 
   it("keeps validation failures in context with a setup link", () => {

@@ -72,8 +72,6 @@ export function useValidatedRuleAttachment({
             ...input,
             projectId,
           }),
-        runLlmTest: (input) =>
-          utils.client.evalsV2.testRunLlmJudge.mutate(input),
         attach: () =>
           attachMutation.mutateAsync({ projectId, evaluatorId, ruleId }),
         captureValidation: ({ outcome, evaluatorType }) =>

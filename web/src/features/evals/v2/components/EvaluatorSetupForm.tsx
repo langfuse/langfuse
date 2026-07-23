@@ -220,13 +220,19 @@ function LabelWithTooltip({
   return (
     <Label htmlFor={htmlFor} className="flex items-center gap-1.5">
       {children}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
-      </Tooltip>
+      <InfoTooltip tooltip={tooltip} />
     </Label>
+  );
+}
+
+function InfoTooltip({ tooltip }: { tooltip: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <InfoIcon className="text-muted-foreground h-3.5 w-3.5 cursor-help" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -1146,6 +1152,7 @@ export function EvaluatorSetupForm({
   // The test panel shows the result permanently once a run exists.
   const hasLlmTestResult = Boolean(testRun.data || testRun.error);
   const hasCodeTestResult = Boolean(codeTestRun.data || codeTestRun.error);
+  const hasActiveTestResult = isCodeMode ? hasCodeTestResult : hasLlmTestResult;
 
   // Activating a variable (inserting a new one, or a warning link) opens its
   // mapping selector.
@@ -1220,9 +1227,7 @@ export function EvaluatorSetupForm({
                 <div className="flex min-w-0 flex-col gap-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                      <LabelWithTooltip tooltip="Only matching observations are available as evaluator samples.">
-                        Filter observations
-                      </LabelWithTooltip>
+                      <Label className="shrink-0">Filter observations</Label>
                       {renderDataSourceControls?.({
                         filterState,
                         setFilterState,
@@ -1230,6 +1235,7 @@ export function EvaluatorSetupForm({
                         setSampling,
                         applyRule,
                       })}
+                      <InfoTooltip tooltip="Only matching observations are available as evaluator samples." />
                     </div>
                     <TableHeaderControls
                       timeRange={timeRange}
@@ -1315,7 +1321,7 @@ export function EvaluatorSetupForm({
                   >
                     <ChevronDown
                       className={cn(
-                        "text-muted-foreground -ml-0.5 h-4 w-4 transition-transform",
+                        "text-muted-foreground h-4 w-4 transition-transform",
                         !samplingOpen && "-rotate-90",
                       )}
                     />
@@ -1649,94 +1655,108 @@ export function EvaluatorSetupForm({
               </Button>
             </div>
           ) : ruleEditorExpanded ? (
-            <section className="flex min-w-0 flex-col">
-              <header className="bg-muted/40 flex items-center justify-between gap-2 border-b px-4 py-3">
-                <h2 className="text-base leading-7 font-bold">
-                  Test evaluator
-                </h2>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Collapse test panel"
-                  title="Collapse test panel"
-                  onClick={() => {
-                    testPanelRef.current?.collapse();
-                    setTestPanelCollapsed(true);
-                  }}
-                >
-                  <PanelRightClose className="h-4 w-4" />
-                </Button>
-              </header>
-              <div className="flex min-w-0 flex-col p-4">
-                <div className="flex flex-col rounded-md border">
-                  {!(isCodeMode ? hasCodeTestResult : hasLlmTestResult) ? (
-                    <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 p-4 text-center">
-                      <TestRunButton
-                        isPending={
-                          isCodeMode ? codeTestRun.isPending : testRun.isPending
-                        }
-                        disabledReason={
-                          isCodeMode
-                            ? codeTestDisabledReason
-                            : testDisabledReason
-                        }
-                        onRun={runActiveTest}
-                      />
-                      {selectedObservation ? (
-                        <p className="text-muted-foreground text-xs">
-                          Sample:{" "}
-                          <button
-                            type="button"
-                            className="hover:text-foreground break-all underline-offset-2 hover:underline"
-                            title="Open the sample trace"
-                            onClick={openSampleTracePeek}
-                          >
-                            {selectedObservation.name ?? selectedObservation.id}
-                          </button>
-                        </p>
-                      ) : (
-                        <p className="text-muted-foreground text-xs">
-                          Select a sample observation in step 1 first.
-                        </p>
-                      )}
-                      {!isCodeMode && unmappedVariables.length > 0 && (
-                        <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-xs font-bold">
-                          {unmappedVariables.map((item) => (
-                            <button
-                              key={item.variable}
-                              type="button"
-                              className="flex items-center gap-1.5 hover:underline"
-                              title="Open in the variable mapper"
-                              onClick={() => {
-                                setDefinitionStepOpen(true);
-                                activateVariable(item.variable);
-                              }}
-                            >
-                              <TriangleAlert className="h-4 w-4 shrink-0" />
-                              {`{{${item.variable}}} isn't mapped yet`}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <TestResultPanel
-                      isCodeMode={isCodeMode}
-                      testRun={testRun}
-                      codeTestRun={codeTestRun}
+            <section className="flex h-full min-h-0 min-w-0 flex-col">
+              {!hasActiveTestResult ? (
+                <header className="bg-muted/40 flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
+                  <h2 className="text-base leading-7 font-bold">
+                    Test evaluator
+                  </h2>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Collapse test panel"
+                    title="Collapse test panel"
+                    onClick={() => {
+                      testPanelRef.current?.collapse();
+                      setTestPanelCollapsed(true);
+                    }}
+                  >
+                    <PanelRightClose className="h-4 w-4" />
+                  </Button>
+                </header>
+              ) : null}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {!hasActiveTestResult ? (
+                  <div className="flex min-h-[16rem] flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center">
+                    <TestRunButton
                       isPending={
                         isCodeMode ? codeTestRun.isPending : testRun.isPending
                       }
                       disabledReason={
                         isCodeMode ? codeTestDisabledReason : testDisabledReason
                       }
-                      onRerun={runActiveTest}
-                      onOpenSampleTrace={openSampleTracePeek}
-                      onOpenExecutionTrace={openExecutionTracePeek}
+                      onRun={runActiveTest}
                     />
-                  )}
-                </div>
+                    {selectedObservation ? (
+                      <p className="text-muted-foreground text-xs">
+                        Sample:{" "}
+                        <button
+                          type="button"
+                          className="hover:text-foreground break-all underline-offset-2 hover:underline"
+                          title="Open the sample trace"
+                          onClick={openSampleTracePeek}
+                        >
+                          {selectedObservation.name ?? selectedObservation.id}
+                        </button>
+                      </p>
+                    ) : (
+                      <p className="text-muted-foreground text-xs">
+                        Select a sample observation in step 1 first.
+                      </p>
+                    )}
+                    {!isCodeMode && unmappedVariables.length > 0 && (
+                      <div className="text-dark-yellow mt-2 flex flex-col items-center gap-1 text-xs font-bold">
+                        {unmappedVariables.map((item) => (
+                          <button
+                            key={item.variable}
+                            type="button"
+                            className="flex items-center gap-1.5 hover:underline"
+                            title="Open in the variable mapper"
+                            onClick={() => {
+                              setDefinitionStepOpen(true);
+                              activateVariable(item.variable);
+                            }}
+                          >
+                            <TriangleAlert className="h-4 w-4 shrink-0" />
+                            {`{{${item.variable}}} isn't mapped yet`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <TestResultPanel
+                    isCodeMode={isCodeMode}
+                    testRun={testRun}
+                    codeTestRun={codeTestRun}
+                    isPending={
+                      isCodeMode ? codeTestRun.isPending : testRun.isPending
+                    }
+                    disabledReason={
+                      isCodeMode ? codeTestDisabledReason : testDisabledReason
+                    }
+                    onRerun={runActiveTest}
+                    onOpenSampleTrace={openSampleTracePeek}
+                    onOpenExecutionTrace={openExecutionTracePeek}
+                    headerActions={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Collapse test panel"
+                        title="Collapse test panel"
+                        onClick={() => {
+                          testPanelRef.current?.collapse();
+                          setTestPanelCollapsed(true);
+                        }}
+                      >
+                        <PanelRightClose className="h-4 w-4" />
+                      </Button>
+                    }
+                    className="flex-1"
+                  />
+                )}
               </div>
             </section>
           ) : null}

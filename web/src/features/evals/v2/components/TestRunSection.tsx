@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Clock,
@@ -176,9 +176,9 @@ function LlmTestRunResultBody({ testRun }: { testRun: TestRunMutation }) {
 
 /**
  * Test result surface shared by the mapping-panel state and the Test step:
- * header row with the toolbar (raw-output toggle, execution-trace link,
- * re-run), one body. `onBack` renders the panel-navigation arrow — omit it
- * where the surface isn't stacked on other views.
+ * toolbar (raw-output toggle, execution-trace link, re-run), followed by one
+ * result body. `onBack` renders the panel-navigation arrow — omit it where
+ * the surface isn't stacked on other views.
  */
 export function TestResultPanel({
   isCodeMode,
@@ -190,6 +190,7 @@ export function TestResultPanel({
   onBack,
   onOpenSampleTrace,
   onOpenExecutionTrace,
+  headerActions,
   className,
 }: {
   isCodeMode: boolean;
@@ -203,6 +204,7 @@ export function TestResultPanel({
   onOpenSampleTrace?: () => void;
   /** Opens the run's execution trace in the standard trace peek. */
   onOpenExecutionTrace?: (executionTraceId: string) => void;
+  headerActions?: ReactNode;
   className?: string;
 }) {
   const [rawOpen, setRawOpen] = useState(false);
@@ -233,7 +235,7 @@ export function TestResultPanel({
       className={cn("flex min-h-0 flex-col", className)}
       data-variable-mapping-panel=""
     >
-      <div className="flex flex-wrap items-center gap-2 border-b p-2">
+      <div className="bg-muted/40 flex flex-wrap items-center gap-2 border-b px-3 py-2">
         {onBack && (
           <Button
             type="button"
@@ -246,7 +248,7 @@ export function TestResultPanel({
             <ArrowLeft className="h-3.5 w-3.5" />
           </Button>
         )}
-        <p className="text-sm font-bold">Test result</p>
+        <p className="text-sm font-bold">Result</p>
         {durationMs !== undefined && (
           <span
             className="text-muted-foreground flex items-center gap-1 text-xs"
@@ -265,20 +267,7 @@ export function TestResultPanel({
             {costFormatter(estimatedCostUsd)}
           </span>
         )}
-        <span className="ml-auto flex shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            loading={isPending}
-            disabled={Boolean(disabledReason)}
-            title={disabledReason ?? "Run the test again"}
-            onClick={onRerun}
-          >
-            <Play className="mr-1.5 h-3 w-3" />
-            Run again
-          </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-xs">
             <Switch size="sm" checked={rawOpen} onCheckedChange={setRawOpen} />
             Raw output
@@ -316,7 +305,8 @@ export function TestResultPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </span>
+          {headerActions}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
         {!hasData ? (
@@ -338,6 +328,19 @@ export function TestResultPanel({
         ) : (
           <LlmTestRunResultBody testRun={testRun} />
         )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-4 self-start"
+          loading={isPending}
+          disabled={Boolean(disabledReason)}
+          title={disabledReason ?? "Run the test again"}
+          onClick={onRerun}
+        >
+          <Play className="mr-1.5 h-3.5 w-3.5" />
+          Run again
+        </Button>
       </div>
     </div>
   );

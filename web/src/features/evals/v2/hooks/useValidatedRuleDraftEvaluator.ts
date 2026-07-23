@@ -60,8 +60,6 @@ export function useValidatedRuleDraftEvaluator({
             ...input,
             projectId,
           }),
-        runLlmTest: (input) =>
-          utils.client.evalsV2.testRunLlmJudge.mutate(input),
         captureValidation: ({ outcome, evaluatorType }) =>
           capture("eval_config:run_scope_attachment_validated", {
             outcome,

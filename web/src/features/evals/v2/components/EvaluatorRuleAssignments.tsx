@@ -241,6 +241,7 @@ export function EvaluatorRuleAssignments({
         <CreateEvaluationRuleDialog
           projectId={projectId}
           open
+          initialEvaluatorIds={[evaluatorId]}
           onOpenChange={setCreateRuleDialogOpen}
         />
       ) : null}

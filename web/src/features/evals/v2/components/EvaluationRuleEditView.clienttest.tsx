@@ -13,9 +13,13 @@ const mocks = vi.hoisted(() => ({
   evalsInvalidate: vi.fn(),
   evalsV2Invalidate: vi.fn(),
   showSuccessToast: vi.fn(),
+  attachEvaluator: vi.fn(),
+  detachEvaluator: vi.fn(),
 }));
 
 vi.mock("@/src/features/evals/v2/components/EvaluationRuleSection", () => ({
+  EXAMPLE_FILTERS: [],
+  mergeExampleFilters: vi.fn(),
   RuleFilterSearchBar: ({
     setFilterState,
   }: {
@@ -75,6 +79,14 @@ vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: mocks.showSuccessToast,
 }));
 
+vi.mock("@/src/features/evals/v2/hooks/useValidatedRuleAttachment", () => ({
+  useValidatedRuleAttachment: () => ({
+    attach: mocks.attachEvaluator,
+    pendingKey: null,
+    issue: null,
+  }),
+}));
+
 vi.mock("@/src/utils/trpcErrorToast", () => ({
   trpcErrorToast: vi.fn(),
 }));
@@ -88,6 +100,15 @@ vi.mock("@/src/utils/api", () => ({
       },
     }),
     evalsV2: {
+      evaluatorOptions: {
+        useQuery: () => ({ data: [] }),
+      },
+      detachEvaluatorFromRule: {
+        useMutation: () => ({
+          mutateAsync: mocks.detachEvaluator,
+          isPending: false,
+        }),
+      },
       updateRule: {
         useMutation: () => ({
           mutateAsync: mocks.updateRule,
@@ -121,6 +142,8 @@ describe("EvaluationRuleEditView", () => {
     mocks.updateRule.mockResolvedValue({ id: rule.id });
     mocks.evalsInvalidate.mockResolvedValue(undefined);
     mocks.evalsV2Invalidate.mockResolvedValue(undefined);
+    mocks.attachEvaluator.mockResolvedValue(true);
+    mocks.detachEvaluator.mockResolvedValue({ evaluatorId: "evaluator-1" });
   });
 
   it("confirms before saving changes to a connected evaluation rule", async () => {
@@ -137,6 +160,16 @@ describe("EvaluationRuleEditView", () => {
         />
       </TooltipProvider>,
     );
+
+    expect(
+      screen.getByRole("button", { name: "Step 1: Choose observations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Step 2: Attach evaluator" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Step 3: Name rule" }),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Production traces" },

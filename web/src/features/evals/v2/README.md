@@ -19,6 +19,9 @@
 - `components/EvaluationRulePeekView.tsx` owns read-only rule inspection. New
   attachments validate in place; failures link to evaluator edit with the
   rule preselected for manual review and testing.
+- `components/EvaluationRuleForm.tsx` owns the shared three-step evaluation-rule
+  structure. Create and edit render the same interactive form; inspection
+  reuses the step shell with read-only field content.
 - `components/EvaluatorConfigurationView.tsx` owns read-only evaluator and
   rule-assignment presentation. It reuses the edit hierarchy for prompt-variable
   mappings and score output; controls become read-only while `Advanced` remains

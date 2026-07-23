@@ -31,6 +31,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
+import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -44,13 +45,17 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { DeleteEvaluationRuleButton } from "@/src/features/evals/v2/components/DeleteEvaluationRuleButton";
-import { EvaluationRuleExecutionHistoryChart } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { EvaluationRuleEditView } from "@/src/features/evals/v2/components/EvaluationRuleEditView";
 import { EvaluationRuleEvaluatorConnections } from "@/src/features/evals/v2/components/EvaluationRuleEvaluatorConnections";
+import { EvaluationRuleFieldLabel } from "@/src/features/evals/v2/components/EvaluationRuleFieldLabel";
+import {
+  EvaluationRuleConfigurationSteps,
+  EvaluationRuleSamplingField,
+} from "@/src/features/evals/v2/components/EvaluationRuleForm";
+import { EvaluationRulePreviewTable } from "@/src/features/evals/v2/components/EvaluationRulePreviewTable";
 import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
-import { getEvaluationRuleTracesHref } from "@/src/features/evals/v2/lib/evaluationRuleTracesHref";
 import { ruleTimeRangeFilter } from "@/src/features/evals/v2/lib/useRuleMatchCount";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
@@ -153,21 +158,22 @@ export function TablePeekViewEvaluationRuleDetail({
   const ruleActions =
     hasWriteAccess && evaluationRule.data ? (
       <>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Edit rule"
-              disabled={editingRuleId === ruleId}
-              onClick={() => setEditingRuleId(evaluationRule.data.id)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Edit rule</TooltipContent>
-        </Tooltip>
+        {editingRuleId !== ruleId ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Edit rule"
+                onClick={() => setEditingRuleId(evaluationRule.data.id)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit rule</TooltipContent>
+          </Tooltip>
+        ) : null}
         <DeleteEvaluationRuleButton
           projectId={projectId}
           evaluationRule={{
@@ -196,17 +202,18 @@ export function TablePeekViewEvaluationRuleDetail({
   const ruleActionsMenu =
     hasWriteAccess && evaluationRule.data ? (
       <div className="flex w-full flex-col gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start font-normal"
-          disabled={editingRuleId === ruleId}
-          onClick={() => setEditingRuleId(evaluationRule.data.id)}
-        >
-          <Pencil className="mr-1.5 h-3.5 w-3.5" />
-          Edit rule
-        </Button>
+        {editingRuleId !== ruleId ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start font-normal"
+            onClick={() => setEditingRuleId(evaluationRule.data.id)}
+          >
+            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+            Edit rule
+          </Button>
+        ) : null}
         <DeleteEvaluationRuleButton
           projectId={projectId}
           evaluationRule={{
@@ -265,19 +272,26 @@ export function TablePeekViewEvaluationRuleDetail({
             open={statusDetailsOpen}
             onOpenChange={setStatusDetailsOpen}
             className={cn(
-              "bg-muted/30 relative rounded-md border p-3",
+              "relative rounded-md border p-3",
               statusDetailsOpen
-                ? "grid w-full gap-4 sm:grid-cols-2"
+                ? "grid w-full gap-4 sm:grid-cols-3"
                 : "flex w-fit items-center gap-3 pr-10",
             )}
           >
             <div
               className={cn(
                 "flex",
-                statusDetailsOpen ? "flex-col gap-2" : "items-center gap-3",
+                statusDetailsOpen
+                  ? "flex-col gap-2 sm:col-span-3"
+                  : "items-center gap-3",
               )}
             >
-              <Label htmlFor="evaluation-rule-enabled">Enabled</Label>
+              <EvaluationRuleFieldLabel
+                htmlFor="evaluation-rule-enabled"
+                tooltip="Lets attached evaluators run on matching incoming observations."
+              >
+                Enabled
+              </EvaluationRuleFieldLabel>
               <Switch
                 id="evaluation-rule-enabled"
                 checked={evaluationRule.data.enabled}
@@ -297,18 +311,16 @@ export function TablePeekViewEvaluationRuleDetail({
             <CollapsibleContent
               className={statusDetailsOpen ? "contents" : undefined}
             >
-              <div className="flex flex-col gap-1 pr-8">
+              <div className="flex flex-col gap-1">
                 <Label>Created by</Label>
                 <span className="text-sm">{createdBy}</span>
               </div>
-
               <div className="flex flex-col gap-1">
                 <Label>Last updated</Label>
                 <span className="text-sm tabular-nums">
                   {evaluationRule.data.updatedAt.toLocaleString()}
                 </span>
               </div>
-
               <div className="flex flex-col gap-1">
                 <Label>Total cost (7d)</Label>
                 <span className="text-sm tabular-nums">
@@ -344,161 +356,171 @@ export function TablePeekViewEvaluationRuleDetail({
             </CollapsibleTrigger>
           </Collapsible>
 
-          <div className="flex flex-col gap-6">
-            <section className="flex min-w-0 flex-col gap-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label>Filters</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    router
-                      .push({
-                        pathname: `/project/${projectId}/traces`,
-                        query: {
-                          filter: encodeFiltersGeneric([
-                            ...evaluationRule.data.filter,
-                            ...ruleTimeRangeFilter(absoluteTimeRange),
-                          ]),
-                        },
-                      })
-                      .catch(() => undefined)
-                  }
-                >
-                  View matches
-                  <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-                </Button>
+          <EvaluationRuleConfigurationSteps
+            observations={
+              <div className="flex flex-col gap-6">
+                <section className="flex min-w-0 flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <EvaluationRuleFieldLabel tooltip="Only matching observations are evaluated. Add filters to narrow the incoming data included.">
+                      Filters
+                    </EvaluationRuleFieldLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        router
+                          .push({
+                            pathname: `/project/${projectId}/traces`,
+                            query: {
+                              filter: encodeFiltersGeneric([
+                                ...evaluationRule.data.filter,
+                                ...ruleTimeRangeFilter(absoluteTimeRange),
+                              ]),
+                            },
+                          })
+                          .catch(() => undefined)
+                      }
+                    >
+                      View matches
+                      <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      {evaluationRule.data.filter.length > 0 ? (
+                        <InlineFilterState
+                          filterState={evaluationRule.data.filter}
+                          className="max-w-full first:ml-0"
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">
+                          All observations
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </section>
+                <section className="flex min-w-0 flex-col gap-2">
+                  <EvaluationRuleFieldLabel tooltip="Preview recent observations that currently match this rule.">
+                    Matching observations
+                  </EvaluationRuleFieldLabel>
+                  <EvaluationRulePreviewTable
+                    projectId={projectId}
+                    filterState={evaluationRule.data.filter}
+                    timeRange={absoluteTimeRange}
+                    columnVisibilityStorageKeySuffix="view-rule"
+                    onSelectObservation={(row) => {
+                      if (row.traceId) setInspectedTraceId(row.traceId);
+                    }}
+                  />
+                  <EvaluationRuleSamplingField
+                    sampling={evaluationRule.data.sampling}
+                  />
+                </section>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                <div className="min-w-0 flex-1">
-                  {evaluationRule.data.filter.length > 0 ? (
-                    <InlineFilterState
-                      filterState={evaluationRule.data.filter}
-                      className="max-w-full first:ml-0"
-                    />
-                  ) : (
-                    <span className="text-muted-foreground">
-                      All observations
-                    </span>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="flex flex-col gap-2">
-              <Label>Sampling</Label>
-              <div className="w-fit rounded-md border px-3 py-2 text-sm tabular-nums">
-                {Math.round(evaluationRule.data.sampling * 100)}%
-              </div>
-            </section>
-          </div>
-
-          <section className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Label>Attached evaluators</Label>
-                <Badge variant="secondary" size="sm">
-                  {evaluationRule.data.evaluators.length}
-                </Badge>
-              </div>
-              <Popover
-                open={evaluatorPickerOpen}
-                onOpenChange={setEvaluatorPickerOpen}
-              >
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    loading={attachment.pendingKey !== null}
-                    disabled={!hasWriteAccess || attachment.pendingKey !== null}
+            }
+            evaluators={
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <EvaluationRuleFieldLabel tooltip="Evaluators that run on observations matched by this rule.">
+                      Evaluators
+                    </EvaluationRuleFieldLabel>
+                    <Badge variant="secondary" size="sm">
+                      {evaluationRule.data.evaluators.length}
+                    </Badge>
+                  </div>
+                  <Popover
+                    open={evaluatorPickerOpen}
+                    onOpenChange={setEvaluatorPickerOpen}
                   >
-                    Attach evaluator
-                    <Link2 className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 p-0">
-                  <Command>
-                    <CommandInput placeholder="Find an evaluator..." />
-                    <CommandList>
-                      <CommandEmpty>
-                        No unattached evaluator found.
-                      </CommandEmpty>
-                      <CommandGroup heading="Available evaluators">
-                        {availableEvaluators.map((evaluator) => (
-                          <CommandItem
-                            key={evaluator.id}
-                            value={`${evaluator.scoreName} ${evaluator.id}`}
-                            onSelect={() => {
-                              if (!ruleId) return;
-                              setEvaluatorPickerOpen(false);
-                              attachment
-                                .attach({
-                                  evaluatorId: evaluator.id,
-                                  ruleId,
-                                  evaluatorName: evaluator.scoreName,
-                                  evaluationRuleName: evaluationRule.data.name,
-                                })
-                                .catch(() => undefined);
-                            }}
-                          >
-                            <span
-                              className="min-w-0 flex-1 truncate"
-                              title={evaluator.scoreName}
-                            >
-                              {evaluator.scoreName}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            {attachment.issue ? (
-              <EvaluationRuleAttachmentValidationAlert
-                projectId={projectId}
-                evaluatorId={attachment.issue.evaluatorId}
-                ruleId={attachment.issue.ruleId}
-                issue={attachment.issue}
-              />
-            ) : null}
-            <EvaluationRuleEvaluatorConnections
-              projectId={projectId}
-              ruleId={evaluationRule.data.id}
-              evaluators={evaluationRule.data.evaluators}
-              hasWriteAccess={hasWriteAccess}
-            />
-          </section>
-
-          <section className="flex min-w-0 flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <Label>Execution history</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  router
-                    .push(
-                      getEvaluationRuleTracesHref({
-                        projectId,
-                        ruleId: evaluationRule.data.id,
-                      }),
-                    )
-                    .catch(() => undefined)
-                }
-              >
-                View executions
-                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <EvaluationRuleExecutionHistoryChart
-              history={evaluationRule.data.executionHistory}
-            />
-          </section>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        loading={attachment.pendingKey !== null}
+                        disabled={
+                          !hasWriteAccess || attachment.pendingKey !== null
+                        }
+                      >
+                        Attach evaluator
+                        <Link2 className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-80 p-0">
+                      <Command>
+                        <CommandInput placeholder="Find an evaluator..." />
+                        <CommandList>
+                          <CommandEmpty>
+                            No unattached evaluator found.
+                          </CommandEmpty>
+                          <CommandGroup heading="Available evaluators">
+                            {availableEvaluators.map((evaluator) => (
+                              <CommandItem
+                                key={evaluator.id}
+                                value={`${evaluator.scoreName} ${evaluator.id}`}
+                                onSelect={() => {
+                                  if (!ruleId) return;
+                                  setEvaluatorPickerOpen(false);
+                                  attachment
+                                    .attach({
+                                      evaluatorId: evaluator.id,
+                                      ruleId,
+                                      evaluatorName: evaluator.scoreName,
+                                      evaluationRuleName:
+                                        evaluationRule.data.name,
+                                    })
+                                    .catch(() => undefined);
+                                }}
+                              >
+                                <span
+                                  className="min-w-0 flex-1 truncate"
+                                  title={evaluator.scoreName}
+                                >
+                                  {evaluator.scoreName}
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {attachment.issue ? (
+                  <EvaluationRuleAttachmentValidationAlert
+                    projectId={projectId}
+                    evaluatorId={attachment.issue.evaluatorId}
+                    ruleId={attachment.issue.ruleId}
+                    issue={attachment.issue}
+                  />
+                ) : null}
+                <EvaluationRuleEvaluatorConnections
+                  projectId={projectId}
+                  ruleId={evaluationRule.data.id}
+                  evaluators={evaluationRule.data.evaluators}
+                  hasWriteAccess={hasWriteAccess}
+                />
+              </div>
+            }
+            name={
+              <div className="flex flex-col gap-2">
+                <EvaluationRuleFieldLabel
+                  htmlFor="view-evaluation-rule-name"
+                  tooltip="The recognizable name of this rule."
+                >
+                  Name
+                </EvaluationRuleFieldLabel>
+                <Input
+                  id="view-evaluation-rule-name"
+                  value={evaluationRule.data.name}
+                  readOnly
+                />
+              </div>
+            }
+          />
         </div>
       )}
     </TablePeekView>

@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type FilterState } from "@langfuse/shared";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
@@ -231,6 +225,7 @@ describe("CreateEvaluationRuleDialog", () => {
           id: "observation-1",
           traceId: "trace-1",
           startTime: new Date("2026-07-20T12:00:00.000Z"),
+          input: "A complete observation input",
         },
       ],
     });
@@ -248,22 +243,27 @@ describe("CreateEvaluationRuleDialog", () => {
       </TooltipProvider>,
     );
 
-    const samplingStep = screen.getByRole("button", {
-      name: "Step 2: Set sampling rate",
-    });
     expect(screen.getByRole("dialog", { name: "New rule" })).toHaveClass(
       "max-w-6xl",
     );
     const evaluatorStep = screen.getByRole("button", {
-      name: "Step 3: Attach evaluator",
+      name: "Step 2: Attach evaluator",
     });
     const nameStep = screen.getByRole("button", {
-      name: "Step 4: Name rule",
+      name: "Step 3: Name rule",
     });
-    expect(samplingStep).toBeEnabled();
-    expect(within(samplingStep).queryByText("100%")).not.toBeInTheDocument();
     expect(evaluatorStep).toBeEnabled();
     expect(nameStep).toBeEnabled();
+    expect(
+      screen.getByText(
+        "Filter incoming observations and preview what this rule will evaluate.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Choose which evaluators should run on matching observations.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("Available after evaluator validation"),
     ).not.toBeInTheDocument();
@@ -271,10 +271,18 @@ describe("CreateEvaluationRuleDialog", () => {
 
     expect(screen.queryByText("Sampling slider")).not.toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: "Sampling 100%" }),
+    ).not.toHaveClass("-ml-5");
+    expect(
       screen.getByRole("button", { name: "Attach evaluator" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Evaluators").tagName).toBe("LABEL");
     fireEvent.click(nameStep);
+    expect(
+      screen.getByText(
+        "Give this rule a clear name so it is easy to recognize.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
@@ -395,13 +403,11 @@ describe("CreateEvaluationRuleDialog", () => {
     ).toBeInTheDocument();
 
     expect(screen.queryByText("Sampling slider")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Step 2: Set sampling rate" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Sampling 100%" }));
     expect(screen.getByText("Sampling slider")).toBeInTheDocument();
 
     const evaluatorStep = screen.getByRole("button", {
-      name: "Step 3: Attach evaluator",
+      name: "Step 2: Attach evaluator",
     });
     fireEvent.click(evaluatorStep);
     expect(
@@ -416,7 +422,7 @@ describe("CreateEvaluationRuleDialog", () => {
       screen.getByRole("button", { name: "Attach evaluator" }),
     ).toBeInTheDocument();
     const nameStep = screen.getByRole("button", {
-      name: "Step 4: Name rule",
+      name: "Step 3: Name rule",
     });
     fireEvent.click(nameStep);
     expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
