@@ -9,15 +9,13 @@ import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
-import { ClipboardPen, Lock } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import TableLink from "@/src/components/table/table-link";
-import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 import { type ScoreConfigDataType } from "@langfuse/shared";
+import { ProcessAnnotationQueueButton } from "@/src/features/annotation-queues/components/ProcessAnnotationQueueButton";
 
 type RowData = {
   key: {
@@ -147,20 +145,13 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       isFixedPosition: true,
       cell: ({ row }) => {
         const key: RowData["key"] = row.getValue("key");
-        return !hasAccess ? (
-          <Button size="sm" disabled>
-            <Lock className="mr-1 h-3 w-3" />
-            <span className="text-xs">Process queue</span>
-          </Button>
-        ) : (
-          <Button size="sm" asChild>
-            <Link
-              href={`/project/${projectId}/annotation-queues/${key.id}/items`}
-            >
-              <ClipboardPen className="mr-1 h-3 w-3" />
-              <span className="text-xs">Process queue</span>
-            </Link>
-          </Button>
+        return (
+          <ProcessAnnotationQueueButton
+            projectId={projectId}
+            queueId={key.id}
+            disabled={!hasAccess}
+            size="sm"
+          />
         );
       },
     },
