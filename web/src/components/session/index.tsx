@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { compactNumberFormatter } from "@/src/utils/numbers";
+import { numberFormatter } from "@/src/utils/numbers";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -394,16 +394,55 @@ const SessionHeaderKebab: React.FC<{
   );
 };
 
+/** One 22px summary chip of the v4 session header: mono, hairline border. */
+const SummaryChip: React.FC<{
+  children: React.ReactNode;
+  title?: string;
+  className?: string;
+}> = ({ children, title, className }) => (
+  <span
+    title={title}
+    className={cn(
+      "text-muted-foreground inline-flex items-center gap-1.5 rounded-sm border px-2 py-[3px] font-mono text-[10.5px] whitespace-nowrap",
+      className,
+    )}
+  >
+    {children}
+  </span>
+);
+
+const ChipValue: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="text-foreground">{children}</span>
+);
+
+const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
+
+const scoreChipValue = (
+  score: WithStringifiedMetadata<ScoreDomain>,
+): string => {
+  if (score.stringValue) return score.stringValue;
+  if (score.value === null || score.value === undefined) return "—";
+  return Number.isInteger(score.value)
+    ? String(score.value)
+    : score.value.toFixed(2);
+};
+
 /**
- * Metrics line + score chips of the redesigned session header:
- * `Traces N · P50 · Tokens · Cost · User ID ↗`, mono, dot-separated.
+ * Summary chips row of the v4 session header: traces·spans, p50·p95,
+ * tokens in→out (Σ), cost, score chips (fractional numeric scores get the
+ * tinted progress-bar treatment), env, and the user link chip.
  */
 const SessionMetricsLine: React.FC<{
   projectId: string;
   countTraces: number;
+  spanCount: number | null;
   p50LatencyMs: number | null;
+  p95LatencyMs: number | null;
+  tokensIn: number;
+  tokensOut: number;
   totalTokens: number;
   totalCost: number;
+  environment: string | undefined;
   users: string[];
   scores: WithStringifiedMetadata<ScoreDomain>[];
   generationView: GenerationView;
@@ -411,103 +450,155 @@ const SessionMetricsLine: React.FC<{
 }> = ({
   projectId,
   countTraces,
+  spanCount,
   p50LatencyMs,
+  p95LatencyMs,
+  tokensIn,
+  tokensOut,
   totalTokens,
   totalCost,
+  environment,
   users,
   scores,
   generationView,
   onGenerationViewChange,
 }) => {
-  const metric = (label: string, value: React.ReactNode) => (
-    <span className="whitespace-nowrap">
-      <span className="text-muted-foreground">{label}</span> {value}
-    </span>
-  );
-  const separator = <span className="text-muted-foreground/50">·</span>;
   const primaryUser = users[0];
 
   return (
-    <div className="bg-background flex flex-col gap-1.5 border-b px-4 py-2.5">
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs">
-        {metric("Traces", countTraces)}
-        {p50LatencyMs !== null ? (
-          <>
-            {separator}
-            {metric("P50", formatIntervalSeconds(p50LatencyMs / 1000))}
-          </>
-        ) : null}
-        {totalTokens > 0 ? (
-          <>
-            {separator}
-            {metric("Tokens", compactNumberFormatter(totalTokens))}
-          </>
-        ) : null}
-        {separator}
-        {metric("Cost", usdFormatter(totalCost))}
-        {primaryUser ? (
-          <>
-            {separator}
-            <Link
-              href={`/project/${projectId}/users/${encodeURIComponent(primaryUser)}`}
-              className="hover:text-primary flex max-w-[200px] items-center gap-1 whitespace-nowrap"
-              title={primaryUser}
-            >
-              <span className="text-muted-foreground shrink-0">User ID</span>
-              <span className="truncate" title={primaryUser}>
-                {primaryUser}
-              </span>
-              <ArrowUpRight className="h-3 w-3 shrink-0" />
-            </Link>
-            {users.length > 1 ? (
-              <span className="text-muted-foreground">+{users.length - 1}</span>
-            ) : null}
-          </>
-        ) : null}
-        <span className="flex-1" />
-        {/* Generation view (ex "LLM Calls per Trace" presets): which
-            generations render per conversation turn. */}
-        <span className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Generations</span>
-          <span className="bg-muted/40 flex items-center gap-0.5 rounded-sm border p-0.5">
-            {(["all", "first", "last"] as const).map((view) => (
-              <button
-                key={view}
-                type="button"
-                aria-pressed={generationView === view}
-                onClick={() => onGenerationViewChange(view)}
-                className={cn(
-                  "rounded-[3px] px-1.5 py-0.5 text-[10px] capitalize",
-                  generationView === view
-                    ? "bg-background text-foreground border shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {view}
-              </button>
-            ))}
-          </span>
+    <div className="bg-background flex flex-wrap items-center gap-1.5 border-b px-4 py-2.5">
+      <SummaryChip>
+        <span>
+          <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
         </span>
-      </div>
-      {scores.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {scores.map((score) => (
-            <span
-              key={score.id}
-              className="bg-muted/50 text-foreground rounded-sm border px-2 py-0.5 font-mono text-[11px]"
-              title={score.name}
-            >
-              {score.name}:{" "}
-              {score.stringValue ??
-                (score.value !== null && score.value !== undefined
-                  ? Number.isInteger(score.value)
-                    ? String(score.value)
-                    : score.value.toFixed(2)
-                  : "—")}
+        {spanCount !== null ? (
+          <>
+            <ChipDot />
+            <span>
+              <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
             </span>
-          ))}
-        </div>
+          </>
+        ) : null}
+      </SummaryChip>
+      {p50LatencyMs !== null ? (
+        <SummaryChip>
+          <span>
+            p50{" "}
+            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
+          </span>
+          {p95LatencyMs !== null ? (
+            <>
+              <ChipDot />
+              <span>
+                p95{" "}
+                <ChipValue>
+                  {formatIntervalSeconds(p95LatencyMs / 1000)}
+                </ChipValue>
+              </span>
+            </>
+          ) : null}
+        </SummaryChip>
       ) : null}
+      {totalTokens > 0 ? (
+        <SummaryChip>
+          <span>
+            tokens{" "}
+            <ChipValue>
+              {numberFormatter(tokensIn, 0)} → {numberFormatter(tokensOut, 0)}{" "}
+              (Σ {numberFormatter(totalTokens, 0)})
+            </ChipValue>
+          </span>
+        </SummaryChip>
+      ) : null}
+      <SummaryChip title={`exact $${totalCost.toFixed(6)}`}>
+        <span>
+          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
+        </span>
+      </SummaryChip>
+      {scores.map((score) => {
+        // Fractional numeric scores get the design's tinted progress-bar
+        // treatment (amber ≈ --dark-yellow); everything else stays neutral.
+        const isFraction =
+          score.dataType === "NUMERIC" &&
+          score.value !== null &&
+          score.value !== undefined &&
+          score.value >= 0 &&
+          score.value <= 1;
+        return (
+          <SummaryChip
+            key={score.id}
+            title={score.name}
+            className={
+              isFraction
+                ? "border-dark-yellow/50 bg-dark-yellow/[0.06]"
+                : undefined
+            }
+          >
+            <span className="max-w-40 truncate" title={score.name}>
+              {score.name}
+            </span>
+            <ChipValue>{scoreChipValue(score)}</ChipValue>
+            {isFraction ? (
+              <span className="bg-dark-yellow/20 inline-block h-1 w-[34px] overflow-hidden rounded-sm">
+                <span
+                  className="bg-dark-yellow block h-full"
+                  style={{ width: `${Math.round((score.value ?? 0) * 100)}%` }}
+                />
+              </span>
+            ) : null}
+          </SummaryChip>
+        );
+      })}
+      {environment ? (
+        <SummaryChip>
+          <span>
+            env <ChipValue>{environment}</ChipValue>
+          </span>
+        </SummaryChip>
+      ) : null}
+      {primaryUser ? (
+        <>
+          <Link
+            href={`/project/${projectId}/users/${encodeURIComponent(primaryUser)}`}
+            title={primaryUser}
+            className="text-link hover:text-link-hover inline-flex max-w-[240px] items-center gap-1 rounded-sm border px-2 py-[3px] font-mono text-[10.5px] whitespace-nowrap"
+          >
+            <span className="truncate" title={primaryUser}>
+              {primaryUser}
+            </span>
+            <ArrowUpRight className="h-[11px] w-[11px] shrink-0" />
+          </Link>
+          {users.length > 1 ? (
+            <span className="text-muted-foreground font-mono text-[10.5px]">
+              +{users.length - 1}
+            </span>
+          ) : null}
+        </>
+      ) : null}
+      <span className="flex-1" />
+      {/* Generation view (ex "LLM Calls per Trace" presets): which
+          generations render per conversation turn. */}
+      <span className="flex items-center gap-1.5 font-mono text-[10.5px]">
+        <span className="text-muted-foreground">generations</span>
+        <span className="bg-muted/40 flex items-center gap-0.5 rounded-sm border p-0.5">
+          {(["all", "first", "last"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={generationView === view}
+              onClick={() => onGenerationViewChange(view)}
+              className={cn(
+                "rounded-[3px] px-1.5 py-0.5 text-[10px] capitalize",
+                generationView === view
+                  ? "bg-background text-foreground border shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {view}
+            </button>
+          ))}
+        </span>
+      </span>
     </div>
   );
 };
@@ -1414,17 +1505,35 @@ const LoadedSessionEventsPage: React.FC<{
   });
   const virtualItems = virtualizer.getVirtualItems();
 
-  // P50 of trace wall-clock durations, for the redesigned metrics line.
-  const p50LatencyMs = React.useMemo(() => {
+  // P50/P95 of trace wall-clock durations and the session's span count,
+  // computed client-side from the traces array for the summary chips.
+  const { p50LatencyMs, p95LatencyMs, spanCount } = React.useMemo(() => {
     const latencies = (traces ?? [])
       .map((trace) => trace.latencyMs)
       .filter((value): value is number => value !== null && value > 0)
       .sort((a, b) => a - b);
-    if (latencies.length === 0) return null;
+    const percentile = (fraction: number): number | null => {
+      if (latencies.length === 0) return null;
+      const index = Math.min(
+        latencies.length - 1,
+        Math.max(0, Math.ceil(fraction * latencies.length) - 1),
+      );
+      return latencies[index];
+    };
     const mid = Math.floor(latencies.length / 2);
-    return latencies.length % 2 === 1
-      ? latencies[mid]
-      : (latencies[mid - 1] + latencies[mid]) / 2;
+    const p50 =
+      latencies.length === 0
+        ? null
+        : latencies.length % 2 === 1
+          ? latencies[mid]
+          : (latencies[mid - 1] + latencies[mid]) / 2;
+    return {
+      p50LatencyMs: p50,
+      p95LatencyMs: percentile(0.95),
+      spanCount: traces
+        ? traces.reduce((sum, trace) => sum + (trace.observationCount ?? 0), 0)
+        : null,
+    };
   }, [traces]);
 
   return (
@@ -1542,9 +1651,14 @@ const LoadedSessionEventsPage: React.FC<{
             <SessionMetricsLine
               projectId={projectId}
               countTraces={session.countTraces}
+              spanCount={spanCount}
               p50LatencyMs={p50LatencyMs}
+              p95LatencyMs={p95LatencyMs}
+              tokensIn={session.inputUsage ?? 0}
+              tokensOut={session.outputUsage ?? 0}
               totalTokens={session.totalTokens ?? 0}
               totalCost={session.totalCost ?? 0}
+              environment={session.environment}
               users={session.users ?? []}
               scores={session.scores}
               generationView={generationView}

@@ -459,7 +459,6 @@ const InspectorContent = ({
   projectId,
   sessionId,
   openPeek,
-  onClose,
   overlay,
   setOverlay,
 }: {
@@ -468,7 +467,6 @@ const InspectorContent = ({
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
-  onClose: () => void;
   overlay: InspectorOverlay;
   setOverlay: (overlay: InspectorOverlay) => void;
 }) => {
@@ -822,14 +820,6 @@ const InspectorContent = ({
                 ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Close inspector"
-              onClick={onClose}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
           </div>
         </div>
         {overviewRows.length > 0 ? <OverviewGrid rows={overviewRows} /> : null}
@@ -1035,7 +1025,6 @@ const TraceInspectorContent = ({
   projectId,
   sessionId,
   openPeek,
-  onClose,
   overlay,
   setOverlay,
 }: {
@@ -1043,7 +1032,6 @@ const TraceInspectorContent = ({
   projectId: string;
   sessionId: string;
   openPeek: OpenPeek;
-  onClose: () => void;
   overlay: InspectorOverlay;
   setOverlay: (overlay: InspectorOverlay) => void;
 }) => {
@@ -1193,14 +1181,6 @@ const TraceInspectorContent = ({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Close inspector"
-              onClick={onClose}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
           </div>
         </div>
         <OverviewGrid rows={overviewRows} />
@@ -1307,6 +1287,31 @@ export function ObservationInspector({
     (state) => state.actions.closeInspector,
   );
   const [overlay, setOverlay] = React.useState<InspectorOverlay>(null);
+  // Sheet width, user-draggable via the left edge (clamped 320–720px and
+  // to the viewport minus 100px, per the handoff).
+  const [width, setWidth] = React.useState(436);
+  const clampWidth = (candidate: number) =>
+    Math.max(
+      320,
+      Math.min(
+        720,
+        Math.min(
+          candidate,
+          (typeof window !== "undefined" ? window.innerWidth : 1440) - 100,
+        ),
+      ),
+    );
+  const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const onMove = (moveEvent: PointerEvent) =>
+      setWidth(clampWidth(window.innerWidth - moveEvent.clientX));
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
   const isOpen = inspected !== null;
 
@@ -1363,8 +1368,32 @@ export function ObservationInspector({
       />
       <aside
         aria-label="Observation details"
-        className="bg-background animate-in slide-in-from-right absolute inset-y-0 right-0 z-20 flex w-[420px] max-w-full flex-col border-l shadow-[-10px_0_28px_hsl(var(--foreground)/0.09)] duration-200 dark:shadow-none"
+        style={{ width }}
+        className="bg-background animate-in slide-in-from-right absolute inset-y-0 right-0 z-20 flex max-w-full flex-col border-l shadow-[-8px_0_24px_hsl(var(--foreground)/0.09)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-none"
       >
+        {/* Left-edge drag handle — resize the sheet (320–720px). */}
+        <div
+          onPointerDown={startResize}
+          title="Drag to resize"
+          className="hover:bg-muted-blue/30 absolute top-0 bottom-0 left-0 z-30 w-1.5 cursor-col-resize transition-colors duration-150"
+        />
+        {/* Eyebrow header band: `SPAN DETAILS` + close. */}
+        <div className="border-border-contrast flex shrink-0 items-center justify-between border-b border-dashed py-1 pr-2 pl-3.5">
+          <span className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase">
+            {inspected.observationId === null
+              ? "Trace details"
+              : "Span details"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Close inspector"
+            title="Close (Esc)"
+            onClick={closeInspector}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
         {inspected.observationId === null && trace ? (
           <TraceInspectorContent
             key={trace.id}
@@ -1372,7 +1401,6 @@ export function ObservationInspector({
             projectId={projectId}
             sessionId={sessionId}
             openPeek={openPeek}
-            onClose={closeInspector}
             overlay={overlay}
             setOverlay={setOverlay}
           />
@@ -1388,23 +1416,12 @@ export function ObservationInspector({
             projectId={projectId}
             sessionId={sessionId}
             openPeek={openPeek}
-            onClose={closeInspector}
             overlay={overlay}
             setOverlay={setOverlay}
           />
         ) : (
           <div className="flex flex-col gap-3 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold">Observation</span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="Close inspector"
-                onClick={closeInspector}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            <span className="text-sm font-bold">Observation</span>
             <p className="text-muted-foreground text-xs">
               This observation is not part of the current view. It may be hidden
               by the active filter.

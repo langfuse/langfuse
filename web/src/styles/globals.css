@@ -132,6 +132,13 @@
     var(--find-match-selected-foreground)
   );
 
+  /* Observation-type accents (v4 session design): generation pink, tool
+     orange, agent purple. Full color values (not HSL triples) so the light
+     values can stay exactly on the handoff's spec. */
+  --color-session-generation: var(--session-type-generation);
+  --color-session-tool: var(--session-type-tool);
+  --color-session-agent: var(--session-type-agent);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -343,6 +350,12 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
+    /* Observation-type accents (v4 session design handoff): generation pink,
+       tool orange, agent purple. Full color values, paired in .dark below. */
+    --session-type-generation: #d05376;
+    --session-type-tool: #c17e2e;
+    --session-type-agent: oklch(52% 0.17 300);
+
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -490,6 +503,12 @@
     --find-match-background: 60 100% 20%;
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
+
+    /* Observation-type accents — brightened so they read on dark surfaces
+       (pink/orange follow the handoff's dark sheet; purple lifted to match). */
+    --session-type-generation: #e86b9a;
+    --session-type-tool: #e8935a;
+    --session-type-agent: oklch(72% 0.13 300);
 
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;

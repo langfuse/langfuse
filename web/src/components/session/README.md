@@ -4,9 +4,11 @@
 feature-flagged choice between the existing card layout and Modern Session.
 On the Modern Session path the redesigned header applies: no filtering toolbar
 (the observation list's search + type funnel is the only filter; the feed/list/
-inspector read the unfiltered session), a mono metrics line
-(Traces · P50 · Tokens · Cost · User ID) with session score chips, and a
-session kebab (favourites / share / copy ID) replacing the header icon trio.
+inspector read the unfiltered session), a summary chips row (traces·spans,
+p50·p95 computed client-side, tokens in→out (Σ), cost, score chips with the
+tinted progress-bar treatment for fractional numeric scores, env, user link),
+and a session kebab (favourites / share / copy ID) replacing the header icon
+trio.
 Saved views, LLM-call presets, and the filter builder remain on the legacy
 card layout only.
 
@@ -26,10 +28,13 @@ card layout only.
   shows a type-aware overview grid, I/O zones, scores, and metadata without
   leaving the session. Selection state (`inspectedObservation`) lives in the
   session detail store.
-- `ObservationList.tsx`: Modern Session's COL 2 — collapsible turn cards with
-  per-turn observation rows, span search, and the funnel type filter.
+- `ObservationList.tsx`: Modern Session's COL 2 — flat turn cards (square
+  turn-number badge, expandable typed children rows, idle separators), span
+  search, and the funnel type filter. Card headers open the trace inspector;
+  child rows scroll to the turn AND open the inspector on that span.
 - `ConversationTurn.tsx`: Modern Session's redesigned conversation turn (user
-  bubble + unboxed generations + tool-call lines + hover footers).
+  bubble + tool-call rows with the orange chip + generations as clickable
+  hover blocks with a mono `model · latency · cost` meta row).
   `buildTurnModel` is deliberately conservative: any turn whose data doesn't
   fit the user-message + generations shape returns null and TraceEventsRow
   falls back to the existing observation rendering — the redesign must never
