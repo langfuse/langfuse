@@ -162,8 +162,18 @@ export default function () {
   });
 
   ingestDuration.add(res.timings.duration);
-  ingestedTraces.add(1);
-  ingestedEvents.add(payload.batch.length);
+
+  // Count only successfully ingested events, not rejected ones (status 207)
+  try {
+    const body = res.json();
+    const successful = Array.isArray(body.successes) ? body.successes.length : 0;
+    ingestedTraces.add(1);
+    ingestedEvents.add(successful);
+  } catch {
+    // Fallback for malformed responses — count everything
+    ingestedTraces.add(1);
+    ingestedEvents.add(payload.batch.length);
+  }
 
   sleep(0.01);
 }
