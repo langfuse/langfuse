@@ -54,6 +54,8 @@ export type SessionTraceFromEvents = {
   environment: string | null;
   userId: string | null;
   observationCount: number;
+  /** Trace wall-clock duration in ms (first start to last end). */
+  latencyMs: number | null;
 };
 
 export const getSessionTracesFromEvents = async (props: {
@@ -94,6 +96,7 @@ export const getSessionTracesFromEvents = async (props: {
         environment: string | null;
         user_id: string | null;
         observation_count: number | string;
+        latency_milliseconds: number | string | null;
       }>({
         query,
         params: input.params,
@@ -110,6 +113,10 @@ export const getSessionTracesFromEvents = async (props: {
     environment: row.environment,
     userId: row.user_id,
     observationCount: Number(row.observation_count),
+    latencyMs:
+      row.latency_milliseconds === null
+        ? null
+        : Number(row.latency_milliseconds),
   }));
 };
 

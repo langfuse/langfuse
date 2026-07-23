@@ -2,6 +2,13 @@
 
 `index.tsx` owns session queries, header actions, filters, saved views, and the
 feature-flagged choice between the existing card layout and Modern Session.
+On the Modern Session path the redesigned header applies: no filtering toolbar
+(the observation list's search + type funnel is the only filter; the feed/list/
+inspector read the unfiltered session), a mono metrics line
+(Traces · P50 · Tokens · Cost · User ID) with session score chips, and a
+session kebab (favourites / share / copy ID) replacing the header icon trio.
+Saved views, LLM-call presets, and the filter builder remain on the legacy
+card layout only.
 
 ## Render boundaries
 
