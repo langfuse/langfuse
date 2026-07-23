@@ -208,9 +208,15 @@ export const DuplicatePromptButton: React.FC<{
           icon={<Copy className="h-4 w-4" aria-hidden="true" />}
           hasAccess={hasAccess}
           variant="outline"
-          limit={promptLimit}
           title="Duplicate prompt"
-          limitValue={allPromptNames.data?.length ?? undefined}
+          usageLimit={
+            typeof promptLimit === "number"
+              ? {
+                  current: allPromptNames.data?.length ?? undefined,
+                  max: promptLimit,
+                }
+              : undefined
+          }
           onClick={() => {
             capture("prompt_detail:duplicate_button_click");
           }}

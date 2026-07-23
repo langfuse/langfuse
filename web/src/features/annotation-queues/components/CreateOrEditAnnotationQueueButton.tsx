@@ -248,8 +248,11 @@ export const CreateOrEditAnnotationQueueButton = ({
         )
       }
       hasAccess={hasQueueAccess}
-      limitValue={queueCountData.data}
-      limit={queueLimit}
+      usageLimit={
+        typeof queueLimit === "number"
+          ? { current: queueCountData.data, max: queueLimit }
+          : undefined
+      }
       size={size}
     >
       <span className="ml-1 text-sm font-normal">

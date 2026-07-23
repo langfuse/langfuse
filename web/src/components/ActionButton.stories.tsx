@@ -55,7 +55,9 @@ export const NoEntitlement = meta.story({
 export const LimitReached = meta.story({
   args: {
     children: "Create item",
-    limit: 3,
-    limitValue: 3,
+    usageLimit: {
+      current: 3,
+      max: 3,
+    },
   },
 });

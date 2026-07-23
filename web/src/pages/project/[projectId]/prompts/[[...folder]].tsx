@@ -96,8 +96,14 @@ export default function PromptsWithFolder() {
               hasAccess={hasCUDAccess}
               href={`/project/${projectId}/prompts/new${folderQueryParam ? `?folder=${encodeURIComponent(folderQueryParam)}` : ""}`}
               variant="default"
-              limit={promptLimit}
-              limitValue={Number(count?.totalCount ?? 0)}
+              usageLimit={
+                typeof promptLimit === "number"
+                  ? {
+                      current: Number(count?.totalCount ?? 0),
+                      max: promptLimit,
+                    }
+                  : undefined
+              }
               onClick={() => {
                 capture("prompts:new_form_open");
               }}

@@ -101,8 +101,14 @@ export default function EvaluatorsPage() {
                   capture("eval_config:new_form_open");
                   router.push(`/project/${projectId}/evals/new`);
                 }}
-                limitValue={countsQuery.data?.configActiveCount ?? 0}
-                limit={evaluatorLimit}
+                usageLimit={
+                  typeof evaluatorLimit === "number"
+                    ? {
+                        current: countsQuery.data?.configActiveCount ?? 0,
+                        max: evaluatorLimit,
+                      }
+                    : undefined
+                }
               >
                 Set up evaluator
               </ActionButton>

@@ -28,8 +28,10 @@ type ActionButtonProps = ForwardedButtonProps & {
   loading?: boolean;
   hasAccess?: boolean;
   hasEntitlement?: boolean;
-  limitValue?: number;
-  limit?: number | false;
+  usageLimit?: {
+    current: number | undefined;
+    max: number;
+  };
   children: React.ReactNode;
   href?: string;
 } & (
@@ -53,8 +55,7 @@ export const ActionButton = React.forwardRef<
     loading = false,
     hasAccess = true,
     hasEntitlement = true,
-    limitValue,
-    limit = false,
+    usageLimit,
     disabled = false,
     children,
     icon,
@@ -67,21 +68,18 @@ export const ActionButton = React.forwardRef<
 ) {
   const capture = usePostHogClientCapture();
   const hasReachedLimit =
-    typeof limit === "number" &&
-    limitValue !== undefined &&
-    limitValue >= limit;
+    usageLimit?.current !== undefined && usageLimit.current >= usageLimit.max;
   const isDisabled =
     disabled || !hasAccess || !hasEntitlement || hasReachedLimit;
 
   const getMessage = () => {
     if (!hasAccess) return BUTTON_STATE_MESSAGES.noAccess;
     if (!hasEntitlement) return BUTTON_STATE_MESSAGES.entitlement;
-    if (
-      hasReachedLimit &&
-      typeof limit === "number" &&
-      limitValue !== undefined
-    ) {
-      return BUTTON_STATE_MESSAGES.limitReached(limitValue, limit);
+    if (hasReachedLimit && usageLimit?.current !== undefined) {
+      return BUTTON_STATE_MESSAGES.limitReached(
+        usageLimit.current,
+        usageLimit.max,
+      );
     }
     return null;
   };
