@@ -1,7 +1,6 @@
 "use client";
 
 import { type PropsWithChildren, Children } from "react";
-import { useMediaQuery } from "react-responsive";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
 import { useDataTableControls } from "./data-table-controls";
@@ -29,8 +28,13 @@ const FILTER_PANEL_MAX_DEFAULT_PCT = 30;
  *  Expects exactly 2 children: filter sidebar (DataTableControls) and table content.
  */
 export function ResizableFilterLayout({ children }: PropsWithChildren) {
-  const { open, setOpen, tableName } = useDataTableControls();
-  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const { open, setOpen, tableName, isMobile } = useDataTableControls();
+  // Single-source the breakpoint from the controls provider (which derives
+  // `open`/`setOpen` from the same value). Evaluating the media query
+  // independently here let a desktop→mobile resize render the bottom sheet
+  // while `open` still held the persisted DESKTOP open-state — briefly showing
+  // an open desktop sidebar as a mobile sheet.
+  const isDesktop = !isMobile;
 
   // Extract filter sidebar and table content from children
   const childrenArray = Children.toArray(children).filter(Boolean);
