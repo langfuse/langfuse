@@ -42,6 +42,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { Skeleton } from "@/src/components/ui/skeleton";
 
 export default function Dataset() {
   const router = useRouter();
@@ -77,7 +78,7 @@ export default function Dataset() {
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const { isExperimentsBetaActive } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   const handleExperimentSuccess = async (data?: {
     success: boolean;
@@ -155,6 +156,10 @@ export default function Dataset() {
     datasetId,
     dataset.data?.name,
   );
+
+  if (isInitializing) {
+    return <Skeleton className="h-full w-full" />;
+  }
 
   if (isExperimentsBetaActive) {
     return (
