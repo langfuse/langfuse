@@ -91,7 +91,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderClassName="bg-card"
+            customCodeHeaderVariant="card"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -182,9 +182,9 @@ export function ChatMessage({
       </>
     );
 
-    let customCodeHeaderClassName: "bg-card" | undefined;
+    let customCodeHeaderVariant: "card" | undefined;
     if (message.role === "system") {
-      customCodeHeaderClassName = "bg-card";
+      customCodeHeaderVariant = "card";
     }
 
     return (
@@ -194,7 +194,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title={title}
             content={message.content || ""}
-            customCodeHeaderClassName={customCodeHeaderClassName}
+            customCodeHeaderVariant={customCodeHeaderVariant}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}

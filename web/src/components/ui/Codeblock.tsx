@@ -6,11 +6,16 @@ import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { useTheme } from "next-themes";
 
+const headerVariantClasses = {
+  default: "bg-secondary",
+  card: "bg-card",
+} as const;
+
 interface Props {
   language: string;
   value: string;
   theme?: string;
-  className?: "bg-card";
+  variant?: keyof typeof headerVariantClasses;
 }
 
 interface languageMap {
@@ -44,73 +49,75 @@ export const programmingLanguages: languageMap = {
   // add more file extensions here, make sure the key is same as language prop in CodeBlock.tsx component
 };
 
-const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
-  const [isCopied, setIsCopied] = useState(false);
-  const { resolvedTheme } = useTheme();
-  const appliedTheme = theme ?? resolvedTheme;
-  const handleCopy = () => {
-    setIsCopied(true);
-    copyTextToClipboard(value ?? "");
-    setTimeout(() => setIsCopied(false), 1000);
-  };
+const CodeBlock: FC<Props> = memo(
+  ({ language, value, theme, variant = "default" }) => {
+    const [isCopied, setIsCopied] = useState(false);
+    const { resolvedTheme } = useTheme();
+    const appliedTheme = theme ?? resolvedTheme;
+    const handleCopy = () => {
+      setIsCopied(true);
+      copyTextToClipboard(value ?? "");
+      setTimeout(() => setIsCopied(false), 1000);
+    };
 
-  return (
-    <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
-      <div
-        className={cn(
-          "bg-secondary flex w-full items-center justify-between px-2",
-          className,
-        )}
-      >
-        <span className="text-xs lowercase">{language}</span>
-        <div className="flex items-center py-1">
-          <Button
-            variant="ghost"
-            size="xs"
-            className="hover:bg-border text-xs focus-visible:ring-1 focus-visible:ring-offset-0"
-            onClick={handleCopy}
-          >
-            {isCopied ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-            <span className="sr-only">Copy code</span>
-          </Button>
+    return (
+      <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
+        <div
+          className={cn(
+            "flex w-full items-center justify-between px-2",
+            headerVariantClasses[variant],
+          )}
+        >
+          <span className="text-xs lowercase">{language}</span>
+          <div className="flex items-center py-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              className="hover:bg-border text-xs focus-visible:ring-1 focus-visible:ring-offset-0"
+              onClick={handleCopy}
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+              <span className="sr-only">Copy code</span>
+            </Button>
+          </div>
         </div>
+        <Highlight
+          theme={appliedTheme === "dark" ? themes.vsDark : themes.github}
+          code={value}
+          language={language}
+        >
+          {({ className, style, tokens, getLineProps, getTokenProps }) => (
+            <pre
+              className={className}
+              style={{
+                ...style,
+                margin: 0,
+                width: "100%",
+                background: "transparent",
+                padding: "0.5rem",
+                fontSize: "0.75rem",
+                fontFamily: "var(--font-mono)",
+                overflow: "auto",
+              }}
+            >
+              {tokens.map((line, i) => (
+                <div key={i} {...getLineProps({ line })}>
+                  {line.map((token, key) => (
+                    <span key={key} {...getTokenProps({ token })} />
+                  ))}
+                </div>
+              ))}
+            </pre>
+          )}
+        </Highlight>
       </div>
-      <Highlight
-        theme={appliedTheme === "dark" ? themes.vsDark : themes.github}
-        code={value}
-        language={language}
-      >
-        {({ className, style, tokens, getLineProps, getTokenProps }) => (
-          <pre
-            className={className}
-            style={{
-              ...style,
-              margin: 0,
-              width: "100%",
-              background: "transparent",
-              padding: "0.5rem",
-              fontSize: "0.75rem",
-              fontFamily: "var(--font-mono)",
-              overflow: "auto",
-            }}
-          >
-            {tokens.map((line, i) => (
-              <div key={i} {...getLineProps({ line })}>
-                {line.map((token, key) => (
-                  <span key={key} {...getTokenProps({ token })} />
-                ))}
-              </div>
-            ))}
-          </pre>
-        )}
-      </Highlight>
-    </div>
-  );
-});
+    );
+  },
+);
 CodeBlock.displayName = "CodeBlock";
 
 export { CodeBlock };
