@@ -445,7 +445,7 @@ export default function V4MigrationStatusPage() {
           <FaqLink href={OBSERVATIONS_FAQ_URL}>data shows up instantly</FaqLink>
           , everything loads faster, and you get{" "}
           <FaqLink href={V4_DOCS_URL}>
-            features we couldn&apos;t build on the old engine
+            features we could not build on the old engine
           </FaqLink>
           , like full-text search, alerting, and observation-level evals.
         </>
@@ -520,7 +520,8 @@ export default function V4MigrationStatusPage() {
   const totalProjects = allStatuses.length;
   const readyProjects = allStatuses.filter(isReady).length;
   const projectsNeedingAction = totalProjects - readyProjects;
-  const allReady = totalProjects > 0 && projectsNeedingAction === 0;
+  const shouldShowUpdateAllButton =
+    totalProjects === 0 || projectsNeedingAction > 0;
 
   return (
     <ContainerPage
@@ -543,7 +544,7 @@ export default function V4MigrationStatusPage() {
               </span>
             </div>
           </div>
-          {!allReady && (
+          {shouldShowUpdateAllButton && (
             <RainbowButton onClick={handleCopyPrompt}>
               <Copy className="mr-1.5 h-4 w-4 shrink-0" />
               <span className="min-w-0 truncate" title="Update all with agents">

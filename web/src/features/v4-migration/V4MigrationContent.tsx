@@ -38,13 +38,13 @@ Docs: ${V4_DOCS_URL}`;
 // report a project's actual SDK, eval, API, and integration setup. Which
 // variant renders is picked by the DEMO_SDK_CASE/DEMO_EVAL_CASE constants.
 const SDK_CASES = [
-  { label: "Pre-OTel SDK (JS 3.x, Python 2.x)", upToDate: false },
-  { label: "Direct API, pre-OTel (no SDK)", upToDate: false },
-  { label: "Direct API, OTel + write header (no SDK)", upToDate: true },
-  { label: "Direct API, OTel, no header (no SDK)", upToDate: false },
-  { label: "OTel SDK (JS 4, Python 3)", upToDate: false },
-  { label: "v4 SDK (JS 5, Python 4)", upToDate: false },
-  { label: "Latest v4 SDK (JS 5.x, Python 4.x)", upToDate: true },
+  { label: "Pre-OTel SDK (JS 3.x, Python 2.x)", isCurrent: false },
+  { label: "Direct API, pre-OTel (no SDK)", isCurrent: false },
+  { label: "Direct API, OTel + write header (no SDK)", isCurrent: true },
+  { label: "Direct API, OTel, no header (no SDK)", isCurrent: false },
+  { label: "OTel SDK (JS 4, Python 3)", isCurrent: false },
+  { label: "v4 SDK (JS 5, Python 4)", isCurrent: false },
+  { label: "Latest v4 SDK (JS 5.x, Python 4.x)", isCurrent: true },
 ] as const;
 
 const EVAL_CASES = [
@@ -314,7 +314,7 @@ export function V4MigrationDetailsContent({
             <Section
               title="Tracing Instrumentation"
               chip={
-                SDK_CASES[DEMO_SDK_CASE - 1].upToDate ? (
+                SDK_CASES[DEMO_SDK_CASE - 1].isCurrent ? (
                   <Chip variant="success">Up to date</Chip>
                 ) : (
                   <Chip variant="warning">Legacy</Chip>
