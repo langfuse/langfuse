@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Filter } from "lucide-react";
 
 import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { Badge } from "@/src/components/ui/badge";
@@ -31,12 +31,8 @@ export function FilterToggleButton({
       onClick={() => setOpen(!open)}
       className={cn("flex h-8 items-center gap-2 text-sm", className)}
     >
-      {open ? (
-        <PanelLeftClose className="h-4 w-4" />
-      ) : (
-        <PanelLeftOpen className="h-4 w-4" />
-      )}
-      <span>{open ? "Hide" : "Show"} filters</span>
+      <Filter className="h-4 w-4" />
+      <span>Filters</span>
       {activeFacetCount > 0 && (
         <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
           {activeFacetCount}

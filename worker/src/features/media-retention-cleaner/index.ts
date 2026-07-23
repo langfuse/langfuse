@@ -8,7 +8,6 @@ import {
   recordGauge,
   recordIncrement,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -37,6 +36,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: "MediaRetentionCleaner",
+      metricName: "media_retention_cleaner",
       lockKey: MEDIA_RETENTION_CLEANER_LOCK_KEY,
       lockTtlSeconds,
       onUnavailable: "fail",
@@ -73,7 +73,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
           logger.error(`${this.name}: Failed to query project workload`, {
             error,
           });
-          traceException(error);
           recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
           throw error;
         }

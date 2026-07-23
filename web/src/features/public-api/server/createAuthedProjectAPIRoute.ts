@@ -10,7 +10,11 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { PayloadTooLargeError, type RateLimitResource } from "@langfuse/shared";
+import {
+  PayloadTooLargeError,
+  type RateLimitResource,
+  type ApiDeprecationInfo,
+} from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
@@ -26,6 +30,7 @@ import {
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
+import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -81,6 +86,8 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /** Stamps a top-level `_deprecation` object onto responses (LFE-10895). */
+  deprecation?: ApiDeprecationInfo;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -305,6 +312,14 @@ export const createAuthedProjectAPIRoute = <
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Only surface deprecation notices on deployments on (or opting into) v4.
+    // Self-hosted deployments still on v3 (opt-in unset/false) should not see
+    // them yet, so gate the injected `_deprecation` on the preview flag.
+    const deprecation =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+        ? routeConfig.deprecation
+        : undefined;
+
     // Short-circuit routes that read from legacy traces/observations tables
     // when the deployment is in events_only mode — those tables are no longer
     // populated, so the response would be stale or empty. Returning 404 keeps
@@ -313,10 +328,15 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json({
-        message:
-          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-      });
+      res.status(404).json(
+        attachDeprecation(
+          {
+            message:
+              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+          },
+          deprecation,
+        ),
+      );
       return;
     }
 
@@ -466,7 +486,7 @@ export const createAuthedProjectAPIRoute = <
       );
 
       try {
-        res.json(response || { message: "OK" });
+        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
       } catch (error) {
         if (isJsonStringTooLargeError(error)) {
           throw new PayloadTooLargeError();

@@ -38,6 +38,7 @@ import {
   PanelLeftOpen,
   Plus,
   UnfoldVertical,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -84,6 +85,9 @@ interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tableName?: string;
+  /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
+   *  so its header shows a plain close instead of the collapse-to-rail chrome. */
+  isMobile: boolean;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -115,7 +119,9 @@ export function DataTableControlsProvider({
   const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
+    <ControlsContext.Provider
+      value={{ open, setOpen, tableName, isMobile: !isDesktop }}
+    >
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -132,7 +138,12 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {}, tableName: undefined };
+    return {
+      open: false,
+      setOpen: () => {},
+      tableName: undefined,
+      isMobile: false,
+    };
   }
 
   return context as ControlsContextType;
@@ -173,7 +184,7 @@ export function DataTableControls({
   blockedColumnReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen, tableName } = useDataTableControls();
+  const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -613,23 +624,41 @@ export function DataTableControls({
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "header");
-                  }}
-                  aria-label="Hide filters"
-                  className="-ml-1 h-6 w-6"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Hide filters</TooltipContent>
-            </Tooltip>
+            {isMobile ? (
+              // No tooltip: the sheet auto-focuses this control on open, and a
+              // Radix tooltip opens on focus — it would pop up unprompted. An X
+              // is self-evident anyway.
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setOpen(false);
+                  emitSidebarToggled(false, "header");
+                }}
+                aria-label="Close filters"
+                className="-ml-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setOpen(false);
+                      emitSidebarToggled(false, "header");
+                    }}
+                    aria-label="Hide filters"
+                    className="-ml-1 h-6 w-6"
+                  >
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hide filters</TooltipContent>
+              </Tooltip>
+            )}
             <span className="text-sm font-bold">Filters</span>
             {activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
@@ -748,16 +777,22 @@ export function DataTableControls({
                   Show only active
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "menu");
-                  }}
-                  className="cursor-pointer"
-                >
-                  Collapse sidebar
-                </DropdownMenuItem>
+                {/* "Collapse sidebar" is desktop-rail chrome; in the mobile
+                    sheet the header's X already closes it. */}
+                {!isMobile && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        emitSidebarToggled(false, "menu");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Collapse sidebar
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

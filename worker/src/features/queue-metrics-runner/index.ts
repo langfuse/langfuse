@@ -51,6 +51,10 @@ function emitDepth(
 }
 
 export class QueueMetricsRunner extends PeriodicRunner {
+  constructor() {
+    super("queue_metrics_runner");
+  }
+
   protected get name(): string {
     return "queue-metrics-runner";
   }
@@ -71,6 +75,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
       updateActiveIngestFailureProjectsMetric()
         .then(() => undefined)
         .catch((err) => {
+          this.markRunFailed(err);
           logger.error(
             "Queue metrics: failed to record active ingestion failure projects",
             err,
@@ -99,6 +104,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             );
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect dlq oldest age for ${queueName}`,
               err,
@@ -127,6 +133,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             }
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${queueName}`,
               err,
@@ -159,6 +166,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             return age;
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect dlq oldest age for ${shardName}`,
               err,
@@ -200,6 +208,7 @@ export class QueueMetricsRunner extends PeriodicRunner {
             return depths;
           })
           .catch((err) => {
+            this.markRunFailed(err);
             logger.error(
               `Queue metrics: failed to collect depth for ${shardName}`,
               err,
