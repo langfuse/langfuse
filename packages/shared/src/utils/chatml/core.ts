@@ -69,13 +69,19 @@ export function cleanLegacyOutput(output: unknown, fallback?: unknown) {
   const outLegacyCompletionSchema = z
     .object({
       completion: z.string(),
+      reasoning: z.string().optional(),
+      reasoning_content: z.string().optional(),
     })
-    .refine((value) => Object.keys(value).length === 1);
+    .refine((value) =>
+      Object.keys(value).every((k) =>
+        ["completion", "reasoning", "reasoning_content"].includes(k),
+      ),
+    );
 
   const outLegacyCompletionSchemaParsed =
     outLegacyCompletionSchema.safeParse(output);
   const outputClean = outLegacyCompletionSchemaParsed.success
-    ? outLegacyCompletionSchemaParsed.data
+    ? outLegacyCompletionSchemaParsed.data.completion
     : (fallback ?? null);
 
   return outputClean;

@@ -139,4 +139,40 @@ describe("Generic Adapter", () => {
 
     expect(() => genericAdapter.preprocess(input, "input", {})).not.toThrow();
   });
+
+  it("should extract completion and reasoning into ChatML message with thinking block", () => {
+    const outputEmptyCompletion = {
+      completion: "",
+      reasoning: "model reasoning process",
+    };
+
+    const outResultEmpty = normalizeOutput(outputEmptyCompletion);
+    expect(outResultEmpty.success).toBe(true);
+    if (outResultEmpty.success) {
+      expect(outResultEmpty.data[0]).toEqual(
+        expect.objectContaining({
+          role: "assistant",
+          content: "",
+          thinking: [{ type: "thinking", content: "model reasoning process" }],
+        }),
+      );
+    }
+
+    const outputWithCompletion = {
+      completion: "Final response text",
+      reasoning: "detailed reasoning",
+    };
+
+    const outResultWithText = normalizeOutput(outputWithCompletion);
+    expect(outResultWithText.success).toBe(true);
+    if (outResultWithText.success) {
+      expect(outResultWithText.data[0]).toEqual(
+        expect.objectContaining({
+          role: "assistant",
+          content: "Final response text",
+          thinking: [{ type: "thinking", content: "detailed reasoning" }],
+        }),
+      );
+    }
+  });
 });
