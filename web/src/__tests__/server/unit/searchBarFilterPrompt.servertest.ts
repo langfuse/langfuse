@@ -76,13 +76,22 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain(SCORE_COLUMNS.trace.boolean);
   });
 
-  it("never contains the refine or data section — those are a separate message", () => {
-    // The skeleton is request-independent instruction text only; injected,
-    // per-request VALUES (the query being refined, observed project data)
-    // live in `buildFilterContextMessage`'s own message so a trace can tell
-    // the prompt apart from the data it was handed.
-    expect(prompt).not.toContain("Current filters");
-    expect(prompt).not.toContain("Observed project data");
+  it("contains the refine RULES, but never the injected VALUES", () => {
+    // The refinement rules ("KEEP every existing filter...", the worked
+    // example) are instructions on HOW to use current filters, not the
+    // filters themselves — they belong in the system prompt so a later user
+    // turn (the actual request) can never outrank them. Only the injected,
+    // per-request VALUES (the query text being refined, observed project
+    // data) live in `buildFilterContextMessage`'s own message.
+    expect(prompt).toContain("## Refining existing filters");
+    expect(prompt).toContain("KEEP every existing filter");
+    expect(prompt).toContain(
+      '[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]',
+    );
+    // No injected VALUES (nor the headings that only ever wrap a VALUE) ever
+    // appear in the static skeleton.
+    expect(prompt).not.toContain("## Current filters");
+    expect(prompt).not.toContain("## Observed project data");
   });
 
   it("no longer accepts currentQuery/dataContext — single-datetime signature", () => {
@@ -100,22 +109,24 @@ describe("buildFilterContextMessage", () => {
     expect(buildFilterContextMessage("   ", undefined)).toBeNull();
   });
 
-  it("includes the current query as refine context when provided", () => {
+  it("includes the current query as a bare VALUE, no refine RULES", () => {
     const message = buildFilterContextMessage(
       "environment:production level:ERROR",
     );
     expect(message).not.toBeNull();
-    expect(message).toContain("Current filters — REFINE, do not replace");
+    expect(message).toContain("## Current filters");
     expect(message).toContain("environment:production level:ERROR");
-    // The preservation instruction + worked example are what stop the model
-    // from replacing the whole set when the user says "only X".
-    expect(message).toContain("ON TOP OF the current ones");
-    expect(message).toContain("Worked example");
+    // The refine RULES (why/how to keep existing filters) now live only in
+    // the system prompt — this message must never re-state them, or a later
+    // user turn (the actual request) could again outrank them.
+    expect(message).not.toContain("KEEP every existing filter");
+    expect(message).not.toContain("ON TOP OF the current ones");
+    expect(message).not.toContain("Worked example");
     // No data context was given, so that section should be absent.
     expect(message).not.toContain("Observed project data");
   });
 
-  it("includes observed project data when provided", () => {
+  it("includes observed project data as a bare VALUE, no usage RULES", () => {
     const message = buildFilterContextMessage(
       undefined,
       "metadata keys: routing.queue, tenant",
@@ -124,6 +135,9 @@ describe("buildFilterContextMessage", () => {
     expect(message).toContain("## Observed project data");
     expect(message).toContain("metadata keys: routing.queue, tenant");
     expect(message).not.toContain("Current filters");
+    // The usage rule ("map the request to what ACTUALLY appears...") now
+    // lives in the system prompt.
+    expect(message).not.toContain("ACTUALLY appear");
   });
 
   it("includes both sections, refine before data, when both are provided", () => {
@@ -132,7 +146,7 @@ describe("buildFilterContextMessage", () => {
       "metadata keys: routing.queue",
     );
     expect(message).not.toBeNull();
-    expect(message).toContain("Current filters — REFINE, do not replace");
+    expect(message).toContain("## Current filters");
     expect(message).toContain("## Observed project data");
     expect(message!.indexOf("Current filters")).toBeLessThan(
       message!.indexOf("Observed project data"),

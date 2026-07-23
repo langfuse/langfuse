@@ -83,13 +83,21 @@ function fieldCatalogLine(field: FieldDef): string {
  * Build the STATIC system prompt: role, output format, column catalog, and
  * all fixed rules/examples, anchored to `currentDatetime` (so relative time
  * expressions like "today" / "last 24h" resolve against the request time).
+ * This includes the "## Refining existing filters" rules — those are
+ * instructions on HOW to use the current filters, not the filters
+ * themselves, so they belong in the system prompt and stay unconditionally
+ * present. They're harmless when no current filters are sent: the rule text
+ * itself is conditioned on "if there are current filters ... in the
+ * following message".
  *
  * Deliberately holds no per-request DATA — the current query being refined
  * and the observed project data are dynamic values, not instructions, so they
  * travel in a separate message (`buildFilterContextMessage`). This keeps the
  * self-traced generation legible (prompt vs. injected data are visibly
- * different messages) and sets up the skeleton to become a managed prompt
- * without dynamic values baked into its text.
+ * different messages), stops a later user turn from being able to outrank
+ * rules that would otherwise ride along in a user message, and sets up the
+ * skeleton to become a managed prompt without dynamic values baked into its
+ * text.
  */
 export function buildFilterSystemPrompt(currentDatetime: string): string {
   const catalog = FIELDS.map(fieldCatalogLine).join("\n");
@@ -111,10 +119,13 @@ column matches. You can filter on:
   **negation / exclusion**.
 
 Prefer values, metadata keys, and score names that appear in the observed
-project data (when provided) over inventing your own. Use real catalog
-columns for standard fields; for anything custom or domain-specific, use
-\`metadata.<key>\`. Don't fall back to a vague column guess when metadata or
-content search expresses the intent better.
+project data (when provided) over inventing your own — map the request to the
+columns, values, and metadata keys that ACTUALLY appear there rather than
+guessing, and don't invent a value that isn't present unless the user gave
+that literal value themselves. Use real catalog columns for standard fields;
+for anything custom or domain-specific, use \`metadata.<key>\`. Don't fall back
+to a vague column guess when metadata or content search expresses the intent
+better.
 
 If the request is vague or maps to no concrete filter (e.g. "unusual",
 "interesting", "weird", "anything odd"), return [] — do NOT invent columns,
@@ -203,6 +214,21 @@ traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" 
 - "root spans" / "top-level" → isRootObservation = true.
 - "named X" / "called X" → the name or traceName column (NOT environment).
 
+## Refining existing filters
+
+If there are current filters provided in the following message, the user
+ALREADY has those filters applied (same syntax as your output). The new
+request is an EDIT to this set, not a fresh start. Rules:
+- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
+- ADD a filter for whatever the request narrows down to.
+- Only modify or drop a filter the request actually targets.
+
+A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
+
+Worked example — current filters \`level:ERROR\`, request "only in production":
+you return BOTH filters, not just environment:
+[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
+
 ## Current datetime
 
 The current datetime is: ${currentDatetime}
@@ -242,16 +268,20 @@ Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of
 /**
  * Build the INJECTED-CONTEXT message: the current filters being refined and
  * the observed project data, as a SEPARATE message from the system skeleton
- * (`buildFilterSystemPrompt`). Both are dynamic, request-specific values, not
+ * (`buildFilterSystemPrompt`). Both are dynamic, request-specific VALUES, not
  * instructions — keeping them out of the system prompt is what lets a trace
  * show "here is the prompt" and "here is the data we handed it" as distinct
  * messages instead of one undifferentiated blob.
  *
+ * This message carries ONLY the values, never the rules for how to use them:
+ * the refine rules ("## Refining existing filters") and the observed-data
+ * usage rules live in `buildFilterSystemPrompt` instead, so a later USER turn
+ * (the actual request) can never outrank them the way it could when the
+ * rules travelled in a user message. Putting untrusted/variable instructions
+ * in a user turn risks the model treating the next user turn as an override.
+ *
  * Returns `null` when there is neither a current query nor data context, so
  * the caller can omit the message entirely rather than sending an empty one.
- * The section text below is reused VERBATIM from the prior single-message
- * prompt — only its home (system string vs. a standalone user message)
- * changed, not its wording.
  */
 export function buildFilterContextMessage(
   currentQuery?: string,
@@ -263,28 +293,15 @@ export function buildFilterContextMessage(
 
   const refineSection =
     refine.length > 0
-      ? `## Current filters — REFINE, do not replace
+      ? `## Current filters
 
-The user ALREADY has these filters applied (same syntax as your output):
+Refine these (same syntax as your output):
 \`${refine}\`
-
-The new request is an EDIT to this set, not a fresh start. Rules:
-- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
-- ADD a filter for whatever the request narrows down to.
-- Only modify or drop a filter the request actually targets.
-
-A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
-
-Worked example — current filters \`level:ERROR\`, request "only in production":
-you return BOTH filters, not just environment:
-[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
 `
       : "";
   const dataSection =
     data.length > 0
       ? `## Observed project data
-
-Map the request to the columns, values, and metadata keys that ACTUALLY appear below — prefer an observed value/metadata key over guessing a column. If a phrase matches a metadata key, use \`metadata.<key>\`. Do not invent values that aren't here unless the user gave a literal one.
 
 ${data}
 `
