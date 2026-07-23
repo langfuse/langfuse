@@ -141,11 +141,13 @@ const ChartComponent = ({
   }, [config]);
 
   const renderChart = () => {
-    // A time-series query densifies an empty range into zero/null-filled
-    // bucket rows rather than an empty array, so recharts still gets data —
-    // it just draws blank axes with no series. Fail into guidance instead of
-    // that blank box; skip while loading so a first paint doesn't flash "No
-    // data" before the real result arrives. (LFE-14333, manifesto principle 8)
+    // A time-series query can densify an empty range into null-filled bucket
+    // rows rather than an empty array, so recharts still gets data — it just
+    // draws blank axes with no series. Fail into guidance instead of that
+    // blank box. A real 0 is never treated as empty here (see
+    // isChartDataEmpty); skip while loading so a first paint doesn't flash
+    // "No data" before the real result arrives. (LFE-14333, manifesto
+    // principle 8)
     if (
       EMPTY_STATE_CHART_TYPES.has(chartType) &&
       !isLoading &&

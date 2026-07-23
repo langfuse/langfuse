@@ -18,18 +18,30 @@ describe("isChartDataEmpty", () => {
     expect(isChartDataEmpty(data)).toBe(true);
   });
 
-  it("treats all-zero metrics as empty (mirrors legacy isEmptyTimeSeries)", () => {
+  // A real 0 is a deliberate, honest value here (never coerced from a gap —
+  // manifesto V2 / DataPoint.metric's doc), so it must never be treated as
+  // "no data": additive count/sum series fill an empty bucket with a real 0
+  // (getWidgetMissingBucketValue), a genuine zero-average score chart still
+  // has something true to show (NumericScoreTimeSeriesChart's
+  // isNullValueAllowed:true opt-out of the legacy detector), and a monitor
+  // alert-preview whose measure is 0 across the window still needs its
+  // threshold bands drawn.
+  it("is NOT empty when every point is a real 0", () => {
     const data = [point(0), point(0, "series-a"), point(0, "series-b")];
-    expect(isChartDataEmpty(data)).toBe(true);
+    expect(isChartDataEmpty(data)).toBe(false);
   });
 
-  it("treats a mix of null and zero as empty", () => {
+  it("is NOT empty for a single real-0 point", () => {
+    expect(isChartDataEmpty([point(0)])).toBe(false);
+  });
+
+  it("is NOT empty for a mix of null and real-0 points (0 is real data)", () => {
     const data = [point(null), point(0, "series-a"), point(null, "series-b")];
-    expect(isChartDataEmpty(data)).toBe(true);
+    expect(isChartDataEmpty(data)).toBe(false);
   });
 
   it("is not empty when at least one point carries a real, non-zero value", () => {
-    const data = [point(null), point(5, "series-a"), point(0, "series-b")];
+    const data = [point(null), point(5, "series-a"), point(null, "series-b")];
     expect(isChartDataEmpty(data)).toBe(false);
   });
 
