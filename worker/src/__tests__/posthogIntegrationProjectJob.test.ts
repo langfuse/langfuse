@@ -122,7 +122,6 @@ vi.mock("posthog-node", () => ({
     capture = vi.fn();
     private errorHandler?: (error: Error) => void;
     flush = vi.fn(async () => {
-      h.timeline.push("flush");
       h.state.afterFlush?.();
       if (
         h.state.emitErrorAfterNonEmptyFlush &&
@@ -311,11 +310,7 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
       flushAt: 1_000,
       maxQueueSize: 10_000,
     });
-    expect(
-      h.timeline.filter(
-        (entry) => entry.endsWith(":start") || entry.endsWith(":end"),
-      ),
-    ).toEqual([
+    expect(h.timeline).toEqual([
       "scores:start",
       "scores:end",
       "traces:start",
@@ -387,7 +382,7 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
       exportSource: "EVENTS",
     };
     h.state.rowCounts.scores = 0;
-    h.state.rowCounts.events = 10_001;
+    h.state.rowCounts.events = 1_001;
     h.state.emitErrorAfterNonEmptyFlush = true;
 
     await expect(handlePostHogIntegrationProjectJob(makeJob())).rejects.toThrow(

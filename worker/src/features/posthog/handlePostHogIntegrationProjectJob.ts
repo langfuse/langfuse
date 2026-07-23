@@ -35,11 +35,11 @@ type PostHogExecutionConfig = {
   // attempt recovers without manual intervention while healthy syncs stay fast.
   useGraceHash: boolean;
   // Shared accumulator for gzipped on-wire upload volume, written by the
-  // fetch wrapper on each client and read once the run succeeds.
+  // fetch wrapper and read once the run succeeds.
   volume: { bytes: number };
   // Last error emitted by the shared PostHog client. The SDK reports
   // asynchronous delivery failures through this handler.
-  sendError: { current?: Error };
+  sendError?: Error;
 };
 
 const postHogSettings = {
@@ -56,7 +56,7 @@ const sleep = (ms: number) =>
     : Promise.resolve();
 
 const throwIfPostHogSendError = (config: PostHogExecutionConfig) => {
-  if (config.sendError.current) throw config.sendError.current;
+  if (config.sendError) throw config.sendError;
 };
 
 const flushPostHog = async (
@@ -80,9 +80,7 @@ export const countingFetch =
   (url, options) => {
     // Extend the existing V0 counter to cover the additional capture mode
     // supported by newer posthog-node releases.
-    const captureEndpoint =
-      url.endsWith("/batch/") || url.endsWith("/i/v1/analytics/events");
-    if (captureEndpoint) {
+    if (url.endsWith("/batch/") || url.endsWith("/i/v1/analytics/events")) {
       const body = options.body;
       if (typeof body === "string") {
         volume.bytes += Buffer.byteLength(body);
@@ -100,6 +98,37 @@ export const countingFetch =
     return globalThis.fetch(url, options as RequestInit);
   };
 
+const processPostHogStream = async <T>(
+  posthog: PostHog,
+  config: PostHogExecutionConfig,
+  stream: AsyncIterable<T>,
+  streamName: "traces" | "generations" | "scores" | "events",
+  transform: (value: T, projectId: string) => Parameters<PostHog["capture"]>[0],
+) => {
+  logger.info(
+    `[POSTHOG] Sending ${streamName} for project ${config.projectId} to PostHog`,
+  );
+
+  let count = 0;
+  for await (const value of stream) {
+    throwIfPostHogSendError(config);
+    count++;
+    posthog.capture(transform(value, config.projectId));
+    if (count % postHogSettings.flushAt === 0) {
+      await flushPostHog(posthog, config);
+      logger.info(
+        `[POSTHOG] Sent ${count} ${streamName} to PostHog for project ${config.projectId}`,
+      );
+    }
+  }
+  if (count % postHogSettings.flushAt !== 0) {
+    await flushPostHog(posthog, config);
+  }
+  logger.info(
+    `[POSTHOG] Sent ${count} ${streamName} to PostHog for project ${config.projectId}`,
+  );
+};
+
 const processPostHogTraces = async (
   posthog: PostHog,
   config: PostHogExecutionConfig,
@@ -112,29 +141,12 @@ const processPostHogTraces = async (
     { useGraceHash: config.useGraceHash },
   );
 
-  logger.info(
-    `[POSTHOG] Sending traces for project ${config.projectId} to PostHog`,
-  );
-
-  let count = 0;
-  for await (const trace of traces) {
-    throwIfPostHogSendError(config);
-    count++;
-    const event = transformTraceForPostHog(trace, config.projectId);
-    posthog.capture(event);
-    if (count % postHogSettings.flushAt === 0) {
-      await flushPostHog(posthog, config);
-      logger.info(
-        `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
-      );
-    }
-  }
-  if (count % postHogSettings.flushAt !== 0) {
-    await flushPostHog(posthog, config);
-  }
-  throwIfPostHogSendError(config);
-  logger.info(
-    `[POSTHOG] Sent ${count} traces to PostHog for project ${config.projectId}`,
+  await processPostHogStream(
+    posthog,
+    config,
+    traces,
+    "traces",
+    transformTraceForPostHog,
   );
 };
 
@@ -150,29 +162,12 @@ const processPostHogGenerations = async (
     { useGraceHash: config.useGraceHash },
   );
 
-  logger.info(
-    `[POSTHOG] Sending generations for project ${config.projectId} to PostHog`,
-  );
-
-  let count = 0;
-  for await (const generation of generations) {
-    throwIfPostHogSendError(config);
-    count++;
-    const event = transformGenerationForPostHog(generation, config.projectId);
-    posthog.capture(event);
-    if (count % postHogSettings.flushAt === 0) {
-      await flushPostHog(posthog, config);
-      logger.info(
-        `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
-      );
-    }
-  }
-  if (count % postHogSettings.flushAt !== 0) {
-    await flushPostHog(posthog, config);
-  }
-  throwIfPostHogSendError(config);
-  logger.info(
-    `[POSTHOG] Sent ${count} generations to PostHog for project ${config.projectId}`,
+  await processPostHogStream(
+    posthog,
+    config,
+    generations,
+    "generations",
+    transformGenerationForPostHog,
   );
 };
 
@@ -192,29 +187,12 @@ const processPostHogScores = async (
     },
   );
 
-  logger.info(
-    `[POSTHOG] Sending scores for project ${config.projectId} to PostHog`,
-  );
-
-  let count = 0;
-  for await (const score of scores) {
-    throwIfPostHogSendError(config);
-    count++;
-    const event = transformScoreForPostHog(score, config.projectId);
-    posthog.capture(event);
-    if (count % postHogSettings.flushAt === 0) {
-      await flushPostHog(posthog, config);
-      logger.info(
-        `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
-      );
-    }
-  }
-  if (count % postHogSettings.flushAt !== 0) {
-    await flushPostHog(posthog, config);
-  }
-  throwIfPostHogSendError(config);
-  logger.info(
-    `[POSTHOG] Sent ${count} scores to PostHog for project ${config.projectId}`,
+  await processPostHogStream(
+    posthog,
+    config,
+    scores,
+    "scores",
+    transformScoreForPostHog,
   );
 };
 
@@ -229,29 +207,12 @@ const processPostHogEvents = async (
     config.maxTimestamp,
   );
 
-  logger.info(
-    `[POSTHOG] Sending events for project ${config.projectId} to PostHog`,
-  );
-
-  let count = 0;
-  for await (const analyticsEvent of events) {
-    throwIfPostHogSendError(config);
-    count++;
-    const event = transformEventForPostHog(analyticsEvent, config.projectId);
-    posthog.capture(event);
-    if (count % postHogSettings.flushAt === 0) {
-      await flushPostHog(posthog, config);
-      logger.info(
-        `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
-      );
-    }
-  }
-  if (count % postHogSettings.flushAt !== 0) {
-    await flushPostHog(posthog, config);
-  }
-  throwIfPostHogSendError(config);
-  logger.info(
-    `[POSTHOG] Sent ${count} events to PostHog for project ${config.projectId}`,
+  await processPostHogStream(
+    posthog,
+    config,
+    events,
+    "events",
+    transformEventForPostHog,
   );
 };
 
@@ -353,7 +314,6 @@ export const handlePostHogIntegrationProjectJob = async (
     postHogHost: postHogIntegration.posthogHostName,
     useGraceHash: job.attemptsMade > 0,
     volume: { bytes: 0 },
-    sendError: {},
   };
 
   try {
@@ -372,14 +332,12 @@ export const handlePostHogIntegrationProjectJob = async (
       fetch: countingFetch(executionConfig.volume),
     });
 
-    let processingError: unknown;
-    let processingFailed = false;
     try {
       posthog.on("error", (error) => {
         logger.error(
           `[POSTHOG] Error sending data to PostHog for project ${projectId}: ${error}`,
         );
-        executionConfig.sendError.current =
+        executionConfig.sendError =
           error instanceof Error ? error : new Error(String(error));
       });
 
@@ -402,25 +360,10 @@ export const handlePostHogIntegrationProjectJob = async (
       ) {
         await processPostHogEvents(posthog, executionConfig);
       }
-    } catch (error) {
-      processingFailed = true;
-      processingError = error;
-    }
-
-    let shutdownError: unknown;
-    let shutdownFailed = false;
-    try {
-      await posthog.shutdown();
-      if (!processingFailed) {
-        throwIfPostHogSendError(executionConfig);
-      }
-    } catch (error) {
-      shutdownFailed = true;
-      shutdownError = error;
-    }
-
-    if (processingFailed) {
-      if (shutdownFailed) {
+    } catch (processingError) {
+      try {
+        await posthog.shutdown();
+      } catch (shutdownError) {
         logger.error(
           `[POSTHOG] Error shutting down PostHog client for project ${projectId} after export failure`,
           shutdownError,
@@ -428,7 +371,9 @@ export const handlePostHogIntegrationProjectJob = async (
       }
       throw processingError;
     }
-    if (shutdownFailed) throw shutdownError;
+
+    await posthog.shutdown();
+    throwIfPostHogSendError(executionConfig);
 
     // Update the last run information for the postHogIntegration record.
     await prisma.posthogIntegration.update({

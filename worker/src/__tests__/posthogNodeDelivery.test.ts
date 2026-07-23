@@ -32,6 +32,34 @@ const decodeBatch = async (options: PostHogFetchOptions) => {
   };
 };
 
+const createRejectedCaptureClient = () => {
+  const sendErrors: Error[] = [];
+  const fetch: PostHogFetch = async () => ({
+    status: 500,
+    text: async () => "capture failed",
+    json: async () => ({}),
+    headers: { get: () => null },
+  });
+  const client = new PostHog("phc_delivery_test", {
+    host: "https://posthog.invalid",
+    flushAt: 1_000,
+    maxQueueSize: 10_000,
+    fetchRetryCount: 0,
+    fetchRetryDelay: 0,
+    fetch,
+  });
+  client.on("error", (error) => {
+    sendErrors.push(error instanceof Error ? error : new Error(String(error)));
+  });
+  client.capture({
+    distinctId: "langfuse-project",
+    event: "langfuse observation",
+    properties: { exportId: "observation-1" },
+  });
+
+  return { client, sendErrors };
+};
+
 describe("posthog-node delivery contract", () => {
   beforeEach(() => vi.stubEnv("POSTHOG_CAPTURE_MODE", "v0"));
   afterEach(() => vi.unstubAllEnvs());
@@ -124,34 +152,9 @@ describe("posthog-node delivery contract", () => {
   });
 
   it("rejects flush when the capture endpoint rejects a batch", async () => {
-    const sendErrors: Error[] = [];
-    const fetch: PostHogFetch = async () => ({
-      status: 500,
-      text: async () => "capture failed",
-      json: async () => ({}),
-      headers: { get: () => null },
-    });
-    const client = new PostHog("phc_delivery_test", {
-      host: "https://posthog.invalid",
-      flushAt: 1_000,
-      maxQueueSize: 10_000,
-      fetchRetryCount: 0,
-      fetchRetryDelay: 0,
-      fetch,
-    });
-    client.on("error", (error) => {
-      sendErrors.push(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    });
+    const { client, sendErrors } = createRejectedCaptureClient();
 
     try {
-      client.capture({
-        distinctId: "langfuse-project",
-        event: "langfuse observation",
-        properties: { exportId: "observation-1" },
-      });
-
       await expect(client.flush()).rejects.toThrow(
         "HTTP error while fetching PostHog",
       );
@@ -162,31 +165,7 @@ describe("posthog-node delivery contract", () => {
   });
 
   it("emits a delivery error but resolves shutdown after a rejected batch", async () => {
-    const sendErrors: Error[] = [];
-    const fetch: PostHogFetch = async () => ({
-      status: 500,
-      text: async () => "capture failed",
-      json: async () => ({}),
-      headers: { get: () => null },
-    });
-    const client = new PostHog("phc_delivery_test", {
-      host: "https://posthog.invalid",
-      flushAt: 1_000,
-      maxQueueSize: 10_000,
-      fetchRetryCount: 0,
-      fetchRetryDelay: 0,
-      fetch,
-    });
-    client.on("error", (error) => {
-      sendErrors.push(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    });
-    client.capture({
-      distinctId: "langfuse-project",
-      event: "langfuse observation",
-      properties: { exportId: "observation-1" },
-    });
+    const { client, sendErrors } = createRejectedCaptureClient();
 
     await expect(client.shutdown()).resolves.toBeUndefined();
     expect(sendErrors).toHaveLength(1);
