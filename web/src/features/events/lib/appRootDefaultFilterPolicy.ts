@@ -34,7 +34,6 @@ export const getAppRootDefaultPolicy = (params: {
   routerReady: boolean;
   appRootSupported: boolean;
   sdkCheckedAt: string | null;
-  sdkCheckSettled: boolean;
   preference: string | null;
   defaultViewSettled: boolean;
   savedViewOwnsState: boolean;
@@ -42,8 +41,7 @@ export const getAppRootDefaultPolicy = (params: {
   now: number;
 }) => {
   const sdkCheckCached = Number.isFinite(Date.parse(params.sdkCheckedAt ?? ""));
-  const capabilitySupported =
-    params.appRootSupported && (sdkCheckCached || params.sdkCheckSettled);
+  const capabilitySupported = params.appRootSupported && sdkCheckCached;
   const shouldApplyFilter =
     params.enabled &&
     params.routerReady &&

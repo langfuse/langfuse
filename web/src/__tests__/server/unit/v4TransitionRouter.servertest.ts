@@ -1247,21 +1247,28 @@ describe("v4TransitionRouter", () => {
         sdkName: "python",
         sdkVersion: "3.9.0",
         publicKey: "pk-lf-old-python",
-        count: "8",
+        lastSeen: "2026-06-24T12:00:00Z",
       },
       {
         projectId,
         sdkName: "python",
-        sdkVersion: "4.0.0",
+        sdkVersion: "4.6.9",
+        publicKey: "pk-lf-pre-v4-python",
+        lastSeen: "2026-06-24T13:00:00Z",
+      },
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.7.0",
         publicKey: "pk-lf-current-python",
-        count: "13",
+        lastSeen: "2026-06-24T14:00:00Z",
       },
       {
         projectId: secondProjectId,
         sdkName: "@langfuse/tracing",
-        sdkVersion: "4.2.0",
-        publicKey: "pk-lf-old-js",
-        count: "5",
+        sdkVersion: "5.3.9",
+        publicKey: "pk-lf-pre-v4-js",
+        lastSeen: "2026-06-24T15:00:00Z",
       },
     ]);
     const mockPrisma = {
@@ -1282,11 +1289,47 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         projectId,
-        outdatedSdkUsageSeriesCount: 1,
+        outdatedSdkUsageSeriesCount: 2,
+        sdkUsageSeries: [
+          {
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            canonicalSdkName: "python",
+            publicKey: "pk-lf-old-python",
+            lastSeen: "2026-06-24T12:00:00Z",
+            v4MigrationStatus: "upgrade_required",
+          },
+          {
+            sdkName: "python",
+            sdkVersion: "4.6.9",
+            canonicalSdkName: "python",
+            publicKey: "pk-lf-pre-v4-python",
+            lastSeen: "2026-06-24T13:00:00Z",
+            v4MigrationStatus: "upgrade_required",
+          },
+          {
+            sdkName: "python",
+            sdkVersion: "4.7.0",
+            canonicalSdkName: "python",
+            publicKey: "pk-lf-current-python",
+            lastSeen: "2026-06-24T14:00:00Z",
+            v4MigrationStatus: "compatible",
+          },
+        ],
       },
       {
         projectId: secondProjectId,
         outdatedSdkUsageSeriesCount: 1,
+        sdkUsageSeries: [
+          {
+            sdkName: "@langfuse/tracing",
+            sdkVersion: "5.3.9",
+            canonicalSdkName: "javascript",
+            publicKey: "pk-lf-pre-v4-js",
+            lastSeen: "2026-06-24T15:00:00Z",
+            v4MigrationStatus: "upgrade_required",
+          },
+        ],
       },
     ]);
 
@@ -1312,6 +1355,7 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain(
       "GROUP BY project_id, sdk_name, sdk_version, public_key",
     );
+    expect(usageQuery?.query).toContain("max(event_time)");
     expect(usageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",

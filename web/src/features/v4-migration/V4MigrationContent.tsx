@@ -20,10 +20,9 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
-import { type ProjectSdkVersionState } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
 import {
   formatSdkVersion,
-  type V4MigrationSdkStatus,
+  type V4MigrationSdkState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import {
@@ -31,6 +30,8 @@ import {
   type MigrationCountState,
 } from "@/src/features/v4-migration/migrationData";
 import { numberFormatter } from "@/src/utils/numbers";
+import { formatCompactRelativeTime } from "@/src/utils/dates";
+import { useProject } from "@/src/features/projects/hooks";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -152,53 +153,92 @@ function MigrationCountChip({
   );
 }
 
-function V4MigrationSdkSection({
-  sdkVersionState,
-  status,
-}: {
-  sdkVersionState: ProjectSdkVersionState;
-  status: V4MigrationSdkStatus;
-}) {
-  const detectedSdk = formatSdkVersion(sdkVersionState.sdkVersion);
-
+function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
+  const detectedSdkSeries = sdk.sdkUsageSeries.filter(
+    (series) => series.canonicalSdkName !== null,
+  );
   const chip =
-    status === "latest" ? (
+    sdk.status === "latest" ? (
       <Chip variant="success">Up to date</Chip>
-    ) : status === "checking" ? (
+    ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
-    ) : status === "unknown" ? (
-      <Chip variant="warning">Not detected</Chip>
-    ) : status === "error" ? (
+    ) : sdk.status === "unknown" ? (
+      <Chip variant="warning">
+        {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
+      </Chip>
+    ) : sdk.status === "error" ? (
       <Chip variant="warning">Check failed</Chip>
     ) : (
-      <Chip variant="warning">Legacy</Chip>
+      <Chip variant="warning">{sdk.upgradeRequiredCount} outdated</Chip>
     );
 
   return (
     <Section title="Tracing Instrumentation" chip={chip}>
       <p className="text-muted-foreground text-sm leading-relaxed">
-        {status === "checking" ? (
+        {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
-        ) : status === "unknown" ? (
-          <>
-            We could not detect an attributed Langfuse SDK in traces from the
-            last 7 days. If this project uses one, verify that it is up to date.
-          </>
-        ) : status === "error" ? (
+        ) : sdk.status === "unknown" ? (
+          detectedSdkSeries.length > 0 ? (
+            "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
+          ) : (
+            <>
+              We could not detect an attributed Langfuse SDK in traces from the
+              last 7 days. If this project uses one, verify that it is up to
+              date.
+            </>
+          )
+        ) : sdk.status === "error" ? (
           "We could not check the latest traces for this project. Try again later."
-        ) : status === "latest" ? (
-          <>
-            This project uses <MonoValue>{detectedSdk}</MonoValue>. Nothing to
-            do.
-          </>
+        ) : sdk.status === "latest" ? (
+          "All detected Langfuse SDK versions are up to date."
         ) : (
           <>
-            This project uses <MonoValue>{detectedSdk}</MonoValue>.{" "}
+            {sdk.upgradeRequiredCount} detected SDK{" "}
+            {sdk.upgradeRequiredCount === 1
+              ? "configuration needs"
+              : "configurations need"}{" "}
+            an update.{" "}
             <ExternalLink href={SDK_UPGRADE_URL}>Upgrade the SDK</ExternalLink>{" "}
             for real-time data and the latest tracing experience.
           </>
         )}
       </p>
+      {detectedSdkSeries.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {detectedSdkSeries.map((series) => {
+            const sdkLabel = formatSdkVersion({
+              language: series.canonicalSdkName ?? series.sdkName,
+              version: series.sdkVersion,
+            });
+            const publicKey =
+              series.publicKey.length > 18
+                ? `${series.publicKey.slice(0, 9)}…${series.publicKey.slice(-6)}`
+                : series.publicKey || "No API key";
+
+            return (
+              <li
+                key={`${series.sdkName}:${series.sdkVersion}:${series.publicKey}`}
+                className="text-muted-foreground flex flex-wrap items-baseline gap-x-1.5 text-xs"
+              >
+                <MonoValue>{sdkLabel}</MonoValue>
+                <span title={series.publicKey || undefined}>{publicKey}</span>
+                <span>
+                  · last seen{" "}
+                  {formatCompactRelativeTime(new Date(series.lastSeen))}
+                </span>
+                {series.v4MigrationStatus === "upgrade_required" && (
+                  <span className="text-dark-yellow">· upgrade required</span>
+                )}
+                {series.v4MigrationStatus === "unknown" && (
+                  <span className="text-dark-yellow">
+                    · version not recognized
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Section>
   );
 }
@@ -258,8 +298,10 @@ export function V4MigrationDetailsContent({
   const projectId =
     projectIdProp ??
     (typeof routeProjectId === "string" ? routeProjectId : undefined);
+  const { organization } = useProject(projectId ?? null);
   const migrationData = useProjectV4MigrationData({
     projectId,
+    orgId: organization?.id,
     enabled: Boolean(projectId),
   });
 
@@ -311,10 +353,7 @@ export function V4MigrationDetailsContent({
           <span className="text-dark-yellow">Oct 1</span>.
         </p>
         <div>
-          <V4MigrationSdkSection
-            sdkVersionState={migrationData.sdkVersionState}
-            status={migrationData.sdkStatus}
-          />
+          <V4MigrationSdkSection sdk={migrationData.sdk} />
 
           <Section
             title="Evals"
