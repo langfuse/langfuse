@@ -15,7 +15,11 @@ import { useSessionDetailStore } from "@/src/components/session/SessionDetailSto
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { FilterX } from "lucide-react";
+import { Clock, FilterX } from "lucide-react";
+import {
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/components/session/sessionIdleGap";
 import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
@@ -251,6 +255,8 @@ type LazyTraceEventsRowProps = {
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   isActive?: boolean;
+  idleGapSeconds?: number | null;
+  onSelectTurn?: () => void;
 };
 
 const areLazyTraceEventsRowPropsEqual = (
@@ -270,7 +276,9 @@ const areLazyTraceEventsRowPropsEqual = (
   previous.surface === next.surface &&
   previous.contentMode === next.contentMode &&
   previous.showSystemPrompt === next.showSystemPrompt &&
-  previous.isActive === next.isActive;
+  previous.isActive === next.isActive &&
+  previous.idleGapSeconds === next.idleGapSeconds &&
+  previous.onSelectTurn === next.onSelectTurn;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -288,6 +296,8 @@ export const TraceEventsRow = React.memo(
     showSystemPrompt,
     isActive = false,
     turnNumber,
+    idleGapSeconds,
+    onSelectTurn,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -302,8 +312,12 @@ export const TraceEventsRow = React.memo(
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
     isActive?: boolean;
-    /** 1-based turn index shown in the redesigned conversation footers. */
+    /** 1-based turn index shown in the redesigned conversation dividers. */
     turnNumber?: number;
+    /** Idle gap (seconds) before this turn — renders a separator when ≥5min. */
+    idleGapSeconds?: number | null;
+    /** Selects this turn (rail sync + smooth scroll to it). */
+    onSelectTurn?: () => void;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -432,13 +446,7 @@ export const TraceEventsRow = React.memo(
 
     return (
       <Frame
-        className={
-          surface === "card"
-            ? "border-border shadow-none"
-            : isActive
-              ? "bg-background border-l-primary border-l-2"
-              : "bg-background border-l-2 border-l-transparent"
-        }
+        className={surface === "card" ? "border-border shadow-none" : "bg-card"}
         data-modern-session-active={surface === "modern" && isActive}
       >
         <div
@@ -452,14 +460,50 @@ export const TraceEventsRow = React.memo(
             className={
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
-                : "min-w-0 px-6 pb-10"
+                : "min-w-0 px-7 pb-4"
             }
           >
-            {/* Redesigned turns flow without a trace header (the design's
-                conversation is headerless); fallback-rendered turns keep it
-                for orientation and as their peek entry point. */}
+            {/* Idle separator — the visible pause before this turn. */}
+            {surface === "modern" &&
+            idleGapSeconds != null &&
+            idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS ? (
+              <div className="mx-auto mt-5 mb-1 flex w-full max-w-[720px] items-center gap-2.5">
+                <span className="border-border-contrast flex-1 border-t border-dashed" />
+                <Clock
+                  className="text-muted-foreground h-3 w-3 shrink-0"
+                  strokeWidth={1.5}
+                />
+                <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
+                  +{formatIdleGap(idleGapSeconds)} idle
+                </span>
+                <span className="border-border-contrast flex-1 border-t border-dashed" />
+              </div>
+            ) : null}
+            {/* Sticky turn divider: `N · HH:MM:SS · dashed`, pinned to the
+                top of the feed while its turn scrolls (clicking selects). */}
+            {surface === "modern" && turnModel ? (
+              <div className="bg-card sticky top-0 z-10 pt-1">
+                <button
+                  type="button"
+                  onClick={onSelectTurn}
+                  className="text-muted-foreground hover:text-foreground mx-auto flex w-full max-w-[720px] cursor-pointer items-center gap-2 py-[5px] transition-colors duration-150"
+                >
+                  <span className="font-mono text-[10px] leading-4">
+                    {turnNumber}
+                  </span>
+                  <span className="font-mono text-[10px]">
+                    {trace.timestamp.toLocaleTimeString(undefined, {
+                      hour12: false,
+                    })}
+                  </span>
+                  <span className="border-border-contrast flex-1 border-t border-dashed" />
+                </button>
+              </div>
+            ) : null}
+            {/* Fallback-rendered turns keep the trace header for orientation
+                and as their peek entry point. */}
             {surface === "modern" && !turnModel ? (
-              <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
+              <div className="bg-card/95 sticky top-0 z-10 -mx-7 mb-5 flex min-w-0 items-center justify-between gap-3 px-7 py-3 backdrop-blur">
                 <button
                   type="button"
                   aria-label={`Open trace ${trace.name ?? "Trace"} (${trace.id})`}
@@ -494,8 +538,8 @@ export const TraceEventsRow = React.memo(
             ) : turnModel ? (
               <ConversationTurn
                 model={turnModel}
-                turnNumber={turnNumber ?? 0}
                 traceId={trace.id}
+                onSelectTurn={onSelectTurn}
               />
             ) : visibleObservations && visibleObservations.length > 0 ? (
               <div className="flex flex-col gap-4">

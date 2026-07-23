@@ -23,12 +23,20 @@ type LazySessionTraceEventsRowProps = {
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   isActive?: boolean;
+  /** Idle gap (seconds) before this turn, for the feed's separators. */
+  idleGapSeconds?: number | null;
+  /** Selects the 0-based turn (rail sync + smooth scroll), kept stable. */
+  onSelectTurnIndex?: (index: number) => void;
 };
 
 const LazySessionTraceEventsRowInner = (
   props: LazySessionTraceEventsRowProps,
 ) => {
-  const { index, ...rowProps } = props;
+  const { index, onSelectTurnIndex, ...rowProps } = props;
+  const onSelectTurn = React.useCallback(
+    () => onSelectTurnIndex?.(index),
+    [onSelectTurnIndex, index],
+  );
   const shouldLoad = useSessionDetailStore((state) =>
     Boolean(state.loadedTraceIds[props.trace.id]),
   );
@@ -58,7 +66,12 @@ const LazySessionTraceEventsRowInner = (
       data-session-row-index={index}
     >
       {shouldLoad ? (
-        <TraceEventsRow {...rowProps} showCorrections={showCorrections} />
+        <TraceEventsRow
+          {...rowProps}
+          showCorrections={showCorrections}
+          turnNumber={index + 1}
+          onSelectTurn={onSelectTurn}
+        />
       ) : isModern ? (
         <div className="flex h-80 items-center justify-center px-6 py-8">
           <TraceEventsSkeleton />

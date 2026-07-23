@@ -6,6 +6,7 @@ import {
   ChevronsRight,
   ExternalLink,
   Funnel,
+  Search,
 } from "lucide-react";
 import { type FilterState } from "@langfuse/shared";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
@@ -22,13 +23,19 @@ import {
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
+import {
+  computeIdleGapSeconds,
+  formatIdleGap,
+  IDLE_GAP_THRESHOLD_SECONDS,
+} from "@/src/components/session/sessionIdleGap";
+import { observationTypeIcon } from "@/src/components/session/sessionTypeIcons";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 
 const OBSERVATION_LIST_OVERSCAN = 5;
 
-/** Short type labels for the row badges, per the session-detail design. */
+/** Short type labels for the funnel filter, per the session-detail design. */
 const TYPE_LABELS: Record<string, string> = { GENERATION: "GEN" };
 const typeLabel = (type: string | null | undefined): string =>
   type ? (TYPE_LABELS[type] ?? type) : "SPAN";
@@ -68,6 +75,9 @@ const TurnObservationRows = ({
   const openInspector = useSessionDetailStore(
     (state) => state.actions.openInspector,
   );
+  const inspectedObservationId = useSessionDetailStore(
+    (state) => state.inspectedObservation?.observationId ?? null,
+  );
   const observationsQuery =
     api.sessions.observationsForTraceFromEvents.useQuery(
       { projectId, sessionId, traceId: trace.id, filter: filterState },
@@ -93,7 +103,7 @@ const TurnObservationRows = ({
 
   if (observationsQuery.isLoading) {
     return (
-      <div className="flex flex-col gap-1 px-3 py-2">
+      <div className="flex flex-col gap-1 py-2 pl-[17px]">
         <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
         <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
       </div>
@@ -101,7 +111,7 @@ const TurnObservationRows = ({
   }
   if (!rows || rows.length === 0) {
     return (
-      <p className="text-muted-foreground px-3 py-2 text-xs">
+      <p className="text-muted-foreground py-2 pl-[17px] text-xs">
         {search || typeFilter.size > 0
           ? "No matching spans"
           : "No observations"}
@@ -110,38 +120,48 @@ const TurnObservationRows = ({
   }
 
   return (
-    <div>
-      {rows.map((observation) => (
-        <button
-          key={observation.id}
-          type="button"
-          onClick={() => {
-            // Scroll the conversation to the turn AND open the span in the
-            // inspector (review decision — supersedes the scroll-only spec).
-            onSelectTurn();
-            openInspector({
-              traceId: trace.id,
-              observationId: observation.id,
-            });
-          }}
-          className="hover:bg-muted/40 flex w-full items-center gap-2 border-t px-2.5 py-1.5 text-left"
-        >
-          <span className="bg-muted/40 text-muted-foreground min-w-[46px] shrink-0 rounded-sm border px-1 py-px text-center font-mono text-[8.5px] font-bold tracking-wide uppercase">
-            {typeLabel(observation.type)}
-          </span>
-          <span
-            className="min-w-0 flex-1 truncate text-xs"
-            title={observation.name ?? observation.id}
+    <div className="mt-[7px] ml-[17px] flex flex-col gap-1">
+      {rows.map((observation) => {
+        const { Icon, className: iconClassName } = observationTypeIcon(
+          observation.type,
+        );
+        const isInspected = observation.id === inspectedObservationId;
+        return (
+          <button
+            key={observation.id}
+            type="button"
+            onClick={() => {
+              // Scroll the conversation to the turn AND open the inspector
+              // on this span (rail row clicks are span-level, per design).
+              onSelectTurn();
+              openInspector({
+                traceId: trace.id,
+                observationId: observation.id,
+              });
+            }}
+            className={cn(
+              "hover:bg-muted flex w-full items-center gap-1.5 rounded-sm px-1 py-[3px] text-left transition-colors duration-150",
+              isInspected && "bg-session-generation/10",
+            )}
           >
-            {observation.name ?? observation.id}
-          </span>
-          {observation.latency !== null && observation.type !== "EVENT" ? (
-            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-              {formatIntervalSeconds(observation.latency)}
+            <Icon
+              className={cn("h-[13px] w-[13px] shrink-0", iconClassName)}
+              strokeWidth={2}
+            />
+            <span
+              className="text-foreground min-w-0 flex-1 truncate text-xs"
+              title={observation.name ?? observation.id}
+            >
+              {observation.name ?? observation.id}
             </span>
-          ) : null}
-        </button>
-      ))}
+            {observation.latency !== null && observation.type !== "EVENT" ? (
+              <span className="text-muted-foreground shrink-0 font-mono text-[10.5px]">
+                {formatIntervalSeconds(observation.latency)}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -180,8 +200,9 @@ const TurnCard = React.memo(
     return (
       <div
         className={cn(
-          "bg-background group mb-2 overflow-hidden rounded-sm border",
-          isActive && "ring-primary/60 border-primary/60 ring-1",
+          "group mb-[5px] rounded-sm border border-transparent px-2 pt-[7px] pb-2 transition-colors duration-150",
+          "hover:border-border",
+          isActive && "bg-primary/5",
         )}
         data-observation-list-active={isActive}
       >
@@ -193,24 +214,46 @@ const TurnCard = React.memo(
             // metrics, and scores that the minimal cards no longer show).
             openInspector({ traceId: trace.id, observationId: null });
           }}
-          className={cn(
-            "flex w-full items-center gap-2 px-2.5 py-2 text-left",
-            isActive && "bg-primary/5",
-          )}
+          className="flex w-full items-center gap-[7px] text-left"
           aria-current={isActive ? "true" : undefined}
         >
           <span
+            role="button"
+            tabIndex={0}
+            aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleCollapse(trace.id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleCollapse(trace.id);
+              }
+            }}
+            className="text-muted-foreground flex h-3.5 w-3.5 shrink-0 items-center justify-center"
+          >
+            <ChevronDown
+              className={cn(
+                "h-3 w-3 transition-transform duration-150",
+                isCollapsed ? "-rotate-90" : "rotate-0",
+              )}
+              strokeWidth={1.6}
+            />
+          </span>
+          <span
             className={cn(
-              "shrink-0 rounded-sm border px-1.5 py-px font-mono text-[9px] font-bold",
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-mono text-[9.5px]",
               isActive
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "bg-muted/50 text-muted-foreground",
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground",
             )}
           >
             {index + 1}
           </span>
           <span
-            className="min-w-0 flex-1 truncate text-xs font-bold"
+            className="min-w-0 flex-1 truncate text-[12.5px] font-bold"
             title={trace.name ?? "Trace"}
           >
             {trace.name ?? "Trace"}
@@ -235,30 +278,11 @@ const TurnCard = React.memo(
           >
             <ExternalLink className="h-3 w-3" />
           </span>
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={isCollapsed ? "Expand turn" : "Collapse turn"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleCollapse(trace.id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleCollapse(trace.id);
-              }
-            }}
-            className="hover:bg-muted flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
-          >
-            <ChevronDown
-              className={cn(
-                "text-muted-foreground h-3.5 w-3.5 transition-transform",
-                isCollapsed ? "-rotate-90" : "rotate-0",
-              )}
-            />
-          </span>
+          {trace.latencyMs !== null && trace.latencyMs > 0 ? (
+            <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
+              {formatIntervalSeconds(trace.latencyMs / 1000)}
+            </span>
+          ) : null}
         </button>
         {!isCollapsed ? (
           <TurnObservationRows
@@ -277,11 +301,21 @@ const TurnCard = React.memo(
 );
 TurnCard.displayName = "TurnCard";
 
+/** Mono uppercase eyebrow used by the rail's header and sub-rows. */
+const RailEyebrow = ({ children }: { children: React.ReactNode }) => (
+  <span className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase">
+    {children}
+  </span>
+);
+
 /**
- * COL 2 of the session-detail redesign: grouped, collapsible turn cards on a
- * recessed track, with a span search box and a funnel type-filter. Clicking a
- * card header or an observation row scrolls the conversation to that turn
- * (it never opens the inspector — that happens from the conversation/feed).
+ * COL 2 of the session-detail redesign, in the v4 visual language: a header
+ * band (`SPANS … N`), span search + funnel type-filter, a `GROUPED BY
+ * CHAT-TURN` sub-row, and flat turn cards (square turn-number badge, hover
+ * hairline, expandable typed children rows) with idle separators between
+ * turns that are ≥5 minutes apart. Clicking a card header scrolls the
+ * conversation to that turn and opens the trace inspector; clicking a child
+ * row scrolls to the turn and opens the inspector on that span.
  */
 export function ObservationList({
   traces,
@@ -314,6 +348,15 @@ export function ObservationList({
 
   const totalSpanCount = useMemo(
     () => traces.reduce((sum, trace) => sum + (trace.observationCount ?? 0), 0),
+    [traces],
+  );
+
+  // Idle gap before each turn (index 0 has none), for the rail separators.
+  const idleGapSeconds = useMemo(
+    () =>
+      traces.map((trace, index) =>
+        index === 0 ? null : computeIdleGapSeconds(traces[index - 1], trace),
+      ),
     [traces],
   );
 
@@ -366,10 +409,10 @@ export function ObservationList({
         type="button"
         onClick={onToggleOpen}
         aria-label="Expand span list"
-        className="bg-muted/30 hover:bg-muted/60 relative z-20 flex min-h-0 items-center gap-2.5 border-r px-3 lg:flex-col lg:px-0 lg:pt-3"
+        className="hover:bg-muted relative z-20 flex min-h-0 items-center gap-2.5 rounded-sm px-3 transition-colors duration-150 lg:flex-col lg:px-0 lg:pt-3"
       >
         <ChevronsRight className="text-muted-foreground h-3.5 w-3.5" />
-        <span className="text-muted-foreground font-mono text-[9px] font-bold tracking-[0.1em] uppercase lg:[writing-mode:vertical-rl]">
+        <span className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase lg:[writing-mode:vertical-rl]">
           Spans · {totalSpanCount}
         </span>
       </button>
@@ -382,15 +425,27 @@ export function ObservationList({
       aria-label="Session spans"
       // z-20 lifts the rail above the inspector's click-catcher (z-10) so
       // clicking cards/rows swaps the inspector instead of merely closing it.
-      className="bg-background relative z-20 flex min-h-0 flex-col border-r"
+      className="relative z-20 flex min-h-0 flex-col"
     >
-      <div className="flex shrink-0 items-center gap-1.5 border-b p-2">
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search spans…"
-          className="h-7 flex-1 text-xs"
-        />
+      <div className="border-border-contrast flex shrink-0 items-center justify-between border-b border-dashed px-3 py-[7px]">
+        <RailEyebrow>Spans</RailEyebrow>
+        <span className="text-muted-foreground font-mono text-[10px]">
+          {totalSpanCount}
+        </span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5 px-2.5 pt-2.5 pb-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
+            strokeWidth={1.6}
+          />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search spans"
+            className="bg-background h-[30px] rounded-sm pl-7 text-[13px]"
+          />
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -398,6 +453,7 @@ export function ObservationList({
               size="icon-xs"
               aria-label="Filter by span type"
               className={cn(
+                "h-[30px] w-[30px] rounded-sm",
                 typeFilter.size > 0 &&
                   "border-primary/50 bg-primary/10 text-primary",
               )}
@@ -431,23 +487,18 @@ export function ObservationList({
           size="icon-xs"
           aria-label="Collapse span list"
           onClick={onToggleOpen}
-          className="hidden lg:inline-flex"
+          className="hidden h-[30px] w-[30px] rounded-sm lg:inline-flex"
         >
           <ChevronsLeft className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="flex shrink-0 items-center justify-between border-b px-3 py-1.5">
-        <span className="text-muted-foreground font-mono text-[9px] font-bold tracking-[0.08em] uppercase">
-          All spans
-        </span>
+      <div className="flex shrink-0 items-center justify-between px-3 pb-1.5">
+        <RailEyebrow>Grouped by chat-turn</RailEyebrow>
         <span className="text-muted-foreground font-mono text-[10px]">
-          {totalSpanCount}
+          ↑↓ to move
         </span>
       </div>
-      <div
-        ref={listRef}
-        className="bg-muted/40 min-h-0 flex-1 overflow-y-auto p-2"
-      >
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -459,6 +510,7 @@ export function ObservationList({
             const trace = traces[virtualItem.index];
             if (!trace) return null;
             const isCollapsed = Boolean(collapsedTurns[trace.id]);
+            const gap = idleGapSeconds[virtualItem.index];
             return (
               <SessionVirtualizedRow
                 key={virtualItem.key}
@@ -468,6 +520,16 @@ export function ObservationList({
                 virtualItem={virtualItem}
                 virtualizer={virtualizer}
               >
+                {gap !== null &&
+                gap !== undefined &&
+                gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
+                  <div className="flex items-center gap-1.5 py-[3px] pr-2 pl-[30px]">
+                    <span className="text-muted-foreground font-mono text-[9px] whitespace-nowrap">
+                      +{formatIdleGap(gap)} idle
+                    </span>
+                    <span className="border-border-contrast flex-1 border-t border-dashed" />
+                  </div>
+                ) : null}
                 <TurnCard
                   trace={trace}
                   index={virtualItem.index}

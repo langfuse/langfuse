@@ -1,12 +1,12 @@
 import React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Fan, Wrench } from "lucide-react";
 import { deepParseJson } from "@langfuse/shared";
 
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { usdFormatter, compactNumberFormatter } from "@/src/utils/numbers";
+import { usdFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
 /**
@@ -158,23 +158,41 @@ export const buildTurnModel = (
   return { userText, generations: built };
 };
 
+/** Mono meta parts of a generation: `model · latency · cost` (real data only). */
+const generationMetaParts = (
+  observation: SessionTraceObservation,
+): string[] => {
+  const parts: string[] = [];
+  if (observation.model) parts.push(observation.model);
+  if (observation.latency !== null)
+    parts.push(`${observation.latency.toFixed(2)}s`);
+  if (observation.totalCost !== null)
+    parts.push(usdFormatter(observation.totalCost, 2, 4));
+  return parts;
+};
+
 /**
- * COL 3 turn of the session-detail redesign: right-aligned user bubble, then
- * each generation flowing unboxed (markdown), its tool-call lines (diamond +
- * name chip → inspector), and a hover-only mono footer (→ inspector).
+ * COL 3 turn of the v4 session design: right-aligned user bubble (click
+ * selects the turn), tool-call rows with the orange name chip (→ inspector),
+ * then each generation as a clickable hover block (→ inspector) with a mono
+ * `model · latency · cost` meta row underneath.
  */
 export const ConversationTurn = ({
   model,
-  turnNumber,
   traceId,
+  onSelectTurn,
 }: {
   model: ConversationTurnModel;
-  turnNumber: number;
   traceId: string;
+  /** Selects this turn (rail sync + smooth scroll). */
+  onSelectTurn?: () => void;
 }) => {
   const capture = usePostHogClientCapture();
   const openInspector = useSessionDetailStore(
     (state) => state.actions.openInspector,
+  );
+  const inspectedObservationId = useSessionDetailStore(
+    (state) => state.inspectedObservation?.observationId ?? null,
   );
   // The generation view control (ex "LLM Calls per Trace" presets): show
   // all generations of a turn, or only its first/last one.
@@ -194,62 +212,87 @@ export const ConversationTurn = ({
     openInspector({ traceId, observationId });
   };
 
+  // Opens the inspector for the generation unless the click hit an
+  // interactive child (links, copy buttons) or the user is selecting text.
+  const handleGenerationClick =
+    (observationId: string, observationType: string) =>
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      if (
+        target.closest(
+          "a,button,input,textarea,select,[role='button'],[contenteditable='true']",
+        )
+      )
+        return;
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) return;
+      inspect(observationId, observationType);
+    };
+
   return (
     <div className="mx-auto w-full max-w-[720px]">
-      <div className="mb-4 flex justify-end">
-        <div className="bg-muted/60 max-w-[80%] rounded-[10px] border px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap">
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={onSelectTurn}
+          className="bg-muted text-foreground max-w-[min(560px,82%)] rounded-sm px-[13px] py-[9px] text-left text-sm leading-normal break-words whitespace-pre-wrap"
+        >
           {model.userText}
-        </div>
+        </button>
       </div>
-      {visibleGenerations.map(({ observation, text, tools }) => (
-        <div key={observation.id} className="group mb-5">
-          <MarkdownView markdown={text} />
-          {tools.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => inspect(tool.id, tool.type)}
-              className="text-muted-foreground hover:text-foreground my-1.5 flex items-center gap-2 text-left"
+      {visibleGenerations.map(({ observation, text, tools }) => {
+        const metaParts = generationMetaParts(observation);
+        const isInspected = observation.id === inspectedObservationId;
+        return (
+          <div key={observation.id}>
+            {tools.map((tool) => (
+              <button
+                key={tool.id}
+                type="button"
+                onClick={() => inspect(tool.id, tool.type)}
+                className="hover:bg-muted mt-1.5 flex items-center gap-[7px] rounded-sm px-2.5 py-[5px] text-left transition-colors duration-150"
+              >
+                <Wrench
+                  className="text-session-tool h-3 w-3 shrink-0"
+                  strokeWidth={2}
+                />
+                <span className="text-muted-foreground text-xs">Tool call</span>
+                <span className="text-foreground bg-session-tool/10 rounded-sm px-1.5 py-px font-mono text-[11px]">
+                  {tool.name ?? tool.id}
+                </span>
+                <ChevronRight
+                  className="text-foreground-tertiary h-[11px] w-[11px] shrink-0"
+                  strokeWidth={1.6}
+                />
+              </button>
+            ))}
+            <div
+              onClick={handleGenerationClick(observation.id, observation.type)}
+              className={cn(
+                "hover:bg-muted mt-3 mb-5 max-w-[min(620px,90%)] cursor-pointer rounded-sm px-2.5 py-1.5 transition-colors duration-150",
+                isInspected && "bg-primary/5",
+              )}
             >
-              <span className="bg-muted-foreground/70 border-muted-foreground mx-0.5 h-2 w-2 shrink-0 rotate-45 border" />
-              <span className="text-xs">Tool call</span>
-              <span className="bg-muted/70 text-foreground rounded-sm border px-1.5 py-0.5 font-mono text-xs font-bold">
-                {tool.name ?? tool.id}
-              </span>
-              <ChevronRight className="h-3 w-3" />
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => inspect(observation.id, observation.type)}
-            className={cn(
-              "text-muted-foreground hover:text-foreground mt-2 flex items-center gap-2 font-mono text-[11px]",
-              "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100",
-            )}
-          >
-            <span>Turn {turnNumber}</span>
-            <span className="text-muted-foreground/50">/</span>
-            <span>
-              {compactNumberFormatter(observation.inputUsage)}→
-              {compactNumberFormatter(observation.outputUsage)}
-            </span>
-            {observation.totalCost !== null ? (
-              <>
-                <span className="text-muted-foreground/50">/</span>
-                <span>{usdFormatter(observation.totalCost)}</span>
-              </>
-            ) : null}
-            {observation.model ? (
-              <>
-                <span className="text-muted-foreground/50">/</span>
-                <span>{observation.model}</span>
-              </>
-            ) : null}
-            <span className="text-muted-foreground/50">/</span>
-            <span className="font-bold">Generation</span>
-          </button>
-        </div>
-      ))}
+              <MarkdownView markdown={text} />
+              {metaParts.length > 0 ? (
+                <div className="text-muted-foreground mt-[7px] flex items-center gap-[7px]">
+                  <Fan
+                    className="text-session-generation h-3 w-3 shrink-0"
+                    strokeWidth={2}
+                  />
+                  <span className="font-mono text-[10.5px]">
+                    {metaParts.join(" · ")}
+                  </span>
+                  <ChevronRight
+                    className="text-foreground-tertiary h-[11px] w-[11px] shrink-0"
+                    strokeWidth={1.6}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };

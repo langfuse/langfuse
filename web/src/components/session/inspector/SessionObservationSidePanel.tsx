@@ -65,7 +65,8 @@ export function SessionObservationSidePanel(props: {
   observation: SessionTraceObservation;
   trace: EventSessionTrace | undefined;
   projectId: string;
-  onClose: () => void;
+  /** Optional: the session inspector shell hosts its own close control. */
+  onClose?: () => void;
   onOpenTraceView?: () => void;
 }) {
   return (
@@ -87,7 +88,7 @@ function SessionObservationSidePanelInner({
   observation: SessionTraceObservation;
   trace: EventSessionTrace | undefined;
   projectId: string;
-  onClose: () => void;
+  onClose?: () => void;
   onOpenTraceView?: () => void;
 }) {
   const traceId = observation.traceId ?? trace?.id ?? "";
