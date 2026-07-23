@@ -33,7 +33,18 @@ export function MobileFullTextSearch({
   metadataSearchFields?: string[];
 }) {
   const capture = usePostHogClientCapture();
-  const [draft, setDraft] = useState(currentQuery ?? "");
+  const committed = currentQuery ?? "";
+  const [draft, setDraft] = useState(committed);
+  // Re-seed the draft when the committed query changes underneath us — e.g. the
+  // sheet's "Clear all" (which does NOT close the sheet, so this stays mounted)
+  // empties the query while the input still holds typed text. React's
+  // adjust-state-during-render pattern (not an effect): on the user's own
+  // submit the committed value already equals the draft, so this is a no-op.
+  const [lastCommitted, setLastCommitted] = useState(committed);
+  if (committed !== lastCommitted) {
+    setLastCommitted(committed);
+    setDraft(committed);
+  }
 
   const submit = (query: string) => {
     capture("table:search_submit");

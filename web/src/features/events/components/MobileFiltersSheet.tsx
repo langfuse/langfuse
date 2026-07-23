@@ -75,7 +75,7 @@ export function MobileFiltersSheet({
   savedViews,
   facets,
 }: MobileFiltersSheetProps) {
-  const { open, setOpen } = useDataTableControls();
+  const { open, setOpen, setRevealedColumns } = useDataTableControls();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -141,7 +141,17 @@ export function MobileFiltersSheet({
         </div>
 
         <div className="flex shrink-0 items-center gap-2 border-t px-4 py-3">
-          <Button variant="outline" className="flex-1" onClick={onClearAll}>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              onClearAll();
+              // Also un-reveal facets added via "Add filter", matching the
+              // facet panel's own "Clear all filters" (revealedColumns lives in
+              // the controls provider now).
+              setRevealedColumns([]);
+            }}
+          >
             Clear all
           </Button>
           <SheetClose asChild>
