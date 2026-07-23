@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
-  ActivationCostEstimate: () => <div>Estimated daily cost</div>,
+  ActivationCostEstimate: () => <div>Estimated usage &amp; cost</div>,
 }));
 
 import { CreateEvaluatorActivationDialog } from "./CreateEvaluatorActivationDialog";
@@ -26,7 +26,7 @@ describe("CreateEvaluatorActivationDialog", () => {
 
     expect(screen.getByText("Save and start running?")).toBeInTheDocument();
     expect(screen.queryByText(/evaluator is saved/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Estimated daily cost")).toBeInTheDocument();
+    expect(screen.getByText("Estimated usage & cost")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Save only" }));
     expect(onSave).toHaveBeenCalledWith(false);

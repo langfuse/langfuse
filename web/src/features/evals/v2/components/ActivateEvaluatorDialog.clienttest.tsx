@@ -13,7 +13,7 @@ vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
     mocks.costEstimate(props);
     return (
       <div>
-        Estimated daily cost
+        Estimated usage &amp; cost
         <span data-testid="test-run-cost">{props.testRunCostUsd}</span>
       </div>
     );
@@ -95,7 +95,7 @@ describe("ActivateEvaluatorDialog", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Configured filters")).not.toBeInTheDocument();
-    expect(screen.getByText("Estimated daily cost")).toBeInTheDocument();
+    expect(screen.getByText("Estimated usage & cost")).toBeInTheDocument();
     expect(mocks.costEstimate).toHaveBeenCalledWith(
       expect.objectContaining({
         filter: setupFilter,
