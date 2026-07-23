@@ -332,6 +332,104 @@ describe("useSSEDashboardQuery", () => {
     expect(result.current.isSuccess).toBe(true);
   });
 
+  it("clears stale rows when a same-input re-run errors", async () => {
+    const encoder = new TextEncoder();
+    let releaseSecondResponse: (() => void) | null = null;
+
+    global.fetch = vi
+      .fn()
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () =>
+            createStreamReader([
+              encoder.encode(
+                'event: row\ndata: {"count_count":42}\n\n' +
+                  "event: done\ndata: {}\n\n",
+              ),
+            ]),
+        },
+      }))
+      .mockImplementationOnce(async () => ({
+        ok: true,
+        body: {
+          getReader: () => {
+            let released = false;
+            let step = 0;
+            const waitForRelease = new Promise<void>((resolve) => {
+              releaseSecondResponse = () => {
+                released = true;
+                resolve();
+              };
+            });
+
+            return {
+              read: vi.fn().mockImplementation(async () => {
+                if (!released) {
+                  await waitForRelease;
+                }
+
+                if (step === 0) {
+                  step += 1;
+                  return {
+                    done: false,
+                    value: encoder.encode(
+                      'event: error\ndata: {"message":"boom"}\n\n',
+                    ),
+                  };
+                }
+
+                return { done: true, value: undefined };
+              }),
+            };
+          },
+        },
+      })) as typeof fetch;
+    global.TextDecoder = TextDecoder as typeof global.TextDecoder;
+
+    const input = createInput(
+      "2026-03-22T00:00:00.000Z",
+      "2026-03-23T00:00:00.000Z",
+    );
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) =>
+        useSSEDashboardQuery(input, {
+          enabled,
+          queryId: "widget-1",
+        }),
+      {
+        initialProps: { enabled: true },
+      },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    expect(result.current.data).toEqual([{ count_count: 42 }]);
+
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+
+    // While the re-run is in flight, previous rows are still shown.
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(true);
+    });
+    expect(result.current.data).toEqual([{ count_count: 42 }]);
+
+    // Once it errors, the stale success rows must not linger behind the error.
+    (releaseSecondResponse as (() => void) | null)?.();
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.error).toBe("boom");
+  });
+
   it("treats a changed input as pending immediately and hides stale results", async () => {
     const encoder = new TextEncoder();
     let releaseSecondResponse: (() => void) | null = null;

@@ -61,7 +61,12 @@ describe("getDashboardSchedulerResetKey", () => {
 });
 
 describe("useDashboardQueryScheduler", () => {
-  it("does not re-run already-done siblings when a new widget registers", () => {
+  // Characterizes `register`'s incremental behavior (a new id is inserted as
+  // `queued` and scheduled without iterating existing items). This is the
+  // property the reset-key fix relies on — not itself a guard for LFE-10986
+  // (register never touched siblings, pre- or post-fix). The regression guard
+  // for the bug is the getDashboardSchedulerResetKey composition test above.
+  it("schedules a newly registered widget without touching done siblings", () => {
     const { result } = renderHook(() =>
       useDashboardQueryScheduler({ maxConcurrent: 2, resetKey: "k1" }),
     );

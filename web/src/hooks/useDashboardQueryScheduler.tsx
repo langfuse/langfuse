@@ -62,7 +62,7 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
 };
 
 /**
- * Reset key for the dashboard query scheduler.
+ * Reset key for the dashboard-detail query scheduler.
  *
  * When this key changes, the scheduler re-queues every in-flight and completed
  * widget (see `resetQueue`). It must therefore reflect ONLY parameters that
@@ -70,6 +70,11 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
  * NOT the set of widgets present on the dashboard. Adding or removing a widget
  * registers/unregisters incrementally and must not disturb already-rendered
  * siblings (which, on the SSE path, would blank while they re-stream).
+ *
+ * Note: this is the reset key for the dashboard-detail page only. The Home page
+ * builds its own inline reset key (it additionally keys on metricsVersion and
+ * has never folded in the widget set), so this helper is not a single source of
+ * truth for every dashboard-like surface.
  */
 export const getDashboardSchedulerResetKey = (params: {
   projectId: string;

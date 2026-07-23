@@ -192,6 +192,10 @@ export function useSSEDashboardQuery(
               setError(event.data);
             }
             setStatus("error");
+            // An errored re-run must not keep stale success rows behind the
+            // error state (keep-previous-data applies to in-flight/success
+            // only). lastSuccessfulInputKeyRef is intentionally left untouched.
+            setData(undefined);
             terminated = true;
           }
         };
@@ -226,12 +230,14 @@ export function useSSEDashboardQuery(
           } else {
             setError("Stream ended unexpectedly");
             setStatus("error");
+            setData(undefined);
           }
         }
       } catch (err) {
         if (signal.aborted) return;
         setError(err instanceof Error ? err.message : "Unknown error");
         setStatus("error");
+        setData(undefined);
       }
     },
     [basePath],
