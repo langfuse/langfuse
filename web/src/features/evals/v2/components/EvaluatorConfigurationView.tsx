@@ -1,6 +1,7 @@
 import { Code2, Sparkles } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
 import {
@@ -64,8 +65,17 @@ function ReadOnlyMappings({
                 <span className="text-muted-foreground shrink-0">
                   pulls from
                 </span>
-                <span className="min-w-0 truncate font-bold" title={label}>
-                  {label}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className="shrink-0"
+                    title="Observation field"
+                    aria-label="Observation field"
+                  >
+                    {renderFilterIcon("TRACE")}
+                  </span>
+                  <span className="min-w-0 truncate font-bold" title={label}>
+                    {label}
+                  </span>
                 </span>
               </div>
             );
@@ -176,29 +186,37 @@ export function EvaluatorDefinitionView({
         </section>
       ) : (
         <>
-          <section className="flex min-w-0 flex-col gap-2">
-            <Label>Prompt</Label>
-            {!showType ? (
-              <div className="flex w-fit max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
-                <span className="truncate" title={modelLabel}>
-                  {modelLabel}
-                </span>
-                {usesProjectDefaultModel ? (
-                  <Badge variant="secondary" size="sm">
-                    Project default
-                  </Badge>
-                ) : null}
-              </div>
-            ) : null}
-            <PromptVariableEditor
-              value={prompt ?? ""}
-              onChange={() => undefined}
-              variableMappings={variableMappings}
-              onVariableClick={() => undefined}
-              readOnly
-            />
-          </section>
-          {showMappings ? <ReadOnlyMappings mappings={mappings} /> : null}
+          <div
+            className={
+              showMappings
+                ? "grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(18rem,2fr)]"
+                : "min-w-0"
+            }
+          >
+            <section className="flex min-w-0 flex-col gap-2">
+              <Label>Prompt</Label>
+              {!showType ? (
+                <div className="flex w-fit max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+                  <span className="truncate" title={modelLabel}>
+                    {modelLabel}
+                  </span>
+                  {usesProjectDefaultModel ? (
+                    <Badge variant="secondary" size="sm">
+                      Project default
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null}
+              <PromptVariableEditor
+                value={prompt ?? ""}
+                onChange={() => undefined}
+                variableMappings={variableMappings}
+                onVariableClick={() => undefined}
+                readOnly
+              />
+            </section>
+            {showMappings ? <ReadOnlyMappings mappings={mappings} /> : null}
+          </div>
           <ReadOnlyScoreOutput outputDefinition={outputDefinition} />
         </>
       )}

@@ -68,6 +68,9 @@ describe("ScoreOutputSection", () => {
 
     const descriptions = screen.getAllByRole("textbox");
     expect(descriptions).toHaveLength(2);
+    expect(screen.getByText("Score description")).toBeInTheDocument();
+    expect(screen.getByText("Reasoning description")).toBeInTheDocument();
+    expect(screen.getAllByText("(optional)")).toHaveLength(2);
     descriptions.forEach((description) => {
       expect(description).toBeDisabled();
       expect(description).not.toHaveAttribute("placeholder", "");

@@ -257,6 +257,7 @@ export function EvaluatorSetupForm({
   filterEditingDisabled = false,
   samplingEditingDisabled = false,
   ruleEditorExpanded = true,
+  hasRuleChanges = false,
   onFiltersEdited,
   onBeforeSave,
   onSaved,
@@ -284,7 +285,8 @@ export function EvaluatorSetupForm({
   filterEditingDisabled?: boolean;
   samplingEditingDisabled?: boolean;
   ruleEditorExpanded?: boolean;
-  onFiltersEdited?: () => void;
+  hasRuleChanges?: boolean;
+  onFiltersEdited?: (nextFilterState: FilterState) => void;
   onBeforeSave?: (controls: EvaluatorSetupRuleControls) => Promise<boolean>;
   onSaved?: () => void;
   onCancel?: () => void;
@@ -299,11 +301,11 @@ export function EvaluatorSetupForm({
         : "python"
       : "llm",
   );
-  const [sampleStepOpen, setSampleStepOpen] = useState(true);
-  const [definitionStepOpen, setDefinitionStepOpen] = useState(false);
+  const [sampleStepOpen, setSampleStepOpen] = useState(mode !== "edit");
+  const [definitionStepOpen, setDefinitionStepOpen] = useState(mode === "edit");
   const [metadataStepOpen, setMetadataStepOpen] = useState(false);
   const isCodeMode = tab !== "llm";
-  const [testPanelCollapsed, setTestPanelCollapsed] = useState(true);
+  const [testPanelCollapsed, setTestPanelCollapsed] = useState(mode !== "edit");
   const testPanelRef = usePanelRef();
   const [isSaveWorkflowPending, setIsSaveWorkflowPending] = useState(false);
   const [activationDialogOpen, setActivationDialogOpen] = useState(false);
@@ -468,11 +470,31 @@ export function EvaluatorSetupForm({
   const [previewRows, setPreviewRows] = useState<
     SampleObservationOption[] | null
   >(null);
-  const handlePreviewRowsChange = useCallback((rows: EventsTableRow[]) => {
-    setPreviewRows((current) =>
-      reconcileSampleObservationOptions(current, rows),
-    );
-  }, []);
+  const hasAutoSelectedEditSampleRef = useRef(false);
+  const selectFirstSampleAfterFilterChangeRef = useRef(false);
+  const handlePreviewRowsChange = useCallback(
+    (rows: EventsTableRow[]) => {
+      setPreviewRows((current) =>
+        reconcileSampleObservationOptions(current, rows),
+      );
+
+      const firstObservation = toSampleObservationOptions(rows)[0];
+      if (firstObservation) {
+        if (selectFirstSampleAfterFilterChangeRef.current) {
+          selectFirstSampleAfterFilterChangeRef.current = false;
+          setSelectedObservationId(firstObservation.id);
+        } else if (mode === "edit" && !hasAutoSelectedEditSampleRef.current) {
+          hasAutoSelectedEditSampleRef.current = true;
+          setSelectedObservationId(firstObservation.id);
+        }
+      } else {
+        // The refreshed filter resolved with no selectable rows. Do not carry
+        // the previous selection intent into a later, separate filter change.
+        selectFirstSampleAfterFilterChangeRef.current = false;
+      }
+    },
+    [mode],
+  );
 
   const observationOptions = useMemo(() => previewRows ?? [], [previewRows]);
 
@@ -501,16 +523,34 @@ export function EvaluatorSetupForm({
     (pickedObservation?.id === selectedObservationId
       ? pickedObservation
       : null);
+  const sampleSelectionWillAutoResolve =
+    previewRows === null &&
+    (selectFirstSampleAfterFilterChangeRef.current ||
+      (mode === "edit" && !hasAutoSelectedEditSampleRef.current));
 
-  const applyRule = (rule: { filter: FilterState; sampling: number }) => {
-    setFilterState(rule.filter);
-    setSampling(rule.sampling);
+  const replaceFilterState = (nextFilterState: FilterState) => {
+    // Preserve whether the user had opted into a sample, not the concrete row:
+    // refreshed filters should use their own first match.
+    selectFirstSampleAfterFilterChangeRef.current =
+      selectFirstSampleAfterFilterChangeRef.current ||
+      selectedObservationId !== null;
+    // A filter edit before edit-mode's initial rows load counts as an explicit
+    // choice to remain unselected.
+    hasAutoSelectedEditSampleRef.current = true;
     setSelectedObservationId(null);
     setPickedObservation(null);
+    setPreviewRows(null);
+    setFilterState(nextFilterState);
+  };
+
+  const applyRule = (rule: { filter: FilterState; sampling: number }) => {
+    replaceFilterState(rule.filter);
+    setSampling(rule.sampling);
   };
 
   const pickObservation = (row: EventsTableRow) => {
     if (!row.traceId) return;
+    selectFirstSampleAfterFilterChangeRef.current = false;
     if (sampleSelectionHighlightTimeoutRef.current !== null) {
       window.clearTimeout(sampleSelectionHighlightTimeoutRef.current);
       sampleSelectionHighlightTimeoutRef.current = null;
@@ -813,6 +853,7 @@ export function EvaluatorSetupForm({
           JSON.stringify(initialCustomModelParamsRef.current ?? {})));
 
   const hasEvaluatorChanges =
+    hasRuleChanges ||
     scoreName.trim() !== initialScoreName.trim() ||
     description.trim() !== initialDescription.trim() ||
     (isCodeMode
@@ -841,11 +882,12 @@ export function EvaluatorSetupForm({
     const rule = reusableRules.find((candidate) => candidate.id === id);
     if (!rule) return;
     applyRule(rule);
+    onFiltersEdited?.(rule.filter);
   };
 
   const updateDraftFilters = (nextFilterState: FilterState) => {
-    setFilterState(nextFilterState);
-    onFiltersEdited?.();
+    replaceFilterState(nextFilterState);
+    onFiltersEdited?.(nextFilterState);
   };
 
   const sharedFilterSection = buildEvaluationRuleFilterSuggestionSection({
@@ -1182,7 +1224,7 @@ export function EvaluatorSetupForm({
     <div className="flex h-full min-h-0 flex-col">
       {renderRuleControls?.({
         filterState,
-        setFilterState,
+        setFilterState: updateDraftFilters,
         sampling,
         setSampling,
         applyRule,
@@ -1216,7 +1258,7 @@ export function EvaluatorSetupForm({
                     </span>
                     {renderFilterActions?.({
                       filterState,
-                      setFilterState,
+                      setFilterState: updateDraftFilters,
                       sampling,
                       setSampling,
                       applyRule,
@@ -1230,7 +1272,7 @@ export function EvaluatorSetupForm({
                       <Label className="shrink-0">Filter observations</Label>
                       {renderDataSourceControls?.({
                         filterState,
-                        setFilterState,
+                        setFilterState: updateDraftFilters,
                         sampling,
                         setSampling,
                         applyRule,
@@ -1367,7 +1409,7 @@ export function EvaluatorSetupForm({
               compactBottomSpacing
             >
               <div className="flex min-w-0 flex-col gap-4">
-                {!selectedObservation ? (
+                {!selectedObservation && !sampleSelectionWillAutoResolve ? (
                   <Alert variant="info">
                     <InfoIcon className="h-4 w-4" />
                     <AlertTitle>Select a sample observation first</AlertTitle>
@@ -1629,7 +1671,7 @@ export function EvaluatorSetupForm({
         <ResizablePanel
           id="test"
           panelRef={testPanelRef}
-          defaultSize="40px"
+          defaultSize={mode === "edit" ? "30%" : "40px"}
           minSize="20%"
           collapsible
           collapsedSize="40px"

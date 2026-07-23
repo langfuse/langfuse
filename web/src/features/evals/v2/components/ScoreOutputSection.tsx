@@ -611,6 +611,9 @@ export function ScoreOutputSection({
                 }
               >
                 Score description
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
               </LabelWithTooltip>
               <Textarea
                 className="min-h-16"
@@ -632,6 +635,9 @@ export function ScoreOutputSection({
                 }
               >
                 Reasoning description
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
               </LabelWithTooltip>
               <Textarea
                 className="min-h-16"

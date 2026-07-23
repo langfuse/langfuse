@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 
+import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -528,12 +529,21 @@ function VariableMappingRow({
             </span>
           </span>
         ) : (
-          <BindingCrumbs
-            columnLabel={columnLabel}
-            segments={segments}
-            jsonSelector={fieldState.jsonSelector}
-            onToggleSegment={toggleSegment}
-          />
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="shrink-0"
+              title="Observation field"
+              aria-label="Observation field"
+            >
+              {renderFilterIcon("TRACE")}
+            </span>
+            <BindingCrumbs
+              columnLabel={columnLabel}
+              segments={segments}
+              jsonSelector={fieldState.jsonSelector}
+              onToggleSegment={toggleSegment}
+            />
+          </span>
         )}
         <span className="ml-auto flex shrink-0 items-center">
           {/* Edit ↔ cancel: the pencil opens the selector and becomes an X
