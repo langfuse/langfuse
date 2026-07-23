@@ -1065,10 +1065,15 @@ export default function ObservationsEventsTable({
     },
   ];
 
+  // Mobile collapses the whole toolbar away, so the batch-action surface (the
+  // action menu + select-all banner it hosts) is gone — orphan selection
+  // checkboxes would do nothing. Omit the select column on mobile until a
+  // dedicated mobile action affordance exists.
+  const isMobile = useIsMobile();
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
-    ...(hideControls ? [] : [selectActionColumn]),
+    ...(hideControls || isMobile ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
@@ -1825,8 +1830,8 @@ export default function ObservationsEventsTable({
   };
 
   // Mobile collapses the whole toolbar into one Filters bottom sheet. Desktop
-  // (≥768px) is byte-identical to before — everything below is gated on this.
-  const isMobile = useIsMobile();
+  // (≥768px) is byte-identical to before — everything below is gated on
+  // `isMobile`, declared above near the column list.
   // Count shown on the mobile Filters trigger. Same source as the desktop
   // rail's active-facet count — distinct filtered COLUMNS (a facet can emit
   // several FilterState entries) — plus free-text search, which now also lives
