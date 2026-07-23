@@ -67,8 +67,10 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-      {/* Canvas */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 p-3">
+      {/* Canvas — floored on mobile so a tall stacked config panel can't shrink
+          the chart to 0 on short viewports (flex-basis:0 gets none of a negative
+          deficit); desktop keeps min-h-0 for the side-by-side row. */}
+      <div className="flex min-h-64 min-w-0 flex-1 flex-col gap-1 p-3 md:min-h-0">
         <div className="flex items-center justify-between gap-2">
           <div
             className="text-foreground min-w-0 truncate text-sm font-bold"
@@ -100,7 +102,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
 
       {/* Config panel */}
       {open ? (
-        <div className="flex w-full flex-col gap-3 overflow-y-auto border-b p-3 md:w-72 md:shrink-0 md:border-b-0 md:border-l">
+        <div className="flex w-full flex-col gap-3 overflow-y-auto border-t p-3 md:w-72 md:shrink-0 md:border-t-0 md:border-l">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold">Visualize</span>
             <Button
