@@ -27,7 +27,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { DeleteDatasetRunButton } from "@/src/features/datasets/components/DeleteDatasetRunButton";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import Link from "next/link";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";

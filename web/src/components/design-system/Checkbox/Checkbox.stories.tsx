@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
-import preview from "../../../.storybook/preview";
-import { Checkbox } from "./checkbox";
+import preview from "../../../../.storybook/preview";
+import { Checkbox } from "./Checkbox";
 
 const meta = preview.meta({
   component: Checkbox,
