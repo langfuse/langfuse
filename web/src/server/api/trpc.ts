@@ -93,6 +93,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
+import { recordTraceViewAudit } from "@/src/features/audit-logs/recordTraceViewAudit";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
@@ -602,6 +603,64 @@ const enforceTraceAccess = t.middleware(async (opts) => {
       email: ctx.session.user.email,
       projectId,
     });
+  }
+
+  // Durable read-audit of authenticated single-trace views. We reach here only
+  // after auth passed and the trace exists, so we never audit denied/404
+  // access. Anonymous public-share views have no actor/org to attribute, so
+  // they are skipped.
+  //
+  // Only `traces.byIdWithObservationsAndScores` is a genuine single-trace view
+  // (full detail page and table peek both fetch through it). The same
+  // middleware also serves `traces.byId` (backs the per-row table
+  // input/output/metadata cells) and `traces.getAgentGraphData`; auditing
+  // those would be a false positive. Gate on the procedure path.
+  const isSingleTraceView =
+    opts.path === "traces.byIdWithObservationsAndScores";
+  if (isSingleTraceView && traceId && ctx.session?.user?.id) {
+    const userId = ctx.session.user.id;
+    const memberOrg = ctx.session.user.organizations.find((org) =>
+      org.projects.some((project) => project.id === projectId),
+    );
+    if (memberOrg) {
+      // Fire-and-forget: recordTraceViewAudit never throws and we do not await
+      // it, so the audit write cannot add latency to or fail the trace view.
+      recordTraceViewAudit({
+        session: {
+          user: { id: userId },
+          orgId: memberOrg.id,
+          orgRole: memberOrg.role,
+          projectId,
+          projectRole: sessionProject?.role,
+        },
+        resourceId: traceId,
+      });
+    } else if (ctx.session.user.admin === true) {
+      // Admins bypass membership but their org is not in the session — resolve
+      // it off the request path so the lookup adds no latency to the view.
+      ctx.prisma.project
+        .findFirst({
+          select: { orgId: true },
+          where: { id: projectId, deletedAt: null },
+        })
+        .then((project: { orgId: string } | null) => {
+          if (project) {
+            return recordTraceViewAudit({
+              session: {
+                user: { id: userId },
+                orgId: project.orgId,
+                orgRole: Role.OWNER,
+                projectId,
+                projectRole: Role.OWNER,
+              },
+              resourceId: traceId,
+            });
+          }
+        })
+        .catch((e: unknown) =>
+          logger.error("Failed to record admin trace-view audit", e),
+        );
+    }
   }
 
   return next({

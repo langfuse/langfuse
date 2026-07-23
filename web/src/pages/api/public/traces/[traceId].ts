@@ -27,6 +27,7 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { recordTraceViewAudit } from "@/src/features/audit-logs/recordTraceViewAudit";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
@@ -73,6 +74,16 @@ export default withMiddlewares(
             `Trace ${traceId} not found within authorized project`,
           );
         }
+
+        // Durable read-audit of SDK single-trace reads. Emitted after the
+        // trace resolves so we never audit a 404. No human user on this path —
+        // attribute to the API key. Fire-and-forget: never throws.
+        recordTraceViewAudit({
+          apiKeyId: auth.scope.apiKeyId,
+          orgId: auth.scope.orgId,
+          projectId: auth.scope.projectId,
+          resourceId: traceId,
+        });
 
         const [observations, scores] = await Promise.all([
           includeObservations || includeMetrics

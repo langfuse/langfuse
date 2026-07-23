@@ -29,6 +29,7 @@ import { randomUUID } from "crypto";
 import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
+import { prisma, AuditLogRecordType } from "@langfuse/shared/src/db";
 
 // Helper type for creating observation/event data
 // Times are always in milliseconds, conversion handled internally
@@ -275,6 +276,40 @@ describe("/api/public/traces API Endpoint", () => {
         }),
       ]),
     );
+  });
+
+  it("records a read audit log attributed to the API key on GET single trace", async () => {
+    const traceId = randomUUID();
+    const createdTrace = createTrace({
+      id: traceId,
+      name: "audit-trace",
+      project_id: projectId,
+    });
+    await createTracesCh([createdTrace]);
+
+    await makeZodVerifiedAPICall(
+      GetTraceV1Response,
+      "GET",
+      "/api/public/traces/" + traceId,
+      undefined,
+      auth,
+    );
+
+    // The audit write is fire-and-forget, so poll for the row.
+    await waitForExpect(async () => {
+      const rows = await prisma.auditLog.findMany({
+        where: {
+          projectId,
+          resourceType: "trace",
+          resourceId: traceId,
+          action: "read",
+        },
+      });
+      expect(rows.length).toBe(1);
+      expect(rows[0]!.apiKeyId).not.toBeNull();
+      expect(rows[0]!.userId).toBeNull();
+      expect(rows[0]!.type).toBe(AuditLogRecordType.API_KEY);
+    });
   });
 
   it("should fetch a trace with core-only fields when fields=core", async () => {
