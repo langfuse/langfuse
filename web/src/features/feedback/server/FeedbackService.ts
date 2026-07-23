@@ -54,7 +54,7 @@ type SlackPayload = {
   unfurl_media: false;
 };
 
-export type FeedbackSlackMessage = SlackPayload;
+type FeedbackSlackMessage = SlackPayload;
 
 const SLACK_SECTION_TEXT_LIMIT = 3000;
 const SLACK_FIELD_TEXT_LIMIT = 2000;
@@ -103,7 +103,7 @@ const feedbackSourceLabel: Record<FeedbackSource, string> = {
   "public-api": "Public API",
 };
 
-export const buildFeedbackSlackMessage = ({
+const buildFeedbackSlackMessage = ({
   id,
   input,
   source,

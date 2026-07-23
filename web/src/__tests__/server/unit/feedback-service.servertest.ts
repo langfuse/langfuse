@@ -35,10 +35,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   },
 }));
 
-import {
-  buildFeedbackSlackMessage,
-  submitFeedback,
-} from "@/src/features/feedback/server/FeedbackService";
+import { submitFeedback } from "@/src/features/feedback/server/FeedbackService";
 import { PostFeedbackBody } from "@/src/features/public-api/types/feedback";
 
 const scope = {
@@ -165,18 +162,6 @@ describe("FeedbackService", () => {
         referenceUrl: "javascript:alert(1)",
       }).success,
     ).toBe(false);
-    expect(() =>
-      buildFeedbackSlackMessage({
-        id: "11111111-1111-4111-8111-111111111111",
-        input: {
-          targetType: "docs",
-          target: "/docs/mcp",
-          feedback: "Please clarify setup.",
-        },
-        source: "public-api",
-        context: { orgId: "org-1", projectId: "project-1" },
-      }),
-    ).not.toThrow();
   });
 
   it("rejects insecure Slack sinks in production", async () => {
