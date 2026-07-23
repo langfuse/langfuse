@@ -108,7 +108,7 @@ export function useMovableResizablePanelControl({
 }: {
   boundsPadding?: number;
   getInitialGeometry: () => MovableResizablePanelGeometry;
-  maxSize?: MovableResizablePanelSize;
+  maxSize?: Partial<MovableResizablePanelSize>;
   minSize: MovableResizablePanelSize;
 }) {
   const [geometry, setGeometry] =
@@ -258,7 +258,7 @@ function getPanelSizeConstraints({
   minSize,
 }: {
   boundsPadding: number;
-  maxSize?: MovableResizablePanelSize;
+  maxSize?: Partial<MovableResizablePanelSize>;
   minSize: MovableResizablePanelSize;
 }): MovableResizablePanelSizeConstraints {
   const bounds = getViewportBounds(boundsPadding);
@@ -287,7 +287,7 @@ function clampPanelBounds({
   size,
 }: {
   boundsPadding: number;
-  maxSize?: MovableResizablePanelSize;
+  maxSize?: Partial<MovableResizablePanelSize>;
   minSize: MovableResizablePanelSize;
   position: MovableResizablePanelPosition;
   size: MovableResizablePanelSize;

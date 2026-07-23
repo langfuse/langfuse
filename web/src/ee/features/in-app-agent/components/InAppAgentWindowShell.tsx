@@ -13,7 +13,6 @@ const IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX = 8;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_WIDTH_PX = 448;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_MAX_HEIGHT_PX = 672;
 const IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX = 1296;
-const IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX = 760;
 const IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR =
   "[data-in-app-agent-window-drag-handle='true']";
 const IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE = {
@@ -23,8 +22,7 @@ const IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE = {
 
 const IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE = {
   width: IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX,
-  height: IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX,
-} satisfies MovableResizablePanelSize;
+} satisfies Partial<MovableResizablePanelSize>;
 
 export function useInAppAgentWindowShellPanelControl({
   anchorRef,
