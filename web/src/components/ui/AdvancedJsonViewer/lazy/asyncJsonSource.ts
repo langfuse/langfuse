@@ -72,3 +72,13 @@ export function sourceFromValue(value: unknown): AsyncJsonSource {
   const json = value === undefined ? "null" : (JSON.stringify(value) ?? "null");
   return createInProcessSource(encoder.encode(json));
 }
+
+/**
+ * In-memory entry when the caller ALREADY has the value's JSON serialization
+ * (e.g. a size probe serialized it for a download). Skips a redundant second
+ * `JSON.stringify` of a large value — feed the existing string straight to the
+ * engine. The string must be valid JSON (it is, for a structured field).
+ */
+export function sourceFromSerialized(json: string): AsyncJsonSource {
+  return createInProcessSource(encoder.encode(json.length > 0 ? json : "null"));
+}

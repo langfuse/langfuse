@@ -227,6 +227,30 @@ describe("byteJsonIndex", () => {
         value: "1e400",
         lossy: true,
       });
+      // Underflow: Number("1e-400") === 0, but the literal is non-zero — keep
+      // the exact text (lossy) rather than silently rendering 0.
+      expect(parseNumberPreservePrecision("1e-400")).toEqual({
+        value: "1e-400",
+        lossy: true,
+      });
+      // A genuine zero literal stays a number.
+      expect(parseNumberPreservePrecision("0.0")).toEqual({
+        value: 0,
+        lossy: false,
+      });
+    });
+  });
+
+  describe("preview UTF-8 boundary", () => {
+    it("does not end a truncated multi-byte preview in a replacement char", () => {
+      const engine = new ByteJsonIndexEngine();
+      // 200+ three-byte CJK chars: the ~320-byte preview cut lands mid-codepoint
+      // unless aligned. The preview must not contain U+FFFD from a partial char.
+      const cjk = "文".repeat(300);
+      const root = engine.load(bytes(`{"k":"${cjk}"}`));
+      const [k] = engine.childrenPage(root.nodeId, 0, 1).children;
+      expect(k.preview).not.toContain("�");
+      expect(k.truncatedPreview).toBe(true);
     });
   });
 

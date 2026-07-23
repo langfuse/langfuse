@@ -20,6 +20,8 @@ import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { LazyJsonList } from "./LazyJsonList";
 import { createRowModelStore } from "./rowModelStore";
+import { TreeRowModel } from "../treeRowModel";
+import { sourceFromSerialized } from "../asyncJsonSource";
 
 export interface LazyJsonViewerProps {
   /**
@@ -27,23 +29,50 @@ export interface LazyJsonViewerProps {
    * document: re-init (rebuild + re-index) is keyed on `value` identity, so a
    * caller that recreates it every render (inline `JSON.parse`, spread) would
    * re-index on every parent render. Memoize it, or pass a stable reference.
+   * Provide EITHER `value` or `serialized`, and stick to one per mount.
    */
-  value: unknown;
+  value?: unknown;
+  /**
+   * The value's JSON serialization, when the caller already has it (e.g. a size
+   * probe serialized it for a download). Feeding it here skips a redundant
+   * second `JSON.stringify` of a large value. Same stable-identity contract.
+   */
+  serialized?: string;
   className?: string;
 }
 
-export function LazyJsonViewer({ value, className }: LazyJsonViewerProps) {
+export function LazyJsonViewer({
+  value,
+  serialized,
+  className,
+}: LazyJsonViewerProps) {
   // Per-mount, view-scoped store (lazy init — created once, not per render).
-  const [store] = useState(createRowModelStore);
+  // In `serialized` mode, build the engine from the existing JSON string; the
+  // document passed to init is that string (see below). `useState` reads props
+  // once on mount, which is fine: a given mount is one mode.
+  const usesSerialized = serialized !== undefined;
+  const [store] = useState(() =>
+    createRowModelStore(
+      usesSerialized
+        ? {
+            buildModel: (doc) =>
+              TreeRowModel.create(sourceFromSerialized(doc as string)),
+          }
+        : undefined,
+    ),
+  );
 
-  // Build the model over `value`, and tear it down on unmount / value change.
+  // The document identity re-init keys on: the serialized string, or the value.
+  const doc = usesSerialized ? serialized : value;
+
+  // Build the model over `doc`, and tear it down on unmount / doc change.
   // This is the feature's only effect: an external-engine lifecycle boundary
   // (construct + dispose an async engine, with cleanup), keyed on the document.
   useEffect(() => {
-    store.getState().init(value);
+    store.getState().init(doc);
     return () => store.getState().dispose();
     // Re-run when the document identity changes; `store` is stable.
-  }, [store, value]);
+  }, [store, doc]);
 
   const status = useStore(store, (s) => s.status);
   const error = useStore(store, (s) => s.error);
