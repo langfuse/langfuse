@@ -5,9 +5,14 @@ import * as ProgressPrimitive from "@radix-ui/react-progress";
 
 import { cn } from "@/src/utils/tailwind";
 
+type ProgressProps = Pick<
+  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>,
+  "className" | "value"
+>;
+
 const Progress = React.forwardRef<
   React.ComponentRef<typeof ProgressPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>
+  ProgressProps
 >(({ className, value, ...props }, ref) => (
   <ProgressPrimitive.Root
     ref={ref}
