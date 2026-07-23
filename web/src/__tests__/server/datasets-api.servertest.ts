@@ -837,6 +837,48 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDatasetItem.body).toMatchObject(singleItem);
   });
 
+  // Regression: bare string payloads used to be re-parsed as JSON server-side,
+  // so "123456" round-tripped back as the number 123456 (issue #15342).
+  it.each([
+    ["a numeric string", "123456"],
+    ["a float-like string", "1.5"],
+    ["a boolean-like string", "true"],
+    ["a null-like string", "null"],
+  ])("should preserve %s on round-trip", async (_label, value) => {
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: "dataset-string-roundtrip" },
+      auth,
+    );
+
+    const created = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName: "dataset-string-roundtrip",
+        input: value,
+        expectedOutput: value,
+        metadata: value,
+      },
+      auth,
+    );
+    expect(created.body.input).toBe(value);
+
+    const fetched = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      `/api/public/dataset-items/${created.body.id}`,
+      undefined,
+      auth,
+    );
+    expect(fetched.body.input).toBe(value);
+    expect(fetched.body.expectedOutput).toBe(value);
+    expect(fetched.body.metadata).toBe(value);
+  });
+
   it("should upsert a dataset item", async () => {
     await makeZodVerifiedAPICall(
       PostDatasetsV1Response,

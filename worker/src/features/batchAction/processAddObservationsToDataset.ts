@@ -88,7 +88,9 @@ async function processChunk(params: {
     const result = await createManyDatasetItems({
       projectId,
       items,
-      normalizeOpts: { sanitizeControlChars: true },
+      // Observation input/output arrive as JSON strings from ClickHouse
+      // (Nullable(String) columns), so they still need decoding here.
+      normalizeOpts: { sanitizeControlChars: true, parseJsonStrings: true },
       validateOpts: { normalizeUndefinedToNull: true },
       allowPartialSuccess: true, // Allow partial success for bulk operations
     });

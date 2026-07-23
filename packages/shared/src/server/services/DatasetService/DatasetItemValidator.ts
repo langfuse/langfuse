@@ -112,25 +112,27 @@ export class DatasetItemValidator {
 
   private normalize(
     data: string | unknown | null | undefined,
-    opts?: { sanitizeControlChars?: boolean },
+    opts?: { sanitizeControlChars?: boolean; parseJsonStrings?: boolean },
   ): Prisma.InputJsonValue | null | undefined {
     if (data === "") return null;
     if (data === undefined) return undefined;
     if (data === null) return null;
 
     try {
-      // Handle both string (tRPC) and already-parsed values (Public API)
       // InputJsonValue accepts objects, arrays, strings, numbers, booleans, null
       let parsed: Prisma.InputJsonValue;
 
-      if (typeof data === "string") {
-        // Try to parse as JSON first (for tRPC which sends JSON strings like '{"key":"value"}')
+      if (opts?.parseJsonStrings && typeof data === "string") {
+        // Opted-in callers still hold JSON-encoded strings like
+        // '{"key":"value"}' (tRPC forms, ClickHouse String columns).
         const parsedJson = parseJsonPrioritised(data);
         parsed = (
           parsedJson === undefined ? data : parsedJson
         ) as Prisma.InputJsonValue;
       } else {
-        // Public API sends already-parsed values - use directly
+        // Already-parsed value (Public API, MCP): a string here is a real
+        // string, so re-parsing it would silently coerce JSON-literal-looking
+        // values such as "123456" to the number 123456 (#15342).
         parsed = data as Prisma.InputJsonValue;
       }
 
@@ -186,7 +188,9 @@ export class DatasetItemValidator {
    * Combines JSON parsing, control character sanitization, and schema validation.
    *
    * **Flexible input:** Accepts both JSON strings (from tRPC) and already-parsed
-   * objects (from Public API). Handles both seamlessly.
+   * objects (from Public API). Callers holding JSON-encoded strings must set
+   * `normalizeOpts.parseJsonStrings`; everyone else gets their values stored
+   * verbatim.
    *
    * @param params.input - JSON string, parsed object, or null
    * @param params.expectedOutput - JSON string, parsed object, or null
@@ -197,7 +201,10 @@ export class DatasetItemValidator {
     input: string | unknown | null | undefined;
     expectedOutput: string | unknown | null | undefined;
     metadata: string | unknown | null | undefined;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
+    normalizeOpts?: {
+      sanitizeControlChars?: boolean;
+      parseJsonStrings?: boolean;
+    };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   }): ValidateAndNormalizeResult {
     // If we have a create operation, input cannot be undefined / null

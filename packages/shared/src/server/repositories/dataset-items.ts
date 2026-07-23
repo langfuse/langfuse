@@ -35,7 +35,23 @@ import {
 import { postgresSearchCondition } from "../queries";
 import { TracingSearchType } from "../../interfaces/search";
 
-const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
+/**
+ * Normalization options for dataset item payloads.
+ *
+ * `parseJsonStrings` must only be set by callers whose values are still
+ * JSON-encoded strings: tRPC (the web form submits strings) and the worker
+ * batch action (ClickHouse returns input/output as String columns). Callers
+ * holding already-parsed values — the Public API and MCP, where the HTTP body
+ * parser has already decoded the payload — must leave it unset, so a bare
+ * string such as "123456" is stored verbatim instead of being decoded a second
+ * time into the number 123456 (#15342).
+ */
+export type DatasetItemNormalizeOpts = {
+  sanitizeControlChars?: boolean;
+  parseJsonStrings?: boolean;
+};
+
+const emptyNormalizeOpts: DatasetItemNormalizeOpts = {};
 const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
 
 /**
@@ -231,9 +247,7 @@ export async function createDatasetItem(props: {
   metadata?: string | unknown | null;
   sourceTraceId?: string;
   sourceObservationId?: string;
-  normalizeOpts?: {
-    sanitizeControlChars?: boolean;
-  };
+  normalizeOpts?: DatasetItemNormalizeOpts;
   validateOpts?: {
     normalizeUndefinedToNull?: boolean;
   };
@@ -292,7 +306,7 @@ export async function upsertDatasetItem(
     sourceTraceId?: string;
     sourceObservationId?: string;
     status?: DatasetStatus;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
+    normalizeOpts?: DatasetItemNormalizeOpts;
     validateOpts: { normalizeUndefinedToNull?: boolean };
   } & IdOrName,
 ): Promise<DatasetItemDomain & { datasetName: string }> {
@@ -604,7 +618,7 @@ export async function deleteDatasetItem(props: {
 export async function createManyDatasetItems(props: {
   projectId: string;
   items: CreateManyItemsPayload;
-  normalizeOpts?: { sanitizeControlChars?: boolean };
+  normalizeOpts?: DatasetItemNormalizeOpts;
   validateOpts?: { normalizeUndefinedToNull?: boolean };
   allowPartialSuccess?: boolean;
 }): Promise<
