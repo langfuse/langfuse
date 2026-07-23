@@ -2050,8 +2050,20 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * Prepends gen_ai.system_instructions as a {role: "system", content} message,
-   * consistent with how gen_ai.system.message events are mapped.
+   * Prepends gen_ai.system_instructions as one or more {role: "system", ...}
+   * messages, consistent with how gen_ai.system.message events are mapped.
+   *
+   * Two emitter shapes are supported without coercion:
+   * - "parts" shape (pydantic-ai, etc.): the array contains text-part objects
+   *   like {type: "text", content: "..."}. Their text content is joined with
+   *   newlines into a single system message (preserves pre-fix behavior).
+   * - "structured message" shape (LiteLLM, etc.): the array contains complete
+   *   messages like {role: "system", parts: [...]}. Each is preserved as its
+   *   own system message so non-text parts survive ingestion.
+   *
+   * Elements that are neither recognized shape nor have any text/parts content
+   * are dropped silently rather than coerced to "[object Object]".
+   *
    * No-ops if messages already contain a system message.
    */
   private prependSystemInstructions(
@@ -2067,33 +2079,77 @@ export class OtelIngestionProcessor {
       );
       if (hasSystemMessage) return input;
 
-      let content: string;
-      try {
-        const parsed =
-          typeof systemInstructions === "string"
-            ? JSON.parse(systemInstructions)
-            : systemInstructions;
-        if (Array.isArray(parsed)) {
-          content = parsed
-            .map((p: Record<string, unknown>) =>
-              typeof p === "object" && p?.content
-                ? String(p.content)
-                : String(p),
-            )
-            .join("\n");
-        } else {
-          content = String(parsed);
-        }
-      } catch {
-        content = String(systemInstructions);
-      }
+      const systemMessages = this.parseSystemInstructions(systemInstructions);
+      if (systemMessages.length === 0) return input;
 
-      const systemMessage = { role: "system", content };
-      const merged = [systemMessage, ...messages];
+      const merged = [...systemMessages, ...messages];
       return typeof input === "string" ? JSON.stringify(merged) : merged;
     } catch {
       return input;
     }
+  }
+
+  /**
+   * Normalize a gen_ai.system_instructions value into an array of complete
+   * system messages. See {@link prependSystemInstructions} for shape details.
+   *
+   * Returns [] for empty/unsafe input. Never throws.
+   */
+  private parseSystemInstructions(
+    systemInstructions: unknown,
+  ): Array<Record<string, unknown>> {
+    let parsed: unknown = systemInstructions;
+    if (typeof parsed === "string") {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        parsed = systemInstructions;
+      }
+    }
+
+    if (typeof parsed === "string") {
+      return parsed.length > 0 ? [{ role: "system", content: parsed }] : [];
+    }
+
+    if (!Array.isArray(parsed)) return [];
+
+    const isStructuredMessage = (entry: unknown): boolean =>
+      entry !== null &&
+      typeof entry === "object" &&
+      !Array.isArray(entry) &&
+      Array.isArray((entry as Record<string, unknown>).parts);
+
+    const hasStructured = parsed.some(isStructuredMessage);
+
+    if (hasStructured) {
+      const messages: Array<Record<string, unknown>> = [];
+      for (const entry of parsed) {
+        if (!isStructuredMessage(entry)) continue;
+        const msg: Record<string, unknown> = { ...(entry as Record<string, unknown>) };
+        if (typeof msg.role !== "string" || msg.role.length === 0) {
+          msg.role = "system";
+        }
+        messages.push(msg);
+      }
+      return messages;
+    }
+
+    const textParts: string[] = [];
+    for (const entry of parsed) {
+      if (typeof entry === "string") {
+        if (entry.length > 0) textParts.push(entry);
+        continue;
+      }
+      if (entry !== null && typeof entry === "object" && !Array.isArray(entry)) {
+        const content = (entry as Record<string, unknown>).content;
+        if (typeof content === "string" && content.length > 0) {
+          textParts.push(content);
+        }
+      }
+    }
+
+    if (textParts.length === 0) return [];
+    return [{ role: "system", content: textParts.join("\n") }];
   }
 
   private extractEnvironment(
