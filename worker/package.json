@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.223.0",
+  "version": "3.224.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -72,12 +72,12 @@
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.39.2",
     "msw": "^2.6.5",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.8",
+    "vitest": "^4.1.10",
     "wait-for-expect": "^3.0.2"
   }
 }
