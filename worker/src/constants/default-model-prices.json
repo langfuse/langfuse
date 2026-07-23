@@ -4453,9 +4453,11 @@
         "prices": {
           "input_text": 0.5e-6,
           "input_audio": 3e-6,
+          "input_audio_tokens": 3e-6,
           "input_image": 3e-6,
           "output_text": 2e-6,
-          "output_audio": 12e-6
+          "output_audio": 12e-6,
+          "output_audio_tokens": 12e-6
         }
       }
     ]
