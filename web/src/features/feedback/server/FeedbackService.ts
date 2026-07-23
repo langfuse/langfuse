@@ -131,7 +131,10 @@ export const buildFeedbackSlackMessage = ({
           SLACK_FIELD_TEXT_LIMIT,
         ),
         plainText(`🎯 TARGET:\n${input.target}`, SLACK_FIELD_TEXT_LIMIT),
-        plainText(`🧩 TYPE:\n${input.targetType}`, SLACK_FIELD_TEXT_LIMIT),
+        plainText(
+          `🧩 TARGET TYPE:\n${input.targetType}`,
+          SLACK_FIELD_TEXT_LIMIT,
+        ),
         plainText(`🌍 REGION:\n${getDataRegion()}`, SLACK_FIELD_TEXT_LIMIT),
       ],
     },
