@@ -3,7 +3,7 @@ on:
   push:
     # Pattern matched against refs/tags
     tags:
-      - "v3.[0-9]+.[0-9]+" # Semantic version tags
+      - "v[0-9]+.[0-9]+.[0-9]+" # Semantic version tags (any major line)
 
 permissions: {}
 
@@ -18,7 +18,23 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           persist-credentials: false
+      # Releases can be cut from `main` and from OSS maintenance branches
+      # (e.g. `v3`). Only tags whose commit is on `main` may promote to
+      # production — a maintenance-branch tag must never deploy whatever
+      # happens to be on `main` to Langfuse Cloud.
+      - name: Check released commit is on main
+        id: guard
+        run: |
+          git fetch origin main
+          RELEASED_COMMIT="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          if git merge-base --is-ancestor "$RELEASED_COMMIT" origin/main; then
+            echo "promote=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::${GITHUB_REF_NAME} is not on main (maintenance-branch release) — skipping production promotion"
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Push to production
+        if: steps.guard.outputs.promote == 'true'
         run: git push "https://x-access-token:${GH_ACCESS_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" +main:production
         env:
           GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
