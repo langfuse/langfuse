@@ -490,6 +490,11 @@ export function parseNumberPreservePrecision(text: string): {
     // Overflows double range (e.g. 1e400) -> keep exact text.
     return { value: t, lossy: true };
   }
+  if (n === 0 && /[1-9]/.test(t)) {
+    // Underflowed to 0 (e.g. 1e-400) but the literal is non-zero — rendering it
+    // as `0` would silently lose the value, so keep the exact text (lossy).
+    return { value: t, lossy: true };
+  }
   const lossy = significantDigitCount(t) > DOUBLE_SAFE_SIG_DIGITS;
   return { value: lossy ? t : n, lossy };
 }
@@ -713,10 +718,18 @@ export class ByteJsonIndexEngine {
       };
     }
     const total = node.valueEnd - node.valueStart;
-    const sliceEnd = Math.min(
-      node.valueEnd,
-      node.valueStart + PREVIEW_BYTE_CAP,
-    );
+    let sliceEnd = Math.min(node.valueEnd, node.valueStart + PREVIEW_BYTE_CAP);
+    // If we're truncating, don't cut mid-codepoint: back the cut up off any
+    // UTF-8 continuation bytes (10xxxxxx) to the start of that codepoint, so a
+    // multi-byte char (e.g. CJK) at the boundary doesn't decode to a trailing �.
+    if (sliceEnd < node.valueEnd) {
+      while (
+        sliceEnd > node.valueStart &&
+        (this.bytes[sliceEnd]! & 0xc0) === 0x80
+      ) {
+        sliceEnd--;
+      }
+    }
     let text = this.decoder.decode(
       this.bytes.subarray(node.valueStart, sliceEnd),
     );
