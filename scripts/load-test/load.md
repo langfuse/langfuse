@@ -34,8 +34,7 @@ loop so the throughput (`TRACES_PER_SEC`) stays constant regardless of
 how fast/slow each request completes — this is what makes the test
 reproducible and comparable across runs.
 
-All synthetic traces are tagged `load-test` and
-`storage-growth-validation`, which makes it easy to find and delete
+All synthetic traces are tagged `load-test`, which makes it easy to find and delete
 them afterwards without touching real data.
 
 ## How the monitoring script works
