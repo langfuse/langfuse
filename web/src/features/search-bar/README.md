@@ -303,6 +303,26 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
   free text the user asked to remove. Without this, a stale `searchQuery` would
   survive and `resetTo` would re-derive the dropped text back into the bar.
 
+## Host-provided saved queries (the `saved` section)
+
+Embedding hosts can offer their own saved-query entries as an autocomplete
+section (e.g. the evaluator form's evaluation-rule filters, with attached rules
+ranked before other existing rules).
+The seam is `InputCompletionContext.saved` (title + items), threaded as
+`savedQueries`/`onPickSavedQuery` through `EventsSearchBarRow` →
+`SearchComposer`. Two rules keep it inside the bar's contract:
+
+- **Empty-term stage, but not empty-bar-gated like recents.** The section
+  shows whenever the caret is on an empty term (clicking into the bar, the
+  trailing-space landing), even with filters present: it is explicitly
+  labeled and picking one is a deliberate switch to the saved state — unlike
+  a recent, which looks like a text completion and is therefore hidden once
+  a draft exists.
+- **The pick never edits the draft.** It calls `onPickSavedQuery(id)`; the
+  HOST applies the saved state (filter + any state of its own, e.g. scope
+  selection) through `setFilterState`, and the bar re-derives the pills via
+  the normal one-direction flow. No second sync path.
+
 ## Metadata key suggestions (client-side observed map)
 
 The API does not enumerate metadata keys, and backend metadata-structure

@@ -1080,6 +1080,7 @@ export async function executeLLMAsJudgeEvaluation(
   const executionMetadata = buildEvalExecutionMetadata({
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
+    ruleId: params.job.runScopeId,
     targetTraceId: params.job.jobInputTraceId,
     targetObservationId: params.job.jobInputObservationId,
     targetDatasetItemId: params.job.jobInputDatasetItemId,

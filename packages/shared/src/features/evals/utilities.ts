@@ -113,6 +113,18 @@ export function extractValueFromObject(
 }
 
 /**
+ * Stringification for LLM prompt surfaces (previews, test runs, judge
+ * prompts): unwraps (multi-)encoded JSON strings before stringifying, so a
+ * full-value mapping of an encoded column injects clean JSON into the prompt
+ * instead of an escaped string. Plain strings pass through unchanged; code
+ * evals keep the typed value from `extractValueFromObject` instead.
+ */
+export const parseUnknownToPromptString = (value: unknown): string =>
+  parseUnknownToString(
+    typeof value === "string" ? parseMultiEncodedJson(value) : value,
+  );
+
+/**
  * Backwards-compatible extraction for UI prompt previews and LLM prompt
  * rendering. `extractValueFromObject` preserves typed values for code eval;
  * this wrapper keeps the previous string-only behavior for prompt surfaces.
@@ -130,5 +142,5 @@ export function extractValueFromObjectAsString(
     parseJson,
   );
 
-  return { value: parseUnknownToString(value), error };
+  return { value: parseUnknownToPromptString(value), error };
 }

@@ -1,7 +1,7 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
@@ -14,11 +14,27 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { EvaluatorGalleryDialog } from "@/src/features/evals/v2/components/EvaluatorGalleryDialog";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const capture = usePostHogClientCapture();
+
+  // The v2 template gallery lives on this list page behind a query param
+  // (deep-linkable); picking an entry deep-links into the standalone setup
+  // page, which is decoupled from the gallery.
+  const galleryOpen = router.query.gallery === "1";
+  const setGalleryOpen = (open: boolean) => {
+    const { gallery: _gallery, ...rest } = router.query;
+    router
+      .push(
+        { query: open ? { ...router.query, gallery: "1" } : rest },
+        undefined,
+        { shallow: true },
+      )
+      .catch(() => undefined);
+  };
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
@@ -93,6 +109,16 @@ export default function EvaluatorsPage() {
               <ManageDefaultEvalModel projectId={projectId} />
               <ActionButton
                 hasAccess={hasWriteAccess}
+                icon={<Sparkles className="h-4 w-4" />}
+                variant="outline"
+                onClick={() => setGalleryOpen(true)}
+                limitValue={countsQuery.data?.configActiveCount ?? 0}
+                limit={evaluatorLimit}
+              >
+                New setup (beta)
+              </ActionButton>
+              <ActionButton
+                hasAccess={hasWriteAccess}
                 icon={<Plus className="h-4 w-4" />}
                 variant="default"
                 onClick={() => {
@@ -110,6 +136,23 @@ export default function EvaluatorsPage() {
       >
         <EvaluatorTable projectId={projectId} />
       </Page>
+      <EvaluatorGalleryDialog
+        projectId={projectId}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelectTemplate={(template) => {
+          router
+            .push(
+              `/project/${projectId}/evals/v2/new?templateId=${encodeURIComponent(template.id)}`,
+            )
+            .catch(() => undefined);
+        }}
+        onCreateFromScratch={(type) => {
+          router
+            .push(`/project/${projectId}/evals/v2/new?scratch=${type}`)
+            .catch(() => undefined);
+        }}
+      />
     </>
   );
 }

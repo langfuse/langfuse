@@ -28,6 +28,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
 - Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
+- Evaluators v2 pages: `src/pages/project/[projectId]/evals/v2/{index,rules}.tsx`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:

@@ -2,6 +2,7 @@ import { createSkill } from "@mastra/core/skills";
 import { parse } from "yaml";
 
 import { LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN } from "./skills/generated/skill-markdown";
+import evaluatorDesignSkillMarkdown from "./skills/evaluator-design.md";
 
 type LangfuseInAppAgentSkillDefinition = {
   name: string;
@@ -61,7 +62,14 @@ function parseFrontmatter(frontmatter: string): Record<string, string> {
   );
 }
 
-export const LANGFUSE_IN_APP_AGENT_SKILLS =
-  LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN.map(({ markdown }) =>
-    createSkill(parseSkillMarkdown(markdown)),
-  );
+const IN_APP_AGENT_SKILL_MARKDOWN = [
+  ...LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN,
+  {
+    fileName: "evaluator-design.md",
+    markdown: evaluatorDesignSkillMarkdown,
+  },
+] as const;
+
+export const LANGFUSE_IN_APP_AGENT_SKILLS = IN_APP_AGENT_SKILL_MARKDOWN.map(
+  ({ markdown }) => createSkill(parseSkillMarkdown(markdown)),
+);

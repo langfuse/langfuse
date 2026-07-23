@@ -29,8 +29,11 @@ import {
   PromptDependencyRegex,
   parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { lightTheme } from "@/src/components/editor/light-theme";
-import { darkTheme } from "@/src/components/editor/dark-theme";
+import {
+  lightTheme,
+  lightThemeInit,
+} from "@/src/components/editor/light-theme";
+import { darkTheme, darkThemeInit } from "@/src/components/editor/dark-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
 
@@ -341,6 +344,13 @@ const gutterBorderTheme = EditorView.theme({
   ".cm-gutters": { borderRight: "1px solid" },
 });
 
+const lightSansTheme = lightThemeInit({
+  settings: { fontFamily: "var(--font-sans)" },
+});
+const darkSansTheme = darkThemeInit({
+  settings: { fontFamily: "var(--font-sans)" },
+});
+
 export function applyCodeMirrorSearchQuery(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   searchValue: string,
@@ -418,6 +428,7 @@ export function CodeMirrorEditor({
   enableSearchKeymap = true,
   onEditorMount,
   extensions: additionalExtensions,
+  fontFamily = "mono",
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -433,12 +444,20 @@ export function CodeMirrorEditor({
   editorRef?: RefObject<ReactCodeMirrorRef | null>;
   enableSearchKeymap?: boolean;
   onEditorMount?: () => void;
+  fontFamily?: "mono" | "sans";
   // Caller-provided CodeMirror extensions appended after the built-ins, e.g. a
   // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
   extensions?: Extension[];
 }) {
   const { resolvedTheme } = useTheme();
-  const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
+  const codeMirrorTheme =
+    resolvedTheme === "dark"
+      ? fontFamily === "sans"
+        ? darkSansTheme
+        : darkTheme
+      : fontFamily === "sans"
+        ? lightSansTheme
+        : lightTheme;
   // used to disable linter when field is empty
   const [linterEnabled, setLinterEnabled] = useState<boolean>(
     !!value && value !== "",

@@ -23,9 +23,26 @@ export function getRowChildren(row: JsonTableRow): JsonTableRow[] {
       row.level + 1,
       row.id,
       false, // Don't lazy load for child generation
+      row.pathSegments,
     );
   }
   return [];
+}
+
+// JSONPath identifiers that don't need bracket quoting, matching the eval
+// mapping suggestions' path format.
+const JSONPATH_IDENTIFIER_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Renders path segments as a JSONPath string, e.g. `$.messages[0].content`. */
+export function pathSegmentsToJsonPath(
+  segments: readonly (string | number)[],
+): string {
+  return segments.reduce<string>((path, segment) => {
+    if (typeof segment === "number") return `${path}[${segment}]`;
+    return JSONPATH_IDENTIFIER_REGEX.test(segment)
+      ? `${path}.${segment}`
+      : `${path}[${JSON.stringify(segment)}]`;
+  }, "$");
 }
 
 // Types for JSON table rows
@@ -43,6 +60,9 @@ export interface JsonTableRow {
     | "undefined";
   hasChildren: boolean;
   level: number;
+  /** Key chain from the root (numbers = array indices) — the row's address
+      in the source object, e.g. for building a JSONPath. */
+  pathSegments: (string | number)[];
   subRows?: JsonTableRow[];
   // For lazy loading of sub-row table data
   rawChildData?: unknown;
@@ -70,6 +90,7 @@ export function transformJsonToTableData(
   level = 0,
   parentId = "",
   lazy = false,
+  parentPathSegments: (string | number)[] = [],
 ): JsonTableRow[] {
   const rows: JsonTableRow[] = [];
 
@@ -82,18 +103,21 @@ export function transformJsonToTableData(
         type: getValueType(json),
         hasChildren: false,
         level,
+        pathSegments: parentPathSegments,
       },
     ];
   }
 
-  const entries = Array.isArray(json)
-    ? json.map((item, index) => [index.toString(), item])
+  const isArray = Array.isArray(json);
+  const entries: [string, unknown][] = isArray
+    ? json.map((item, index): [string, unknown] => [index.toString(), item])
     : Object.entries(json);
 
   entries.forEach(([key, value]) => {
     const id = parentId ? `${parentId}-${key}` : key;
     const valueType = getValueType(value);
     const childrenExist = hasChildren(value, valueType);
+    const pathSegments = [...parentPathSegments, isArray ? Number(key) : key];
 
     const row: JsonTableRow = {
       id,
@@ -102,6 +126,7 @@ export function transformJsonToTableData(
       type: valueType,
       hasChildren: childrenExist,
       level,
+      pathSegments,
       childrenGenerated: false,
     };
 
@@ -118,6 +143,7 @@ export function transformJsonToTableData(
           level + 1,
           id,
           lazy,
+          pathSegments,
         );
         row.subRows = children;
         row.childrenGenerated = true;

@@ -238,6 +238,9 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       cutoffCreatedAt: z.date(),
       batchActionId: z.string(),
       evaluatorIds: z.array(z.string()),
+      // User-set cap on how many matching observations get evaluated; the
+      // instance-wide historic-eval limit still applies on top.
+      maxCount: z.number().int().positive().nullish(),
     }),
   ],
 );
