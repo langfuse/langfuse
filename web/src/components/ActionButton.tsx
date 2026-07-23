@@ -86,11 +86,12 @@ export const ActionButton = React.forwardRef<
 
   const message = getMessage();
 
-  // Handle click tracking for external links
-  const handleLinkClick = () => {
-    if (trackingEventName && href && isExternalUrl(href)) {
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (trackingEventName) {
       capture(trackingEventName, trackingProps ?? null);
     }
+
+    buttonProps.onClick?.(event);
   };
 
   const btnContent = (
@@ -102,9 +103,8 @@ export const ActionButton = React.forwardRef<
       hasAccess={hasAccess}
       hasEntitlement={hasEntitlement}
       hasReachedLimit={hasReachedLimit}
-      buttonProps={buttonProps}
+      buttonProps={{ ...buttonProps, onClick: handleClick }}
       href={href}
-      onLinkClick={handleLinkClick}
     >
       {children}
     </ButtonContent>
@@ -151,7 +151,6 @@ const ButtonContent = React.forwardRef<
     >;
     children: React.ReactNode;
     href?: string;
-    onLinkClick?: () => void;
   }
 >(function ButtonContent(
   {
@@ -164,7 +163,6 @@ const ButtonContent = React.forwardRef<
     buttonProps,
     children,
     href,
-    onLinkClick,
   },
   ref,
 ) {
@@ -199,7 +197,6 @@ const ButtonContent = React.forwardRef<
           href={href}
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
-          onClick={onLinkClick}
         >
           {content}
         </Link>

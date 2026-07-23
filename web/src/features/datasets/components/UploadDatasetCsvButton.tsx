@@ -2,7 +2,6 @@ import { UploadIcon } from "lucide-react";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useState } from "react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ActionButton } from "@/src/components/ActionButton";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 
@@ -15,7 +14,6 @@ export const UploadDatasetCsvButton = (props: {
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
-  const capture = usePostHogClientCapture();
 
   return (
     <CsvUploadDialog
@@ -29,7 +27,7 @@ export const UploadDatasetCsvButton = (props: {
           variant="outline"
           disabled={!hasAccess}
           hasAccess={hasAccess}
-          onClick={() => capture("dataset_item:upload_csv_button_click")}
+          trackingEventName="dataset_item:upload_csv_button_click"
           icon={<UploadIcon className="h-4 w-4" aria-hidden="true" />}
         >
           Upload CSV
