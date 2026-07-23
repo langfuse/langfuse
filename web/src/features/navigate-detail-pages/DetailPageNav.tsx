@@ -13,7 +13,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -34,8 +34,14 @@ export const DetailPageNav = (props: {
    * of icon-xs controls instead of standing out. Shortcuts still work.
    */
   compact?: boolean;
+  /**
+   * Labeled ghost links per the session-detail redesign:
+   * `⌃ Prev K` / `Next J ⌄`, tertiary grey, darkening on hover.
+   */
+  ghostLabeled?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const { currentId, path, listKey, onNavigate, size, compact, ghostLabeled } =
+    props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -135,6 +141,51 @@ export const DetailPageNav = (props: {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
+
+  if (entries.length > 1 && ghostLabeled) {
+    const linkClassName = (active: boolean) =>
+      cn(
+        "text-muted-foreground hover:text-foreground gap-1.5 px-1.5",
+        "transition-[color] duration-150",
+        active && "text-foreground",
+      );
+    return (
+      <div className="flex flex-row items-center gap-1">
+        <Button
+          variant="ghost"
+          type="button"
+          size="sm"
+          className={linkClassName(shortcutPulse === "previous")}
+          disabled={!previousPageEntry}
+          onClick={() => {
+            if (previousPageEntry) {
+              navigateToEntry(previousPageEntry, "previous", "button");
+            }
+          }}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+          Prev
+          <KeyboardShortcut>K</KeyboardShortcut>
+        </Button>
+        <Button
+          variant="ghost"
+          type="button"
+          size="sm"
+          className={linkClassName(shortcutPulse === "next")}
+          disabled={!nextPageEntry}
+          onClick={() => {
+            if (nextPageEntry) {
+              navigateToEntry(nextPageEntry, "next", "button");
+            }
+          }}
+        >
+          Next
+          <KeyboardShortcut>J</KeyboardShortcut>
+          <ChevronDown className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
 
   if (entries.length > 1) {
     const buttonClassName = (active: boolean) =>

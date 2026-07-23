@@ -1371,6 +1371,7 @@ const LoadedSessionEventsPage: React.FC<{
                     `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
                   }
                   listKey="sessions"
+                  ghostLabeled={isModernSessionEnabled}
                 />
               )}
               <CommentDrawerButton

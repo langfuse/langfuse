@@ -455,7 +455,10 @@ export const TraceEventsRow = React.memo(
                 : "min-w-0 px-6 pb-10"
             }
           >
-            {surface === "modern" ? (
+            {/* Redesigned turns flow without a trace header (the design's
+                conversation is headerless); fallback-rendered turns keep it
+                for orientation and as their peek entry point. */}
+            {surface === "modern" && !turnModel ? (
               <div className="bg-background/95 sticky top-0 z-10 -mx-6 mb-5 flex min-w-0 items-center justify-between gap-3 px-6 py-3 backdrop-blur">
                 <button
                   type="button"
