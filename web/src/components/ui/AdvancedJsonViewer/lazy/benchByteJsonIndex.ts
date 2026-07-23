@@ -33,15 +33,14 @@ import {
 import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 // Type-only import (erased at runtime); the value import is the computed
 // dynamic import() below so Node can type-strip the .ts target at load time.
 import type { ByteJsonIndexEngine } from "./byteJsonIndex";
 
 type Mod = { ByteJsonIndexEngine: typeof ByteJsonIndexEngine };
 
-const SCRATCH =
-  process.env.SCRATCH ??
-  "/private/tmp/claude-501/-Users-nikita-code-langfuse-pc81/b41a602e-c1b1-424d-982b-7efdba51f3ca/scratchpad";
+const SCRATCH = process.env.SCRATCH ?? join(tmpdir(), "lfe-11082-bench");
 
 const STRUCTURED_TARGET_BYTES = Number(
   process.env.STRUCTURED_BYTES ?? 200 * 1024 * 1024,

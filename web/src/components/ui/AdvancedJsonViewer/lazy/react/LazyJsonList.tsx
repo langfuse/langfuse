@@ -14,21 +14,25 @@ import type { RowModelStore } from "./rowModelStore";
 /** Fixed single-line row height — JSON rows never wrap, so no live measurement. */
 const ROW_HEIGHT = 20;
 
+// How much of a leaf we're willing to materialize for a clipboard copy. Well
+// above the engine's preview-sized default, so a large string (e.g. a base64
+// image) copies WHOLE; a value beyond even this is too large for the clipboard.
+const COPY_MAX_BYTES = 64 * 1024 * 1024;
+
 async function copyFullValue(store: RowModelStore, nodeId: number) {
-  await store.getState().materialize(nodeId);
+  await store.getState().materialize(nodeId, COPY_MAX_BYTES);
   const result = store.getState().values.get(nodeId);
   if (!result || !result.ok) return;
   const { value, truncated } = result.value;
-  // When the value exceeds the engine's byte cap, `value` is the raw decoded
-  // text PREFIX (not a parsed value), so emit it as-is rather than JSON-encoding
-  // a partial string. (Full-payload retrieval for >cap leaves is the streamed
-  // path's job, not the clipboard's.) Out-of-double integers come back as
-  // bigint, which JSON.stringify cannot serialize — handle both.
-  const text = truncated
-    ? typeof value === "string"
-      ? value
-      : String(value)
-    : typeof value === "string"
+  // Honesty: if the value is STILL truncated at the copy cap, we do NOT have
+  // the whole value — writing the prefix would silently produce a corrupt copy
+  // (a half base64 image is useless) under a "Copy full value" label. Skip it;
+  // the field-level download is the escape hatch for values this large.
+  if (truncated) return;
+  // Out-of-double integers come back as bigint, which JSON.stringify can't
+  // serialize — handle strings and bigint before the object path.
+  const text =
+    typeof value === "string"
       ? value
       : typeof value === "bigint"
         ? value.toString()

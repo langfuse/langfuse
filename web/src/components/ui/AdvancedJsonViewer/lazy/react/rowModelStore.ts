@@ -56,8 +56,10 @@ export interface RowModelState {
   toggle: (nodeId: number, currentlyExpanded: boolean) => Promise<void>;
   /** Reveal the next page of a wide container (given its load-more row id). */
   loadMore: (loadMoreId: number) => Promise<void>;
-  /** Materialize one node's full value on demand (result stored in `values`). */
-  materialize: (nodeId: number) => Promise<void>;
+  /** Materialize one node's full value on demand (result stored in `values`).
+   *  `maxBytes` overrides the engine's default cap (e.g. copy needs the whole
+   *  value, not the preview-sized default). */
+  materialize: (nodeId: number, maxBytes?: number) => Promise<void>;
   /** Mark the store torn down so in-flight async work no-ops on resolve. */
   dispose: () => void;
 }
@@ -222,10 +224,15 @@ export function createRowModelStore(
         if (nextRows) set({ rows: nextRows });
       },
 
-      toggle: (nodeId, currentlyExpanded) =>
-        serialize(async () => {
-          if (!model) return;
-          const myGen = gen;
+      toggle: (nodeId, currentlyExpanded) => {
+        // Capture the generation NOW, at enqueue time — not inside the queued
+        // callback. nodeIds restart per engine, so if the document is swapped
+        // (init bumps gen, new model) while this mutation waits in the serialize
+        // queue, applying the stale nodeId to the new model would toggle an
+        // unrelated node. Abandon it instead.
+        const callGen = gen;
+        return serialize(async () => {
+          if (!model || gen !== callGen) return;
           setPending(nodeId, true);
           try {
             if (currentlyExpanded) {
@@ -233,31 +240,33 @@ export function createRowModelStore(
             } else {
               await model.expand(nodeId);
             }
-            if (gen !== myGen) return;
+            if (gen !== callGen) return;
             await refreshAfterMutation();
           } finally {
-            if (gen === myGen) setPending(nodeId, false);
+            if (gen === callGen) setPending(nodeId, false);
           }
-        }),
+        });
+      },
 
-      loadMore: (loadMoreId) =>
-        serialize(async () => {
-          if (!model) return;
-          const myGen = gen;
+      loadMore: (loadMoreId) => {
+        const callGen = gen;
+        return serialize(async () => {
+          if (!model || gen !== callGen) return;
           setPending(loadMoreId, true);
           try {
             await model.loadMore(loadMoreId);
-            if (gen !== myGen) return;
+            if (gen !== callGen) return;
             await refreshAfterMutation();
           } finally {
-            if (gen === myGen) setPending(loadMoreId, false);
+            if (gen === callGen) setPending(loadMoreId, false);
           }
-        }),
+        });
+      },
 
-      materialize: async (nodeId) => {
+      materialize: async (nodeId, maxBytes) => {
         if (!model) return;
         const myGen = gen;
-        const result = await model.getValue(nodeId);
+        const result = await model.getValue(nodeId, maxBytes);
         if (gen !== myGen) return;
         const next = new Map(get().values);
         next.set(nodeId, result);

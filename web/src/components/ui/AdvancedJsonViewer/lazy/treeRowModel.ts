@@ -174,11 +174,16 @@ export class TreeRowModel implements RowModel {
       depth: state.depth,
       keyOrIndex: state.keyOrIndex,
       type: d.type,
-      childCount: state.expandable
-        ? state.expanded
+      // Prefer the scanned `total` once the container has been paged at least
+      // once (loadedCount > 0) — it stays authoritative after a collapse, so
+      // the [N]/{N} badge doesn't vanish. Fall back to the descriptor's count
+      // only before any scan (may be known from the parent scan, or undefined).
+      childCount:
+        state.expandable && (state.expanded || state.loadedCount > 0)
           ? state.total
-          : d.childCount
-        : undefined,
+          : state.expandable
+            ? d.childCount
+            : undefined,
       preview: d.preview,
       truncatedPreview: d.truncatedPreview,
       expandable: state.expandable,
@@ -230,12 +235,12 @@ export class TreeRowModel implements RowModel {
     this.rebuildVisible();
   }
 
-  async getValue(nodeId: number): Promise<ValueResult> {
+  async getValue(nodeId: number, maxBytes?: number): Promise<ValueResult> {
     if (nodeId < 0) {
       return { ok: false, error: "load-more row has no value" };
     }
     try {
-      const value = await this.source.getValue(nodeId);
+      const value = await this.source.getValue(nodeId, maxBytes);
       return { ok: true, value };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };

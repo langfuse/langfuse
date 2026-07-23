@@ -217,4 +217,54 @@ describe("rowModelStore async correctness", () => {
 
     expect(fake.getMaxExpandConcurrency()).toBe(1);
   });
+
+  it("abandons a queued mutation across a document swap (stale nodeId not applied)", async () => {
+    // nodeIds restart per engine, so a mutation queued against document A must
+    // NOT run against document B after a swap — it would toggle an unrelated
+    // node. The generation is captured at ENQUEUE time to catch this.
+    const leaf = (over: Partial<RowModel>): RowModel => ({
+      getRevision: () => 0,
+      getTotalVisible: () => 2,
+      getRows: async () => ({ revision: 0, rows: [makeRow(0)] }),
+      expand: async () => {},
+      collapse: async () => {},
+      loadMore: async () => {},
+      getValue: async () => ({
+        ok: true as const,
+        value: {
+          nodeId: 0,
+          type: "number" as const,
+          value: 0,
+          lossyNumber: false,
+          truncated: false,
+          byteLength: 1,
+        },
+      }),
+      ...over,
+    });
+
+    let releaseM1!: () => void;
+    const bExpand = vi.fn(async () => {});
+    let call = 0;
+    const store = createRowModelStore({
+      buildModel: async () =>
+        call++ === 0
+          ? leaf({ expand: () => new Promise<void>((r) => (releaseM1 = r)) })
+          : leaf({ expand: bExpand }),
+    });
+    await store.getState().init(null); // document A
+
+    const m1 = store.getState().toggle(1, false); // holds the serialize queue
+    // Let m1 actually start (call A.expand and suspend) BEFORE the swap —
+    // otherwise init's synchronous gen bump would abandon m1 before it runs.
+    await new Promise((r) => setTimeout(r, 0));
+    const stale = store.getState().toggle(9, false); // queued behind m1, doc A
+    await store.getState().init(null); // swap to document B (gen bumped)
+    releaseM1(); // m1 resolves → the queued stale mutation runs
+    await Promise.all([m1, stale]);
+
+    // The stale toggle targeted doc A's node 9; it must be abandoned, never
+    // applied to document B's engine.
+    expect(bExpand).not.toHaveBeenCalled();
+  });
 });

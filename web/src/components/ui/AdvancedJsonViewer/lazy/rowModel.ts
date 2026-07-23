@@ -83,6 +83,11 @@ export interface RowModel {
    *  nodeId or its load-more row id. */
   loadMore(nodeId: number): Promise<void>;
 
-  /** Materialize a single node's full value on demand (never throws). */
-  getValue(nodeId: number): Promise<ValueResult>;
+  /**
+   * Materialize a single node's full value on demand (never throws).
+   * `maxBytes` caps how much of an oversized leaf is decoded (the engine's own
+   * default otherwise); a caller that needs the whole value (e.g. copy) passes
+   * a larger cap. The result still reports `truncated` if it hits the cap.
+   */
+  getValue(nodeId: number, maxBytes?: number): Promise<ValueResult>;
 }
