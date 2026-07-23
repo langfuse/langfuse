@@ -46,13 +46,18 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   repository layer then reads baggage via `normalizeClickHouseQueryTags(...)`
   and writes it to `log_comment`. Prefer setting attribution at entry points
   rather than passing tags through every repository call.
-- Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
-  more than one `ALTER` on the same table must end every metadata `ALTER`
-  (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
-  and every mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`)
-  with `SETTINGS mutations_sync = 2`. The matching `unclustered/` file runs
-  against plain `MergeTree` and does not need (and should not duplicate)
-  these settings.
+- Any migration in `packages/shared/clickhouse/migrations/**` (clustered AND
+  unclustered) with more than one `ALTER` on the same table must end every
+  metadata `ALTER` (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with
+  `SETTINGS alter_sync = 2`, and every mutation-creating `ALTER`
+  (`MATERIALIZE …`, `UPDATE`, `DELETE`) with `SETTINGS mutations_sync = 2`.
+  The `unclustered/` variant is NOT limited to plain `MergeTree`: ClickHouse
+  Cloud deployments run it against `SharedMergeTree` (the docs prescribe
+  `CLICKHOUSE_CLUSTER_ENABLED=false` there), where back-to-back ALTERs on the
+  same table race replica metadata catch-up and fail with
+  `CANNOT_ASSIGN_ALTER` (517), leaving `schema_migrations` dirty. On plain
+  `MergeTree` both settings are documented no-ops, so duplicating them is
+  harmless.
 - Never use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` /
   `EXCHANGE TABLES`) in ClickHouse migrations. The atomic replace requires
   `renameat2` filesystem support, which NFS-backed self-hosted deployments
@@ -103,7 +108,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
-- [ ] Clustered migration files with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`); unclustered mirror has none
+- [ ] Migration files (both `clustered/` and `unclustered/`) with multiple ALTERs on the same table use `SETTINGS alter_sync = 2` (metadata) and `SETTINGS mutations_sync = 2` (`MATERIALIZE …`, `UPDATE`, `DELETE`) — the unclustered variant also runs on ClickHouse Cloud (`SharedMergeTree`), not just plain `MergeTree`
 - [ ] No `CREATE OR REPLACE VIEW/TABLE` or `EXCHANGE TABLES` in migrations (breaks NFS/EFS self-hosting); plain views are redefined via `DROP VIEW IF EXISTS` + `CREATE VIEW` in the same file
 - [ ] Materialized views are never dropped and recreated while their source table takes inserts; SELECT changes go through `ALTER TABLE <mv> MODIFY QUERY` after the target-table `ALTER`s
 
