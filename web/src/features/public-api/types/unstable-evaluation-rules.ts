@@ -70,6 +70,7 @@ export const GetUnstableEvaluationRuleQuery = z.object({
   evaluationRuleId: z.string(),
 });
 
+/** @alias */
 export const GetUnstableEvaluationRuleResponse = APIReadableEvaluationRule;
 
 export const EvaluationRuleCreateBase = {

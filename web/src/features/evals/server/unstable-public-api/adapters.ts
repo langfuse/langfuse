@@ -366,7 +366,10 @@ function toApiFilters(
   return parsedPublicFilters.data;
 }
 
-function toApiLegacyFilters(filters: unknown) {
+// Legacy rules must retain the persisted singleFilter shape. The v4 target
+// schemas below are intentionally target-specific and would reject valid
+// legacy columns such as traceTags, timestamp, release, or bookmarked.
+function toApiLegacyFilters(filters: unknown): z.infer<typeof singleFilter>[] {
   const storedFilters = z.array(singleFilter).safeParse(filters);
 
   if (!storedFilters.success) {
