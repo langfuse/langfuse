@@ -7,7 +7,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -21,7 +21,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { parseJsonPrioritised } from "@langfuse/shared";
+import { normalizeDatasetJson } from "@/src/features/datasets/utils/datasetItemUtils";
 import { ActionButton } from "@/src/components/ActionButton";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 import { type Prisma } from "@langfuse/shared";
@@ -35,6 +35,18 @@ import { type Prisma } from "@langfuse/shared";
  * 2. From an existing dataset item: Creates a new dataset item based on an existing one
  *    (requires fromDatasetId) -> isCopyItem
  */
+const normalizePrefillValue = (
+  value: Prisma.JsonValue | null,
+): Prisma.JsonValue | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  // Shared cleanup: parse a JSON-string wrapper, clone, and deep-parse nested
+  // JSON strings into real, editable JSON. See normalizeDatasetJson for why.
+  return normalizeDatasetJson(value) as Prisma.JsonValue;
+};
+
 export const NewDatasetItemFromExistingObject = (props: {
   projectId: string;
   traceId?: string;
@@ -47,23 +59,20 @@ export const NewDatasetItemFromExistingObject = (props: {
   buttonVariant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
 }) => {
-  const normalizePrefillValue = (
-    value: Prisma.JsonValue | null,
-  ): Prisma.JsonValue | null => {
-    if (value === null || value === undefined) {
-      return null;
-    }
-
-    if (typeof value === "string") {
-      const parsed = parseJsonPrioritised(value);
-      return parsed !== undefined ? parsed : value;
-    }
-
-    return value;
-  };
-
-  const parsedInput = normalizePrefillValue(props.input);
-  const parsedOutput = normalizePrefillValue(props.output);
+  // The clone + deep-parse is expensive, so only run it again when the prop
+  // itself changes, not on every parent render.
+  const parsedInput = useMemo(
+    () => normalizePrefillValue(props.input),
+    [props.input],
+  );
+  const parsedOutput = useMemo(
+    () => normalizePrefillValue(props.output),
+    [props.output],
+  );
+  const parsedMetadata = useMemo(
+    () => normalizePrefillValue(props.metadata),
+    [props.metadata],
+  );
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isAuthenticatedAndProjectMember = useIsAuthenticatedAndProjectMember(
@@ -185,7 +194,7 @@ export const NewDatasetItemFromExistingObject = (props: {
               projectId={props.projectId}
               input={parsedInput}
               output={parsedOutput}
-              metadata={props.metadata}
+              metadata={parsedMetadata}
               onFormSuccess={() => setIsFormOpen(false)}
               className="h-full overflow-y-auto"
               currentDatasetId={props.fromDatasetId}

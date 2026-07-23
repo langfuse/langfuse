@@ -57,10 +57,8 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
-import {
-  isValidDatasetJson,
-  parseDatasetJson,
-} from "../utils/parseDatasetJson";
+import { isValidDatasetJson } from "../utils/parseDatasetJson";
+import { normalizeDatasetJson } from "../utils/datasetItemUtils";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
@@ -105,17 +103,15 @@ type DatasetWithSchema = {
 const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
   if (value === undefined) return "";
 
-  if (typeof value === "string") {
-    try {
-      // Parse the string and re-stringify with proper formatting
-      const parsed = parseDatasetJson(value);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      // If it's not valid JSON, stringify the string itself
-      return JSON.stringify(value, null, 2);
-    }
+  try {
+    // Deep-parse nested JSON strings so the editor shows clean, expandable
+    // JSON, like the read-only views and the trace/observation viewer. Fall
+    // back to the raw value if it can't be stringified (no toast here, this
+    // runs while building the form's default values).
+    return JSON.stringify(normalizeDatasetJson(value), null, 2);
+  } catch {
+    return JSON.stringify(value, null, 2);
   }
-  return JSON.stringify(value, null, 2);
 };
 
 export const NewDatasetItemForm = (props: {
