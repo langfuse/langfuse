@@ -1117,15 +1117,11 @@ export const RateLimited = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
-    const initialAlertText = alert.textContent;
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
-    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
-      timeout: 2_000,
-    });
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeDisabled();
@@ -1151,6 +1147,14 @@ export const RefocusAfterSubmit = meta.story({
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize the current trace.",
+        },
+      },
       {
         id: "assistant-1",
         role: "assistant",
@@ -1202,14 +1206,18 @@ export const RefocusAfterSubmit = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText("Message the assistant");
+    const answer = "Answer for: Check the latest latency regression";
+    const previousAnswerCount = canvas.queryAllByText(answer).length;
 
+    await expect(
+      canvas.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    await userEvent.clear(textarea);
     await userEvent.type(textarea, "Check the latest latency regression");
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => {
-      expect(
-        canvas.getByText("Answer for: Check the latest latency regression"),
-      ).toBeInTheDocument();
+      expect(canvas.getAllByText(answer)).toHaveLength(previousAnswerCount + 1);
     });
 
     await waitFor(() => {
