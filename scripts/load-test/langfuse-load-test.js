@@ -34,15 +34,21 @@ function randomString(length) {
   return result;
 }
 
+// Clamp value between min and max; NaN falls back to the provided default
+function clamp(value, min, max) {
+  if (isNaN(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
 // ---- Config via environment variables ----
 const LANGFUSE_URL = __ENV.LANGFUSE_URL || 'http://localhost:3000';
 const PUBLIC_KEY = __ENV.LANGFUSE_PUBLIC_KEY;
 const SECRET_KEY = __ENV.LANGFUSE_SECRET_KEY;
-const TRACES_PER_SEC = parseFloat(__ENV.TRACES_PER_SEC || '1');
-const DURATION_MIN = parseInt(__ENV.DURATION_MIN || '60', 10);
-const GENERATIONS_PER_TRACE = parseInt(__ENV.GENERATIONS_PER_TRACE || '2', 10);
-const PROMPT_TOKENS_AVG = parseInt(__ENV.PROMPT_TOKENS_AVG || '500', 10);
-const COMPLETION_TOKENS_AVG = parseInt(__ENV.COMPLETION_TOKENS_AVG || '200', 10);
+const TRACES_PER_SEC = clamp(parseInt(__ENV.TRACES_PER_SEC, 10) || 1, 1, Infinity);
+const DURATION_MIN = clamp(parseInt(__ENV.DURATION_MIN, 10) || 60, 1, Infinity);
+const GENERATIONS_PER_TRACE = clamp(parseInt(__ENV.GENERATIONS_PER_TRACE, 10) || 2, 0, Infinity);
+const PROMPT_TOKENS_AVG = clamp(parseInt(__ENV.PROMPT_TOKENS_AVG, 10) || 500, 1, Infinity);
+const COMPLETION_TOKENS_AVG = clamp(parseInt(__ENV.COMPLETION_TOKENS_AVG, 10) || 200, 1, Infinity);
 
 if (!PUBLIC_KEY || !SECRET_KEY) {
   throw new Error('LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are required');
