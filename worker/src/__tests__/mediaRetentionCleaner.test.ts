@@ -113,7 +113,7 @@ describe("MediaRetentionCleaner", () => {
   });
 
   describe("processBatch", () => {
-    it("stops blob cleanup when a progress renewal loses the lock", async () => {
+    it("keeps the project retryable when blob cleanup loses the lock", async () => {
       await drainExpiredMedia();
 
       const { projectId } = await createOrgProjectAndApiKey();
@@ -152,6 +152,10 @@ describe("MediaRetentionCleaner", () => {
 
         expect(extendSpy).toHaveBeenCalledTimes(2);
         expect(cleanupFinished).toBe(false);
+        await expect(getMediaCount(projectId)).resolves.toBe(1);
+        await expect(findNextMediaRetentionProject()).resolves.toEqual(
+          expect.objectContaining({ projectId }),
+        );
         expect(
           removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
         ).toHaveBeenCalledWith(

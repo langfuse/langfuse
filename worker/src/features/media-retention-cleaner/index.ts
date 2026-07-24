@@ -109,11 +109,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   private async processProject(workload: MediaRetentionProject): Promise<void> {
-    // Delete media files (S3 + PostgreSQL)
-    if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-      await this.deleteExpiredMedia(workload);
-    }
-
     // Delete blob storage entries (S3 + ClickHouse soft delete)
     if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
       await this.extendLockOnProgress();
@@ -122,6 +117,11 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
         workload.cutoffDate,
         { onProgress: () => this.extendLockOnProgress() },
       );
+    }
+
+    // Delete media files (S3 + PostgreSQL)
+    if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+      await this.deleteExpiredMedia(workload);
     }
 
     logger.info(`${this.name}: Project processed`, {
