@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import TableIdOrName from "@/src/components/table/table-id";
@@ -203,19 +203,21 @@ export function AnnotationQueueItemsTable({
                 }
               }}
               aria-label="Select all"
-              className="opacity-60"
+              variant="muted"
             />
           </div>
         );
       },
       cell: ({ row }) => {
         return (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
-          />
+          <span className="mt-1 inline-block has-data-[state=checked]:mt-[5px]">
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+              variant="muted"
+            />
+          </span>
         );
       },
     },
@@ -468,7 +470,7 @@ export function AnnotationQueueItemsTable({
         help={{
           description:
             "Add traces and/or observations to your annotation queue to have them annotated by your team across predefined dimensions.",
-          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation-queues",
         }}
         pagination={{
           totalCount: items.data?.totalItems ?? null,

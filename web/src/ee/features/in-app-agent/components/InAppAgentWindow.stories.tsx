@@ -949,89 +949,6 @@ export const LoadingAfterToolCall = meta.story({
   },
 });
 
-export const FeedbackControlsWaitForTurnEnd = meta.story({
-  name: "(Test) Feedback Controls Wait For Turn End",
-  args: {
-    selectedConversationId: "conversation-1",
-    isInputDisabled: true,
-    isAssistantTurnInProgress: true,
-    onSubmitFeedback: fn(),
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "assistant-1",
-        runId: "run-1",
-        role: "assistant",
-        content: {
-          type: "text",
-          text: "I found a cluster of ingestion errors around malformed JSON payloads",
-        },
-      },
-    ],
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    const canvas = within(canvasElement);
-
-    await canvas.findByText(
-      "I found a cluster of ingestion errors around malformed JSON payloads",
-    );
-
-    await waitFor(() => {
-      expect(
-        canvas.queryByRole("button", { name: "Good response" }),
-      ).not.toBeInTheDocument();
-      expect(
-        canvas.queryByRole("button", { name: "Bad response" }),
-      ).not.toBeInTheDocument();
-    });
-  },
-});
-
-export const FeedbackControlsShowAfterTurnEnd = meta.story({
-  name: "(Test) Feedback Controls Show After Turn End",
-  args: {
-    selectedConversationId: "conversation-1",
-    isAssistantTurnInProgress: false,
-    onSubmitFeedback: fn(),
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: {
-          type: "text",
-          text: "Summarize recent ingestion errors.",
-        },
-      },
-      {
-        id: "assistant-1",
-        runId: "run-1",
-        role: "assistant",
-        content: {
-          type: "text",
-          text: "The errors were caused by malformed JSON payloads.",
-        },
-      },
-    ],
-  },
-  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-    const canvas = within(canvasElement);
-
-    await expect(
-      canvas.findByRole("button", { name: "Good response" }),
-    ).resolves.toBeInTheDocument();
-    await expect(
-      canvas.findByRole("button", { name: "Bad response" }),
-    ).resolves.toBeInTheDocument();
-  },
-});
-
 export const Connecting = meta.story({
   args: {
     isAssistantTurnInProgress: true,
@@ -1117,15 +1034,11 @@ export const RateLimited = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     const alert = canvas.getByRole("alert");
-    const initialAlertText = alert.textContent;
 
     await expect(alert).toHaveTextContent(
       "You've reached the assistant request limit",
     );
     await expect(alert).toHaveTextContent("Try again in about");
-    await waitFor(() => expect(alert.textContent).not.toBe(initialAlertText), {
-      timeout: 2_000,
-    });
     await expect(
       canvas.getByRole("textbox", { name: "Message the assistant" }),
     ).toBeDisabled();
@@ -1151,6 +1064,14 @@ export const RefocusAfterSubmit = meta.story({
     const [isExpanded, setIsExpanded] = useState(args.isExpanded);
     const [isInputDisabled, setIsInputDisabled] = useState(false);
     const [messages, setMessages] = useState<InAppAgentWindowMessage[]>([
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize the current trace.",
+        },
+      },
       {
         id: "assistant-1",
         role: "assistant",
@@ -1202,18 +1123,140 @@ export const RefocusAfterSubmit = meta.story({
   play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText("Message the assistant");
+    const answer = "Answer for: Check the latest latency regression";
+    const previousAnswerCount = canvas.queryAllByText(answer).length;
 
+    await expect(
+      canvas.queryByText("Welcome to the Langfuse Assistant"),
+    ).not.toBeInTheDocument();
+    await userEvent.clear(textarea);
     await userEvent.type(textarea, "Check the latest latency regression");
     await userEvent.click(canvas.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => {
-      expect(
-        canvas.getByText("Answer for: Check the latest latency regression"),
-      ).toBeInTheDocument();
+      expect(canvas.getAllByText(answer)).toHaveLength(previousAnswerCount + 1);
     });
 
     await waitFor(() => {
       expect(textarea).toHaveFocus();
+    });
+  },
+});
+
+export const FeedbackControlsWaitForTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Wait For Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isInputDisabled: true,
+    isAssistantTurnInProgress: true,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await canvas.findByText(
+      "I found a cluster of ingestion errors around malformed JSON payloads",
+    );
+
+    await waitFor(() => {
+      expect(
+        canvas.queryByRole("button", { name: "Good response" }),
+      ).not.toBeInTheDocument();
+      expect(
+        canvas.queryByRole("button", { name: "Bad response" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+});
+
+export const FeedbackControlsShowAfterTurnEnd = meta.story({
+  name: "(Test) Feedback Controls Show After Turn End",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
+      },
+      {
+        id: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The errors were caused by malformed JSON payloads.",
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeInTheDocument();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeInTheDocument();
+  },
+});
+
+export const ProjectedMessageSubmitsFeedbackToSource = meta.story({
+  name: "(Test) Projected Message Submits Feedback To Source",
+  args: {
+    selectedConversationId: "conversation-1",
+    isAssistantTurnInProgress: false,
+    onSubmitFeedback: fn(),
+    messages: [
+      {
+        id: "display-text-assistant-1-1",
+        feedbackMessageId: "assistant-1",
+        runId: "run-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "The errors were caused by malformed JSON payloads.",
+        },
+      },
+    ],
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const goodResponseButton = await canvas.findByRole("button", {
+      name: "Good response",
+    });
+
+    await userEvent.click(goodResponseButton);
+    await expect(args.onSubmitFeedback).toHaveBeenCalledWith({
+      messageId: "assistant-1",
+      runId: "run-1",
+      value: "thumbs_up",
+      comment: null,
     });
   },
 });

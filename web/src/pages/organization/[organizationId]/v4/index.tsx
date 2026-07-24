@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -226,10 +224,11 @@ export default function OrganizationV4Page() {
     allowedRanges: V4_TIME_RANGE_PRESETS,
     fallback: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   });
-  const canViewOrgV4Page = useHasOrganizationAccess({
-    organizationId,
-    scope: v4MigrationOrgScope,
-  });
+  const canViewOrgV4Page =
+    session.data?.user?.admin === true ||
+    session.data?.user?.organizations.some(
+      (organization) => organization.id === organizationId,
+    ) === true;
 
   const absoluteTimeRange = useMemo(() => {
     return getCappedAbsoluteTimeRange(timeRange);

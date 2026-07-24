@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { FilterCondition } from "../../../types";
+import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
 import { QueryBuilder } from "./queryBuilder";
 
@@ -36,6 +37,13 @@ const buildQueryWithFilter = (
   );
 
 describe("queryBuilder filter type validation", () => {
+  it("exposes only the typed Boolean score value as a dimension", () => {
+    const view = getViewDeclaration("scores-boolean", "v2");
+
+    expect(view.dimensions.booleanValue?.uiHidden).toBeUndefined();
+    expect(view.dimensions.value).toBeUndefined();
+  });
+
   it.each([
     {
       name: "arrayOptions on scalar string dimension",
@@ -72,6 +80,20 @@ describe("queryBuilder filter type validation", () => {
       },
       expectedMessage:
         "Filter type 'string' is not supported for dimension type 'number'",
+    },
+    {
+      name: "string on boolean score dimension",
+      filter: {
+        column: "booleanValue",
+        operator: "=",
+        value: "true",
+        type: "string",
+      },
+      queryOverrides: {
+        view: "scores-boolean",
+      },
+      expectedMessage:
+        "Filter type 'string' is not supported for dimension type 'boolean'",
     },
     {
       name: "string on time dimension",
@@ -130,5 +152,20 @@ describe("queryBuilder filter type validation", () => {
     const { query } = await buildQueryWithFilter(filter as FilterCondition);
 
     expect(query).toContain("has");
+  });
+
+  it("lowers a compatible boolean score filter to a Boolean SQL predicate", async () => {
+    const { query } = await buildQueryWithFilter(
+      {
+        column: "booleanValue",
+        operator: "=",
+        value: true,
+        type: "boolean",
+      },
+      { view: "scores-boolean" },
+    );
+
+    expect(query).toContain("toBool(scores_boolean.value) = {booleanFilter");
+    expect(query).toContain(": Boolean}");
   });
 });

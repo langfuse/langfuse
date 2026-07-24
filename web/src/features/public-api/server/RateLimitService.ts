@@ -337,6 +337,12 @@ const getPlanBasedRateLimitConfig = (
             points: 100,
             durationInSec: 86400,
           };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -429,6 +435,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 86400,
           };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -514,6 +526,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "in-app-agent-run",
             points: 1000,
             durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;

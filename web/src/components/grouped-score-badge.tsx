@@ -1,9 +1,11 @@
-import { Badge } from "@/src/components/ui/badge";
+import { useState } from "react";
+import { Badge, badgeVariants } from "@/src/components/ui/badge";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
+import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import {
   BracesIcon,
@@ -14,6 +16,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import Link from "next/link";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -53,13 +56,24 @@ const ScoreGroupBadge = <
   scores,
   compact,
   badgeClassName,
+  showLevels,
 }: {
   name: string;
   scores: T[];
   compact?: boolean;
   badgeClassName?: string;
+  /** Render this group's level tag(s). Set by GroupedScoreBadges only when
+   *  the whole selection mixes levels (LFE-10596). */
+  showLevels?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
+
+  // Score-level color coding (LFE-10596): one full tag per distinct level in
+  // the group (a name can exist at both trace and observation level). Full
+  // pill, not the compact dot — the level must be readable without hovering.
+  const levels = showLevels
+    ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
+    : [];
 
   return (
     <Badge
@@ -67,6 +81,9 @@ const ScoreGroupBadge = <
       key={name}
       className={`flex max-w-full min-w-0 items-center gap-1 ${compact ? "px-1.5 leading-tight" : "px-2.5"} text-xs font-normal${badgeClassName ? " " + badgeClassName : ""}`}
     >
+      {levels.map((level) => (
+        <ScoreTag key={level} level={level} />
+      ))}
       <div
         className={`w-fit max-w-20 shrink-0 truncate ${compact ? "leading-tight" : ""}`}
         title={name}
@@ -148,9 +165,31 @@ export const GroupedScoreBadges = <
     return acc;
   }, {});
 
+  // Level tags only when this selection MIXES levels (LFE-10596): a row whose
+  // scores all share one level (the common case — e.g. a span's own
+  // observation-level scores) needs no per-chip disambiguation; a mixed row
+  // (e.g. the root carrying trace-level and observation-level scores) tags
+  // each group so the levels are tellable apart.
+  const showLevels =
+    new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
+
+  // "+N" expands IN PLACE on click (hover still previews the hidden chips);
+  // the trailing "−" collapses back to the capped view.
+  const [expanded, setExpanded] = useState(false);
+  const overflows =
+    maxVisible !== undefined && Object.keys(groupedScores).length > maxVisible;
+
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    maxVisible,
+    expanded ? undefined : maxVisible,
+  );
+
+  const overflowButtonClassName = cn(
+    badgeVariants({ variant: "tertiary" }),
+    "cursor-pointer",
+    compact ? "px-0.5 py-0 leading-tight" : "px-1",
+    "text-xs font-bold",
+    badgeClassName,
   );
 
   return (
@@ -162,19 +201,31 @@ export const GroupedScoreBadges = <
           scores={scores}
           compact={compact}
           badgeClassName={badgeClassName}
+          showLevels={showLevels}
         />
       ))}
       {Boolean(hiddenScores.length) && (
         <HoverCard>
-          <HoverCardTrigger className="inline-block rounded-sm">
-            <Badge
-              className={`cursor-pointer ${compact ? "px-0.5 py-0 leading-tight" : "px-1"} text-xs font-bold${badgeClassName ? " " + badgeClassName : ""}`}
-              variant="tertiary"
+          <HoverCardTrigger asChild>
+            <button
+              type="button"
+              // aria-label, not title: a native tooltip would stack on top of
+              // the hover-card preview.
+              aria-label={`Show ${hiddenScores.length} more score${hiddenScores.length === 1 ? "" : "s"}`}
+              // Chips render inside clickable rows (tree nodes, table rows) —
+              // expanding must not also select/navigate the row.
+              onClick={(event) => {
+                event.stopPropagation();
+                setExpanded(true);
+              }}
+              className={overflowButtonClassName}
             >
               +{hiddenScores.length}
-            </Badge>
+            </button>
           </HoverCardTrigger>
-          <HoverCardContent className="max-h-[300px] max-w-[200px] overflow-y-auto p-2">
+          {/* w-max overrides the fixed w-64 base so the card adapts to its
+              chips; the cap makes long selections wrap instead of clipping. */}
+          <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
                 <ScoreGroupBadge
@@ -183,11 +234,26 @@ export const GroupedScoreBadges = <
                   scores={scores}
                   compact={compact}
                   badgeClassName={badgeClassName}
+                  showLevels={showLevels}
                 />
               ))}
             </div>
           </HoverCardContent>
         </HoverCard>
+      )}
+      {expanded && overflows && (
+        <button
+          type="button"
+          title="Show fewer scores"
+          aria-label="Show fewer scores"
+          onClick={(event) => {
+            event.stopPropagation();
+            setExpanded(false);
+          }}
+          className={overflowButtonClassName}
+        >
+          −
+        </button>
       )}
     </>
   );

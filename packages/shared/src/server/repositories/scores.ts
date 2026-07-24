@@ -11,6 +11,7 @@ import {
   ScoreDataTypeEnum,
 } from "../../domain/scores";
 import { InvalidRequestError, InternalServerError } from "../../errors";
+import { eventsTableIsRootObservationSql } from "../../eventsTable";
 import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/endpoints";
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
@@ -62,7 +63,6 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import { prisma } from "../../db";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 import {
   eventsTraceMetadata,
@@ -759,58 +759,53 @@ export async function queryScoreRecordsForExperimentItems({
     return [];
   }
 
-  return await measureAndReturn({
-    operationName: "queryScoreRecordsForExperimentItems",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        traceIds: uniqueTraceIds,
-        observationIds: uniqueObservationIds,
-        minStartTime: convertDateToClickhouseDateTime(min),
-        ...(toTimestamp
-          ? { maxStartTime: convertDateToClickhouseDateTime(toTimestamp) }
-          : {}),
-        scoreLimit,
-        dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
-      },
-      tags: {
-        projectId,
-        operation_name: "queryScoreRecordsForExperimentItems",
-      },
+  const input = {
+    params: {
+      projectId,
+      traceIds: uniqueTraceIds,
+      observationIds: uniqueObservationIds,
+      minStartTime: convertDateToClickhouseDateTime(min),
+      ...(toTimestamp
+        ? { maxStartTime: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
+      scoreLimit,
+      dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
     },
-    fn: async (input) =>
-      await queryClickhouse<ScoreRecordReadType>({
-        query: `
-          SELECT
-            ${scoreRecordReadSelect}
-          FROM (
-            SELECT
-              ${scoreRecordReadSelect}
-            FROM scores s
-            WHERE s.project_id = {projectId: String}
-              AND s.timestamp >= {minStartTime: DateTime64(3)}
-              ${toTimestamp ? "AND s.timestamp < {maxStartTime: DateTime64(3)}" : ""}
-              AND s.data_type IN ({dataTypes: Array(String)})
-              AND (
-                s.observation_id IN ({observationIds: Array(String)})
-                OR (
-                  s.trace_id IN ({traceIds: Array(String)})
-                  AND (s.observation_id IS NULL OR s.observation_id = '')
-                  AND s.session_id IS NULL
-                  AND s.dataset_run_id IS NULL
-                )
-              )
-            ORDER BY s.event_ts DESC
-            LIMIT 1 BY s.id
-          ) s
-          ORDER BY s.event_ts DESC
-          LIMIT {scoreLimit: UInt32} BY s.trace_id
-        `,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      }),
+    tags: {
+      projectId,
+      operation_name: "queryScoreRecordsForExperimentItems",
+    },
+  };
+  return await queryClickhouse<ScoreRecordReadType>({
+    query: `
+      SELECT
+        ${scoreRecordReadSelect}
+      FROM (
+        SELECT
+          ${scoreRecordReadSelect}
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+          AND s.timestamp >= {minStartTime: DateTime64(3)}
+          ${toTimestamp ? "AND s.timestamp < {maxStartTime: DateTime64(3)}" : ""}
+          AND s.data_type IN ({dataTypes: Array(String)})
+          AND (
+            s.observation_id IN ({observationIds: Array(String)})
+            OR (
+              s.trace_id IN ({traceIds: Array(String)})
+              AND (s.observation_id IS NULL OR s.observation_id = '')
+              AND s.session_id IS NULL
+              AND s.dataset_run_id IS NULL
+            )
+          )
+        ORDER BY s.event_ts DESC
+        LIMIT 1 BY s.id
+      ) s
+      ORDER BY s.event_ts DESC
+      LIMIT {scoreLimit: UInt32} BY s.trace_id
+    `,
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
 }
 
@@ -833,52 +828,47 @@ export async function queryScoreRecordsForExperiments({
     return [];
   }
 
-  return await measureAndReturn({
-    operationName: "queryScoreRecordsForExperiments",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        experimentIds: uniqueExperimentIds,
-        startTimeFrom: convertDateToClickhouseDateTime(fromTimestamp),
-        ...(toTimestamp
-          ? { startTimeTo: convertDateToClickhouseDateTime(toTimestamp) }
-          : {}),
-        scoreLimit,
-        dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
-      },
-      tags: {
-        projectId,
-        operation_name: "queryScoreRecordsForExperiments",
-      },
+  const input = {
+    params: {
+      projectId,
+      experimentIds: uniqueExperimentIds,
+      startTimeFrom: convertDateToClickhouseDateTime(fromTimestamp),
+      ...(toTimestamp
+        ? { startTimeTo: convertDateToClickhouseDateTime(toTimestamp) }
+        : {}),
+      scoreLimit,
+      dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
     },
-    fn: async (input) =>
-      await queryClickhouse<ScoreRecordReadType>({
-        query: `
-          SELECT
-            ${scoreRecordReadSelect}
-          FROM (
-            SELECT
-              ${scoreRecordReadSelect}
-            FROM scores s
-            WHERE s.project_id = {projectId: String}
-              AND s.timestamp >= {startTimeFrom: DateTime64(3)}
-              ${toTimestamp ? "AND s.timestamp < {startTimeTo: DateTime64(3)}" : ""}
-              AND s.dataset_run_id IN ({experimentIds: Array(String)})
-              AND s.data_type IN ({dataTypes: Array(String)})
-              AND s.trace_id IS NULL
-              AND s.observation_id IS NULL
-              AND s.session_id IS NULL
-            ORDER BY s.event_ts DESC
-            LIMIT 1 BY s.id
-          ) s
-          ORDER BY s.dataset_run_id ASC, s.event_ts DESC
-          LIMIT {scoreLimit: UInt32} BY s.dataset_run_id
-        `,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      }),
+    tags: {
+      projectId,
+      operation_name: "queryScoreRecordsForExperiments",
+    },
+  };
+  return await queryClickhouse<ScoreRecordReadType>({
+    query: `
+      SELECT
+        ${scoreRecordReadSelect}
+      FROM (
+        SELECT
+          ${scoreRecordReadSelect}
+        FROM scores s
+        WHERE s.project_id = {projectId: String}
+          AND s.timestamp >= {startTimeFrom: DateTime64(3)}
+          ${toTimestamp ? "AND s.timestamp < {startTimeTo: DateTime64(3)}" : ""}
+          AND s.dataset_run_id IN ({experimentIds: Array(String)})
+          AND s.data_type IN ({dataTypes: Array(String)})
+          AND s.trace_id IS NULL
+          AND s.observation_id IS NULL
+          AND s.session_id IS NULL
+        ORDER BY s.event_ts DESC
+        LIMIT 1 BY s.id
+      ) s
+      ORDER BY s.dataset_run_id ASC, s.event_ts DESC
+      LIMIT {scoreLimit: UInt32} BY s.dataset_run_id
+    `,
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
 }
 
@@ -1397,27 +1387,21 @@ const getScoresUiGeneric = async <T>(props: {
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  return measureAndReturn({
-    operationName: "getScoresUiGeneric",
-    projectId,
-    input: {
-      params: {
-        projectId: projectId,
-        dataTypes: LISTABLE_SCORE_TYPES,
-        ...(scoresFilterRes ? scoresFilterRes.params : {}),
-        limit: limit,
-        offset: offset,
-      },
-      tags: { ...(props.tags ?? {}), projectId },
+  const input = {
+    params: {
+      projectId: projectId,
+      dataTypes: LISTABLE_SCORE_TYPES,
+      ...(scoresFilterRes ? scoresFilterRes.params : {}),
+      limit: limit,
+      offset: offset,
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-    },
+    tags: { ...(props.tags ?? {}), projectId },
+  };
+  return queryClickhouse<T>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
   });
 };
 
@@ -1598,31 +1582,23 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
-  return measureAndReturn({
-    operationName: "getScoresUiGenericFromEvents",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        dataTypes: LISTABLE_SCORE_TYPES,
-        ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
-        ...tracesCTEParams,
-        limit,
-        offset,
-      },
-      tags: { ...(props.tags ?? {}), projectId },
+  const input = {
+    params: {
+      projectId,
+      dataTypes: LISTABLE_SCORE_TYPES,
+      ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+      ...tracesCTEParams,
+      limit,
+      offset,
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-        preferredClickhouseService: needsTracesCTE
-          ? "EventsReadOnly"
-          : "ReadOnly",
-      });
-    },
+    tags: { ...(props.tags ?? {}), projectId },
+  };
+  return queryClickhouse<T>({
+    query,
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
+    preferredClickhouseService: needsTracesCTE ? "EventsReadOnly" : "ReadOnly",
   });
 };
 
@@ -1950,24 +1926,18 @@ export const getNumericScoreHistogram = async (
     ${limit !== undefined ? `limit {limit: Int32}` : ""}
   `;
 
-  return measureAndReturn({
-    operationName: "getNumericScoreHistogram",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        limit,
-        ...(chFilterRes ? chFilterRes.params : {}),
-      },
-      tags: { projectId },
+  const input = {
+    params: {
+      projectId,
+      limit,
+      ...(chFilterRes ? chFilterRes.params : {}),
     },
-    fn: async (input) => {
-      return queryClickhouse<{ value: number }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
+    tags: { projectId },
+  };
+  return queryClickhouse<{ value: number }>({
+    query,
+    params: input.params,
+    tags: input.tags,
   });
 };
 
@@ -2377,19 +2347,23 @@ export const getScoresForBlobStorageExportParquet = function (
   });
 };
 
-export const getScoresForAnalyticsIntegrations = async function* (
+/**
+ * Trace-attribute CTE for analytics-integration score exports. Pre-filters
+ * traces so the trace timestamp window prunes partitions directly, instead of
+ * living in an OR clause after the LEFT JOIN where the planner cannot push it
+ * down. Subtracts 7d from minTimestamp to keep scores whose trace was created
+ * before the score window started.
+ *
+ * Schema contract with the consuming query in
+ * getScoresForAnalyticsIntegrations: project_id, id, name, session_id,
+ * user_id, release, tags, posthog_session_id, mixpanel_session_id.
+ */
+const buildAnalyticsScoreTraceAttributesCte = (
   projectId: string,
-  projectName: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  options: { useGraceHash?: boolean } = {},
-) {
-  // Pre-filter traces in a CTE so the trace timestamp window prunes partitions
-  // directly, instead of living in an OR clause after the LEFT JOIN where the
-  // planner cannot push it down. Subtract 7d from minTimestamp to keep scores
-  // whose trace was created before the score window started.
-  const query = `
-    WITH selected_traces AS (
+): { query: string; params: Record<string, unknown> } => ({
+  query: `
       SELECT
         t.project_id as project_id,
         t.id as id,
@@ -2403,7 +2377,84 @@ export const getScoresForAnalyticsIntegrations = async function* (
       FROM traces t FINAL
       WHERE t.project_id = {projectId: String}
       AND t.timestamp >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
-      AND t.timestamp <= {maxTimestamp: DateTime64(3)}
+      AND t.timestamp <= {maxTimestamp: DateTime64(3)}`,
+  params: {
+    projectId,
+    minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+  },
+});
+
+// Same schema rebuilt from events_core for deployments that no longer write
+// the legacy traces table (write mode events_only). The 7d start_time
+// lookback mirrors the legacy CTE so delayed scores stay enriched.
+//
+// Hand-written rather than eventsTracesAggregation: aggregating only
+// root-span rows keeps the GROUP BY state ~one row per trace (the full-span
+// aggregation OOMed the largest tenants), and the field expressions carry
+// the parity fixes byte-verified against prod dual-write data in the
+// LFE-14383 benchmark — NULL semantics via nullIf, trace-name fallback
+// strictly from parent_span_id = '' rows, tags as sorted union across
+// writes, release latest-write-wins, metadata keys via indexOf instead of
+// per-row map construction. eventsTracesAggregation lacks all five
+// (tracked in LFE-11009).
+const buildAnalyticsScoreTraceAttributesFromEventsCte = (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+): { query: string; params: Record<string, unknown> } => ({
+  query: `
+      SELECT
+        e.project_id as project_id,
+        e.trace_id as id,
+        coalesce(nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name <> ''), ''), nullIf(argMaxIf(e.name, e.event_ts, e.parent_span_id = '' AND e.name <> ''), ''), '') as name,
+        nullIf(argMaxIf(e.session_id, e.event_ts, e.session_id <> ''), '') as session_id,
+        nullIf(argMaxIf(e.user_id, e.event_ts, e.user_id <> ''), '') as user_id,
+        nullIf(argMax(e.release, e.event_ts), '') as release,
+        arraySort(groupUniqArrayArrayIf(e.tags, notEmpty(e.tags))) as tags,
+        argMax(e.metadata_values[indexOf(e.metadata_names, '$posthog_session_id')], e.event_ts) as posthog_session_id,
+        argMax(e.metadata_values[indexOf(e.metadata_names, '$mixpanel_session_id')], e.event_ts) as mixpanel_session_id
+      FROM events_core e
+      WHERE e.project_id = {projectId: String}
+      AND e.start_time >= {minTimestamp: DateTime64(3)} - INTERVAL 7 DAY
+      AND e.start_time <= {maxTimestamp: DateTime64(3)}
+      AND e.is_deleted = 0
+      AND ${eventsTableIsRootObservationSql}
+      GROUP BY e.project_id, e.trace_id`,
+  params: {
+    projectId,
+    minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
+    maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
+  },
+});
+
+export const getScoresForAnalyticsIntegrations = async function* (
+  projectId: string,
+  projectName: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  options: {
+    useGraceHash?: boolean;
+    /** Pass "events" when the deployment no longer writes the traces table. */
+    traceAttributesSource?: "traces" | "events";
+  } = {},
+) {
+  const traceAttributesSource = options.traceAttributesSource ?? "traces";
+  const selectedTraces =
+    traceAttributesSource === "events"
+      ? buildAnalyticsScoreTraceAttributesFromEventsCte(
+          projectId,
+          minTimestamp,
+          maxTimestamp,
+        )
+      : buildAnalyticsScoreTraceAttributesCte(
+          projectId,
+          minTimestamp,
+          maxTimestamp,
+        );
+
+  const query = `
+    WITH selected_traces AS (${selectedTraces.query}
     )
 
     SELECT
@@ -2448,7 +2499,11 @@ export const getScoresForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
       dataTypes: LISTABLE_SCORE_TYPES,
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
+    ...(traceAttributesSource === "events"
+      ? { preferredClickhouseService: "EventsReadOnly" as const }
+      : {}),
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash
@@ -2759,54 +2814,48 @@ export const _handleGenerateScoresForPublicApi = async ({
       ${pagination !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
 
-  return measureAndReturn({
-    operationName: "_handleGenerateScoresForPublicApi",
-    projectId,
-    input: {
-      params: {
-        ...appliedScoresFilter.params,
-        ...appliedTracesFilter.params,
-        projectId,
-        ...(pagination !== undefined
-          ? {
-              limit: pagination.limit,
-              offset: (pagination.page - 1) * pagination.limit,
-            }
-          : {}),
-      },
-      tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
+  const input = {
+    params: {
+      ...appliedScoresFilter.params,
+      ...appliedTracesFilter.params,
+      projectId,
+      ...(pagination !== undefined
+        ? {
+            limit: pagination.limit,
+            offset: (pagination.page - 1) * pagination.limit,
+          }
+        : {}),
     },
-    fn: async (input) => {
-      const records = await queryClickhouse<
-        ScoreRecordReadType & {
-          tags?: string[];
-          user_id?: string;
-          trace_environment?: string;
-          trace_session_id?: string | null;
-        }
-      >({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
+    tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
+  };
+  const records = await queryClickhouse<
+    ScoreRecordReadType & {
+      tags?: string[];
+      user_id?: string;
+      trace_environment?: string;
+      trace_session_id?: string | null;
+    }
+  >({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
+  });
 
-      return records.map((record) => {
-        const domainScore = convertClickhouseScoreToDomain(record);
-        return {
-          ...domainScore,
-          trace:
-            includeTrace && record.trace_id !== null
-              ? {
-                  userId: record.user_id,
-                  tags: record.tags,
-                  environment: record.trace_environment,
-                  sessionId: record.trace_session_id,
-                }
-              : null,
-        };
-      });
-    },
+  return records.map((record) => {
+    const domainScore = convertClickhouseScoreToDomain(record);
+    return {
+      ...domainScore,
+      trace:
+        includeTrace && record.trace_id !== null
+          ? {
+              userId: record.user_id,
+              tags: record.tags,
+              environment: record.trace_environment,
+              sessionId: record.trace_session_id,
+            }
+          : null,
+    };
   });
 };
 
@@ -2858,27 +2907,21 @@ export const _handleGetScoresCountForPublicApi = async ({
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
       `;
 
-  return measureAndReturn({
-    operationName: "_handleGetScoresCountForPublicApi",
-    projectId,
-    input: {
-      params: {
-        ...appliedScoresFilter.params,
-        ...appliedTracesFilter.params,
-        projectId,
-      },
-      tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
+  const input = {
+    params: {
+      ...appliedScoresFilter.params,
+      ...appliedTracesFilter.params,
+      projectId,
     },
-    fn: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
+    tags: { projectId, ...(apiVersion ? { api_version: apiVersion } : {}) },
+  };
+  const records = await queryClickhouse<{ count: string }>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
+  return records.map((record) => Number(record.count)).shift();
 };
 
 // ─── v3 public-API score query helpers ────────────────────────────────────────
@@ -3239,76 +3282,68 @@ export async function listScoresV3ForPublicApi(
   const { query: filterClause, params: filterParams } =
     buildDynamicFilters(params);
 
-  return measureAndReturn({
-    operationName: "listScoresV3ForPublicApi",
-    projectId: params.projectId,
-    input: {
-      params: {
-        projectId: params.projectId,
-        limit: params.limit + 1,
-        ...(params.cursor && {
-          lastTimestamp: convertDateToClickhouseDateTime(
-            params.cursor.lastTimestamp,
-          ),
-          lastId: params.cursor.lastId,
-        }),
-        ...filterParams,
-      },
-      tags: { projectId: params.projectId },
-    },
-    fn: async (input) => {
-      const records = await queryClickhouse<ScoreRecordReadType>({
-        query: buildV3ListQuery(
-          Boolean(params.cursor),
-          params.fields,
-          filterClause,
+  const input = {
+    params: {
+      projectId: params.projectId,
+      limit: params.limit + 1,
+      ...(params.cursor && {
+        lastTimestamp: convertDateToClickhouseDateTime(
+          params.cursor.lastTimestamp,
         ),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-
-      const hasMore = records.length > params.limit;
-      const pageRecords = hasMore ? records.slice(0, params.limit) : records;
-
-      let nextCursor: string | undefined;
-      if (hasMore && pageRecords.length > 0) {
-        const last = pageRecords[pageRecords.length - 1];
-        nextCursor = encodeCursorV3({
-          v: 1,
-          lastTimestamp: parseClickhouseUTCDateTimeFormat(
-            String(last.timestamp),
-          ),
-          lastId: last.id,
-        });
-      }
-
-      const items: APIScoreV3[] = [];
-      for (const row of pageRecords) {
-        try {
-          items.push(
-            scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
-          );
-        } catch (error) {
-          logger.error("v3 score row dropped from response: conversion error", {
-            error,
-            scoreId: row.id,
-            projectId: params.projectId,
-          });
-        }
-      }
-      return {
-        data: filterAndValidateV3GetScoreList(items, (error) => {
-          logger.error(
-            "v3 score row dropped from response: schema validation error",
-            {
-              issues: error.issues,
-              projectId: params.projectId,
-            },
-          );
-        }),
-        cursor: nextCursor,
-      };
+        lastId: params.cursor.lastId,
+      }),
+      ...filterParams,
     },
+    tags: { projectId: params.projectId },
+  };
+  const records = await queryClickhouse<ScoreRecordReadType>({
+    query: buildV3ListQuery(
+      Boolean(params.cursor),
+      params.fields,
+      filterClause,
+    ),
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
+
+  const hasMore = records.length > params.limit;
+  const pageRecords = hasMore ? records.slice(0, params.limit) : records;
+
+  let nextCursor: string | undefined;
+  if (hasMore && pageRecords.length > 0) {
+    const last = pageRecords[pageRecords.length - 1];
+    nextCursor = encodeCursorV3({
+      v: 1,
+      lastTimestamp: parseClickhouseUTCDateTimeFormat(String(last.timestamp)),
+      lastId: last.id,
+    });
+  }
+
+  const items: APIScoreV3[] = [];
+  for (const row of pageRecords) {
+    try {
+      items.push(
+        scoreDomainToV3(convertClickhouseScoreToDomain(row), params.fields),
+      );
+    } catch (error) {
+      logger.error("v3 score row dropped from response: conversion error", {
+        error,
+        scoreId: row.id,
+        projectId: params.projectId,
+      });
+    }
+  }
+  return {
+    data: filterAndValidateV3GetScoreList(items, (error) => {
+      logger.error(
+        "v3 score row dropped from response: schema validation error",
+        {
+          issues: error.issues,
+          projectId: params.projectId,
+        },
+      );
+    }),
+    cursor: nextCursor,
+  };
 }

@@ -6,7 +6,6 @@ import { sessionsViewCols } from "../../tableDefinitions/sessionsView";
 import { findUiColumnMapping } from "../../tableDefinitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DateTimeFilter, FilterList, orderByToClickhouseSql } from "../queries";
 import {
   getProjectIdDefaultFilter,
@@ -379,34 +378,29 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
         `;
 
-  return measureAndReturn({
-    operationName: "getSessionsTableGeneric",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        limit: limit,
-        offset: limit && page ? limit * page : 0,
-        ...tracesFilterRes.params,
-        ...singleTraceFilter?.params,
-        ...scoresFilterRes.params,
-        ...(traceTimestampFilter
-          ? {
-              observationsStartTime: convertDateToClickhouseDateTime(
-                traceTimestampFilter.value,
-              ),
-            }
-          : {}),
-      },
-      tags: { ...(props.tags ?? {}), projectId },
+  const input = {
+    params: {
+      projectId,
+      limit: limit,
+      offset: limit && page ? limit * page : 0,
+      ...tracesFilterRes.params,
+      ...singleTraceFilter?.params,
+      ...scoresFilterRes.params,
+      ...(traceTimestampFilter
+        ? {
+            observationsStartTime: convertDateToClickhouseDateTime(
+              traceTimestampFilter.value,
+            ),
+          }
+        : {}),
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-    },
+    tags: { ...(props.tags ?? {}), projectId },
+  };
+
+  return queryClickhouse<T>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
   });
 };

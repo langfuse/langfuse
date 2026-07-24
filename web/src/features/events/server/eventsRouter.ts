@@ -41,7 +41,7 @@ import {
 } from "@/src/features/trace-graph-view/types";
 import type * as opentelemetry from "@opentelemetry/api";
 
-const GetAllEventsInput = EventsTableOptions.extend({
+const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
 });
 

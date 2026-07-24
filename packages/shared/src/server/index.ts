@@ -5,6 +5,7 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
+export * from "./media";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
 export * from "./cache";
@@ -149,7 +150,6 @@ export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";
 export * from "./services/blockEvaluatorConfigs";
 export * from "./services/getProjectAdminEmails";
-export * from "./clickhouse/measureAndReturn";
 export * from "./services/SlackService";
 export * from "./services/buildColoredAttachmentSlackMessage";
 export * from "./tableMappings";

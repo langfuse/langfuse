@@ -1,0 +1,328 @@
+- generic [active] [ref=f43e1]:
+  - generic [ref=f43e5]:
+    - generic [ref=f43e9]:
+      - generic [ref=f43e13]:
+        - link [ref=f43e250] [cursor=pointer]:
+          - /url: /
+          - img "Langfuse Logo" [ref=f43e252]
+        - button "v3.222.0" [ref=f43e14] [cursor=pointer]
+      - generic [ref=f43e16]:
+        - list [ref=f43e19]:
+          - listitem [ref=f43e20]:
+            - button "Go to... ⌘ K" [ref=f43e21] [cursor=pointer]:
+              - text: Go to...
+              - generic:
+                - generic: ⌘
+                - generic: K
+          - listitem [ref=f43e25]:
+            - link "Home" [ref=f43e26] [cursor=pointer]:
+              - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a
+          - listitem [ref=f43e31]:
+            - link "Dashboards" [ref=f43e32] [cursor=pointer]:
+              - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/dashboards
+        - generic [ref=f43e39]:
+          - generic [ref=f43e40]: Observability
+          - list [ref=f43e42]:
+            - listitem [ref=f43e43]:
+              - link "Tracing" [ref=f43e44] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/traces
+            - listitem [ref=f43e49]:
+              - link "Sessions" [ref=f43e50] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/sessions
+            - listitem [ref=f43e55]:
+              - link "Users" [ref=f43e56] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/users
+            - listitem [ref=f43e63]:
+              - link "Monitors" [ref=f43e64] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/monitors
+        - generic [ref=f43e71]:
+          - generic [ref=f43e72]: Prompt Management
+          - list [ref=f43e74]:
+            - listitem [ref=f43e75]:
+              - link "Prompts" [ref=f43e76] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/prompts
+            - listitem [ref=f43e83]:
+              - link "Playground" [ref=f43e84] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/playground
+        - generic [ref=f43e88]:
+          - generic [ref=f43e89]: Evaluation
+          - list [ref=f43e91]:
+            - listitem [ref=f43e92]:
+              - link "Scores" [ref=f43e93] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/scores
+            - listitem [ref=f43e98]:
+              - link "Evaluators" [ref=f43e99] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/evals
+            - listitem [ref=f43e103]:
+              - link "Human Annotation" [ref=f43e104] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/annotation-queues
+            - listitem [ref=f43e111]:
+              - link "Datasets" [ref=f43e112] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/datasets
+            - listitem [ref=f43e118]:
+              - link "Experiments" [ref=f43e119] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/experiments
+        - generic [ref=f43e126]:
+          - button "Dismiss" [ref=f43e127] [cursor=pointer]
+          - generic [ref=f43e131]:
+            - heading "Star Langfuse" [level=3] [ref=f43e132]
+            - generic [ref=f43e133]: See the latest releases and help grow the community on GitHub
+          - link [ref=f43e253] [cursor=pointer]:
+            - /url: https://github.com/langfuse/langfuse
+            - img "Langfuse GitHub stars" [ref=f43e254]
+        - list [ref=f43e137]:
+          - listitem
+          - listitem [ref=f43e138]:
+            - generic [ref=f43e139]:
+              - generic "Fast (Preview)" [ref=f43e143] [cursor=pointer]
+              - switch "Toggle Preview (fast)" [checked] [ref=f43e145] [cursor=pointer]
+              - generic [ref=f43e146]: Get a more performant Langfuse experience. Upgrade SDKs to the latest major for real-time data. This is a personal setting.
+          - listitem [ref=f43e147]:
+            - link "Settings" [ref=f43e148] [cursor=pointer]:
+              - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/settings
+          - listitem [ref=f43e153]:
+            - link "Book a call" [ref=f43e154] [cursor=pointer]:
+              - /url: https://cal.com/team/langfuse/welcome-to-langfuse
+          - listitem [ref=f43e157]:
+            - button "Support" [ref=f43e158] [cursor=pointer]
+      - list [ref=f43e167]:
+        - listitem [ref=f43e168]:
+          - button "Demo User Demo User demo@langfuse.com" [ref=f43e255] [cursor=pointer]:
+            - img "Demo User" [ref=f43e256]
+            - generic [ref=f43e172]:
+              - generic "Demo User" [ref=f43e173]
+              - generic "demo@langfuse.com" [ref=f43e174]
+      - button "Toggle Sidebar" [ref=f43e178] [cursor=pointer]
+    - main [ref=f43e179]:
+      - generic [ref=f43e257]:
+        - generic [ref=f43e260]:
+          - generic [ref=f43e262]:
+            - generic [ref=f43e263]:
+              - button "Toggle Sidebar" [ref=f43e264] [cursor=pointer]
+              - generic [ref=f43e268]: DEV
+              - navigation "breadcrumb" [ref=f43e271]:
+                - list [ref=f43e272]:
+                  - button "Seed Org Team" [ref=f43e273] [cursor=pointer]:
+                    - text: Seed Org
+                    - generic [ref=f43e274]: Team
+                  - listitem [ref=f43e277]
+                  - button "llm-app" [ref=f43e280] [cursor=pointer]
+                  - listitem [ref=f43e283]
+                  - listitem [ref=f43e286]:
+                    - link "Sessions" [ref=f43e287] [cursor=pointer]:
+                      - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/sessions
+            - button "Open assistant" [ref=f43e289] [cursor=pointer]:
+              - generic [ref=f43e293]: Assistant
+              - generic:
+                - generic: ⌘
+                - generic: I
+          - generic [ref=f43e295]:
+            - generic [ref=f43e297]:
+              - generic [ref=f43e298]: session
+              - heading "session-shapes-s42-chat" [level=2] [ref=f43e300]
+            - generic [ref=f43e301]:
+              - button "Add comment" [ref=f43e302] [cursor=pointer]
+              - generic [ref=f43e307]:
+                - button "Annotate" [ref=f43e308] [cursor=pointer]
+                - button [ref=f43e313] [cursor=pointer]
+              - button "Session actions" [ref=f43e317] [cursor=pointer]
+        - main [ref=f43e322]:
+          - generic [ref=f43e323]:
+            - generic [ref=f43e324]:
+              - generic [ref=f43e325]:
+                - generic [ref=f43e326]: 8 traces
+                - generic [ref=f43e327]: ·
+                - generic [ref=f43e328]: 16 spans
+              - generic [ref=f43e329]:
+                - generic [ref=f43e330]: p50 2.05s
+                - generic [ref=f43e331]: ·
+                - generic [ref=f43e332]: p95 2.50s
+              - generic [ref=f43e334]:
+                - text: tokens
+                - generic [ref=f43e335]: 5,606 → 1,590 (Σ 7,196)
+              - generic "exact $0.020752" [ref=f43e336]: cost $0.021
+              - generic "session-quality" [ref=f43e338]: "0.49"
+              - generic [ref=f43e342]: env default
+              - link "user user-session-shapes-s42" [ref=f43e344] [cursor=pointer]:
+                - /url: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/users/user-session-shapes-s42
+                - text: user
+                - generic "user-session-shapes-s42" [ref=f43e345]
+              - generic [ref=f43e349]:
+                - generic [ref=f43e350]: generations
+                - generic [ref=f43e351]:
+                  - button "all" [pressed] [ref=f43e352] [cursor=pointer]
+                  - button "first" [ref=f43e353] [cursor=pointer]
+                  - button "last" [ref=f43e354] [cursor=pointer]
+            - generic [ref=f43e355]:
+              - complementary "Session spans" [ref=f43e356]:
+                - generic [ref=f43e357]:
+                  - generic [ref=f43e358]:
+                    - text: Traces
+                    - generic [ref=f43e359]: · 8
+                  - generic "16 spans" [ref=f43e360]
+                - generic [ref=f43e361]:
+                  - textbox "Search spans" [ref=f43e366]
+                  - button "Filter by span type" [ref=f43e367] [cursor=pointer]
+                  - button "Collapse span list" [ref=f43e370] [cursor=pointer]
+                - generic [ref=f43e375]:
+                  - generic [ref=f43e378]:
+                    - button "Collapse turn 1 chat-turn Open Trace View p44" [ref=f43e379] [cursor=pointer]:
+                      - button "Collapse turn" [ref=f43e380]
+                      - generic [ref=f43e383]: "1"
+                      - generic "chat-turn" [ref=f43e384]
+                      - button "Open Trace View" [ref=f43e385]
+                      - generic [ref=f43e390]: p44
+                    - generic [ref=f43e391]:
+                      - button "assistant-turn 1.93s" [ref=f43e392] [cursor=pointer]:
+                        - generic "assistant-turn" [ref=f43e396]
+                        - generic [ref=f43e397]: 1.93s
+                      - button "gpt-4o-completion 1.84s" [ref=f43e398] [cursor=pointer]:
+                        - generic "gpt-4o-completion" [ref=f43e401]
+                        - generic [ref=f43e402]: 1.84s
+                  - generic [ref=f43e403]:
+                    - generic [ref=f43e404]: +6 min idle
+                    - generic [ref=f43e407]:
+                      - button "Collapse turn 2 chat-turn Open Trace View p6" [ref=f43e408] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e409]
+                        - generic [ref=f43e412]: "2"
+                        - generic "chat-turn" [ref=f43e413]
+                        - button "Open Trace View" [ref=f43e414]
+                        - generic [ref=f43e419]: p6
+                      - generic [ref=f43e420]:
+                        - button "assistant-turn 1.13s" [ref=f43e421] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e425]
+                          - generic [ref=f43e426]: 1.13s
+                        - button "gpt-4o-completion 1.03s" [ref=f43e427] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e430]
+                          - generic [ref=f43e431]: 1.03s
+                  - generic [ref=f43e432]:
+                    - generic [ref=f43e433]: +6 min idle
+                    - generic [ref=f43e436]:
+                      - button "Collapse turn 3 chat-turn Open Trace View p94" [ref=f43e437] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e438]
+                        - generic [ref=f43e441]: "3"
+                        - generic "chat-turn" [ref=f43e442]
+                        - button "Open Trace View" [ref=f43e443]
+                        - generic [ref=f43e448]: p94
+                      - generic [ref=f43e449]:
+                        - button "assistant-turn 2.48s" [ref=f43e450] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e454]
+                          - generic [ref=f43e455]: 2.48s
+                        - button "gpt-4o-completion 2.35s" [ref=f43e456] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e459]
+                          - generic [ref=f43e460]: 2.35s
+                  - generic [ref=f43e461]:
+                    - generic [ref=f43e462]: +6 min idle
+                    - generic [ref=f43e465]:
+                      - button "Collapse turn 4 chat-turn Open Trace View p69" [ref=f43e466] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e467]
+                        - generic [ref=f43e470]: "4"
+                        - generic "chat-turn" [ref=f43e471]
+                        - button "Open Trace View" [ref=f43e472]
+                        - generic [ref=f43e477]: p69
+                      - generic [ref=f43e478]:
+                        - button "assistant-turn 2.19s" [ref=f43e479] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e483]
+                          - generic [ref=f43e484]: 2.19s
+                        - button "gpt-4o-completion 2.12s" [ref=f43e485] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e488]
+                          - generic [ref=f43e489]: 2.12s
+                  - generic [ref=f43e490]:
+                    - generic [ref=f43e491]: +6 min idle
+                    - generic [ref=f43e494]:
+                      - button "Collapse turn 5 chat-turn Open Trace View p56" [ref=f43e495] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e496]
+                        - generic [ref=f43e499]: "5"
+                        - generic "chat-turn" [ref=f43e500]
+                        - button "Open Trace View" [ref=f43e501]
+                        - generic [ref=f43e506]: p56
+                      - generic [ref=f43e507]:
+                        - button "assistant-turn 2.10s" [ref=f43e508] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e512]
+                          - generic [ref=f43e513]: 2.10s
+                        - button "gpt-4o-completion 2.00s" [ref=f43e514] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e517]
+                          - generic [ref=f43e518]: 2.00s
+                  - generic [ref=f43e519]:
+                    - generic [ref=f43e520]: +6 min idle
+                    - generic [ref=f43e523]:
+                      - button "Collapse turn 6 chat-turn Open Trace View p81" [ref=f43e524] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e525]
+                        - generic [ref=f43e528]: "6"
+                        - generic "chat-turn" [ref=f43e529]
+                        - button "Open Trace View" [ref=f43e530]
+                        - generic [ref=f43e535]: p81
+                      - generic [ref=f43e536]:
+                        - button "assistant-turn 2.41s" [ref=f43e537] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e541]
+                          - generic [ref=f43e542]: 2.41s
+                        - button "gpt-4o-completion 2.29s" [ref=f43e543] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e546]
+                          - generic [ref=f43e547]: 2.29s
+                  - generic [ref=f43e548]:
+                    - generic [ref=f43e549]: +6 min idle
+                    - generic [ref=f43e552]:
+                      - button "Collapse turn 7 chat-turn Open Trace View p19" [ref=f43e553] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e554]
+                        - generic [ref=f43e557]: "7"
+                        - generic "chat-turn" [ref=f43e558]
+                        - button "Open Trace View" [ref=f43e559]
+                        - generic [ref=f43e564]: p19
+                      - generic [ref=f43e565]:
+                        - button "assistant-turn 1.34s" [ref=f43e566] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e570]
+                          - generic [ref=f43e571]: 1.34s
+                        - button "gpt-4o-completion 1.21s" [ref=f43e572] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e575]
+                          - generic [ref=f43e576]: 1.21s
+                  - generic [ref=f43e577]:
+                    - generic [ref=f43e578]: +6 min idle
+                    - generic [ref=f43e581]:
+                      - button "Collapse turn 8 chat-turn Open Trace View p31" [ref=f43e582] [cursor=pointer]:
+                        - button "Collapse turn" [ref=f43e583]
+                        - generic [ref=f43e586]: "8"
+                        - generic "chat-turn" [ref=f43e587]
+                        - button "Open Trace View" [ref=f43e588]
+                        - generic [ref=f43e593]: p31
+                      - generic [ref=f43e594]:
+                        - button "assistant-turn 1.79s" [ref=f43e595] [cursor=pointer]:
+                          - generic "assistant-turn" [ref=f43e599]
+                          - generic [ref=f43e600]: 1.79s
+                        - button "gpt-4o-completion 1.71s" [ref=f43e601] [cursor=pointer]:
+                          - generic "gpt-4o-completion" [ref=f43e604]
+                          - generic [ref=f43e605]: 1.71s
+              - generic [ref=f43e608]:
+                - generic [ref=f43e613]:
+                  - button "Turn 1" [ref=f43e615] [cursor=pointer]
+                  - generic [ref=f43e618]:
+                    - 'button "Hi! How do I get a refund for order #4821? It arrived damaged." [ref=f43e620] [cursor=pointer]'
+                    - generic [ref=f43e622] [cursor=pointer]:
+                      - paragraph [ref=f43e626]: "I'm sorry to hear that. I can start a refund for order #4821 right away — refunds for damaged items are processed within 5 business days to your original payment method. Would you like a replacement shipped instead?"
+                      - generic [ref=f43e627]:
+                        - generic "gpt-4o-completion" [ref=f43e630]
+                        - generic [ref=f43e631]: · 1.84s · $0.0044
+                - generic [ref=f43e638]:
+                  - generic [ref=f43e639]: +6 min idle
+                  - button "Turn 2" [ref=f43e642] [cursor=pointer]
+                  - generic [ref=f43e645]:
+                    - button "A refund is fine. Do I need to send the damaged item back?" [ref=f43e647] [cursor=pointer]
+                    - generic [ref=f43e649] [cursor=pointer]:
+                      - paragraph [ref=f43e653]: No need to return it for a damaged-on-arrival item. I've issued the refund and emailed you the confirmation. Is there anything else I can help with?
+                      - generic [ref=f43e654]:
+                        - generic "gpt-4o-completion" [ref=f43e657]
+                        - generic [ref=f43e658]: · 1.03s · $0.0032
+                - generic [ref=f43e665]:
+                  - generic [ref=f43e666]: +6 min idle
+                  - button "Turn 3" [ref=f43e669] [cursor=pointer]
+                  - generic [ref=f43e672]:
+                    - button "Can you also update the shipping address on my account?" [ref=f43e674] [cursor=pointer]
+                    - generic [ref=f43e676] [cursor=pointer]:
+                      - paragraph [ref=f43e680]: Of course. I've opened the address form — please share the new street, city, and postal code and I'll update it on your profile.
+                      - generic [ref=f43e681]:
+                        - generic "gpt-4o-completion" [ref=f43e684]
+                        - generic [ref=f43e685]: · 2.35s · $0.0029
+  - generic:
+    - generic:
+      - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f43e245] [cursor=pointer]
+  - alert [ref=f43e249]: /project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/sessions/session-shapes-s42-chat

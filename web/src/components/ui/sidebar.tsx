@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/router";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "lucide-react";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -68,6 +69,7 @@ const SidebarProvider = React.forwardRef<
     ref,
   ) => {
     const isMobile = useIsMobile();
+    const router = useRouter();
     const [openMobile, setOpenMobile] = React.useState(false);
 
     // Use local storage to persist sidebar state
@@ -114,6 +116,18 @@ const SidebarProvider = React.forwardRef<
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [toggleSidebar]);
+
+    // Close the mobile drawer as soon as a navigation starts. The drawer is a
+    // full-screen overlay Sheet on mobile; without this it stays open on top of
+    // the destination after tapping a nav link or switching project/org (the
+    // Next.js router does shallow client transitions, so the component never
+    // unmounts to reset `openMobile`). Subscribing to router events is a genuine
+    // external-system effect. No-op on desktop, where `openMobile` is unused.
+    React.useEffect(() => {
+      const closeDrawer = () => setOpenMobile(false);
+      router.events.on("routeChangeStart", closeDrawer);
+      return () => router.events.off("routeChangeStart", closeDrawer);
+    }, [router.events]);
 
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
@@ -289,14 +303,20 @@ const SidebarTrigger = React.forwardRef<
       data-sidebar="trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-5 w-5", className)}
+      // A real hamburger tap target on mobile (where it opens the off-canvas
+      // nav sheet); compact on desktop where it's just a panel-collapse toggle
+      // next to the docked sidebar.
+      className={cn("h-9 w-9 md:h-5 md:w-5", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
       {...props}
     >
-      <PanelLeft />
+      {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
+          desktop (toggles the docked sidebar). */}
+      <Menu className="size-5 md:hidden" />
+      <PanelLeft className="hidden md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );

@@ -16,15 +16,23 @@ import {
   createScoresCh,
   createTraceScore,
   queryClickhouse,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
 
 const integrationHooks = vi.hoisted(() => ({
   failExactEnrichmentForProjectId: null as string | null,
+  failExactEnrichmentOnReadOnly: true,
+  omitExactEnrichmentForProjectId: null as string | null,
   failCandidateStreamAfterFirstRow: false,
   activeCandidateStreams: 0,
   candidateHttpTimeouts: [] as Array<{ send: number; receive: number }>,
+  exactEnrichmentRequests: [] as Array<{
+    projectIds: string[];
+    preferredClickhouseService: string | undefined;
+    requestTimeout: number | undefined;
+  }>,
   gaugeCalls: [] as Array<[stat: string, value: number | undefined]>,
   incrementCalls: [] as Array<[stat: string, value: number | undefined]>,
 }));
@@ -39,17 +47,36 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       opts: Parameters<typeof actual.queryClickhouse>[0],
     ) => {
       const candidateProjectIds = opts.params?.candidateProjectIds;
+      if (!opts.query.includes("AS oldest_timestamp")) {
+        return actual.queryClickhouse<T>(opts);
+      }
+
+      integrationHooks.exactEnrichmentRequests.push({
+        projectIds: Array.isArray(candidateProjectIds)
+          ? candidateProjectIds.map(String)
+          : [],
+        preferredClickhouseService: opts.preferredClickhouseService,
+        requestTimeout: opts.clickhouseConfigs?.request_timeout,
+      });
       if (
-        opts.query.includes("AS oldest_timestamp") &&
         integrationHooks.failExactEnrichmentForProjectId !== null &&
         Array.isArray(candidateProjectIds) &&
         candidateProjectIds.includes(
           integrationHooks.failExactEnrichmentForProjectId,
-        )
+        ) &&
+        (opts.preferredClickhouseService === undefined ||
+          integrationHooks.failExactEnrichmentOnReadOnly)
       ) {
         throw new Error("forced exact enrichment failure");
       }
-      return actual.queryClickhouse<T>(opts);
+      const result = await actual.queryClickhouse<T>(opts);
+      return integrationHooks.omitExactEnrichmentForProjectId === null
+        ? result
+        : result.filter(
+            (row) =>
+              (row as { project_id?: string }).project_id !==
+              integrationHooks.omitExactEnrichmentForProjectId,
+          );
     },
     queryClickhouseStream: async function* <T>(
       opts: Parameters<typeof actual.queryClickhouseStream>[0],
@@ -84,6 +111,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       integrationHooks.incrementCalls.push([args[0], args[1]]);
       return actual.recordIncrement(...args);
     },
+    traceException: vi.fn(actual.traceException),
   };
 });
 
@@ -461,7 +489,7 @@ describe("BatchDataRetentionCleaner", () => {
     });
   });
 
-  describe("candidate discovery and fallback queries", () => {
+  describe("candidate discovery and enrichment", () => {
     const timestampColumns = TIMESTAMP_COLUMN_MAP as Record<string, string>;
     let tableName: string;
     let table: BatchDataRetentionTable;
@@ -476,11 +504,15 @@ describe("BatchDataRetentionCleaner", () => {
         env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT;
       timestampColumns[tableName] = "start_time";
       integrationHooks.failExactEnrichmentForProjectId = null;
+      integrationHooks.failExactEnrichmentOnReadOnly = true;
+      integrationHooks.omitExactEnrichmentForProjectId = null;
       integrationHooks.failCandidateStreamAfterFirstRow = false;
       integrationHooks.activeCandidateStreams = 0;
       integrationHooks.candidateHttpTimeouts = [];
+      integrationHooks.exactEnrichmentRequests = [];
       integrationHooks.gaugeCalls = [];
       integrationHooks.incrementCalls = [];
+      vi.mocked(traceException).mockClear();
       await createRetentionTestTable(tableName);
     });
 
@@ -604,42 +636,125 @@ describe("BatchDataRetentionCleaner", () => {
         "langfuse.batch_data_retention_cleaner.candidate_query_failures",
         1,
       ]);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        ),
+      ).toBe(0);
     });
 
-    it("uses partition lag when exact enrichment fails", async () => {
-      const [fallbackProjectId] = await createProjectsWithRetention(1);
-      await insertRetentionTestRows(tableName, [
-        {
-          projectId: fallbackProjectId!,
-          startTime: new Date("2020-03-15T00:00:00.000Z").getTime(),
-        },
-        {
-          projectId: fallbackProjectId!,
+    it("continues other chunks after one enrichment exhausts its retry", async () => {
+      const [failedProjectId, successfulProjectId] =
+        await createProjectsWithRetention(2);
+      await insertRetentionTestRows(
+        tableName,
+        [failedProjectId!, successfulProjectId!].map((projectId) => ({
+          projectId,
           startTime: new Date("2020-01-15T00:00:00.000Z").getTime(),
-        },
-      ]);
-      integrationHooks.failExactEnrichmentForProjectId = fallbackProjectId!;
-      const beforeRun = Date.now();
+        })),
+      );
+      integrationHooks.failExactEnrichmentForProjectId = failedProjectId!;
+      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CHUNK_SIZE = 1;
 
       await new BatchDataRetentionCleaner(table).processBatch();
 
-      const afterRun = Date.now();
+      expect(await getRetentionTestRowCount(tableName)).toBe(0);
+      const failedProjectRequests =
+        integrationHooks.exactEnrichmentRequests.filter((request) =>
+          request.projectIds.includes(failedProjectId!),
+        );
       expect(
-        await getRetentionTestProjectCount(tableName, fallbackProjectId!),
+        failedProjectRequests.map(
+          (request) => request.preferredClickhouseService,
+        ),
+      ).toEqual([undefined, "ReadOnly"]);
+      expect(
+        integrationHooks.exactEnrichmentRequests.filter((request) =>
+          request.projectIds.includes(successfulProjectId!),
+        ),
+      ).toHaveLength(1);
+      expect(
+        integrationHooks.exactEnrichmentRequests.every(
+          (request) =>
+            request.requestTimeout ===
+            env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS,
+        ),
+      ).toBe(true);
+      expect(
+        integrationHooks.incrementCalls.filter(
+          ([name]) =>
+            name ===
+            "langfuse.batch_data_retention_cleaner.enrichment_query_failures",
+        ),
+      ).toHaveLength(1);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        ),
       ).toBe(0);
+    });
 
-      const lagValue = getLastGaugeValue(
-        "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
-      );
-      const partitionStart = new Date("2020-01-01T00:00:00.000Z").getTime();
-      const retentionMs = 7 * 24 * 60 * 60 * 1000;
+    it("traces recovered enrichment without failing the runner outcome", async () => {
+      const [projectId] = await createProjectsWithRetention(1);
+      await insertRetentionTestRows(tableName, [
+        {
+          projectId: projectId!,
+          startTime: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        },
+      ]);
+      integrationHooks.failExactEnrichmentForProjectId = projectId!;
+      integrationHooks.failExactEnrichmentOnReadOnly = false;
 
-      expect(lagValue).toBeGreaterThanOrEqual(
-        (beforeRun - retentionMs - partitionStart) / 1000,
+      const cleaner = new BatchDataRetentionCleaner(table);
+      const markRunFailed = vi.spyOn(
+        cleaner as unknown as {
+          markRunFailed(error: unknown): void;
+        },
+        "markRunFailed",
       );
-      expect(lagValue).toBeLessThanOrEqual(
-        (afterRun - retentionMs - partitionStart) / 1000,
+
+      await cleaner.processBatch();
+
+      expect(
+        integrationHooks.exactEnrichmentRequests.map(
+          (request) => request.preferredClickhouseService,
+        ),
+      ).toEqual([undefined, "ReadOnly"]);
+      expect(await getRetentionTestRowCount(tableName)).toBe(0);
+      expect(traceException).toHaveBeenCalledTimes(1);
+      expect(markRunFailed).not.toHaveBeenCalled();
+    });
+
+    it("keeps sibling enrichment when a candidate disappears", async () => {
+      const [staleProjectId, siblingProjectId] =
+        await createProjectsWithRetention(2);
+      const dayMs = 24 * 60 * 60 * 1000;
+      await insertRetentionTestRows(
+        tableName,
+        [staleProjectId!, siblingProjectId!].map((projectId) => ({
+          projectId,
+          startTime: Date.now() - 10 * dayMs,
+        })),
       );
+      integrationHooks.omitExactEnrichmentForProjectId = staleProjectId!;
+
+      await new BatchDataRetentionCleaner(table).processBatch();
+
+      expect(
+        await getRetentionTestProjectCount(tableName, siblingProjectId!),
+      ).toBe(0);
+      expect(
+        integrationHooks.incrementCalls.some(
+          ([name]) =>
+            name ===
+            "langfuse.batch_data_retention_cleaner.enrichment_query_failures",
+        ),
+      ).toBe(false);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        ),
+      ).toBeGreaterThan(2 * (dayMs / 1000));
     });
   });
 });

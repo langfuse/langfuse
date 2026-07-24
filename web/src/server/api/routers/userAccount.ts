@@ -110,11 +110,15 @@ export const userAccountRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      if (input.enabled && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message:
-            "Feature previews are not available in self-hosted deployments.",
+            "Feature previews require Fast (Preview) on self-hosted deployments.",
         });
       }
 

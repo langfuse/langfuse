@@ -81,6 +81,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
+import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { InAppAiAgentProvider } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
@@ -175,13 +176,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <ScoreCacheProvider>
                       <CorrectionCacheProvider>
                         <SupportDrawerProvider defaultOpen={false}>
-                          <InAppAiAgentProvider defaultOpen={false}>
-                            {skipAppLayout ? (
-                              page
-                            ) : (
-                              <AppLayout>{page}</AppLayout>
-                            )}
-                          </InAppAiAgentProvider>
+                          <V4MigrationPanelProvider defaultOpen={false}>
+                            <InAppAiAgentProvider defaultOpen={false}>
+                              {skipAppLayout ? (
+                                page
+                              ) : (
+                                <AppLayout>{page}</AppLayout>
+                              )}
+                            </InAppAiAgentProvider>
+                          </V4MigrationPanelProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>
                     </ScoreCacheProvider>

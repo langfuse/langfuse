@@ -1,13 +1,17 @@
 // v4 search-bar AI filter endpoint.
 //
 // Unlike the legacy `naturalLanguageFilters.createCompletion` (whose remotely
-// managed prompt targets the OLD trace columns), this procedure builds its
-// prompt from the search-bar field registry (`buildFilterSystemPrompt`), so the
-// model's vocabulary is exactly the v4 events grammar. It then ROUND-TRIPS the
-// model output through `filterStateToQueryText` and returns only the filters
-// that lower to bar pills — a hallucinated/unknown column can never reach the
-// client. The frontend applies the result via the bar's existing setFilterState
-// path (apply-immediately), and the bar re-derives the editable pills.
+// managed prompt targets the OLD trace columns), this procedure's system
+// prompt is anchored to the search-bar field registry: it prefers a MANAGED
+// `search-bar-filter` Langfuse prompt compiled with registry-derived
+// variables, falling back to a fully code-built skeleton when the managed
+// prompt is unavailable (see `resolveFilterPrompt.ts`). Either way, the
+// model's column vocabulary is exactly the v4 events grammar. It then
+// ROUND-TRIPS the model output through `filterStateToQueryText` and returns
+// only the filters that lower to bar pills — a hallucinated/unknown column
+// can never reach the client. The frontend applies the result via the bar's
+// existing setFilterState path (apply-immediately), and the bar re-derives
+// the editable pills.
 
 import {
   createTRPCRouter,
@@ -15,20 +19,27 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import {
+  type ChatMessage,
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
 } from "../lib/observed-options";
-import { buildFilterSystemPrompt } from "./buildFilterPrompt";
+import { buildFilterContextMessage } from "./buildFilterPrompt";
+import { resolveFilterSystemPrompt } from "./resolveFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
+import {
+  deriveParseOutcomeScores,
+  recordParseOutcomeScores,
+} from "./parseOutcomeScoring";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
@@ -123,11 +134,6 @@ export const searchBarRouter = createTRPCRouter({
         const now = new Date();
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
-        const systemPrompt = buildFilterSystemPrompt(
-          currentDatetime,
-          input.currentQuery,
-          input.dataContext,
-        );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
 
@@ -138,23 +144,68 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
+        // Pre-generated (rather than left to `getLangfuseAITraceSinkParams`'s
+        // own default) so this handler OWNS the id: the parse-outcome scores
+        // attached below must land on the exact same trace as the
+        // generation, and a future satisfaction signal needs a stable id to
+        // key off too. Same format the default would have produced (a 32-hex
+        // W3C trace id) — only needed when we're actually tracing.
+        const traceId = aiTelemetryEnabled
+          ? randomBytes(16).toString("hex")
+          : undefined;
+
+        // Prefer the MANAGED `search-bar-filter` Langfuse prompt (dogfooding
+        // — same AI-features project/client the v3 natural-language-filter
+        // path uses); falls back to the code-built skeleton whenever the
+        // managed prompt is unavailable. Never throws — see
+        // `resolveFilterPrompt.ts` for the fallback conditions. Gated on
+        // AI-features keys only, NOT on `aiTelemetryEnabled` — reading our
+        // own prompt sends no org data out, so telemetry consent has nothing
+        // to gate here; it still gates the trace write + version link below.
+        const { messages: systemMessages, usedPrompt } =
+          await resolveFilterSystemPrompt({
+            currentDatetime,
+            projectId: input.projectId,
+            aiFeaturesPublicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+            aiFeaturesSecretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+            aiFeaturesHost: env.LANGFUSE_AI_FEATURES_HOST,
+          });
+
+        // The current query being refined and the observed project data are
+        // injected DATA, not instructions — sent as their own user message so
+        // a trace shows the prompt and the data it was handed as distinct
+        // messages. Omitted entirely (not sent as an empty message) when
+        // there's neither.
+        const contextMessage = buildFilterContextMessage(
+          input.currentQuery,
+          input.dataContext,
+        );
+
+        // Built imperatively (rather than a conditional-spread array literal)
+        // so each push is checked against `ChatMessage` individually — a
+        // ternary-spread literal loses the enum-member literal types TS needs
+        // to match the discriminated union.
+        const messages: ChatMessage[] = [...systemMessages];
+        if (contextMessage !== null) {
+          messages.push({
+            role: ChatMessageRole.User,
+            content: contextMessage,
+            type: ChatMessageType.PublicAPICreated,
+          });
+        }
+        messages.push({
+          role: ChatMessageRole.User,
+          content: input.prompt,
+          type: ChatMessageType.PublicAPICreated,
+        });
+
         const llmCompletion = await generateLangfuseAIText({
-          messages: [
-            {
-              role: ChatMessageRole.System,
-              content: systemPrompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-            {
-              role: ChatMessageRole.User,
-              content: input.prompt,
-              type: ChatMessageType.PublicAPICreated,
-            },
-          ],
+          messages,
           model,
           maxTokens: 2048,
           traceSinkParams: aiTelemetryEnabled
             ? getLangfuseAITraceSinkParams({
+                traceId,
                 environment:
                   LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
                 feature: "search-bar-filter",
@@ -183,6 +234,10 @@ export const searchBarRouter = createTRPCRouter({
                   langfuse_current_query: input.currentQuery?.trim() || null,
                   langfuse_data_context_chars: input.dataContext?.length ?? 0,
                 },
+                // Links the trace to the exact managed-prompt version when
+                // it served this request; omitted (undefined) when the code
+                // fallback served it instead.
+                prompt: usedPrompt,
               })
             : undefined,
         });
@@ -205,6 +260,43 @@ export const searchBarRouter = createTRPCRouter({
               unknownScoreNames,
             },
           );
+        }
+
+        // Turn the parse outcome into queryable scores on the generation's
+        // trace, so production traffic self-harvests quality signal (e.g.
+        // the model wrapping its answer in ```markdown fences despite the
+        // prompt saying not to) instead of only ever hitting the warn log
+        // above. Gated exactly like the trace write itself (telemetry
+        // consent + AI-features keys present) — this writes into the same
+        // AI-features project under the same consent surface. Fire-and-forget
+        // and fully isolated in its own try/catch: a slow or failing score
+        // write must never break or slow this response.
+        if (
+          aiTelemetryEnabled &&
+          traceId &&
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY &&
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY
+        ) {
+          try {
+            recordParseOutcomeScores({
+              traceId,
+              scores: deriveParseOutcomeScores(llmCompletion, {
+                filters,
+                queryText,
+                droppedCount,
+                unknownScoreNames,
+              }),
+              publicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+              secretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+              baseUrl: env.LANGFUSE_AI_FEATURES_HOST,
+            });
+          } catch (error) {
+            logger.warn("Failed to record Ask AI parse-outcome scores", {
+              projectId: input.projectId,
+              traceId,
+              error,
+            });
+          }
         }
 
         return { filters, queryText, unknownScoreNames };

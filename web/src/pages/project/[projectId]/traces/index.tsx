@@ -10,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function Traces() {
   const router = useRouter();
@@ -59,6 +60,7 @@ export default function Traces() {
     <Page
       headerProps={{
         title: "Tracing",
+        titleBadges: <V4MigrationDelayBadge />,
         help: {
           description: (
             <>

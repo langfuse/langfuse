@@ -1,90 +1,152 @@
 import {
-  filterAndValidateV2GetScoreList,
   InvalidRequestError,
+  SCORE_FIELD_GROUPS_V3,
   ScoreDataTypeDomain,
   ScoreSourceDomain,
-  singleFilter,
-  publicApiPaginationZod,
 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
-import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
-import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { paginationMeta } from "../../publicApi";
+import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
+import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
+import { buildScoreSubjectUrl } from "@/src/utils/product-url";
 
-const ScoreFieldsSchema = z
-  .array(z.enum(["score", "trace"]))
-  .default(["score", "trace"])
-  .describe(
-    "Response field groups to include. 'score' is always required. Include 'trace' when filtering by userId or traceTags.",
-  );
+const ListScoresBaseSchema = z
+  .object({
+    limit: z.number().int().gte(1).lte(100).default(50),
+    cursor: z.string().optional(),
+    scoreIds: z.array(z.string()).optional(),
+    name: z.array(z.string()).optional(),
+    source: z.array(ScoreSourceDomain).optional(),
+    dataType: z.array(ScoreDataTypeDomain).optional(),
+    environment: z.array(z.string()).optional(),
+    configId: z.array(z.string()).optional(),
+    queueId: z.array(z.string()).optional(),
+    authorUserId: z.array(z.string()).optional(),
+    value: z
+      .array(z.coerce.string())
+      .optional()
+      .describe(
+        "string-encoded, requires a single dataType (NUMERIC, BOOLEAN, or CATEGORICAL)",
+      ),
+    valueMin: z
+      .number()
+      .optional()
+      .describe('inclusive, requires dataType: ["NUMERIC"]'),
+    valueMax: z
+      .number()
+      .optional()
+      .describe('inclusive, requires dataType: ["NUMERIC"]'),
+    traceId: z.array(z.string()).optional(),
+    sessionId: z.array(z.string()).optional(),
+    observationId: z.array(z.string()).optional().describe("requires traceId"),
+    experimentId: z
+      .array(z.string())
+      .optional()
+      .describe("same ID as datasetRunId in createScore"),
+    fromTimestamp: z.iso.datetime({ offset: true }).optional(),
+    toTimestamp: z.iso.datetime({ offset: true }).optional(),
+  })
+  .strict();
 
-const ListScoresSharedSchemaFields = {
-  ...publicApiPaginationZod,
-  fields: ScoreFieldsSchema,
-  userId: z.string().optional(),
-  dataType: ScoreDataTypeDomain.optional(),
-  configId: z.string().optional(),
-  queueId: z.string().optional(),
-  traceTags: z.array(z.string()).optional(),
-  environment: z.array(z.string()).optional(),
-  name: z.string().optional(),
-  fromTimestamp: z.iso.datetime({ offset: true }).optional(),
-  toTimestamp: z.iso.datetime({ offset: true }).optional(),
-  source: ScoreSourceDomain.optional(),
-  value: z.number().optional(),
-  operator: z.enum(["<", ">", "<=", ">=", "!=", "="]).optional(),
-  scoreIds: z.array(z.string()).optional(),
-  sessionId: z.string().optional(),
-  traceId: z.string().optional(),
-  datasetRunId: z.string().optional(),
-  observationId: z.array(z.string()).optional(),
-};
-
-const ListScoresBaseSchema = z.object({
-  ...ListScoresSharedSchemaFields,
-  filter: z
-    .array(McpAdvancedFilterBaseSchema)
-    .optional()
-    .describe(
-      "Advanced score filters as JSON objects with column, operator, value, and type.",
-    ),
-});
-
-const ListScoresInputSchema = z.object({
-  ...ListScoresSharedSchemaFields,
-  filter: z
-    .array(singleFilter)
-    .optional()
-    .describe(
-      "Advanced score filters as JSON objects with column, operator, value, and type.",
-    ),
-});
-
-type ListScoresInput = z.infer<typeof ListScoresInputSchema>;
-
-const assertValidScoreFields = (input: ListScoresInput) => {
-  if (!input.fields.includes("score")) {
-    throw new InvalidRequestError("Scores needs to be selected always.");
-  }
-
-  const hasTraceFilters =
-    Boolean(input.userId) || (input.traceTags?.length ?? 0) > 0;
-  if (!input.fields.includes("trace") && hasTraceFilters) {
-    throw new InvalidRequestError(
-      "Cannot filter by trace properties (userId, traceTags) when 'trace' field is not included. Please add 'trace' to the fields parameter or remove trace filters.",
-    );
+// EncodedScoresCursorV3 throws InvalidRequestError for undecodable base64/JSON
+// but a ZodError for decodable JSON with a mismatched schema (e.g. a future
+// cursor version); normalize both to the same client-facing error.
+const parseCursor = (cursor: string) => {
+  try {
+    return EncodedScoresCursorV3.parse(cursor);
+  } catch (_e) {
+    throw new InvalidRequestError("Invalid cursor format");
   }
 };
+
+const ListScoresInputSchema = ListScoresBaseSchema.superRefine((data, ctx) => {
+  if (data.value !== undefined && data.value.length > 0) {
+    // Number("") and Number("  ") coerce to 0, which would silently turn an
+    // empty placeholder into a value=0 filter — reject instead.
+    for (const v of data.value) {
+      if (v.trim().length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "value filter entries must be non-empty strings",
+        });
+      }
+    }
+    const dataType = data.dataType?.length === 1 ? data.dataType[0] : undefined;
+    if (
+      !dataType ||
+      !["NUMERIC", "BOOLEAN", "CATEGORICAL"].includes(dataType)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "value filter requires a single dataType from: NUMERIC, BOOLEAN, CATEGORICAL",
+      });
+    } else if (dataType === "NUMERIC") {
+      for (const v of data.value) {
+        if (!isFinite(Number(v))) {
+          ctx.addIssue({
+            code: "custom",
+            message: `value filter with dataType=NUMERIC requires each value to be a finite number (got "${v}")`,
+          });
+        }
+      }
+    } else if (dataType === "BOOLEAN") {
+      for (const v of data.value) {
+        if (v !== "true" && v !== "false") {
+          ctx.addIssue({
+            code: "custom",
+            message: `value filter with dataType=BOOLEAN requires each value to be "true" or "false" (got "${v}")`,
+          });
+        }
+      }
+    }
+  }
+
+  if (
+    (data.valueMin !== undefined || data.valueMax !== undefined) &&
+    !(data.dataType?.length === 1 && data.dataType[0] === "NUMERIC")
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "valueMin and valueMax require dataType=NUMERIC as a single value",
+    });
+  }
+
+  if (
+    (data.observationId?.length ?? 0) > 0 &&
+    (data.traceId?.length ?? 0) === 0
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "observationId filter requires traceId — observation IDs are scoped to a trace",
+    });
+  }
+
+  const exclusiveEntityFilters = [
+    data.traceId,
+    data.sessionId,
+    data.experimentId,
+  ].filter((arr) => arr && arr.length > 0);
+  if (exclusiveEntityFilters.length > 1) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "At most one of traceId, sessionId, experimentId may be specified",
+    });
+  }
+});
 
 export const [listScoresTool, handleListScores] = defineTool({
   name: "listScores",
   description: [
     "Find scores in Langfuse.",
-    "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and dataset runs.",
-    "Filter by score details, time range, environment, source, trace information, or dataset run context to narrow the results.",
+    "Use this to review quality, evaluation, or feedback scores for traces, observations, sessions, and experiments (dataset runs).",
+    "Each score carries a polymorphic value matching its dataType (number, boolean, or string) and a subject describing what it scores: { kind: trace | observation | session | experiment, id }.",
+    "Results are paginated with an opaque cursor: pass meta.cursor from the previous response to fetch the next page; a response without meta.cursor is the last page.",
+    "Filtering by trace user or trace tags is not supported. To find scores for a specific user, first resolve the user's trace IDs (e.g. via listObservations with userId), then filter scores by traceId.",
     "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
   baseSchema: ListScoresBaseSchema,
@@ -94,64 +156,50 @@ export const [listScoresTool, handleListScores] = defineTool({
       spanName: "mcp.scores.list",
       context,
       attributes: {
-        "mcp.pagination_page": input.page,
         "mcp.pagination_limit": input.limit,
-        "mcp.score_fields": input.fields.join(","),
       },
       fn: async (span) => {
-        assertValidScoreFields(input);
-
-        const scoreParams = {
+        const result = await listScoresV3ForPublicApi({
           projectId: context.projectId,
-          page: input.page,
           limit: input.limit,
-          userId: input.userId,
+          cursor: input.cursor ? parseCursor(input.cursor) : undefined,
+          // Always fetch every field group: subject feeds the url mapping below.
+          fields: [...SCORE_FIELD_GROUPS_V3],
+          id: input.scoreIds,
           name: input.name,
-          configId: input.configId,
-          sessionId: input.sessionId,
-          traceId: input.traceId,
-          observationId: input.observationId,
-          datasetRunId: input.datasetRunId,
-          queueId: input.queueId,
-          traceTags: input.traceTags,
-          dataType: input.dataType,
-          fromTimestamp: input.fromTimestamp,
-          toTimestamp: input.toTimestamp,
-          environment: input.environment,
           source: input.source,
+          dataType: input.dataType,
+          environment: input.environment,
+          configId: input.configId,
+          queueId: input.queueId,
+          authorUserId: input.authorUserId,
           value: input.value,
-          operator: input.operator,
-          scoreIds: input.scoreIds,
-          fields: input.fields,
-          advancedFilters: input.filter,
-        };
+          valueMin: input.valueMin,
+          valueMax: input.valueMax,
+          traceId: input.traceId,
+          sessionId: input.sessionId,
+          observationId: input.observationId,
+          experimentId: input.experimentId,
+          fromTimestamp: input.fromTimestamp
+            ? new Date(input.fromTimestamp)
+            : undefined,
+          toTimestamp: input.toTimestamp
+            ? new Date(input.toTimestamp)
+            : undefined,
+        });
 
-        const scoresApiService = new ScoresApiService("v2");
-        const [items, count] = await Promise.all([
-          scoresApiService.generateScoresForPublicApi(scoreParams),
-          scoresApiService.getScoresCountForPublicApi(scoreParams),
-        ]);
-
-        const totalItems = count ?? 0;
-        const data = filterAndValidateV2GetScoreList(items).map((score) => {
-          const url = buildScoreTargetUrl({
-            projectId: context.projectId,
-            traceId: score.traceId,
-            observationId: score.observationId,
-            sessionId: score.sessionId,
-          });
-
+        const data = result.data.map((score) => {
+          const url = buildScoreSubjectUrl(context.projectId, score.subject);
           return url ? { ...score, url } : score;
         });
         span.setAttribute("mcp.result_count", data.length);
 
         return {
           data,
-          meta: paginationMeta({
-            page: input.page,
+          meta: {
             limit: input.limit,
-            totalItems,
-          }),
+            ...(result.cursor ? { cursor: result.cursor } : {}),
+          },
         };
       },
     });

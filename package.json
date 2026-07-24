@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.222.0",
+  "version": "4.0.0-rc.1",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -54,7 +54,7 @@
     "knip": "^6.22.0",
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
-    "turbo": "2.9.18"
+    "turbo": "2.10.5"
   },
   "release-it": {
     "git": {

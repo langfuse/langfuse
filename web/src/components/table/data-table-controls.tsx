@@ -38,6 +38,7 @@ import {
   PanelLeftOpen,
   Plus,
   UnfoldVertical,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,7 +49,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/ui/badge";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
 import {
   Tooltip,
@@ -63,6 +64,7 @@ import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
+  KeyScoreLevels,
   KeyValueFilterEntry,
   NumericKeyValueFilterEntry,
   BooleanKeyValueFilterEntry,
@@ -83,6 +85,9 @@ interface ControlsContextType {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tableName?: string;
+  /** Below `md` the panel renders inside a bottom Sheet (not the desktop rail),
+   *  so its header shows a plain close instead of the collapse-to-rail chrome. */
+  isMobile: boolean;
 }
 
 export const ControlsContext = createContext<ControlsContextType | null>(null);
@@ -114,7 +119,9 @@ export function DataTableControlsProvider({
   const setOpen = isDesktop ? setDesktopOpen : setMobileOpen;
 
   return (
-    <ControlsContext.Provider value={{ open, setOpen, tableName }}>
+    <ControlsContext.Provider
+      value={{ open, setOpen, tableName, isMobile: !isDesktop }}
+    >
       <div
         // access the data-expanded state with tailwind via `group-data-[expanded=true]/controls`
         className="group/controls contents"
@@ -131,7 +138,12 @@ export function useDataTableControls() {
 
   if (!context) {
     // Return default values when not in a provider (e.g., tables without the new sidebar)
-    return { open: false, setOpen: () => {}, tableName: undefined };
+    return {
+      open: false,
+      setOpen: () => {},
+      tableName: undefined,
+      isMobile: false,
+    };
   }
 
   return context as ControlsContextType;
@@ -160,6 +172,14 @@ interface DataTableControlsProps {
    * every filter live.
    */
   blockedColumnReason?: (column: string) => string | null;
+  /**
+   * "panel" (default): a self-contained, full-height column with its own
+   *   internal ScrollArea — the desktop filter sidebar.
+   * "inline": the facet list flows at NATURAL height with no internal scroll,
+   *   so it can live inside a host's single outer scroll (the mobile Filters
+   *   sheet). Follow-scroll still works — scrollIntoView bubbles to that host.
+   */
+  layout?: "panel" | "inline";
 }
 
 // Module-stable initial value: a fresh {} per render would re-subscribe
@@ -170,9 +190,10 @@ export function DataTableControls({
   queryFilter,
   filterWithAI,
   blockedColumnReason,
+  layout = "panel",
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { setOpen, tableName } = useDataTableControls();
+  const { setOpen, tableName, isMobile } = useDataTableControls();
   const capture = usePostHogClientCapture();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
   const activeFilterCount = queryFilter.filters.filter(
@@ -188,6 +209,9 @@ export function DataTableControls({
     `${storagePrefix}-active-only`,
     false,
   );
+  // Local (not lifted to the provider): the render sites key DataTableControls
+  // by selectedViewId, so this transient "which facets are revealed" state
+  // resets on a saved-view switch by remount — the desired behavior.
   const [revealedColumns, setRevealedColumns] = useState<string[]>([]);
 
   // Selected filters on top: a facet is PROMOTED when it carries an active
@@ -446,6 +470,7 @@ export function DataTableControls({
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
+          keyLevels={filter.keyLevels}
           availableValues={filter.availableValues}
           value={filter.value}
           onChange={filter.onChange}
@@ -470,6 +495,7 @@ export function DataTableControls({
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
+          keyLevels={filter.keyLevels}
           value={filter.value}
           onChange={filter.onChange}
           isActive={filter.isActive}
@@ -493,6 +519,7 @@ export function DataTableControls({
           expanded={filter.expanded}
           loading={filter.loading}
           keyOptions={filter.keyOptions}
+          keyLevels={filter.keyLevels}
           value={filter.value}
           onChange={filter.onChange}
           isActive={filter.isActive}
@@ -528,6 +555,107 @@ export function DataTableControls({
 
     return null;
   };
+
+  // The facet list itself. Rendered inside a Radix ScrollArea (panel) or a
+  // plain natural-height div (inline) below — extracted so neither wrapper
+  // duplicates it.
+  const facetList = (
+    <div
+      className={cn(
+        // panel: w-0 + min-w-full pins content to the Radix viewport width
+        // (its inline `display: table; min-width: 100%` wrapper otherwise grows
+        // to CONTENT width, breaking label truncation). inline has no such
+        // viewport, so a plain w-full block is correct.
+        layout === "inline" ? "w-full" : "w-0 min-w-full",
+        "pt-1 pb-10",
+      )}
+    >
+      <Accordion
+        type="multiple"
+        className="w-full"
+        value={queryFilter.expanded}
+        onValueChange={queryFilter.onExpandedChange}
+      >
+        {/* ONE keyed child array — not two .map() slices: React can
+            only match keys within the same array, so a facet crossing
+            the promoted/rest boundary would REMOUNT (wiping input
+            focus and draft state) instead of moving. */}
+        {displayedFilters.flatMap((filter, index) => {
+          const nodes = [];
+          if (index === promotedFacetCount && promotedFacetCount > 0) {
+            // Clear spatial break between the active/added block and
+            // the inactive rest of the catalog.
+            nodes.push(
+              // The one line that means something: the boundary
+              // between the active/added block and the catalog.
+              <div
+                key="promoted-separator"
+                className="border-border mx-2 my-2 border-t"
+                aria-hidden
+              />,
+            );
+          }
+          nodes.push(renderFacet(filter));
+          return nodes;
+        })}
+      </Accordion>
+
+      {/* Active-only mode: surface the rest of the catalog behind an
+          explicit "Add filter" picker, most-recently-used first, so
+          the filters someone actually works with are one click away. */}
+      {showOnlyActive && (
+        <div
+          className={cn(
+            "px-3 pt-4",
+            displayedFilters.length === 0 &&
+              "flex flex-col items-center gap-1 pt-8 text-center",
+          )}
+        >
+          {displayedFilters.length === 0 && (
+            <p className="text-muted-foreground pb-2 text-xs">
+              No active filters.
+            </p>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={addableFilters.length === 0}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Add filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="max-h-72 w-56 overflow-y-auto"
+            >
+              {addableFilters.map((filter) => {
+                // A column the surface can't honour stays visible but is
+                // not addable — adding it would only land a facet that
+                // immediately reads blocked (chart view — #15187 /
+                // #15049). Same reason on hover.
+                const reason = blockedColumnReason?.(filter.column) ?? null;
+                return (
+                  <DropdownMenuItem
+                    key={filter.column}
+                    disabled={!!reason}
+                    title={reason ?? undefined}
+                    onClick={() => handleAddFilter(filter.column)}
+                    className="cursor-pointer"
+                  >
+                    {filter.label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -603,31 +731,62 @@ export function DataTableControls({
       </div>
       <div
         className={cn(
-          "bg-background flex h-full w-full flex-col overflow-hidden border-t",
+          "bg-background flex w-full flex-col border-t",
+          // panel: a bounded, self-scrolling column. inline: natural height so
+          // the host's outer scroll owns scrolling (no clip, no forced height).
+          layout === "panel" && "h-full overflow-hidden",
           "group-data-[expanded=false]/controls:hidden",
         )}
       >
         <div className="bg-background flex h-10 shrink-0 items-center justify-between border-b px-3">
           <div className="flex items-center gap-1.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "header");
-                  }}
-                  aria-label="Hide filters"
-                  className="-ml-1 h-6 w-6"
-                >
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Hide filters</TooltipContent>
-            </Tooltip>
-            <span className="text-sm font-bold">Filters</span>
-            {activeFilterCount > 0 && (
+            {/* Three contexts for the header's close affordance:
+                - inline (events MobileFiltersSheet): the sheet owns its own X +
+                  "Filters" title, so render neither here — a second X would
+                  duplicate it and tapping it just dismisses the whole sheet.
+                - mobile panel (other tables' ResizableFilterLayout bottom
+                  sheet): this panel IS the sheet, so its header X is the close.
+                  No tooltip (the sheet auto-focuses it on open and a Radix
+                  tooltip would pop up unprompted); an X is self-evident.
+                - desktop: collapse-to-rail via the Hide-filters button. */}
+            {layout === "inline" ? null : isMobile ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setOpen(false);
+                  emitSidebarToggled(false, "header");
+                }}
+                aria-label="Close filters"
+                className="-ml-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setOpen(false);
+                      emitSidebarToggled(false, "header");
+                    }}
+                    aria-label="Hide filters"
+                    className="-ml-1 h-6 w-6"
+                  >
+                    <PanelLeftClose className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Hide filters</TooltipContent>
+              </Tooltip>
+            )}
+            {layout !== "inline" && (
+              <span className="text-sm font-bold">Filters</span>
+            )}
+            {/* Inline: the count already shows on the sheet's Filters trigger
+                and footer, so a bare number here (title hidden) is just noise. */}
+            {layout !== "inline" && activeFilterCount > 0 && (
               <Badge variant="secondary" className="h-5 px-1.5 text-xs">
                 {activeFilterCount}
               </Badge>
@@ -744,127 +903,58 @@ export function DataTableControls({
                   Show only active
                   {showOnlyActive && <Check className="ml-auto h-3.5 w-3.5" />}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    setOpen(false);
-                    emitSidebarToggled(false, "menu");
-                  }}
-                  className="cursor-pointer"
-                >
-                  Collapse sidebar
-                </DropdownMenuItem>
+                {/* "Collapse sidebar" is desktop-rail chrome — there's no rail
+                    on mobile (either sheet), where the header X / sheet footer
+                    already close it. Covers both the other-tables mobile sheet
+                    and the events inline sheet (inline is always mobile). */}
+                {!isMobile && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setOpen(false);
+                        emitSidebarToggled(false, "menu");
+                      }}
+                      className="cursor-pointer"
+                    >
+                      Collapse sidebar
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
-        <ScrollArea
-          // contain:paint — during handle drags the browser (notably
-          // Firefox) can leave stale fragments of the sticky headers
-          // painted outside the shrinking panel; paint containment pins
-          // every layer inside the scroll root.
-          className="min-h-0 flex-1 [contain:paint]"
-          ref={scrollRootRef}
-          onFocusCapture={(event) => {
-            lastFocusedRef.current = event.target as HTMLElement;
-          }}
-        >
-          {/* w-0 + min-w-full pins the content to the viewport width: the
-              Radix viewport wraps children in an inline-styled
-              `display: table; min-width: 100%` div that otherwise grows to
-              CONTENT width — long value labels would stop truncating and
-              hover-revealed affordances would widen the whole list. width: 0
-              zeroes the content's intrinsic contribution (the table stays at
-              min-width: 100%), then min-w-full stretches this wrapper back to
-              the now-fixed table width. */}
-          <div className="w-0 min-w-full pt-1 pb-10">
-            <Accordion
-              type="multiple"
-              className="w-full"
-              value={queryFilter.expanded}
-              onValueChange={queryFilter.onExpandedChange}
-            >
-              {/* ONE keyed child array — not two .map() slices: React can
-                  only match keys within the same array, so a facet crossing
-                  the promoted/rest boundary would REMOUNT (wiping input
-                  focus and draft state) instead of moving. */}
-              {displayedFilters.flatMap((filter, index) => {
-                const nodes = [];
-                if (index === promotedFacetCount && promotedFacetCount > 0) {
-                  // Clear spatial break between the active/added block and
-                  // the inactive rest of the catalog.
-                  nodes.push(
-                    // The one line that means something: the boundary
-                    // between the active/added block and the catalog.
-                    <div
-                      key="promoted-separator"
-                      className="border-border mx-2 my-2 border-t"
-                      aria-hidden
-                    />,
-                  );
-                }
-                nodes.push(renderFacet(filter));
-                return nodes;
-              })}
-            </Accordion>
-
-            {/* Active-only mode: surface the rest of the catalog behind an
-                explicit "Add filter" picker, most-recently-used first, so
-                the filters someone actually works with are one click away. */}
-            {showOnlyActive && (
-              <div
-                className={cn(
-                  "px-3 pt-4",
-                  displayedFilters.length === 0 &&
-                    "flex flex-col items-center gap-1 pt-8 text-center",
-                )}
-              >
-                {displayedFilters.length === 0 && (
-                  <p className="text-muted-foreground pb-2 text-xs">
-                    No active filters.
-                  </p>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                      disabled={addableFilters.length === 0}
-                    >
-                      <Plus className="mr-1.5 h-3.5 w-3.5" />
-                      Add filter
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="start"
-                    className="max-h-72 w-56 overflow-y-auto"
-                  >
-                    {addableFilters.map((filter) => {
-                      // A column the surface can't honour stays visible but is
-                      // not addable — adding it would only land a facet that
-                      // immediately reads blocked (chart view — #15187 /
-                      // #15049). Same reason on hover.
-                      const reason =
-                        blockedColumnReason?.(filter.column) ?? null;
-                      return (
-                        <DropdownMenuItem
-                          key={filter.column}
-                          disabled={!!reason}
-                          title={reason ?? undefined}
-                          onClick={() => handleAddFilter(filter.column)}
-                          className="cursor-pointer"
-                        >
-                          {filter.label}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
+        {layout === "inline" ? (
+          // inline: no internal scroll — the facet list flows at natural
+          // height inside the host's outer scroll (the mobile Filters sheet).
+          // scrollRootRef stays attached so the follow-scroll scrollIntoView
+          // still resolves; it bubbles to the host scroller. contain:paint is
+          // kept for the same stale-fragment reason as the panel.
+          <div
+            className="[contain:paint]"
+            ref={scrollRootRef}
+            onFocusCapture={(event) => {
+              lastFocusedRef.current = event.target as HTMLElement;
+            }}
+          >
+            {facetList}
           </div>
-        </ScrollArea>
+        ) : (
+          <ScrollArea
+            // contain:paint — during handle drags the browser (notably
+            // Firefox) can leave stale fragments of the sticky headers
+            // painted outside the shrinking panel; paint containment pins
+            // every layer inside the scroll root.
+            className="min-h-0 flex-1 [contain:paint]"
+            ref={scrollRootRef}
+            onFocusCapture={(event) => {
+              lastFocusedRef.current = event.target as HTMLElement;
+            }}
+          >
+            {facetList}
+          </ScrollArea>
+        )}
       </div>
     </>
   );
@@ -928,6 +1018,7 @@ interface StringFacetProps extends BaseFacetProps {
 
 interface KeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   availableValues: Record<string, string[]>;
   value: KeyValueFilterEntry[];
   onChange: (filters: KeyValueFilterEntry[]) => void;
@@ -936,6 +1027,7 @@ interface KeyValueFacetProps extends BaseFacetProps {
 
 interface NumericKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   value: NumericKeyValueFilterEntry[];
   onChange: (filters: NumericKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -943,6 +1035,7 @@ interface NumericKeyValueFacetProps extends BaseFacetProps {
 
 interface BooleanKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
+  keyLevels?: KeyScoreLevels;
   value: BooleanKeyValueFilterEntry[];
   onChange: (filters: BooleanKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
@@ -966,7 +1059,7 @@ const FilterAccordionTrigger = ({
   // top-0: the panel header row sits outside the scroll container
   // (ScrollArea wraps only the facet list), so triggers stick to its top.
   // The expand chevron leads the row (> closed, v open); the clear button
-  // overlays on hover without reserving layout space.
+  // sits at the row's right edge and stays visible whenever a value is set.
   <AccordionPrimitive.Header className="bg-background sticky top-0 z-[1] flex px-2 py-0.5">
     <AccordionPrimitive.Trigger
       className={cn(
@@ -1126,9 +1219,12 @@ export function FilterAccordionItem({
           <Tooltip delayDuration={80}>
             <TooltipTrigger asChild>
               {/* div[role=button], not <Button>: the accordion trigger is
-                  already a <button> and buttons cannot nest. Rendered as a
-                  hover/focus-revealed OVERLAY (absolute, own background) so
-                  it never shifts the header layout. */}
+                  already a <button> and buttons cannot nest. Always visible
+                  while the facet has a selection (no hover gating) — the clear
+                  affordance used to reveal only on header hover, which hid the
+                  one obvious way to drop a filter. shrink-0 keeps it in flow at
+                  the row's right edge so the label/chip truncate before reaching
+                  it; self-start pins it to the top line on two-line headers. */}
               <div
                 role="button"
                 tabIndex={0}
@@ -1143,15 +1239,11 @@ export function FilterAccordionItem({
                     onReset();
                   }
                 }}
-                // top-1 anchors the button to the label line — a 20px
-                // button in the 28px single-line header reads centered, and
-                // on two-line headers it stays top-right. bg-accent matches
-                // the hovered header band (the button is only visible while
-                // the band shows its hover color).
-                className="bg-accent text-muted-foreground hover:text-foreground absolute top-0.5 right-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-sm opacity-0 transition-opacity group-hover/facet:opacity-100 focus-visible:opacity-100"
+                className="text-muted-foreground hover:text-foreground flex shrink-0 cursor-pointer items-center gap-0.5 self-start rounded-sm px-1 py-0.5 text-[11px] leading-4 font-normal transition-colors hover:underline focus-visible:underline focus-visible:outline-none"
                 aria-label={`Clear ${label} filter`}
               >
-                <IconX className="h-3 w-3" />
+                <IconX className="h-3 w-3 shrink-0" />
+                Clear
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
@@ -1902,6 +1994,7 @@ export function KeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   availableValues,
   value,
   onChange,
@@ -1931,6 +2024,7 @@ export function KeyValueFacet({
         <KeyValueFilterBuilder
           mode="categorical"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           availableValues={availableValues}
           activeFilters={value}
           onChange={onChange}
@@ -1950,6 +2044,7 @@ export function NumericKeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   value,
   onChange,
   isActive,
@@ -1978,6 +2073,7 @@ export function NumericKeyValueFacet({
         <KeyValueFilterBuilder
           mode="numeric"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}
@@ -1996,6 +2092,7 @@ export function BooleanKeyValueFacet({
   expanded: _expanded,
   loading,
   keyOptions,
+  keyLevels,
   value,
   onChange,
   isActive,
@@ -2024,6 +2121,7 @@ export function BooleanKeyValueFacet({
         <KeyValueFilterBuilder
           mode="boolean"
           keyOptions={keyOptions}
+          keyLevels={keyLevels}
           activeFilters={value}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}
@@ -2252,13 +2350,15 @@ export function FilterValueCheckbox({
     >
       {/* Checkbox hover area */}
       <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-0.5 transition-colors">
-        <Checkbox
-          id={id}
-          checked={checked}
-          onCheckedChange={onCheckedChange}
-          disabled={disabled}
-          className="pointer-events-auto h-3.5 w-3.5 [&_svg]:h-3 [&_svg]:w-3"
-        />
+        <span className="pointer-events-auto">
+          <Checkbox
+            id={id}
+            checked={checked}
+            onCheckedChange={onCheckedChange}
+            disabled={disabled}
+            size="sm"
+          />
+        </span>
       </div>
 
       {/* Label hover area */}

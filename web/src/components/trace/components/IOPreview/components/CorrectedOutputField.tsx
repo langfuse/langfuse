@@ -24,6 +24,12 @@ interface CorrectedOutputFieldProps {
   traceId: string;
   environment: string;
   actualOutput?: unknown;
+  /**
+   * True when the original output exists but was gated out of the view for
+   * being too large. It is then unavailable as `actualOutput`, but that must
+   * not be reported to the user as "no original output".
+   */
+  actualOutputTooLarge?: boolean;
   existingCorrection?: ScoreDomain | null;
   observationId?: string;
   compact?: boolean; // Use smaller font size for JSON Beta view
@@ -31,6 +37,7 @@ interface CorrectedOutputFieldProps {
 
 export function CorrectedOutputField({
   actualOutput,
+  actualOutputTooLarge = false,
   existingCorrection,
   observationId,
   projectId,
@@ -154,6 +161,7 @@ export function CorrectedOutputField({
         isOpen={isDiffDialogOpen}
         setIsOpen={setIsDiffDialogOpen}
         actualOutput={actualOutput}
+        actualOutputTooLarge={actualOutputTooLarge}
         correctedOutput={value}
         strictJsonMode={strictJsonMode}
       />

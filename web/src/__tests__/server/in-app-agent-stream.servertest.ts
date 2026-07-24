@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@/src/ee/features/in-app-agent/constants";
@@ -947,7 +948,15 @@ describe("createAgUiStream", () => {
           requestInit: {
             headers: expect.objectContaining({
               Authorization: expect.stringContaining("Basic "),
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
               [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: "run-override",
+            }),
+          },
+        },
+        langfuseDocs: {
+          requestInit: {
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
             }),
           },
         },
@@ -958,13 +967,24 @@ describe("createAgUiStream", () => {
       servers: {
         langfuse: {
           requestInit: {
-            headers: expect.not.objectContaining({
-              [IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER]: expect.anything(),
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
+            }),
+          },
+        },
+        langfuseDocs: {
+          requestInit: {
+            headers: expect.objectContaining({
+              "User-Agent": IN_APP_AGENT_MCP_USER_AGENT,
             }),
           },
         },
       },
     });
+    expect(
+      vi.mocked(MCPClient).mock.calls[1]?.[0].servers.langfuse.requestInit
+        ?.headers,
+    ).not.toHaveProperty(IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER);
     expect(persistedEvents).toEqual([
       {
         type: EventType.RUN_STARTED,

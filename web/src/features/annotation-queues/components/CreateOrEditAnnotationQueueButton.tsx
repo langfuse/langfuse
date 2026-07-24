@@ -32,12 +32,11 @@ import {
 } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
-import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
+import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import {
   Collapsible,
@@ -73,7 +72,6 @@ export const CreateOrEditAnnotationQueueButton = ({
     scope: "annotationQueueAssignments:read",
   });
   const queueLimit = useEntitlementLimit("annotation-queue-count");
-  const router = useRouter();
   const capture = usePostHogClientCapture();
 
   const queueQuery = api.annotationQueues.byId.useQuery(
@@ -242,7 +240,6 @@ export const CreateOrEditAnnotationQueueButton = ({
     <ActionButton
       variant={variant}
       onClick={() => setIsOpen(true)}
-      className="justify-start"
       icon={
         queueId ? (
           <Edit className="h-4 w-4" aria-hidden="true" />
@@ -251,8 +248,11 @@ export const CreateOrEditAnnotationQueueButton = ({
         )
       }
       hasAccess={hasQueueAccess}
-      limitValue={queueCountData.data}
-      limit={queueLimit}
+      usageLimit={
+        typeof queueLimit === "number"
+          ? { current: queueCountData.data, max: queueLimit }
+          : undefined
+      }
       size={size}
     >
       <span className="ml-1 text-sm font-normal">
@@ -357,19 +357,16 @@ export const CreateOrEditAnnotationQueueButton = ({
                             };
                           })}
                           controlButtons={
-                            <DropdownMenuItem
-                              onSelect={() => {
+                            <DropdownMenuItemWithSecondaryAction
+                              onBeforeAction={() => {
                                 capture(
                                   "score_configs:manage_configs_item_click",
                                   { source: "AnnotationQueue" },
                                 );
-                                router.push(
-                                  `/project/${projectId}/settings/scores`,
-                                );
                               }}
-                            >
-                              Manage score configs
-                            </DropdownMenuItem>
+                              href={`/project/${projectId}/settings/scores`}
+                              title="Manage score configs"
+                            />
                           }
                         />
                       </FormControl>
