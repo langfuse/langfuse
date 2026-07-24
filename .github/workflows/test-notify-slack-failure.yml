@@ -16,11 +16,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
-      actions: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
       - name: run tests (deliberately failing, for test purposes)
         run: |
           echo "Running example test suite..."
@@ -28,16 +24,26 @@ jobs:
           echo "  expected 404 to equal 200"
           echo "Tests: 1 failed | 41 passed (42)"
           exit 1
+
+  notify-slack-on-failure:
+    needs: deliberately-fail
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       - name: Notify Slack
         id: failure-reason
-        if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
           title: "🧪 TEST — ignore (validating failure_reason for #15423)"
           message: "🧪 This is a deliberate test failure to validate the notify-slack-failure failure_reason change before merging PR #15423 — safe to ignore, this workflow will be removed."
           webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Print computed reason to job summary
-        if: failure()
         run: |
           {
             echo "## Computed failure_reason"
