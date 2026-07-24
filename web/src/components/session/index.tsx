@@ -293,9 +293,36 @@ const SessionScores = ({
 };
 const CopySessionIdButton: React.FC<{
   sessionId: string;
-}> = ({ sessionId }) => {
+  /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
+   *  default "toolbar" keeps the inline icon-only button. */
+  layout?: "toolbar" | "menu";
+}> = ({ sessionId, layout = "toolbar" }) => {
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const isMenu = layout === "menu";
+  const onCopy = async () => {
+    capture("session_detail:copy_session_id_click");
+    await copy(sessionId);
+  };
+
+  if (isMenu) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Copy session ID"
+        className="w-full justify-start gap-2 font-normal"
+        onClick={onCopy}
+      >
+        {isCopied ? (
+          <CheckIcon className="text-muted-green h-4 w-4" />
+        ) : (
+          <CopyIcon className="h-4 w-4" />
+        )}
+        <span className="text-sm">Copy session ID</span>
+      </Button>
+    );
+  }
 
   return (
     <Button
@@ -303,10 +330,7 @@ const CopySessionIdButton: React.FC<{
       size="icon-xs"
       title="Copy session ID"
       aria-label="Copy session ID"
-      onClick={async () => {
-        capture("session_detail:copy_session_id_click");
-        await copy(sessionId);
-      }}
+      onClick={onCopy}
     >
       {isCopied ? (
         <CheckIcon className="text-muted-green h-4 w-4" />
@@ -561,6 +585,79 @@ export const SessionPage: React.FC<{
                   Show corrections
                 </span>
               </div>
+            </>
+          ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.data?.bookmarked ?? false}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.data?.public ?? false}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDownloadSessionAsJson}
+                className="w-full justify-start gap-2 font-normal"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-sm">Download JSON</span>
+              </Button>
+              <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                <span className="text-sm">Show corrections</span>
+                <Switch
+                  checked={showCorrections}
+                  onCheckedChange={setShowCorrectionsForSession}
+                  size="sm"
+                />
+              </label>
             </>
           ),
         }}
@@ -1411,6 +1508,86 @@ const LoadedSessionEventsPage: React.FC<{
                   </span>
                 </label>
               ) : null}
+            </>
+          ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.bookmarked}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.public}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.scores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              {isModernSessionEnabled ? (
+                displayOptions.map(({ label, checked, onCheckedChange }) => (
+                  <label
+                    key={label}
+                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                  >
+                    <span className="text-sm capitalize">{label}</span>
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={onCheckedChange}
+                      size="sm"
+                    />
+                  </label>
+                ))
+              ) : (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show corrections</span>
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </label>
+              )}
             </>
           ),
         }}
