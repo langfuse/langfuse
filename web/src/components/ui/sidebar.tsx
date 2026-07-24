@@ -22,7 +22,8 @@ import {
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "11.5rem";
 const SIDEBAR_WIDTH_MOBILE = "12rem";
-const SIDEBAR_WIDTH_ICON = "3rem";
+// 56px icon rail per the sessions-view handoff (was 3rem).
+const SIDEBAR_WIDTH_ICON = "3.5rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContext = {
