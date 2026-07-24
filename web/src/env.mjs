@@ -418,6 +418,9 @@ export const env = createEnv({
     // CHB REST API base url. Unset (or a missing service token) makes the CHB
     // billing service refuse to construct, so no half-configured calls go out.
     CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
+    // HMAC secret for inbound CHB webhooks. Unset makes the endpoint 500 rather
+    // than accept unverified events.
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -958,6 +961,8 @@ export const env = createEnv({
     CLICKHOUSE_BILLING_SERVICE_TOKEN:
       process.env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
+      process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
