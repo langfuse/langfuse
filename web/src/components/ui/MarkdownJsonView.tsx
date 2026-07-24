@@ -118,9 +118,7 @@ export function MarkdownJsonView({
     <>
       {canEnableMarkdown ? (
         <MarkdownView
-          markdown={
-            validatedOpenAIContent.success ? validatedOpenAIContent.data : null
-          }
+          markdown={content}
           title={title}
           titleIcon={titleIcon}
           customCodeHeaderVariant={customCodeHeaderVariant}
