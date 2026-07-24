@@ -39,7 +39,11 @@ export function CollapsibleBadgeRow({
       <div
         className={cn(
           "flex min-w-0 flex-1 items-center gap-1",
-          expanded ? "flex-wrap" : "flex-nowrap overflow-hidden",
+          // Collapsed: one clipped line. `[&>*]:shrink-0` stops flex from
+          // squeezing badges below their content width (which made long ones
+          // like "Time to first token" wrap vertically into a multi-line row);
+          // badges keep their natural width and overflow-hidden clips the rest.
+          expanded ? "flex-wrap" : "flex-nowrap overflow-hidden [&>*]:shrink-0",
         )}
       >
         {children}
