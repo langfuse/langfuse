@@ -128,6 +128,7 @@ type InAppAgentDisplayPlacement = {
 
 type InAppAgentDisplayState = {
   latestPlacement: InAppAgentDisplayPlacement | null;
+  nativeToolCallParentMessageId: string | null;
   latestNewMessageId: string | null;
   nextOrder: number;
   seenMessageIds: ReadonlySet<string>;
@@ -1330,6 +1331,7 @@ function attachActiveRunIdToAssistantMessages(
 export function createInAppAgentDisplayState() {
   const state: InAppAgentDisplayState = {
     latestPlacement: null,
+    nativeToolCallParentMessageId: null,
     latestNewMessageId: null,
     nextOrder: 0,
     seenMessageIds: new Set(),
@@ -1348,6 +1350,7 @@ export function recordInAppAgentMessagesForDisplay(
   const textByMessageId = { ...state.textByMessageId };
   let latestNewMessageId = state.latestNewMessageId;
   let latestPlacement = state.latestPlacement;
+  let nativeToolCallParentMessageId = state.nativeToolCallParentMessageId;
   let nextOrder = state.nextOrder;
 
   for (const message of messages) {
@@ -1358,6 +1361,7 @@ export function recordInAppAgentMessagesForDisplay(
     seenMessageIds.add(message.id);
     latestNewMessageId = message.id;
     latestPlacement = null;
+    nativeToolCallParentMessageId = null;
 
     if (message.role === "assistant" && typeof message.content === "string") {
       textByMessageId[message.id] = {
@@ -1378,6 +1382,7 @@ export function recordInAppAgentMessagesForDisplay(
       continue;
     }
 
+    nativeToolCallParentMessageId = null;
     if (!message.content.startsWith(textState.publishedContent)) {
       textByMessageId[message.id] = {
         nativeContent: message.content,
@@ -1441,6 +1446,7 @@ export function recordInAppAgentMessagesForDisplay(
   return {
     ...state,
     latestPlacement,
+    nativeToolCallParentMessageId,
     latestNewMessageId,
     nextOrder,
     seenMessageIds,
@@ -1463,11 +1469,13 @@ export function recordInAppAgentToolCallForDisplay(
     ? { anchorMessageId, order: state.nextOrder }
     : null;
   const isNativePlacement =
-    state.latestPlacement === null && anchorMessageId === parentMessageId;
+    (state.latestPlacement === null && anchorMessageId === parentMessageId) ||
+    state.nativeToolCallParentMessageId === parentMessageId;
 
   return {
     ...state,
     latestPlacement: placement,
+    nativeToolCallParentMessageId: isNativePlacement ? anchorMessageId : null,
     nextOrder: state.nextOrder + 1,
     toolCallPlacements: {
       ...state.toolCallPlacements,

@@ -21,6 +21,66 @@ const assistantToolMessage = {
 } satisfies AgUiMessage;
 
 describe("in-app agent display order", () => {
+  it("keeps consecutive tool calls with the same parent together", () => {
+    const assistantMessage = {
+      id: "assistant-tools",
+      role: "assistant",
+      content: "I'll query both periods.",
+    } satisfies AgUiMessage;
+    const initialMessages = [
+      {
+        id: "user",
+        role: "user",
+        content: "Compare both weeks",
+      },
+      assistantMessage,
+    ] satisfies AgUiMessage[];
+    const messagesWithBothTools = [
+      initialMessages[0],
+      {
+        ...assistantMessage,
+        toolCalls: assistantToolMessage.toolCalls.slice(0, 2),
+      },
+    ] satisfies AgUiMessage[];
+    let displayState = createInAppAgentDisplayState();
+    displayState = recordInAppAgentMessagesForDisplay(
+      displayState,
+      initialMessages,
+    );
+    displayState = recordInAppAgentToolCallForDisplay(
+      displayState,
+      "tool-1",
+      "assistant-tools",
+    );
+    displayState = recordInAppAgentToolCallForDisplay(
+      displayState,
+      "tool-2",
+      "assistant-tools",
+    );
+    displayState = recordInAppAgentMessagesForDisplay(
+      displayState,
+      messagesWithBothTools,
+    );
+
+    const projectedMessages = projectInAppAgentMessagesForDisplay(
+      messagesWithBothTools,
+      displayState,
+    );
+
+    expect(
+      projectedMessages.map((message) => ({
+        id: message.id,
+        toolCallIds:
+          message.role === "assistant"
+            ? message.toolCalls?.map((toolCall) => toolCall.id)
+            : undefined,
+      })),
+    ).toEqual([
+      { id: "user", toolCallIds: undefined },
+      { id: "assistant-tools", toolCallIds: ["tool-1", "tool-2"] },
+    ]);
+  });
+
   it("projects interleaved tools without changing canonical messages", () => {
     const messages = [
       {
