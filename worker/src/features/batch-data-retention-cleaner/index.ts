@@ -72,6 +72,19 @@ interface EnrichmentResult {
   complete: boolean;
 }
 
+function summarizeBacklog(workloads: ProjectWorkload[]) {
+  return {
+    pendingProjects: workloads.length,
+    secondsPastCutoff: workloads.reduce(
+      (maximum, workload) =>
+        workload.secondsPastCutoff === null
+          ? maximum
+          : Math.max(maximum, workload.secondsPastCutoff),
+      0,
+    ),
+  };
+}
+
 /**
  * Hash projectId to a short key for ClickHouse parameter names.
  */
@@ -194,15 +207,18 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    */
   protected async execute(): Promise<void> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
-
-    // Reset gauges before attempting lock - ensures they don't appear stuck
-    // if another worker holds the lock
-    recordGauge(`${METRIC_PREFIX}.pending_projects`, 0, {
-      table: this.tableName,
-    });
-    recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0, {
-      table: this.tableName,
-    });
+    let observedBacklog: ReturnType<typeof summarizeBacklog> | undefined;
+    const recordBacklog = ({
+      pendingProjects,
+      secondsPastCutoff,
+    }: ReturnType<typeof summarizeBacklog>) => {
+      recordGauge(`${METRIC_PREFIX}.pending_projects`, pendingProjects, {
+        table: this.tableName,
+      });
+      recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, secondsPastCutoff, {
+        table: this.tableName,
+      });
+    };
 
     await this.withLock(
       async () => {
@@ -210,33 +226,10 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         const { observedWorkloads, selectedWorkloads, lagMeasurementComplete } =
           await this.getProjectWorkloads();
 
-        recordGauge(
-          `${METRIC_PREFIX}.pending_projects`,
-          observedWorkloads.length,
-          {
-            table: this.tableName,
-          },
-        );
-
-        // Retention cutoffs come from Postgres and are frozen once per run.
-        // Fold the per-project results here to preserve one maximum across all
-        // bounded ClickHouse queries.
-        const observedMaxSecondsPastCutoff = observedWorkloads.reduce(
-          (maximum, workload) =>
-            workload.secondsPastCutoff === null
-              ? maximum
-              : Math.max(maximum, workload.secondsPastCutoff),
-          0,
-        );
+        const currentBacklog = summarizeBacklog(observedWorkloads);
 
         if (lagMeasurementComplete) {
-          recordGauge(
-            `${METRIC_PREFIX}.seconds_past_cutoff`,
-            observedMaxSecondsPastCutoff,
-            {
-              table: this.tableName,
-            },
-          );
+          observedBacklog = currentBacklog;
         }
 
         // Step 2: Execute DELETE
@@ -248,7 +241,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
                 (workload) => workload.projectId,
               ),
               pendingProjectsSeen: observedWorkloads.length,
-              observedMaxSecondsPastCutoff,
+              observedMaxSecondsPastCutoff: currentBacklog.secondsPastCutoff,
               lagMeasurementComplete,
             },
           );
@@ -265,6 +258,13 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           );
         }
 
+        if (lagMeasurementComplete) {
+          // selectedWorkloads is the leading PROJECT_LIMIT slice.
+          recordBacklog(
+            summarizeBacklog(observedWorkloads.slice(selectedWorkloads.length)),
+          );
+        }
+
         // Record successful deletion metrics
         recordIncrement(`${METRIC_PREFIX}.delete_successes`, 1, {
           table: this.tableName,
@@ -278,10 +278,14 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         );
       },
       () => {
+        if (observedBacklog) {
+          recordBacklog(observedBacklog);
+        }
         recordIncrement(`${METRIC_PREFIX}.delete_failures`, 1, {
           table: this.tableName,
         });
       },
+      () => recordBacklog({ pendingProjects: 0, secondsPastCutoff: 0 }),
     );
   }
 

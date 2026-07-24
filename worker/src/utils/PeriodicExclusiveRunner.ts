@@ -102,6 +102,7 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
   protected async withLock<T>(
     operation: () => Promise<T>,
     onFailure?: (error: unknown) => T | Promise<T | void> | void,
+    onLockNotAcquired?: () => void,
   ): Promise<T | undefined> {
     const result = await this.lock.withLock(async () => {
       this.lastLockExtensionAt = 0;
@@ -122,6 +123,7 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
 
     if (result === null) {
       this.markRunSkipped();
+      onLockNotAcquired?.();
       logger.debug(
         `${this.instanceName}: Lock not acquired, another worker is processing`,
       );

@@ -524,6 +524,22 @@ describe("BatchDataRetentionCleaner", () => {
       await commandClickhouse({ query: `DROP TABLE IF EXISTS ${tableName}` });
     });
 
+    it("resets gauges when it does not acquire the lock", async () => {
+      const cleaner = new BatchDataRetentionCleaner(table);
+      (
+        cleaner as unknown as {
+          lock: { acquire: () => Promise<"held_by_other"> };
+        }
+      ).lock.acquire = async () => "held_by_other";
+
+      await cleaner.processBatch();
+
+      expect(integrationHooks.gaugeCalls).toEqual([
+        ["langfuse.batch_data_retention_cleaner.pending_projects", 0],
+        ["langfuse.batch_data_retention_cleaner.seconds_past_cutoff", 0],
+      ]);
+    });
+
     it("prioritizes lag, breaks ties by total rows, and reports maximum lag", async () => {
       const [
         smallerTieProjectId,
@@ -577,7 +593,45 @@ describe("BatchDataRetentionCleaner", () => {
         getLastGaugeValue(
           "langfuse.batch_data_retention_cleaner.pending_projects",
         ),
-      ).toBe(3);
+      ).toBe(2);
+
+      const lagValue = getLastGaugeValue(
+        "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+      );
+      expect(lagValue).toBeGreaterThan(2 * (dayMs / 1000));
+      expect(lagValue).toBeLessThan(4 * (dayMs / 1000));
+      expect(integrationHooks.gaugeCalls).toHaveLength(2);
+    });
+
+    it("reports the backlog remaining after a successful batch", async () => {
+      const [mostLateProjectId, nextLateProjectId] =
+        await createProjectsWithRetention(2);
+      const dayMs = 24 * 60 * 60 * 1000;
+      await insertRetentionTestRows(tableName, [
+        {
+          projectId: mostLateProjectId!,
+          startTime: Date.now() - 12 * dayMs,
+        },
+        {
+          projectId: nextLateProjectId!,
+          startTime: Date.now() - 10 * dayMs,
+        },
+      ]);
+      env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT = 1;
+
+      await new BatchDataRetentionCleaner(table).processBatch();
+
+      expect(
+        await getRetentionTestProjectCount(tableName, mostLateProjectId!),
+      ).toBe(0);
+      expect(
+        await getRetentionTestProjectCount(tableName, nextLateProjectId!),
+      ).toBe(1);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.pending_projects",
+        ),
+      ).toBe(1);
 
       const lagValue = getLastGaugeValue(
         "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
@@ -613,6 +667,16 @@ describe("BatchDataRetentionCleaner", () => {
 
       expect(extendedDuringCandidateStream).toBe(true);
       expect(await getRetentionTestRowCount(tableName)).toBe(1);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.pending_projects",
+        ),
+      ).toBe(1);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        ),
+      ).toBeGreaterThan(2 * 24 * 60 * 60);
       expect(integrationHooks.incrementCalls).toContainEqual([
         "langfuse.batch_data_retention_cleaner.delete_failures",
         1,
@@ -637,10 +701,12 @@ describe("BatchDataRetentionCleaner", () => {
         1,
       ]);
       expect(
-        getLastGaugeValue(
-          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        integrationHooks.gaugeCalls.some(
+          ([name]) =>
+            name ===
+            "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
         ),
-      ).toBe(0);
+      ).toBe(false);
     });
 
     it("continues other chunks after one enrichment exhausts its retry", async () => {
@@ -688,10 +754,12 @@ describe("BatchDataRetentionCleaner", () => {
         ),
       ).toHaveLength(1);
       expect(
-        getLastGaugeValue(
-          "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
+        integrationHooks.gaugeCalls.some(
+          ([name]) =>
+            name ===
+            "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
         ),
-      ).toBe(0);
+      ).toBe(false);
     });
 
     it("traces recovered enrichment without failing the runner outcome", async () => {
@@ -752,9 +820,14 @@ describe("BatchDataRetentionCleaner", () => {
       ).toBe(false);
       expect(
         getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.pending_projects",
+        ),
+      ).toBe(0);
+      expect(
+        getLastGaugeValue(
           "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
         ),
-      ).toBeGreaterThan(2 * (dayMs / 1000));
+      ).toBe(0);
     });
   });
 });
