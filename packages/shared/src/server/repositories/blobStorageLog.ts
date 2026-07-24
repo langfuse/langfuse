@@ -1,8 +1,4 @@
-import {
-  commandClickhouse,
-  queryClickhouse,
-  queryClickhouseStream,
-} from "./clickhouse";
+import { queryClickhouse, queryClickhouseStream } from "./clickhouse";
 import { BlobStorageFileRefRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 
@@ -183,75 +179,5 @@ export const getBlobStorageByProjectIdAndTraceIds = (
       request_timeout: 120_000, // 2 minutes
     },
     tags: { projectId },
-  });
-};
-
-// this function is only used for the background migration from event_log to blob_storage_file_log
-export const insertIntoS3RefsTableFromEventLog = async (
-  limit: number,
-  offset: number,
-) => {
-  const query = `
-    INSERT INTO blob_storage_file_log
-    SELECT
-      id,
-      project_id,
-      entity_type,
-      entity_id,
-      event_id,
-      bucket_name,
-      bucket_path,
-      created_at,
-      updated_at,
-      created_at AS event_ts,
-      0 AS is_deleted
-    FROM event_log
-    ORDER BY (project_id, entity_type, entity_id, bucket_path) DESC
-    LIMIT {limit: Int32}
-    OFFSET {offset: Int32}
-  `;
-
-  await commandClickhouse({
-    query,
-    params: {
-      limit,
-      offset,
-    },
-  });
-};
-
-export const getLastEventLogPrimaryKey = async () => {
-  const query = `
-    SELECT project_id, entity_type, entity_id, bucket_path
-    FROM event_log
-    ORDER BY (project_id, entity_type, entity_id, bucket_path) ASC
-    LIMIT 1
-  `;
-  const result = await queryClickhouse<{
-    project_id: string;
-    entity_type: string;
-    entity_id: string;
-    bucket_path: string;
-  }>({ query });
-  return result.shift();
-};
-
-export const findS3RefsByPrimaryKey = async (primaryKey: {
-  project_id: string;
-  entity_type: string;
-  entity_id: string;
-  bucket_path: string;
-}) => {
-  const query = `
-    SELECT *
-    FROM blob_storage_file_log
-    WHERE project_id = {project_id: String}
-      AND entity_type = {entity_type: String}
-      AND entity_id = {entity_id: String}
-      AND bucket_path = {bucket_path: String}
-  `;
-  return queryClickhouse<BlobStorageFileRefRecordReadType>({
-    query,
-    params: primaryKey,
   });
 };
