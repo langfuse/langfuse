@@ -126,8 +126,7 @@ describe("MediaRetentionCleaner", () => {
         new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
       );
 
-      const originalBlobStorageFlag =
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
+      const originalBlobStorageFlag = env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
       Object.assign(env, {
         LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "true",
       });
