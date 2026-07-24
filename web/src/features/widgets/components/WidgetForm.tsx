@@ -2009,9 +2009,11 @@ function NameField({
       <Label htmlFor="widget-name">Name</Label>
       <Input
         id="widget-name"
-        // blank override (null OR "") shows the live suggestion; typing sticks,
-        // clearing reverts to tracking + saving the live suggestion.
-        value={field.value || suggestion}
+        // A blank/whitespace-only override shows the live suggestion; typing
+        // real content sticks; clearing reverts to tracking + saving the
+        // suggestion. Uses the same trim-aware effective logic as the preview
+        // title and toSavePayload, so input, preview, and saved value agree.
+        value={effectiveWidgetName(field.value, suggestion)}
         onChange={(e) => field.onChange(e.target.value)}
         placeholder="Enter widget name"
       />
@@ -2032,7 +2034,7 @@ function DescriptionField({
       <Label htmlFor="widget-description">Description</Label>
       <Input
         id="widget-description"
-        value={field.value || suggestion}
+        value={effectiveWidgetName(field.value, suggestion)}
         onChange={(e) => field.onChange(e.target.value)}
         placeholder="Enter widget description"
       />
