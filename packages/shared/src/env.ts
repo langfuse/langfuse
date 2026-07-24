@@ -39,6 +39,9 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset; the
+  // shared base-URL helper mirrors that (see web/src/env.mjs preprocess).
+  VERCEL_URL: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
   // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
   // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
@@ -478,6 +481,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 

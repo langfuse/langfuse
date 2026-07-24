@@ -1,13 +1,17 @@
-import { env } from "@/src/env.mjs";
+import { env } from "../../env";
 
-// Mirrors getBaseUrl/getProductBaseUrl in @langfuse/shared
-// (src/server/utils/baseUrl.ts), which shared server code such as productUrl
-// uses. Web keeps its own copy so callers read the validated web env (and
-// tests can mock @/src/env.mjs as the seam).
 const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
 export const getBaseUrl = () => {
-  const rawBaseUrl = env.NEXTAUTH_URL;
+  // NextAuth.js falls back to VERCEL_URL when NEXTAUTH_URL is unset (mirrors
+  // the preprocess in web/src/env.mjs).
+  const rawBaseUrl = env.NEXTAUTH_URL || env.VERCEL_URL;
+
+  if (!rawBaseUrl) {
+    throw new Error(
+      "NEXTAUTH_URL must be set to derive the Langfuse base URL.",
+    );
+  }
 
   return new URL(
     /^https?:\/\//i.test(rawBaseUrl)
