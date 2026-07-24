@@ -142,6 +142,9 @@ const EnvSchema = z.object({
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
+  CLICKHOUSE_DISABLE_FILTER_PUSH_DOWN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
