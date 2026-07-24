@@ -5,10 +5,10 @@ import V4MigrationStatusPage from "./V4MigrationStatusPage";
 
 const mocks = vi.hoisted(() => ({
   sdk: {
-    status: "latest" as "latest" | "legacy" | "unattributed",
+    status: "latest" as "latest" | "legacy" | "otel_header_required",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
-    missingAttributionCount: 0,
+    delayedOtelIngestionCount: 0,
   },
 }));
 
@@ -100,7 +100,7 @@ describe("V4MigrationStatusPage", () => {
       status: "latest",
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
-      missingAttributionCount: 0,
+      delayedOtelIngestionCount: 0,
     };
   });
 
@@ -124,7 +124,7 @@ describe("V4MigrationStatusPage", () => {
       status: "legacy",
       sdkUsageSeries: [],
       upgradeRequiredCount: 2,
-      missingAttributionCount: 0,
+      delayedOtelIngestionCount: 0,
     };
 
     render(<V4MigrationStatusPage />);
@@ -132,17 +132,17 @@ describe("V4MigrationStatusPage", () => {
     expect(screen.getByText("2 outdated")).toBeInTheDocument();
   });
 
-  it("shows missing OTel SDK attribution separately from outdated SDKs", () => {
+  it("shows the OTel ingestion header issue separately from outdated SDKs", () => {
     mocks.sdk = {
-      status: "unattributed",
+      status: "otel_header_required",
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
-      missingAttributionCount: 2,
+      delayedOtelIngestionCount: 2,
     };
 
     render(<V4MigrationStatusPage />);
 
-    expect(screen.getByText("2 missing attribution")).toBeInTheDocument();
+    expect(screen.getByText("2 OTel header issues")).toBeInTheDocument();
     expect(screen.queryByText("0 outdated")).not.toBeInTheDocument();
   });
 });

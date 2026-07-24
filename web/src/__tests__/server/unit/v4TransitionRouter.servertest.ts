@@ -1068,7 +1068,7 @@ describe("v4TransitionRouter", () => {
         count: "3",
         firstSeen: "2026-06-25T12:01:00Z",
         lastSeen: "2026-06-25T12:03:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "0",
       },
       {
         time: "2026-06-25T12:04:00Z",
@@ -1078,7 +1078,7 @@ describe("v4TransitionRouter", () => {
         count: 7,
         firstSeen: "2026-06-25T12:04:00Z",
         lastSeen: "2026-06-25T12:05:00Z",
-        hasOtelEvents: 1,
+        hasDelayedOtelEvents: 0,
       },
     ]);
     const caller = createCaller();
@@ -1111,7 +1111,7 @@ describe("v4TransitionRouter", () => {
       count: 3,
       firstSeen: "2026-06-25T12:01:00Z",
       lastSeen: "2026-06-25T12:03:00Z",
-      hasOtelEvents: true,
+      hasDelayedOtelEvents: false,
       attributionStatus: "attributed",
       canonicalSdkName: "python",
       latestMajor: 4,
@@ -1134,7 +1134,7 @@ describe("v4TransitionRouter", () => {
       count: 7,
       firstSeen: "2026-06-25T12:04:00Z",
       lastSeen: "2026-06-25T12:05:00Z",
-      hasOtelEvents: true,
+      hasDelayedOtelEvents: false,
       attributionStatus: "attributed",
       canonicalSdkName: "javascript",
       latestMajor: 5,
@@ -1170,11 +1170,17 @@ describe("v4TransitionRouter", () => {
       "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version",
     );
     expect(clickhouseQuery?.query).toContain("ingestion_api_key AS public_key");
+    expect(clickhouseQuery?.query).toContain("false AS is_delayed_otel");
+    expect(clickhouseQuery?.query).toContain("false AS is_otel_ingestion");
     expect(clickhouseQuery?.query).toContain(
-      "startsWith(source, 'otel') AS is_otel",
+      "startsWith(source, 'otel-dual-write') AS is_delayed_otel",
     );
-    expect(clickhouseQuery?.query).toContain("false AS is_otel");
-    expect(clickhouseQuery?.query).toContain("max(is_otel) AS hasOtelEvents");
+    expect(clickhouseQuery?.query).toContain(
+      "(source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+    );
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
@@ -1197,7 +1203,7 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
   });
 
-  it("keeps unattributed OTel usage as an actionable SDK series", async () => {
+  it("distinguishes raw OTel already using real-time ingestion", async () => {
     mockedQueryClickhouse.mockResolvedValueOnce([
       {
         time: "2026-06-25T12:00:00Z",
@@ -1207,7 +1213,7 @@ describe("v4TransitionRouter", () => {
         count: "4",
         firstSeen: "2026-06-25T12:01:00Z",
         lastSeen: "2026-06-25T12:03:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "0",
       },
     ]);
     const caller = createCaller();
@@ -1224,7 +1230,7 @@ describe("v4TransitionRouter", () => {
         sdkName: "unknown",
         sdkVersion: "unknown",
         publicKey: "pk-lf-raw-otel",
-        hasOtelEvents: true,
+        hasDelayedOtelEvents: false,
         attributionStatus: "missing_name_and_version",
         upgradeStatus: "unknown",
       }),
@@ -1241,7 +1247,7 @@ describe("v4TransitionRouter", () => {
         count: "8",
         firstSeen: "2026-06-25T12:00:00Z",
         lastSeen: "2026-06-25T12:10:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         time: "2026-06-25T12:20:00Z",
@@ -1251,7 +1257,7 @@ describe("v4TransitionRouter", () => {
         count: "13",
         firstSeen: "2026-06-25T12:20:00Z",
         lastSeen: "2026-06-25T12:30:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
     ]);
     const caller = createCaller();
@@ -1286,7 +1292,7 @@ describe("v4TransitionRouter", () => {
         count: "8",
         firstSeen: "2026-06-25T12:00:00Z",
         lastSeen: "2026-06-25T12:30:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         time: "2026-06-25T12:20:00Z",
@@ -1296,7 +1302,7 @@ describe("v4TransitionRouter", () => {
         count: "13",
         firstSeen: "2026-06-25T12:20:00Z",
         lastSeen: "2026-06-25T12:40:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
     ]);
     const caller = createCaller();
@@ -1407,7 +1413,7 @@ describe("v4TransitionRouter", () => {
         count: "8",
         firstSeen: "2026-06-24T01:00:00Z",
         lastSeen: "2026-06-24T02:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId,
@@ -1417,7 +1423,7 @@ describe("v4TransitionRouter", () => {
         count: "13",
         firstSeen: "2026-06-24T03:00:00Z",
         lastSeen: "2026-06-24T04:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId,
@@ -1427,7 +1433,7 @@ describe("v4TransitionRouter", () => {
         count: "5",
         firstSeen: "2026-06-24T12:00:00Z",
         lastSeen: "2026-06-24T13:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId,
@@ -1437,7 +1443,7 @@ describe("v4TransitionRouter", () => {
         count: "6",
         firstSeen: "2026-06-24T13:30:00Z",
         lastSeen: "2026-06-24T14:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId: secondProjectId,
@@ -1447,7 +1453,7 @@ describe("v4TransitionRouter", () => {
         count: "5",
         firstSeen: "2026-06-24T01:00:00Z",
         lastSeen: "2026-06-24T04:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId: secondProjectId,
@@ -1457,7 +1463,17 @@ describe("v4TransitionRouter", () => {
         count: "3",
         firstSeen: "2026-06-24T01:00:00Z",
         lastSeen: "2026-06-24T04:00:00Z",
-        hasOtelEvents: "1",
+        hasDelayedOtelEvents: "0",
+      },
+      {
+        projectId: secondProjectId,
+        sdkName: "custom-otel-writer",
+        sdkVersion: "1.2.3",
+        publicKey: "pk-lf-custom-otel",
+        count: "2",
+        firstSeen: "2026-06-24T02:00:00Z",
+        lastSeen: "2026-06-24T03:00:00Z",
+        hasDelayedOtelEvents: "1",
       },
     ]);
     const mockPrisma = {
@@ -1479,7 +1495,7 @@ describe("v4TransitionRouter", () => {
       {
         projectId,
         outdatedSdkUsageSeriesCount: 1,
-        missingSdkAttributionSeriesCount: 0,
+        delayedOtelIngestionSeriesCount: 0,
         sdkUsageSeries: [
           {
             sdkName: "python",
@@ -1489,7 +1505,7 @@ describe("v4TransitionRouter", () => {
             count: 8,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T02:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
             upgradeCompleted: true,
@@ -1502,7 +1518,7 @@ describe("v4TransitionRouter", () => {
             count: 13,
             firstSeen: "2026-06-24T03:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
             upgradeCompleted: false,
@@ -1515,7 +1531,7 @@ describe("v4TransitionRouter", () => {
             count: 5,
             firstSeen: "2026-06-24T12:00:00Z",
             lastSeen: "2026-06-24T13:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
             upgradeCompleted: false,
@@ -1528,7 +1544,7 @@ describe("v4TransitionRouter", () => {
             count: 6,
             firstSeen: "2026-06-24T13:30:00Z",
             lastSeen: "2026-06-24T14:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
             upgradeCompleted: false,
@@ -1538,7 +1554,7 @@ describe("v4TransitionRouter", () => {
       {
         projectId: secondProjectId,
         outdatedSdkUsageSeriesCount: 1,
-        missingSdkAttributionSeriesCount: 1,
+        delayedOtelIngestionSeriesCount: 1,
         sdkUsageSeries: [
           {
             sdkName: "@langfuse/tracing",
@@ -1548,7 +1564,7 @@ describe("v4TransitionRouter", () => {
             count: 5,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: true,
             attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
             upgradeCompleted: false,
@@ -1561,8 +1577,21 @@ describe("v4TransitionRouter", () => {
             count: 3,
             firstSeen: "2026-06-24T01:00:00Z",
             lastSeen: "2026-06-24T04:00:00Z",
-            hasOtelEvents: true,
+            hasDelayedOtelEvents: false,
             attributionStatus: "missing_name_and_version",
+            v4MigrationStatus: "unknown",
+            upgradeCompleted: false,
+          },
+          {
+            sdkName: "custom-otel-writer",
+            sdkVersion: "1.2.3",
+            canonicalSdkName: null,
+            publicKey: "pk-lf-custom-otel",
+            count: 2,
+            firstSeen: "2026-06-24T02:00:00Z",
+            lastSeen: "2026-06-24T03:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             v4MigrationStatus: "unknown",
             upgradeCompleted: false,
           },
@@ -1592,7 +1621,9 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain(
       "GROUP BY project_id, sdk_name, sdk_version, public_key",
     );
-    expect(usageQuery?.query).toContain("max(is_otel) AS hasOtelEvents");
+    expect(usageQuery?.query).toContain(
+      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+    );
     expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(2);
     expect(usageQuery?.query).toContain(
       "formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",

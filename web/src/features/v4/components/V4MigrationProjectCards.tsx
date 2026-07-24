@@ -67,7 +67,7 @@ export type V4SdkUsagePoint = {
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
-  hasOtelEvents: boolean;
+  hasDelayedOtelEvents: boolean | null;
   attributionStatus:
     | "attributed"
     | "missing_name"
@@ -119,7 +119,7 @@ type SdkUsageSeries = UsageSeries & {
   sdkVersion: string;
   publicKey: string;
   canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
-  hasOtelEvents: boolean;
+  hasDelayedOtelEvents: boolean;
   attributionStatus: V4SdkUsagePoint["attributionStatus"];
   firstSeen?: string;
   upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
@@ -281,10 +281,10 @@ const isUntrackedSdkUsage = (row: {
   (row.sdkName || "unknown") === "unknown" &&
   (row.sdkVersion || "unknown") === "unknown";
 
-const isMissingSdkAttribution = (row: {
-  hasOtelEvents: boolean;
-  attributionStatus: V4SdkUsagePoint["attributionStatus"];
-}) => row.hasOtelEvents && row.attributionStatus !== "attributed";
+const requiresOtelIngestionHeader = (row: {
+  hasDelayedOtelEvents: boolean;
+  canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
+}) => row.hasDelayedOtelEvents && row.canonicalSdkName === null;
 
 const getSdkPackageLabel = (row: { sdkName: string; sdkVersion: string }) =>
   `${row.sdkName || "unknown"}@${row.sdkVersion || "unknown"}`;
@@ -293,10 +293,10 @@ const getSdkUsageSeriesName = (row: {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
-  hasOtelEvents: boolean;
-  attributionStatus: V4SdkUsagePoint["attributionStatus"];
+  hasDelayedOtelEvents: boolean;
+  canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
 }) =>
-  isMissingSdkAttribution(row)
+  requiresOtelIngestionHeader(row)
     ? `OTel writer - ${getCompactPublicKey(row.publicKey)}`
     : isUntrackedSdkUsage(row)
       ? "untracked"
@@ -344,7 +344,7 @@ const groupSdkUsageSeries = ({
       sdkVersion: string;
       publicKey: string;
       canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
-      hasOtelEvents: boolean;
+      hasDelayedOtelEvents: boolean;
       attributionStatus: V4SdkUsagePoint["attributionStatus"];
       upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
       latestMajor: number | null;
@@ -365,7 +365,7 @@ const groupSdkUsageSeries = ({
         sdkVersion: row.sdkVersion,
         publicKey: row.publicKey,
         canonicalSdkName: row.canonicalSdkName,
-        hasOtelEvents: row.hasOtelEvents,
+        hasDelayedOtelEvents: row.hasDelayedOtelEvents ?? false,
         attributionStatus: row.attributionStatus,
         upgradeStatus: row.upgradeStatus,
         latestMajor: row.latestMajor,
@@ -377,7 +377,7 @@ const groupSdkUsageSeries = ({
         sdkVersion: string;
         publicKey: string;
         canonicalSdkName: V4SdkUsagePoint["canonicalSdkName"];
-        hasOtelEvents: boolean;
+        hasDelayedOtelEvents: boolean;
         attributionStatus: V4SdkUsagePoint["attributionStatus"];
         upgradeStatus: V4SdkUsagePoint["upgradeStatus"];
         latestMajor: number | null;
@@ -395,6 +395,9 @@ const groupSdkUsageSeries = ({
     );
 
     if (row.count > 0) {
+      if (row.hasDelayedOtelEvents !== null) {
+        group.hasDelayedOtelEvents = row.hasDelayedOtelEvents;
+      }
       if (
         row.firstSeen &&
         (!group.firstSeen || row.firstSeen < group.firstSeen)
@@ -416,7 +419,7 @@ const groupSdkUsageSeries = ({
       sdkVersion: group.sdkVersion,
       publicKey: group.publicKey,
       canonicalSdkName: group.canonicalSdkName,
-      hasOtelEvents: group.hasOtelEvents,
+      hasDelayedOtelEvents: group.hasDelayedOtelEvents,
       attributionStatus: group.attributionStatus,
       upgradeStatus: group.upgradeStatus,
       latestMajor: group.latestMajor,
@@ -594,8 +597,8 @@ const NonActionDetails = ({
               <div>
                 <h4 className="text-sm font-bold">SDK telemetry</h4>
                 <p className="text-muted-foreground text-xs">
-                  Current, unsupported, and invalid SDK telemetry is shown for
-                  context only.
+                  SDK and OTel telemetry that does not require a v4 migration
+                  change is shown for context only.
                 </p>
               </div>
               <SdkUsageDetails
@@ -850,15 +853,15 @@ const SdkUsageDetails = ({
         </div>
         <div className="max-h-80 overflow-y-auto">
           {series.map((item) => {
-            const missingAttribution = isMissingSdkAttribution(item);
+            const requiresIngestionHeader = requiresOtelIngestionHeader(item);
             const upgradeHref =
               item.upgradeStatus === "outdated_major" && item.canonicalSdkName
                 ? SDK_UPGRADE_LINKS[item.canonicalSdkName]
                 : null;
             const publicKeyLabel = item.publicKey || "No API key";
             const detail = [
-              missingAttribution
-                ? "Configure the x-langfuse-sdk-name and x-langfuse-sdk-version headers on the OTLP exporter."
+              requiresIngestionHeader
+                ? "Set the x-langfuse-ingestion-version header to 4 on the OTLP exporter."
                 : item.latestMajor
                   ? `latest major: ${item.latestMajor}`
                   : null,
@@ -875,28 +878,28 @@ const SdkUsageDetails = ({
                   <div className="flex min-w-0 items-center gap-2">
                     <Badge
                       variant={
-                        missingAttribution
+                        requiresIngestionHeader
                           ? "warning"
                           : getSdkUpgradeStatusBadgeVariant(item.upgradeStatus)
                       }
                       size="sm"
                       className="shrink-0"
                     >
-                      {missingAttribution
-                        ? "Missing headers"
+                      {requiresIngestionHeader
+                        ? "Header required"
                         : getSdkUpgradeStatusLabel(item.upgradeStatus)}
                     </Badge>
                     <span
                       className="truncate text-sm font-bold"
                       title={
-                        missingAttribution
+                        requiresIngestionHeader
                           ? "OTel writer"
                           : isUntrackedSdkUsage(item)
                             ? "untracked"
                             : getSdkPackageLabel(item)
                       }
                     >
-                      {missingAttribution
+                      {requiresIngestionHeader
                         ? "OTel writer"
                         : isUntrackedSdkUsage(item)
                           ? "untracked"
@@ -1086,15 +1089,15 @@ export const V4MigrationProjectCards = ({
       ),
     [sdkUpgradeTransitions],
   );
-  const missingAttributionSdkUsageSeries = useMemo(
-    () => sdkUsageSeries.filter(isMissingSdkAttribution),
+  const delayedOtelSdkUsageSeries = useMemo(
+    () => sdkUsageSeries.filter(requiresOtelIngestionHeader),
     [sdkUsageSeries],
   );
   const requiredSdkUsageSeries = useMemo(
     () =>
       sdkUsageSeries.filter(
         (series) =>
-          !isMissingSdkAttribution(series) &&
+          !requiresOtelIngestionHeader(series) &&
           series.upgradeStatus === "outdated_major" &&
           !completedUpgradeVersionKeys.has(
             `${series.canonicalSdkName}\u0000${series.sdkVersion}\u0000${series.publicKey}`,
@@ -1106,7 +1109,7 @@ export const V4MigrationProjectCards = ({
     () =>
       sdkUsageSeries.filter(
         (series) =>
-          !isMissingSdkAttribution(series) &&
+          !requiresOtelIngestionHeader(series) &&
           series.upgradeStatus !== "outdated_major" &&
           !isUntrackedSdkUsage(series),
       ),
@@ -1135,7 +1138,7 @@ export const V4MigrationProjectCards = ({
     traceLevelEvalCount +
     legacyIntegrationLinks.length +
     requiredSdkUsageSeries.length +
-    missingAttributionSdkUsageSeries.length;
+    delayedOtelSdkUsageSeries.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
   const isSummaryLoading =
     isLegacyIntegrationSummaryLoading || isTraceLevelEvalSummaryLoading;
@@ -1283,19 +1286,19 @@ export const V4MigrationProjectCards = ({
 
         {!isSdkUsageLoading &&
         !hasSdkUsageError &&
-        missingAttributionSdkUsageSeries.length ? (
+        delayedOtelSdkUsageSeries.length ? (
           <AuditSection
-            title="OTel SDK attribution"
+            title="OTel real-time ingestion"
             countLabel={`${numberFormatter(
-              missingAttributionSdkUsageSeries.length,
+              delayedOtelSdkUsageSeries.length,
               0,
-            )} missing`}
-            consequence="Configure the x-langfuse-sdk-name and x-langfuse-sdk-version headers on the OTLP exporter so Langfuse can identify the SDK and version."
+            )} header required`}
+            consequence="Set the x-langfuse-ingestion-version header to 4 on the OTLP exporter so OTel data uses the real-time ingestion path."
             detailsHref={`/project/${projectId}/settings/api-keys`}
           >
             <SdkUsageDetails
               bucketTimes={sdkUsageBucketTimes}
-              series={missingAttributionSdkUsageSeries}
+              series={delayedOtelSdkUsageSeries}
             />
           </AuditSection>
         ) : null}

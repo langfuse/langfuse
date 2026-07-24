@@ -14,7 +14,7 @@ const sdkSeries = (
   count: 1,
   firstSeen: "2026-07-23T09:00:00Z",
   lastSeen: "2026-07-23T10:00:00Z",
-  hasOtelEvents: true,
+  hasDelayedOtelEvents: false,
   attributionStatus: "attributed" as const,
   v4MigrationStatus: "compatible" as const,
   upgradeCompleted: false,
@@ -26,7 +26,7 @@ const getLoadedSdkState = (...sdkUsageSeries: ReturnType<typeof sdkSeries>[]) =>
     summary: {
       projectId: "project-1",
       outdatedSdkUsageSeriesCount: 0,
-      missingSdkAttributionSeriesCount: 0,
+      delayedOtelIngestionSeriesCount: 0,
       sdkUsageSeries,
     },
     isError: false,
@@ -50,7 +50,7 @@ describe("v4 migration SDK status", () => {
     });
   });
 
-  it("surfaces unattributed OTel usage alongside a compatible SDK", () => {
+  it("does not require action for raw OTel already using real-time ingestion", () => {
     expect(
       getLoadedSdkState(
         sdkSeries(),
@@ -61,12 +61,34 @@ describe("v4 migration SDK status", () => {
           publicKey: "",
           attributionStatus: "missing_name_and_version",
           v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: false,
         }),
       ),
     ).toMatchObject({
-      status: "unattributed",
+      status: "latest",
       upgradeRequiredCount: 0,
-      missingAttributionCount: 1,
+      delayedOtelIngestionCount: 0,
+    });
+  });
+
+  it("requires the ingestion header for delayed raw OTel traffic", () => {
+    expect(
+      getLoadedSdkState(
+        sdkSeries(),
+        sdkSeries({
+          sdkName: "unknown",
+          sdkVersion: "unknown",
+          canonicalSdkName: null,
+          publicKey: "",
+          attributionStatus: "missing_name_and_version",
+          v4MigrationStatus: "unknown",
+          hasDelayedOtelEvents: true,
+        }),
+      ),
+    ).toMatchObject({
+      status: "otel_header_required",
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 1,
     });
   });
 

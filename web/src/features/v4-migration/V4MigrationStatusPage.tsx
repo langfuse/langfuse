@@ -205,7 +205,7 @@ function OrgStatusSection({
           ? 5
           : row.status?.sdk.status === "legacy"
             ? 4
-            : row.status?.sdk.status === "unattributed"
+            : row.status?.sdk.status === "otel_header_required"
               ? 3
               : row.status?.sdk.status === "unknown"
                 ? 2
@@ -329,10 +329,12 @@ function OrgStatusSection({
                         <span className="text-foreground-tertiary">
                           Unknown
                         </span>
-                      ) : row.status.sdk.status === "unattributed" ? (
+                      ) : row.status.sdk.status === "otel_header_required" ? (
                         <span>
-                          {row.status.sdk.missingAttributionCount} missing
-                          attribution
+                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+                          {row.status.sdk.delayedOtelIngestionCount === 1
+                            ? "required"
+                            : "issues"}
                         </span>
                       ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">

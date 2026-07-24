@@ -5,7 +5,7 @@ export type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "unknown"
-  | "unattributed"
+  | "otel_header_required"
   | "legacy"
   | "latest";
 
@@ -19,11 +19,13 @@ export type V4MigrationSdkState = {
   status: V4MigrationSdkStatus;
   sdkUsageSeries: V4MigrationSdkUsageSeries[];
   upgradeRequiredCount: number;
-  missingAttributionCount: number;
+  delayedOtelIngestionCount: number;
 };
 
-const isMissingAttribution = (series: V4MigrationSdkUsageSeries): boolean =>
-  series.hasOtelEvents && series.attributionStatus !== "attributed";
+const requiresOtelIngestionHeader = (
+  series: V4MigrationSdkUsageSeries,
+): boolean =>
+  series.hasDelayedOtelEvents === true && series.canonicalSdkName === null;
 
 const sortSdkUsageSeries = (
   rows: V4MigrationSdkUsageSeries[],
@@ -32,8 +34,8 @@ const sortSdkUsageSeries = (
     (left, right) =>
       Number(right.v4MigrationStatus === "upgrade_required") -
         Number(left.v4MigrationStatus === "upgrade_required") ||
-      Number(isMissingAttribution(right)) -
-        Number(isMissingAttribution(left)) ||
+      Number(requiresOtelIngestionHeader(right)) -
+        Number(requiresOtelIngestionHeader(left)) ||
       Number(right.v4MigrationStatus === "unknown") -
         Number(left.v4MigrationStatus === "unknown") ||
       left.lastSeen.localeCompare(right.lastSeen),
@@ -53,7 +55,7 @@ export const getV4MigrationSdkState = (params: {
           : "unknown",
       sdkUsageSeries: [],
       upgradeRequiredCount: 0,
-      missingAttributionCount: 0,
+      delayedOtelIngestionCount: 0,
     };
   }
 
@@ -63,8 +65,9 @@ export const getV4MigrationSdkState = (params: {
       series.v4MigrationStatus === "upgrade_required" &&
       !series.upgradeCompleted,
   ).length;
-  const missingAttributionCount =
-    sdkUsageSeries.filter(isMissingAttribution).length;
+  const delayedOtelIngestionCount = sdkUsageSeries.filter(
+    requiresOtelIngestionHeader,
+  ).length;
   const hasUnknownRecognizedSdk = sdkUsageSeries.some(
     (series) =>
       series.canonicalSdkName !== null &&
@@ -78,8 +81,8 @@ export const getV4MigrationSdkState = (params: {
     status:
       upgradeRequiredCount > 0
         ? "legacy"
-        : missingAttributionCount > 0
-          ? "unattributed"
+        : delayedOtelIngestionCount > 0
+          ? "otel_header_required"
           : hasUnknownRecognizedSdk
             ? "unknown"
             : hasCompatibleSdk
@@ -87,7 +90,7 @@ export const getV4MigrationSdkState = (params: {
               : "unknown",
     sdkUsageSeries,
     upgradeRequiredCount,
-    missingAttributionCount,
+    delayedOtelIngestionCount,
   };
 };
 

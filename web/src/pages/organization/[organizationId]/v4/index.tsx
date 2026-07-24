@@ -63,7 +63,7 @@ type ProjectTraceLevelEvalSummary = {
 type ProjectSdkUsageSummary = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
-  missingSdkAttributionSeriesCount: number;
+  delayedOtelIngestionSeriesCount: number;
 };
 
 type ProjectReadinessRow = ProjectSummary & {
@@ -71,23 +71,27 @@ type ProjectReadinessRow = ProjectSummary & {
   legacyApiEntrypointCount: number;
   legacyApiUsageCount: number;
   outdatedSdkUsageSeriesCount: number;
-  missingSdkAttributionSeriesCount: number;
+  delayedOtelIngestionSeriesCount: number;
   requiredActionCount: number;
 };
 
 const getSdkActionSummary = ({
   outdatedSdkUsageSeriesCount,
-  missingSdkAttributionSeriesCount,
+  delayedOtelIngestionSeriesCount,
 }: {
   outdatedSdkUsageSeriesCount: number;
-  missingSdkAttributionSeriesCount: number;
+  delayedOtelIngestionSeriesCount: number;
 }) => {
   const actions = [
     outdatedSdkUsageSeriesCount > 0
       ? `${numberFormatter(outdatedSdkUsageSeriesCount, 0)} outdated`
       : null,
-    missingSdkAttributionSeriesCount > 0
-      ? `${numberFormatter(missingSdkAttributionSeriesCount, 0)} missing attribution`
+    delayedOtelIngestionSeriesCount > 0
+      ? `${numberFormatter(delayedOtelIngestionSeriesCount, 0)} OTel ${
+          delayedOtelIngestionSeriesCount === 1
+            ? "header required"
+            : "header issues"
+        }`
       : null,
   ].filter(Boolean);
 
@@ -355,12 +359,12 @@ export default function OrganizationV4Page() {
       ),
     [sdkUsageRows],
   );
-  const missingSdkAttributionSeriesCountsByProjectId = useMemo(
+  const delayedOtelIngestionSeriesCountsByProjectId = useMemo(
     () =>
       new Map(
         sdkUsageRows.map((row) => [
           row.projectId,
-          row.missingSdkAttributionSeriesCount,
+          row.delayedOtelIngestionSeriesCount,
         ]),
       ),
     [sdkUsageRows],
@@ -379,8 +383,8 @@ export default function OrganizationV4Page() {
             countLegacyApiEntrypoints(legacyApiRows);
           const outdatedSdkUsageSeriesCount =
             outdatedSdkUsageSeriesCountsByProjectId.get(project.projectId) ?? 0;
-          const missingSdkAttributionSeriesCount =
-            missingSdkAttributionSeriesCountsByProjectId.get(
+          const delayedOtelIngestionSeriesCount =
+            delayedOtelIngestionSeriesCountsByProjectId.get(
               project.projectId,
             ) ?? 0;
           const requiredActionCount = getV4ProjectRequiredActionCount({
@@ -388,7 +392,7 @@ export default function OrganizationV4Page() {
             legacyIntegrationCount: project.legacyIntegrationCount,
             legacyApiEntrypointCount,
             outdatedSdkUsageSeriesCount,
-            missingSdkAttributionSeriesCount,
+            delayedOtelIngestionSeriesCount,
           });
 
           return {
@@ -397,7 +401,7 @@ export default function OrganizationV4Page() {
             legacyApiEntrypointCount,
             legacyApiUsageCount: sumLegacyApiUsage(legacyApiRows),
             outdatedSdkUsageSeriesCount,
-            missingSdkAttributionSeriesCount,
+            delayedOtelIngestionSeriesCount,
             requiredActionCount,
           };
         })
@@ -411,7 +415,7 @@ export default function OrganizationV4Page() {
       projects,
       legacyApiUsageRowsByProjectId,
       outdatedSdkUsageSeriesCountsByProjectId,
-      missingSdkAttributionSeriesCountsByProjectId,
+      delayedOtelIngestionSeriesCountsByProjectId,
       traceLevelEvalCountsByProjectId,
     ],
   );

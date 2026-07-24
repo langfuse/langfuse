@@ -123,7 +123,7 @@ type SdkUsageTimeSeriesRow = {
   count: string | number;
   firstSeen: string;
   lastSeen: string;
-  hasOtelEvents: boolean | string | number;
+  hasDelayedOtelEvents: boolean | string | number | null;
 };
 
 type SdkUsageTimeSeriesResultRow = {
@@ -134,7 +134,7 @@ type SdkUsageTimeSeriesResultRow = {
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
-  hasOtelEvents: boolean;
+  hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
   canonicalSdkName: "python" | "javascript" | null;
   latestMajor: number | null;
@@ -166,7 +166,7 @@ type SdkUsageSummaryByProjectRow = {
   count: string | number;
   firstSeen: string;
   lastSeen: string;
-  hasOtelEvents: boolean | string | number;
+  hasDelayedOtelEvents: boolean | string | number | null;
 };
 
 type SdkUsageSummaryByProjectSeries = {
@@ -177,7 +177,7 @@ type SdkUsageSummaryByProjectSeries = {
   count: number;
   firstSeen: string;
   lastSeen: string;
-  hasOtelEvents: boolean;
+  hasDelayedOtelEvents: boolean | null;
   attributionStatus: IngestionSdkAttributionStatus;
   v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
   upgradeCompleted: boolean;
@@ -186,7 +186,7 @@ type SdkUsageSummaryByProjectSeries = {
 type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
-  missingSdkAttributionSeriesCount: number;
+  delayedOtelIngestionSeriesCount: number;
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
@@ -264,6 +264,10 @@ const compareSdkUsageRows = (
 const toBoolean = (value: boolean | string | number): boolean =>
   value === true || value === 1 || value === "1";
 
+const toNullableBoolean = (
+  value: boolean | string | number | null,
+): boolean | null => (value === null ? null : toBoolean(value));
+
 const decorateSdkUsageRows = ({
   rows,
 }: {
@@ -288,7 +292,7 @@ const decorateSdkUsageRows = ({
         count: Number(row.count),
         firstSeen: row.firstSeen,
         lastSeen: row.lastSeen,
-        hasOtelEvents: toBoolean(row.hasOtelEvents),
+        hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
         attributionStatus,
         canonicalSdkName: classification.canonicalSdkName,
         latestMajor: classification.latestMajor,
@@ -780,7 +784,8 @@ ORDER BY bucket_time ASC, score_name ASC
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    false AS is_otel
+    false AS is_otel_ingestion,
+    false AS is_delayed_otel
   FROM scores FINAL
   WHERE
     project_id = {projectId: String}
@@ -799,7 +804,8 @@ WITH selected AS (
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    startsWith(source, 'otel') AS is_otel
+    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
+    startsWith(source, 'otel-dual-write') AS is_delayed_otel
   FROM events_core
   WHERE
     project_id = {projectId: String}
@@ -820,7 +826,7 @@ SELECT
   count() AS count,
   formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
   formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  max(is_otel) AS hasOtelEvents
+  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
 FROM selected
 GROUP BY ${bucketTimeSql}, sdk_name, sdk_version, public_key
 ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
@@ -878,7 +884,8 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    false AS is_otel
+    false AS is_otel_ingestion,
+    false AS is_delayed_otel
   FROM scores FINAL
   WHERE
     project_id IN {projectIds: Array(String)}
@@ -898,7 +905,8 @@ WITH selected AS (
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
-    startsWith(source, 'otel') AS is_otel
+    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
+    startsWith(source, 'otel-dual-write') AS is_delayed_otel
   FROM events_core
   WHERE
     project_id IN {projectIds: Array(String)}
@@ -919,7 +927,7 @@ SELECT
   count() AS count,
   formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
   formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
-  max(is_otel) AS hasOtelEvents
+  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
 FROM selected
 GROUP BY project_id, sdk_name, sdk_version, public_key
 ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
@@ -963,7 +971,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               count: Number(row.count),
               firstSeen: row.firstSeen,
               lastSeen: row.lastSeen,
-              hasOtelEvents: toBoolean(row.hasOtelEvents),
+              hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
               attributionStatus: classifyIngestionSdkAttribution({
                 sdkName: row.sdkName,
                 sdkVersion: row.sdkVersion,
@@ -996,7 +1004,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               count: row.count,
               firstSeen: row.firstSeen!,
               lastSeen: row.lastSeen!,
-              hasOtelEvents: row.hasOtelEvents,
+              hasDelayedOtelEvents: row.hasDelayedOtelEvents,
               attributionStatus: row.attributionStatus,
               v4MigrationStatus:
                 row.upgradeStatus === "current"
@@ -1017,11 +1025,11 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               series.v4MigrationStatus === "upgrade_required" &&
               !series.upgradeCompleted,
           ).length,
-          missingSdkAttributionSeriesCount: sdkUsageSeries.filter(
+          delayedOtelIngestionSeriesCount: sdkUsageSeries.filter(
             (series) =>
               series.count > 0 &&
-              series.hasOtelEvents &&
-              series.attributionStatus !== "attributed",
+              series.hasDelayedOtelEvents === true &&
+              series.canonicalSdkName === null,
           ).length,
           sdkUsageSeries,
         };

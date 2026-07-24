@@ -162,8 +162,8 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <Chip variant="success">Up to date</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
-    ) : sdk.status === "unattributed" ? (
-      <Chip variant="warning">Attribution missing</Chip>
+    ) : sdk.status === "otel_header_required" ? (
+      <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
       <Chip variant="warning">
         {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
@@ -179,12 +179,12 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <p className="text-muted-foreground text-sm leading-relaxed">
         {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
-        ) : sdk.status === "unattributed" ? (
+        ) : sdk.status === "otel_header_required" ? (
           <>
-            OTel traffic was detected, but Langfuse SDK attribution is missing.
-            Configure the <MonoValue>x-langfuse-sdk-name</MonoValue> and{" "}
-            <MonoValue>x-langfuse-sdk-version</MonoValue> headers on the OTLP
-            exporter.
+            OTel data is arriving through the delayed ingestion path. Set the{" "}
+            <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
+            <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
+            ingestion.
           </>
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
