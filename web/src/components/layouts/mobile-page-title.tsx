@@ -79,7 +79,7 @@ export const MobilePageTitle = ({
             stays in the title attribute (and the ⋯ menu's Copy row). */}
         <h1
           title={title}
-          className="text-primary min-w-0 flex-1 truncate text-base leading-tight font-bold"
+          className="text-primary min-w-0 truncate text-base leading-tight font-bold"
         >
           {titleContent ? (
             titleContent
@@ -97,19 +97,22 @@ export const MobilePageTitle = ({
           ) : (
             <span title={title}>{title}</span>
           )}
-          {help && (
-            <span className="align-middle whitespace-nowrap">
-              &nbsp;
-              <DocPopup
-                description={help.description}
-                href={help.href}
-                className={help.className}
-              />
-            </span>
-          )}
         </h1>
+        {/* Help lives OUTSIDE the truncating h1 (like titleBadges): kept inside,
+            a title long enough to fill the row clips the `?` past the overflow
+            boundary, making it invisible/untappable. As a shrink-0 sibling it
+            stays put. */}
+        {help && (
+          <span className="shrink-0 align-middle whitespace-nowrap">
+            <DocPopup
+              description={help.description}
+              href={help.href}
+              className={help.className}
+            />
+          </span>
+        )}
         {titleBadges && (
-          <div className="flex items-center gap-1">{titleBadges}</div>
+          <div className="flex shrink-0 items-center gap-1">{titleBadges}</div>
         )}
         {/* Actions collapse into a single right-aligned overflow popover of
             full-width labeled rows (icon + label) — the same pattern the table
