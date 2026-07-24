@@ -34,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { formatApproximateDuration } from "@/src/utils/dates";
 import {
   InAppAgentMessage,
@@ -387,10 +388,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   );
   const capture = usePostHogClientCapture();
   // No auto-focus on mobile — it springs the keyboard and buries the panel.
-  // autoFocus is mount-only and useIsMobile() is false on first render, so read
-  // the viewport synchronously (window is client-only here).
-  const isNarrowViewport =
-    typeof window !== "undefined" && window.innerWidth < 768;
+  const isMobile = useIsMobile();
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -482,15 +480,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
       // Skip on mobile: refocusing after a turn re-springs the keyboard, even
       // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
-        previousIsInputDisabledRef.current &&
-        !isInputDisabled &&
-        !isNarrowViewport;
+        previousIsInputDisabledRef.current && !isInputDisabled && !isMobile;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isInputDisabled, isNarrowViewport],
+    [isInputDisabled, isMobile],
   );
 
   useEffect(() => {
@@ -923,7 +919,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded && !isNarrowViewport}
+              autoFocus={!isExpanded && !isMobile}
               ref={setInputRef}
               value={input}
               onChange={(event) => {
