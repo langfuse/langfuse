@@ -98,6 +98,9 @@ export default function EditWidget() {
     >
       {!isWidgetLoading && widgetData ? (
         <WidgetForm
+          // Remount when the edited widget changes so its loaded values seed
+          // the form defaults once, rather than syncing via an effect.
+          key={widgetId}
           projectId={projectId}
           widgetId={widgetId}
           onSave={handleUpdateWidget}
