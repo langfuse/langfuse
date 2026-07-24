@@ -171,6 +171,58 @@ const TurnObservationRows = ({
 };
 
 /**
+ * Funnel-menu items: the base type set plus any extra types present in
+ * already-loaded observation pages, scanned from the query cache on render.
+ * This component only mounts while the dropdown is open (Radix unmounts
+ * closed content), so the scan never runs during list scrolling.
+ */
+const TypeFilterItems = ({
+  traces,
+  projectId,
+  sessionId,
+  filterState,
+  typeFilter,
+  onToggleType,
+}: {
+  traces: EventSessionTrace[];
+  projectId: string;
+  sessionId: string;
+  filterState: FilterState;
+  typeFilter: Set<string>;
+  onToggleType: (type: string) => void;
+}) => {
+  const utils = api.useUtils();
+  const present = new Set(BASE_FILTER_TYPES);
+  for (const trace of traces) {
+    const cached = asObservationArray(
+      utils.sessions.observationsForTraceFromEvents.getData({
+        projectId,
+        sessionId,
+        traceId: trace.id,
+        filter: filterState,
+      }),
+    );
+    cached?.forEach((observation) => present.add(observation.type));
+  }
+  return (
+    <>
+      {Array.from(present).map((type) => (
+        <DropdownMenuCheckboxItem
+          key={type}
+          checked={typeFilter.has(type)}
+          onCheckedChange={() => onToggleType(type)}
+          onSelect={(event) => event.preventDefault()}
+        >
+          <span className="font-mono text-[10px] font-bold tracking-wide uppercase">
+            {typeLabel(type)}
+          </span>
+        </DropdownMenuCheckboxItem>
+      ))}
+    </>
+  );
+};
+
+/**
  * `exact seconds · tokens · cost` tooltip of a turn row — REAL trace data
  * only; parts without a datum are omitted (never fabricated).
  */
@@ -381,7 +433,6 @@ export function ObservationList({
   const [collapsedTurns, setCollapsedTurns] = useState<Record<string, true>>(
     {},
   );
-  const utils = api.useUtils();
 
   const totalSpanCount = useMemo(
     () => traces.reduce((sum, trace) => sum + (trace.observationCount ?? 0), 0),
@@ -409,25 +460,6 @@ export function ObservationList({
       ),
     [traces],
   );
-
-  // Types offered by the funnel: the base set plus any extra types present in
-  // already-loaded observation pages (scanned from the query cache on render).
-  const filterTypes = useMemo(() => {
-    const present = new Set(BASE_FILTER_TYPES);
-    for (const trace of traces) {
-      const cached = asObservationArray(
-        utils.sessions.observationsForTraceFromEvents.getData({
-          projectId,
-          sessionId,
-          traceId: trace.id,
-          filter: filterState,
-        }),
-      );
-      cached?.forEach((observation) => present.add(observation.type));
-    }
-    return Array.from(present);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [traces, projectId, sessionId, filterState, typeFilter, search]);
 
   const toggleCollapse = (traceId: string) =>
     setCollapsedTurns((current) => {
@@ -524,18 +556,14 @@ export function ObservationList({
             <DropdownMenuLabel className="text-muted-foreground font-mono text-[9px] font-bold tracking-[0.08em] uppercase">
               Filter by type
             </DropdownMenuLabel>
-            {filterTypes.map((type) => (
-              <DropdownMenuCheckboxItem
-                key={type}
-                checked={typeFilter.has(type)}
-                onCheckedChange={() => toggleType(type)}
-                onSelect={(event) => event.preventDefault()}
-              >
-                <span className="font-mono text-[10px] font-bold tracking-wide uppercase">
-                  {typeLabel(type)}
-                </span>
-              </DropdownMenuCheckboxItem>
-            ))}
+            <TypeFilterItems
+              traces={traces}
+              projectId={projectId}
+              sessionId={sessionId}
+              filterState={filterState}
+              typeFilter={typeFilter}
+              onToggleType={toggleType}
+            />
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
