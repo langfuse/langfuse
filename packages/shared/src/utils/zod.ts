@@ -45,6 +45,7 @@ export const paginationLimitZod = z.preprocess(
   z.coerce.number().int().gte(1).lte(100).default(50),
 );
 
+/** @alias */
 export const publicApiPaginationLimitZod = paginationLimitZod;
 
 export const paginationZod = {
@@ -156,6 +157,19 @@ export const paginationMetaResponseZod = z.object({
   totalItems: z.number().int().nonnegative(),
   totalPages: z.number().int().nonnegative(),
 });
+
+/**
+ * Top-level `_deprecation` metadata returned by legacy public API endpoints.
+ * Optional fields are omitted when empty (never null). See LFE-10895.
+ */
+export const deprecationResponseZod = z.object({
+  message: z.string(),
+  replacement: z.string().optional(),
+  docsUrl: z.string().optional(),
+  sunsetAt: z.string().optional(),
+});
+
+export type ApiDeprecationInfo = z.infer<typeof deprecationResponseZod>;
 
 export const urlRegex = /https?:\/\/[^\s/$.?#].[^\s]*/i;
 export const noUrlCheck = (value: string) => !urlRegex.test(value);

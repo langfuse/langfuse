@@ -448,6 +448,38 @@ export const getTraceCountsByProjectInCreationInterval = async ({
   });
 };
 
+export const getLastTraceTimestampsByProjectsFromTracesTable = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}) => {
+  if (projectIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      project_id,
+      max(timestamp) as last_trace_at
+    FROM traces
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND timestamp >= now() - INTERVAL 30 DAY
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{
+    project_id: string;
+    last_trace_at: string;
+  }>({
+    query,
+    params: { projectIds },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    lastTraceAt: parseClickhouseUTCDateTimeFormat(row.last_trace_at),
+  }));
+};
+
 export const getTraceCountOfProjectsSinceCreationDate = async ({
   projectIds,
   start,
@@ -1427,7 +1459,8 @@ export const getTracesForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash

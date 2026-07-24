@@ -11,6 +11,7 @@ import {
   queryClickhouseStream,
   recordGauge,
   recordIncrement,
+  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
@@ -165,6 +166,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
     super({
       name: `BatchDataRetentionCleaner(${tableName})`,
+      metricName: "batch_data_retention_cleaner",
+      metricScope: tableName,
       lockKey: `${BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
       onUnavailable: "fail",
@@ -538,6 +541,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       recordIncrement(`${METRIC_PREFIX}.candidate_query_failures`, 1, {
         table: this.tableName,
       });
+      this.markRunFailed(error);
       logger.warn(`${this.instanceName}: Candidate query did not complete`, {
         error,
         candidatesFound: candidatesById.size,
@@ -657,6 +661,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
         throw error;
       }
+      // Preserve the APM error, but let a successful retry keep the runner outcome healthy.
+      traceException(error);
       logger.warn(
         `${this.instanceName}: Candidate enrichment failed; retrying on read-only`,
         {
@@ -682,6 +688,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           throw retryError;
         }
 
+        this.markRunFailed(retryError);
         recordIncrement(`${METRIC_PREFIX}.enrichment_query_failures`, 1, {
           table: this.tableName,
         });

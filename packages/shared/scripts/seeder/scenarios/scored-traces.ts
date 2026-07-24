@@ -71,6 +71,29 @@ const TRACE_NAMES = [
   "classify-intent",
 ] as const;
 
+const SDK_ATTRIBUTION_PROFILES = [
+  {
+    key: "python-legacy",
+    ingestion_sdk_name: "python",
+    ingestion_sdk_version: "4.6.9",
+  },
+  {
+    key: "python-current",
+    ingestion_sdk_name: "python",
+    ingestion_sdk_version: "4.7.1",
+  },
+  {
+    key: "javascript-legacy",
+    ingestion_sdk_name: "@langfuse/tracing",
+    ingestion_sdk_version: "5.3.9",
+  },
+  {
+    key: "javascript-current",
+    ingestion_sdk_name: "@langfuse/tracing",
+    ingestion_sdk_version: "5.4.1",
+  },
+] as const;
+
 const run = async (
   ctx: ScenarioContext,
   params: Record<string, string | number | boolean>,
@@ -130,6 +153,14 @@ const run = async (
   const events: EventRecordInsertType[] = [];
 
   for (let t = 0; t < traceCount; t++) {
+    const scoreStartIndex = scores.length;
+    const sdkAttribution =
+      SDK_ATTRIBUTION_PROFILES[t % SDK_ATTRIBUTION_PROFILES.length]!;
+    const ingestionAttribution = {
+      ingestion_api_key: `pk-lf-seed-${ctx.idPrefix}-${sdkAttribution.key}`,
+      ingestion_sdk_name: sdkAttribution.ingestion_sdk_name,
+      ingestion_sdk_version: sdkAttribution.ingestion_sdk_version,
+    };
     const traceId = `${ctx.idPrefix}-t${t}`;
     const timestamp =
       startMs + Math.floor(t * stepMs) + jitter(ctx.seed, t, 1000);
@@ -347,9 +378,15 @@ const run = async (
     );
 
     if (withV4) {
-      const traceEvent = traceToEvent(trace);
+      const traceEvent = {
+        ...traceToEvent(trace),
+        ...ingestionAttribution,
+      };
       events.push(traceEvent);
-      events.push(observationToEvent(observation, trace));
+      events.push({
+        ...observationToEvent(observation, trace),
+        ...ingestionAttribution,
+      });
 
       // Observation-level score attached to the v4 ROOT span (`t-<traceId>`):
       // the root's inline chips then MIX trace-level and observation-level
@@ -372,6 +409,10 @@ const run = async (
           timestamp,
         }),
       );
+    }
+
+    for (const score of scores.slice(scoreStartIndex)) {
+      Object.assign(score, ingestionAttribution);
     }
   }
 
@@ -462,7 +503,7 @@ const run = async (
 export const scoredTracesScenario: ScenarioDefinition = {
   name: "scored-traces",
   description:
-    'Standalone traces each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus DUAL-LEVEL names ("confidence", "verdict") that exist at BOTH levels on the same trace — observation confidence < 0.5 <= trace confidence, verdict "pass" trace-only — for the level-agnostic scores filter + ScoreTag edge case (LFE-10596).',
+    'Standalone traces with mixed current/legacy Python and JavaScript SDK attribution, each carrying numeric + categorical scores whose names contain SPACES (e.g. "Rouge Score") at observation and trace level, plus DUAL-LEVEL names ("confidence", "verdict") that exist at BOTH levels on the same trace — observation confidence < 0.5 <= trace confidence, verdict "pass" trace-only — for the level-agnostic scores filter + ScoreTag edge case (LFE-10596).',
   supportsV4: true,
   flags: [
     {

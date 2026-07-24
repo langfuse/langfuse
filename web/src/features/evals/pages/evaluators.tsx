@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getEvalsTabs,
   EVALS_TABS,
@@ -14,11 +13,11 @@ import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { V4MigrationModal } from "@/src/features/v4-migration/V4MigrationModal";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const capture = usePostHogClientCapture();
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
@@ -76,6 +75,7 @@ export default function EvaluatorsPage() {
 
   return (
     <>
+      <V4MigrationModal />
       <Page
         headerProps={{
           title: "Evaluators",
@@ -93,14 +93,18 @@ export default function EvaluatorsPage() {
               <ManageDefaultEvalModel projectId={projectId} />
               <ActionButton
                 hasAccess={hasWriteAccess}
+                href={`/project/${projectId}/evals/new`}
                 icon={<Plus className="h-4 w-4" />}
+                trackingEventName="eval_config:new_form_open"
                 variant="default"
-                onClick={() => {
-                  capture("eval_config:new_form_open");
-                  router.push(`/project/${projectId}/evals/new`);
-                }}
-                limitValue={countsQuery.data?.configActiveCount ?? 0}
-                limit={evaluatorLimit}
+                usageLimit={
+                  typeof evaluatorLimit === "number"
+                    ? {
+                        current: countsQuery.data?.configActiveCount ?? 0,
+                        max: evaluatorLimit,
+                      }
+                    : undefined
+                }
               >
                 Set up evaluator
               </ActionButton>

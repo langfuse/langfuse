@@ -5,9 +5,9 @@
     "catalog": "off",
   },
   "ignoreIssues": {
-    "web/**": ["files", "exports", "types", "duplicates"],
-    "packages/shared/**": ["files", "exports", "types", "duplicates"],
-    "worker/**": ["files", "exports", "types", "duplicates"],
+    "web/**": ["files", "exports", "types"],
+    "packages/shared/**": ["files", "exports", "types"],
+    "worker/**": ["files", "exports", "types"],
   },
   "workspaces": {
     "worker": {
