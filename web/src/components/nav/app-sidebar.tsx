@@ -54,12 +54,11 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
-      <SidebarHeader className="gap-0 pt-0">
-        {/* Logo band (sessions handoff): fixed-height row closed by a
-            full-bleed hairline, logo + mono version inside. */}
-        <div className="border-sidebar-border flex h-10 shrink-0 items-center gap-2 border-b pt-2 pr-0 pl-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+      <SidebarHeader>
+        <div className="flex min-h-9 items-center gap-2 py-2 pr-0 pl-2 group-data-[collapsible=icon]:p-3">
           <LangfuseLogo version />
         </div>
+        <div className="h-1 flex-1 border-b" />
         <DemoBadge />
       </SidebarHeader>
       <SidebarContent>
