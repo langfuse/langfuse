@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
@@ -261,11 +262,20 @@ const SessionControlsBar = ({
           <ChevronDown className="h-4 w-4 shrink-0" />
         )}
       </Button>
-      {isExpanded && (
-        <div className="flex flex-wrap items-center gap-2 border-t p-4">
-          {children}
-        </div>
-      )}
+      {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
+          TableViewPresetsDrawer trigger (#session-detail-view-trigger) lives in
+          here, and the per-trace "Switch the view" link clicks it by id — it
+          must be in the DOM before the accordion is ever expanded. `hidden`
+          (display:none) still takes no layout space, so the content keeps the
+          reclaimed viewport. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-t p-4",
+          !isExpanded && "hidden",
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 };
