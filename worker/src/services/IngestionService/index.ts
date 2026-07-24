@@ -8,6 +8,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  isObservationFieldSizeLimitMediaReference,
   type JsonNested,
 } from "@langfuse/shared";
 import {
@@ -294,6 +295,7 @@ export class IngestionService {
               trace_id: eventData.traceId,
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
+              usage_details: eventData.usageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
               input,
               output,
@@ -1228,6 +1230,7 @@ export class IngestionService {
       | "id"
       | "provided_model_name"
       | "provided_usage_details"
+      | "usage_details"
       | "provided_cost_details"
       | "level"
       | "input"
@@ -1310,7 +1313,12 @@ export class IngestionService {
   private async getUsageUnits(
     observationRecord: Pick<
       ObservationRecordInsertType,
-      "provided_usage_details" | "level" | "input" | "output" | "id"
+      | "provided_usage_details"
+      | "usage_details"
+      | "level"
+      | "input"
+      | "output"
+      | "id"
     >,
     model: Model | null | undefined,
   ): Promise<
@@ -1321,6 +1329,15 @@ export class IngestionService {
   > {
     const providedUsageDetails = IngestionService.normalizeProvidedUsageDetails(
       observationRecord.provided_usage_details,
+    );
+    const existingUsageDetails = IngestionService.normalizeProvidedUsageDetails(
+      observationRecord.usage_details,
+    );
+    const preserveInputUsage = isObservationFieldSizeLimitMediaReference(
+      observationRecord.input,
+    );
+    const preserveOutputUsage = isObservationFieldSizeLimitMediaReference(
+      observationRecord.output,
     );
 
     if (
@@ -1339,28 +1356,36 @@ export class IngestionService {
           async (span) => {
             try {
               [newInputCount, newOutputCount] = await Promise.all([
-                tokenCountAsync({
-                  text: observationRecord.input,
-                  model,
-                }),
-                tokenCountAsync({
-                  text: observationRecord.output,
-                  model,
-                }),
+                preserveInputUsage
+                  ? existingUsageDetails.input
+                  : tokenCountAsync({
+                      text: observationRecord.input,
+                      model,
+                    }),
+                preserveOutputUsage
+                  ? existingUsageDetails.output
+                  : tokenCountAsync({
+                      text: observationRecord.output,
+                      model,
+                    }),
               ]);
             } catch (error) {
               logger.warn(
                 `Async tokenization has failed. Falling back to synchronous tokenization`,
                 error,
               );
-              newInputCount = tokenCount({
-                text: observationRecord.input,
-                model,
-              });
-              newOutputCount = tokenCount({
-                text: observationRecord.output,
-                model,
-              });
+              newInputCount = preserveInputUsage
+                ? existingUsageDetails.input
+                : tokenCount({
+                    text: observationRecord.input,
+                    model,
+                  });
+              newOutputCount = preserveOutputUsage
+                ? existingUsageDetails.output
+                : tokenCount({
+                    text: observationRecord.output,
+                    model,
+                  });
             }
 
             // Tracing

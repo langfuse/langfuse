@@ -117,6 +117,38 @@ describe("IngestionService unit tests", () => {
     });
   });
 
+  it("preserves usage for a previously spilled field during tokenization", async () => {
+    const ingestionService = new IngestionService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await (ingestionService as any).getUsageUnits(
+      {
+        id: "observation-id",
+        level: "DEFAULT",
+        input:
+          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
+        output: "new output",
+        provided_usage_details: {},
+        usage_details: { input: 123 },
+      },
+      {
+        id: "model-id",
+        tokenizerId: "openai",
+        tokenizerConfig: { tokenizerModel: "gpt-4o" },
+      },
+    );
+
+    expect(result.usage_details.input).toBe(123);
+    expect(result.usage_details.output).toBeGreaterThan(0);
+    expect(result.usage_details.total).toBe(
+      result.usage_details.input + result.usage_details.output,
+    );
+  });
+
   it("correctly sorts events in ascending order by timestamp", async () => {
     const firstTrace = { timestamp: 1, type: "observation-create" };
     const secondTrace = { timestamp: 1, type: "observation-update" };
