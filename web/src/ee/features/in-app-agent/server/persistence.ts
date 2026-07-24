@@ -646,26 +646,25 @@ function sanitizeConversationMessagesForReplay(
   );
 }
 
-export function shouldFlushPersistedEvent(
-  event: AgUiEvent,
-  pendingEvents: readonly AgUiEvent[] = [],
-) {
-  const isFlushBoundary =
+export function shouldFlushPersistedEvent(event: AgUiEvent) {
+  return (
     event.type === EventType.TEXT_MESSAGE_END ||
     event.type === EventType.TOOL_CALL_END ||
     event.type === EventType.TOOL_CALL_RESULT ||
     event.type === EventType.ACTIVITY_SNAPSHOT ||
     event.type === EventType.REASONING_END ||
     event.type === EventType.RUN_FINISHED ||
-    event.type === EventType.RUN_ERROR;
+    event.type === EventType.RUN_ERROR
+  );
+}
 
-  if (!isFlushBoundary) {
-    return false;
-  }
-
+export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+  eventsToAppend: AgUiEvent[];
+  retainedEvents: AgUiEvent[];
+} {
   const openRedirectToolCallIds = new Set<string>();
 
-  for (const pendingEvent of pendingEvents) {
+  for (const pendingEvent of events) {
     const toolCallId = getString(pendingEvent, "toolCallId");
 
     if (
@@ -682,9 +681,23 @@ export function shouldFlushPersistedEvent(
     }
   }
 
-  // Redirect actions are represented by their result payload. Keep the whole
-  // pending unit together so unrelated boundaries cannot split their lifecycle.
-  return openRedirectToolCallIds.size === 0;
+  if (openRedirectToolCallIds.size === 0) {
+    return { eventsToAppend: [...events], retainedEvents: [] };
+  }
+
+  const eventsToAppend: AgUiEvent[] = [];
+  const retainedEvents: AgUiEvent[] = [];
+
+  for (const event of events) {
+    const toolCallId = getString(event, "toolCallId");
+    const destination =
+      toolCallId && openRedirectToolCallIds.has(toolCallId)
+        ? retainedEvents
+        : eventsToAppend;
+    destination.push(event);
+  }
+
+  return { eventsToAppend, retainedEvents };
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
@@ -1265,9 +1278,9 @@ function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   );
 }
 
-// Redirect actions are rendered from the server-generated href payload. Drop the
-// redirect tool call scaffolding and args so persisted history does not depend
-// on the redirect input schema, which may evolve over time.
+// Redirect actions are rendered from the server-generated href payload. Keep
+// only that successful result: call scaffolding depends on an evolving input
+// schema, and failed results should not leave a broken action in history.
 function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   const redirectToolCallIds = new Set<string>();
 
@@ -1308,7 +1321,15 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
     }
 
     const toolCallId = getString(event, "toolCallId");
-    return !toolCallId || !redirectToolCallIds.has(toolCallId);
+
+    if (!toolCallId || !redirectToolCallIds.has(toolCallId)) {
+      return true;
+    }
+
+    return (
+      event.type === EventType.TOOL_CALL_RESULT &&
+      isRedirectActionToolResult(getString(event, "content"))
+    );
   });
 }
 

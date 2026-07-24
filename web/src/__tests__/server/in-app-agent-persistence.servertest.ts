@@ -33,6 +33,7 @@ import {
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
   appendRunEvents,
+  partitionPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
@@ -215,14 +216,20 @@ describe("in-app agent persistence", () => {
       return;
     }
 
-    await appendRunEvents({
-      prisma,
-      projectId: params.projectId,
-      conversationId: params.conversationId,
-      runId: params.runId,
-      events: params.events.slice(0, pendingEventCount),
-    });
-    params.events.splice(0, pendingEventCount);
+    const { eventsToAppend, retainedEvents } = partitionPendingRunEvents(
+      params.events.slice(0, pendingEventCount),
+    );
+
+    if (eventsToAppend.length > 0) {
+      await appendRunEvents({
+        prisma,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.runId,
+        events: eventsToAppend,
+      });
+    }
+    params.events.splice(0, pendingEventCount, ...retainedEvents);
   };
 
   const processAndPersistEvent = async (params: {
@@ -240,7 +247,7 @@ describe("in-app agent persistence", () => {
 
     params.events.push(persistedEvent);
 
-    if (!shouldFlushPersistedEvent(persistedEvent, params.events)) {
+    if (!shouldFlushPersistedEvent(persistedEvent)) {
       return;
     }
 
@@ -1433,7 +1440,7 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
-  it("drops interleaved failed redirect tool results before display and replay", async () => {
+  it("flushes sibling tools while retaining only successful redirect actions for display", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -1499,6 +1506,38 @@ describe("in-app agent persistence", () => {
       content: "[]",
       role: "tool",
     });
+
+    const expectedReplayMessages = [
+      { id: "user-1", role: "user" as const, content: "open a trace" },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        toolCalls: [
+          {
+            id: "sibling-tool-call",
+            type: "function" as const,
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "sibling-tool-result",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "sibling-tool-call",
+      },
+    ];
+
+    // A completed sibling tool unit must reach the Postgres-backed replay
+    // surface without waiting for an unrelated redirect result.
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+
     await process({
       type: EventType.TOOL_CALL_RESULT,
       messageId: "tool-result-1",
@@ -1507,6 +1546,36 @@ describe("in-app agent persistence", () => {
       role: "tool",
     });
 
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "successful-redirect-tool-call",
+      toolCallName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "successful-redirect-tool-call",
+      delta: '{"destination":"trace"}',
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "successful-redirect-tool-call",
+    });
+    const redirectActionContent = JSON.stringify({
+      type: "redirectAction",
+      label: "Open trace",
+      href: `/project/${projectId}/traces/trace-1`,
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "successful-redirect-result",
+      toolCallId: "successful-redirect-tool-call",
+      content: redirectActionContent,
+      role: "tool",
+    });
+
+    // Successful redirect actions must survive refresh as render-only results,
+    // while failed redirects and their evolving call arguments stay absent.
     await expect(
       caller.getConversation({
         projectId,
@@ -1533,34 +1602,23 @@ describe("in-app agent persistence", () => {
           content: "[]",
           toolCallId: "sibling-tool-call",
         },
+        {
+          id: "successful-redirect-result",
+          role: "tool",
+          content: redirectActionContent,
+          toolCallId: "successful-redirect-tool-call",
+        },
       ],
     });
+
+    // Render-only redirect actions must never enter the next model request.
     await expect(
       getConversationMessagesForReplay({
         prisma,
         projectId,
         conversationId: conversation.id,
       }),
-    ).resolves.toEqual([
-      { id: "user-1", role: "user", content: "open a trace" },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        toolCalls: [
-          {
-            id: "sibling-tool-call",
-            type: "function",
-            function: { name: "list_traces", arguments: "{}" },
-          },
-        ],
-      },
-      {
-        id: "sibling-tool-result",
-        role: "tool",
-        content: "[]",
-        toolCallId: "sibling-tool-call",
-      },
-    ]);
+    ).resolves.toEqual(expectedReplayMessages);
   });
 
   it("drops empty assistant messages after removing orphan tool calls before replay", async () => {
