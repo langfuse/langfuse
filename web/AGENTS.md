@@ -27,6 +27,9 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
+- Internal service-to-service routes: `src/pages/api/internal/*` (shared-secret
+  guarded via `LANGFUSE_INTERNAL_API_SECRET`; e.g. API-key verification for the
+  Go observations-api sidecar in `../go/observations-api`)
 - Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
