@@ -57,6 +57,10 @@ export const events = {
   // can be sliced by surface without leaking ids.
   peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
   generations: ["export"],
+  // Lazy JSON viewer perf telemetry (LFE-14419): learn whether the size gate
+  // and main-thread assumptions hold on real payloads. Metadata only —
+  // durations, char counts, tier; never payload content.
+  json_viewer: ["indexed", "slow_expand"],
   saved_views: [
     "create",
     "update",
