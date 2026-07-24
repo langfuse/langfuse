@@ -24,9 +24,12 @@ card layout only.
 - `SessionObservationIO.tsx`: bounded observation payload rendering and the
   bridge into `IOPreview` full/conversation modes.
 - `inspector/ObservationInspector.tsx`: Modern Session's right-hand
-  observation inspector panel — an IN-FLOW resizable panel the transcript
-  reflows around (drag the left edge; Esc closes). Opens by clicking an
-  observation in the feed; shows a type-aware overview grid, I/O zones,
+  observation inspector panel — a FLOATING OVERLAY (designer's override of
+  the handoff's reflow) that slides in over the transcript; drag the left
+  edge to resize; Esc/✕ or clicking the feed's transparent click-catcher
+  closes it, while the span rail is z-lifted above the catcher so rail
+  clicks swap the content. Opens by clicking an observation in the feed;
+  shows a type-aware overview grid, I/O zones,
   scores, and metadata without leaving the session. Selection state
   (`inspectedObservation`) lives in the session detail store. Stepping turns
   (`↑`/`↓`/`j`/`k` in ModernSession) retargets an open inspector to the new

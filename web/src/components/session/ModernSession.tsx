@@ -185,72 +185,67 @@ export function ModernSession({
         isOpen={isSpanListOpen}
         onToggleOpen={() => setIsSpanListOpen((current) => !current)}
       />
-      {/* Transcript + inspector share one flex row: the inspector is an
-          IN-FLOW resizable panel, so the transcript REFLOWS around it
-          (handoff v3) instead of being clipped under an overlay. */}
-      <div className="flex min-h-0 min-w-0 gap-x-2.5">
-        {/* Conversation — the CornerBox frame, the page's one raised surface. */}
-        <div className="bg-card relative min-h-0 min-w-[320px] flex-1 rounded-sm border">
-          <CornerBrackets />
+      {/* Conversation — the CornerBox frame, the page's one raised surface. */}
+      <div className="bg-card relative min-h-0 min-w-[320px] rounded-sm border">
+        <CornerBrackets />
+        <div
+          ref={feedRef}
+          className="h-full min-h-0 overflow-y-auto scroll-smooth rounded-sm"
+          onWheel={restoreScrollSpy}
+          onTouchMove={restoreScrollSpy}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) restoreScrollSpy();
+          }}
+        >
           <div
-            ref={feedRef}
-            className="h-full min-h-0 overflow-y-auto scroll-smooth rounded-sm"
-            onWheel={restoreScrollSpy}
-            onTouchMove={restoreScrollSpy}
-            onPointerDown={(event) => {
-              if (event.target === event.currentTarget) restoreScrollSpy();
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
             }}
           >
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {virtualItems.map((virtualItem) => {
-                const trace = traces[virtualItem.index];
-                if (!trace) return null;
+            {virtualItems.map((virtualItem) => {
+              const trace = traces[virtualItem.index];
+              if (!trace) return null;
 
-                return (
-                  <SessionVirtualizedRow
-                    key={virtualItem.key}
-                    itemKey={String(virtualItem.key)}
-                    measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}:${generationView}`}
-                    source="modern"
-                    virtualItem={virtualItem}
-                    virtualizer={virtualizer}
-                  >
-                    <LazySessionTraceEventsRow
-                      trace={trace}
-                      projectId={projectId}
-                      sessionId={sessionId}
-                      openPeek={openPeek}
-                      traceCommentCounts={traceCommentCounts}
-                      index={virtualItem.index}
-                      filterState={filterState}
-                      viewLabel={viewLabel}
-                      surface="modern"
-                      contentMode={showInlineToolCalls ? "all" : "conversation"}
-                      showSystemPrompt={showSystemPrompt}
-                      isActive={trace.id === activeTraceId}
-                      idleGapSeconds={idleGapSeconds[virtualItem.index]}
-                      onSelectTurnIndex={selectTrace}
-                    />
-                  </SessionVirtualizedRow>
-                );
-              })}
-            </div>
+              return (
+                <SessionVirtualizedRow
+                  key={virtualItem.key}
+                  itemKey={String(virtualItem.key)}
+                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}:${generationView}`}
+                  source="modern"
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                >
+                  <LazySessionTraceEventsRow
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    openPeek={openPeek}
+                    traceCommentCounts={traceCommentCounts}
+                    index={virtualItem.index}
+                    filterState={filterState}
+                    viewLabel={viewLabel}
+                    surface="modern"
+                    contentMode={showInlineToolCalls ? "all" : "conversation"}
+                    showSystemPrompt={showSystemPrompt}
+                    isActive={trace.id === activeTraceId}
+                    idleGapSeconds={idleGapSeconds[virtualItem.index]}
+                    onSelectTurnIndex={selectTrace}
+                  />
+                </SessionVirtualizedRow>
+              );
+            })}
           </div>
         </div>
-        <ObservationInspector
-          projectId={projectId}
-          sessionId={sessionId}
-          traces={traces}
-          filterState={filterState}
-          openPeek={openPeek}
-        />
       </div>
+      <ObservationInspector
+        projectId={projectId}
+        sessionId={sessionId}
+        traces={traces}
+        filterState={filterState}
+        openPeek={openPeek}
+      />
     </div>
   );
 }
