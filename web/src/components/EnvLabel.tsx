@@ -17,7 +17,7 @@ export const EnvLabel = () => {
   return (
     <div
       className={cn(
-        "flex cursor-pointer items-center gap-1 self-stretch rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
+        "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
         region === "STAGING"
           ? "bg-light-blue text-dark-blue"
           : region === "DEV"
