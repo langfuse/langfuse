@@ -1,7 +1,7 @@
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { CodeBlock } from "@/src/components/ui/Codeblock";
+import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import Link from "next/link";
 import { Bot, SquareTerminal, Sparkles } from "lucide-react";
 
