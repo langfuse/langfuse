@@ -19,6 +19,7 @@ import {
   type IngestionSdkAttributionStatus,
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
+import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 import {
   addTimelineBucket,
   floorTimelineBucket,
@@ -168,10 +169,25 @@ type SdkUsageSummaryByProjectRow = {
   hasOtelEvents: boolean | string | number;
 };
 
+type SdkUsageSummaryByProjectSeries = {
+  sdkName: string;
+  sdkVersion: string;
+  canonicalSdkName: "python" | "javascript" | null;
+  publicKey: string;
+  count: number;
+  firstSeen: string;
+  lastSeen: string;
+  hasOtelEvents: boolean;
+  attributionStatus: IngestionSdkAttributionStatus;
+  v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
+  upgradeCompleted: boolean;
+};
+
 type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
   missingSdkAttributionSeriesCount: number;
+  sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
 const getEmptyTimelineBuckets = (
@@ -857,8 +873,8 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
   UNION ALL
 
   SELECT
-    timestamp AS event_time,
     project_id,
+    timestamp AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
@@ -877,8 +893,8 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         query: `
 WITH selected AS (
   SELECT
-    start_time AS event_time,
     project_id,
+    start_time AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
     ingestion_api_key AS public_key,
@@ -934,6 +950,10 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               sdkName: row.sdkName,
               sdkVersion: row.sdkVersion,
             });
+            const capabilityStatus = getSdkVersionCapabilityStatus(
+              { language: row.sdkName, version: row.sdkVersion },
+              "appRootObservations",
+            );
 
             return {
               time: row.firstSeen,
@@ -951,29 +971,59 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
               canonicalSdkName: classification.canonicalSdkName,
               latestMajor: classification.latestMajor,
               major: classification.major,
-              upgradeStatus: classification.status,
+              upgradeStatus:
+                capabilityStatus === "supported"
+                  ? "current"
+                  : capabilityStatus === "unsupported"
+                    ? "outdated_major"
+                    : classification.status,
             };
           },
         );
         const completedUpgradeVersionKeys =
           getCompletedSdkUpgradeVersionKeys(projectRows);
+        const sdkUsageSeries = projectRows.map(
+          (row): SdkUsageSummaryByProjectSeries => {
+            const versionKey = `${row.canonicalSdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
+            const upgradeCompleted =
+              completedUpgradeVersionKeys.has(versionKey);
+
+            return {
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+              canonicalSdkName: row.canonicalSdkName,
+              publicKey: row.publicKey,
+              count: row.count,
+              firstSeen: row.firstSeen!,
+              lastSeen: row.lastSeen!,
+              hasOtelEvents: row.hasOtelEvents,
+              attributionStatus: row.attributionStatus,
+              v4MigrationStatus:
+                row.upgradeStatus === "current"
+                  ? "compatible"
+                  : row.upgradeStatus === "outdated_major"
+                    ? "upgrade_required"
+                    : "unknown",
+              upgradeCompleted,
+            };
+          },
+        );
 
         return {
           projectId,
-          outdatedSdkUsageSeriesCount: projectRows.filter(
-            (row) =>
-              row.count > 0 &&
-              row.upgradeStatus === "outdated_major" &&
-              !completedUpgradeVersionKeys.has(
-                `${row.canonicalSdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`,
-              ),
+          outdatedSdkUsageSeriesCount: sdkUsageSeries.filter(
+            (series) =>
+              series.count > 0 &&
+              series.v4MigrationStatus === "upgrade_required" &&
+              !series.upgradeCompleted,
           ).length,
-          missingSdkAttributionSeriesCount: projectRows.filter(
-            (row) =>
-              row.count > 0 &&
-              row.hasOtelEvents &&
-              row.attributionStatus !== "attributed",
+          missingSdkAttributionSeriesCount: sdkUsageSeries.filter(
+            (series) =>
+              series.count > 0 &&
+              series.hasOtelEvents &&
+              series.attributionStatus !== "attributed",
           ).length,
+          sdkUsageSeries,
         };
       });
     }),

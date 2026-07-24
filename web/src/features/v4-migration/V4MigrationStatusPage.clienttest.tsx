@@ -3,6 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import V4MigrationStatusPage from "./V4MigrationStatusPage";
 
+const mocks = vi.hoisted(() => ({
+  sdk: {
+    status: "latest" as "latest" | "legacy" | "unattributed",
+    sdkUsageSeries: [],
+    upgradeRequiredCount: 0,
+    missingAttributionCount: 0,
+  },
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
@@ -66,7 +75,7 @@ vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
       [
         "project-1",
         {
-          sdk: "latest",
+          sdk: mocks.sdk,
           evals: { status: "loaded", count: 0 },
           apis: { status: "loaded", count: 0 },
           exports: { status: "loaded", count: 0 },
@@ -86,6 +95,15 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 describe("V4MigrationStatusPage", () => {
+  beforeEach(() => {
+    mocks.sdk = {
+      status: "latest",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      missingAttributionCount: 0,
+    };
+  });
+
   it("keeps the project table readable through horizontal scrolling", () => {
     render(<V4MigrationStatusPage />);
 
@@ -99,5 +117,32 @@ describe("V4MigrationStatusPage", () => {
 
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
+  });
+
+  it("shows the exact number of outdated SDK configurations", () => {
+    mocks.sdk = {
+      status: "legacy",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 2,
+      missingAttributionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("2 outdated")).toBeInTheDocument();
+  });
+
+  it("shows missing OTel SDK attribution separately from outdated SDKs", () => {
+    mocks.sdk = {
+      status: "unattributed",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      missingAttributionCount: 2,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("2 missing attribution")).toBeInTheDocument();
+    expect(screen.queryByText("0 outdated")).not.toBeInTheDocument();
   });
 });

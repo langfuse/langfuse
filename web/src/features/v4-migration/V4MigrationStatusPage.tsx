@@ -201,15 +201,17 @@ function OrgStatusSection({
             }[getProjectMigrationReadiness(row.status)]
           : 0;
       case "sdk":
-        return row.status?.sdk === "latest"
-          ? 4
-          : row.status?.sdk === "legacy"
-            ? 3
-            : row.status?.sdk === "unknown"
-              ? 2
-              : row.status?.sdk === "checking"
-                ? 1
-                : 0;
+        return row.status?.sdk.status === "latest"
+          ? 5
+          : row.status?.sdk.status === "legacy"
+            ? 4
+            : row.status?.sdk.status === "unattributed"
+              ? 3
+              : row.status?.sdk.status === "unknown"
+                ? 2
+                : row.status?.sdk.status === "checking"
+                  ? 1
+                  : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
       case "apis":
@@ -317,22 +319,29 @@ function OrgStatusSection({
                       <StatusPill readiness={readiness} />
                     </TableCell>
                     <TableCell density="comfortable">
-                      {row.status.sdk === "latest" ? (
+                      {row.status.sdk.status === "latest" ? (
                         <span className="text-foreground-tertiary">Latest</span>
-                      ) : row.status.sdk === "checking" ? (
+                      ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
                           Checking…
                         </span>
-                      ) : row.status.sdk === "unknown" ? (
+                      ) : row.status.sdk.status === "unknown" ? (
                         <span className="text-foreground-tertiary">
                           Unknown
                         </span>
-                      ) : row.status.sdk === "error" ? (
+                      ) : row.status.sdk.status === "unattributed" ? (
+                        <span>
+                          {row.status.sdk.missingAttributionCount} missing
+                          attribution
+                        </span>
+                      ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">
                           Unavailable
                         </span>
                       ) : (
-                        <span>Legacy</span>
+                        <span>
+                          {row.status.sdk.upgradeRequiredCount} outdated
+                        </span>
                       )}
                     </TableCell>
                     <TableCell density="comfortable">

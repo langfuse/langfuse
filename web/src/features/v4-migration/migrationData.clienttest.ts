@@ -4,9 +4,24 @@ import {
   getLegacyIntegrationLabels,
   getMigrationCountState,
   getProjectMigrationReadiness,
+  type ProjectMigrationStatus,
 } from "@/src/features/v4-migration/migrationData";
 
 const loaded = (count: number) => ({ status: "loaded" as const, count });
+const migrationStatus = (
+  overrides: Partial<ProjectMigrationStatus> = {},
+): ProjectMigrationStatus => ({
+  sdk: {
+    status: "latest",
+    sdkUsageSeries: [],
+    upgradeRequiredCount: 0,
+    missingAttributionCount: 0,
+  },
+  evals: loaded(0),
+  apis: loaded(0),
+  exports: loaded(0),
+  ...overrides,
+});
 
 describe("v4 migration data", () => {
   it("uses a stable seven-day range aligned to the hour", () => {
@@ -36,37 +51,26 @@ describe("v4 migration data", () => {
   });
 
   it("only marks a fully loaded project without affected items as ready", () => {
+    expect(getProjectMigrationReadiness(migrationStatus())).toBe("ready");
     expect(
-      getProjectMigrationReadiness({
-        sdk: "latest",
-        evals: loaded(0),
-        apis: loaded(0),
-        exports: loaded(0),
-      }),
-    ).toBe("ready");
-    expect(
-      getProjectMigrationReadiness({
-        sdk: "latest",
-        evals: loaded(1),
-        apis: loaded(0),
-        exports: loaded(0),
-      }),
+      getProjectMigrationReadiness(migrationStatus({ evals: loaded(1) })),
     ).toBe("action-needed");
     expect(
-      getProjectMigrationReadiness({
-        sdk: "latest",
-        evals: { status: "loading", count: 0 },
-        apis: loaded(0),
-        exports: loaded(0),
-      }),
+      getProjectMigrationReadiness(
+        migrationStatus({ evals: { status: "loading", count: 0 } }),
+      ),
     ).toBe("checking");
     expect(
-      getProjectMigrationReadiness({
-        sdk: "error",
-        evals: loaded(0),
-        apis: loaded(0),
-        exports: loaded(0),
-      }),
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            status: "error",
+            sdkUsageSeries: [],
+            upgradeRequiredCount: 0,
+            missingAttributionCount: 0,
+          },
+        }),
+      ),
     ).toBe("unavailable");
   });
 
