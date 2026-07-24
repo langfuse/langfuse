@@ -4,9 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 
-type EnvLabelProps = { className?: "self-center" };
-
-export const EnvLabel = ({ className }: EnvLabelProps) => {
+export const EnvLabel = () => {
   const [isHidden, setIsHidden] = useState(false);
   const session = useSession();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
@@ -25,7 +23,6 @@ export const EnvLabel = ({ className }: EnvLabelProps) => {
           : region === "DEV"
             ? "bg-light-green text-dark-green"
             : "bg-light-red text-dark-red",
-        className,
       )}
       onClick={() => setIsHidden(true)}
     >
