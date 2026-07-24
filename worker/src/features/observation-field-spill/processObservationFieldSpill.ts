@@ -24,6 +24,7 @@ export async function processObservationFieldSpill(params: {
 
   const result = await spillOversizedObservationFields({
     fields,
+    maxFieldBytes: env.LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
     upload: async ({ field, contentBytes }) => {
       if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
         throw new Error("Media upload bucket is not configured");

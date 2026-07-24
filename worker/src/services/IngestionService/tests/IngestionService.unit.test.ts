@@ -59,11 +59,11 @@ describe("IngestionService unit tests", () => {
     const fieldSpillProcessor = vi.fn().mockResolvedValue({
       fields: {
         input:
-          '{"_langfuse_field_size_limit_exceeded_file":"@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@"}',
+          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
         output: "original output",
         metadata: [
           "small",
-          '{"_langfuse_field_size_limit_exceeded_file":"@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@"}',
+          "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
         ],
       },
       outcomes: [],

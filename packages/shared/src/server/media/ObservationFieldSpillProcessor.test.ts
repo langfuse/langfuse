@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY,
-  OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
-} from "../../domain/observation-field-spill";
+import { OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE } from "../../domain/observation-field-spill";
 import { spillOversizedObservationFields } from "./ObservationFieldSpillProcessor";
 
 const mediaReference = (id: string) =>
@@ -33,17 +30,11 @@ describe("spillOversizedObservationFields", () => {
     });
 
     expect(result.fields).toEqual({
-      input: JSON.stringify({
-        [OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY]:
-          mediaReference("input-media"),
-      }),
+      input: mediaReference("input-media"),
       output: "ok",
       metadata: {
         small: "keep-me",
-        large: JSON.stringify({
-          [OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY]:
-            mediaReference("metadata-media"),
-        }),
+        large: mediaReference("metadata-media"),
       },
     });
     expect(upload).toHaveBeenNthCalledWith(1, {
@@ -85,9 +76,7 @@ describe("spillOversizedObservationFields", () => {
     });
 
     expect(result.fields.input).toBe("🔥");
-    expect(result.fields.output).toContain(
-      OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY,
-    );
+    expect(result.fields.output).toBe(mediaReference("media"));
     expect(upload).toHaveBeenCalledOnce();
     expect(upload).toHaveBeenCalledWith({
       field: "output",
@@ -125,7 +114,7 @@ describe("spillOversizedObservationFields", () => {
 
     expect(result.fields.metadata).toEqual([
       "keep-first",
-      expect.stringContaining(OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY),
+      mediaReference("metadata-media"),
       "keep-last",
     ]);
     expect(upload).toHaveBeenCalledOnce();
@@ -149,9 +138,7 @@ describe("spillOversizedObservationFields", () => {
     });
 
     expect(result.fields.input).toBe("input-too-large");
-    expect(result.fields.output).toContain(
-      OBSERVATION_FIELD_SIZE_LIMIT_EXCEEDED_KEY,
-    );
+    expect(result.fields.output).toBe(mediaReference("output-media"));
     expect(result.outcomes).toEqual([
       {
         field: "input",
@@ -171,5 +158,25 @@ describe("spillOversizedObservationFields", () => {
       field: "input",
       originalBytes: 15,
     });
+  });
+
+  it("defaults the per-field limit to 2 MiB", async () => {
+    const upload = vi
+      .fn()
+      .mockResolvedValue({ mediaId: "media", outcome: "uploaded" });
+    const exactLimit = "x".repeat(2 * 1024 * 1024);
+    const overLimit = `${exactLimit}x`;
+
+    const result = await spillOversizedObservationFields({
+      fields: {
+        input: exactLimit,
+        output: overLimit,
+      },
+      upload,
+    });
+
+    expect(result.fields.input).toBe(exactLimit);
+    expect(result.fields.output).toBe(mediaReference("media"));
+    expect(upload).toHaveBeenCalledOnce();
   });
 });

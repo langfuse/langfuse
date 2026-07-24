@@ -118,9 +118,9 @@ export const PreviewFile = meta.story({
 export const OversizedField = meta.story({
   args: {
     contentType: "text/plain",
-    label: "Field over 2 MB",
+    label: "Field over size limit",
     description:
-      "This field exceeded the 2 MB storage limit. Open the file to view the original content.",
+      "This field exceeded the configured storage limit. Open the file to view the original content.",
     warning: true,
     open: true,
     status: "ready",

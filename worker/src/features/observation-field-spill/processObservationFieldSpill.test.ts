@@ -19,6 +19,7 @@ vi.mock("../../env", () => ({
   env: {
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: "media-bucket",
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: "media/",
+    LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: 10,
   },
 }));
 
@@ -28,7 +29,7 @@ describe("processObservationFieldSpill", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("logs an upload failure and persists the original oversized field", async () => {
-    const originalInput = "x".repeat(2 * 1024 * 1024 + 1);
+    const originalInput = "x".repeat(11);
     const uploadError = new Error("S3 unavailable");
     mocks.uploadMediaForTrace.mockRejectedValue(uploadError);
 
@@ -48,7 +49,7 @@ describe("processObservationFieldSpill", () => {
         traceId: "trace-id",
         observationId: "observation-id",
         field: "input",
-        originalBytes: 2 * 1024 * 1024 + 1,
+        originalBytes: 11,
       },
     );
     expect(mocks.recordIncrement).toHaveBeenCalledWith(
@@ -68,11 +69,12 @@ describe("processObservationFieldSpill", () => {
       projectId: "project-id",
       traceId: "trace-id",
       observationId: "observation-id",
-      fields: { output: "x".repeat(2 * 1024 * 1024 + 1) },
+      fields: { output: "x".repeat(11) },
     });
 
-    expect(result.fields.output).toContain("id=media-id");
-    expect(result.fields.output).toContain("source=field_size_limit");
+    expect(result.fields.output).toBe(
+      "@@@langfuseMedia:type=text/plain|id=media-id|source=field_size_limit@@@",
+    );
     expect(mocks.uploadMediaForTrace).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: "project-id",

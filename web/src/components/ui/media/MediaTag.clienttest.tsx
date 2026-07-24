@@ -85,19 +85,19 @@ describe("MediaTag", () => {
         contentType="text/plain"
         status="ready"
         url="https://example.com/oversized.txt"
-        label="Field over 2 MB"
-        description="This field exceeded the 2 MB storage limit. Open the file to view the original content."
+        label="Field over size limit"
+        description="This field exceeded the configured storage limit. Open the file to view the original content."
         warning
         open
       />,
     );
 
     expect(
-      screen.getByRole("button", { name: "Field over 2 MB media" }),
+      screen.getByRole("button", { name: "Field over size limit media" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This field exceeded the 2 MB storage limit. Open the file to view the original content.",
+        "This field exceeded the configured storage limit. Open the file to view the original content.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByTitle("Open in new tab")).toHaveAttribute(

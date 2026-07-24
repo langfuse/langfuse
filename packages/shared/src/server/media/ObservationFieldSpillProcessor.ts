@@ -1,5 +1,4 @@
 import {
-  createObservationFieldSizeLimitSentinel,
   OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
   OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
 } from "../../domain/observation-field-spill";
@@ -151,15 +150,14 @@ async function spillValue(params: {
     const mediaReference =
       `@@@langfuseMedia:type=text/plain|id=${uploadResult.mediaId}` +
       `|source=${OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE}@@@`;
-    const value = createObservationFieldSizeLimitSentinel(mediaReference);
 
     return {
-      value,
+      value: mediaReference,
       outcome: {
         field,
         outcome: uploadResult.outcome,
         originalBytes,
-        persistedBytes: Buffer.byteLength(value, "utf8"),
+        persistedBytes: Buffer.byteLength(mediaReference, "utf8"),
       },
     };
   } catch (error) {

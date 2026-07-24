@@ -40,10 +40,10 @@ function LangfuseRefMediaTag({
       contentType={descriptor.contentType}
       status={status}
       url={url}
-      label={isOversizedField ? "Field over 2 MB" : undefined}
+      label={isOversizedField ? "Field over size limit" : undefined}
       description={
         isOversizedField
-          ? "This field exceeded the 2 MB storage limit. Open the file to view the original content."
+          ? "This field exceeded the configured storage limit. Open the file to view the original content."
           : undefined
       }
       warning={isOversizedField}
