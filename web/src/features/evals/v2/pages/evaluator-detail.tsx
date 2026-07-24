@@ -122,7 +122,7 @@ export default function EvaluatorDetailPage() {
     return (
       <Page
         headerProps={{
-          title: "Evaluator",
+          title: "Configure evaluator",
           breadcrumb: [
             { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
           ],
@@ -165,11 +165,8 @@ export default function EvaluatorDetailPage() {
   return (
     <Page
       headerProps={{
-        title: `Evaluator: ${data.scoreName}`,
+        title: "Configure evaluator",
         fitTitleToContent: true,
-        titleDescription: data.description ? (
-          <p className="text-muted-foreground text-sm">{data.description}</p>
-        ) : null,
         breadcrumb: [
           { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
         ],

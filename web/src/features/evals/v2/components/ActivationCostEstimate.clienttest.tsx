@@ -4,6 +4,10 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 const mocks = vi.hoisted(() => ({
   matchingObservationCount: 10,
   countQuery: vi.fn(),
+  averageCosts: {} as Record<
+    string,
+    { avgCost: number; executionCount: number }
+  >,
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -21,10 +25,28 @@ vi.mock("@/src/utils/api", () => ({
     },
     evals: {
       avgCostByEvaluatorIds: {
-        useQuery: () => ({ data: {}, isLoading: false }),
+        useQuery: () => ({ data: mocks.averageCosts, isLoading: false }),
       },
     },
   },
+}));
+
+vi.mock("@/src/components/ui/slider", () => ({
+  Slider: ({
+    value,
+    onValueChange,
+  }: {
+    value: number[];
+    onValueChange: (value: number[]) => void;
+  }) => (
+    <input
+      aria-label="Slider value"
+      value={(value[0] ?? 0) * 100}
+      onChange={(event) =>
+        onValueChange([Number(event.currentTarget.value) / 100])
+      }
+    />
+  ),
 }));
 
 import { ActivationCostEstimate } from "./ActivationCostEstimate";
@@ -35,6 +57,7 @@ describe("ActivationCostEstimate", () => {
     vi.setSystemTime(new Date("2026-07-23T12:00:00.000Z"));
     vi.clearAllMocks();
     mocks.matchingObservationCount = 10;
+    mocks.averageCosts = {};
   });
 
   afterEach(() => {
@@ -57,6 +80,29 @@ describe("ActivationCostEstimate", () => {
       screen.getByText("10 matching observations in the last 7 days"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+    expect(screen.getByText("Cost unavailable")).toBeInTheDocument();
+  });
+
+  it("uses the evaluator's historical average when no test cost is available", () => {
+    mocks.averageCosts = {
+      "evaluator-1": { avgCost: 0.002, executionCount: 20 },
+    };
+
+    render(
+      <ActivationCostEstimate
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        filter={[]}
+        sampling={0.5}
+        testRunCostUsd={null}
+        isCodeEvaluator={false}
+        enabled
+      />,
+      { wrapper: TooltipProvider },
+    );
+
+    expect(screen.getByText("≈ $0.01 / 7 days")).toBeInTheDocument();
+    expect(screen.queryByText("Cost unavailable")).not.toBeInTheDocument();
   });
 
   it("combines the seven-day match count and cost and reveals the filter", () => {
@@ -149,5 +195,33 @@ describe("ActivationCostEstimate", () => {
       screen.getByText("0 matching observations in the last 7 days"),
     ).toBeInTheDocument();
     expect(screen.getByText("≈ $0.00 / 7 days")).toBeInTheDocument();
+  });
+
+  it("allows sampling to be changed from the expanded cost breakdown", () => {
+    const onSamplingChange = vi.fn();
+
+    render(
+      <ActivationCostEstimate
+        projectId="project-1"
+        filter={[]}
+        sampling={0.5}
+        testRunCostUsd={0.002}
+        isCodeEvaluator={false}
+        enabled
+        onSamplingChange={onSamplingChange}
+      />,
+      { wrapper: TooltipProvider },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Estimated usage & cost/i }),
+    );
+    expect(screen.queryByLabelText("Slider value")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Sampling 50%" }));
+    fireEvent.change(screen.getByLabelText("Slider value"), {
+      target: { value: "25" },
+    });
+
+    expect(onSamplingChange).toHaveBeenCalledWith(0.25);
   });
 });

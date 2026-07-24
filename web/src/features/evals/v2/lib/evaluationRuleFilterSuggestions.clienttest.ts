@@ -23,7 +23,7 @@ describe("buildEvaluationRuleFilterSuggestionSection", () => {
         attachedRuleIds: ["attached-rule"],
       }),
     ).toEqual({
-      title: "Evaluation rule filters",
+      title: "Reuse existing evaluation rule",
       items: [
         {
           id: "attached-rule",

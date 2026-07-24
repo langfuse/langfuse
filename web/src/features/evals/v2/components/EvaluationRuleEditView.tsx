@@ -6,6 +6,7 @@ import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
 import { EvaluationRuleForm } from "@/src/features/evals/v2/components/EvaluationRuleForm";
 import { useValidatedRuleAttachment } from "@/src/features/evals/v2/hooks/useValidatedRuleAttachment";
+import { areFilterStatesEquivalent } from "@/src/features/evals/v2/lib/filterStateEquality";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { type AbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -70,7 +71,7 @@ export function EvaluationRuleEditView({
   const hasChanges =
     name.trim() !== evaluationRule.name ||
     sampling !== evaluationRule.sampling ||
-    JSON.stringify(filterState) !== JSON.stringify(evaluationRule.filter);
+    !areFilterStatesEquivalent(filterState, evaluationRule.filter);
 
   const invalidateAfterSave = () =>
     Promise.all([utils.evals.invalidate(), utils.evalsV2.invalidate()]);

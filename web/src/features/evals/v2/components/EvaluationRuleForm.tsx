@@ -67,7 +67,10 @@ export function EvaluationRuleSamplingField({
         </span>
       </button>
       {samplingOpen ? (
-        <div className="flex w-full max-w-md flex-col gap-2">
+        <div className="flex w-full max-w-md flex-col gap-2 pl-[22px]">
+          <p className="text-muted-foreground text-xs">
+            Choose the share of matching observations to evaluate.
+          </p>
           <Slider
             min={0.0001}
             max={1}
@@ -82,9 +85,6 @@ export function EvaluationRuleSamplingField({
             showInput
             displayAsPercentage
           />
-          <p className="text-muted-foreground text-xs">
-            Choose the share of matching observations to evaluate.
-          </p>
         </div>
       ) : null}
     </>

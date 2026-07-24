@@ -23,9 +23,10 @@ vi.mock("@/src/components/layouts/page", () => ({
     headerProps,
   }: {
     children: ReactNode;
-    headerProps: { actionButtonsRight?: ReactNode };
+    headerProps: { title: string; actionButtonsRight?: ReactNode };
   }) => (
     <>
+      <h1>{headerProps.title}</h1>
       {headerProps.actionButtonsRight}
       {children}
     </>
@@ -205,6 +206,9 @@ describe("EvaluatorDetailPage", () => {
   it("always shows the evaluator as an editable form", () => {
     render(<EvaluatorDetailPage />);
 
+    expect(
+      screen.getByRole("heading", { name: "Configure evaluator" }),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Cancel evaluator edit" }),
     ).toBeInTheDocument();

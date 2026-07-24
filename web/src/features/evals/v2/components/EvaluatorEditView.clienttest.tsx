@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   beforeSaveResult: vi.fn(),
   updateRule: vi.fn(),
   createRule: vi.fn(),
+  detachEvaluatorFromRule: vi.fn(),
   invalidateRules: vi.fn(),
   invalidateEvalsV2: vi.fn(),
   invalidateEvals: vi.fn(),
@@ -40,27 +41,39 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/src/features/evals/v2/components/EvaluatorSetupForm", () => ({
   EvaluatorSetupForm: (props: Record<string, unknown>) => {
     mocks.setupProps(props);
-    const renderDataSourceControls = props.renderDataSourceControls as
-      | ((controls: Record<string, unknown>) => React.ReactNode)
-      | undefined;
+    const ruleTabs = (props.ruleTabs ?? []) as Array<{
+      id: string;
+      name: string;
+      filter: Array<Record<string, unknown>>;
+      sampling: number;
+    }>;
+    const activeRule = ruleTabs.find(
+      (rule) => rule.id === props.activeRuleTabId,
+    );
     return (
       <div>
         Evaluator setup
         <button
-          onClick={() =>
+          onClick={() => {
             (
-              props.onFiltersEdited as
-                | ((filters: Array<Record<string, unknown>>) => void)
+              props.onRuleDraftChange as
+                | ((draft: {
+                    filter: Array<Record<string, unknown>>;
+                    sampling: number;
+                  }) => void)
                 | undefined
-            )?.([
-              {
-                column: "environment",
-                type: "stringOptions",
-                operator: "any of",
-                value: ["development"],
-              },
-            ])
-          }
+            )?.({
+              filter: [
+                {
+                  column: "environment",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["development"],
+                },
+              ],
+              sampling: 0.5,
+            });
+          }}
         >
           Edit filters
         </button>
@@ -82,6 +95,7 @@ vi.mock("@/src/features/evals/v2/components/EvaluatorSetupForm", () => ({
               sampling: 0.5,
               setSampling: vi.fn(),
               applyRule: mocks.applyRule,
+              estimatedCostUsd: 0.002,
             })
               .then(mocks.beforeSaveResult)
               .catch(() => undefined);
@@ -89,13 +103,92 @@ vi.mock("@/src/features/evals/v2/components/EvaluatorSetupForm", () => ({
         >
           Save evaluator
         </button>
-        {renderDataSourceControls?.({
-          filterState: [],
-          setFilterState: vi.fn(),
-          sampling: 1,
-          setSampling: vi.fn(),
-          applyRule: mocks.applyRule,
-        })}
+        <button
+          onClick={() => {
+            const onBeforeSave = props.onBeforeSave as
+              | ((controls: Record<string, unknown>) => Promise<boolean>)
+              | undefined;
+            onBeforeSave?.({
+              filterState: activeRule?.filter ?? [],
+              setFilterState: vi.fn(),
+              sampling: activeRule?.sampling ?? 1,
+              setSampling: vi.fn(),
+              applyRule: mocks.applyRule,
+              estimatedCostUsd: 0.002,
+            })
+              .then(mocks.beforeSaveResult)
+              .catch(() => undefined);
+          }}
+        >
+          Save current rules
+        </button>
+        {ruleTabs.map((rule) => (
+          <div key={rule.id}>
+            <button
+              onClick={() => {
+                const selected = (
+                  props.onRuleTabChange as
+                    | ((
+                        ruleId: string,
+                        currentDraft: {
+                          filter: Array<Record<string, unknown>>;
+                          sampling: number;
+                        },
+                      ) => Record<string, unknown> | undefined)
+                    | undefined
+                )?.(rule.id, {
+                  filter: activeRule?.filter ?? [],
+                  sampling: activeRule?.sampling ?? 1,
+                });
+                if (selected) mocks.applyRule(selected);
+              }}
+            >
+              {rule.name}
+            </button>
+            {ruleTabs.length > 1 ? (
+              <button
+                aria-label={`Remove rule ${rule.name}`}
+                onClick={() => {
+                  const selected = (
+                    props.onRemoveRule as
+                      | ((
+                          ruleId: string,
+                          currentDraft: {
+                            filter: Array<Record<string, unknown>>;
+                            sampling: number;
+                          },
+                        ) => Record<string, unknown> | undefined)
+                      | undefined
+                  )?.(rule.id, {
+                    filter: activeRule?.filter ?? [],
+                    sampling: activeRule?.sampling ?? 1,
+                  });
+                  if (selected) mocks.applyRule(selected);
+                }}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        ))}
+        <button
+          onClick={() => {
+            const added = (
+              props.onAddRule as
+                | ((currentDraft: {
+                    filter: Array<Record<string, unknown>>;
+                    sampling: number;
+                  }) => Record<string, unknown>)
+                | undefined
+            )?.({
+              filter: activeRule?.filter ?? [],
+              sampling: activeRule?.sampling ?? 1,
+            });
+            if (added) mocks.applyRule(added);
+          }}
+        >
+          Add another rule
+        </button>
       </div>
     );
   },
@@ -107,12 +200,26 @@ vi.mock(
     CreateEvaluatorActivationDialog: (props: {
       open: boolean;
       onSave: (runContinuously: boolean) => void;
+      rulePreviews?: unknown[];
     }) => {
       mocks.activationDialogProps(props);
       return props.open ? (
-        <div role="dialog" aria-label="Save and start running?">
-          <button onClick={() => props.onSave(false)}>Save only</button>
-          <button onClick={() => props.onSave(true)}>Save &amp; run</button>
+        <div
+          role="dialog"
+          aria-label={
+            props.rulePreviews
+              ? "Save rule changes?"
+              : "Save and start running?"
+          }
+        >
+          <button onClick={() => props.onSave(false)}>
+            {props.rulePreviews ? "Save evaluator only" : "Save only"}
+          </button>
+          <button onClick={() => props.onSave(true)}>
+            {props.rulePreviews
+              ? "Save evaluator & attached rules"
+              : "Save & run"}
+          </button>
         </div>
       ) : null;
     },
@@ -154,6 +261,12 @@ vi.mock("@/src/utils/api", () => ({
           isPending: false,
         }),
       },
+      detachEvaluatorFromRule: {
+        useMutation: () => ({
+          mutateAsync: mocks.detachEvaluatorFromRule,
+          isPending: false,
+        }),
+      },
     },
   },
 }));
@@ -165,6 +278,9 @@ describe("EvaluatorEditView", () => {
     vi.clearAllMocks();
     mocks.updateRule.mockResolvedValue({ id: "attached-rule" });
     mocks.createRule.mockResolvedValue({ id: "new-rule" });
+    mocks.detachEvaluatorFromRule.mockResolvedValue({
+      evaluatorId: "evaluator-1",
+    });
     mocks.invalidateRules.mockResolvedValue(undefined);
     mocks.invalidateEvalsV2.mockResolvedValue(undefined);
     mocks.invalidateEvals.mockResolvedValue(undefined);
@@ -212,8 +328,13 @@ describe("EvaluatorEditView", () => {
         description: "",
         initialFilterState: [{ column: "environment", value: ["production"] }],
         initialSampling: 0.5,
-        samplingEditingDisabled: true,
         hasRuleChanges: false,
+        ruleTabs: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+        ],
       }),
     );
     expect(mocks.setupProps.mock.lastCall?.[0]).not.toHaveProperty(
@@ -258,8 +379,7 @@ describe("EvaluatorEditView", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Evaluation rule" }));
-    fireEvent.click(screen.getByRole("option", { name: "Secondary rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Secondary rule" }));
 
     expect(mocks.applyRule).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -289,29 +409,27 @@ describe("EvaluatorEditView", () => {
     ).not.toBeInTheDocument();
     expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
       expect.objectContaining({
-        initialFilterState: undefined,
+        initialFilterState: expect.any(Array),
         hasRuleChanges: true,
-        samplingEditingDisabled: false,
       }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
 
     expect(
-      await screen.findByRole("dialog", { name: "Save and start running?" }),
+      await screen.findByRole("dialog", { name: "Save rule changes?" }),
     ).toBeVisible();
     expect(mocks.activationDialogProps).toHaveBeenLastCalledWith(
       expect.objectContaining({
         setupSampling: 0.5,
-        testRunCostUsd: null,
+        testRunCostUsd: 0.002,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save only" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save evaluator only" }),
+    );
 
     expect(mocks.createRule).not.toHaveBeenCalled();
-    expect(
-      screen.queryByRole("dialog", { name: "Save filter changes?" }),
-    ).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true),
     );
@@ -333,7 +451,11 @@ describe("EvaluatorEditView", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Save & run" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Save evaluator & attached rules",
+      }),
+    );
 
     await waitFor(() =>
       expect(mocks.createRule).toHaveBeenCalledWith(
@@ -347,7 +469,7 @@ describe("EvaluatorEditView", () => {
     expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true);
   });
 
-  it("does not offer rule creation in the attached-rule selector", () => {
+  it("adds a blank rule inline and exposes it as another tab", () => {
     render(
       <EvaluatorEditView
         projectId="project-1"
@@ -362,14 +484,223 @@ describe("EvaluatorEditView", () => {
       />,
     );
 
-    expect(screen.getByText("using rule")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Add another rule" }));
+
+    expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        activeRuleTabId: "new-rule-1",
+        ruleTabs: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+          expect.objectContaining({ id: "new-rule-1", name: "New rule" }),
+        ],
+      }),
+    );
+    expect(mocks.applyRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filter: expect.any(Array),
+        sampling: 1,
+      }),
+    );
+  });
+
+  it("shows every current rule in the save modal when one rule changed", async () => {
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule"]}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add another rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save current rules" }));
+
     expect(
-      screen.getByRole("combobox", { name: "Evaluation rule" }),
-    ).toHaveClass("flex-1");
-    fireEvent.click(screen.getByRole("combobox", { name: "Evaluation rule" }));
+      await screen.findByRole("dialog", { name: "Save rule changes?" }),
+    ).toBeVisible();
+    expect(mocks.activationDialogProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        rulePreviews: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+          expect.objectContaining({ id: "new-rule-1", name: "New rule" }),
+        ],
+      }),
+    );
+
+    act(() => {
+      const props = mocks.activationDialogProps.mock.lastCall?.[0] as {
+        onRuleSamplingChange: (ruleId: string, sampling: number) => void;
+      };
+      props.onRuleSamplingChange("attached-rule", 0.25);
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save evaluator & attached rules",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.updateRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ruleId: "attached-rule",
+          sampling: 0.25,
+        }),
+      ),
+    );
+    expect(mocks.createRule).toHaveBeenCalledOnce();
+  });
+
+  it("discards an unsaved rule tab without calling the API", () => {
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule"]}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add another rule" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove rule New rule" }),
+    );
+
+    expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        activeRuleTabId: "attached-rule",
+        ruleTabs: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+        ],
+      }),
+    );
+    expect(mocks.detachEvaluatorFromRule).not.toHaveBeenCalled();
+  });
+
+  it("keeps only the new tab when the last existing rule is removed", () => {
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule"]}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add another rule" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove rule Production rule" }),
+    );
+
+    expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        activeRuleTabId: "new-rule-1",
+        ruleTabs: [
+          expect.objectContaining({ id: "new-rule-1", name: "New rule" }),
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add another rule" }));
+    expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        activeRuleTabId: "new-rule-2",
+        ruleTabs: [
+          expect.objectContaining({ id: "new-rule-1" }),
+          expect.objectContaining({ id: "new-rule-2" }),
+        ],
+      }),
+    );
+  });
+
+  it("detaches a removed existing rule when the evaluator is saved", async () => {
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule", "secondary-rule"]}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove rule Secondary rule" }),
+    );
+
+    expect(mocks.setupProps.mock.lastCall?.[0]).toEqual(
+      expect.objectContaining({
+        activeRuleTabId: "attached-rule",
+        hasRuleChanges: true,
+        ruleTabs: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save current rules" }));
     expect(
-      screen.queryByRole("option", { name: "Create new rule" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("dialog", { name: "Save rule changes?" }),
+    ).toBeVisible();
+    expect(mocks.activationDialogProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        rulePreviews: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+        ],
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save evaluator & attached rules",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.detachEvaluatorFromRule).toHaveBeenCalledWith({
+        projectId: "project-1",
+        evaluatorId: "evaluator-1",
+        ruleId: "secondary-rule",
+      }),
+    );
+    expect(mocks.updateRule).not.toHaveBeenCalled();
+    expect(mocks.createRule).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true),
+    );
   });
 
   it("updates the selected rule when saving edited filters", async () => {
@@ -394,11 +725,31 @@ describe("EvaluatorEditView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
 
     expect(
-      await screen.findByRole("dialog", { name: "Save filter changes?" }),
-    ).toHaveTextContent(
-      "You changed the filters, but “Production rule” is shared with other evaluators",
+      await screen.findByRole("dialog", { name: "Save rule changes?" }),
+    ).toBeVisible();
+    expect(mocks.activationDialogProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        evaluatorId: "evaluator-1",
+        sharedRuleCount: 1,
+        rulePreviews: [
+          expect.objectContaining({
+            id: "attached-rule",
+            name: "Production rule",
+          }),
+        ],
+      }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Update rule" }));
+    act(() => {
+      const props = mocks.activationDialogProps.mock.lastCall?.[0] as {
+        onRuleSamplingChange: (ruleId: string, sampling: number) => void;
+      };
+      props.onRuleSamplingChange("attached-rule", 0.25);
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save evaluator & attached rules",
+      }),
+    );
 
     await waitFor(() =>
       expect(mocks.updateRule).toHaveBeenCalledWith({
@@ -413,7 +764,7 @@ describe("EvaluatorEditView", () => {
             value: ["development"],
           },
         ],
-        sampling: 0.5,
+        sampling: 0.25,
       }),
     );
     await waitFor(() =>
@@ -479,9 +830,13 @@ describe("EvaluatorEditView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
 
     expect(
-      await screen.findByRole("dialog", { name: "Save and start running?" }),
+      await screen.findByRole("dialog", { name: "Save rule changes?" }),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Save & run" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save evaluator & attached rules",
+      }),
+    );
 
     await waitFor(() =>
       expect(mocks.updateRule).toHaveBeenCalledWith({

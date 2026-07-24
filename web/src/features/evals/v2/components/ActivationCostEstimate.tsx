@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { EvaluationRuleSamplingField } from "@/src/features/evals/v2/components/EvaluationRuleForm";
 import {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,
@@ -33,6 +34,7 @@ export function ActivationCostEstimate({
   testRunCostUsd,
   isCodeEvaluator,
   enabled,
+  onSamplingChange,
 }: {
   projectId: string;
   evaluatorId?: string;
@@ -41,6 +43,7 @@ export function ActivationCostEstimate({
   testRunCostUsd: number | null;
   isCodeEvaluator: boolean;
   enabled: boolean;
+  onSamplingChange?: (sampling: number) => void;
 }) {
   // Keep the comparison stable while the modal is open so changing
   // rules does not also move the time window underneath the estimate.
@@ -145,6 +148,10 @@ export function ActivationCostEstimate({
                     </Tooltip>
                   ) : null}
                 </span>
+              ) : !loading && !isCodeEvaluator ? (
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  Cost unavailable
+                </span>
               ) : null}
             </div>
           </AccordionTrigger>
@@ -167,6 +174,12 @@ export function ActivationCostEstimate({
                 </div>
               </div>
             </div>
+            {onSamplingChange ? (
+              <EvaluationRuleSamplingField
+                sampling={sampling}
+                onSamplingChange={onSamplingChange}
+              />
+            ) : null}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

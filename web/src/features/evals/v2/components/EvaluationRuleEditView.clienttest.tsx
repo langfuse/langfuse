@@ -21,25 +21,46 @@ vi.mock("@/src/features/evals/v2/components/EvaluationRuleSection", () => ({
   EXAMPLE_FILTERS: [],
   mergeExampleFilters: vi.fn(),
   RuleFilterSearchBar: ({
+    filterState,
     setFilterState,
   }: {
+    filterState: Array<Record<string, unknown>>;
     setFilterState: (filters: unknown[]) => void;
   }) => (
-    <button
-      type="button"
-      onClick={() =>
-        setFilterState([
-          {
-            column: "environment",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["production"],
-          },
-        ])
-      }
-    >
-      Change filters
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          setFilterState([
+            {
+              column: "environment",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["production"],
+            },
+          ])
+        }
+      >
+        Change filters
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setFilterState(
+            [...filterState]
+              .reverse()
+              .map(({ column, type, operator, value }) => ({
+                value: Array.isArray(value) ? [...value].reverse() : value,
+                operator,
+                type,
+                column,
+              })),
+          )
+        }
+      >
+        Recommit filters
+      </button>
+    </>
   ),
 }));
 
@@ -170,10 +191,12 @@ describe("EvaluationRuleEditView", () => {
     expect(
       screen.getByRole("button", { name: "Step 3: Name rule" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Production traces" },
     });
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(mocks.updateRule).not.toHaveBeenCalled();
@@ -243,5 +266,40 @@ describe("EvaluationRuleEditView", () => {
     );
 
     expect(onOpenTrace).toHaveBeenCalledWith("trace-1");
+  });
+
+  it("stays clean when the filter editor recommits equivalent filters", () => {
+    render(
+      <TooltipProvider>
+        <EvaluationRuleEditView
+          projectId="project-1"
+          evaluationRule={{
+            ...rule,
+            filter: [
+              {
+                column: "environment",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["production", "staging"],
+              },
+              {
+                column: "type",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["GENERATION"],
+              },
+            ],
+          }}
+          timeRange={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          onOpenTrace={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Recommit filters" }));
+
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 });

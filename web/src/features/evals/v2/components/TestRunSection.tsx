@@ -149,17 +149,19 @@ function LlmTestRunResultBody({ testRun }: { testRun: TestRunMutation }) {
 
       {result &&
         (result.success ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-muted-foreground text-sm">Score:</span>
+          <div className="bg-muted/20 flex flex-col gap-3 rounded-md border p-3">
+            <p className="text-sm font-bold">LLM output</p>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">Score</span>
               <span className="text-2xl leading-none font-bold">
                 {String(result.score)}
               </span>
             </div>
             {result.reasoning && (
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                {result.reasoning}
-              </p>
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground text-xs">Reasoning</span>
+                <p className="text-sm leading-relaxed">{result.reasoning}</p>
+              </div>
             )}
           </div>
         ) : (

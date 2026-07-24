@@ -13,8 +13,10 @@ import {
   InfoIcon,
   PanelRightClose,
   PanelRightOpen,
+  Plus,
   Sparkles,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
@@ -26,6 +28,9 @@ import { Slider } from "@/src/components/ui/slider";
 // Animated tab variants: the active pill slides between options.
 import {
   Tabs,
+  TabsContent as RuleTabsContent,
+  TabsList as RuleTabsList,
+  TabsTrigger as RuleTabsTrigger,
   AnimatedTabsList as TabsList,
   AnimatedTabsTrigger as TabsTrigger,
 } from "@/src/components/ui/tabs";
@@ -127,6 +132,72 @@ export type EvaluatorSetupRuleControls = {
   setSampling: (sampling: number) => void;
   applyRule: (rule: { filter: FilterState; sampling: number }) => void;
 };
+
+export type EvaluatorSetupRuleTab = {
+  id: string;
+  name: string;
+  filter: FilterState;
+  sampling: number;
+};
+
+function EvaluatorRuleTabs({
+  rules,
+  activeRuleId,
+  onRuleChange,
+  onRemoveRule,
+  children,
+}: {
+  rules: EvaluatorSetupRuleTab[];
+  activeRuleId?: string | null;
+  onRuleChange: (ruleId: string) => void;
+  onRemoveRule?: (ruleId: string) => void;
+  children: ReactNode;
+}) {
+  if (rules.length <= 1 || !activeRuleId) {
+    return <div className="flex min-w-0 flex-col gap-4">{children}</div>;
+  }
+
+  return (
+    <Tabs value={activeRuleId} onValueChange={onRuleChange} className="min-w-0">
+      <RuleTabsList className="h-auto w-full max-w-full justify-start gap-4 overflow-x-auto rounded-none border-b bg-transparent p-0">
+        {rules.map((rule) => (
+          <div
+            key={rule.id}
+            className="has-[[data-state=active]]:border-foreground flex h-8 max-w-64 items-center border-b-2 border-transparent"
+          >
+            <RuleTabsTrigger
+              value={rule.id}
+              className="h-8 min-w-0 rounded-none bg-transparent px-0 font-normal shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              title={rule.name}
+            >
+              <span className="truncate" title={rule.name}>
+                {rule.name}
+              </span>
+            </RuleTabsTrigger>
+            {onRemoveRule ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground ml-1 rounded-sm p-0.5 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-hidden"
+                aria-label={`Remove rule ${rule.name}`}
+                title={`Remove ${rule.name}`}
+                onClick={() => onRemoveRule(rule.id)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+        ))}
+      </RuleTabsList>
+      <RuleTabsContent
+        value={activeRuleId}
+        forceMount
+        className="mt-4 flex min-w-0 flex-col gap-4"
+      >
+        {children}
+      </RuleTabsContent>
+    </Tabs>
+  );
+}
 
 /** A sample candidate from the rule-preview table. */
 type SampleObservationOption = {
@@ -256,9 +327,15 @@ export function EvaluatorSetupForm({
   renderFilterActions,
   filterEditingDisabled = false,
   samplingEditingDisabled = false,
+  ruleTabs = [],
+  activeRuleTabId,
   ruleEditorExpanded = true,
   hasRuleChanges = false,
   onFiltersEdited,
+  onRuleDraftChange,
+  onRuleTabChange,
+  onAddRule,
+  onRemoveRule,
   onBeforeSave,
   onSaved,
   onCancel,
@@ -284,10 +361,30 @@ export function EvaluatorSetupForm({
   renderFilterActions?: (controls: EvaluatorSetupRuleControls) => ReactNode;
   filterEditingDisabled?: boolean;
   samplingEditingDisabled?: boolean;
+  ruleTabs?: EvaluatorSetupRuleTab[];
+  activeRuleTabId?: string | null;
   ruleEditorExpanded?: boolean;
   hasRuleChanges?: boolean;
   onFiltersEdited?: (nextFilterState: FilterState) => void;
-  onBeforeSave?: (controls: EvaluatorSetupRuleControls) => Promise<boolean>;
+  onRuleDraftChange?: (draft: {
+    filter: FilterState;
+    sampling: number;
+  }) => void;
+  onRuleTabChange?: (
+    ruleId: string,
+    currentDraft: { filter: FilterState; sampling: number },
+  ) => EvaluatorSetupRuleTab | undefined;
+  onAddRule?: (currentDraft: {
+    filter: FilterState;
+    sampling: number;
+  }) => EvaluatorSetupRuleTab;
+  onRemoveRule?: (
+    ruleId: string,
+    currentDraft: { filter: FilterState; sampling: number },
+  ) => EvaluatorSetupRuleTab | undefined;
+  onBeforeSave?: (
+    controls: EvaluatorSetupRuleControls & { estimatedCostUsd: number | null },
+  ) => Promise<boolean>;
   onSaved?: () => void;
   onCancel?: () => void;
 }) {
@@ -883,11 +980,36 @@ export function EvaluatorSetupForm({
     if (!rule) return;
     applyRule(rule);
     onFiltersEdited?.(rule.filter);
+    onRuleDraftChange?.({ filter: rule.filter, sampling: rule.sampling });
   };
 
   const updateDraftFilters = (nextFilterState: FilterState) => {
     replaceFilterState(nextFilterState);
     onFiltersEdited?.(nextFilterState);
+    onRuleDraftChange?.({ filter: nextFilterState, sampling });
+  };
+
+  const updateDraftSampling = (nextSampling: number) => {
+    setSampling(nextSampling);
+    onRuleDraftChange?.({ filter: filterState, sampling: nextSampling });
+  };
+
+  const selectRuleTab = (ruleId: string) => {
+    const rule = onRuleTabChange?.(ruleId, {
+      filter: filterState,
+      sampling,
+    });
+    if (rule) applyRule(rule);
+  };
+
+  const addRuleTab = () => {
+    const rule = onAddRule?.({ filter: filterState, sampling });
+    if (rule) applyRule(rule);
+  };
+
+  const removeRuleTab = (ruleId: string) => {
+    const rule = onRemoveRule?.(ruleId, { filter: filterState, sampling });
+    if (rule) applyRule(rule);
   };
 
   const sharedFilterSection = buildEvaluationRuleFilterSuggestionSection({
@@ -1074,12 +1196,53 @@ export function EvaluatorSetupForm({
     if (!evaluatorId) return;
     setIsSaveWorkflowPending(true);
     try {
+      let estimatedCostUsd = testRunCostUsd;
+      if (
+        hasRuleChanges &&
+        fields.evaluatorType === "LLM_AS_JUDGE" &&
+        estimatedCostUsd === null
+      ) {
+        try {
+          estimatedCostUsd = await estimateEvaluatorCost({
+            testInput: {
+              projectId,
+              prompt: fields.prompt,
+              sourceTemplateId: fields.sourceTemplateId,
+              provider: fields.provider,
+              model: fields.model,
+              modelParams: fields.modelParams,
+              outputDefinition: fields.outputDefinition,
+              mapping: fields.mapping,
+            },
+            modelAvailable:
+              judgeModelMode === "custom"
+                ? customModelPayload !== null
+                : Boolean(defaultEvaluationModel),
+            getSample: async () => {
+              const result = await utils.client.events.all.query({
+                projectId,
+                filter: filterState,
+                searchQuery: null,
+                searchType: [],
+                orderBy: { column: "startTime", order: "DESC" },
+                page: 1,
+                limit: 1,
+              });
+              return result.observations[0] ?? null;
+            },
+            runTest: (input) => testRun.mutateAsync(input),
+          });
+        } catch {
+          // Historical execution cost remains available as a fallback.
+        }
+      }
       const shouldContinue = await onBeforeSave?.({
         filterState,
         setFilterState,
         sampling,
         setSampling,
         applyRule,
+        estimatedCostUsd,
       });
       if (shouldContinue === false) return;
 
@@ -1244,7 +1407,16 @@ export function EvaluatorSetupForm({
               open={sampleStepOpen}
               onOpenChange={setSampleStepOpen}
             >
-              <div className="flex min-w-0 flex-col gap-4">
+              <EvaluatorRuleTabs
+                rules={ruleTabs}
+                activeRuleId={activeRuleTabId}
+                onRuleChange={selectRuleTab}
+                onRemoveRule={
+                  ruleTabs.length > 1 && onRemoveRule
+                    ? removeRuleTab
+                    : undefined
+                }
+              >
                 {activeFilterSourceLabel ? (
                   <div className="bg-muted/40 flex min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-sm">
                     <span className="text-muted-foreground shrink-0">
@@ -1357,7 +1529,7 @@ export function EvaluatorSetupForm({
 
                   <button
                     type="button"
-                    className="flex w-fit items-center text-sm"
+                    className="flex w-fit items-center gap-1.5 text-sm"
                     aria-expanded={samplingOpen}
                     onClick={() => setSamplingOpen((open) => !open)}
                   >
@@ -1376,7 +1548,12 @@ export function EvaluatorSetupForm({
                     </span>
                   </button>
                   {samplingOpen ? (
-                    <div className="flex w-full max-w-md flex-col gap-2">
+                    <div className="flex w-full max-w-md flex-col gap-2 pl-[22px]">
+                      <p className="text-muted-foreground text-xs">
+                        {samplingEditingDisabled
+                          ? "Sampling is configured on the selected evaluation rule."
+                          : "Choose the share of matching observations to evaluate."}
+                      </p>
                       <Slider
                         min={0.0001}
                         max={1}
@@ -1384,20 +1561,27 @@ export function EvaluatorSetupForm({
                         value={[sampling]}
                         disabled={samplingEditingDisabled}
                         onValueChange={(value) =>
-                          setSampling(value[0] ?? sampling)
+                          updateDraftSampling(value[0] ?? sampling)
                         }
                         showInput
                         displayAsPercentage
                       />
-                      <p className="text-muted-foreground text-xs">
-                        {samplingEditingDisabled
-                          ? "Sampling is configured on the selected evaluation rule."
-                          : "Choose the share of matching observations to evaluate."}
-                      </p>
                     </div>
                   ) : null}
+                  {onAddRule ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="text-muted-foreground hover:text-foreground h-auto w-fit gap-1 px-0 py-0 text-xs font-normal"
+                      onClick={addRuleTab}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add another rule
+                    </Button>
+                  ) : null}
                 </div>
-              </div>
+              </EvaluatorRuleTabs>
             </SetupStep>
 
             <SetupStep
@@ -1821,6 +2005,9 @@ export function EvaluatorSetupForm({
         onSave={(runContinuously) => {
           createNewEvaluator(runContinuously).catch(() => undefined);
         }}
+        onRuleSamplingChange={(_ruleId, nextSampling) =>
+          setSampling(nextSampling)
+        }
       />
 
       {/* Fixed action bar: cancel abandons setup; save persists the evaluator

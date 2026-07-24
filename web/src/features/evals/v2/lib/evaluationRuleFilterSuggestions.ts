@@ -38,7 +38,7 @@ export function buildEvaluationRuleFilterSuggestionSection({
   );
 
   return {
-    title: "Evaluation rule filters",
+    title: "Reuse existing evaluation rule",
     items: orderedRules.map((rule) => ({
       id: rule.id,
       label: rule.name,

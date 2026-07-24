@@ -13,8 +13,10 @@
   three-step sample/definition/metadata flow, narrow test pane, and reusable
   rule-filter suggestions. Prompt editing and variable mapping render as sibling
   views in the definition step; evaluator name and description live in step 3.
-  `components/EvaluatorEditView.tsx` supplies attached rule IDs so those
-  suggestions can be prioritized without exposing relationship controls.
+  `components/EvaluatorEditView.tsx` owns the evaluator's rule-tab drafts:
+  existing rules stay query-backed, while filter/sampling edits and new tabs
+  remain local until Save. The setup form renders the active tab's filters,
+  matching observations, and sampling controls.
 - `actions/validateAndAttachRule.ts` owns the direct-attachment workflow:
   load one matching observation, test the saved evaluator, and only then
   activate the assignment. The two detail views only own pending and warning
@@ -22,9 +24,11 @@
 - `pages/evaluators.tsx` and `pages/rules.tsx` own the standalone v2 list
   lifecycle. `EvaluatorOverviewTable` and `EvaluationRulesOverviewTable` own their
   table selection and bulk actions; rendered cells remain narrow views.
-- `components/EvaluationRulePeekView.tsx` owns read-only rule inspection. New
-  attachments validate in place; failures link to evaluator edit with the
-  rule preselected for manual review and testing.
+- `components/EvaluationRulePeekView.tsx` renders the shared editable rule form
+  for users with write access and keeps Save disabled until the draft differs
+  from the loaded rule. Read-only users retain the inspection view. New
+  attachments validate in place; failures link to evaluator edit with the rule
+  preselected for manual review and testing.
 - `components/EvaluationRuleForm.tsx` owns the shared three-step evaluation-rule
   structure. Create and edit render the same interactive form; inspection
   reuses the step shell with read-only field content.
@@ -51,10 +55,21 @@ The evaluator detail page exposes template versions in a read-only sheet. A
 definition change creates a new project template version; evaluator metadata
 changes keep the current definition version.
 
-Evaluator editing suggests filters from attached and existing rules in the
-filter search bar. Attached rules are ranked first and labeled, while selecting
-any suggestion copies its filter and sampling into the evaluator draft without
-changing rule relationships.
+Evaluator editing shows multiple attached rules as subtle tabs around the
+observation filter, matching preview, and sampling controls. A new rule starts
+as an inline tab rather than a modal. When multiple tabs exist, removing an
+existing tab stages an evaluator detachment for Save, while removing an unsaved
+tab only discards that draft. The filter search bar continues to suggest filters
+from attached and existing rules; attached rules are ranked first and labeled,
+while selecting any suggestion copies its filter and sampling into the active
+rule draft.
+
+Saving evaluator rule changes reuses the activation cost-preview dialog.
+Multiple changed rules render as tabs over the existing filter and seven-day
+cost estimate. Expanding a rule's estimate also allows its sampling rate to be
+adjusted before saving. Edit mode estimates one representative evaluator run
+when rule changes are submitted, with the evaluator's historical average
+execution cost as a fallback.
 
 The worker schedules each matching evaluator-rule pair as a distinct
 execution. The execution stores its rule ID so logs can be
