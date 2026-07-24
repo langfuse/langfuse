@@ -93,14 +93,17 @@ export const MobilePageTitle = ({
         )}
       </div>
 
-      {actionButtonsRight && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
+      {/* Page actions live on ONE horizontally-scrollable row. Detail pages
+          (e.g. a session) hand us 6-9 buttons across both clusters; at phone
+          width, wrapping them stacks 200-300px of chrome above the content and
+          starves the actual page. `flex-nowrap` + `[&>*]:shrink-0` keeps each
+          action its natural size and lets the row scroll sideways within its
+          own `min-w-0`/`overflow-x-auto` box instead of wrapping or forcing
+          page-level horizontal overflow. Pages with a couple of actions never
+          need to scroll. */}
+      {(actionButtonsRight || actionButtonsLeft) && (
+        <div className="mt-2 flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto [&>*]:shrink-0">
           {actionButtonsRight}
-        </div>
-      )}
-
-      {actionButtonsLeft && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
           {actionButtonsLeft}
         </div>
       )}
