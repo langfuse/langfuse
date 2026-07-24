@@ -113,6 +113,7 @@ import {
 } from "./widgetFilterColumns";
 import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
 import {
+  applyChartTypeChange,
   deriveEffectiveSort,
   deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
@@ -902,13 +903,11 @@ export function WidgetForm({
   };
 
   // Chart-type change (ports breakdown-wipe / pivot-dims-reset / trim-metrics
-  // PLUS the histogram resolution — the histogram silent-revert fix).
+  // PLUS the histogram resolution — the histogram silent-revert fix). Crossing
+  // the pivot boundary resets dimensions so a breakdown dim and pivot row dims
+  // never cross-contaminate (see applyChartTypeChange).
   const onChartTypeChange = (newType: DashboardWidgetChartType) => {
-    const candidate = normalizeWidgetFormValues(
-      { ...values, chart: { ...values.chart, type: newType } },
-      viewVersion,
-    );
-    commitHealed(candidate);
+    commitHealed(applyChartTypeChange(values, newType, viewVersion));
   };
 
   // Single (non-pivot) measure change — heals the aggregation + chart type in

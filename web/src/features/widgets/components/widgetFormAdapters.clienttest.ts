@@ -15,12 +15,14 @@ import {
 } from "@/src/features/widgets/utils";
 
 import {
+  applyChartTypeChange,
   deriveEffectiveSort,
   deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
   resolveWidgetViewVersion,
   toDefaultValues,
   toSavePayload,
+  type WidgetFormValues,
   type WidgetInitialValues,
   type WidgetSavePayload,
 } from "./widgetFormSchema";
@@ -466,5 +468,59 @@ describe("toDefaultValues normalizes malformed stored/imported widgets", () => {
     expect(once.metrics).toEqual([
       { measure: "totalCost", aggregation: "sum" },
     ]);
+  });
+});
+
+describe("applyChartTypeChange dimension boundary", () => {
+  const pivotWithDims: WidgetFormValues = {
+    name: null,
+    description: null,
+    view: "observations",
+    filters: [],
+    metrics: [
+      { measure: "latency", aggregation: "avg" },
+      { measure: "count", aggregation: "count" },
+    ],
+    dimensions: [{ field: "environment" }, { field: "name" }],
+    chart: {
+      type: "PIVOT_TABLE",
+      bins: 10,
+      rowLimit: 100,
+      sort: null,
+    },
+  };
+
+  const barWithBreakdown: WidgetFormValues = {
+    name: null,
+    description: null,
+    view: "observations",
+    filters: [],
+    metrics: [{ measure: "latency", aggregation: "avg" }],
+    dimensions: [{ field: "environment" }],
+    chart: { type: "VERTICAL_BAR", bins: 10, rowLimit: 100, sort: null },
+  };
+
+  it("pivot([environment, name]) -> vertical bar clears the breakdown to none", () => {
+    const next = applyChartTypeChange(pivotWithDims, "VERTICAL_BAR", "v2");
+    expect(next.chart.type).toBe("VERTICAL_BAR");
+    expect(next.dimensions).toEqual([]);
+    // non-pivot trims to a single metric
+    expect(next.metrics).toEqual([{ measure: "latency", aggregation: "avg" }]);
+  });
+
+  it("vertical bar(breakdown=environment) -> pivot starts with empty row dimensions", () => {
+    const next = applyChartTypeChange(barWithBreakdown, "PIVOT_TABLE", "v2");
+    expect(next.chart.type).toBe("PIVOT_TABLE");
+    expect(next.dimensions).toEqual([]);
+  });
+
+  it("vertical bar -> line keeps the breakdown dimension (within non-pivot)", () => {
+    const next = applyChartTypeChange(
+      barWithBreakdown,
+      "LINE_TIME_SERIES",
+      "v2",
+    );
+    expect(next.chart.type).toBe("LINE_TIME_SERIES");
+    expect(next.dimensions).toEqual([{ field: "environment" }]);
   });
 });

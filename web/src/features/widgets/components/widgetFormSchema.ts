@@ -498,6 +498,35 @@ export function normalizeWidgetFormValues(
 }
 
 /**
+ * applyChartTypeChange heals the form when the chart type changes.
+ *
+ * Crossing the pivot ↔ non-pivot boundary RESETS `dimensions` to `[]`: the
+ * single breakdown dimension (non-pivot) and the pivot row dimensions are
+ * distinct concepts that the legacy form kept as separate state, so neither
+ * carries across the boundary — a breakdown defaults to "none" when entering a
+ * non-pivot chart, and a pivot starts with empty row dimensions. Switching
+ * WITHIN the non-pivot breakdown charts (e.g. bar ↔ line) keeps the breakdown
+ * dimension. The result is then run through {@link normalizeWidgetFormValues}
+ * for the aggregation/chart-type resolution and unsupported-dimension wipe.
+ */
+export function applyChartTypeChange(
+  values: WidgetFormValues,
+  newType: WidgetFormValues["chart"]["type"],
+  viewVersion: ViewVersion,
+): WidgetFormValues {
+  const crossesPivotBoundary =
+    (values.chart.type === "PIVOT_TABLE") !== (newType === "PIVOT_TABLE");
+  return normalizeWidgetFormValues(
+    {
+      ...values,
+      dimensions: crossesPivotBoundary ? [] : values.dimensions,
+      chart: { ...values.chart, type: newType },
+    },
+    viewVersion,
+  );
+}
+
+/**
  * toDefaultValues maps the legacy `initialValues` prop into the unified form
  * values, replacing the 17 legacy useState initializers (including
  * pivot-vs-single metric/dimension seeding and the pivot default-sort seed).

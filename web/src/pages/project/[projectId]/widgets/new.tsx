@@ -89,10 +89,12 @@ export default function NewWidget() {
       }}
     >
       <WidgetForm
-        // Beta toggle changes the default view (traces <-> observations) and
-        // the effective view version; remount so the form re-seeds cleanly
-        // instead of syncing via an effect.
-        key={String(isBetaEnabled)}
+        // No `key` on the beta flag: WidgetForm derives viewVersion (and its
+        // available views/measures/filter columns) reactively from isBetaEnabled
+        // + the selected view, so a live beta toggle re-derives them without a
+        // remount — preserving the in-progress form. The only tradeoff is that
+        // an untouched form's default view no longer auto-switches on toggle;
+        // the initial mount still seeds the beta-aware default view below.
         projectId={projectId}
         onSave={handleSaveWidget}
         initialValues={{
