@@ -159,6 +159,7 @@ describe("V4MigrationProjectCards SDK usage", () => {
     sdkUsage: {
       bucketTimes: ["2026-06-30T04:00:00.000Z", "2026-06-30T04:02:00.000Z"],
       rows: [],
+      upgradeTransitions: [],
     },
     isLegacyIntegrationSummaryLoading: false,
     isTraceLevelEvalSummaryLoading: false,
@@ -206,6 +207,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 5,
             firstSeen: "2026-06-30T04:02:00.000Z",
             lastSeen: "2026-06-30T04:04:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             canonicalSdkName: "python",
             latestMajor: 4,
             major: 3,
@@ -219,6 +222,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 2,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: false,
+            attributionStatus: "missing_name_and_version",
             canonicalSdkName: null,
             latestMajor: null,
             major: null,
@@ -232,6 +237,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 4,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: false,
+            attributionStatus: "missing_name_and_version",
             canonicalSdkName: null,
             latestMajor: null,
             major: null,
@@ -245,6 +252,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 3,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             canonicalSdkName: "javascript",
             latestMajor: 5,
             major: 5,
@@ -258,6 +267,8 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 1,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: false,
+            attributionStatus: "attributed",
             canonicalSdkName: null,
             latestMajor: null,
             major: null,
@@ -271,12 +282,15 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 1,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             canonicalSdkName: "python",
             latestMajor: 4,
             major: null,
             upgradeStatus: "invalid_version",
           },
         ],
+        upgradeTransitions: [],
       },
     });
 
@@ -290,7 +304,10 @@ describe("V4MigrationProjectCards SDK usage", () => {
       requiredActions.queryByText("unknown@unknown"),
     ).not.toBeInTheDocument();
     expect(
-      requiredActions.queryByText("pk-lf-raw-api"),
+      requiredActions.queryByText("OTel real-time ingestion"),
+    ).not.toBeInTheDocument();
+    expect(
+      requiredActions.queryByText(/x-langfuse-sdk-name/i),
     ).not.toBeInTheDocument();
     expect(
       requiredActions.queryByText("javascript@5.0.0"),
@@ -317,7 +334,7 @@ describe("V4MigrationProjectCards SDK usage", () => {
     expect(nonActionDetails.getByText("python@dev")).toBeInTheDocument();
     expect(
       nonActionDetails.getByText(
-        "Current, unknown with API keys, unsupported, and invalid SDK telemetry is shown for context only.",
+        "SDK and OTel telemetry that does not require a v4 migration change is shown for context only.",
       ),
     ).toBeInTheDocument();
 
@@ -332,6 +349,106 @@ describe("V4MigrationProjectCards SDK usage", () => {
       "https://langfuse.com/docs/observability/sdk/upgrade-path/python-v3-to-v4",
     );
     expect(screen.getAllByText("Due Nov 30, 2026").length).toBeGreaterThan(1);
+  });
+
+  it("requires the ingestion header only for delayed raw OTel traffic", () => {
+    renderCards({
+      sdkUsage: {
+        bucketTimes: ["2026-06-30T04:00:00.000Z", "2026-06-30T04:10:00.000Z"],
+        rows: [
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            publicKey: "pk-lf-delayed-otel",
+            count: 4,
+            firstSeen: "2026-06-30T04:00:00.000Z",
+            lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "missing_name_and_version",
+            canonicalSdkName: null,
+            latestMajor: null,
+            major: null,
+            upgradeStatus: "unknown",
+          },
+          {
+            time: "2026-06-30T04:10:00.000Z",
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            publicKey: "pk-lf-delayed-otel",
+            count: 1,
+            firstSeen: "2026-06-30T04:10:00.000Z",
+            lastSeen: "2026-06-30T04:10:00.000Z",
+            hasDelayedOtelEvents: null,
+            attributionStatus: "missing_name_and_version",
+            canonicalSdkName: null,
+            latestMajor: null,
+            major: null,
+            upgradeStatus: "unknown",
+          },
+        ],
+        upgradeTransitions: [],
+      },
+    });
+
+    const requiredActions = within(screen.getByTestId("required-actions"));
+    expect(
+      requiredActions.getByText("OTel real-time ingestion"),
+    ).toBeInTheDocument();
+    expect(requiredActions.getByText("pk-lf-delayed-otel")).toBeInTheDocument();
+    expect(
+      requiredActions.getAllByText(/x-langfuse-ingestion-version/i),
+    ).toHaveLength(2);
+    expect(
+      requiredActions.queryByText(/x-langfuse-sdk-name/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the ingestion header action after newer real-time OTel traffic", () => {
+    renderCards({
+      sdkUsage: {
+        bucketTimes: ["2026-06-30T04:00:00.000Z", "2026-06-30T04:10:00.000Z"],
+        rows: [
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            publicKey: "pk-lf-upgraded-otel",
+            count: 4,
+            firstSeen: "2026-06-30T04:00:00.000Z",
+            lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "missing_name_and_version",
+            canonicalSdkName: null,
+            latestMajor: null,
+            major: null,
+            upgradeStatus: "unknown",
+          },
+          {
+            time: "2026-06-30T04:10:00.000Z",
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            publicKey: "pk-lf-upgraded-otel",
+            count: 3,
+            firstSeen: "2026-06-30T04:10:00.000Z",
+            lastSeen: "2026-06-30T04:10:00.000Z",
+            hasDelayedOtelEvents: false,
+            attributionStatus: "missing_name_and_version",
+            canonicalSdkName: null,
+            latestMajor: null,
+            major: null,
+            upgradeStatus: "unknown",
+          },
+        ],
+        upgradeTransitions: [],
+      },
+    });
+
+    expect(
+      within(screen.getByTestId("required-actions")).queryByText(
+        "OTel real-time ingestion",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the legacy export auto-switch consequence", () => {
@@ -356,6 +473,78 @@ describe("V4MigrationProjectCards SDK usage", () => {
       ),
     ).toBeInTheDocument();
     expect(requiredActions.getByText("Due Nov 30, 2026")).toBeInTheDocument();
+  });
+
+  it("treats an outdated SDK series as upgraded when current traffic starts after it stops", () => {
+    renderCards({
+      sdkUsage: {
+        bucketTimes: ["2026-06-30T04:00:00.000Z"],
+        rows: [
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "python",
+            sdkVersion: "3.9.0",
+            publicKey: "pk-lf-python",
+            count: 5,
+            firstSeen: "2026-06-30T04:00:00.000Z",
+            lastSeen: "2026-06-30T04:10:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
+            canonicalSdkName: "python",
+            latestMajor: 4,
+            major: 3,
+            upgradeStatus: "outdated_major",
+          },
+          {
+            time: "2026-06-30T04:00:00.000Z",
+            sdkName: "langfuse-python",
+            sdkVersion: "4.7.0",
+            publicKey: "pk-lf-python",
+            count: 8,
+            firstSeen: "2026-06-30T04:20:00.000Z",
+            lastSeen: "2026-06-30T04:30:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
+            canonicalSdkName: "python",
+            latestMajor: 4,
+            major: 4,
+            upgradeStatus: "current",
+          },
+        ],
+        upgradeTransitions: [
+          {
+            canonicalSdkName: "python",
+            publicKey: "pk-lf-python",
+            fromVersions: ["3.9.0"],
+            toVersions: ["4.7.0"],
+            firstCurrentVersionSeenAt: "2026-06-30T04:20:00.000Z",
+            lastOutdatedVersionSeenAt: "2026-06-30T04:10:00.000Z",
+            status: "upgrade_detected",
+          },
+        ],
+      },
+    });
+
+    expect(
+      within(screen.getByTestId("required-actions")).queryByText(
+        "SDK upgrades",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No required v4 migration changes detected"),
+    ).toBeInTheDocument();
+
+    const nonActionDetails = within(screen.getByTestId("non-action-details"));
+    fireEvent.click(
+      nonActionDetails.getByRole("button", {
+        name: /Details that do not require action/i,
+      }),
+    );
+    expect(
+      nonActionDetails.getByText(
+        /Python SDK upgrade from 3\.9\.0 to 4\.7\.0 first detected/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows all required sections with the migration deadline", () => {
@@ -394,12 +583,15 @@ describe("V4MigrationProjectCards SDK usage", () => {
             count: 5,
             firstSeen: "2026-06-30T04:00:00.000Z",
             lastSeen: "2026-06-30T04:00:00.000Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             canonicalSdkName: "python",
             latestMajor: 4,
             major: 3,
             upgradeStatus: "outdated_major",
           },
         ],
+        upgradeTransitions: [],
       },
     });
 

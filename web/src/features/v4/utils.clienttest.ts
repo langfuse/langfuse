@@ -39,8 +39,9 @@ describe("getV4ProjectRequiredActionCount", () => {
         legacyIntegrationCount: 1,
         legacyApiEntrypointCount: 3,
         outdatedSdkUsageSeriesCount: 4,
+        delayedOtelIngestionSeriesCount: 2,
       }),
-    ).toBe(10);
+    ).toBe(12);
   });
 });
 

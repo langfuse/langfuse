@@ -10,10 +10,13 @@ import {
 } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 import {
+  classifyIngestionSdkAttribution,
   classifyIngestionSdkVersion,
   convertDateToClickhouseDateTime,
+  INTERNAL_INGESTION_SDK_NAMES,
   queryClickhouse,
   systemTableRef,
+  type IngestionSdkAttributionStatus,
   type IngestionSdkUpgradeStatus,
 } from "@langfuse/shared/src/server";
 import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
@@ -120,6 +123,7 @@ type SdkUsageTimeSeriesRow = {
   count: string | number;
   firstSeen: string;
   lastSeen: string;
+  hasDelayedOtelEvents: boolean | string | number | null;
 };
 
 type SdkUsageTimeSeriesResultRow = {
@@ -130,15 +134,28 @@ type SdkUsageTimeSeriesResultRow = {
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
+  hasDelayedOtelEvents: boolean | null;
+  attributionStatus: IngestionSdkAttributionStatus;
   canonicalSdkName: "python" | "javascript" | null;
   latestMajor: number | null;
   major: number | null;
   upgradeStatus: IngestionSdkUpgradeStatus;
 };
 
+type SdkUpgradeTransition = {
+  canonicalSdkName: "python" | "javascript";
+  publicKey: string;
+  fromVersions: string[];
+  toVersions: string[];
+  firstCurrentVersionSeenAt: string;
+  lastOutdatedVersionSeenAt: string;
+  status: "upgrade_detected" | "mixed_versions";
+};
+
 type SdkUsageTimeSeriesResult = {
   bucketTimes: string[];
   rows: SdkUsageTimeSeriesResultRow[];
+  upgradeTransitions: SdkUpgradeTransition[];
 };
 
 type SdkUsageSummaryByProjectRow = {
@@ -146,7 +163,10 @@ type SdkUsageSummaryByProjectRow = {
   sdkName: string;
   sdkVersion: string;
   publicKey: string;
+  count: string | number;
+  firstSeen: string;
   lastSeen: string;
+  hasDelayedOtelEvents: boolean | string | number | null;
 };
 
 type SdkUsageSummaryByProjectSeries = {
@@ -154,13 +174,19 @@ type SdkUsageSummaryByProjectSeries = {
   sdkVersion: string;
   canonicalSdkName: "python" | "javascript" | null;
   publicKey: string;
+  count: number;
+  firstSeen: string;
   lastSeen: string;
+  hasDelayedOtelEvents: boolean | null;
+  attributionStatus: IngestionSdkAttributionStatus;
   v4MigrationStatus: "compatible" | "upgrade_required" | "unknown";
+  upgradeCompleted: boolean;
 };
 
 type SdkUsageSummaryByProjectResultRow = {
   projectId: string;
   outdatedSdkUsageSeriesCount: number;
+  delayedOtelIngestionSeriesCount: number;
   sdkUsageSeries: SdkUsageSummaryByProjectSeries[];
 };
 
@@ -235,6 +261,13 @@ const compareSdkUsageRows = (
   return leftSeries.localeCompare(rightSeries);
 };
 
+const toBoolean = (value: boolean | string | number): boolean =>
+  value === true || value === 1 || value === "1";
+
+const toNullableBoolean = (
+  value: boolean | string | number | null,
+): boolean | null => (value === null ? null : toBoolean(value));
+
 const decorateSdkUsageRows = ({
   rows,
 }: {
@@ -243,6 +276,10 @@ const decorateSdkUsageRows = ({
   return rows
     .map((row) => {
       const classification = classifyIngestionSdkVersion({
+        sdkName: row.sdkName,
+        sdkVersion: row.sdkVersion,
+      });
+      const attributionStatus = classifyIngestionSdkAttribution({
         sdkName: row.sdkName,
         sdkVersion: row.sdkVersion,
       });
@@ -255,6 +292,8 @@ const decorateSdkUsageRows = ({
         count: Number(row.count),
         firstSeen: row.firstSeen,
         lastSeen: row.lastSeen,
+        hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
+        attributionStatus,
         canonicalSdkName: classification.canonicalSdkName,
         latestMajor: classification.latestMajor,
         major: classification.major,
@@ -263,6 +302,144 @@ const decorateSdkUsageRows = ({
     })
     .sort(compareSdkUsageRows);
 };
+
+const detectSdkUpgradeTransitions = (
+  rows: SdkUsageTimeSeriesResultRow[],
+): SdkUpgradeTransition[] => {
+  const seriesByClient = new Map<
+    string,
+    {
+      canonicalSdkName: "python" | "javascript";
+      publicKey: string;
+      versions: Map<
+        string,
+        {
+          status: IngestionSdkUpgradeStatus;
+          firstSeen: string;
+          lastSeen: string;
+        }
+      >;
+    }
+  >();
+
+  for (const row of rows) {
+    if (
+      row.attributionStatus !== "attributed" ||
+      !row.canonicalSdkName ||
+      !row.firstSeen ||
+      !row.lastSeen
+    ) {
+      continue;
+    }
+
+    const clientKey = `${row.canonicalSdkName}\u0000${row.publicKey}`;
+    const client =
+      seriesByClient.get(clientKey) ??
+      ({
+        canonicalSdkName: row.canonicalSdkName,
+        publicKey: row.publicKey,
+        versions: new Map(),
+      } satisfies {
+        canonicalSdkName: "python" | "javascript";
+        publicKey: string;
+        versions: Map<
+          string,
+          {
+            status: IngestionSdkUpgradeStatus;
+            firstSeen: string;
+            lastSeen: string;
+          }
+        >;
+      });
+    const version = client.versions.get(row.sdkVersion);
+
+    client.versions.set(row.sdkVersion, {
+      status: row.upgradeStatus,
+      firstSeen:
+        version && version.firstSeen < row.firstSeen
+          ? version.firstSeen
+          : row.firstSeen,
+      lastSeen:
+        version && version.lastSeen > row.lastSeen
+          ? version.lastSeen
+          : row.lastSeen,
+    });
+    seriesByClient.set(clientKey, client);
+  }
+
+  return Array.from(seriesByClient.values())
+    .flatMap((client): SdkUpgradeTransition[] => {
+      const versions = Array.from(client.versions, ([sdkVersion, usage]) => ({
+        sdkVersion,
+        ...usage,
+      }));
+      const currentVersions = versions.filter(
+        (version) => version.status === "current",
+      );
+      const outdatedVersions = versions.filter(
+        (version) => version.status === "outdated_major",
+      );
+
+      if (currentVersions.length === 0 || outdatedVersions.length === 0) {
+        return [];
+      }
+
+      const firstCurrentVersionSeenAt = currentVersions
+        .map((version) => version.firstSeen)
+        .sort()[0]!;
+      const earlierOutdatedVersions = outdatedVersions.filter(
+        (version) => version.firstSeen < firstCurrentVersionSeenAt,
+      );
+
+      if (earlierOutdatedVersions.length === 0) return [];
+
+      const lastOutdatedVersionSeenAt = earlierOutdatedVersions
+        .map((version) => version.lastSeen)
+        .sort()
+        .at(-1)!;
+
+      return [
+        {
+          canonicalSdkName: client.canonicalSdkName,
+          publicKey: client.publicKey,
+          fromVersions: earlierOutdatedVersions
+            .map((version) => version.sdkVersion)
+            .sort(),
+          toVersions: currentVersions
+            .map((version) => version.sdkVersion)
+            .sort(),
+          firstCurrentVersionSeenAt,
+          lastOutdatedVersionSeenAt,
+          status:
+            lastOutdatedVersionSeenAt < firstCurrentVersionSeenAt
+              ? "upgrade_detected"
+              : "mixed_versions",
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        left.firstCurrentVersionSeenAt.localeCompare(
+          right.firstCurrentVersionSeenAt,
+        ) ||
+        left.canonicalSdkName.localeCompare(right.canonicalSdkName) ||
+        left.publicKey.localeCompare(right.publicKey),
+    );
+};
+
+const getCompletedSdkUpgradeVersionKeys = (
+  rows: SdkUsageTimeSeriesResultRow[],
+): Set<string> =>
+  new Set(
+    detectSdkUpgradeTransitions(rows)
+      .filter((transition) => transition.status === "upgrade_detected")
+      .flatMap((transition) =>
+        transition.fromVersions.map(
+          (version) =>
+            `${transition.canonicalSdkName}\u0000${version}\u0000${transition.publicKey}`,
+        ),
+      ),
+  );
 
 type TraceLevelEvalExecutionTimeSeriesRow = {
   time: string;
@@ -606,7 +783,9 @@ ORDER BY bucket_time ASC, score_name ASC
     timestamp AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key
+    ingestion_api_key AS public_key,
+    false AS is_otel_ingestion,
+    false AS is_delayed_otel
   FROM scores FINAL
   WHERE
     project_id = {projectId: String}
@@ -614,6 +793,7 @@ ORDER BY bucket_time ASC, score_name ASC
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
+    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
       const rows = await queryClickhouse<SdkUsageTimeSeriesRow>({
@@ -623,7 +803,9 @@ WITH selected AS (
     start_time AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key
+    ingestion_api_key AS public_key,
+    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
+    startsWith(source, 'otel-dual-write') AS is_delayed_otel
   FROM events_core
   WHERE
     project_id = {projectId: String}
@@ -631,6 +813,7 @@ WITH selected AS (
     AND start_time <= {toTimestamp: DateTime64(3)}
     AND toDate(start_time) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(start_time) <= toDate({toTimestamp: DateTime64(3)})
+    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
 )
@@ -642,7 +825,8 @@ SELECT
   public_key AS publicKey,
   count() AS count,
   formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
-  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
+  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
+  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
 FROM selected
 GROUP BY ${bucketTimeSql}, sdk_name, sdk_version, public_key
 ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
@@ -651,6 +835,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           projectId: input.projectId,
           fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
         },
         tags: {
           projectId: input.projectId,
@@ -659,15 +844,18 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         preferredClickhouseService: "EventsReadOnly",
       });
 
+      const decoratedRows = decorateSdkUsageRows({
+        rows,
+      });
+
       return {
         bucketTimes: getTimelineBucketTimes(
           input.fromTimestamp,
           input.toTimestamp,
           granularity,
         ),
-        rows: decorateSdkUsageRows({
-          rows,
-        }),
+        rows: decoratedRows,
+        upgradeTransitions: detectSdkUpgradeTransitions(decoratedRows),
       } satisfies SdkUsageTimeSeriesResult;
     }),
 
@@ -695,7 +883,9 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     timestamp AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key
+    ingestion_api_key AS public_key,
+    false AS is_otel_ingestion,
+    false AS is_delayed_otel
   FROM scores FINAL
   WHERE
     project_id IN {projectIds: Array(String)}
@@ -703,6 +893,7 @@ ORDER BY ${bucketTimeSql} ASC, sdk_name ASC, sdk_version ASC, public_key ASC
     AND timestamp <= {toTimestamp: DateTime64(3)}
     AND toDate(timestamp) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(timestamp) <= toDate({toTimestamp: DateTime64(3)})
+    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0`;
 
       const rows = await queryClickhouse<SdkUsageSummaryByProjectRow>({
@@ -713,7 +904,9 @@ WITH selected AS (
     start_time AS event_time,
     if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name) AS sdk_name,
     if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version,
-    ingestion_api_key AS public_key
+    ingestion_api_key AS public_key,
+    (source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion,
+    startsWith(source, 'otel-dual-write') AS is_delayed_otel
   FROM events_core
   WHERE
     project_id IN {projectIds: Array(String)}
@@ -721,6 +914,7 @@ WITH selected AS (
     AND start_time <= {toTimestamp: DateTime64(3)}
     AND toDate(start_time) >= toDate({fromTimestamp: DateTime64(3)})
     AND toDate(start_time) <= toDate({toTimestamp: DateTime64(3)})
+    AND ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}
     AND is_deleted = 0
   ${scoresUnionSql}
 )
@@ -730,7 +924,10 @@ SELECT
   sdk_name AS sdkName,
   sdk_version AS sdkVersion,
   public_key AS publicKey,
-  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen
+  count() AS count,
+  formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen,
+  formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen,
+  if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents
 FROM selected
 GROUP BY project_id, sdk_name, sdk_version, public_key
 ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
@@ -739,6 +936,7 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
           projectIds,
           fromTimestamp: convertDateToClickhouseDateTime(input.fromTimestamp),
           toTimestamp: convertDateToClickhouseDateTime(input.toTimestamp),
+          internalSdkNames: [...INTERNAL_INGESTION_SDK_NAMES],
         },
         tags: {
           route: "v4-org-sdk-usage-summary",
@@ -746,54 +944,96 @@ ORDER BY project_id ASC, sdk_name ASC, sdk_version ASC, public_key ASC
         preferredClickhouseService: "EventsReadOnly",
       });
 
-      const outdatedCountsByProjectId = new Map<string, number>();
-      const sdkUsageSeriesByProjectId = new Map<
-        string,
-        SdkUsageSummaryByProjectSeries[]
-      >();
-
+      const rowsByProjectId = new Map<string, SdkUsageSummaryByProjectRow[]>();
       for (const row of rows) {
-        const classification = classifyIngestionSdkVersion({
-          sdkName: row.sdkName,
-          sdkVersion: row.sdkVersion,
-        });
-        const capabilityStatus = getSdkVersionCapabilityStatus(
-          { language: row.sdkName, version: row.sdkVersion },
-          "appRootObservations",
-        );
-        if (capabilityStatus === "unsupported") {
-          outdatedCountsByProjectId.set(
-            row.projectId,
-            (outdatedCountsByProjectId.get(row.projectId) ?? 0) + 1,
-          );
-        }
-
-        const projectSeries =
-          sdkUsageSeriesByProjectId.get(row.projectId) ?? [];
-        projectSeries.push({
-          sdkName: row.sdkName,
-          sdkVersion: row.sdkVersion,
-          canonicalSdkName: classification.canonicalSdkName,
-          publicKey: row.publicKey,
-          lastSeen: row.lastSeen,
-          v4MigrationStatus:
-            capabilityStatus === "supported"
-              ? "compatible"
-              : capabilityStatus === "unsupported"
-                ? "upgrade_required"
-                : "unknown",
-        });
-        sdkUsageSeriesByProjectId.set(row.projectId, projectSeries);
+        const projectRows = rowsByProjectId.get(row.projectId) ?? [];
+        projectRows.push(row);
+        rowsByProjectId.set(row.projectId, projectRows);
       }
 
-      return projectIds.map(
-        (projectId): SdkUsageSummaryByProjectResultRow => ({
+      return projectIds.map((projectId): SdkUsageSummaryByProjectResultRow => {
+        const projectRows = (rowsByProjectId.get(projectId) ?? []).map(
+          (row): SdkUsageTimeSeriesResultRow => {
+            const classification = classifyIngestionSdkVersion({
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+            });
+            const capabilityStatus = getSdkVersionCapabilityStatus(
+              { language: row.sdkName, version: row.sdkVersion },
+              "appRootObservations",
+            );
+
+            return {
+              time: row.firstSeen,
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+              publicKey: row.publicKey,
+              count: Number(row.count),
+              firstSeen: row.firstSeen,
+              lastSeen: row.lastSeen,
+              hasDelayedOtelEvents: toNullableBoolean(row.hasDelayedOtelEvents),
+              attributionStatus: classifyIngestionSdkAttribution({
+                sdkName: row.sdkName,
+                sdkVersion: row.sdkVersion,
+              }),
+              canonicalSdkName: classification.canonicalSdkName,
+              latestMajor: classification.latestMajor,
+              major: classification.major,
+              upgradeStatus:
+                capabilityStatus === "supported"
+                  ? "current"
+                  : capabilityStatus === "unsupported"
+                    ? "outdated_major"
+                    : classification.status,
+            };
+          },
+        );
+        const completedUpgradeVersionKeys =
+          getCompletedSdkUpgradeVersionKeys(projectRows);
+        const sdkUsageSeries = projectRows.map(
+          (row): SdkUsageSummaryByProjectSeries => {
+            const versionKey = `${row.canonicalSdkName}\u0000${row.sdkVersion}\u0000${row.publicKey}`;
+            const upgradeCompleted =
+              completedUpgradeVersionKeys.has(versionKey);
+
+            return {
+              sdkName: row.sdkName,
+              sdkVersion: row.sdkVersion,
+              canonicalSdkName: row.canonicalSdkName,
+              publicKey: row.publicKey,
+              count: row.count,
+              firstSeen: row.firstSeen!,
+              lastSeen: row.lastSeen!,
+              hasDelayedOtelEvents: row.hasDelayedOtelEvents,
+              attributionStatus: row.attributionStatus,
+              v4MigrationStatus:
+                row.upgradeStatus === "current"
+                  ? "compatible"
+                  : row.upgradeStatus === "outdated_major"
+                    ? "upgrade_required"
+                    : "unknown",
+              upgradeCompleted,
+            };
+          },
+        );
+
+        return {
           projectId,
-          outdatedSdkUsageSeriesCount:
-            outdatedCountsByProjectId.get(projectId) ?? 0,
-          sdkUsageSeries: sdkUsageSeriesByProjectId.get(projectId) ?? [],
-        }),
-      );
+          outdatedSdkUsageSeriesCount: sdkUsageSeries.filter(
+            (series) =>
+              series.count > 0 &&
+              series.v4MigrationStatus === "upgrade_required" &&
+              !series.upgradeCompleted,
+          ).length,
+          delayedOtelIngestionSeriesCount: sdkUsageSeries.filter(
+            (series) =>
+              series.count > 0 &&
+              series.hasDelayedOtelEvents === true &&
+              series.canonicalSdkName === null,
+          ).length,
+          sdkUsageSeries,
+        };
+      });
     }),
 
   legacyApiUsageSummaryByProject: protectedOrganizationProcedure

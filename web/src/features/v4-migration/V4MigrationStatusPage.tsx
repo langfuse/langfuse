@@ -202,14 +202,16 @@ function OrgStatusSection({
           : 0;
       case "sdk":
         return row.status?.sdk.status === "latest"
-          ? 4
+          ? 5
           : row.status?.sdk.status === "legacy"
-            ? 3
-            : row.status?.sdk.status === "unknown"
-              ? 2
-              : row.status?.sdk.status === "checking"
-                ? 1
-                : 0;
+            ? 4
+            : row.status?.sdk.status === "otel_header_required"
+              ? 3
+              : row.status?.sdk.status === "unknown"
+                ? 2
+                : row.status?.sdk.status === "checking"
+                  ? 1
+                  : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
       case "apis":
@@ -326,6 +328,13 @@ function OrgStatusSection({
                       ) : row.status.sdk.status === "unknown" ? (
                         <span className="text-foreground-tertiary">
                           Unknown
+                        </span>
+                      ) : row.status.sdk.status === "otel_header_required" ? (
+                        <span>
+                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+                          {row.status.sdk.delayedOtelIngestionCount === 1
+                            ? "required"
+                            : "issues"}
                         </span>
                       ) : row.status.sdk.status === "error" ? (
                         <span className="text-foreground-tertiary">

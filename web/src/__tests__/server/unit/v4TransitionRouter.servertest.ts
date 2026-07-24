@@ -10,6 +10,10 @@ vi.mock("@/src/server/auth", () => ({
 
 const sharedServerMock = vi.hoisted(() => ({
   queryClickhouse: vi.fn(),
+  INTERNAL_INGESTION_SDK_NAMES: [
+    "langfuse-internal-ai-sdk",
+    "langfuse-internal-otel-writer",
+  ],
   convertDateToClickhouseDateTime: (date: Date) =>
     date.toISOString().replace("T", " ").replace("Z", ""),
   systemTableRef: (table: "system.processes" | "system.query_log") =>
@@ -73,6 +77,21 @@ const sharedServerMock = vi.hoisted(() => ({
       major,
       status: major >= latestMajor ? "current" : "outdated_major",
     };
+  },
+  classifyIngestionSdkAttribution: ({
+    sdkName,
+    sdkVersion,
+  }: {
+    sdkName: string | null | undefined;
+    sdkVersion: string | null | undefined;
+  }) => {
+    const missingName = !sdkName || sdkName === "unknown";
+    const missingVersion = !sdkVersion || sdkVersion === "unknown";
+
+    if (missingName && missingVersion) return "missing_name_and_version";
+    if (missingName) return "missing_name";
+    if (missingVersion) return "missing_version";
+    return "attributed";
   },
 }));
 
@@ -1049,6 +1068,7 @@ describe("v4TransitionRouter", () => {
         count: "3",
         firstSeen: "2026-06-25T12:01:00Z",
         lastSeen: "2026-06-25T12:03:00Z",
+        hasDelayedOtelEvents: "0",
       },
       {
         time: "2026-06-25T12:04:00Z",
@@ -1058,6 +1078,7 @@ describe("v4TransitionRouter", () => {
         count: 7,
         firstSeen: "2026-06-25T12:04:00Z",
         lastSeen: "2026-06-25T12:05:00Z",
+        hasDelayedOtelEvents: 0,
       },
     ]);
     const caller = createCaller();
@@ -1090,6 +1111,8 @@ describe("v4TransitionRouter", () => {
       count: 3,
       firstSeen: "2026-06-25T12:01:00Z",
       lastSeen: "2026-06-25T12:03:00Z",
+      hasDelayedOtelEvents: false,
+      attributionStatus: "attributed",
       canonicalSdkName: "python",
       latestMajor: 4,
       major: 3,
@@ -1111,6 +1134,8 @@ describe("v4TransitionRouter", () => {
       count: 7,
       firstSeen: "2026-06-25T12:04:00Z",
       lastSeen: "2026-06-25T12:05:00Z",
+      hasDelayedOtelEvents: false,
+      attributionStatus: "attributed",
       canonicalSdkName: "javascript",
       latestMajor: 5,
       major: 5,
@@ -1145,6 +1170,20 @@ describe("v4TransitionRouter", () => {
       "if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version) AS sdk_version",
     );
     expect(clickhouseQuery?.query).toContain("ingestion_api_key AS public_key");
+    expect(clickhouseQuery?.query).toContain("false AS is_delayed_otel");
+    expect(clickhouseQuery?.query).toContain("false AS is_otel_ingestion");
+    expect(clickhouseQuery?.query).toContain(
+      "startsWith(source, 'otel-dual-write') AS is_delayed_otel",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "(source = 'otel' OR startsWith(source, 'otel-dual-write')) AS is_otel_ingestion",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
+    );
     expect(clickhouseQuery?.query).toContain(
       "GROUP BY toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC'), sdk_name, sdk_version, public_key",
     );
@@ -1152,12 +1191,136 @@ describe("v4TransitionRouter", () => {
       projectId,
       fromTimestamp: "2026-06-25 12:00:00.000",
       toTimestamp: "2026-06-25 13:00:00.000",
+      internalSdkNames: [
+        "langfuse-internal-ai-sdk",
+        "langfuse-internal-otel-writer",
+      ],
     });
     expect(clickhouseQuery?.tags).toEqual({
       projectId,
       route: "v4-sdk-usage-timeseries",
     });
     expect(clickhouseQuery?.preferredClickhouseService).toBe("EventsReadOnly");
+  });
+
+  it("distinguishes raw OTel already using real-time ingestion", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        publicKey: "pk-lf-raw-otel",
+        count: "4",
+        firstSeen: "2026-06-25T12:01:00Z",
+        lastSeen: "2026-06-25T12:03:00Z",
+        hasDelayedOtelEvents: "0",
+      },
+    ]);
+    const caller = createCaller();
+
+    const result = await caller.sdkUsageTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        publicKey: "pk-lf-raw-otel",
+        hasDelayedOtelEvents: false,
+        attributionStatus: "missing_name_and_version",
+        upgradeStatus: "unknown",
+      }),
+    ]);
+  });
+
+  it("detects a clean major SDK upgrade within the selected range", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-python",
+        count: "8",
+        firstSeen: "2026-06-25T12:00:00Z",
+        lastSeen: "2026-06-25T12:10:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+      {
+        time: "2026-06-25T12:20:00Z",
+        sdkName: "langfuse-python",
+        sdkVersion: "4.7.0",
+        publicKey: "pk-lf-python",
+        count: "13",
+        firstSeen: "2026-06-25T12:20:00Z",
+        lastSeen: "2026-06-25T12:30:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+    ]);
+    const caller = createCaller();
+
+    const result = await caller.sdkUsageTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(result.upgradeTransitions).toEqual([
+      {
+        canonicalSdkName: "python",
+        publicKey: "pk-lf-python",
+        fromVersions: ["3.9.0"],
+        toVersions: ["4.7.0"],
+        firstCurrentVersionSeenAt: "2026-06-25T12:20:00Z",
+        lastOutdatedVersionSeenAt: "2026-06-25T12:10:00Z",
+        status: "upgrade_detected",
+      },
+    ]);
+  });
+
+  it("keeps overlapping old and current SDK traffic marked as mixed versions", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-25T12:00:00Z",
+        sdkName: "python",
+        sdkVersion: "3.9.0",
+        publicKey: "pk-lf-python",
+        count: "8",
+        firstSeen: "2026-06-25T12:00:00Z",
+        lastSeen: "2026-06-25T12:30:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+      {
+        time: "2026-06-25T12:20:00Z",
+        sdkName: "langfuse-python",
+        sdkVersion: "4.7.0",
+        publicKey: "pk-lf-python",
+        count: "13",
+        firstSeen: "2026-06-25T12:20:00Z",
+        lastSeen: "2026-06-25T12:40:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+    ]);
+    const caller = createCaller();
+
+    const result = await caller.sdkUsageTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(result.upgradeTransitions).toEqual([
+      expect.objectContaining({
+        canonicalSdkName: "python",
+        publicKey: "pk-lf-python",
+        status: "mixed_versions",
+      }),
+    ]);
   });
 
   it.each(["MEMBER", "VIEWER"] as const)(
@@ -1246,29 +1409,71 @@ describe("v4TransitionRouter", () => {
         projectId,
         sdkName: "python",
         sdkVersion: "3.9.0",
-        publicKey: "pk-lf-old-python",
-        lastSeen: "2026-06-24T12:00:00Z",
+        publicKey: "pk-lf-python",
+        count: "8",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T02:00:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+      {
+        projectId,
+        sdkName: "python",
+        sdkVersion: "4.14.1",
+        publicKey: "pk-lf-python",
+        count: "13",
+        firstSeen: "2026-06-24T03:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId,
         sdkName: "python",
         sdkVersion: "4.6.9",
         publicKey: "pk-lf-pre-v4-python",
+        count: "5",
+        firstSeen: "2026-06-24T12:00:00Z",
         lastSeen: "2026-06-24T13:00:00Z",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId,
         sdkName: "python",
         sdkVersion: "4.7.0",
         publicKey: "pk-lf-current-python",
+        count: "6",
+        firstSeen: "2026-06-24T13:30:00Z",
         lastSeen: "2026-06-24T14:00:00Z",
+        hasDelayedOtelEvents: "1",
       },
       {
         projectId: secondProjectId,
         sdkName: "@langfuse/tracing",
         sdkVersion: "5.3.9",
-        publicKey: "pk-lf-pre-v4-js",
-        lastSeen: "2026-06-24T15:00:00Z",
+        publicKey: "pk-lf-old-js",
+        count: "5",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+        hasDelayedOtelEvents: "1",
+      },
+      {
+        projectId: secondProjectId,
+        sdkName: "unknown",
+        sdkVersion: "unknown",
+        publicKey: "pk-lf-otel",
+        count: "3",
+        firstSeen: "2026-06-24T01:00:00Z",
+        lastSeen: "2026-06-24T04:00:00Z",
+        hasDelayedOtelEvents: "0",
+      },
+      {
+        projectId: secondProjectId,
+        sdkName: "custom-otel-writer",
+        sdkVersion: "1.2.3",
+        publicKey: "pk-lf-custom-otel",
+        count: "2",
+        firstSeen: "2026-06-24T02:00:00Z",
+        lastSeen: "2026-06-24T03:00:00Z",
+        hasDelayedOtelEvents: "1",
       },
     ]);
     const mockPrisma = {
@@ -1289,45 +1494,106 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         projectId,
-        outdatedSdkUsageSeriesCount: 2,
+        outdatedSdkUsageSeriesCount: 1,
+        delayedOtelIngestionSeriesCount: 0,
         sdkUsageSeries: [
           {
             sdkName: "python",
             sdkVersion: "3.9.0",
             canonicalSdkName: "python",
-            publicKey: "pk-lf-old-python",
-            lastSeen: "2026-06-24T12:00:00Z",
+            publicKey: "pk-lf-python",
+            count: 8,
+            firstSeen: "2026-06-24T01:00:00Z",
+            lastSeen: "2026-06-24T02:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
+            upgradeCompleted: true,
+          },
+          {
+            sdkName: "python",
+            sdkVersion: "4.14.1",
+            canonicalSdkName: "python",
+            publicKey: "pk-lf-python",
+            count: 13,
+            firstSeen: "2026-06-24T03:00:00Z",
+            lastSeen: "2026-06-24T04:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
+            v4MigrationStatus: "compatible",
+            upgradeCompleted: false,
           },
           {
             sdkName: "python",
             sdkVersion: "4.6.9",
             canonicalSdkName: "python",
             publicKey: "pk-lf-pre-v4-python",
+            count: 5,
+            firstSeen: "2026-06-24T12:00:00Z",
             lastSeen: "2026-06-24T13:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
+            upgradeCompleted: false,
           },
           {
             sdkName: "python",
             sdkVersion: "4.7.0",
             canonicalSdkName: "python",
             publicKey: "pk-lf-current-python",
+            count: 6,
+            firstSeen: "2026-06-24T13:30:00Z",
             lastSeen: "2026-06-24T14:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             v4MigrationStatus: "compatible",
+            upgradeCompleted: false,
           },
         ],
       },
       {
         projectId: secondProjectId,
         outdatedSdkUsageSeriesCount: 1,
+        delayedOtelIngestionSeriesCount: 1,
         sdkUsageSeries: [
           {
             sdkName: "@langfuse/tracing",
             sdkVersion: "5.3.9",
             canonicalSdkName: "javascript",
-            publicKey: "pk-lf-pre-v4-js",
-            lastSeen: "2026-06-24T15:00:00Z",
+            publicKey: "pk-lf-old-js",
+            count: 5,
+            firstSeen: "2026-06-24T01:00:00Z",
+            lastSeen: "2026-06-24T04:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
             v4MigrationStatus: "upgrade_required",
+            upgradeCompleted: false,
+          },
+          {
+            sdkName: "unknown",
+            sdkVersion: "unknown",
+            canonicalSdkName: null,
+            publicKey: "pk-lf-otel",
+            count: 3,
+            firstSeen: "2026-06-24T01:00:00Z",
+            lastSeen: "2026-06-24T04:00:00Z",
+            hasDelayedOtelEvents: false,
+            attributionStatus: "missing_name_and_version",
+            v4MigrationStatus: "unknown",
+            upgradeCompleted: false,
+          },
+          {
+            sdkName: "custom-otel-writer",
+            sdkVersion: "1.2.3",
+            canonicalSdkName: null,
+            publicKey: "pk-lf-custom-otel",
+            count: 2,
+            firstSeen: "2026-06-24T02:00:00Z",
+            lastSeen: "2026-06-24T03:00:00Z",
+            hasDelayedOtelEvents: true,
+            attributionStatus: "attributed",
+            v4MigrationStatus: "unknown",
+            upgradeCompleted: false,
           },
         ],
       },
@@ -1355,7 +1621,19 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain(
       "GROUP BY project_id, sdk_name, sdk_version, public_key",
     );
-    expect(usageQuery?.query).toContain("max(event_time)");
+    expect(usageQuery?.query).toContain(
+      "if(countIf(is_otel_ingestion) > 0, argMaxIf(is_delayed_otel, event_time, is_otel_ingestion), NULL) AS hasDelayedOtelEvents",
+    );
+    expect(usageQuery?.query.match(/AS event_time/g)).toHaveLength(2);
+    expect(usageQuery?.query).toContain(
+      "formatDateTime(min(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS firstSeen",
+    );
+    expect(usageQuery?.query).toContain(
+      "formatDateTime(max(event_time), '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS lastSeen",
+    );
+    expect(usageQuery?.query).toContain(
+      "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
+    );
     expect(usageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",

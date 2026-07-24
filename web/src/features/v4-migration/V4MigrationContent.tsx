@@ -162,6 +162,8 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <Chip variant="success">Up to date</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
+    ) : sdk.status === "otel_header_required" ? (
+      <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
       <Chip variant="warning">
         {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
@@ -177,6 +179,13 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <p className="text-muted-foreground text-sm leading-relaxed">
         {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
+        ) : sdk.status === "otel_header_required" ? (
+          <>
+            OTel data is arriving through the delayed ingestion path. Set the{" "}
+            <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
+            <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
+            ingestion.
+          </>
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
             "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
@@ -226,9 +235,11 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
                   · last seen{" "}
                   {formatCompactRelativeTime(new Date(series.lastSeen))}
                 </span>
-                {series.v4MigrationStatus === "upgrade_required" && (
-                  <span className="text-dark-yellow">· upgrade required</span>
-                )}
+                {series.v4MigrationStatus === "upgrade_required" &&
+                  !series.upgradeCompleted && (
+                    <span className="text-dark-yellow">· upgrade required</span>
+                  )}
+                {series.upgradeCompleted && <span>· upgrade completed</span>}
                 {series.v4MigrationStatus === "unknown" && (
                   <span className="text-dark-yellow">
                     · version not recognized
