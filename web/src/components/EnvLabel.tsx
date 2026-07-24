@@ -4,7 +4,9 @@ import { cn } from "@/src/utils/tailwind";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 
-export const EnvLabel = ({ className }: { className?: string }) => {
+type EnvLabelProps = { className?: "self-center" };
+
+export const EnvLabel = ({ className }: EnvLabelProps) => {
   const [isHidden, setIsHidden] = useState(false);
   const session = useSession();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
