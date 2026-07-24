@@ -24,7 +24,7 @@ const ALL_LEVELS = Object.keys(SCORE_LEVEL_LABELS) as ScoreLevel[];
 
 // The global score-level color coding at a glance: all four levels, full pill
 // and compact dot. Flip the toolbar theme to check the dark-mode tokens.
-export const AllLevels = meta.story({
+export const VariantMatrix = meta.story({
   args: {
     level: "trace",
   },

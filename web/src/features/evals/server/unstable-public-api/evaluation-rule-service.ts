@@ -25,12 +25,14 @@ import type {
 import {
   deriveEvaluatorVariables,
   toApiEvaluationRule,
+  toApiWritableEvaluationRule,
   toJobConfigurationInput,
   toPublicEvaluatorType,
 } from "./adapters";
 import {
   countActiveEvaluationRules,
   findPublicEvaluationRuleOrThrow,
+  findReadablePublicEvaluationRuleOrThrow,
   listPublicEvaluationRuleConfigs,
   loadEvaluatorForEvaluationRule,
 } from "./queries";
@@ -180,7 +182,7 @@ export async function getPublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
 }) {
-  const config = await findPublicEvaluationRuleOrThrow(params);
+  const config = await findReadablePublicEvaluationRuleOrThrow(params);
   return toApiEvaluationRule(config);
 }
 
@@ -290,7 +292,7 @@ export async function createPublicEvaluationRule(params: {
     await invalidateProjectEvalConfigCaches(params.projectId);
   }
 
-  const evaluationRule = toApiEvaluationRule(created);
+  const evaluationRule = toApiWritableEvaluationRule(created);
 
   if (params.auditScope) {
     await auditLog({
@@ -318,7 +320,7 @@ export async function updatePublicEvaluationRule(params: {
     projectId: params.projectId,
     evaluationRuleId: params.evaluationRuleId,
   });
-  const existingPublic = toApiEvaluationRule(existing);
+  const existingPublic = toApiWritableEvaluationRule(existing);
   const nextEnabled = params.input.enabled ?? existingPublic.enabled;
   const shouldCountAgainstActiveLimit =
     nextEnabled && existingPublic.status !== "active";
@@ -445,7 +447,7 @@ export async function updatePublicEvaluationRule(params: {
 
   await invalidateProjectEvalConfigCaches(params.projectId);
 
-  const evaluationRule = toApiEvaluationRule(updated);
+  const evaluationRule = toApiWritableEvaluationRule(updated);
 
   if (params.auditScope) {
     await auditLog({
@@ -469,7 +471,7 @@ export async function deletePublicEvaluationRule(params: {
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await findPublicEvaluationRuleOrThrow(params);
-  const existingPublic = toApiEvaluationRule(existing);
+  const existingPublic = toApiWritableEvaluationRule(existing);
 
   await prisma.jobConfiguration.delete({
     where: {

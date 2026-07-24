@@ -92,7 +92,16 @@ const getObservationRecordCountForTrace = async (params: {
   });
 };
 
-async function getAuthorizedTrace(params: {
+/**
+ * Canonical trace read-authorization used by the session-authed trace download
+ * routes: grants access when the trace (or its session) is public, the user is
+ * an admin, or the user is a member of the project — and fires the admin-access
+ * webhook for admins. Reused by the observation IO streaming route (LFE-11081)
+ * so authorization stays in one place rather than being re-derived per route.
+ * Returns the authorized trace (its `timestamp` bounds downstream ClickHouse
+ * reads); throws `LangfuseNotFoundError` / `UnauthorizedError` otherwise.
+ */
+export async function getAuthorizedTrace(params: {
   traceId: string;
   projectId: string;
   session: TraceExportAccessSession;
