@@ -642,9 +642,9 @@ export function DashboardWidget({
     }
   };
 
-  // Analytics for the per-category label hover card (LFE-10962): copying the
-  // full value, or following the "View filtered table" link. The href itself
-  // is decided in categoryTableHrefs above; this only reports the action.
+  // Analytics for the per-category label card (LFE-10962): copying the full
+  // value, or following the "View filtered table" link. The href itself is
+  // decided in categoryTableHrefs above; this only reports the action.
   const handleCategoryLabelCopy = useCallback(() => {
     capture("dashboard:widget_breakdown_label_copied", {
       widget_id: placement.widgetId,

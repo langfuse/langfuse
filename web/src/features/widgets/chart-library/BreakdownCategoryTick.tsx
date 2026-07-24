@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckIcon, CopyIcon, TableIcon } from "lucide-react";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -17,6 +17,11 @@ import { formatAxisLabel } from "@/src/features/widgets/chart-library/utils";
 const TICK_AREA_WIDTH = 116;
 const TICK_AREA_HEIGHT = 20;
 
+/** Grace period between the pointer leaving the trigger (or the card) and
+ * the card actually closing — long enough to travel diagonally from the
+ * label into the card without it disappearing underneath the cursor. */
+const CLOSE_GRACE_MS = 250;
+
 /**
  * A breakdown horizontal-bar chart's Y-axis category label (e.g. a userId),
  * rendered as a real interactive element instead of plain SVG text.
@@ -26,15 +31,24 @@ const TICK_AREA_HEIGHT = 20;
  * element that can host a focusable copy button or a link. This uses
  * `<foreignObject>` to embed one ordinary HTML button inside the axis tick's
  * SVG, visually identical to the plain-text label it replaces, but
- * keyboard-focusable and hover/focus-to-open. Its card (a Radix `HoverCard`,
+ * keyboard-focusable and hover-to-open. Its card (a Radix `Popover`,
  * portaled to the app's `popover` overlay layer — see `components/ui/layer`)
  * renders completely outside the chart's SVG tree, so it is never clipped by
- * the chart's own bounds. Opens on pointer hover of the trigger OR keyboard
- * focus (both wired by Radix HoverCard itself), and stays open while the
- * pointer moves onto the card's own content, so the copy button and "View
- * filtered table" link stay reachable — Radix's default open/close delays
- * already provide that grace, hovering the gap between trigger and content
- * doesn't dismiss it. (LFE-10962)
+ * the chart's own bounds.
+ *
+ * Opens on pointer hover of the label (with a short close grace so crossing
+ * the gap into the card doesn't dismiss it) AND on keyboard focus of the
+ * label, so the copy button and "View filtered table" link are reachable by
+ * Tab, not mouse-only. This is a controlled `Popover`, not a `HoverCard`:
+ * `HoverCard`'s portaled content has no focus-trap/focus-guards, so Tab from
+ * the trigger skips straight past it — a keyboard user could never reach the
+ * copy button or link. Radix `Popover` inserts focus-guard sentinels around
+ * its portaled content that redirect the natural Tab order into it, which is
+ * exactly the reachability a HoverCard doesn't provide. Opening never steals
+ * focus into the card on its own (`onOpenAutoFocus` is prevented) — a mouse
+ * user just hovers, a keyboard user explicitly presses Tab to move into it;
+ * Escape closes the card and returns focus to the label (Radix's default).
+ * (LFE-10962)
  *
  * `href` (the "drill into this row" deep link) and the analytics callbacks
  * are decided upstream (DashboardWidget, via `buildTableFilterHref`) — this
@@ -63,6 +77,29 @@ export function BreakdownCategoryTick({
   onViewAsTable?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== undefined) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+  };
+  const openNow = () => {
+    clearCloseTimer();
+    setOpen(true);
+  };
+  const scheduleClose = () => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => setOpen(false), CLOSE_GRACE_MS);
+  };
+
+  // Clear any pending close timer on unmount — nothing to fire it into once
+  // the trigger/card are gone.
+  useEffect(() => clearCloseTimer, []);
 
   const handleCopy = async () => {
     try {
@@ -100,17 +137,30 @@ export function BreakdownCategoryTick({
             overflow: "hidden",
           }}
         >
-          <HoverCard>
-            <HoverCardTrigger asChild>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
               <button
                 type="button"
                 title={label}
+                onMouseEnter={openNow}
+                onMouseLeave={scheduleClose}
+                onFocus={openNow}
                 className="text-muted-foreground hover:text-foreground focus-visible:ring-ring max-w-full truncate rounded-sm bg-transparent p-0 text-right text-xs leading-none hover:underline focus-visible:ring-1 focus-visible:outline-none"
               >
                 {formatAxisLabel(label)}
               </button>
-            </HoverCardTrigger>
-            <HoverCardContent align="end" side="right" className="w-72 min-w-0">
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              side="right"
+              className="w-72 min-w-0"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onMouseEnter={clearCloseTimer}
+              onMouseLeave={scheduleClose}
+              onEscapeKeyDown={clearCloseTimer}
+              onInteractOutside={clearCloseTimer}
+              onFocusOutside={clearCloseTimer}
+            >
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <Input
@@ -149,8 +199,8 @@ export function BreakdownCategoryTick({
                   </Button>
                 )}
               </div>
-            </HoverCardContent>
-          </HoverCard>
+            </PopoverContent>
+          </Popover>
         </div>
       </foreignObject>
     </g>
