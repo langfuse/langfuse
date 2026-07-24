@@ -52,9 +52,84 @@ export function widgetChartTypeSupportsBreakdown(type: string): boolean {
   return BREAKDOWN_CAPABLE_CHART_TYPES.has(type);
 }
 
-/** A single measure + aggregation pair, matching the save payload's `metrics[]` element (minus the string `agg` alias). */
+/**
+ * Pure function that resolves the correct aggregation and chart type given the
+ * current selections and valid aggregation list. Returns null when no change is
+ * needed.
+ *
+ * All constraints are resolved in a single pass so the output is a fixed point
+ * (running the function again on its own output always returns null). This
+ * prevents infinite React state-update loops when constraints conflict — e.g.
+ * HISTOGRAM requires "histogram" aggregation but "count" measure forces "count".
+ */
+export function resolveAggregationAndChartType(params: {
+  chartType: string;
+  measure: string;
+  currentAgg: string;
+  validAggs: z.infer<typeof metricAggregations>[];
+}): {
+  aggregation?: z.infer<typeof metricAggregations>;
+  chartType?: string;
+} | null {
+  const { chartType, measure, currentAgg, validAggs } = params;
+  const supportsHistogram = validAggs.includes("histogram");
+
+  let targetChart = chartType;
+  let targetAgg = currentAgg as z.infer<typeof metricAggregations>;
+
+  // HISTOGRAM chart needs a histogram-compatible measure
+  if (targetChart === "HISTOGRAM") {
+    if (!supportsHistogram) {
+      targetChart = "NUMBER";
+    } else {
+      targetAgg = "histogram";
+    }
+  }
+
+  // Non-HISTOGRAM chart can't keep histogram aggregation
+  if (targetChart !== "HISTOGRAM" && targetAgg === "histogram") {
+    targetAgg =
+      measure === "count"
+        ? "count"
+        : ((validAggs[0] ?? "sum") as z.infer<typeof metricAggregations>);
+  }
+
+  // "count" measure only supports "count" aggregation. If this conflicts with
+  // the chart type (e.g. HISTOGRAM requires "histogram"), bail the chart type
+  // rather than creating an unresolvable conflict.
+  if (measure === "count" && targetAgg !== "count") {
+    if (targetChart === "HISTOGRAM") {
+      targetChart = "NUMBER";
+    }
+    targetAgg = "count";
+  }
+
+  // Current aggregation not valid for the measure type
+  if (!validAggs.includes(targetAgg)) {
+    targetAgg = (validAggs[0] ?? "count") as z.infer<typeof metricAggregations>;
+  }
+
+  // Only return if something changed
+  const result: {
+    aggregation?: z.infer<typeof metricAggregations>;
+    chartType?: string;
+  } = {};
+  if (targetChart !== chartType) result.chartType = targetChart;
+  if (targetAgg !== currentAgg) result.aggregation = targetAgg;
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * A single measure + aggregation pair, matching the save payload's `metrics[]`
+ * element (minus the string `agg` alias). `measure` is intentionally NOT
+ * `.min(1)`: a pivot table may carry a trailing empty "Add Metric" slot that the
+ * user has not filled yet (matching the legacy form, which filtered empty slots
+ * at save). The "at least one non-empty metric / no empty non-pivot metric"
+ * rule lives in `superRefine`, and `toSavePayload` drops empty slots.
+ */
 export const MetricFieldSchema = z.object({
-  measure: z.string().min(1),
+  measure: z.string(),
   aggregation: metricAggregations,
 });
 export type MetricField = z.infer<typeof MetricFieldSchema>;
@@ -146,6 +221,12 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
             code: "custom",
             path: ["metrics"],
             message: "This chart type requires exactly one metric.",
+          });
+        } else if (!values.metrics[0].measure) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["metrics", 0, "measure"],
+            message: "Select a measure.",
           });
         }
         if (values.dimensions.length > 1) {
@@ -352,12 +433,81 @@ export function effectiveWidgetName(
 }
 
 /**
+ * normalizeWidgetFormValues heals a candidate form state into a VALID one using
+ * the same pure logic the legacy mount/measure/chart-type effects applied:
+ *
+ * - non-pivot charts keep a single metric and at most one dimension;
+ * - the (chart type, leading aggregation) pair is resolved via
+ *   {@link resolveAggregationAndChartType} — e.g. a HISTOGRAM on a
+ *   non-histogram-capable measure falls back to NUMBER, a stranded histogram
+ *   aggregation resolves to a real one;
+ * - a breakdown dimension the (possibly healed) chart type cannot carry is
+ *   dropped.
+ *
+ * `resolveAggregationAndChartType` is a fixed point, so a VALID widget
+ * normalizes to itself (preserving save parity); an INVALID stored/imported
+ * widget heals exactly as the old mount effects would have. This replaces those
+ * effects at the seed/cascade seams so no invalid state can mount or arise from
+ * a view change — with no `useEffect`.
+ */
+export function normalizeWidgetFormValues(
+  values: WidgetFormValues,
+  viewVersion: ViewVersion,
+): WidgetFormValues {
+  const isPivot = values.chart.type === "PIVOT_TABLE";
+  let metrics = values.metrics;
+  let dimensions = values.dimensions;
+
+  if (!isPivot) {
+    if (metrics.length > 1) metrics = metrics.slice(0, 1);
+    if (dimensions.length > 1) dimensions = dimensions.slice(0, 1);
+  }
+
+  const measure = metrics[0]?.measure ?? "count";
+  const currentAgg = metrics[0]?.aggregation ?? "count";
+  const measureType =
+    viewDeclarations[viewVersion][values.view]?.measures?.[measure]?.type;
+  const resolved = resolveAggregationAndChartType({
+    chartType: values.chart.type,
+    measure,
+    currentAgg,
+    validAggs: getValidAggregationsForMeasureType(measureType),
+  });
+
+  let chartType = values.chart.type;
+  if (resolved?.chartType) {
+    chartType = resolved.chartType as WidgetFormValues["chart"]["type"];
+  }
+  if (resolved?.aggregation && metrics.length > 0) {
+    const healedAgg = resolved.aggregation;
+    metrics = metrics.map((m, i) =>
+      i === 0 ? { ...m, aggregation: healedAgg } : m,
+    );
+  }
+
+  if (!widgetChartTypeSupportsBreakdown(chartType)) {
+    dimensions = [];
+  }
+
+  return {
+    ...values,
+    metrics,
+    dimensions,
+    chart: { ...values.chart, type: chartType },
+  };
+}
+
+/**
  * toDefaultValues maps the legacy `initialValues` prop into the unified form
  * values, replacing the 17 legacy useState initializers (including
  * pivot-vs-single metric/dimension seeding and the pivot default-sort seed).
+ * The seeded values are normalized ({@link normalizeWidgetFormValues}) so a
+ * malformed stored/imported widget mounts VALID — reproducing the legacy
+ * mount-time resolve + breakdown-wipe effects without an effect.
  */
 export function toDefaultValues(
   initialValues: WidgetInitialValues,
+  viewVersion: ViewVersion,
 ): WidgetFormValues {
   const isPivot = initialValues.chartType === "PIVOT_TABLE";
 
@@ -398,32 +548,35 @@ export function toDefaultValues(
       }) ?? null)
     : null;
 
-  return {
-    // A blank initial name/description is "auto" (null → show the live
-    // suggestion); a non-empty one is an explicit override that sticks. This is
-    // how edit mode seeds the saved name so it does not auto-update.
-    name:
-      initialValues.name && initialValues.name.length > 0
-        ? initialValues.name
-        : null,
-    description:
-      initialValues.description && initialValues.description.length > 0
-        ? initialValues.description
-        : null,
-    view: initialValues.view,
-    filters: normalizeStoredWidgetFiltersForEditor(
-      initialValues.view,
-      initialValues.filters ?? [],
-    ).editorFilters,
-    metrics,
-    dimensions,
-    chart: {
-      type: initialValues.chartType,
-      bins: initialValues.chartConfig?.bins ?? 10,
-      rowLimit: initialValues.chartConfig?.row_limit ?? 100,
-      sort,
+  return normalizeWidgetFormValues(
+    {
+      // A blank initial name/description is "auto" (null → show the live
+      // suggestion); a non-empty one is an explicit override that sticks. This
+      // is how edit mode seeds the saved name so it does not auto-update.
+      name:
+        initialValues.name && initialValues.name.length > 0
+          ? initialValues.name
+          : null,
+      description:
+        initialValues.description && initialValues.description.length > 0
+          ? initialValues.description
+          : null,
+      view: initialValues.view,
+      filters: normalizeStoredWidgetFiltersForEditor(
+        initialValues.view,
+        initialValues.filters ?? [],
+      ).editorFilters,
+      metrics,
+      dimensions,
+      chart: {
+        type: initialValues.chartType,
+        bins: initialValues.chartConfig?.bins ?? 10,
+        rowLimit: initialValues.chartConfig?.row_limit ?? 100,
+        sort,
+      },
     },
-  };
+    viewVersion,
+  );
 }
 
 /**

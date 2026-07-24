@@ -118,6 +118,7 @@ import {
   deriveWidgetSuggestions,
   effectiveWidgetName,
   makeWidgetFormSchema,
+  normalizeWidgetFormValues,
   resolveWidgetViewVersion,
   toDefaultValues,
   toSavePayload,
@@ -126,6 +127,10 @@ import {
   type WidgetFormValues,
   type WidgetInitialValues,
 } from "./widgetFormSchema";
+
+// Re-exported from the schema module so co-located tests keep importing it from
+// this file; it now backs the shared normalizeWidgetFormValues healing.
+export { resolveAggregationAndChartType } from "./widgetFormSchema";
 
 type ChartType = {
   group: "time-series" | "total-value";
@@ -211,74 +216,6 @@ const observationLevelOptions = ObservationLevelDomain.options.map((value) => ({
 const observationTypeOptions = ObservationTypeDomain.options.map((value) => ({
   value,
 }));
-
-/**
- * Pure function that resolves the correct aggregation and chart type given the
- * current selections and valid aggregation list. Returns null when no change is
- * needed.
- *
- * All constraints are resolved in a single pass so the output is a fixed point
- * (running the function again on its own output always returns null). This
- * prevents infinite React state-update loops when constraints conflict — e.g.
- * HISTOGRAM requires "histogram" aggregation but "count" measure forces "count".
- */
-export function resolveAggregationAndChartType(params: {
-  chartType: string;
-  measure: string;
-  currentAgg: string;
-  validAggs: z.infer<typeof metricAggregations>[];
-}): {
-  aggregation?: z.infer<typeof metricAggregations>;
-  chartType?: string;
-} | null {
-  const { chartType, measure, currentAgg, validAggs } = params;
-  const supportsHistogram = validAggs.includes("histogram");
-
-  let targetChart = chartType;
-  let targetAgg = currentAgg as z.infer<typeof metricAggregations>;
-
-  // HISTOGRAM chart needs a histogram-compatible measure
-  if (targetChart === "HISTOGRAM") {
-    if (!supportsHistogram) {
-      targetChart = "NUMBER";
-    } else {
-      targetAgg = "histogram";
-    }
-  }
-
-  // Non-HISTOGRAM chart can't keep histogram aggregation
-  if (targetChart !== "HISTOGRAM" && targetAgg === "histogram") {
-    targetAgg =
-      measure === "count"
-        ? "count"
-        : ((validAggs[0] ?? "sum") as z.infer<typeof metricAggregations>);
-  }
-
-  // "count" measure only supports "count" aggregation. If this conflicts with
-  // the chart type (e.g. HISTOGRAM requires "histogram"), bail the chart type
-  // rather than creating an unresolvable conflict.
-  if (measure === "count" && targetAgg !== "count") {
-    if (targetChart === "HISTOGRAM") {
-      targetChart = "NUMBER";
-    }
-    targetAgg = "count";
-  }
-
-  // Current aggregation not valid for the measure type
-  if (!validAggs.includes(targetAgg)) {
-    targetAgg = (validAggs[0] ?? "count") as z.infer<typeof metricAggregations>;
-  }
-
-  // Only return if something changed
-  const result: {
-    aggregation?: z.infer<typeof metricAggregations>;
-    chartType?: string;
-  } = {};
-  if (targetChart !== chartType) result.chartType = targetChart;
-  if (targetAgg !== currentAgg) result.aggregation = targetAgg;
-
-  return Object.keys(result).length > 0 ? result : null;
-}
 
 /**
  * A small read-only context passed DOWN to field subcomponents. It lets a field
@@ -375,9 +312,18 @@ export function WidgetForm({
     };
   }, [resolversByVersion]);
 
+  // The initial view version, derived from initialValues alone (view is known
+  // before the form mounts) so the seed can normalize against the right view
+  // declaration.
+  const initialViewVersion = resolveWidgetViewVersion({
+    view: initialValues.view,
+    baseMinVersion,
+    isBetaEnabled,
+  });
+
   const form = useForm<WidgetFormValues>({
     resolver,
-    defaultValues: toDefaultValues(initialValues),
+    defaultValues: toDefaultValues(initialValues, initialViewVersion),
     mode: "onChange",
   });
 
@@ -420,6 +366,16 @@ export function WidgetForm({
     chartType,
     measureSupportsHistogram,
   };
+
+  // superRefine messages, surfaced inline under the relevant control and next
+  // to the disabled Save button (replaces the legacy save-time error toasts).
+  const formErrors = form.formState.errors as Record<string, any>;
+  const chartTypeError: string | undefined = formErrors.chart?.type?.message;
+  const metricsError: string | undefined =
+    formErrors.metrics?.message ??
+    formErrors.metrics?.[0]?.measure?.message ??
+    formErrors.metrics?.[0]?.aggregation?.message;
+  const dimensionsError: string | undefined = formErrors.dimensions?.message;
 
   // Preview time range. The picker here is a transient PREVIEW control — the
   // widget does not own a time range, so it must not write the user's shared
@@ -619,7 +575,11 @@ export function WidgetForm({
   ): z.infer<typeof metricAggregations>[] => {
     const measureType =
       viewDeclarations[viewVersion][selectedView]?.measures?.[measureKey]?.type;
-    const validAggs = getValidAggregationsForMeasureType(measureType);
+    // Pivot metrics never use the histogram aggregation (superRefine invariant
+    // 2 rejects it outside a histogram chart), so keep it out of the options.
+    const validAggs = getValidAggregationsForMeasureType(measureType).filter(
+      (agg) => agg !== "histogram",
+    );
     if (measureKey) {
       return validAggs.filter(
         (agg) =>
@@ -879,11 +839,29 @@ export function WidgetForm({
   ]);
 
   // ---------------------------------------------------------------------------
-  // Cross-slice cascades — the ONLY writers of sibling fields. Children commit
-  // their own field; these parent handlers own every cross-slice reset.
+  // Cross-slice cascades — the ONLY writers of sibling fields. Each builds the
+  // candidate next state, HEALS it through the shared normalizeWidgetFormValues
+  // (resolve aggregation/chart type + drop unsupported dimensions), and commits
+  // the changed slices. This is the same healing the legacy resolve/breakdown
+  // effects did, run in the initiating event handler — so no view change,
+  // chart-type change, or measure change can leave the form invalid, and there
+  // is no effect.
   // ---------------------------------------------------------------------------
 
-  // View change (ports resetChartFieldsForView + setSelectedView).
+  // Applies a healed candidate to the changed slices; the final write validates.
+  const commitHealed = (
+    candidate: WidgetFormValues,
+    opts: { view?: boolean; filters?: boolean } = {},
+  ) => {
+    form.setValue("metrics", candidate.metrics);
+    form.setValue("dimensions", candidate.dimensions);
+    if (opts.filters) form.setValue("filters", candidate.filters);
+    if (opts.view) form.setValue("view", candidate.view);
+    form.setValue("chart.type", candidate.chart.type, { shouldValidate: true });
+  };
+
+  // View change (ports resetChartFieldsForView + setSelectedView + the mount
+  // resolve/breakdown-wipe healing so the post-view-change state is valid).
   const onViewChange = (newView: z.infer<typeof views>) => {
     if (newView === selectedView) return;
     const newViewVersion = resolveWidgetViewVersion({
@@ -893,107 +871,57 @@ export function WidgetForm({
     });
     const newViewDeclaration = viewDeclarations[newViewVersion][newView];
 
+    let metrics: WidgetFormValues["metrics"];
+    let dimensions: WidgetFormValues["dimensions"];
     if (chartType === "PIVOT_TABLE") {
       const validMetrics = values.metrics.filter(
         (metric) => metric.measure in newViewDeclaration.measures,
       );
-      form.setValue(
-        "metrics",
+      metrics =
         validMetrics.length > 0
           ? validMetrics
-          : [{ measure: "count", aggregation: "count" }],
-      );
-      const validDimensions = values.dimensions.filter(
+          : [{ measure: "count", aggregation: "count" }];
+      dimensions = values.dimensions.filter(
         (dimension) => dimension.field in newViewDeclaration.dimensions,
       );
-      form.setValue("dimensions", validDimensions);
     } else {
-      form.setValue("metrics", [{ measure: "count", aggregation: "count" }]);
-      form.setValue("dimensions", []);
+      metrics = [{ measure: "count", aggregation: "count" }];
+      dimensions = [];
     }
 
     const validColumns = getValidFilterColumnIds(newView, newViewVersion);
-    form.setValue(
-      "filters",
-      values.filters.filter((filter) => validColumns.has(filter.column)),
+    const filters = values.filters.filter((filter) =>
+      validColumns.has(filter.column),
     );
-    form.setValue("view", newView, { shouldValidate: true });
+
+    const candidate = normalizeWidgetFormValues(
+      { ...values, view: newView, metrics, dimensions, filters },
+      newViewVersion,
+    );
+    commitHealed(candidate, { view: true, filters: true });
   };
 
-  // Chart-type change (ports the breakdown-wipe / pivot-dims-reset / trim-metrics
-  // effects PLUS the histogram resolution — the histogram silent-revert fix).
+  // Chart-type change (ports breakdown-wipe / pivot-dims-reset / trim-metrics
+  // PLUS the histogram resolution — the histogram silent-revert fix).
   const onChartTypeChange = (newType: DashboardWidgetChartType) => {
-    const prevType = chartType;
-    const supportsBreakdown = widgetChartTypeSupportsBreakdown(newType);
-    const isPivot = newType === "PIVOT_TABLE";
-    const wasPivot = prevType === "PIVOT_TABLE";
-
-    form.setValue("chart.type", newType, { shouldValidate: true });
-
-    let metrics = values.metrics;
-    if (!isPivot && metrics.length > 1) {
-      metrics = metrics.slice(0, 1);
-      form.setValue("metrics", metrics, { shouldValidate: true });
-    }
-
-    if (!supportsBreakdown) {
-      form.setValue("dimensions", [], { shouldValidate: true });
-    } else if (wasPivot && !isPivot) {
-      form.setValue("dimensions", values.dimensions.slice(0, 1), {
-        shouldValidate: true,
-      });
-    }
-
-    const measure = metrics[0]?.measure ?? "count";
-    const currentAgg = metrics[0]?.aggregation ?? "count";
-    const resolved = resolveAggregationAndChartType({
-      chartType: newType,
-      measure,
-      currentAgg,
-      validAggs: getValidAggregationsForMeasure(measure),
-    });
-    if (resolved?.chartType) {
-      form.setValue(
-        "chart.type",
-        resolved.chartType as DashboardWidgetChartType,
-        {
-          shouldValidate: true,
-        },
-      );
-    }
-    if (resolved?.aggregation) {
-      form.setValue("metrics.0.aggregation", resolved.aggregation, {
-        shouldValidate: true,
-      });
-    }
+    const candidate = normalizeWidgetFormValues(
+      { ...values, chart: { ...values.chart, type: newType } },
+      viewVersion,
+    );
+    commitHealed(candidate);
   };
 
-  // Single (non-pivot) measure change — resolves the aggregation + chart type
-  // in the same action (the histogram fix, in the initiating event handler).
+  // Single (non-pivot) measure change — heals the aggregation + chart type in
+  // the same action (the histogram fix, in the initiating event handler).
   const onMeasureChange = (newMeasure: string) => {
-    form.setValue("metrics.0.measure", newMeasure, { shouldValidate: true });
-    const validAggs = getValidAggregationsForMeasure(newMeasure);
-    const currentAgg = values.metrics[0]?.aggregation ?? "count";
-    const resolved = resolveAggregationAndChartType({
-      chartType,
-      measure: newMeasure,
-      currentAgg,
-      validAggs,
-    });
-    if (resolved?.chartType) {
-      form.setValue(
-        "chart.type",
-        resolved.chartType as DashboardWidgetChartType,
-        {
-          shouldValidate: true,
-        },
-      );
-    }
-    if (resolved?.aggregation) {
-      form.setValue("metrics.0.aggregation", resolved.aggregation, {
-        shouldValidate: true,
-      });
-    }
+    const nextMetrics = values.metrics.map((m, i) =>
+      i === 0 ? { ...m, measure: newMeasure } : m,
+    );
+    const candidate = normalizeWidgetFormValues(
+      { ...values, metrics: nextMetrics },
+      viewVersion,
+    );
+    commitHealed(candidate);
   };
 
   const applyPreset = (
@@ -1056,42 +984,59 @@ export function WidgetForm({
 
       const snapshot = result.snapshot;
       const importIsPivot = snapshot.selectedChartType === "PIVOT_TABLE";
-      // Explicit user-event reset (allowed — not an effect). The imported name
-      // is a non-empty override, so it sticks and does not auto-update.
-      form.reset({
-        name: snapshot.widgetName || null,
-        description: snapshot.widgetDescription || null,
+      // The preview version for the imported widget, re-derived from the
+      // snapshot's own minVersion (not the mount's) so a v2-requiring import
+      // normalizes against the right view declaration.
+      const importViewVersion = resolveWidgetViewVersion({
         view: snapshot.selectedView,
-        filters: snapshot.userFilterState,
-        metrics: importIsPivot
-          ? snapshot.selectedMetrics.map((m) => ({
-              measure: m.measure,
-              aggregation: m.aggregation,
-            }))
-          : [
-              {
-                measure: snapshot.selectedMeasure,
-                aggregation: snapshot.selectedAggregation,
-              },
-            ],
-        dimensions: importIsPivot
-          ? snapshot.pivotDimensions.map((field) => ({ field }))
-          : snapshot.selectedDimension !== "none"
-            ? [{ field: snapshot.selectedDimension }]
-            : [],
-        chart: {
-          type: snapshot.selectedChartType,
-          bins: snapshot.histogramBins,
-          rowLimit: snapshot.rowLimit,
-          sort:
-            snapshot.defaultSortColumn !== "none"
-              ? {
-                  column: snapshot.defaultSortColumn,
-                  order: snapshot.defaultSortOrder,
-                }
-              : null,
-        },
+        baseMinVersion: snapshot.widgetMinVersion,
+        isBetaEnabled,
       });
+      // Explicit user-event reset (allowed — not an effect). The imported name
+      // is a non-empty override, so it sticks and does not auto-update. The
+      // snapshot's filters are already in editor space, so they are seeded
+      // directly (no re-normalization); the chart/aggregation/dimension shape
+      // is healed via normalizeWidgetFormValues so a malformed import mounts
+      // valid — the same healing the legacy import path's mount effects did.
+      form.reset(
+        normalizeWidgetFormValues(
+          {
+            name: snapshot.widgetName || null,
+            description: snapshot.widgetDescription || null,
+            view: snapshot.selectedView,
+            filters: snapshot.userFilterState,
+            metrics: importIsPivot
+              ? snapshot.selectedMetrics.map((m) => ({
+                  measure: m.measure,
+                  aggregation: m.aggregation,
+                }))
+              : [
+                  {
+                    measure: snapshot.selectedMeasure,
+                    aggregation: snapshot.selectedAggregation,
+                  },
+                ],
+            dimensions: importIsPivot
+              ? snapshot.pivotDimensions.map((field) => ({ field }))
+              : snapshot.selectedDimension !== "none"
+                ? [{ field: snapshot.selectedDimension }]
+                : [],
+            chart: {
+              type: snapshot.selectedChartType,
+              bins: snapshot.histogramBins,
+              rowLimit: snapshot.rowLimit,
+              sort:
+                snapshot.defaultSortColumn !== "none"
+                  ? {
+                      column: snapshot.defaultSortColumn,
+                      order: snapshot.defaultSortOrder,
+                    }
+                  : null,
+            },
+          },
+          importViewVersion,
+        ),
+      );
 
       showSuccessToast({
         title: "Widget uploaded successfully",
@@ -1134,6 +1079,13 @@ export function WidgetForm({
   const metricsForSort = values.metrics
     .filter((metric) => metric.measure && metric.measure !== "")
     .map((metric) => ({ id: `${metric.aggregation}_${metric.measure}` }));
+
+  // Save is gated on schema validity + query validity; surface WHY it is
+  // disabled instead of a silent greyed-out button (replaces the legacy toasts).
+  const saveDisabled = !form.formState.isValid || !queryValidation.valid;
+  const saveDisabledReason = !queryValidation.valid
+    ? queryValidation.reason
+    : (metricsError ?? dimensionsError ?? chartTypeError);
 
   return (
     <div className="flex h-full gap-4">
@@ -1232,6 +1184,7 @@ export function WidgetForm({
                   <PivotMetricsField
                     control={form.control}
                     ctx={ctx}
+                    error={metricsError}
                     getAvailablePivotMetrics={getAvailablePivotMetrics}
                     getAvailablePivotAggregations={
                       getAvailablePivotAggregations
@@ -1241,6 +1194,7 @@ export function WidgetForm({
                   <SingleMetricField
                     control={form.control}
                     ctx={ctx}
+                    error={metricsError}
                     measure={selectedMeasure}
                     onMeasureChange={onMeasureChange}
                     availableMetrics={singleChartMetrics}
@@ -1264,6 +1218,7 @@ export function WidgetForm({
                   <BreakdownSelect
                     control={form.control}
                     ctx={ctx}
+                    error={dimensionsError}
                     availableDimensions={availableDimensions}
                   />
                 )}
@@ -1273,6 +1228,7 @@ export function WidgetForm({
                 <PivotDimensionsField
                   control={form.control}
                   ctx={ctx}
+                  error={dimensionsError}
                   availableDimensions={availableDimensions}
                 />
               )}
@@ -1301,6 +1257,7 @@ export function WidgetForm({
                 value={chartType}
                 onChartTypeChange={onChartTypeChange}
                 measureSupportsHistogram={measureSupportsHistogram}
+                error={chartTypeError}
               />
 
               <div className="space-y-2">
@@ -1331,12 +1288,15 @@ export function WidgetForm({
                 )}
             </div>
           </CardContent>
-          <CardFooter className="mt-auto">
+          <CardFooter className="mt-auto flex-col items-stretch gap-2">
+            {saveDisabled && saveDisabledReason && (
+              <p className="text-destructive text-xs">{saveDisabledReason}</p>
+            )}
             <Button
               className="w-full"
               size="lg"
               onClick={onSubmit}
-              disabled={!form.formState.isValid || !queryValidation.valid}
+              disabled={saveDisabled}
             >
               Save Widget
             </Button>
@@ -1510,6 +1470,7 @@ function ViewSelect({
 function SingleMetricField({
   control,
   ctx,
+  error,
   measure,
   onMeasureChange,
   availableMetrics,
@@ -1517,6 +1478,7 @@ function SingleMetricField({
 }: {
   control: Control<WidgetFormValues>;
   ctx: WidgetFieldContext;
+  error?: string;
   measure: string;
   onMeasureChange: (measure: string) => void;
   availableMetrics: { value: string; label: string }[];
@@ -1589,6 +1551,7 @@ function SingleMetricField({
           )}
         </div>
       )}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }
@@ -1596,11 +1559,13 @@ function SingleMetricField({
 function PivotMetricsField({
   control,
   ctx,
+  error,
   getAvailablePivotMetrics,
   getAvailablePivotAggregations,
 }: {
   control: Control<WidgetFormValues>;
   ctx: WidgetFieldContext;
+  error?: string;
   getAvailablePivotMetrics: (
     index: number,
   ) => { value: string; label: string }[];
@@ -1770,6 +1735,7 @@ function PivotMetricsField({
             Add Metric {metrics.length + 1}
           </Button>
         )}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }
@@ -1822,10 +1788,12 @@ function FiltersField({
 function BreakdownSelect({
   control,
   ctx,
+  error,
   availableDimensions,
 }: {
   control: Control<WidgetFormValues>;
   ctx: WidgetFieldContext;
+  error?: string;
   availableDimensions: { value: string; label: string }[];
 }) {
   // Owns the entire `dimensions` slice; a non-pivot chart carries at most one.
@@ -1863,6 +1831,7 @@ function BreakdownSelect({
           })}
         </SelectContent>
       </Select>
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }
@@ -1870,10 +1839,12 @@ function BreakdownSelect({
 function PivotDimensionsField({
   control,
   ctx,
+  error,
   availableDimensions,
 }: {
   control: Control<WidgetFormValues>;
   ctx: WidgetFieldContext;
+  error?: string;
   availableDimensions: { value: string; label: string }[];
 }) {
   const { field } = useController({ control, name: "dimensions" });
@@ -1948,6 +1919,7 @@ function PivotDimensionsField({
           </div>
         );
       })}
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }
@@ -2044,7 +2016,9 @@ function NameField({
       <Label htmlFor="widget-name">Name</Label>
       <Input
         id="widget-name"
-        value={field.value ?? suggestion}
+        // blank override (null OR "") shows the live suggestion; typing sticks,
+        // clearing reverts to tracking + saving the live suggestion.
+        value={field.value || suggestion}
         onChange={(e) => field.onChange(e.target.value)}
         placeholder="Enter widget name"
       />
@@ -2065,7 +2039,7 @@ function DescriptionField({
       <Label htmlFor="widget-description">Description</Label>
       <Input
         id="widget-description"
-        value={field.value ?? suggestion}
+        value={field.value || suggestion}
         onChange={(e) => field.onChange(e.target.value)}
         placeholder="Enter widget description"
       />
@@ -2077,10 +2051,12 @@ function ChartTypeSelect({
   value,
   onChartTypeChange,
   measureSupportsHistogram,
+  error,
 }: {
   value: DashboardWidgetChartType;
   onChartTypeChange: (type: DashboardWidgetChartType) => void;
   measureSupportsHistogram: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -2129,6 +2105,7 @@ function ChartTypeSelect({
           </SelectGroup>
         </SelectContent>
       </Select>
+      {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   );
 }

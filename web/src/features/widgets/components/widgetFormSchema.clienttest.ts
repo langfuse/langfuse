@@ -160,4 +160,25 @@ describe("makeWidgetFormSchema superRefine", () => {
     });
     expect(tooManyBins.success).toBe(false);
   });
+
+  it("allows a pivot table with a trailing empty metric slot (>=1 non-empty)", () => {
+    const result = parse({
+      ...baseValues(),
+      metrics: [
+        { measure: "latency", aggregation: "avg" },
+        { measure: "", aggregation: "sum" },
+      ],
+      chart: { type: "PIVOT_TABLE", bins: 10, rowLimit: 100, sort: null },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a non-pivot chart with an empty measure", () => {
+    const result = parse({
+      ...baseValues(),
+      metrics: [{ measure: "", aggregation: "count" }],
+      chart: { type: "LINE_TIME_SERIES", bins: 10, rowLimit: 100, sort: null },
+    });
+    expect(result.success).toBe(false);
+  });
 });

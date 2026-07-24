@@ -16,12 +16,22 @@ import {
 
 import {
   deriveEffectiveSort,
+  deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
+  resolveWidgetViewVersion,
   toDefaultValues,
   toSavePayload,
   type WidgetInitialValues,
   type WidgetSavePayload,
 } from "./widgetFormSchema";
+
+/** The view version the app would seed with for a given widget (non-beta). */
+const fixtureViewVersion = (iv: WidgetInitialValues) =>
+  resolveWidgetViewVersion({
+    view: iv.view,
+    baseMinVersion: deriveWidgetBaseMinVersion(iv),
+    isBetaEnabled: false,
+  });
 
 /**
  * An INDEPENDENT reconstruction of the legacy `handleSaveWidget` object builder
@@ -195,7 +205,7 @@ function legacyReconstruct(iv: WidgetInitialValues): WidgetSavePayload {
 
 /** Runs the new adapter path: initialValues → form values → save payload. */
 function adapterSavePayload(iv: WidgetInitialValues): WidgetSavePayload {
-  const values = toDefaultValues(iv);
+  const values = toDefaultValues(iv, fixtureViewVersion(iv));
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
   return toSavePayload(values, {
@@ -304,6 +314,28 @@ const fixtures: Record<string, WidgetInitialValues> = {
     chartConfig: { type: "LINE_TIME_SERIES" },
     minVersion: 1,
   },
+  // Exercises the filter double-transform path: stored view-space filters go
+  // through normalizeStoredWidgetFiltersForEditor (on seed) and back through
+  // mapWidgetUiTableFilterToView (on save). Parity holds because BOTH the
+  // adapter and the legacy reconstruction apply the identical transforms.
+  "line with a stored environment filter": {
+    name: "",
+    description: "",
+    view: "observations",
+    measure: "count",
+    aggregation: "count",
+    dimension: "none",
+    filters: [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ],
+    chartType: "LINE_TIME_SERIES",
+    chartConfig: { type: "LINE_TIME_SERIES" },
+  },
 };
 
 describe("widget form adapters round-trip parity", () => {
@@ -362,5 +394,77 @@ describe("widget form adapters round-trip parity", () => {
     expect(payload.chartConfig).toEqual({ type: "NUMBER", row_limit: 100 });
     expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
     expect(payload.name).toBe("Count (Observations)");
+  });
+});
+
+describe("toDefaultValues normalizes malformed stored/imported widgets", () => {
+  it("heals a HISTOGRAM on the count measure to NUMBER (matches the old mount effect)", () => {
+    const iv: WidgetInitialValues = {
+      name: "Legacy Histogram",
+      description: "d",
+      view: "observations",
+      measure: "count",
+      aggregation: "histogram",
+      dimension: "none",
+      filters: [],
+      chartType: "HISTOGRAM",
+      chartConfig: { type: "HISTOGRAM", bins: 10 },
+      minVersion: 1,
+    };
+    const values = toDefaultValues(iv, fixtureViewVersion(iv));
+    expect(values.chart.type).toBe("NUMBER");
+    expect(values.metrics).toEqual([
+      { measure: "count", aggregation: "count" },
+    ]);
+
+    // And the save payload reflects the healed (valid) state.
+    const payload = adapterSavePayload(iv);
+    expect(payload.chartType).toBe("NUMBER");
+    expect(payload.metrics).toEqual([{ measure: "count", agg: "count" }]);
+  });
+
+  it("heals a HISTOGRAM with a stored non-histogram aggregation to the histogram aggregation", () => {
+    const iv: WidgetInitialValues = {
+      name: "",
+      description: "",
+      view: "observations",
+      measure: "latency",
+      aggregation: "avg",
+      dimension: "none",
+      filters: [],
+      chartType: "HISTOGRAM",
+      chartConfig: { type: "HISTOGRAM", bins: 10 },
+    };
+    const values = toDefaultValues(iv, fixtureViewVersion(iv));
+    expect(values.chart.type).toBe("HISTOGRAM");
+    expect(values.metrics[0].aggregation).toBe("histogram");
+  });
+
+  it("drops a stored breakdown dimension on a NUMBER chart (matches the old breakdown-wipe effect)", () => {
+    const iv: WidgetInitialValues = {
+      name: "Big number with a stray dimension",
+      description: "d",
+      view: "observations",
+      measure: "count",
+      aggregation: "count",
+      dimension: "environment",
+      filters: [],
+      chartType: "NUMBER",
+      chartConfig: { type: "NUMBER" },
+      minVersion: 1,
+    };
+    const values = toDefaultValues(iv, fixtureViewVersion(iv));
+    expect(values.dimensions).toEqual([]);
+    expect(adapterSavePayload(iv).dimensions).toEqual([]);
+  });
+
+  it("is a fixed point on a valid widget (normalizes to itself)", () => {
+    const iv = fixtures["breakdown bar with dimension"];
+    const once = toDefaultValues(iv, fixtureViewVersion(iv));
+    expect(once.chart.type).toBe("VERTICAL_BAR");
+    expect(once.dimensions).toEqual([{ field: "environment" }]);
+    expect(once.metrics).toEqual([
+      { measure: "totalCost", aggregation: "sum" },
+    ]);
   });
 });
