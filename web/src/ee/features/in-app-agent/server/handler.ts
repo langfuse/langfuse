@@ -44,7 +44,7 @@ import {
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
   getSandboxToolCallFiles,
-  replaceRunEvents,
+  appendRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
@@ -394,7 +394,7 @@ export default async function handler(request: Request) {
           });
           runCreated = true;
 
-          const persistedEvents: AgUiEvent[] = [
+          const pendingPersistedEvents: AgUiEvent[] = [
             {
               type: EventType.RUN_STARTED,
               threadId: sanitizedInput.threadId,
@@ -406,16 +406,25 @@ export default async function handler(request: Request) {
             },
           ];
 
-          const replacePersistedRunEvents = () =>
-            replaceRunEvents({
+          const flushPersistedRunEvents = async () => {
+            const pendingEventCount = pendingPersistedEvents.length;
+
+            if (pendingEventCount === 0) {
+              return;
+            }
+
+            await appendRunEvents({
               prisma,
               projectId,
               conversationId: conversation.id,
               runId: sanitizedInput.runId,
-              events: persistedEvents,
+              events: pendingPersistedEvents.slice(0, pendingEventCount),
             });
 
-          await replacePersistedRunEvents();
+            pendingPersistedEvents.splice(0, pendingEventCount);
+          };
+
+          await flushPersistedRunEvents();
 
           if (isResumeAgentInput(sanitizedInput)) {
             await consumeAndValidatePendingToolApproval({
@@ -472,19 +481,24 @@ export default async function handler(request: Request) {
                   approvedToolResultPersisted = true;
                 }
 
-                persistedEvents.push(persistedEvent);
+                pendingPersistedEvents.push(persistedEvent);
 
-                if (!shouldFlushPersistedEvent(persistedEvent)) {
+                if (
+                  !shouldFlushPersistedEvent(
+                    persistedEvent,
+                    pendingPersistedEvents,
+                  )
+                ) {
                   return;
                 }
 
-                return replacePersistedRunEvents();
+                return flushPersistedRunEvents();
               },
               onApprovedToolCallExecuted: () => {
                 approvedToolResultPersisted = true;
               },
               onComplete: () =>
-                replacePersistedRunEvents()
+                flushPersistedRunEvents()
                   .finally(() => finishCurrentRun())
                   .finally(() => {
                     if (request.signal.aborted) {
@@ -502,7 +516,7 @@ export default async function handler(request: Request) {
                     });
                   }),
               onAbort: () =>
-                replacePersistedRunEvents()
+                flushPersistedRunEvents()
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
@@ -511,7 +525,7 @@ export default async function handler(request: Request) {
                     }),
                   ),
               onError: (error) =>
-                replacePersistedRunEvents()
+                flushPersistedRunEvents()
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({

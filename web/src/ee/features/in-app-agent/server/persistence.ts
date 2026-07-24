@@ -33,7 +33,7 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
-import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import { compactPersistedEventDeltas } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { safeJsonParse } from "@/src/utils/json";
 import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
@@ -272,14 +272,14 @@ export async function finishRun(params: {
     );
 }
 
-export async function replaceRunEvents(params: {
+export async function appendRunEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
   runId: string;
   events: readonly AgUiEvent[];
-}) {
-  await params.prisma.$transaction(async (tx) => {
+}): Promise<boolean> {
+  return params.prisma.$transaction(async (tx) => {
     await lockConversation(tx, params.projectId, params.conversationId);
 
     const activeRun = await tx.inAppAgentRun.findFirst({
@@ -287,22 +287,14 @@ export async function replaceRunEvents(params: {
         id: params.runId,
         projectId: params.projectId,
         conversationId: params.conversationId,
-        finishedAt: null,
+        status: InAppAgentRunStatus.RUNNING,
       },
       select: { id: true },
     });
 
     if (!activeRun) {
-      return;
+      return false;
     }
-
-    await tx.inAppAgentEvent.deleteMany({
-      where: {
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        runId: params.runId,
-      },
-    });
 
     const latestEvent = await tx.inAppAgentEvent.findFirst({
       where: {
@@ -339,6 +331,8 @@ export async function replaceRunEvents(params: {
       },
       data: { updatedAt: new Date() },
     });
+
+    return true;
   });
 }
 
@@ -638,8 +632,12 @@ function getMessagesFromPersistedEvents(
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
 ): readonly AgUiMessage[] {
-  const messagesWithoutRedirectActions =
-    dropRedirectActionToolResults(messages);
+  const messagesWithoutReasoning = messages.filter(
+    (message) => message.role !== "reasoning",
+  );
+  const messagesWithoutRedirectActions = dropRedirectActionToolResults(
+    messagesWithoutReasoning,
+  );
   const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
     messagesWithoutRedirectActions,
   );
@@ -648,12 +646,33 @@ function sanitizeConversationMessagesForReplay(
   );
 }
 
-export function shouldFlushPersistedEvent(event: AgUiEvent) {
+export function shouldFlushPersistedEvent(
+  event: AgUiEvent,
+  pendingEvents: readonly AgUiEvent[] = [],
+) {
+  if (event.type === EventType.TOOL_CALL_END) {
+    const toolCallId = getString(event, "toolCallId");
+    const isRedirectToolCall = pendingEvents.some(
+      (pendingEvent) =>
+        pendingEvent.type === EventType.TOOL_CALL_START &&
+        getString(pendingEvent, "toolCallId") === toolCallId &&
+        getString(pendingEvent, "toolCallName") ===
+          IN_APP_AGENT_REDIRECT_TOOL_NAME,
+    );
+
+    // Redirect actions are represented by their result payload, so keep their
+    // call scaffolding in the same compactable unit until that result arrives.
+    if (isRedirectToolCall) {
+      return false;
+    }
+  }
+
   return (
     event.type === EventType.TEXT_MESSAGE_END ||
     event.type === EventType.TOOL_CALL_END ||
     event.type === EventType.TOOL_CALL_RESULT ||
     event.type === EventType.ACTIVITY_SNAPSHOT ||
+    event.type === EventType.REASONING_END ||
     event.type === EventType.RUN_FINISHED ||
     event.type === EventType.RUN_ERROR
   );
@@ -771,6 +790,44 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     });
   }
 
+  if (event.type === EventType.REASONING_START) {
+    return compactObject({
+      type: event.type,
+    });
+  }
+
+  if (event.type === EventType.REASONING_MESSAGE_START) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      role: getString(event, "role"),
+    });
+  }
+
+  if (
+    event.type === EventType.REASONING_MESSAGE_CHUNK ||
+    event.type === EventType.REASONING_MESSAGE_CONTENT
+  ) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+      delta: getString(event, "delta") ?? "",
+    });
+  }
+
+  if (event.type === EventType.REASONING_MESSAGE_END) {
+    return compactObject({
+      type: event.type,
+      messageId: getString(event, "messageId"),
+    });
+  }
+
+  if (event.type === EventType.REASONING_END) {
+    return compactObject({
+      type: event.type,
+    });
+  }
+
   if (event.type === EventType.RUN_FINISHED) {
     return compactObject({
       type: event.type,
@@ -798,14 +855,6 @@ export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
     event.type === EventType.STEP_STARTED ||
     event.type === EventType.STEP_FINISHED ||
     event.type === EventType.TOOL_CALL_CHUNK ||
-    // Reasoning is a live responsiveness signal. Keep plaintext reasoning out
-    // of persisted conversation history and replay.
-    event.type === EventType.REASONING_START ||
-    event.type === EventType.REASONING_MESSAGE_START ||
-    event.type === EventType.REASONING_MESSAGE_CHUNK ||
-    event.type === EventType.REASONING_MESSAGE_CONTENT ||
-    event.type === EventType.REASONING_MESSAGE_END ||
-    event.type === EventType.REASONING_END ||
     event.type === EventType.REASONING_ENCRYPTED_VALUE ||
     // eslint-disable-next-line @typescript-eslint/no-deprecated
     event.type === EventType.THINKING_START ||
@@ -833,6 +882,7 @@ export function createConversationMessageAccumulator(
     string,
     { id: string; content: string; runId?: string }
   >();
+  const reasoningDrafts = new Map<string, { id: string; content: string }>();
   const toolCallDrafts = new Map<
     string,
     {
@@ -869,6 +919,12 @@ export function createConversationMessageAccumulator(
   }
 
   const processEvent = (event: AgUiEvent, runId?: string): boolean => {
+    // Stored rows may come from a newer writer. Ignore unknown runtime values
+    // before entering the exhaustive handling for the current EventType union.
+    if (!isKnownEventType(event.type)) {
+      return false;
+    }
+
     if (event.type === EventType.RUN_STARTED) {
       if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
         return false;
@@ -953,6 +1009,61 @@ export function createConversationMessageAccumulator(
       });
 
       textDrafts.delete(draft.id);
+      return changed;
+    }
+
+    if (event.type === EventType.REASONING_MESSAGE_START) {
+      const messageId = getString(event, "messageId");
+
+      if (messageId) {
+        reasoningDrafts.set(messageId, { id: messageId, content: "" });
+      }
+      return false;
+    }
+
+    if (
+      event.type === EventType.REASONING_MESSAGE_CHUNK ||
+      event.type === EventType.REASONING_MESSAGE_CONTENT
+    ) {
+      const messageId = getString(event, "messageId");
+
+      if (!messageId) {
+        return false;
+      }
+
+      const existingIndex = messageIndexes.get(messageId);
+      const existingMessage =
+        existingIndex === undefined ? undefined : messages[existingIndex];
+      const draft = reasoningDrafts.get(messageId) ?? {
+        id: messageId,
+        content:
+          existingMessage?.role === "reasoning" ? existingMessage.content : "",
+      };
+
+      draft.content += getString(event, "delta") ?? "";
+      reasoningDrafts.set(messageId, draft);
+
+      return upsertMessage({
+        id: draft.id,
+        role: "reasoning",
+        content: draft.content,
+      });
+    }
+
+    if (event.type === EventType.REASONING_MESSAGE_END) {
+      const messageId = getString(event, "messageId");
+      const draft = messageId ? reasoningDrafts.get(messageId) : undefined;
+
+      if (!draft) {
+        return false;
+      }
+
+      const changed = upsertMessage({
+        id: draft.id,
+        role: "reasoning",
+        content: draft.content,
+      });
+      reasoningDrafts.delete(draft.id);
       return changed;
     }
 
@@ -1055,12 +1166,7 @@ export function createConversationMessageAccumulator(
       event.type === EventType.STEP_STARTED ||
       event.type === EventType.STEP_FINISHED ||
       event.type === EventType.TOOL_CALL_CHUNK ||
-      // Reasoning is live-only; do not reconstruct it from persisted history.
       event.type === EventType.REASONING_START ||
-      event.type === EventType.REASONING_MESSAGE_START ||
-      event.type === EventType.REASONING_MESSAGE_CHUNK ||
-      event.type === EventType.REASONING_MESSAGE_CONTENT ||
-      event.type === EventType.REASONING_MESSAGE_END ||
       event.type === EventType.REASONING_END ||
       event.type === EventType.REASONING_ENCRYPTED_VALUE ||
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -1146,7 +1252,7 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
 
 function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   return dropRedirectToolCallEvents(
-    compactEvents(compactTextMessageChunks(events)) as AgUiEvent[],
+    compactEvents(compactPersistedEventDeltas(events)) as AgUiEvent[],
   );
 }
 
@@ -1299,6 +1405,10 @@ function getString(event: unknown, key: string): string | undefined {
 
   const value = event[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function isKnownEventType(type: unknown): type is EventType {
+  return Object.values(EventType).some((eventType) => eventType === type);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
