@@ -125,6 +125,95 @@ describe("session message search corpus", () => {
     expect(text).toContain('"needle value"');
   });
 
+  it("searches the formatted chat model in all-content mode", () => {
+    const documents = buildSessionSearchDocuments({
+      traceId: "trace-1",
+      traceIndex: 0,
+      observations: [
+        observation({
+          input: JSON.stringify({
+            messages: [
+              {
+                role: "system",
+                content: "system message",
+                tools: [
+                  {
+                    name: "lookup",
+                    description: "tool definition needle",
+                    parameters: { type: "object" },
+                  },
+                ],
+              },
+              { role: "user", content: "visible message needle" },
+            ],
+            requestContext: { tenant: "additional input needle" },
+          }),
+          output: JSON.stringify({
+            role: "assistant",
+            tool_calls: [
+              {
+                id: "call-1",
+                name: "lookup",
+                arguments: { query: "tool call needle" },
+              },
+            ],
+          }),
+        }),
+      ],
+      contentMode: "all",
+      showSystemPrompt: false,
+    });
+
+    const text = documents.map((document) => document.text).join("\n");
+    expect(text).toContain("visible message needle");
+    expect(text).toContain("tool definition needle");
+    expect(text).toContain("additional input needle");
+    expect(text).toContain("tool call needle");
+    expect(text).not.toContain('"messages"');
+  });
+
+  it("excludes thinking from formatted conversation search", () => {
+    for (const contentMode of ["conversation", "all"] as const) {
+      const documents = buildSessionSearchDocuments({
+        traceId: "trace-1",
+        traceIndex: 0,
+        observations: [
+          observation({
+            input: JSON.stringify({
+              messages: [
+                {
+                  role: "assistant",
+                  content: "visible answer needle",
+                  thinking: [
+                    {
+                      type: "thinking",
+                      content: "hidden thinking needle",
+                      summary: "hidden summary needle",
+                    },
+                  ],
+                  redacted_thinking: [
+                    {
+                      type: "redacted_thinking",
+                      data: "hidden redacted needle",
+                    },
+                  ],
+                },
+              ],
+            }),
+          }),
+        ],
+        contentMode,
+        showSystemPrompt: false,
+      });
+
+      const text = documents.map((document) => document.text).join("\n");
+      expect(text).toContain("visible answer needle");
+      expect(text).not.toContain("hidden thinking needle");
+      expect(text).not.toContain("hidden summary needle");
+      expect(text).not.toContain("hidden redacted needle");
+    }
+  });
+
   it("does not search beyond the bounded truncated preview", () => {
     const documents = buildSessionSearchDocuments({
       traceId: "trace-1",
@@ -259,6 +348,87 @@ describe("session message search controller", () => {
     );
 
     expect(controller.getSnapshot().matches).toHaveLength(2);
+  });
+
+  it("retries a partial corpus on the next committed query", async () => {
+    const loadDocuments = vi
+      .fn()
+      .mockResolvedValueOnce({
+        documents: [searchDocument()],
+        failedTraceCount: 1,
+      })
+      .mockResolvedValueOnce({
+        documents: [
+          searchDocument(),
+          searchDocument({
+            id: "trace-2:observation-2:output",
+            targetId: "trace-2:observation-2",
+            traceId: "trace-2",
+            traceIndex: 1,
+            observationId: "observation-2",
+            field: "output",
+            label: "Output",
+            text: "second complete result",
+          }),
+        ],
+        failedTraceCount: 0,
+      });
+    const controller = createSessionMessageSearchController({ loadDocuments });
+
+    await commitQuery(controller, "Langfuse");
+    expect(controller.getSnapshot().failedTraceCount).toBe(1);
+
+    await commitQuery(controller, "result");
+
+    expect(loadDocuments).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().failedTraceCount).toBe(0);
+    expect(controller.getSnapshot().matches).toHaveLength(1);
+  });
+
+  it("emits a flushed zero-match query before navigation returns", async () => {
+    const controller = createSessionMessageSearchController({
+      loadDocuments: vi.fn().mockResolvedValue({
+        documents: [searchDocument()],
+        failedTraceCount: 0,
+      }),
+    });
+
+    await commitQuery(controller, "Langfuse");
+    controller.setQueryInput("missing");
+    controller.nextMatch();
+
+    expect(controller.getSnapshot().query).toBe("missing");
+    expect(controller.getSnapshot().matches).toHaveLength(0);
+    expect(controller.getSnapshot().activeMatchIndex).toBe(-1);
+  });
+
+  it("marks and scrolls to the containing target for a hidden match", async () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    const root = document.createElement("div");
+    const scrollIntoView = vi.fn();
+    root.scrollIntoView = scrollIntoView;
+    document.body.appendChild(root);
+    const controller = createSessionMessageSearchController({
+      loadDocuments: vi.fn().mockResolvedValue({
+        documents: [searchDocument({ text: "hidden needle" })],
+        failedTraceCount: 0,
+      }),
+    });
+    controller.registerTarget("trace-1:observation-1", root);
+
+    await commitQuery(controller, "hidden needle");
+
+    expect(root).toHaveAttribute("data-session-search-hidden-match");
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    controller.closeSearch();
+    expect(root).not.toHaveAttribute("data-session-search-hidden-match");
+    controller.dispose();
   });
 
   it("highlights a formatted match split across DOM text nodes", async () => {

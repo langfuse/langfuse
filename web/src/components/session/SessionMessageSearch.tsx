@@ -232,7 +232,11 @@ export function SessionMessageSearchTarget({
   }, [controller, targetId]);
 
   return (
-    <div ref={targetRef} data-session-message-search-target={targetId}>
+    <div
+      ref={targetRef}
+      data-session-message-search-target={targetId}
+      className="data-[session-search-hidden-match]:ring-find-match-selected-background rounded-sm data-[session-search-hidden-match]:ring-2"
+    >
       {children}
     </div>
   );

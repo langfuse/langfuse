@@ -1633,13 +1633,6 @@ const LoadedSessionEventsPage: React.FC<{
             }
           >
             {isModernSessionEnabled ? (
-              <SessionMessageSearchToolbar
-                controller={messageSearch}
-                className="max-w-[28rem]"
-              />
-            ) : null}
-
-            {isModernSessionEnabled ? (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1746,6 +1739,13 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
+
+            {isModernSessionEnabled ? (
+              <SessionMessageSearchToolbar
+                controller={messageSearch}
+                className="ml-auto max-w-[28rem]"
+              />
+            ) : null}
           </SessionControlsBar>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">

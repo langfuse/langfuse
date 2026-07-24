@@ -10,8 +10,12 @@ import isEqual from "lodash/isEqual";
 import { type SessionTraceObservation } from "./SessionObservationIO";
 import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
 import {
+  type ChatMlMessage,
+  hasAdditionalData,
+  hasRenderableContent,
   hasRenderableConversationMessages,
   isOnlyJsonMessage,
+  isPlaceholderMessage,
   shouldRenderMessageForContentMode,
 } from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
 import { parseChatML } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
@@ -21,6 +25,7 @@ export const SESSION_SEARCH_PREVIEW_DISPLAY_CHARS = 4_000;
 const SEARCH_INPUT_DEBOUNCE_MS = 150;
 const MATCH_HIGHLIGHT_NAME = "session-message-search-match";
 const ACTIVE_MATCH_HIGHLIGHT_NAME = "session-message-search-active";
+const HIDDEN_MATCH_ATTRIBUTE = "data-session-search-hidden-match";
 
 const hasContent = (value: unknown): boolean =>
   value !== null &&
@@ -179,25 +184,44 @@ function formatSearchValue(value: unknown): string {
   }
 }
 
-function getConversationMessageSearchText(message: {
-  content?: unknown;
-  thinking?: Array<{ content?: unknown; summary?: unknown }>;
-  redacted_thinking?: Array<{ data?: unknown }>;
-  audio?: unknown;
-}) {
-  return [
+function getFormattedMessageSearchText(
+  message: ChatMlMessage,
+  contentMode: IOPreviewContentMode,
+) {
+  const parts = [
     formatSearchValue(message.content),
-    ...(message.thinking ?? []).flatMap((thinking) => [
-      formatSearchValue(thinking.content),
-      formatSearchValue(thinking.summary),
-    ]),
-    ...(message.redacted_thinking ?? []).map((thinking) =>
-      formatSearchValue(thinking.data),
-    ),
     formatSearchValue(message.audio),
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ];
+
+  if (contentMode === "conversation") {
+    return parts.filter(Boolean).join("\n");
+  }
+
+  if (isOnlyJsonMessage(message)) {
+    parts.push(formatSearchValue(message.json));
+  } else if (isPlaceholderMessage(message)) {
+    parts.push(formatSearchValue(message.name));
+  } else {
+    if (message.tool_calls?.length) {
+      parts.push(formatSearchValue(message.tool_calls));
+    }
+
+    if (
+      !hasRenderableContent(message) &&
+      !message.tool_calls?.length &&
+      hasAdditionalData(message)
+    ) {
+      const {
+        thinking: _thinking,
+        redacted_thinking: _redactedThinking,
+        tools: _tools,
+        ...visibleMessage
+      } = message;
+      parts.push(formatSearchValue(visibleMessage));
+    }
+  }
+
+  return parts.filter(Boolean).join("\n");
 }
 
 function getParsedObservation(observation: SessionTraceObservation) {
@@ -313,7 +337,16 @@ export function buildSessionSearchDocuments({
       showSystemPrompt,
     });
 
-    if (isConversation && contentMode === "conversation") {
+    if (isConversation) {
+      if (contentMode === "all" && parserResult.allTools.length > 0) {
+        addDocument(
+          observation,
+          "input",
+          formatSearchValue(parserResult.allTools),
+          "tools",
+        );
+      }
+
       for (const [
         messageIndex,
         message,
@@ -331,10 +364,20 @@ export function buildSessionSearchDocuments({
         addDocument(
           observation,
           messageIndex < parserResult.inputMessageCount ? "input" : "output",
-          getConversationMessageSearchText(message),
+          getFormattedMessageSearchText(message, contentMode),
           `message-${messageIndex}`,
         );
       }
+
+      if (contentMode === "all") {
+        addDocument(
+          observation,
+          "input",
+          formatSearchValue(parserResult.additionalInput),
+          "additional-input",
+        );
+      }
+
       continue;
     }
 
@@ -556,6 +599,20 @@ export function createSessionMessageSearchController({
     pendingQueryTimeout = null;
   };
   const rebuildHighlightRegistry = () => {
+    targets.forEach((target) =>
+      target.root.removeAttribute(HIDDEN_MATCH_ATTRIBUTE),
+    );
+    const activeMatch = getActiveMatch();
+    const activeTarget = activeMatch
+      ? targets.get(activeMatch.targetId)
+      : undefined;
+    const activeRange = activeMatch
+      ? activeTarget?.ranges[activeMatch.targetMatchIndex]
+      : undefined;
+    if (activeMatch && activeTarget && !activeRange) {
+      activeTarget.root.setAttribute(HIDDEN_MATCH_ATTRIBUTE, "");
+    }
+
     const api = getHighlightApi();
     if (!api) return;
 
@@ -566,10 +623,6 @@ export function createSessionMessageSearchController({
       api.registry.delete(MATCH_HIGHLIGHT_NAME);
     }
 
-    const activeMatch = getActiveMatch();
-    const activeRange = activeMatch
-      ? targets.get(activeMatch.targetId)?.ranges[activeMatch.targetMatchIndex]
-      : undefined;
     if (activeRange) {
       api.registry.set(
         ACTIVE_MATCH_HIGHLIGHT_NAME,
@@ -602,14 +655,13 @@ export function createSessionMessageSearchController({
   const scrollToActiveRange = () => {
     const activeMatch = getActiveMatch();
     if (!activeMatch) return;
-    const range = targets.get(activeMatch.targetId)?.ranges[
-      activeMatch.targetMatchIndex
-    ];
+    const target = targets.get(activeMatch.targetId);
+    const range = target?.ranges[activeMatch.targetMatchIndex];
     const element =
       range?.startContainer.parentElement ??
       (range?.startContainer instanceof HTMLElement
         ? range.startContainer
-        : null);
+        : target?.root);
     element?.scrollIntoView({
       behavior: "smooth",
       block: "center",
@@ -645,12 +697,17 @@ export function createSessionMessageSearchController({
     syncActiveMatch();
   };
   const startLoading = () => {
-    if (state.documents || state.isLoading || !state.query) return;
+    const hasCompleteCorpus =
+      state.documents !== null &&
+      state.failedTraceCount === 0 &&
+      !state.loadFailed;
+    if (hasCompleteCorpus || state.isLoading || !state.query) return;
     const generation = ++loadGeneration;
     loadAbortController?.abort();
     loadAbortController = new AbortController();
     state.isLoading = true;
     state.loadFailed = false;
+    state.failedTraceCount = 0;
     state.completedTraceCount = 0;
     state.totalTraceCount = 0;
     emit();
@@ -674,7 +731,6 @@ export function createSessionMessageSearchController({
       },
       () => {
         if (generation !== loadGeneration) return;
-        state.documents = [];
         state.isLoading = false;
         state.loadFailed = true;
         recomputeMatches();
@@ -689,13 +745,17 @@ export function createSessionMessageSearchController({
     if (query) startLoading();
   };
   const flushPendingQuery = () => {
-    if (pendingQueryTimeout === null) return;
+    if (pendingQueryTimeout === null) return false;
     clearPendingQueryTimeout();
     commitQuery(state.queryInput);
+    return true;
   };
   const moveActiveMatch = (direction: 1 | -1) => {
-    flushPendingQuery();
-    if (state.matches.length === 0) return;
+    const didFlushQuery = flushPendingQuery();
+    if (state.matches.length === 0) {
+      if (didFlushQuery) emit();
+      return;
+    }
     const currentIndex = getActiveMatchIndex();
     const fallback = direction > 0 ? 0 : state.matches.length - 1;
     const nextIndex =
