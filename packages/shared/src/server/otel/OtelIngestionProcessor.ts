@@ -1423,14 +1423,20 @@ export class OtelIngestionProcessor {
       return Number.isNaN(parsed) ? undefined : parsed;
     }
     if (intValue && typeof intValue === "object") {
+      // `low`/`high` are signed 32-bit words, so the low word must be read as
+      // unsigned (`>>> 0`) when reconstructing — otherwise any value whose low
+      // 32 bits have the sign bit set decodes short by 2^32. Mirrors
+      // `convertNanoTimestampToISO` below.
       if (intValue.high === 0) {
-        return intValue.low;
+        return intValue.low >>> 0;
       }
       if (intValue.high === -1 && intValue.low === -1) {
         return -1;
       }
       if (typeof intValue.high === "number") {
-        return intValue.high * Math.pow(2, 32) + intValue.low;
+        return Number(
+          (BigInt(intValue.high) << BigInt(32)) | BigInt(intValue.low >>> 0),
+        );
       }
     }
     return undefined;
