@@ -96,6 +96,69 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("reuses row-selection score dependencies and full-table routing", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "metadata",
+          operator: "=",
+          key: "region",
+          value: "eu",
+          type: "stringObject",
+        },
+        {
+          column: "scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+          type: "numberObject",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query.match(/\bscores_agg AS \(/g)).toHaveLength(1);
+    expect(built.query.match(/\btrace_scores_agg AS \(/g)).toHaveLength(1);
+    expect(built.query).toContain("LEFT JOIN scores_agg AS s");
+    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(built.query).toContain("s.scores_avg");
+    expect(built.query).toContain("ts.scores_avg");
+    expect(built.query).toContain("FROM events_full e");
+    expect(built.query).not.toContain("FROM events_core e");
+    expect(Object.values(built.params)).toContain("quality");
+  });
+
+  it("uses only the trace-score dependency for trace-only score filters", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "trace_scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+          type: "numberObject",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).not.toMatch(/\bscores_agg AS \(/);
+    expect(built.query.match(/\btrace_scores_agg AS \(/g)).toHaveLength(1);
+    expect(built.query).not.toContain("LEFT JOIN scores_agg AS s");
+    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(Object.values(built.params)).toContain("quality");
+  });
+
   it("applies the scored traces scope without caller-provided raw SQL", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",

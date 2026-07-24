@@ -100,6 +100,14 @@ interface GetObservationsFilterOptionsParams {
   columns?: readonly EventFilterOptionsColumn[];
 }
 
+interface GetEventFilterOptionsParams extends GetObservationsFilterOptionsParams {
+  /**
+   * Full-text search is intentionally not part of facet refinement: repeating
+   * that scan for filter options is prohibitively expensive.
+   */
+  filter?: FilterState;
+}
+
 type EventFilterValueOption = {
   value: string;
   count?: number;
@@ -391,6 +399,46 @@ const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
   "calledToolNames",
 ]);
 
+const EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS = new Set([
+  "input",
+  "output",
+  "commentCount",
+  "commentContent",
+]);
+
+export const partitionEventFilterOptionsFilter = (
+  filter: FilterState = [],
+): {
+  participatingFilter: FilterState;
+  omitCounts: boolean;
+} => {
+  const participatingFilter: FilterState = [];
+  let omitCounts = false;
+
+  for (const filterItem of filter) {
+    // The dedicated startTimeFilter remains authoritative for the bounded
+    // facet query and its score lookback.
+    if (
+      filterItem.type === "datetime" &&
+      (filterItem.column === "startTime" || filterItem.column === "Start Time")
+    ) {
+      continue;
+    }
+
+    if (
+      filterItem.type === "positionInTrace" ||
+      EVENT_FILTER_OPTIONS_NON_PARTICIPATING_COLUMNS.has(filterItem.column)
+    ) {
+      omitCounts = true;
+      continue;
+    }
+
+    participatingFilter.push(filterItem);
+  }
+
+  return { participatingFilter, omitCounts };
+};
+
 type EventFilterOptionsByColumn = Record<
   (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
   EventFilterValueOption[]
@@ -399,10 +447,11 @@ type EventFilterOptionsByColumn = Record<
 const toEventFilterValueOptions = (
   items: EventFilterOptionRow[],
   column: EventFilterOptionColumn,
+  omitCounts: boolean,
 ): EventFilterValueOption[] => {
   const options = toFilterValueOptions(items, column);
 
-  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+  return omitCounts || EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
     ? options.map(({ value }) => ({ value }))
     : options;
 };
@@ -414,9 +463,10 @@ const toEventFilterValueOptions = (
 const toEventFilterOptionsByColumn = (
   items: EventFilterOptionRow[],
   columns: readonly (keyof EventFilterOptionsByColumn)[],
+  omitCounts: boolean,
 ): Partial<EventFilterOptionsByColumn> =>
   columns.reduce((acc, column) => {
-    acc[column] = toEventFilterValueOptions(items, column);
+    acc[column] = toEventFilterValueOptions(items, column, omitCounts);
     return acc;
   }, {} as Partial<EventFilterOptionsByColumn>);
 
@@ -551,12 +601,16 @@ export async function getEventFilterNumericRange(
  * Get all available filter options for events table
  */
 export async function getEventFilterOptions(
-  params: GetObservationsFilterOptionsParams,
+  params: GetEventFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
   const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
+  const { participatingFilter, omitCounts } = partitionEventFilterOptionsFilter(
+    scopedParams.filter,
+  );
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const refinedEventsFilter = eventsFilter.concat(participatingFilter);
   const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
   const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
     requestedColumns.has(column),
@@ -650,7 +704,7 @@ export async function getEventFilterOptions(
     eventColumns.length > 0
       ? getEventsFilterOptionsForColumns({
           projectId,
-          filter: eventsFilter,
+          filter: refinedEventsFilter,
           columns: eventColumns,
         })
       : Promise.resolve([]),
@@ -668,6 +722,7 @@ export async function getEventFilterOptions(
   const eventFilterOptionsByColumn = toEventFilterOptionsByColumn(
     eventFilterOptions,
     eventColumns,
+    omitCounts,
   );
 
   // name → the level(s) the name actually exists at, SPLIT PER DATA-TYPE
