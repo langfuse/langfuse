@@ -89,6 +89,10 @@ export default function NewWidget() {
       }}
     >
       <WidgetForm
+        // Beta toggle changes the default view (traces <-> observations) and
+        // the effective view version; remount so the form re-seeds cleanly
+        // instead of syncing via an effect.
+        key={String(isBetaEnabled)}
         projectId={projectId}
         onSave={handleSaveWidget}
         initialValues={{
