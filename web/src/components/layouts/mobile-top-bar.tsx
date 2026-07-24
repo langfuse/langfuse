@@ -49,11 +49,7 @@ export const MobileTopBar = ({
           leadingControl
         )}
         {envLabel.visible && (
-          <EnvLabelBadge
-            label={envLabel.label}
-            variant={envLabel.variant}
-            onClick={envLabel.dismiss}
-          />
+          <EnvLabelBadge region={envLabel.region} onClick={envLabel.dismiss} />
         )}
       </div>
 

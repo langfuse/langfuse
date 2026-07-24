@@ -9,24 +9,21 @@ const meta = preview.meta({
 
 export const Development = meta.story({
   args: {
-    label: "DEV",
-    variant: "development",
+    region: "DEV",
     onClick: fn(),
   },
 });
 
 export const Staging = meta.story({
   args: {
-    label: "STAGING",
-    variant: "staging",
+    region: "STAGING",
     onClick: fn(),
   },
 });
 
 export const Production = meta.story({
   args: {
-    label: "PROD-EU",
-    variant: "production",
+    region: "EU",
     onClick: fn(),
   },
 });

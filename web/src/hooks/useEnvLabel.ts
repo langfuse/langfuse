@@ -1,4 +1,3 @@
-import { isRegionProduction } from "@/src/features/organizations/cloudRegions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
@@ -13,20 +12,10 @@ export const useEnvLabel = () => {
     return { visible: false } as const;
   }
   if (isHidden) return { visible: false } as const;
-  if (!region) return { visible: false } as const;
-
-  const label = isRegionProduction(region) ? `PROD-${region}` : region;
-  const variant =
-    region === "STAGING"
-      ? "staging"
-      : region === "DEV"
-        ? "development"
-        : "production";
 
   return {
     visible: true,
-    label,
-    variant,
+    region: region,
     dismiss: () => setIsHidden(true),
   } as const;
 };

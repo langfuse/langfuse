@@ -109,8 +109,7 @@ const PageHeader = ({
               <div>
                 {envLabel.visible && (
                   <EnvLabelBadge
-                    label={envLabel.label}
-                    variant={envLabel.variant}
+                    region={envLabel.region}
                     onClick={envLabel.dismiss}
                   />
                 )}
