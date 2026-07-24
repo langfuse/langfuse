@@ -6,7 +6,8 @@ import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { TopbarAccount } from "@/src/components/nav/topbar-account";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
-import { EnvLabel } from "@/src/components/EnvLabel";
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 
 /**
  * Slim mobile top chrome for the minimal-chrome shell: hamburger · centered
@@ -27,6 +28,7 @@ export const MobileTopBar = ({
 }) => {
   const { toggleSidebar } = useSidebar();
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   const showHamburger = showSidebarTrigger && hasAppSidebar;
 
   return (
@@ -46,7 +48,13 @@ export const MobileTopBar = ({
         ) : (
           leadingControl
         )}
-        <EnvLabel />
+        {envLabel.visible && (
+          <EnvLabelBadge
+            label={envLabel.label}
+            variant={envLabel.variant}
+            onClick={envLabel.dismiss}
+          />
+        )}
       </div>
 
       {/* Center: the Langfuse wordmark. */}
