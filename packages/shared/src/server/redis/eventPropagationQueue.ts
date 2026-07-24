@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class EventPropagationQueue {
   private static instance: Queue | null = null;
@@ -48,7 +49,9 @@ export class EventPropagationQueue {
           QueueJobs.EventPropagationJob,
           { timestamp: new Date() },
           {
-            repeat: { pattern: "* * * * *" }, // every minute
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.EventPropagationJob,
+            ),
           },
         )
         .catch((err) => {

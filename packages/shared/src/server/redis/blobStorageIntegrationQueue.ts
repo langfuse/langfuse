@@ -2,6 +2,10 @@ import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import {
+  getBullMQLegacyRepeatableJobOptions,
+  getBullMQRepeatableJobOptions,
+} from "./repeatableJobs";
 
 export class BlobStorageIntegrationQueue {
   private static instance: Queue | null = null;
@@ -40,9 +44,12 @@ export class BlobStorageIntegrationQueue {
       // while the old one keeps firing.
       BlobStorageIntegrationQueue.instance
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- Existing repeatable-job cleanup; job scheduler migration should be handled separately.
-        .removeRepeatable(QueueJobs.BlobStorageIntegrationJob, {
-          pattern: "20 * * * *",
-        })
+        .removeRepeatable(
+          QueueJobs.BlobStorageIntegrationJob,
+          getBullMQLegacyRepeatableJobOptions(
+            "BlobStorageIntegrationHourlyJob",
+          ),
+        )
         .catch((err) => {
           logger.error(
             "Error removing legacy BlobStorageIntegrationJob schedule",
@@ -54,7 +61,9 @@ export class BlobStorageIntegrationQueue {
           QueueJobs.BlobStorageIntegrationJob,
           {},
           {
-            repeat: { pattern: "*/20 * * * *" }, // every 20 minutes
+            repeat: getBullMQRepeatableJobOptions(
+              QueueJobs.BlobStorageIntegrationJob,
+            ),
           },
         )
         .catch((err) => {

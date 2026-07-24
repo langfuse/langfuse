@@ -3,6 +3,7 @@ import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class CloudFreeTierUsageThresholdQueue {
   private static instance: Queue | null = null;
@@ -55,7 +56,9 @@ export class CloudFreeTierUsageThresholdQueue {
         QueueJobs.CloudFreeTierUsageThresholdJob,
         { type: "recurring" },
         {
-          repeat: { pattern: "35 * * * *" },
+          repeat: getBullMQRepeatableJobOptions(
+            QueueJobs.CloudFreeTierUsageThresholdJob,
+          ),
           // jobId: "free-tier-usage-threshold-hourly", // CRITICAL: Unique ID prevents duplicates across containers
         },
       );

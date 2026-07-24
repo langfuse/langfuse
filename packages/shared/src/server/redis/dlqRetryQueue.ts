@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
 import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
+import { getBullMQRepeatableJobOptions } from "./repeatableJobs";
 
 export class DeadLetterRetryQueue {
   private static instance: Queue | null = null;
@@ -40,7 +41,7 @@ export class DeadLetterRetryQueue {
           QueueJobs.DeadLetterRetryJob,
           { timestamp: new Date() },
           {
-            repeat: { pattern: "0 */10 * * * *" }, // every 10 minutes (with seconds precision)
+            repeat: getBullMQRepeatableJobOptions(QueueJobs.DeadLetterRetryJob),
           },
         )
         .catch((err) => {
