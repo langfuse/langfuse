@@ -97,10 +97,16 @@ vi.mock("@langfuse/shared", () => ({
   deepParseJson: (value: unknown) => value,
 }));
 
-// Unicode decoding is orthogonal to the size gate under test; identity keeps
-// the test focused (and avoids pulling shared's decode helper through the mock).
+// Unicode decoding is orthogonal to the size gate; a spy that returns identity
+// keeps existing tests focused while letting one test assert the all-or-nothing
+// decode rule. A small MAX_NODES makes "over budget" cheap to trigger.
+const decodeMock = vi.hoisted(() => ({
+  spy: vi.fn((value: unknown) => value),
+  MAX_NODES: 10,
+}));
 vi.mock("@/src/utils/decodeUnicodeInJson", () => ({
-  decodeUnicodeInJson: (value: unknown) => value,
+  decodeUnicodeInJson: decodeMock.spy,
+  DECODE_UNICODE_MAX_NODES: decodeMock.MAX_NODES,
 }));
 
 import { IOPreviewJSON } from "./IOPreviewJSON";
@@ -296,6 +302,46 @@ describe("IOPreviewJSON node-count gating", () => {
     );
     expect(correctedField.props?.actualOutputTooLarge).toBe(false);
     expect(correctedField.props?.actualOutput).toEqual({ answer: "ok" });
+  });
+
+  it("decodes unicode for a field within the decode budget", () => {
+    decodeMock.spy.mockClear();
+    render(
+      <IOPreviewJSON
+        output={{ answer: "ok" }}
+        hideInput
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    expect(decodeMock.spy).toHaveBeenCalledWith({ answer: "ok" });
+  });
+
+  it("skips decode for a field over the budget — shown raw, never partial/mixed", () => {
+    // decodeUnicodeInJson caps at DECODE_UNICODE_MAX_NODES and copies the rest
+    // un-decoded; since the same value backs the viewer AND the raw download, a
+    // larger field would export mixed decoded/escaped unicode. Over the budget
+    // (here 10) the field must NOT be decoded at all (LFE-10847 review 🟡).
+    decodeMock.spy.mockClear();
+    render(
+      <IOPreviewJSON
+        output={manyRows()} // 3,334 rows ≫ budget
+        hideInput
+        hideIfNull={false}
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    const decodedArgs = decodeMock.spy.mock.calls.map((c) => c[0]);
+    // The oversized array was never handed to the decoder (all-or-nothing).
+    expect(
+      decodedArgs.some(
+        (v) => Array.isArray(v) && v.length > decodeMock.MAX_NODES,
+      ),
+    ).toBe(false);
   });
 
   it("renders normal small I/O with its data and no fallback", () => {

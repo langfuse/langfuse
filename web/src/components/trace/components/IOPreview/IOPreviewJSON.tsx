@@ -25,7 +25,10 @@ import { InlineCommentBubble } from "@/src/features/comments/components/InlineCo
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
-import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
+import {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_NODES,
+} from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import { LazyJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
@@ -39,6 +42,20 @@ import {
 // eager virtualized viewer is therefore unreachable for trace I/O — see the
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
+
+/**
+ * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
+ * node budget. `decodeUnicodeInJson` caps at DECODE_UNICODE_MAX_NODES and copies
+ * the remainder through un-decoded; since the same value backs both the viewer
+ * and the raw download, a larger field would export a traversal-order-dependent
+ * MIX of decoded/escaped unicode. Past the budget, return it raw (fully
+ * un-decoded) — consistent and faithful — rather than partially decoded.
+ */
+function decodeIfWithinBudget(value: unknown, rowCount: number): unknown {
+  return rowCount > DECODE_UNICODE_MAX_NODES
+    ? value
+    : decodeUnicodeInJson(value);
+}
 
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
@@ -169,22 +186,32 @@ function IOPreviewJSONInner({
   // ensure_ascii=True) at the data source so that search-match offsets, comment
   // ranges, rendering and copy-to-clipboard all operate on the same decoded
   // strings. Decoding at the leaf renderer instead would desync highlight
-  // offsets. Already-decoded strings are a no-op. We decode over-limit fields
-  // too: they no longer render the eager tree, but they DO render lazily (the
-  // byte-engine viewer over this decoded value), so skipping decode there would
-  // show literal \uXXXX only once a field crosses the limit — an inconsistency
-  // the small path never has.
+  // offsets. Already-decoded strings are a no-op. We decode over-render-limit
+  // fields too (they render lazily over this decoded value), so a field's
+  // display doesn't change just because it crossed the render gate.
+  //
+  // BUT `decodeUnicodeInJson` caps its walk at DECODE_UNICODE_MAX_NODES and
+  // copies the remainder through un-decoded. A field bigger than that would be
+  // PARTIALLY decoded, and since the same value backs both the viewer and the
+  // raw download, the download would carry a traversal-order-dependent MIX of
+  // decoded/escaped unicode (LFE-10847 review). Decode all-or-nothing: past the
+  // budget, show it fully raw — consistent and faithful — rather than partial.
   const effectiveInput = useMemo(
-    () => (isParsing ? undefined : decodeUnicodeInJson(inputParsed)),
-    [inputParsed, isParsing],
+    () =>
+      isParsing ? undefined : decodeIfWithinBudget(inputParsed, inputRows),
+    [inputParsed, inputRows, isParsing],
   );
   const effectiveOutput = useMemo(
-    () => (isParsing ? undefined : decodeUnicodeInJson(outputParsed)),
-    [outputParsed, isParsing],
+    () =>
+      isParsing ? undefined : decodeIfWithinBudget(outputParsed, outputRows),
+    [outputParsed, outputRows, isParsing],
   );
   const effectiveMetadata = useMemo(
-    () => (isParsing ? undefined : decodeUnicodeInJson(metadataParsed)),
-    [metadataParsed, isParsing],
+    () =>
+      isParsing
+        ? undefined
+        : decodeIfWithinBudget(metadataParsed, metadataRows),
+    [metadataParsed, metadataRows, isParsing],
   );
 
   // Probe over-limit fields once for the bounded fallback (preview + download).
