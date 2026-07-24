@@ -227,9 +227,36 @@ const SessionScores = ({
 };
 const CopySessionIdButton: React.FC<{
   sessionId: string;
-}> = ({ sessionId }) => {
+  /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
+   *  default "toolbar" keeps the inline icon-only button. */
+  layout?: "toolbar" | "menu";
+}> = ({ sessionId, layout = "toolbar" }) => {
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const isMenu = layout === "menu";
+  const onCopy = async () => {
+    capture("session_detail:copy_session_id_click");
+    await copy(sessionId);
+  };
+
+  if (isMenu) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Copy session ID"
+        className="w-full justify-start gap-2 font-normal"
+        onClick={onCopy}
+      >
+        {isCopied ? (
+          <CheckIcon className="text-muted-green h-4 w-4" />
+        ) : (
+          <CopyIcon className="h-4 w-4" />
+        )}
+        <span className="text-sm">Copy session ID</span>
+      </Button>
+    );
+  }
 
   return (
     <Button
@@ -237,10 +264,7 @@ const CopySessionIdButton: React.FC<{
       size="icon-xs"
       title="Copy session ID"
       aria-label="Copy session ID"
-      onClick={async () => {
-        capture("session_detail:copy_session_id_click");
-        await copy(sessionId);
-      }}
+      onClick={onCopy}
     >
       {isCopied ? (
         <CheckIcon className="text-muted-green h-4 w-4" />
@@ -513,6 +537,7 @@ export const SessionPage: React.FC<{
                 isPublic={session.data?.public ?? false}
                 label="Share"
               />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
               <CommentDrawerButton
                 variant="outline"
                 projectId={projectId}
@@ -1416,6 +1441,7 @@ const LoadedSessionEventsPage: React.FC<{
                 isPublic={session.public}
                 label="Share"
               />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
               <CommentDrawerButton
                 variant="outline"
                 projectId={projectId}
