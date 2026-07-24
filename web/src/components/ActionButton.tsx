@@ -10,12 +10,10 @@ import {
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type ForwardedButtonProps = Pick<
+type ActionButtonProps = Pick<
   ButtonProps,
   "disabled" | "onClick" | "size" | "title" | "type" | "variant"
->;
-
-type ActionButtonProps = ForwardedButtonProps & {
+> & {
   icon?: React.ReactNode;
   loading?: boolean;
   hasAccess?: boolean;
@@ -142,10 +140,7 @@ const isExternalUrl = (url: string) => {
 
 const ButtonContent = React.forwardRef<
   HTMLButtonElement,
-  Pick<
-    ForwardedButtonProps,
-    "onClick" | "size" | "title" | "type" | "variant"
-  > & {
+  Pick<ButtonProps, "onClick" | "size" | "title" | "type" | "variant"> & {
     icon?: React.ReactNode;
     isDisabled: boolean;
     loading: boolean;
