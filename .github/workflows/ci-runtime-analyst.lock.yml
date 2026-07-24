@@ -42,10 +42,10 @@
 #   - actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
 #   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
 #   - actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (source v9)
-#   - actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+#   - actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
 #   - actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-#   - docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
-#   - github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+#   - docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+#   - github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
 #   - pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 #
 # Container images used:
@@ -131,7 +131,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -485,7 +485,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -517,7 +517,7 @@ jobs:
           header=$(printf "x-access-token:%s" "${GH_AW_FETCH_TOKEN}" | base64 -w 0)
           git -c "http.extraheader=Authorization: Basic ${header}" fetch origin '+refs/heads/ci-perf/*:refs/remotes/origin/ci-perf/*'
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           package-manager-cache: false
@@ -533,7 +533,7 @@ jobs:
           version: 11.10.0
       - continue-on-error: true
         name: Login to Docker Hub (avoids anonymous pull rate limits; mirrors pipeline.yml)
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
           username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
@@ -575,7 +575,7 @@ jobs:
             const { main } = require('${{ runner.temp }}/gh-aw/actions/checkout_pr_branch.cjs');
             await main();
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           package-manager-cache: false
@@ -1329,7 +1329,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1575,7 +1575,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1670,7 +1670,7 @@ jobs:
           mkdir -p /tmp/gh-aw/threat-detection
           touch /tmp/gh-aw/threat-detection/detection.log
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           package-manager-cache: false
@@ -1821,7 +1821,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1883,7 +1883,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1981,7 +1981,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@2ad2a516e432f0a0000cfaed33d262a380f9e58f # v0.82.0
+        uses: github/gh-aw-actions/setup@38d6267290bb37df338b212151cd6c884e5a26f0 # v0.82.11
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
