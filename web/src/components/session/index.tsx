@@ -404,7 +404,7 @@ const SummaryChip: React.FC<{
   <span
     title={title}
     className={cn(
-      "text-muted-foreground inline-flex items-center gap-1.5 rounded-sm border px-2 py-[3px] font-mono text-[10.5px] whitespace-nowrap",
+      "text-muted-foreground inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[11px] whitespace-nowrap",
       className,
     )}
   >
@@ -467,7 +467,7 @@ const SessionMetricsLine: React.FC<{
   const primaryUser = users[0];
 
   return (
-    <div className="bg-background flex flex-wrap items-center gap-1.5 border-b px-4 py-2.5">
+    <div className="bg-header flex flex-wrap items-center gap-2 border-b px-4 pt-1 pb-3">
       <SummaryChip>
         <span>
           <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
@@ -551,15 +551,19 @@ const SessionMetricsLine: React.FC<{
           <Link
             href={`/project/${projectId}/users/${encodeURIComponent(primaryUser)}`}
             title={primaryUser}
-            className="text-link hover:text-link-hover inline-flex max-w-[240px] items-center gap-1 rounded-sm border px-2 py-[3px] font-mono text-[10.5px] whitespace-nowrap"
+            className="text-muted-foreground hover:border-link hover:text-link group inline-flex max-w-[280px] items-center gap-1.5 rounded-sm border px-2 py-0.5 font-mono text-[11px] whitespace-nowrap"
           >
-            <span className="truncate" title={primaryUser}>
+            user{" "}
+            <span
+              className="text-foreground group-hover:text-link truncate"
+              title={primaryUser}
+            >
               {primaryUser}
             </span>
-            <ArrowUpRight className="h-[11px] w-[11px] shrink-0" />
+            <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
           </Link>
           {users.length > 1 ? (
-            <span className="text-muted-foreground font-mono text-[10.5px]">
+            <span className="text-muted-foreground font-mono text-[11px]">
               +{users.length - 1}
             </span>
           ) : null}
@@ -568,7 +572,7 @@ const SessionMetricsLine: React.FC<{
       <span className="flex-1" />
       {/* Generation view (ex "LLM Calls per Trace" presets): which
           generations render per conversation turn. */}
-      <span className="flex items-center gap-1.5 font-mono text-[10.5px]">
+      <span className="flex items-center gap-1.5 font-mono text-[11px]">
         <span className="text-muted-foreground">generations</span>
         <span className="bg-muted/40 flex items-center gap-0.5 rounded-sm border p-0.5">
           {(["all", "first", "last"] as const).map((view) => (

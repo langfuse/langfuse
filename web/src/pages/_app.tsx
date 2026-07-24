@@ -17,6 +17,7 @@ import NextAdapterPages from "next-query-params/pages";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
+import { geistMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -137,6 +138,14 @@ const MyApp: AppType<{ session: Session | null }> = ({
 
   const page = (
     <>
+      {/* next/font vars must be declared from _app (next/font CSS is silently
+          dropped in _document); :root scope keeps portalled content covered.
+          globals.css prepends the var to the --font-mono stack. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `:root{--font-geist-mono:${geistMono.style.fontFamily};}`,
+        }}
+      />
       <Component {...pageProps} />
       <UserTracking />
     </>

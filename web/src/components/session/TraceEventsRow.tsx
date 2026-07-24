@@ -15,7 +15,7 @@ import { useSessionDetailStore } from "@/src/components/session/SessionDetailSto
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Clock, FilterX } from "lucide-react";
+import { FilterX } from "lucide-react";
 import {
   formatIdleGap,
   IDLE_GAP_THRESHOLD_SECONDS,
@@ -446,7 +446,11 @@ export const TraceEventsRow = React.memo(
 
     return (
       <Frame
-        className={surface === "card" ? "border-border shadow-none" : "bg-card"}
+        className={
+          surface === "card"
+            ? "border-border shadow-none"
+            : "bg-card dark:bg-background"
+        }
         data-modern-session-active={surface === "modern" && isActive}
       >
         <div
@@ -460,41 +464,32 @@ export const TraceEventsRow = React.memo(
             className={
               surface === "card"
                 ? "overflow-hidden py-4 pr-4 pl-4"
-                : "min-w-0 px-7 pb-4"
+                : "min-w-0 px-6 pb-4"
             }
           >
             {/* Idle separator — the visible pause before this turn. */}
             {surface === "modern" &&
             idleGapSeconds != null &&
             idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS ? (
-              // Idle band: subtle cross-hatch fill (handoff v3), drawn from
-              // the theme's foreground so both modes stay defined.
-              <div className="mx-auto mt-5 mb-1 flex w-full max-w-[720px] items-center gap-2 rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2.5 py-1.5">
-                <Clock
-                  className="text-muted-foreground h-3 w-3 shrink-0"
-                  strokeWidth={1.5}
-                />
+              // Idle band: subtle cross-hatch fill (mock), drawn from the
+              // theme's foreground so both modes stay defined.
+              <div className="mx-auto mt-6 mb-2 flex w-full max-w-[720px] items-center gap-2 rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2.5 py-1.5">
                 <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
                   +{formatIdleGap(idleGapSeconds)} idle
                 </span>
               </div>
             ) : null}
-            {/* Sticky turn divider: `N · HH:MM:SS · dashed`, pinned to the
-                top of the feed while its turn scrolls (clicking selects). */}
+            {/* Sticky turn divider: `TURN N` + dashed rule (mock), pinned to
+                the top of the feed while its turn scrolls (clicking selects). */}
             {surface === "modern" && turnModel ? (
-              <div className="bg-card sticky top-0 z-10 pt-1">
+              <div className="bg-card dark:bg-background sticky top-0 z-10">
                 <button
                   type="button"
                   onClick={onSelectTurn}
-                  className="text-muted-foreground hover:text-foreground mx-auto flex w-full max-w-[720px] cursor-pointer items-center gap-2 py-[5px] transition-colors duration-150"
+                  className="text-muted-foreground hover:text-foreground mx-auto flex w-full max-w-[720px] cursor-pointer items-center gap-2 py-2 transition-colors duration-150"
                 >
-                  <span className="font-mono text-[10px] leading-4 tracking-[0.05em] uppercase">
+                  <span className="font-mono text-[11px] leading-4 uppercase">
                     Turn {turnNumber}
-                  </span>
-                  <span className="text-foreground-tertiary font-mono text-[10px]">
-                    {trace.timestamp.toLocaleTimeString(undefined, {
-                      hour12: false,
-                    })}
                   </span>
                   <span className="border-border-contrast flex-1 border-t border-dashed" />
                 </button>

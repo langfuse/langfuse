@@ -158,12 +158,12 @@ export const buildTurnModel = (
   return { userText, generations: built };
 };
 
-/** Mono meta parts of a generation: `model · latency · cost` (real data only). */
+/** Hover-revealed meta parts of a generation: `latency · cost` (real data
+ *  only — parts without a datum are omitted). */
 const generationMetaParts = (
   observation: SessionTraceObservation,
 ): string[] => {
   const parts: string[] = [];
-  if (observation.model) parts.push(observation.model);
   if (observation.latency !== null)
     parts.push(`${observation.latency.toFixed(2)}s`);
   if (observation.totalCost !== null)
@@ -231,11 +231,11 @@ export const ConversationTurn = ({
 
   return (
     <div className="mx-auto w-full max-w-[720px]">
-      <div className="mt-3 flex justify-end">
+      <div className="mt-4 flex justify-end">
         <button
           type="button"
           onClick={onSelectTurn}
-          className="bg-muted text-foreground max-w-[min(560px,82%)] rounded-sm px-[13px] py-[9px] text-left text-sm leading-normal break-words whitespace-pre-wrap"
+          className="bg-muted text-foreground max-w-[min(560px,82%)] rounded-sm px-4 py-2 text-left text-sm leading-[1.5] tracking-[-0.005em] break-words whitespace-pre-wrap"
         >
           {model.userText}
         </button>
@@ -250,23 +250,23 @@ export const ConversationTurn = ({
                 key={tool.id}
                 type="button"
                 onClick={() => inspect(tool.id, tool.type)}
-                className="hover:bg-muted mt-1.5 flex items-center gap-[7px] rounded-sm px-2.5 py-[5px] text-left transition-colors duration-150"
+                className="hover:bg-muted mt-2 -ml-4 flex items-center gap-2 rounded-sm px-4 py-2 text-left transition-colors duration-150"
               >
                 <Wrench
-                  className="text-session-tool h-3 w-3 shrink-0"
+                  className="text-session-tool h-3.5 w-3.5 shrink-0"
                   strokeWidth={2}
                 />
-                <span className="text-muted-foreground text-xs whitespace-nowrap">
+                <span className="text-muted-foreground text-[13px] whitespace-nowrap">
                   Tool call
                 </span>
                 <span
                   title={tool.name ?? tool.id}
-                  className="text-foreground bg-session-tool/10 min-w-0 truncate rounded-sm px-1.5 py-px font-mono text-[11px]"
+                  className="text-session-tool bg-session-tool/10 min-w-0 truncate rounded-sm px-2 py-0.5 font-mono text-xs"
                 >
                   {tool.name ?? tool.id}
                 </span>
                 <ChevronRight
-                  className="text-foreground-tertiary h-[11px] w-[11px] shrink-0"
+                  className="text-foreground-tertiary h-3.5 w-3.5 shrink-0"
                   strokeWidth={1.6}
                 />
               </button>
@@ -274,26 +274,37 @@ export const ConversationTurn = ({
             <div
               onClick={handleGenerationClick(observation.id, observation.type)}
               className={cn(
-                "hover:bg-muted mt-3 mb-5 max-w-[min(620px,90%)] cursor-pointer rounded-sm px-2.5 py-1.5 transition-colors duration-150",
+                "group/gen hover:bg-muted mt-4 mb-1 -ml-4 max-w-[min(620px,90%)] cursor-pointer rounded-sm px-4 py-2 transition-colors duration-150",
                 isInspected && "bg-primary/5",
               )}
             >
               <MarkdownView markdown={text} />
-              {metaParts.length > 0 ? (
-                <div className="text-muted-foreground mt-[7px] flex items-center gap-[7px]">
-                  <Fan
-                    className="text-session-generation h-3 w-3 shrink-0"
-                    strokeWidth={2}
-                  />
-                  <span className="font-mono text-[10.5px]">
-                    {metaParts.join(" · ")}
+              <div className="text-muted-foreground mt-3.5 flex items-center gap-2">
+                <Fan
+                  className="text-session-generation h-3.5 w-3.5 shrink-0"
+                  strokeWidth={2}
+                />
+                <span className="min-w-0 truncate text-[13px]">
+                  {observation.name ?? observation.model ?? "Generation"}
+                </span>
+                {metaParts.length > 0 ? (
+                  <span
+                    className={cn(
+                      "text-[13px] whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover/gen:opacity-100",
+                      isInspected && "opacity-100",
+                    )}
+                  >
+                    {"· " + metaParts.join(" · ")}
                   </span>
-                  <ChevronRight
-                    className="text-foreground-tertiary h-[11px] w-[11px] shrink-0"
-                    strokeWidth={1.6}
-                  />
-                </div>
-              ) : null}
+                ) : null}
+                <ChevronRight
+                  className={cn(
+                    "text-foreground-tertiary h-3.5 w-3.5 shrink-0 opacity-0 transition-opacity duration-150 group-hover/gen:opacity-100",
+                    isInspected && "opacity-100",
+                  )}
+                  strokeWidth={1.6}
+                />
+              </div>
             </div>
           </div>
         );

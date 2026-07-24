@@ -48,7 +48,15 @@ export function UsageBadge({
   // Only show for generation-like observations
   if (!isGenerationLike(type) || !usageDetails) return null;
 
+  // Compact `in → out (∑ total)` per the mock; the labelled long form stays
+  // available in the row title.
   const tokenText = formatTokenCounts(
+    inputUsage,
+    outputUsage,
+    totalUsage,
+    false,
+  );
+  const tokenTextLabelled = formatTokenCounts(
     inputUsage,
     outputUsage,
     totalUsage,
@@ -57,7 +65,7 @@ export function UsageBadge({
   const hasText = tokenText.length > 0;
 
   return (
-    <OverviewRow label="Tokens" title={hasText ? tokenText : undefined}>
+    <OverviewRow label="Tokens" title={hasText ? tokenTextLabelled : undefined}>
       <BreakdownTooltip details={usageDetails} isCost={false}>
         <span className="inline-flex max-w-full items-center gap-1">
           {hasText && (

@@ -58,14 +58,16 @@ export const ScoresAccordion = ({
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        aria-expanded={isOpen}
-        className="flex w-full items-center justify-between gap-2 py-2.5"
-      >
-        <EyebrowLabel className="tracking-[0.1em]">Scores</EyebrowLabel>
-        <span className="flex min-w-0 items-center gap-1.5">
+      {/* Header per the mock: eyebrow left, "Add score" button right; the
+          collapse chevron stays (product accordion behavior). */}
+      <div className="flex w-full items-center justify-between gap-2 py-2">
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          aria-expanded={isOpen}
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+        >
+          <EyebrowLabel>Scores</EyebrowLabel>
           {!isOpen ? (
             <span className="flex min-w-0 items-center gap-1">
               {peekScores.map((score) => (
@@ -85,8 +87,17 @@ export const ScoresAccordion = ({
               isOpen ? "rotate-180" : "rotate-0",
             )}
           />
-        </span>
-      </button>
+        </button>
+        {hasAnnotationAccess ? (
+          <button
+            type="button"
+            onClick={onAddScore}
+            className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-7 shrink-0 items-center rounded-sm border px-2 text-[11px] font-bold"
+          >
+            Add score
+          </button>
+        ) : null}
+      </div>
       {isOpen ? (
         <div className="flex flex-col gap-1.5 pb-3">
           {scores.length > 0 ? (
@@ -102,17 +113,10 @@ export const ScoresAccordion = ({
               </div>
             ))
           ) : (
-            <p className="text-muted-foreground text-xs">No scores yet</p>
+            <p className="text-muted-foreground text-xs">
+              No scores on this span yet.
+            </p>
           )}
-          {hasAnnotationAccess ? (
-            <button
-              type="button"
-              onClick={onAddScore}
-              className="text-muted-foreground hover:text-foreground mt-1 self-start text-xs"
-            >
-              <span className="font-mono">+</span> Add score
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -216,7 +220,7 @@ export const MetadataAccordion = ({
         aria-expanded={isOpen}
         className="flex w-full items-center justify-between gap-2 py-2.5"
       >
-        <EyebrowLabel className="tracking-[0.1em]">Metadata</EyebrowLabel>
+        <EyebrowLabel>Metadata</EyebrowLabel>
         <span className="flex items-center gap-2">
           <span className="text-muted-foreground font-mono text-[10px]">
             {itemCount} {itemCount === 1 ? "item" : "items"}

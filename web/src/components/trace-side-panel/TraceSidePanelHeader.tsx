@@ -28,6 +28,7 @@ import {
   OverviewGrid,
   TypeChip,
 } from "@/src/components/trace/components/_shared/InspectorElements";
+import { observationTypeIcon } from "@/src/components/session/sessionTypeIcons";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -167,24 +168,66 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
   const outputUsage = observation.outputUsage;
 
   return (
-    <div className="@container shrink-0 space-y-3 p-3 pb-2.5">
-      {/* Title row with actions */}
-      <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-        <div className="flex w-full flex-row items-start gap-2">
-          <TypeChip type={observation.type} className="mt-0.5" />
+    <div
+      className={
+        variant === "observation-only"
+          ? "@container shrink-0"
+          : "@container shrink-0 space-y-3 p-3 pb-2.5"
+      }
+    >
+      {/* Title row with actions — one line in the session inspector (mock);
+          the trace page keeps the wrapping grid for narrow containers. */}
+      <div
+        className={
+          variant === "observation-only"
+            ? "border-border-contrast flex w-full items-center justify-between gap-2 border-b border-dashed px-4 py-1.5"
+            : "grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between"
+        }
+      >
+        <div className="flex min-w-0 flex-1 flex-row items-center gap-2">
+          {variant === "observation-only" ? (
+            (() => {
+              const { Icon, className } = observationTypeIcon(observation.type);
+              return (
+                <Icon
+                  className={`h-3.5 w-3.5 shrink-0 ${className}`}
+                  strokeWidth={2}
+                  aria-label={observation.type}
+                />
+              );
+            })()
+          ) : (
+            <TypeChip type={observation.type} className="mt-0.5" />
+          )}
           <div className="min-w-0 flex-1">
-            <div className="line-clamp-2 min-w-0 text-sm font-bold break-all md:break-normal md:wrap-break-word">
+            <div
+              className={
+                variant === "observation-only"
+                  ? "min-w-0 truncate text-sm font-bold"
+                  : "line-clamp-2 min-w-0 text-sm font-bold break-all md:break-normal md:wrap-break-word"
+              }
+            >
               {observation.name || observation.id}
             </div>
-            <LocalIsoDate
-              date={observation.startTime}
-              accuracy="millisecond"
-              className="text-muted-foreground font-mono text-[10px]"
-            />
+            {/* The session inspector's eyebrow band already shows the
+                timestamp; keep it here for the trace page only. */}
+            {variant !== "observation-only" ? (
+              <LocalIsoDate
+                date={observation.startTime}
+                accuracy="millisecond"
+                className="text-muted-foreground font-mono text-[10px]"
+              />
+            ) : null}
           </div>
         </div>
         {/* Action buttons — grouped per the inspector design */}
-        <div className="flex h-full flex-wrap content-start items-center justify-start gap-1 @2xl:mr-1 @2xl:justify-end">
+        <div
+          className={
+            variant === "observation-only"
+              ? "flex shrink-0 items-center gap-1"
+              : "flex h-full flex-wrap content-start items-center justify-start gap-1 @2xl:mr-1 @2xl:justify-end"
+          }
+        >
           {playgroundGeneration &&
             isGenerationLike(playgroundGeneration.type) && (
               <JumpToPlaygroundButton
@@ -269,73 +312,76 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
         </div>
       </div>
 
-      {/* Overview metrics grid */}
+      {/* Overview metrics grid — mock row order first (latency, model,
+          tokens, cost, env, user); the product's extra metrics follow. */}
       {!isAnnotationMode && (
-        <OverviewGrid>
-          <LatencyBadge latencySeconds={latencySeconds} />
-          <TimeToFirstTokenBadge
-            timeToFirstToken={observation.timeToFirstToken}
-          />
-          <EnvironmentBadge environment={observation.environment} />
-          <UserIdBadge
-            userId={observation.userId ?? null}
-            projectId={projectId}
-          />
-          <SessionBadge
-            sessionId={observation.sessionId ?? null}
-            projectId={projectId}
-          />
-          <CostBadge
-            totalCost={
-              subtreeMetrics
-                ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-                : totalCost
-            }
-            costDetails={
-              subtreeMetrics?.costDetails ??
-              observation.costDetails ??
-              undefined
-            }
-          />
-          {subtreeMetrics ? (
-            subtreeMetrics.hasGenerationLike &&
-            subtreeMetrics.usageDetails && (
-              <UsageBadge
-                type="GENERATION"
-                inputUsage={subtreeMetrics.inputUsage}
-                outputUsage={subtreeMetrics.outputUsage}
-                totalUsage={subtreeMetrics.totalUsage}
-                usageDetails={subtreeMetrics.usageDetails}
-              />
-            )
-          ) : (
-            <UsageBadge
-              type={observation.type}
-              inputUsage={inputUsage}
-              outputUsage={outputUsage}
-              totalUsage={totalUsage}
+        <div className={variant === "observation-only" ? "px-4 py-4" : ""}>
+          <OverviewGrid>
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <ModelBadge
+              model={observation.model ?? null}
+              internalModelId={observation.internalModelId ?? null}
+              projectId={projectId}
               usageDetails={observation.usageDetails ?? undefined}
             />
-          )}
-          <ModelBadge
-            model={observation.model ?? null}
-            internalModelId={observation.internalModelId ?? null}
-            projectId={projectId}
-            usageDetails={observation.usageDetails ?? undefined}
-          />
-          <ModelParametersBadges
-            modelParameters={observation.modelParameters}
-          />
-          {observation.promptId && (
-            <PromptBadge
-              promptId={observation.promptId}
+            {subtreeMetrics ? (
+              subtreeMetrics.hasGenerationLike &&
+              subtreeMetrics.usageDetails && (
+                <UsageBadge
+                  type="GENERATION"
+                  inputUsage={subtreeMetrics.inputUsage}
+                  outputUsage={subtreeMetrics.outputUsage}
+                  totalUsage={subtreeMetrics.totalUsage}
+                  usageDetails={subtreeMetrics.usageDetails}
+                />
+              )
+            ) : (
+              <UsageBadge
+                type={observation.type}
+                inputUsage={inputUsage}
+                outputUsage={outputUsage}
+                totalUsage={totalUsage}
+                usageDetails={observation.usageDetails ?? undefined}
+              />
+            )}
+            <CostBadge
+              totalCost={
+                subtreeMetrics
+                  ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+                  : totalCost
+              }
+              costDetails={
+                subtreeMetrics?.costDetails ??
+                observation.costDetails ??
+                undefined
+              }
+            />
+            <EnvironmentBadge environment={observation.environment} />
+            <UserIdBadge
+              userId={observation.userId ?? null}
               projectId={projectId}
             />
-          )}
-          <VersionBadge version={observation.version} />
-          <LevelBadge level={observation.level} />
-          <StatusMessageBadge statusMessage={observation.statusMessage} />
-        </OverviewGrid>
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
+            />
+            <SessionBadge
+              sessionId={observation.sessionId ?? null}
+              projectId={projectId}
+            />
+            <ModelParametersBadges
+              modelParameters={observation.modelParameters}
+            />
+            {observation.promptId && (
+              <PromptBadge
+                promptId={observation.promptId}
+                projectId={projectId}
+              />
+            )}
+            <VersionBadge version={observation.version} />
+            <LevelBadge level={observation.level} />
+            <StatusMessageBadge statusMessage={observation.statusMessage} />
+          </OverviewGrid>
+        </div>
       )}
     </div>
   );

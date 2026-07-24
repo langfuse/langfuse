@@ -17,12 +17,12 @@ export const EnvLabel = ({ className }: { className?: string }) => {
   return (
     <div
       className={cn(
-        "flex cursor-pointer items-center gap-1 self-stretch rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
-        region === "STAGING"
-          ? "bg-light-blue text-dark-blue"
-          : region === "DEV"
-            ? "bg-light-green text-dark-green"
-            : "bg-light-red text-dark-red",
+        // Neutral mono chip per the sessions handoff; production regions keep
+        // the red text as a safety signal.
+        "bg-muted flex cursor-pointer items-center gap-1 self-center rounded-sm border px-2 py-0.5 font-mono text-[10px] tracking-[0.05em] whitespace-nowrap uppercase",
+        region === "STAGING" || region === "DEV"
+          ? "text-muted-foreground"
+          : "text-dark-red",
         className,
       )}
       onClick={() => setIsHidden(true)}

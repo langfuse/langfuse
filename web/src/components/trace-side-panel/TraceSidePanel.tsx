@@ -92,6 +92,14 @@ export interface TraceSidePanelProps {
       adapter's "metadata capped, open the trace view" hint for
       metadataTruncated observations (LFE-10958). */
   metadataNotice?: ReactNode;
+  /** Session inspector: replaces IOPreview in the Formatted view (the mock's
+      INPUT/System/OUTPUT zones). Only used when the adapter verified the
+      payload fits; the corrected-output editor still runs through IOPreview,
+      so the override is bypassed while a correction is open. The ctx hands
+      over the Correct action for the zone header. */
+  ioOverride?: (ctx: {
+    correction?: { hasExisting: boolean; onToggle: () => void };
+  }) => ReactNode;
 }
 
 export function TraceSidePanel({
@@ -115,6 +123,7 @@ export function TraceSidePanel({
   onClose,
   onOpenTraceView,
   metadataNotice,
+  ioOverride,
 }: TraceSidePanelProps) {
   // UI-preference contexts (both surfaces mount the providers)
   const {
@@ -200,6 +209,21 @@ export function TraceSidePanel({
   const isGeneration = observation.type === "GENERATION";
   const showCorrections = isAnnotationMode || isCorrectionOpen;
 
+  // Session-inspector IO zones (mock): active only in the Formatted view and
+  // while no correction editor is open — IOPreview owns everything else.
+  const ioOverrideNode =
+    ioOverride && currentView === "pretty" && !showCorrections
+      ? ioOverride({
+          correction:
+            isGeneration && hasAnnotationAccess
+              ? {
+                  hasExisting: hasExistingCorrection,
+                  onToggle: () => setIsCorrectionOpen((current) => !current),
+                }
+              : undefined,
+        })
+      : null;
+
   // Metadata for the accordion in the details zone — same parse fallback
   // IOPreviewPretty used before metadata moved out of it (showMetadata=false).
   const accordionMetadata = useMemo(
@@ -276,7 +300,7 @@ export function TraceSidePanel({
           jsonBetaEnabled={jsonBetaEnabled}
           onBetaToggle={handleBetaToggle}
           correction={
-            isGeneration && hasAnnotationAccess
+            isGeneration && hasAnnotationAccess && ioOverrideNode === null
               ? {
                   isOpen: isCorrectionOpen,
                   hasExisting: hasExistingCorrection,
@@ -312,63 +336,71 @@ export function TraceSidePanel({
             </div>
           </>
         )}
-        <IOPreview
-          key={observation.id}
-          observationName={observation.name ?? undefined}
-          input={io.input ?? undefined}
-          output={io.output ?? undefined}
-          outputCorrection={outputCorrection}
-          metadata={io.metadata ?? undefined}
-          parsedInput={io.parsedInput}
-          parsedOutput={io.parsedOutput}
-          parsedMetadata={io.parsedMetadata}
-          isLoading={io.isLoading}
-          isParsing={io.isParsing}
-          media={io.media}
-          currentView={currentView}
-          setIsPrettyViewAvailable={setIsPrettyViewAvailable}
-          inputExpansionState={formattedExpansion.input}
-          outputExpansionState={formattedExpansion.output}
-          metadataExpansionState={formattedExpansion.metadata}
-          onInputExpansionChange={(exp) =>
-            setFormattedFieldExpansion("input", exp as Record<string, boolean>)
-          }
-          onOutputExpansionChange={(exp) =>
-            setFormattedFieldExpansion("output", exp as Record<string, boolean>)
-          }
-          onMetadataExpansionChange={(exp) =>
-            setFormattedFieldExpansion(
-              "metadata",
-              exp as Record<string, boolean>,
-            )
-          }
-          advancedJsonExpansionState={advancedJsonExpansion}
-          onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
-          jsonInputExpanded={jsonExpansion.input}
-          jsonOutputExpanded={jsonExpansion.output}
-          jsonMetadataExpanded={jsonExpansion.metadata}
-          onJsonInputExpandedChange={(expanded) =>
-            setJsonFieldExpansion("input", expanded)
-          }
-          onJsonOutputExpandedChange={(expanded) =>
-            setJsonFieldExpansion("output", expanded)
-          }
-          onJsonMetadataExpandedChange={(expanded) =>
-            setJsonFieldExpansion("metadata", expanded)
-          }
-          enableInlineComments={enableInlineComments}
-          onAddInlineComment={
-            enableInlineComments ? handleAddInlineComment : undefined
-          }
-          commentedPathsByField={commentedPathsByField}
-          showMetadata={false}
-          observationId={observation.id}
-          onVirtualizationChange={setIsJSONBetaVirtualized}
-          projectId={projectId}
-          traceId={traceId}
-          environment={observation.environment ?? undefined}
-          showCorrections={showCorrections}
-        />
+        {ioOverrideNode ?? (
+          <IOPreview
+            key={observation.id}
+            observationName={observation.name ?? undefined}
+            input={io.input ?? undefined}
+            output={io.output ?? undefined}
+            outputCorrection={outputCorrection}
+            metadata={io.metadata ?? undefined}
+            parsedInput={io.parsedInput}
+            parsedOutput={io.parsedOutput}
+            parsedMetadata={io.parsedMetadata}
+            isLoading={io.isLoading}
+            isParsing={io.isParsing}
+            media={io.media}
+            currentView={currentView}
+            setIsPrettyViewAvailable={setIsPrettyViewAvailable}
+            inputExpansionState={formattedExpansion.input}
+            outputExpansionState={formattedExpansion.output}
+            metadataExpansionState={formattedExpansion.metadata}
+            onInputExpansionChange={(exp) =>
+              setFormattedFieldExpansion(
+                "input",
+                exp as Record<string, boolean>,
+              )
+            }
+            onOutputExpansionChange={(exp) =>
+              setFormattedFieldExpansion(
+                "output",
+                exp as Record<string, boolean>,
+              )
+            }
+            onMetadataExpansionChange={(exp) =>
+              setFormattedFieldExpansion(
+                "metadata",
+                exp as Record<string, boolean>,
+              )
+            }
+            advancedJsonExpansionState={advancedJsonExpansion}
+            onAdvancedJsonExpansionChange={setAdvancedJsonExpansion}
+            jsonInputExpanded={jsonExpansion.input}
+            jsonOutputExpanded={jsonExpansion.output}
+            jsonMetadataExpanded={jsonExpansion.metadata}
+            onJsonInputExpandedChange={(expanded) =>
+              setJsonFieldExpansion("input", expanded)
+            }
+            onJsonOutputExpandedChange={(expanded) =>
+              setJsonFieldExpansion("output", expanded)
+            }
+            onJsonMetadataExpandedChange={(expanded) =>
+              setJsonFieldExpansion("metadata", expanded)
+            }
+            enableInlineComments={enableInlineComments}
+            onAddInlineComment={
+              enableInlineComments ? handleAddInlineComment : undefined
+            }
+            commentedPathsByField={commentedPathsByField}
+            showMetadata={false}
+            observationId={observation.id}
+            onVirtualizationChange={setIsJSONBetaVirtualized}
+            projectId={projectId}
+            traceId={traceId}
+            environment={observation.environment ?? undefined}
+            showCorrections={showCorrections}
+          />
+        )}
         {currentView !== "json-beta" && <div className="h-4 w-full shrink-0" />}
         {/* Details zone: Scores + Metadata accordions, per the inspector
             design. Skipped in virtualized JSON Beta (IOPreview owns the

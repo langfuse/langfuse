@@ -24,19 +24,6 @@ const MODERN_SESSION_OVERSCAN = 5;
 
 type OpenPeek = (id: string, row: any) => void;
 
-/**
- * Langfuse's signature 8×8 corner brackets, drawn as four L-shaped spans
- * overlapping the 1px frame border (the handoff's `.lf-corners`).
- */
-const CornerBrackets = () => (
-  <>
-    <span className="border-primary pointer-events-none absolute -top-px -left-px z-10 h-2 w-2 rounded-tl-sm border-t border-l" />
-    <span className="border-primary pointer-events-none absolute -top-px -right-px z-10 h-2 w-2 rounded-tr-sm border-t border-r" />
-    <span className="border-primary pointer-events-none absolute -bottom-px -left-px z-10 h-2 w-2 rounded-bl-sm border-b border-l" />
-    <span className="border-primary pointer-events-none absolute -right-px -bottom-px z-10 h-2 w-2 rounded-br-sm border-r border-b" />
-  </>
-);
-
 type ModernSessionProps = {
   traces: EventSessionTrace[];
   projectId: string;
@@ -168,7 +155,10 @@ export function ModernSession({
   return (
     <div
       className={cn(
-        "bg-background relative grid min-h-0 flex-1 gap-x-2.5 overflow-hidden px-3 pt-2.5 pb-3 lg:grid-rows-1",
+        // Workspace chrome per the mock: paper canvas, 16px left/bottom
+        // inset, transcript flush to the right edge. Dark = #171714 base
+        // chrome (one step above the recessed transcript plane).
+        "bg-background dark:bg-header relative grid min-h-0 flex-1 gap-x-4 overflow-hidden pb-4 pl-4 lg:grid-rows-1",
         isSpanListOpen
           ? "grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)]"
           : "grid-rows-[2.25rem_minmax(0,1fr)] lg:grid-cols-[36px_minmax(0,1fr)]",
@@ -180,17 +170,18 @@ export function ModernSession({
         sessionId={sessionId}
         filterState={filterState}
         activeTraceId={activeTraceId}
+        selectedTraceId={selectedTraceId}
         onSelect={selectTrace}
         onOpenPeek={(trace) => openPeek(trace.id, trace)}
         isOpen={isSpanListOpen}
         onToggleOpen={() => setIsSpanListOpen((current) => !current)}
       />
-      {/* Conversation — the CornerBox frame, the page's one raised surface. */}
-      <div className="bg-card relative min-h-0 min-w-[320px] rounded-sm border">
-        <CornerBrackets />
+      {/* Conversation — a full-bleed plane split off by one hairline
+          (mock: plane-conv white / #121210 with border-left only). */}
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">
         <div
           ref={feedRef}
-          className="h-full min-h-0 overflow-y-auto scroll-smooth rounded-sm"
+          className="h-full min-h-0 overflow-y-auto scroll-smooth"
           onWheel={restoreScrollSpy}
           onTouchMove={restoreScrollSpy}
           onPointerDown={(event) => {

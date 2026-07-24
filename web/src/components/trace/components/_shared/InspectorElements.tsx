@@ -19,7 +19,8 @@ export const EyebrowLabel = ({
 }) => (
   <span
     className={cn(
-      "text-muted-foreground font-mono text-[9px] font-bold tracking-[0.08em] uppercase",
+      // Mock eyebrow: mono 10px, 0.05em tracking, regular weight.
+      "text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase",
       className,
     )}
   >
@@ -27,9 +28,9 @@ export const EyebrowLabel = ({
   </span>
 );
 
-/** 8px full-width band separating the panel's visual zones. */
+/** Dashed hairline separating the panel's visual zones (mock). */
 export const ZoneDivider = () => (
-  <div className="bg-muted/60 h-2 shrink-0 border-y" />
+  <div className="border-border-contrast shrink-0 border-t border-dashed" />
 );
 
 /** Short type labels for the header chip, per the inspector design. */
@@ -61,16 +62,14 @@ export const TypeChip = ({
 );
 
 /**
- * Overview metrics grid: two label+value columns, baseline-aligned.
- * Children are `OverviewRow`s (each renders a label cell + a value cell).
+ * Overview metrics grid: two columns of stacked label-over-value cells
+ * (the mock's metadata grid). Children are `OverviewRow`s.
  */
 export const OverviewGrid = ({ children }: { children: ReactNode }) => (
-  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
-    {children}
-  </div>
+  <div className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</div>
 );
 
-/** One metric inside `OverviewGrid`: eyebrow label + mono value. */
+/** One metric cell inside `OverviewGrid`: eyebrow label over a mono value. */
 export const OverviewRow = ({
   label,
   title,
@@ -82,16 +81,18 @@ export const OverviewRow = ({
   className?: string;
   children: ReactNode;
 }) => (
-  <>
-    <EyebrowLabel>{label}</EyebrowLabel>
-    <span
+  <div className="min-w-0">
+    <div>
+      <EyebrowLabel>{label}</EyebrowLabel>
+    </div>
+    <div
       className={cn(
-        "min-w-0 truncate font-mono text-[11px] font-bold",
+        "text-primary mt-0.5 min-w-0 truncate font-mono text-[13px]",
         className,
       )}
       title={title}
     >
       {children}
-    </span>
-  </>
+    </div>
+  </div>
 );

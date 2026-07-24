@@ -107,7 +107,7 @@ const TurnObservationRows = ({
 
   if (observationsQuery.isLoading) {
     return (
-      <div className="flex flex-col gap-1 py-2 pl-[17px]">
+      <div className="flex flex-col gap-1 py-2 pl-4">
         <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
         <div className="bg-muted h-3 w-1/2 animate-pulse rounded-sm" />
       </div>
@@ -115,7 +115,7 @@ const TurnObservationRows = ({
   }
   if (!rows || rows.length === 0) {
     return (
-      <p className="text-muted-foreground py-2 pl-[17px] text-xs">
+      <p className="text-muted-foreground py-2 pl-4 text-xs">
         {search || typeFilter.size > 0
           ? "No matching spans"
           : "No observations"}
@@ -124,7 +124,7 @@ const TurnObservationRows = ({
   }
 
   return (
-    <div className="mt-[7px] ml-[17px] flex flex-col gap-1">
+    <div className="mt-2 ml-4 flex flex-col">
       {rows.map((observation) => {
         const { Icon, className: iconClassName } = observationTypeIcon(
           observation.type,
@@ -144,22 +144,22 @@ const TurnObservationRows = ({
               });
             }}
             className={cn(
-              "hover:bg-muted flex w-full items-center gap-1.5 rounded-sm px-1 py-[3px] text-left transition-colors duration-150",
+              "hover:bg-foreground/10 -mr-2 flex w-full items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors duration-150",
               isInspected && "bg-session-generation/10",
             )}
           >
             <Icon
-              className={cn("h-[13px] w-[13px] shrink-0", iconClassName)}
+              className={cn("h-3.5 w-3.5 shrink-0", iconClassName)}
               strokeWidth={2}
             />
             <span
-              className="text-foreground min-w-0 flex-1 truncate text-xs"
+              className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]"
               title={observation.name ?? observation.id}
             >
               {observation.name ?? observation.id}
             </span>
             {observation.latency !== null && observation.type !== "EVENT" ? (
-              <span className="text-muted-foreground shrink-0 font-mono text-[10.5px]">
+              <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
                 {formatIntervalSeconds(observation.latency)}
               </span>
             ) : null}
@@ -189,6 +189,7 @@ const TurnCard = React.memo(
     trace,
     index,
     isActive,
+    isSelected,
     isCollapsed,
     onToggleCollapse,
     onSelect,
@@ -202,7 +203,10 @@ const TurnCard = React.memo(
   }: {
     trace: EventSessionTrace;
     index: number;
+    /** Current turn (scroll-spy or selection) — soft fill when not selected. */
     isActive: boolean;
+    /** Explicitly selected turn — dark number badge, no card fill (mock). */
+    isSelected: boolean;
     isCollapsed: boolean;
     onToggleCollapse: (traceId: string) => void;
     onSelect: (index: number) => void;
@@ -221,9 +225,8 @@ const TurnCard = React.memo(
     return (
       <div
         className={cn(
-          "group mb-[5px] rounded-sm border border-transparent px-2 pt-[7px] pb-2 transition-colors duration-150",
-          "hover:border-border",
-          isActive && "bg-primary/5",
+          "group hover:bg-foreground/[0.03] rounded-sm border border-transparent p-2 transition-colors duration-150",
+          isActive && !isSelected && "bg-foreground/5",
         )}
         data-observation-list-active={isActive}
       >
@@ -236,7 +239,7 @@ const TurnCard = React.memo(
             openInspector({ traceId: trace.id, observationId: null });
           }}
           title={turnMetricsTooltip(trace)}
-          className="flex w-full items-center gap-[7px] text-left"
+          className="flex w-full items-center gap-2 text-left"
           aria-current={isActive ? "true" : undefined}
         >
           <span
@@ -266,16 +269,16 @@ const TurnCard = React.memo(
           </span>
           <span
             className={cn(
-              "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm font-mono text-[9.5px]",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-foreground",
+              "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
+              isSelected
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-tertiary text-foreground border-border",
             )}
           >
             {index + 1}
           </span>
           <span
-            className="min-w-0 flex-1 truncate text-[12.5px] font-bold"
+            className="min-w-0 flex-1 truncate text-[13px] font-bold"
             title={trace.name ?? "Trace"}
           >
             {trace.name ?? "Trace"}
@@ -354,6 +357,7 @@ export function ObservationList({
   sessionId,
   filterState,
   activeTraceId,
+  selectedTraceId,
   onSelect,
   onOpenPeek,
   isOpen,
@@ -364,6 +368,8 @@ export function ObservationList({
   sessionId: string;
   filterState: FilterState;
   activeTraceId: string | undefined;
+  /** Explicit selection (click / arrow keys); undefined = scroll-spy only. */
+  selectedTraceId: string | undefined;
   onSelect: (index: number) => void;
   onOpenPeek: (trace: EventSessionTrace) => void;
   isOpen: boolean;
@@ -471,19 +477,19 @@ export function ObservationList({
       // clicking cards/rows swaps the inspector instead of merely closing it.
       className="relative z-20 flex min-h-0 flex-col"
     >
-      <div className="border-border-contrast flex shrink-0 items-center justify-between border-b border-dashed px-3 py-[7px]">
+      <div className="flex shrink-0 items-center justify-between px-1 pt-4 pb-[7px]">
         <RailEyebrow>
           Traces{" "}
           <span className="text-foreground-tertiary">· {traces.length}</span>
         </RailEyebrow>
         <span
-          className="text-muted-foreground font-mono text-[10px]"
+          className="text-foreground-tertiary font-mono text-[10px]"
           title={`${totalSpanCount} spans`}
         >
           {totalSpanCount} spans
         </span>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5 px-2.5 pt-2.5 pb-2">
+      <div className="flex shrink-0 items-center gap-2 border-b px-1 pt-2.5 pb-3">
         <div className="relative min-w-0 flex-1">
           <Search
             className="text-foreground-tertiary absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2"
@@ -493,7 +499,7 @@ export function ObservationList({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search spans"
-            className="bg-background h-[30px] rounded-sm pl-7 text-[13px]"
+            className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
         <DropdownMenu>
@@ -503,7 +509,7 @@ export function ObservationList({
               size="icon-xs"
               aria-label="Filter by span type"
               className={cn(
-                "h-[30px] w-[30px] rounded-sm",
+                "h-7 w-7 rounded-sm",
                 typeFilter.size > 0 &&
                   "border-primary/50 bg-primary/10 text-primary",
               )}
@@ -537,18 +543,15 @@ export function ObservationList({
           size="icon-xs"
           aria-label="Collapse span list"
           onClick={onToggleOpen}
-          className="hidden h-[30px] w-[30px] rounded-sm lg:inline-flex"
+          className="hidden h-7 w-7 rounded-sm lg:inline-flex"
         >
           <ChevronsLeft className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <div className="flex shrink-0 items-center justify-between px-3 pb-1.5">
-        <RailEyebrow>Grouped by chat-turn</RailEyebrow>
-        <span className="text-muted-foreground font-mono text-[10px]">
-          ↑↓ · j/k to move
-        </span>
-      </div>
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 overflow-y-auto px-1 pt-0.5 pb-4"
+      >
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -575,27 +578,30 @@ export function ObservationList({
                 gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
                   // Idle band: subtle cross-hatch fill (handoff v3), drawn
                   // from the theme's foreground so both modes stay defined.
-                  <div className="mx-0.5 mb-[5px] flex items-center rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2 py-[5px]">
-                    <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
+                  <div className="my-0.5 mb-2 flex items-center rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2 py-[5px]">
+                    <span className="text-muted-foreground font-mono text-[11px] whitespace-nowrap">
                       +{formatIdleGap(gap)} idle
                     </span>
                   </div>
                 ) : null}
-                <TurnCard
-                  trace={trace}
-                  index={virtualItem.index}
-                  isActive={trace.id === activeTraceId}
-                  isCollapsed={isCollapsed}
-                  onToggleCollapse={toggleCollapse}
-                  onSelect={onSelect}
-                  onOpenPeek={onOpenPeek}
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  filterState={filterState}
-                  typeFilter={typeFilter}
-                  search={search}
-                  percentile={percentiles[virtualItem.index] ?? null}
-                />
+                <div className="pb-2">
+                  <TurnCard
+                    trace={trace}
+                    index={virtualItem.index}
+                    isActive={trace.id === activeTraceId}
+                    isSelected={trace.id === selectedTraceId}
+                    isCollapsed={isCollapsed}
+                    onToggleCollapse={toggleCollapse}
+                    onSelect={onSelect}
+                    onOpenPeek={onOpenPeek}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    filterState={filterState}
+                    typeFilter={typeFilter}
+                    search={search}
+                    percentile={percentiles[virtualItem.index] ?? null}
+                  />
+                </div>
               </SessionVirtualizedRow>
             );
           })}

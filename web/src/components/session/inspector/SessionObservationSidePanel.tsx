@@ -44,6 +44,11 @@ import {
 } from "@/src/components/trace-side-panel/TraceSidePanel";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { type SessionTraceObservation } from "@/src/components/session/SessionObservationIO";
+import {
+  buildSessionIOZonesModel,
+  SessionInspectorIOZones,
+} from "@/src/components/session/inspector/SessionInspectorIOZones";
+import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
@@ -198,6 +203,23 @@ function SessionObservationSidePanelInner({
     },
   );
 
+  // Mock-styled INPUT/System/OUTPUT zones for the Formatted view — only when
+  // the payload cleanly fits (buildSessionIOZonesModel is conservative);
+  // otherwise TraceSidePanel keeps the standard IOPreview.
+  const chatMLParserResult = useChatMLParser(
+    observation.input ?? undefined,
+    observation.output ?? undefined,
+    observation.metadata ?? undefined,
+    observation.name ?? undefined,
+    parsed.input,
+    parsed.output,
+    parsed.metadata,
+  );
+  const ioZonesModel = React.useMemo(
+    () => buildSessionIOZonesModel(chatMLParserResult),
+    [chatMLParserResult],
+  );
+
   const playgroundGeneration = React.useMemo<PlaygroundGeneration | null>(
     () =>
       ({
@@ -268,6 +290,17 @@ function SessionObservationSidePanelInner({
         enableInlineComments={isAuthenticatedAndProjectMember}
         onClose={onClose}
         onOpenTraceView={onOpenTraceView}
+        ioOverride={
+          ioZonesModel
+            ? ({ correction }) => (
+                <SessionInspectorIOZones
+                  model={ioZonesModel}
+                  rawInput={observation.input}
+                  correction={correction}
+                />
+              )
+            : undefined
+        }
         metadataNotice={
           // Session queries cap large metadata values (and drop metadata
           // entirely past the per-trace budget) — same hint the conversation

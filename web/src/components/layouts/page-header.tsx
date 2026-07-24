@@ -1,5 +1,5 @@
 import { EnvLabel } from "@/src/components/EnvLabel";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -81,7 +81,9 @@ const PageHeader = ({
   return (
     <div
       className={cn([
-        "top-banner-offset bg-background sticky z-30 w-full border-b shadow-xs",
+        // bg-header: chrome tier per the sessions handoff (paper in light,
+        // #171714 base in dark); hairline only, no shadow.
+        "top-banner-offset bg-header sticky z-30 w-full border-b",
         className,
       ])}
       id="page-header"
@@ -98,7 +100,7 @@ const PageHeader = ({
               // right when the row fits on one line but fall back to the LEFT
               // edge when they wrap to their own line on narrow viewports (a
               // line with a single flex item renders as flex-start).
-              "flex min-h-11 flex-wrap items-center justify-between gap-3 px-3 py-1.5",
+              "flex min-h-10 flex-wrap items-center justify-between gap-3 px-3 py-1",
               container && containerLayoutClassName,
             )}
           >
@@ -150,9 +152,9 @@ const PageHeader = ({
             <div className="flex grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
-                  <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
-                  </div>
+                  <span className="text-muted-foreground mr-1 font-mono text-[10px] tracking-[0.05em] uppercase">
+                    {itemType.toLowerCase().replace(/_/g, " ")}
+                  </span>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   {/* Explicit color: the SidebarProvider shell sets
@@ -160,7 +162,7 @@ const PageHeader = ({
                       app, so unstyled text here would inherit the dimmed
                       sidebar tint. text-primary is the emphasis tier —
                       brighter than body text-foreground in dark. */}
-                  <h2 className="text-primary line-clamp-1 text-lg leading-7 font-bold">
+                  <h2 className="text-primary line-clamp-1 text-[21px] leading-[1.15] font-bold tracking-[-0.01em]">
                     {titleContent ? (
                       titleContent
                     ) : titleTooltip ? (

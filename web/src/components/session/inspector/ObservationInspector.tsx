@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -375,7 +376,9 @@ export function ObservationInspector({
       },
     );
 
-  if (!inspected) return null;
+  // The sheet is portalled to <body>; there is no document on the server
+  // (the selection can be non-null on first render via the URL params).
+  if (!inspected || typeof document === "undefined") return null;
 
   // Defensive against both response shapes (see TraceEventsRow, LFE-10958).
   type ObservationsResponse =
@@ -409,101 +412,109 @@ export function ObservationInspector({
         className="absolute inset-0 z-10"
         onClick={closeInspector}
       />
-      <aside
-        ref={asideRef}
-        aria-label="Observation details"
-        style={{ width }}
-        className="bg-background animate-in slide-in-from-right absolute inset-y-0 right-0 z-20 flex max-w-full flex-col border-l shadow-[-8px_0_24px_hsl(var(--foreground)/0.09)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-none"
-      >
-        {/* Left-edge drag handle — resize the overlay (320–720px). */}
-        <div
-          onPointerDown={startResize}
-          title="Drag to resize"
-          className="hover:bg-muted-blue/30 absolute top-0 bottom-0 left-0 z-30 w-1.5 cursor-col-resize transition-colors duration-150"
-        />
-        {/* 40px eyebrow header band: `TYPE · timestamp` + close (Esc). */}
-        <div className="border-border-contrast flex h-10 shrink-0 items-center justify-between gap-2 border-b border-dashed py-1 pr-2 pl-3.5">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="text-muted-foreground shrink-0 font-mono text-[10px] tracking-[0.05em] uppercase">
-              {bandType}
-            </span>
-            {bandTimestamp ? (
-              <>
-                <span className="bg-foreground-tertiary h-[3px] w-[3px] shrink-0 rounded-full" />
-                {/* LocalIsoDate sets its own title (UTC string), so the full
-                  value stays available when the band clips it. */}
-                <LocalIsoDate
-                  date={bandTimestamp}
-                  accuracy="millisecond"
-                  className="text-muted-foreground overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
-                />
-              </>
-            ) : null}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Close inspector"
-            title="Close (Esc)"
-            onClick={closeInspector}
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-        {inspected.observationId === null && trace ? (
-          <TraceInspectorContent
-            key={trace.id}
-            trace={trace}
-            projectId={projectId}
-            sessionId={sessionId}
-            openPeek={openPeek}
+      {/* Full-viewport-height sheet per the mock: fixed right, floating OVER
+          the top bar and transcript. Portalled to <body> so no ancestor
+          stacking context (sticky page header) can paint above it. Light =
+          paper sheet on the white plane; dark = #1c1c19 sheet with the deep
+          drop shadow. */}
+      {createPortal(
+        <aside
+          ref={asideRef}
+          aria-label="Observation details"
+          style={{ width }}
+          className="bg-background dark:bg-modal dark:border-border-contrast animate-in slide-in-from-right fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l shadow-[-16px_0_40px_rgba(34,34,32,0.10)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-[-20px_0_48px_rgba(0,0,0,0.5)]"
+        >
+          {/* Left-edge drag handle — resize the overlay (320–720px). */}
+          <div
+            onPointerDown={startResize}
+            title="Drag to resize"
+            className="hover:bg-muted-blue/30 absolute top-0 bottom-0 left-0 z-30 w-1.5 cursor-col-resize transition-colors duration-150"
           />
-        ) : observationsQuery.isLoading ? (
-          <div className="p-4">
-            <JsonSkeleton className="h-full w-full" numRows={10} />
+          {/* 40px eyebrow header band: `TYPE · timestamp` + close (Esc). */}
+          <div className="border-border-contrast flex h-10 shrink-0 items-center justify-between gap-2 border-b border-dashed py-1 pr-2 pl-3.5">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="text-muted-foreground shrink-0 font-mono text-[10px] tracking-[0.05em] uppercase">
+                {bandType}
+              </span>
+              {bandTimestamp ? (
+                <>
+                  <span className="bg-foreground-tertiary h-[3px] w-[3px] shrink-0 rounded-full" />
+                  {/* LocalIsoDate sets its own title (UTC string), so the full
+                  value stays available when the band clips it. */}
+                  <LocalIsoDate
+                    date={bandTimestamp}
+                    accuracy="millisecond"
+                    className="text-muted-foreground overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
+                  />
+                </>
+              ) : null}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Close inspector"
+              title="Close (Esc)"
+              onClick={closeInspector}
+            >
+              <X className="h-3 w-3" />
+            </Button>
           </div>
-        ) : observation ? (
-          <SessionObservationSidePanel
-            key={observation.id}
-            observation={observation}
-            trace={trace}
-            projectId={projectId}
-            onOpenTraceView={
-              trace
-                ? () =>
+          {inspected.observationId === null && trace ? (
+            <TraceInspectorContent
+              key={trace.id}
+              trace={trace}
+              projectId={projectId}
+              sessionId={sessionId}
+              openPeek={openPeek}
+            />
+          ) : observationsQuery.isLoading ? (
+            <div className="p-4">
+              <JsonSkeleton className="h-full w-full" numRows={10} />
+            </div>
+          ) : observation ? (
+            <SessionObservationSidePanel
+              key={observation.id}
+              observation={observation}
+              trace={trace}
+              projectId={projectId}
+              onOpenTraceView={
+                trace
+                  ? () =>
+                      openPeek(trace.id, {
+                        ...trace,
+                        observationId: observation.id,
+                      })
+                  : undefined
+              }
+            />
+          ) : (
+            <div className="flex flex-col gap-3 p-4">
+              <span className="text-sm font-bold">Observation</span>
+              <p className="text-muted-foreground text-xs">
+                This observation is not part of the current view. It may be
+                hidden by the active filter.
+              </p>
+              {trace ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={() =>
                     openPeek(trace.id, {
                       ...trace,
-                      observationId: observation.id,
+                      observationId: inspected.observationId,
                     })
-                : undefined
-            }
-          />
-        ) : (
-          <div className="flex flex-col gap-3 p-4">
-            <span className="text-sm font-bold">Observation</span>
-            <p className="text-muted-foreground text-xs">
-              This observation is not part of the current view. It may be hidden
-              by the active filter.
-            </p>
-            {trace ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="self-start"
-                onClick={() =>
-                  openPeek(trace.id, {
-                    ...trace,
-                    observationId: inspected.observationId,
-                  })
-                }
-              >
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                Open Trace View
-              </Button>
-            ) : null}
-          </div>
-        )}
-      </aside>
+                  }
+                >
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                  Open Trace View
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </aside>,
+        document.body,
+      )}
     </>
   );
 }
