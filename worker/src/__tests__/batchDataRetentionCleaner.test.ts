@@ -700,13 +700,7 @@ describe("BatchDataRetentionCleaner", () => {
         "langfuse.batch_data_retention_cleaner.candidate_query_failures",
         1,
       ]);
-      expect(
-        integrationHooks.gaugeCalls.some(
-          ([name]) =>
-            name ===
-            "langfuse.batch_data_retention_cleaner.seconds_past_cutoff",
-        ),
-      ).toBe(false);
+      expect(integrationHooks.gaugeCalls).toEqual([]);
     });
 
     it("continues other chunks after one enrichment exhausts its retry", async () => {
@@ -753,6 +747,11 @@ describe("BatchDataRetentionCleaner", () => {
             "langfuse.batch_data_retention_cleaner.enrichment_query_failures",
         ),
       ).toHaveLength(1);
+      expect(
+        getLastGaugeValue(
+          "langfuse.batch_data_retention_cleaner.pending_projects",
+        ),
+      ).toBe(0);
       expect(
         integrationHooks.gaugeCalls.some(
           ([name]) =>
