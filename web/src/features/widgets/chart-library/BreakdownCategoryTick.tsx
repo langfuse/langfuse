@@ -36,18 +36,24 @@ const CLOSE_GRACE_MS = 250;
  * renders completely outside the chart's SVG tree, so it is never clipped by
  * the chart's own bounds.
  *
- * Opens on pointer hover of the label (with a short close grace so crossing
- * the gap into the card doesn't dismiss it) AND on keyboard focus of the
- * label, so the copy button and "View filtered table" link are reachable by
- * Tab, not mouse-only. This is a controlled `Popover`, not a `HoverCard`:
- * `HoverCard`'s portaled content has no focus-trap/focus-guards, so Tab from
- * the trigger skips straight past it — a keyboard user could never reach the
- * copy button or link. Radix `Popover` inserts focus-guard sentinels around
- * its portaled content that redirect the natural Tab order into it, which is
- * exactly the reachability a HoverCard doesn't provide. Opening never steals
- * focus into the card on its own (`onOpenAutoFocus` is prevented) — a mouse
- * user just hovers, a keyboard user explicitly presses Tab to move into it;
- * Escape closes the card and returns focus to the label (Radix's default).
+ * Two, deliberately different, ways in: hovering the label opens it as a
+ * passive tooltip (mouse only — Tab landing on the label does NOT open it,
+ * or a keyboard user tabbing PAST the label through a long list of bars
+ * would get trapped/derailed by every one of them popping open); explicitly
+ * ACTIVATING the label (click, or Enter/Space — same as any button) opens it
+ * and moves focus straight into the content, so the copy button and "View
+ * filtered table" link are keyboard-reachable via Tab from there. Those two
+ * paths need different focus behavior on open, which is why this is a
+ * controlled `Popover`, not a `HoverCard`: `HoverCard`'s portaled content has
+ * no focus-trap/focus-guards at all, so Tab could never reach it regardless.
+ * Radix `Popover` inserts focus-guard sentinels around its portaled content
+ * that redirect Tab into it — but only ON the auto-focus-on-open behavior
+ * that hover must NOT trigger (stealing focus on a passive hover would be
+ * its own, worse, keyboard trap). `openReason` (a ref, not state — it's read
+ * once per open, not rendered) tracks which path is in flight so
+ * `onOpenAutoFocus` can allow the default (focus moves in) for an explicit
+ * activation and suppress it (focus stays put) for a hover. Escape closes
+ * the card and returns focus to the label either way (Radix's default).
  * (LFE-10962)
  *
  * `href` (the "drill into this row" deep link) and the analytics callbacks
@@ -81,6 +87,15 @@ export function BreakdownCategoryTick({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
+  // Which of the two open paths is in flight — read once by
+  // PopoverContent's onOpenAutoFocus (below) to decide whether opening may
+  // move focus into the content. A ref, not state: it's a same-tick signal
+  // for that one callback, never rendered. "keyboard" doubles as "explicit
+  // activation" — a mouse click sets it too (a real button click is
+  // expected to focus what it opens, same as any menu/select trigger); only
+  // a passive hover (no activation) is the "pointer" case that must not
+  // steal focus.
+  const openReasonRef = useRef<"pointer" | "keyboard">("keyboard");
 
   const clearCloseTimer = () => {
     if (closeTimerRef.current !== undefined) {
@@ -88,9 +103,13 @@ export function BreakdownCategoryTick({
       closeTimerRef.current = undefined;
     }
   };
-  const openNow = () => {
+  const openOnHover = () => {
+    openReasonRef.current = "pointer";
     clearCloseTimer();
     setOpen(true);
+  };
+  const markActivation = () => {
+    openReasonRef.current = "keyboard";
   };
   const scheduleClose = () => {
     clearCloseTimer();
@@ -115,8 +134,9 @@ export function BreakdownCategoryTick({
 
   return (
     <g transform={`translate(${x},${y})`}>
-      {/* Native fallback tooltip for a bare mouseover; the card below, opened
-          by hovering/focusing the label, is the primary affordance. */}
+      {/* Native fallback tooltip for a bare mouseover; the card below —
+          opened by hovering, or by activating the label (click/Enter/Space)
+          — is the primary affordance. */}
       <title>{label}</title>
       <foreignObject
         x={-TICK_AREA_WIDTH}
@@ -142,9 +162,12 @@ export function BreakdownCategoryTick({
               <button
                 type="button"
                 title={label}
-                onMouseEnter={openNow}
+                onMouseEnter={openOnHover}
                 onMouseLeave={scheduleClose}
-                onFocus={openNow}
+                onClick={markActivation}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") markActivation();
+                }}
                 className="text-muted-foreground hover:text-foreground focus-visible:ring-ring max-w-full truncate rounded-sm bg-transparent p-0 text-right text-xs leading-none hover:underline focus-visible:ring-1 focus-visible:outline-none"
               >
                 {formatAxisLabel(label)}
@@ -154,7 +177,13 @@ export function BreakdownCategoryTick({
               align="end"
               side="right"
               className="w-72 min-w-0"
-              onOpenAutoFocus={(e) => e.preventDefault()}
+              onOpenAutoFocus={(e) => {
+                // Hover must never steal focus; an explicit activation
+                // (click, Enter, Space) should — that's the ONLY path that
+                // moves focus into the content, making the copy button and
+                // link keyboard-reachable. See openReasonRef above.
+                if (openReasonRef.current === "pointer") e.preventDefault();
+              }}
               onMouseEnter={clearCloseTimer}
               onMouseLeave={scheduleClose}
               onEscapeKeyDown={clearCloseTimer}
