@@ -54,7 +54,7 @@ describe("IngestionService unit tests", () => {
     expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
   });
 
-  it("spills only the persisted event copy and preserves the enriched record", async () => {
+  it("spills only the direct events_full copy and preserves the enriched record", async () => {
     const addToQueue = vi.fn();
     const fieldSpillProcessor = vi.fn().mockResolvedValue({
       fields: {
@@ -117,36 +117,73 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("preserves usage for a previously spilled field during tokenization", async () => {
+  it("does not spill legacy observation or dual-write staging records", async () => {
+    const addToQueue = vi.fn();
+    const fieldSpillProcessor = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
       {} as any,
+      { addToQueue } as any,
       {} as any,
-      {} as any,
+      fieldSpillProcessor,
+    );
+    const timestamp = "2026-07-22T00:00:00.000Z";
+    const input = "x".repeat(11);
+    const output = "y".repeat(11);
+    const metadataValue = "z".repeat(11);
+    const observationEventList: ObservationEvent[] = [
+      {
+        id: "event-id",
+        timestamp,
+        type: "generation-create",
+        body: {
+          id: "observation-id",
+          traceId: "trace-id",
+          startTime: timestamp,
+          input,
+          output,
+          metadata: { large: metadataValue },
+          environment: "default",
+        },
+      },
+    ];
+
+    vi.spyOn(ingestionService as any, "getClickhouseRecord").mockResolvedValue(
+      null,
+    );
+    vi.spyOn(ingestionService as any, "getPrompt").mockResolvedValue(null);
+    vi.spyOn(ingestionService as any, "getGenerationUsage").mockResolvedValue(
+      {},
     );
 
-    const result = await (ingestionService as any).getUsageUnits(
-      {
-        id: "observation-id",
-        level: "DEFAULT",
-        input:
-          "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
-        output: "new output",
-        provided_usage_details: {},
-        usage_details: { input: 123 },
+    await (ingestionService as any).processObservationEventList({
+      projectId: "project-id",
+      entityId: "observation-id",
+      createdAtTimestamp: new Date(timestamp),
+      observationEventList,
+      writeToStagingTables: true,
+      attribution: {
+        ingestionApiKey: "api-key",
+        ingestionSdkName: "sdk",
+        ingestionSdkVersion: "1.0.0",
       },
-      {
-        id: "model-id",
-        tokenizerId: "openai",
-        tokenizerConfig: { tokenizerModel: "gpt-4o" },
-      },
-    );
+    });
 
-    expect(result.usage_details.input).toBe(123);
-    expect(result.usage_details.output).toBeGreaterThan(0);
-    expect(result.usage_details.total).toBe(
-      result.usage_details.input + result.usage_details.output,
-    );
+    expect(fieldSpillProcessor).not.toHaveBeenCalled();
+    for (const table of [
+      TableName.Observations,
+      TableName.ObservationsBatchStaging,
+    ]) {
+      expect(
+        addToQueue.mock.calls.find(
+          ([queuedTable]) => queuedTable === table,
+        )?.[1],
+      ).toMatchObject({
+        input,
+        output,
+        metadata: { large: metadataValue },
+      });
+    }
   });
 
   it("correctly sorts events in ascending order by timestamp", async () => {
