@@ -46,6 +46,10 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import {
+  getEffectiveSignupMode,
+  type SignupMode,
+} from "@/src/features/auth/lib/signupPolicy";
 
 const credentialAuthForm = z.object({
   email: z.email(),
@@ -92,6 +96,7 @@ export type PageProps = {
   };
   runningOnHuggingFaceSpaces: boolean;
   signUpDisabled: boolean;
+  signUpMode: SignupMode;
   emailVerificationRequired: boolean;
 };
 
@@ -99,6 +104,8 @@ export type PageProps = {
 
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   const sso: boolean = await isAnySsoConfigured();
+  const signUpMode = getEffectiveSignupMode();
+
   return {
     props: {
       authProviders: {
@@ -175,7 +182,8 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
             : false,
         sso,
       },
-      signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      signUpDisabled: signUpMode === "disabled",
+      signUpMode,
       emailVerificationRequired: isEmailVerificationRequired(),
       runningOnHuggingFaceSpaces: env.NEXTAUTH_URL?.replace(
         "/api/auth",
@@ -226,8 +234,7 @@ export function SSOButtons({
       });
   };
 
-  // Only show separator if credentials are enabled (for sign-in) or if action is sign-up (which always has the form)
-  const showSeparator = authProviders.credentials || action !== "sign in";
+  const showSeparator = authProviders.credentials;
 
   return (
     // any authprovider from props is enabled
@@ -535,6 +542,7 @@ const signInErrors = [
 export default function SignIn({
   authProviders,
   signUpDisabled,
+  signUpMode,
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   const router = useRouter();
@@ -863,6 +871,7 @@ export default function SignIn({
           </div>
 
           {!signUpDisabled &&
+          signUpMode === "open" &&
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
             <p className="text-muted-foreground mt-10 text-center text-sm">
