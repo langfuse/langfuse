@@ -353,7 +353,26 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 45,
-        avg_cost: 0.5,
+        // count-weighted average, not an average of averages:
+        // (0.5*10 + 0.6*15 + 0.4*20) / (10+15+20) = 22/45
+        avg_cost: 0.4888888889,
+      });
+    });
+
+    it("weights averages by count instead of averaging the averages", () => {
+      // Two groups of very different sizes. Average of the per-row averages is
+      // (90 + 60) / 2 = 75, but the true overall average weighted by count is
+      // (90*10 + 60*5) / 15 = 80.
+      const data: DatabaseRow[] = [
+        { count: 10, avg_score: 90 },
+        { count: 5, avg_score: 60 },
+      ];
+
+      const result = calculateSubtotals(data, ["count", "avg_score"]);
+
+      expect(result).toEqual({
+        count: 15,
+        avg_score: 80,
       });
     });
 
@@ -368,7 +387,10 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 25,
-        avg_cost: 0.3,
+        // Weighted by count (missing fields coerce to 0, as elsewhere in this
+        // file): (0*10 + 0.6*15) / (10+15) = 0.36. The row with no count carries
+        // no weight and drops out.
+        avg_cost: 0.36,
       });
     });
 
@@ -388,7 +410,9 @@ describe("pivot-table-utils", () => {
 
       expect(result).toEqual({
         count: 75, // 10 + 15 + 20 + 25 + 5
-        avg_cost: 0.5, // (0.5 + 0.6 + 0.2 + 0.4 + 0.8) / 5
+        // count-weighted average, not an average of averages:
+        // (0.5*10 + 0.6*15 + 0.2*20 + 0.4*25 + 0.8*5) / 75 = 32/75
+        avg_cost: 0.4266666667,
       });
     });
 
@@ -456,7 +480,8 @@ describe("pivot-table-utils", () => {
         });
         expect(result[0].values).toEqual({
           count: 75,
-          avg_cost: 0.5,
+          // count-weighted grand-total average (32/75), see calculateGrandTotals
+          avg_cost: 0.4266666667,
         });
       });
 
