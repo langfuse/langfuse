@@ -1608,9 +1608,11 @@ export const getObservationsGroupedByTraceId = async (
 export const getObservationCountsByProjectInCreationInterval = async ({
   start,
   end,
+  projectId,
 }: {
   start: Date;
   end: Date;
+  projectId?: string;
 }) => {
   const query = `
     SELECT
@@ -1619,6 +1621,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
     FROM observations
     WHERE created_at >= {start: DateTime64(3)}
     AND created_at < {end: DateTime64(3)}
+    ${projectId ? "AND project_id = {projectId: String}" : ""}
     GROUP BY project_id
   `;
 
@@ -1627,6 +1630,7 @@ export const getObservationCountsByProjectInCreationInterval = async ({
     params: {
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
+      ...(projectId ? { projectId } : {}),
     },
     clickhouseConfigs: {
       request_timeout: 300000, // 5 minutes timeout

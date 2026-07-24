@@ -11,21 +11,22 @@ import { useBillingInformation } from "./useBillingInformation";
 import { StripeCancellationButton } from "./StripeCancellationButton";
 
 export const BillingActionButtons = () => {
-  const { organization, hasValidPaymentMethod, isLoading } =
-    useBillingInformation();
+  const {
+    organization,
+    hasActiveSubscription,
+    hasValidPaymentMethod,
+    isLoading,
+  } = useBillingInformation();
   const { setOpen } = useSupportDrawer();
   const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
 
   // Show pricing page button
   const shouldDisableChangePlan = useMemo(() => {
-    if (!organization?.cloudConfig?.stripe?.activeSubscriptionId) {
+    if (!hasActiveSubscription) {
       return false; // always show for hobby plan users
     }
     return !hasValidPaymentMethod;
-  }, [
-    organization?.cloudConfig?.stripe?.activeSubscriptionId,
-    hasValidPaymentMethod,
-  ]);
+  }, [hasActiveSubscription, hasValidPaymentMethod]);
 
   // Do not show checkout or customer portal if manual plan is set in cloud config
   if (organization?.cloudConfig?.plan) {
@@ -55,7 +56,7 @@ export const BillingActionButtons = () => {
         {/* Always show – also for people who are currently on hobby plan */}
         <BillingSwitchPlanDialog disabled={shouldDisableChangePlan} />
 
-        {organization?.cloudConfig?.stripe?.activeSubscriptionId && (
+        {organization && hasActiveSubscription && (
           <>
             <StripeCustomerPortalButton
               orgId={organization.id}
@@ -74,14 +75,11 @@ export const BillingActionButtons = () => {
           </Link>
         </Button>
       </div>
-      {organization?.cloudConfig?.stripe?.activeSubscriptionId &&
-        !hasValidPaymentMethod &&
-        !isLoading && (
-          <p className="text-sm text-red-600">
-            You do not have a valid payment method. Please Update Billing
-            Details.
-          </p>
-        )}
+      {hasActiveSubscription && !hasValidPaymentMethod && !isLoading && (
+        <p className="text-sm text-red-600">
+          You do not have a valid payment method. Please Update Billing Details.
+        </p>
+      )}
     </div>
   );
 };

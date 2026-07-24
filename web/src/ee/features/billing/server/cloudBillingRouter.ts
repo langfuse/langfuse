@@ -10,7 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { logger } from "@langfuse/shared/src/server";
-import { createBillingServiceFromContext } from "./stripeBillingService";
+import { resolveBillingService } from "./resolveBillingService";
 import { isCloudBillingEnabled } from "../utils/isCloudBilling";
 
 export const cloudBillingRouter = createTRPCRouter({
@@ -44,13 +44,16 @@ export const cloudBillingRouter = createTRPCRouter({
           scheduledChange: null,
           billingPeriod: null,
           hasValidPaymentMethod: false,
+          billingProvider: "stripe" as const,
         };
       }
 
-      const res = await createBillingServiceFromContext(
+      const { billingProvider, service } = await resolveBillingService(
         ctx,
-      ).getSubscriptionInfo(input.orgId);
-      return res;
+        input.orgId,
+      );
+      const res = await service.getSubscriptionInfo(input.orgId);
+      return { ...res, billingProvider };
     }),
   createStripeCheckoutSession: protectedOrganizationProcedure
     .input(
@@ -80,8 +83,8 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
-      const url = await stripeBillingService.createCheckoutSession(
+      const { service } = await resolveBillingService(ctx, input.orgId);
+      const url = await service.createCheckoutSession(
         input.orgId,
         input.stripeProductId,
       );
@@ -124,9 +127,11 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.changePlan(input.orgId, input.stripeProductId);
+      // opId is intentionally not forwarded: the Stripe path never received
+      // it here, and §4.2 keeps Stripe behavior byte-identical.
+      await service.changePlan(input.orgId, input.stripeProductId);
     }),
   cancelStripeSubscription: protectedOrganizationProcedure
     .input(
@@ -155,9 +160,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.cancel(input.orgId, input.opId);
+      await service.cancel(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -188,9 +193,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.reactivate(input.orgId, input.opId);
+      await service.reactivate(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -216,12 +221,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      await stripeBillingService.clearPlanSwitchSchedule(
-        input.orgId,
-        input.opId,
-      );
+      await service.clearPlanSwitchSchedule(input.orgId, input.opId);
 
       return { ok: true } as const;
     }),
@@ -253,9 +255,8 @@ export const cloudBillingRouter = createTRPCRouter({
       }
 
       try {
-        return await createBillingServiceFromContext(ctx).getCustomerPortalUrl(
-          input.orgId,
-        );
+        const { service } = await resolveBillingService(ctx, input.orgId);
+        return await service.getCustomerPortalUrl(input.orgId);
       } catch (error) {
         logger.error("cloudBilling.getStripeCustomerPortalUrl:error", {
           orgId: input.orgId,
@@ -301,14 +302,12 @@ export const cloudBillingRouter = createTRPCRouter({
       }
 
       try {
-        return await createBillingServiceFromContext(ctx).getInvoices(
-          input.orgId,
-          {
-            limit: input.limit,
-            startingAfter: input.startingAfter,
-            endingBefore: input.endingBefore,
-          },
-        );
+        const { service } = await resolveBillingService(ctx, input.orgId);
+        return await service.getInvoices(input.orgId, {
+          limit: input.limit,
+          startingAfter: input.startingAfter,
+          endingBefore: input.endingBefore,
+        });
       } catch (error) {
         logger.error("cloudBilling.getInvoices:error", {
           orgId: input.orgId,
@@ -352,9 +351,9 @@ export const cloudBillingRouter = createTRPCRouter({
         return null;
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      return await stripeBillingService.getUsage(input.orgId);
+      return await service.getUsage(input.orgId);
     }),
   applyPromotionCode: protectedOrganizationProcedure
     .input(
@@ -384,9 +383,9 @@ export const cloudBillingRouter = createTRPCRouter({
         });
       }
 
-      const stripeBillingService = createBillingServiceFromContext(ctx);
+      const { service } = await resolveBillingService(ctx, input.orgId);
 
-      const result = await stripeBillingService.applyPromotionCode(
+      const result = await service.applyPromotionCode(
         input.orgId,
         input.code,
         input.opId,

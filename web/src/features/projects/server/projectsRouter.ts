@@ -20,6 +20,7 @@ import {
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -64,6 +65,13 @@ export const projectsRouter = createTRPCRouter({
         resourceId: project.id,
         action: "create",
         after: project,
+      });
+
+      // Best-effort CHB metering signal; no-op unless the org is CHB-billed
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.orgId,
+        projectId: project.id,
       });
 
       return {
@@ -208,6 +216,14 @@ export const projectsRouter = createTRPCRouter({
         resourceId: input.projectId,
         before: project,
         action: "delete",
+      });
+
+      // Soft-delete is the billing-relevant moment: the customer stops being
+      // billable now, not when the async hard-delete worker finishes.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
       });
 
       const projectDeleteQueue = ProjectDeleteQueue.getInstance();
