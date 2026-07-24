@@ -36,12 +36,27 @@ export const DetailPageNav = (props: {
   compact?: boolean;
   /**
    * Labeled ghost links per the session-detail redesign:
-   * `⌃ Prev K` / `Next J ⌄`, tertiary grey, darkening on hover.
+   * `⌃ Prev` / `Next ⌄`, tertiary grey, darkening on hover.
    */
   ghostLabeled?: boolean;
+  /**
+   * Disable the global j/k listener (and hide the K/J hints). The Modern
+   * Session page claims j/k for stepping TURNS inside the workspace, so
+   * session paging there is button-only — the two must not fight over the
+   * same keys.
+   */
+  keyboardShortcuts?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact, ghostLabeled } =
-    props;
+  const {
+    currentId,
+    path,
+    listKey,
+    onNavigate,
+    size,
+    compact,
+    ghostLabeled,
+    keyboardShortcuts = true,
+  } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -115,6 +130,7 @@ export const DetailPageNav = (props: {
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
+    if (!keyboardShortcuts) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       // don't trigger keyboard shortcuts if the user is typing in an input
       if (
@@ -140,7 +156,13 @@ export const DetailPageNav = (props: {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
+  }, [
+    keyboardShortcuts,
+    previousPageEntry,
+    nextPageEntry,
+    navigateToEntry,
+    pulseShortcut,
+  ]);
 
   if (entries.length > 1 && ghostLabeled) {
     const linkClassName = (active: boolean) =>
@@ -165,7 +187,7 @@ export const DetailPageNav = (props: {
         >
           <ChevronUp className="h-3.5 w-3.5" />
           Prev
-          <KeyboardShortcut>K</KeyboardShortcut>
+          {keyboardShortcuts && <KeyboardShortcut>K</KeyboardShortcut>}
         </Button>
         <Button
           variant="ghost"
@@ -180,7 +202,7 @@ export const DetailPageNav = (props: {
           }}
         >
           Next
-          <KeyboardShortcut>J</KeyboardShortcut>
+          {keyboardShortcuts && <KeyboardShortcut>J</KeyboardShortcut>}
           <ChevronDown className="h-3.5 w-3.5" />
         </Button>
       </div>

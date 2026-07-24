@@ -467,8 +467,9 @@ export const TraceEventsRow = React.memo(
             {surface === "modern" &&
             idleGapSeconds != null &&
             idleGapSeconds >= IDLE_GAP_THRESHOLD_SECONDS ? (
-              <div className="mx-auto mt-5 mb-1 flex w-full max-w-[720px] items-center gap-2.5">
-                <span className="border-border-contrast flex-1 border-t border-dashed" />
+              // Idle band: subtle cross-hatch fill (handoff v3), drawn from
+              // the theme's foreground so both modes stay defined.
+              <div className="mx-auto mt-5 mb-1 flex w-full max-w-[720px] items-center gap-2 rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2.5 py-1.5">
                 <Clock
                   className="text-muted-foreground h-3 w-3 shrink-0"
                   strokeWidth={1.5}
@@ -476,7 +477,6 @@ export const TraceEventsRow = React.memo(
                 <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
                   +{formatIdleGap(idleGapSeconds)} idle
                 </span>
-                <span className="border-border-contrast flex-1 border-t border-dashed" />
               </div>
             ) : null}
             {/* Sticky turn divider: `N · HH:MM:SS · dashed`, pinned to the
@@ -488,10 +488,10 @@ export const TraceEventsRow = React.memo(
                   onClick={onSelectTurn}
                   className="text-muted-foreground hover:text-foreground mx-auto flex w-full max-w-[720px] cursor-pointer items-center gap-2 py-[5px] transition-colors duration-150"
                 >
-                  <span className="font-mono text-[10px] leading-4">
-                    {turnNumber}
+                  <span className="font-mono text-[10px] leading-4 tracking-[0.05em] uppercase">
+                    Turn {turnNumber}
                   </span>
-                  <span className="font-mono text-[10px]">
+                  <span className="text-foreground-tertiary font-mono text-[10px]">
                     {trace.timestamp.toLocaleTimeString(undefined, {
                       hour12: false,
                     })}

@@ -517,8 +517,10 @@ const SessionMetricsLine: React.FC<{
         </span>
       </SummaryChip>
       {scores.map((score) => {
-        // Fractional numeric scores get the design's tinted progress-bar
-        // treatment (amber ≈ --dark-yellow); everything else stays neutral.
+        // Fractional numeric scores get the design's amber status dot
+        // (handoff v3); everything else stays neutral. NOTE: no score-target
+        // datum exists, so the dot marks "fractional quality score", not
+        // "below target".
         const isFraction =
           score.dataType === "NUMERIC" &&
           score.value !== null &&
@@ -526,27 +528,14 @@ const SessionMetricsLine: React.FC<{
           score.value >= 0 &&
           score.value <= 1;
         return (
-          <SummaryChip
-            key={score.id}
-            title={score.name}
-            className={
-              isFraction
-                ? "border-dark-yellow/50 bg-dark-yellow/[0.06]"
-                : undefined
-            }
-          >
+          <SummaryChip key={score.id} title={score.name}>
+            {isFraction ? (
+              <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
+            ) : null}
             <span className="max-w-40 truncate" title={score.name}>
               {score.name}
             </span>
             <ChipValue>{scoreChipValue(score)}</ChipValue>
-            {isFraction ? (
-              <span className="bg-dark-yellow/20 inline-block h-1 w-[34px] overflow-hidden rounded-sm">
-                <span
-                  className="bg-dark-yellow block h-full"
-                  style={{ width: `${Math.round((score.value ?? 0) * 100)}%` }}
-                />
-              </span>
-            ) : null}
           </SummaryChip>
         );
       })}
@@ -1618,6 +1607,9 @@ const LoadedSessionEventsPage: React.FC<{
                   }
                   listKey="sessions"
                   ghostLabeled={isModernSessionEnabled}
+                  // Modern Session claims j/k for stepping turns inside the
+                  // workspace; session paging stays on the header buttons.
+                  keyboardShortcuts={!isModernSessionEnabled}
                 />
               )}
               <CommentDrawerButton

@@ -29,6 +29,10 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/components/session/sessionIdleGap";
 import { observationTypeIcon } from "@/src/components/session/sessionTypeIcons";
+import {
+  computeTurnLatencyPercentiles,
+  type TurnLatencyPercentile,
+} from "@/src/components/session/sessionPercentiles";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -166,6 +170,20 @@ const TurnObservationRows = ({
   );
 };
 
+/**
+ * `exact seconds · tokens · cost` tooltip of a turn row — REAL trace data
+ * only; parts without a datum are omitted (never fabricated).
+ */
+const turnMetricsTooltip = (trace: EventSessionTrace): string | undefined => {
+  const parts: string[] = [];
+  if (trace.latencyMs !== null && trace.latencyMs > 0)
+    parts.push(`${(trace.latencyMs / 1000).toFixed(2)}s`);
+  if (trace.totalUsage !== null)
+    parts.push(`${trace.totalUsage.toLocaleString("en-US")} tok`);
+  if (trace.totalCost !== null) parts.push(`$${trace.totalCost.toFixed(4)}`);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+};
+
 const TurnCard = React.memo(
   ({
     trace,
@@ -180,6 +198,7 @@ const TurnCard = React.memo(
     filterState,
     typeFilter,
     search,
+    percentile,
   }: {
     trace: EventSessionTrace;
     index: number;
@@ -193,6 +212,8 @@ const TurnCard = React.memo(
     filterState: FilterState;
     typeFilter: Set<string>;
     search: string;
+    /** Session-relative latency rank (null = no latency datum). */
+    percentile: TurnLatencyPercentile | null;
   }) => {
     const openInspector = useSessionDetailStore(
       (state) => state.actions.openInspector,
@@ -214,6 +235,7 @@ const TurnCard = React.memo(
             // metrics, and scores that the minimal cards no longer show).
             openInspector({ traceId: trace.id, observationId: null });
           }}
+          title={turnMetricsTooltip(trace)}
           className="flex w-full items-center gap-[7px] text-left"
           aria-current={isActive ? "true" : undefined}
         >
@@ -278,9 +300,18 @@ const TurnCard = React.memo(
           >
             <ExternalLink className="h-3 w-3" />
           </span>
-          {trace.latencyMs !== null && trace.latencyMs > 0 ? (
-            <span className="text-muted-foreground shrink-0 font-mono text-[11px]">
-              {formatIntervalSeconds(trace.latencyMs / 1000)}
+          {/* Session-relative latency percentile (real latencies only);
+              amber at/above p90. Exact metrics live in the row tooltip. */}
+          {percentile ? (
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[11px]",
+                percentile.isSlow
+                  ? "text-dark-yellow"
+                  : "text-muted-foreground",
+              )}
+            >
+              {percentile.label}
             </span>
           ) : null}
         </button>
@@ -360,6 +391,19 @@ export function ObservationList({
     [traces],
   );
 
+  // Session-relative latency percentile per turn, from REAL trace latencies.
+  const percentiles = useMemo(
+    () =>
+      computeTurnLatencyPercentiles(
+        traces.map((trace) =>
+          trace.latencyMs !== null && trace.latencyMs > 0
+            ? trace.latencyMs
+            : null,
+        ),
+      ),
+    [traces],
+  );
+
   // Types offered by the funnel: the base set plus any extra types present in
   // already-loaded observation pages (scanned from the query cache on render).
   const filterTypes = useMemo(() => {
@@ -409,7 +453,7 @@ export function ObservationList({
         type="button"
         onClick={onToggleOpen}
         aria-label="Expand span list"
-        className="hover:bg-muted relative z-20 flex min-h-0 items-center gap-2.5 rounded-sm px-3 transition-colors duration-150 lg:flex-col lg:px-0 lg:pt-3"
+        className="hover:bg-muted relative flex min-h-0 items-center gap-2.5 rounded-sm px-3 transition-colors duration-150 lg:flex-col lg:px-0 lg:pt-3"
       >
         <ChevronsRight className="text-muted-foreground h-3.5 w-3.5" />
         <span className="text-muted-foreground font-mono text-[10px] tracking-[0.05em] uppercase lg:[writing-mode:vertical-rl]">
@@ -423,14 +467,18 @@ export function ObservationList({
     <div
       role="complementary"
       aria-label="Session spans"
-      // z-20 lifts the rail above the inspector's click-catcher (z-10) so
-      // clicking cards/rows swaps the inspector instead of merely closing it.
-      className="relative z-20 flex min-h-0 flex-col"
+      className="relative flex min-h-0 flex-col"
     >
       <div className="border-border-contrast flex shrink-0 items-center justify-between border-b border-dashed px-3 py-[7px]">
-        <RailEyebrow>Spans</RailEyebrow>
-        <span className="text-muted-foreground font-mono text-[10px]">
-          {totalSpanCount}
+        <RailEyebrow>
+          Traces{" "}
+          <span className="text-foreground-tertiary">· {traces.length}</span>
+        </RailEyebrow>
+        <span
+          className="text-muted-foreground font-mono text-[10px]"
+          title={`${totalSpanCount} spans`}
+        >
+          {totalSpanCount} spans
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-1.5 px-2.5 pt-2.5 pb-2">
@@ -495,7 +543,7 @@ export function ObservationList({
       <div className="flex shrink-0 items-center justify-between px-3 pb-1.5">
         <RailEyebrow>Grouped by chat-turn</RailEyebrow>
         <span className="text-muted-foreground font-mono text-[10px]">
-          ↑↓ to move
+          ↑↓ · j/k to move
         </span>
       </div>
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
@@ -523,11 +571,12 @@ export function ObservationList({
                 {gap !== null &&
                 gap !== undefined &&
                 gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
-                  <div className="flex items-center gap-1.5 py-[3px] pr-2 pl-[30px]">
-                    <span className="text-muted-foreground font-mono text-[9px] whitespace-nowrap">
+                  // Idle band: subtle cross-hatch fill (handoff v3), drawn
+                  // from the theme's foreground so both modes stay defined.
+                  <div className="mx-0.5 mb-[5px] flex items-center rounded-sm bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-2 py-[5px]">
+                    <span className="text-muted-foreground font-mono text-[10px] whitespace-nowrap">
                       +{formatIdleGap(gap)} idle
                     </span>
-                    <span className="border-border-contrast flex-1 border-t border-dashed" />
                   </div>
                 ) : null}
                 <TurnCard
@@ -543,6 +592,7 @@ export function ObservationList({
                   filterState={filterState}
                   typeFilter={typeFilter}
                   search={search}
+                  percentile={percentiles[virtualItem.index] ?? null}
                 />
               </SessionVirtualizedRow>
             );
