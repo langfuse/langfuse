@@ -2,6 +2,7 @@ import {
   InternalServerError,
   PromptWebhookOutboundSchema,
   WebhookDefaultHeaders,
+  WebhookSignatureHeader,
   ActionExecutionStatus,
   LangfuseNotFoundError,
   JobConfigState,
@@ -550,7 +551,7 @@ async function executeWebhookAction({
   try {
     const decryptedSecret = decrypt(webhookConfig.secretKey);
     const signature = createSignatureHeader(webhookPayload, decryptedSecret);
-    requestHeaders["x-langfuse-signature"] = signature;
+    requestHeaders[WebhookSignatureHeader] = signature;
   } catch (error) {
     logger.error(
       "Failed to decrypt webhook secret or generate signature",

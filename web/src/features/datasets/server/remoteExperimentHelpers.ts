@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { RequestHeaderSchema } from "@langfuse/shared";
+import {
+  RequestHeaderSchema,
+  WebhookDefaultHeaders,
+  WebhookSignatureHeader,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   decrypt,
@@ -24,6 +28,16 @@ export type RemoteExperimentHeaders = z.infer<
   typeof RemoteExperimentHeadersSchema
 >;
 
+const remoteExperimentConfigSelect = {
+  id: true,
+  name: true,
+  remoteExperimentUrl: true,
+  remoteExperimentPayload: true,
+  remoteExperimentEnabled: true,
+  remoteExperimentDisplaySecretKey: true,
+  remoteExperimentRequestHeaders: true,
+} as const;
+
 export function parseStoredRemoteExperimentHeaders(
   stored: unknown,
 ): RemoteExperimentHeaders {
@@ -32,11 +46,9 @@ export function parseStoredRemoteExperimentHeaders(
 }
 
 /**
- * Single read path for remote experiment configuration including the
- * secret-bearing columns that are globally omitted from Prisma results
- * (see db.ts). Routes must use this helper instead of selecting
- * `remoteExperimentSecretKey` / `remoteExperimentRequestHeaders` directly, so
- * secret access stays auditable in one place.
+ * Read path for remote experiment delivery. The signing secret is globally
+ * omitted from Prisma results (see db.ts) and is selected here only for
+ * server-side request signing.
  */
 export async function getRemoteExperimentConfigWithSecrets({
   projectId,
@@ -50,15 +62,24 @@ export async function getRemoteExperimentConfigWithSecrets({
       id_projectId: { id: datasetId, projectId },
     },
     select: {
-      id: true,
-      name: true,
-      remoteExperimentUrl: true,
-      remoteExperimentPayload: true,
-      remoteExperimentEnabled: true,
+      ...remoteExperimentConfigSelect,
       remoteExperimentSecretKey: true,
-      remoteExperimentDisplaySecretKey: true,
-      remoteExperimentRequestHeaders: true,
     },
+  });
+}
+
+export async function getRemoteExperimentConfig({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
+  return prisma.dataset.findUnique({
+    where: {
+      id_projectId: { id: datasetId, projectId },
+    },
+    select: remoteExperimentConfigSelect,
   });
 }
 
@@ -163,16 +184,14 @@ export function processRemoteExperimentHeaders(
  * generated and must only be used for one-time display.
  */
 export function ensureRemoteExperimentSecret(existing: {
-  secretKey: string | null;
   displaySecretKey: string | null;
 }): {
-  secretKey: string;
-  displaySecretKey: string;
+  secretKey?: string;
+  displaySecretKey?: string;
   unencryptedSecretKey?: string;
 } {
-  if (existing.secretKey && existing.displaySecretKey) {
+  if (existing.displaySecretKey) {
     return {
-      secretKey: existing.secretKey,
       displaySecretKey: existing.displaySecretKey,
     };
   }
@@ -222,10 +241,10 @@ export function buildRemoteExperimentRequest({
     }
   }
 
-  headers["Content-Type"] = "application/json";
+  Object.assign(headers, WebhookDefaultHeaders);
 
   if (encryptedSecretKey) {
-    headers["x-langfuse-signature"] = createSignatureHeader(
+    headers[WebhookSignatureHeader] = createSignatureHeader(
       body,
       decrypt(encryptedSecretKey),
     );

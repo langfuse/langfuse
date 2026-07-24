@@ -99,6 +99,7 @@ import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
+  getRemoteExperimentConfig,
   getRemoteExperimentConfigWithSecrets,
   parseStoredRemoteExperimentHeaders,
   processRemoteExperimentHeaders,
@@ -2149,9 +2150,9 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      // Secret-bearing columns are required to preserve existing secrets
-      // across updates; read them through the centralized helper.
-      const dataset = await getRemoteExperimentConfigWithSecrets({
+      // Read encrypted custom headers to preserve masked values on update.
+      // The signing secret itself is preserved by leaving its columns untouched.
+      const dataset = await getRemoteExperimentConfig({
         projectId: input.projectId,
         datasetId: input.datasetId,
       });
@@ -2181,7 +2182,6 @@ export const datasetRouter = createTRPCRouter({
 
       const { secretKey, displaySecretKey, unencryptedSecretKey } =
         ensureRemoteExperimentSecret({
-          secretKey: dataset.remoteExperimentSecretKey,
           displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
         });
 
@@ -2198,8 +2198,12 @@ export const datasetRouter = createTRPCRouter({
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
           remoteExperimentEnabled: input.enabled,
-          remoteExperimentSecretKey: secretKey,
-          remoteExperimentDisplaySecretKey: displaySecretKey,
+          ...(secretKey && displaySecretKey
+            ? {
+                remoteExperimentSecretKey: secretKey,
+                remoteExperimentDisplaySecretKey: displaySecretKey,
+              }
+            : {}),
           remoteExperimentRequestHeaders: requestHeaders,
           remoteExperimentDisplayHeaders: displayHeaders,
         },

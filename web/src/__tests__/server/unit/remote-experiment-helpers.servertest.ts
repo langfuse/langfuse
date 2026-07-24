@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import crypto from "crypto";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { LangfuseUserAgent } from "@langfuse/shared";
 import { fetchWithSecureRedirects } from "@langfuse/shared/src/server";
 import {
   buildRemoteExperimentRequest,
@@ -45,7 +46,8 @@ describe("buildRemoteExperimentRequest", () => {
     });
 
     expect(headers["x-langfuse-signature"]).toBeUndefined();
-    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["user-agent"]).toBe(LangfuseUserAgent);
     expect(JSON.parse(body)).toEqual({ projectId: "p1" });
   });
 
@@ -63,8 +65,8 @@ describe("buildRemoteExperimentRequest", () => {
 
     expect(headers["authorization"]).toBe("Bearer token-123");
     expect(headers["x-environment"]).toBe("production");
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers["content-type"]).toBeUndefined();
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["user-agent"]).toBe(LangfuseUserAgent);
     expect(headers["x-langfuse-signature"]).toMatch(/^t=\d+,v1=[a-f0-9]{64}$/);
   });
 
@@ -259,18 +261,16 @@ describe("processRemoteExperimentHeaders", () => {
 describe("ensureRemoteExperimentSecret", () => {
   it("keeps an existing secret and returns no one-time value", () => {
     const result = ensureRemoteExperimentSecret({
-      secretKey: "encrypted-secret",
       displaySecretKey: "lf-whsec_...abcd",
     });
 
-    expect(result.secretKey).toBe("encrypted-secret");
     expect(result.displaySecretKey).toBe("lf-whsec_...abcd");
+    expect(result.secretKey).toBeUndefined();
     expect(result.unencryptedSecretKey).toBeUndefined();
   });
 
   it("generates an encrypted secret with masked display and a one-time plaintext", () => {
     const result = ensureRemoteExperimentSecret({
-      secretKey: null,
       displaySecretKey: null,
     });
 

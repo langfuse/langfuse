@@ -2,9 +2,14 @@ import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
 import { EventActionSchema } from "./automations";
 
+export const WebhookContentTypeHeader = "content-type";
+export const WebhookSignatureHeader = "x-langfuse-signature";
+export const WebhookUserAgentHeader = "user-agent";
+export const LangfuseUserAgent = "Langfuse/1.0";
+
 export const WebhookDefaultHeaders = {
-  "content-type": "application/json",
-  "user-agent": "Langfuse/1.0",
+  [WebhookContentTypeHeader]: "application/json",
+  [WebhookUserAgentHeader]: LangfuseUserAgent,
 };
 
 export const WebhookOutboundBaseSchema = z.object({
