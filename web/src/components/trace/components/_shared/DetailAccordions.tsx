@@ -124,6 +124,18 @@ export const ScoresAccordion = ({
 };
 
 /**
+ * `N items` count for the Metadata accordion header: object keys, array
+ * elements, or 1 for a scalar value. Shared by TraceSidePanel and
+ * TraceDetailView so the two panels can't drift.
+ */
+export const countMetadataItems = (value: unknown): number => {
+  if (value !== null && typeof value === "object") {
+    return Array.isArray(value) ? value.length : Object.keys(value).length;
+  }
+  return 1;
+};
+
+/**
  * Collapsed height of the metadata body — matches the inspector's output cap
  * of 10 text-xs lines (12px × 1.625 leading ≈ 195px ≈ 200px).
  */

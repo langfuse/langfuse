@@ -30,6 +30,7 @@ import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPat
 import { TraceDetailViewHeader } from "./TraceDetailViewHeader";
 import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
 import {
+  countMetadataItems,
   MetadataAccordion,
   ScoresAccordion,
 } from "@/src/components/trace/components/_shared/DetailAccordions";
@@ -177,12 +178,7 @@ export function TraceDetailView({
           deepParseJson(trace.metadata, { maxSize: 100_000, maxDepth: 2 })),
     [isParsing, parsedMetadata, trace.metadata],
   );
-  const metadataItemCount =
-    accordionMetadata !== null &&
-    typeof accordionMetadata === "object" &&
-    !Array.isArray(accordionMetadata)
-      ? Object.keys(accordionMetadata).length
-      : 1;
+  const metadataItemCount = countMetadataItems(accordionMetadata);
   const metadataActions = useMemo<MetadataFilterActions>(
     () => ({ projectId, filterTarget: "traces" }),
     [projectId],

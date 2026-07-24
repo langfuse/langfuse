@@ -27,6 +27,7 @@ import { useJsonExpansion } from "@/src/components/trace/contexts/JsonExpansionC
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { ZoneDivider } from "@/src/components/trace/components/_shared/InspectorElements";
 import {
+  countMetadataItems,
   MetadataAccordion,
   ScoresAccordion,
 } from "@/src/components/trace/components/_shared/DetailAccordions";
@@ -237,12 +238,7 @@ export function TraceSidePanel({
           })),
     [io.isParsing, io.parsedMetadata, io.metadata],
   );
-  const metadataItemCount =
-    accordionMetadata !== null &&
-    typeof accordionMetadata === "object" &&
-    !Array.isArray(accordionMetadata)
-      ? Object.keys(accordionMetadata).length
-      : 1;
+  const metadataItemCount = countMetadataItems(accordionMetadata);
   const metadataActions = useMemo<MetadataFilterActions>(
     () => ({ projectId, filterTarget: "observations" }),
     [projectId],
