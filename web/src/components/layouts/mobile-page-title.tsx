@@ -66,9 +66,21 @@ export const MobilePageTitle = ({
           so the header top block stays ~2 rows instead of the 4–5 it used to
           take (a big labelled type chip, a text-2xl title, then each action
           cluster wrapping onto its own row). */}
-      <div className="mt-1 flex min-w-0 items-center gap-2">
-        {itemType && <ItemBadge type={itemType} />}
-        <h1 className="text-primary text-base leading-tight font-bold wrap-break-word">
+      <div className="mt-2 flex min-w-0 items-center gap-2">
+        {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
+            session id, the common case) squeezes it. */}
+        {itemType && (
+          <span className="flex shrink-0 items-center">
+            <ItemBadge type={itemType} />
+          </span>
+        )}
+        {/* min-w-0 + truncate: long titles ellipsize on one line instead of
+            pushing the ⋯ flush against the edge or crushing the icon. Full value
+            stays in the title attribute (and the ⋯ menu's Copy row). */}
+        <h1
+          title={title}
+          className="text-primary min-w-0 flex-1 truncate text-base leading-tight font-bold"
+        >
           {titleContent ? (
             titleContent
           ) : titleTooltip ? (
@@ -135,8 +147,12 @@ export const MobilePageTitle = ({
       {/* Hoisted page controls (time range, auto-refresh). The assistant
           launcher lives in the sticky MobileTopBar now (prominent + always
           reachable), not here where it wrapped onto its own line and shrank to
-          an easily-missed icon. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+          an easily-missed icon. The slot target is `display:contents`, so on
+          pages that hoist nothing (traces, session/trace detail) this wrapper is
+          empty — gate its top margin on actually having portaled controls
+          (`:has(>*>*)` = the contents target has children), so an empty slot
+          adds no phantom gap below the title. */}
+      <div className="flex flex-wrap items-center gap-2 [&:has(>*>*)]:mt-2">
         <PageHeaderControlsSlotTarget />
       </div>
 
