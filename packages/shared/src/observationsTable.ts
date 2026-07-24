@@ -92,7 +92,9 @@ export const observationsTableCols: ColumnDefinition[] = [
     name: "Tokens per second",
     id: "tokensPerSecond",
     type: "number",
-    internal: 'o."completion_tokens" / "latency"',
+    // Align with Metrics `outputTokensPerSecond`: exclude time-to-first-token.
+    internal:
+      'o."completion_tokens" / NULLIF(EXTRACT(EPOCH FROM (o."end_time" - o."completion_start_time")), 0)',
     nullable: true,
   },
   {

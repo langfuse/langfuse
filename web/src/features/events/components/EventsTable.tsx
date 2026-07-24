@@ -42,6 +42,7 @@ import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
 import {
   compactNumberFormatter,
+  getOutputTokensPerSecond,
   numberFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
@@ -1437,18 +1438,20 @@ export default function ObservationsEventsTable({
           size: 200,
           cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
+            const timeToFirstToken: number | undefined =
+              row.getValue("timeToFirstToken");
             const usage = row.getValue("usage") as {
               inputUsage: number;
               outputUsage: number;
               totalUsage: number;
             };
-            return latency !== undefined &&
-              (usage.outputUsage !== 0 || usage.totalUsage !== 0) ? (
-              <span>
-                {usage.outputUsage && latency
-                  ? Number((usage.outputUsage / latency).toFixed(1))
-                  : undefined}
-              </span>
+            const tokensPerSecond = getOutputTokensPerSecond(
+              usage.outputUsage,
+              latency,
+              timeToFirstToken,
+            );
+            return tokensPerSecond !== undefined ? (
+              <span>{tokensPerSecond}</span>
             ) : undefined;
           },
           defaultHidden: true,

@@ -51,7 +51,11 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { LevelColors } from "@/src/components/level-colors";
-import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
+import {
+  getOutputTokensPerSecond,
+  numberFormatter,
+  usdFormatter,
+} from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { MemoizedIOTableCell } from "../../ui/IOTableCell";
@@ -1147,18 +1151,20 @@ export default function ObservationsTable({
           size: 200,
           cell: ({ row }) => {
             const latency: number | undefined = row.getValue("latency");
-            const usage: {
-              promptTokens: number;
-              completionTokens: number;
-              totalTokens: number;
-            } = row.getValue("usage");
-            return latency !== undefined &&
-              (usage.completionTokens !== 0 || usage.totalTokens !== 0) ? (
-              <span>
-                {usage.completionTokens && latency
-                  ? Number((usage.completionTokens / latency).toFixed(1))
-                  : undefined}
-              </span>
+            const timeToFirstToken: number | undefined =
+              row.getValue("timeToFirstToken");
+            const usage = row.getValue("usage") as {
+              inputUsage: number;
+              outputUsage: number;
+              totalUsage: number;
+            };
+            const tokensPerSecond = getOutputTokensPerSecond(
+              usage.outputUsage,
+              latency,
+              timeToFirstToken,
+            );
+            return tokensPerSecond !== undefined ? (
+              <span>{tokensPerSecond}</span>
             ) : undefined;
           },
           defaultHidden: true,
