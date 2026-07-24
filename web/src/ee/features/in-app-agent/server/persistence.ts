@@ -650,32 +650,41 @@ export function shouldFlushPersistedEvent(
   event: AgUiEvent,
   pendingEvents: readonly AgUiEvent[] = [],
 ) {
-  if (event.type === EventType.TOOL_CALL_END) {
-    const toolCallId = getString(event, "toolCallId");
-    const isRedirectToolCall = pendingEvents.some(
-      (pendingEvent) =>
-        pendingEvent.type === EventType.TOOL_CALL_START &&
-        getString(pendingEvent, "toolCallId") === toolCallId &&
-        getString(pendingEvent, "toolCallName") ===
-          IN_APP_AGENT_REDIRECT_TOOL_NAME,
-    );
-
-    // Redirect actions are represented by their result payload, so keep their
-    // call scaffolding in the same compactable unit until that result arrives.
-    if (isRedirectToolCall) {
-      return false;
-    }
-  }
-
-  return (
+  const isFlushBoundary =
     event.type === EventType.TEXT_MESSAGE_END ||
     event.type === EventType.TOOL_CALL_END ||
     event.type === EventType.TOOL_CALL_RESULT ||
     event.type === EventType.ACTIVITY_SNAPSHOT ||
     event.type === EventType.REASONING_END ||
     event.type === EventType.RUN_FINISHED ||
-    event.type === EventType.RUN_ERROR
-  );
+    event.type === EventType.RUN_ERROR;
+
+  if (!isFlushBoundary) {
+    return false;
+  }
+
+  const openRedirectToolCallIds = new Set<string>();
+
+  for (const pendingEvent of pendingEvents) {
+    const toolCallId = getString(pendingEvent, "toolCallId");
+
+    if (
+      toolCallId &&
+      pendingEvent.type === EventType.TOOL_CALL_START &&
+      getString(pendingEvent, "toolCallName") ===
+        IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ) {
+      openRedirectToolCallIds.add(toolCallId);
+    }
+
+    if (toolCallId && pendingEvent.type === EventType.TOOL_CALL_RESULT) {
+      openRedirectToolCallIds.delete(toolCallId);
+    }
+  }
+
+  // Redirect actions are represented by their result payload. Keep the whole
+  // pending unit together so unrelated boundaries cannot split their lifecycle.
+  return openRedirectToolCallIds.size === 0;
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {

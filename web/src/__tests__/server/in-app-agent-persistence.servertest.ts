@@ -1433,8 +1433,8 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
-  it("drops failed redirect tool results before replay", async () => {
-    const { projectId, userId } = await createCaller();
+  it("drops interleaved failed redirect tool results before display and replay", async () => {
+    const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
@@ -1478,6 +1478,28 @@ describe("in-app agent persistence", () => {
       toolCallId: "redirect-tool-call",
     });
     await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "sibling-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "sibling-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "sibling-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "sibling-tool-result",
+      toolCallId: "sibling-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+    await process({
       type: EventType.TOOL_CALL_RESULT,
       messageId: "tool-result-1",
       toolCallId: "redirect-tool-call",
@@ -1486,6 +1508,34 @@ describe("in-app agent persistence", () => {
     });
 
     await expect(
+      caller.getConversation({
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toMatchObject({
+      messages: [
+        { id: "user-1", role: "user", content: "open a trace" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          runId: run.id,
+          toolCalls: [
+            {
+              id: "sibling-tool-call",
+              type: "function",
+              function: { name: "list_traces", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          id: "sibling-tool-result",
+          role: "tool",
+          content: "[]",
+          toolCallId: "sibling-tool-call",
+        },
+      ],
+    });
+    await expect(
       getConversationMessagesForReplay({
         prisma,
         projectId,
@@ -1493,6 +1543,23 @@ describe("in-app agent persistence", () => {
       }),
     ).resolves.toEqual([
       { id: "user-1", role: "user", content: "open a trace" },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        toolCalls: [
+          {
+            id: "sibling-tool-call",
+            type: "function",
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "sibling-tool-result",
+        role: "tool",
+        content: "[]",
+        toolCallId: "sibling-tool-call",
+      },
     ]);
   });
 
