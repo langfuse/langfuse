@@ -34,6 +34,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
+import { Button } from "@/src/components/ui/button";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { JsonExpansionProvider } from "@/src/components/trace/contexts/JsonExpansionContext";
@@ -284,6 +285,32 @@ function SessionObservationSidePanelInner({
               <MessageSquare className="mr-2 h-3.5 w-3.5" />
               Comment on trace
             </DropdownMenuItem>
+          </>
+        }
+        overflowMenuExtraItems={
+          // Same trace-level actions as labeled rows for the mobile `⋯`
+          // overflow popover (DropdownMenuItems cannot render there).
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!hasDatasetAccess || !trace}
+              className="w-full justify-start gap-2 font-normal"
+              onClick={() => setTraceOverlay("dataset")}
+            >
+              <Database className="h-4 w-4" />
+              <span className="text-sm">Add trace to dataset</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!trace}
+              className="w-full justify-start gap-2 font-normal"
+              onClick={() => setTraceOverlay("comments")}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-sm">Comment on trace</span>
+            </Button>
           </>
         }
         commentedPathsByField={commentedPathsByField}

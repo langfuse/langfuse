@@ -76,6 +76,9 @@ export interface TraceSidePanelProps {
   datasetPrefill?: AddToDropdownMenuProps["datasetPrefill"];
   annotateContent: ReactNode;
   addToMenuExtraItems?: ReactNode;
+  /** Mobile `⋯` overflow counterpart of addToMenuExtraItems (labeled Buttons,
+      not DropdownMenuItems). */
+  overflowMenuExtraItems?: ReactNode;
   /** Inline-comment highlighting (JSON Beta); adapter-supplied query result. */
   commentedPathsByField?: ReturnType<typeof useCommentedPaths>;
   enableInlineComments?: boolean;
@@ -116,6 +119,7 @@ export function TraceSidePanel({
   datasetPrefill,
   annotateContent,
   addToMenuExtraItems,
+  overflowMenuExtraItems,
   commentedPathsByField,
   enableInlineComments = false,
   traceTags,
@@ -269,6 +273,7 @@ export function TraceSidePanel({
         datasetPrefill={datasetPrefill}
         annotateContent={annotateContent}
         addToMenuExtraItems={addToMenuExtraItems}
+        overflowMenuExtraItems={overflowMenuExtraItems}
         hasExistingScores={observationScores.length > 0}
         commentCount={commentCount}
         pendingSelection={pendingSelection}

@@ -61,6 +61,15 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import { type AggregatedTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenu } from "@/src/components/trace/components/_shared/DetailHeaderActionsMenu";
+import { MobileHeaderOverflowPopover } from "@/src/components/trace/components/_shared/MobileHeaderOverflowPopover";
+import { CollapsibleBadgeRow } from "@/src/components/trace/components/_shared/CollapsibleBadgeRow";
+import { NewDatasetItemFromExistingObject } from "@/src/features/datasets/components/NewDatasetItemFromExistingObject";
+import { Drawer, DrawerContent } from "@/src/components/ui/drawer";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { LockIcon, SquarePen } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 
 /**
  * Structural observation shape consumed by the header. Both
@@ -117,6 +126,12 @@ export interface TraceSidePanelHeaderProps {
   annotateContent: ReactNode;
   /** Extra items appended to the "+ Add to" menu (session trace-level actions). */
   addToMenuExtraItems?: ReactNode;
+  /**
+   * Mobile counterpart of `addToMenuExtraItems`: extra rows appended to the
+   * `⋯` overflow popover. Must be popover-compatible (labeled Buttons), not
+   * DropdownMenuItems.
+   */
+  overflowMenuExtraItems?: ReactNode;
   hasExistingScores: boolean;
   commentCount: number | undefined;
   // Inline comment props
@@ -147,6 +162,7 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
   datasetPrefill,
   annotateContent,
   addToMenuExtraItems,
+  overflowMenuExtraItems,
   hasExistingScores,
   commentCount,
   pendingSelection,
@@ -161,11 +177,82 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
   onOpenTraceView,
   onClose,
 }: TraceSidePanelHeaderProps) {
+  const isMobile = useIsMobile();
+  const capture = usePostHogClientCapture();
+  const hasAnnotationAccess = useHasProjectAccess({
+    projectId,
+    scope: "scores:CUD",
+  });
+
   // Format cost and usage values
   const totalCost = observation.totalCost;
   const totalUsage = observation.totalUsage;
   const inputUsage = observation.inputUsage;
   const outputUsage = observation.outputUsage;
+
+  const openAnnotateDrawer = () => {
+    onAnnotateDrawerOpenChange(true);
+    capture(
+      hasExistingScores ? "score:update_form_open" : "score:create_form_open",
+      { type: "trace", source: "TraceDetail" },
+    );
+  };
+
+  const overviewCells = (
+    <>
+      <LatencyBadge latencySeconds={latencySeconds} />
+      <ModelBadge
+        model={observation.model ?? null}
+        internalModelId={observation.internalModelId ?? null}
+        projectId={projectId}
+        usageDetails={observation.usageDetails ?? undefined}
+      />
+      {subtreeMetrics ? (
+        subtreeMetrics.hasGenerationLike &&
+        subtreeMetrics.usageDetails && (
+          <UsageBadge
+            type="GENERATION"
+            inputUsage={subtreeMetrics.inputUsage}
+            outputUsage={subtreeMetrics.outputUsage}
+            totalUsage={subtreeMetrics.totalUsage}
+            usageDetails={subtreeMetrics.usageDetails}
+          />
+        )
+      ) : (
+        <UsageBadge
+          type={observation.type}
+          inputUsage={inputUsage}
+          outputUsage={outputUsage}
+          totalUsage={totalUsage}
+          usageDetails={observation.usageDetails ?? undefined}
+        />
+      )}
+      <CostBadge
+        totalCost={
+          subtreeMetrics
+            ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+            : totalCost
+        }
+        costDetails={
+          subtreeMetrics?.costDetails ?? observation.costDetails ?? undefined
+        }
+      />
+      <EnvironmentBadge environment={observation.environment} />
+      <UserIdBadge userId={observation.userId ?? null} projectId={projectId} />
+      <TimeToFirstTokenBadge timeToFirstToken={observation.timeToFirstToken} />
+      <SessionBadge
+        sessionId={observation.sessionId ?? null}
+        projectId={projectId}
+      />
+      <ModelParametersBadges modelParameters={observation.modelParameters} />
+      {observation.promptId && (
+        <PromptBadge promptId={observation.promptId} projectId={projectId} />
+      )}
+      <VersionBadge version={observation.version} />
+      <LevelBadge level={observation.level} />
+      <StatusMessageBadge statusMessage={observation.statusMessage} />
+    </>
+  );
 
   return (
     <div
@@ -181,7 +268,9 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
         className={
           variant === "observation-only"
             ? "border-border-contrast flex w-full items-center justify-between gap-2 border-b border-dashed px-4 py-1.5"
-            : "grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between"
+            : isMobile
+              ? "flex w-full items-center gap-2"
+              : "grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between"
         }
       >
         <div className="flex min-w-0 flex-1 flex-row items-center gap-2">
@@ -221,51 +310,128 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
             ) : null}
           </div>
         </div>
-        {/* Action buttons — grouped per the inspector design */}
+        {/* Action buttons — grouped per the inspector design; on mobile the
+            cluster collapses into a `⋯` overflow of labeled rows (LFE-11067) */}
         <div
           className={
-            variant === "observation-only"
+            variant === "observation-only" || isMobile
               ? "flex shrink-0 items-center gap-1"
               : "flex h-full flex-wrap content-start items-center justify-start gap-1 @2xl:mr-1 @2xl:justify-end"
           }
         >
-          {playgroundGeneration &&
-            isGenerationLike(playgroundGeneration.type) && (
-              <JumpToPlaygroundButton
-                source="generation"
-                generation={playgroundGeneration}
-                analyticsEventName="trace_detail:test_in_playground_button_click"
-                variant="outline"
-                size="sm"
-                className="md:hidden"
-              />
-            )}
-          <AddToDropdownMenu
-            projectId={projectId}
-            traceId={traceId}
-            observationId={observation.id}
-            datasetPrefill={datasetPrefill}
-            annotateContent={annotateContent}
-            isAnnotateDrawerOpen={isAnnotateDrawerOpen}
-            onAnnotateDrawerOpenChange={onAnnotateDrawerOpenChange}
-            hasExistingScores={hasExistingScores}
-            showAnnotate={!isAnnotationMode}
-            onOpenComments={() => onCommentDrawerOpenChange?.(true)}
-            commentCount={commentCount}
-            extraMenuItems={addToMenuExtraItems}
-          />
-          {/* Annotation-queue toggles need their own checkbox dropdown, so
-              this stays a compact chevron button next to the menu. */}
-          {!isAnnotationMode && (
-            <div className="[&>button]:h-7 [&>button]:rounded-md [&>button]:border-l">
-              <CreateNewAnnotationQueueItem
+          {isMobile ? (
+            <>
+              <MobileHeaderOverflowPopover>
+                {datasetPrefill ? (
+                  <NewDatasetItemFromExistingObject
+                    traceId={traceId}
+                    observationId={observation.id}
+                    projectId={projectId}
+                    input={datasetPrefill.input}
+                    output={datasetPrefill.output}
+                    metadata={datasetPrefill.metadata}
+                    layout="menu"
+                  />
+                ) : null}
+                {!isAnnotationMode && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!hasAnnotationAccess}
+                      className="w-full justify-start gap-2 font-normal"
+                      onClick={openAnnotateDrawer}
+                    >
+                      {!hasAnnotationAccess ? (
+                        <LockIcon className="h-3 w-3" />
+                      ) : (
+                        <SquarePen className="h-4 w-4" />
+                      )}
+                      <span className="text-sm">Annotate</span>
+                    </Button>
+                    <CreateNewAnnotationQueueItem
+                      projectId={projectId}
+                      objectId={observation.id}
+                      objectType={AnnotationQueueObjectType.OBSERVATION}
+                      layout="menu"
+                    />
+                  </>
+                )}
+                {playgroundGeneration &&
+                  isGenerationLike(playgroundGeneration.type) && (
+                    <JumpToPlaygroundButton
+                      source="generation"
+                      generation={playgroundGeneration}
+                      analyticsEventName="trace_detail:test_in_playground_button_click"
+                      layout="menu"
+                    />
+                  )}
+                <CommentDrawerButton
+                  projectId={projectId}
+                  objectId={observation.id}
+                  objectType="OBSERVATION"
+                  count={commentCount}
+                  layout="menu"
+                  pendingSelection={pendingSelection}
+                  onSelectionUsed={onSelectionUsed}
+                  isOpen={isCommentDrawerOpen}
+                  onOpenChange={onCommentDrawerOpenChange}
+                />
+                {overflowMenuExtraItems}
+              </MobileHeaderOverflowPopover>
+              {/* The annotate drawer is hosted by AddToDropdownMenu on
+                  desktop; mount it here on mobile so the Scores accordion and
+                  the overflow row can still open it. */}
+              <Drawer
+                open={isAnnotateDrawerOpen}
+                onOpenChange={onAnnotateDrawerOpenChange}
+              >
+                <DrawerContent className="p-3">
+                  {isAnnotateDrawerOpen ? annotateContent : null}
+                </DrawerContent>
+              </Drawer>
+            </>
+          ) : (
+            <>
+              {playgroundGeneration &&
+                isGenerationLike(playgroundGeneration.type) && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={playgroundGeneration}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
+                    variant="outline"
+                    size="sm"
+                    className="md:hidden"
+                  />
+                )}
+              <AddToDropdownMenu
                 projectId={projectId}
-                objectId={observation.id}
-                objectType={AnnotationQueueObjectType.OBSERVATION}
-                variant="outline"
-                size="sm"
+                traceId={traceId}
+                observationId={observation.id}
+                datasetPrefill={datasetPrefill}
+                annotateContent={annotateContent}
+                isAnnotateDrawerOpen={isAnnotateDrawerOpen}
+                onAnnotateDrawerOpenChange={onAnnotateDrawerOpenChange}
+                hasExistingScores={hasExistingScores}
+                showAnnotate={!isAnnotationMode}
+                onOpenComments={() => onCommentDrawerOpenChange?.(true)}
+                commentCount={commentCount}
+                extraMenuItems={addToMenuExtraItems}
               />
-            </div>
+              {/* Annotation-queue toggles need their own checkbox dropdown, so
+                  this stays a compact chevron button next to the menu. */}
+              {!isAnnotationMode && (
+                <div className="[&>button]:h-7 [&>button]:rounded-md [&>button]:border-l">
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={observation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                    variant="outline"
+                    size="sm"
+                  />
+                </div>
+              )}
+            </>
           )}
           <DetailHeaderActionsMenu
             idItems={[
@@ -296,92 +462,43 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
           ) : null}
           {/* Hidden host for the comment drawer: keeps deep-link auto-open
               (?comments=open) and inline-comment selection wiring intact;
-              opened from the "Add comment" menu item via controlled state. */}
-          <span className="hidden">
-            <CommentDrawerButton
-              projectId={projectId}
-              objectId={observation.id}
-              objectType="OBSERVATION"
-              count={commentCount}
-              size="sm"
-              pendingSelection={pendingSelection}
-              onSelectionUsed={onSelectionUsed}
-              isOpen={isCommentDrawerOpen}
-              onOpenChange={onCommentDrawerOpenChange}
-            />
-          </span>
+              opened from the "Add comment" menu item via controlled state.
+              On mobile the (force-mounted) overflow popover hosts it instead. */}
+          {!isMobile && (
+            <span className="hidden">
+              <CommentDrawerButton
+                projectId={projectId}
+                objectId={observation.id}
+                objectType="OBSERVATION"
+                count={commentCount}
+                size="sm"
+                pendingSelection={pendingSelection}
+                onSelectionUsed={onSelectionUsed}
+                isOpen={isCommentDrawerOpen}
+                onOpenChange={onCommentDrawerOpenChange}
+              />
+            </span>
+          )}
         </div>
       </div>
 
       {/* Overview metrics grid — mock row order first (latency, model,
-          tokens, cost, env, user); the product's extra metrics follow. */}
+          tokens, cost, env, user); the product's extra metrics follow.
+          Mobile clips them to one expandable line (CollapsibleBadgeRow). */}
       {!isAnnotationMode && (
-        <div className={variant === "observation-only" ? "px-4 py-4" : ""}>
-          <OverviewGrid>
-            <LatencyBadge latencySeconds={latencySeconds} />
-            <ModelBadge
-              model={observation.model ?? null}
-              internalModelId={observation.internalModelId ?? null}
-              projectId={projectId}
-              usageDetails={observation.usageDetails ?? undefined}
-            />
-            {subtreeMetrics ? (
-              subtreeMetrics.hasGenerationLike &&
-              subtreeMetrics.usageDetails && (
-                <UsageBadge
-                  type="GENERATION"
-                  inputUsage={subtreeMetrics.inputUsage}
-                  outputUsage={subtreeMetrics.outputUsage}
-                  totalUsage={subtreeMetrics.totalUsage}
-                  usageDetails={subtreeMetrics.usageDetails}
-                />
-              )
-            ) : (
-              <UsageBadge
-                type={observation.type}
-                inputUsage={inputUsage}
-                outputUsage={outputUsage}
-                totalUsage={totalUsage}
-                usageDetails={observation.usageDetails ?? undefined}
-              />
-            )}
-            <CostBadge
-              totalCost={
-                subtreeMetrics
-                  ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
-                  : totalCost
-              }
-              costDetails={
-                subtreeMetrics?.costDetails ??
-                observation.costDetails ??
-                undefined
-              }
-            />
-            <EnvironmentBadge environment={observation.environment} />
-            <UserIdBadge
-              userId={observation.userId ?? null}
-              projectId={projectId}
-            />
-            <TimeToFirstTokenBadge
-              timeToFirstToken={observation.timeToFirstToken}
-            />
-            <SessionBadge
-              sessionId={observation.sessionId ?? null}
-              projectId={projectId}
-            />
-            <ModelParametersBadges
-              modelParameters={observation.modelParameters}
-            />
-            {observation.promptId && (
-              <PromptBadge
-                promptId={observation.promptId}
-                projectId={projectId}
-              />
-            )}
-            <VersionBadge version={observation.version} />
-            <LevelBadge level={observation.level} />
-            <StatusMessageBadge statusMessage={observation.statusMessage} />
-          </OverviewGrid>
+        <div
+          className={cn(
+            variant === "observation-only" &&
+              (isMobile ? "px-4 py-2" : "px-4 py-4"),
+          )}
+        >
+          {isMobile ? (
+            <CollapsibleBadgeRow className="gap-x-4">
+              {overviewCells}
+            </CollapsibleBadgeRow>
+          ) : (
+            <OverviewGrid>{overviewCells}</OverviewGrid>
+          )}
         </div>
       )}
     </div>
