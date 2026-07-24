@@ -386,6 +386,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
+  // On mobile, opening the assistant must NOT auto-focus the input: focusing a
+  // textarea there springs the on-screen keyboard, which eats half the viewport
+  // and scrolls the panel into an unreadable state before the user has decided
+  // to type. Let them open it, read, and tap the input themselves.
+  //
+  // `autoFocus` is a mount-only DOM attribute, so it must be correct on the
+  // FIRST render — but useIsMobile() reports false on its first render (it
+  // resolves the media query in an effect), which would let the focus fire
+  // before it flips. Read the viewport width synchronously so the mount value
+  // is right; the window is client-only (opened on interaction), so no SSR.
+  const isNarrowViewport =
+    typeof window !== "undefined" && window.innerWidth < 768;
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -914,7 +926,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded}
+              autoFocus={!isExpanded && !isNarrowViewport}
               ref={setInputRef}
               value={input}
               onChange={(event) => {
