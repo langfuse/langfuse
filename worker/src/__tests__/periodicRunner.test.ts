@@ -95,6 +95,7 @@ class TestExclusiveRunner extends PeriodicExclusiveRunner {
   public callCount = 0;
   public failNext = false;
   public lockAcquired = true;
+  public lockNotAcquiredCount = 0;
   public readonly operationError = new Error("Caught operation error");
 
   constructor(lockMode: "stub" | "unavailable" | "release_failure" = "stub") {
@@ -120,13 +121,19 @@ class TestExclusiveRunner extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<void> {
-    await this.withLock(async () => {
-      this.callCount++;
-      if (this.failNext) {
-        this.failNext = false;
-        throw this.operationError;
-      }
-    });
+    await this.withLock(
+      async () => {
+        this.callCount++;
+        if (this.failNext) {
+          this.failNext = false;
+          throw this.operationError;
+        }
+      },
+      undefined,
+      () => {
+        this.lockNotAcquiredCount++;
+      },
+    );
   }
 }
 
@@ -277,6 +284,7 @@ describe("PeriodicRunner", () => {
     });
     expect(telemetry.traceException).not.toHaveBeenCalled();
     expect(telemetry.recordGauge).not.toHaveBeenCalled();
+    expect(runner.lockNotAcquiredCount).toBe(1);
     runner.stop();
   });
 
