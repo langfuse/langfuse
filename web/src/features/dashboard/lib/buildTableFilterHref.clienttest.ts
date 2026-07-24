@@ -4,6 +4,7 @@ import {
   tracesTableCols,
 } from "@langfuse/shared";
 import {
+  buildCategoryTableHrefs,
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "./buildTableFilterHref";
@@ -320,6 +321,71 @@ describe("buildTableFilterHref", () => {
       expect(categoryFilterApplied).toBe(false);
       expect(decodeHrefFilters(href)).toHaveLength(0);
     });
+  });
+});
+
+describe("buildCategoryTableHrefs", () => {
+  // Regression (LFE-10962 review fix): the null/empty breakdown bucket is
+  // rendered as the sentinel string "n/a" (DashboardWidget's
+  // MISSING_DIMENSION_LABEL) — it must never get a drill-in href, or a
+  // by-user-ID breakdown's null bucket (often the largest bar) would link to
+  // a table filtered on the literal string "n/a" instead of the real rows.
+  it("omits the excludeValue sentinel bucket while a real value still gets an href", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      ["u-42", "n/a", "u-42", undefined],
+      "n/a",
+    );
+
+    expect(hrefs.has("n/a")).toBe(false);
+    expect(hrefs.has("u-42")).toBe(true);
+    expect(hrefs.get("u-42")).toMatch(/^\/project\/proj-1\/traces\?/);
+    // deduped: one entry per unique real value
+    expect(hrefs.size).toBe(1);
+  });
+
+  it("still links a value equal to the sentinel string when no excludeValue is passed", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      ["n/a"],
+    );
+
+    expect(hrefs.has("n/a")).toBe(true);
+  });
+
+  it("omits a value whose column type can't be expressed as a table filter", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "metadata",
+      ["some-key-value"],
+    );
+
+    expect(hrefs.size).toBe(0);
+  });
+
+  it("skips non-string dimension values", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "userId",
+      [null, undefined, 42, "u-1"],
+    );
+
+    expect(hrefs.size).toBe(1);
+    expect(hrefs.has("u-1")).toBe(true);
   });
 });
 

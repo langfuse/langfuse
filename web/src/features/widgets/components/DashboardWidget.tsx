@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/router";
 import {
+  buildCategoryTableHrefs,
   buildTableFilterHref,
   buildViewAsTableHint,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
@@ -79,6 +80,14 @@ export interface WidgetPlacement {
   y_size: number;
   type: "widget";
 }
+
+// Sentinel `dimension` value transformedData collapses a null/empty
+// breakdown bucket to (see below) — not a real, filterable value. A single
+// source of truth so categoryTableHrefs can recognize and skip it: linking it
+// to a table filter for the literal string "n/a" would land on zero/wrong
+// rows (worse, for a by-user-ID breakdown the null bucket is often the
+// largest bar). (LFE-10962)
+const MISSING_DIMENSION_LABEL = "n/a";
 
 export function DashboardWidget({
   projectId,
@@ -388,7 +397,7 @@ export function DashboardWidget({
                 const val = dimensionValue;
                 // Empty first: "" is a string, so the order matters. (LFE-10694)
                 if (val === null || val === undefined || val === "")
-                  return "n/a";
+                  return MISSING_DIMENSION_LABEL;
                 if (typeof val === "string") return val;
                 if (Array.isArray(val)) return val.join(", ");
                 // Objects / numbers / booleans are stringified to avoid React key issues
@@ -542,23 +551,17 @@ export function DashboardWidget({
   const categoryTableHrefs = useMemo(() => {
     if (!tableViewInputs || !breakdownDimensionField) return undefined;
 
-    const hrefs = new Map<string, string>();
-    for (const row of transformedData) {
-      const value = row.dimension;
-      if (typeof value !== "string" || hrefs.has(value)) continue;
-
-      const result = buildTableFilterHref(
-        projectId,
-        tableViewInputs.view,
-        tableViewInputs.mergedFilters,
-        dateRange,
-        { column: breakdownDimensionField, value },
-      );
-      if (result.categoryFilterApplied) {
-        hrefs.set(value, result.href);
-      }
-    }
-    return hrefs;
+    return buildCategoryTableHrefs(
+      projectId,
+      tableViewInputs.view,
+      tableViewInputs.mergedFilters,
+      dateRange,
+      breakdownDimensionField,
+      transformedData.map((row) => row.dimension),
+      // The collapsed null-dimension bucket is a rendering sentinel, not a
+      // real value — never link it (see MISSING_DIMENSION_LABEL above).
+      MISSING_DIMENSION_LABEL,
+    );
   }, [
     tableViewInputs,
     breakdownDimensionField,
@@ -610,7 +613,7 @@ export function DashboardWidget({
     }
   };
 
-  // Analytics for the per-category label popover (LFE-10962): copying the
+  // Analytics for the per-category label hover card (LFE-10962): copying the
   // full value, or following the "View filtered table" link. The href itself
   // is decided in categoryTableHrefs above; this only reports the action.
   const handleCategoryLabelCopy = useCallback(() => {

@@ -229,6 +229,50 @@ export function buildTableFilterHref(
   return { href, notApplicable, droppedForLength, categoryFilterApplied };
 }
 
+/**
+ * Builds the per-category "drill in" href map for a breakdown chart's bars:
+ * one `buildTableFilterHref` call (pinned to `column = value`) per unique,
+ * filterable value in `dimensionValues`, keyed by that value. Extracted from
+ * DashboardWidget's `categoryTableHrefs` memo as its own seam so the
+ * guard below is unit-testable in isolation.
+ *
+ * `excludeValue`, when given, is skipped even though it is a string — for a
+ * rendering sentinel like the collapsed null-dimension bucket ("n/a"), which
+ * is not a real, filterable value: linking it would pin `column = "n/a"` and
+ * land on zero/wrong rows (worse, for a by-user-ID breakdown the null bucket
+ * is often the largest bar). The caller passes its own sentinel constant
+ * rather than this module guessing one. (LFE-10962)
+ *
+ * A value whose column type can't be expressed as a table filter
+ * (`categoryFilterApplied=false` — e.g. a metadata/score breakdown) is
+ * likewise omitted, rather than linking to an unfiltered table under a
+ * "drill in" label.
+ */
+export function buildCategoryTableHrefs(
+  projectId: string,
+  view: ViewName,
+  filters: FilterState,
+  dateRange: { from: Date; to: Date } | undefined,
+  column: string,
+  dimensionValues: ReadonlyArray<unknown>,
+  excludeValue?: string,
+): Map<string, string> {
+  const hrefs = new Map<string, string>();
+  for (const value of dimensionValues) {
+    if (typeof value !== "string" || value === excludeValue || hrefs.has(value))
+      continue;
+
+    const result = buildTableFilterHref(projectId, view, filters, dateRange, {
+      column,
+      value,
+    });
+    if (result.categoryFilterApplied) {
+      hrefs.set(value, result.href);
+    }
+  }
+  return hrefs;
+}
+
 export interface ViewAsTableHint {
   /**
    * Total widget filters not reflected in the table: dimensions the table
