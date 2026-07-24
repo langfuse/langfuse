@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import crypto from "crypto";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { fetchWithSecureRedirects } from "@langfuse/shared/src/server";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -66,6 +67,79 @@ describe("buildRemoteExperimentRequest", () => {
     expect(headers["content-type"]).toBeUndefined();
     expect(headers["x-langfuse-signature"]).toMatch(/^t=\d+,v1=[a-f0-9]{64}$/);
   });
+
+  it("reports secret custom headers as sensitive for redirect stripping", () => {
+    const { sensitiveHeaderNames } = buildRemoteExperimentRequest({
+      storedHeaders: {
+        "x-api-key": { secret: true, value: encrypt("api-key-123") },
+        "x-environment": { secret: false, value: "production" },
+      },
+      encryptedSecretKey: null,
+      bodyObject: { projectId: "p1" },
+    });
+
+    expect(sensitiveHeaderNames).toEqual(["x-api-key"]);
+  });
+
+  it("drops headers with malformed encrypted values instead of throwing", () => {
+    const { headers } = buildRemoteExperimentRequest({
+      storedHeaders: {
+        authorization: { secret: true, value: "not-valid-ciphertext" },
+        "x-environment": { secret: false, value: "production" },
+      },
+      encryptedSecretKey: null,
+      bodyObject: { projectId: "p1" },
+    });
+
+    expect(headers["authorization"]).toBeUndefined();
+    expect(headers["x-environment"]).toBe("production");
+  });
+});
+
+describe("remote experiment redirect handling", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  vi.stubGlobal("fetch", fetchMock);
+
+  afterEach(() => {
+    fetchMock.mockReset();
+  });
+
+  it("strips custom secret headers on cross-origin redirects when wired through additionalSensitiveHeaders", async () => {
+    const { headers, sensitiveHeaderNames } = buildRemoteExperimentRequest({
+      storedHeaders: {
+        "x-api-key": { secret: true, value: encrypt("api-key-123") },
+        "x-environment": { secret: false, value: "production" },
+      },
+      encryptedSecretKey: encrypt(`lf-whsec_${"a".repeat(64)}`),
+      bodyObject: { projectId: "p1" },
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { Location: "https://other.example.com/final" },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    await fetchWithSecureRedirects(
+      "https://example.com/start",
+      { method: "POST", headers },
+      {
+        maxRedirects: 1,
+        skipValidation: true,
+        additionalSensitiveHeaders: sensitiveHeaderNames,
+      },
+    );
+
+    const redirectedHeaders = new Headers(
+      fetchMock.mock.calls[1]?.[1]?.headers,
+    );
+    expect(redirectedHeaders.get("x-api-key")).toBeNull();
+    expect(redirectedHeaders.get("x-langfuse-signature")).toBeNull();
+    expect(redirectedHeaders.get("x-environment")).toBe("production");
+  });
 });
 
 describe("processRemoteExperimentHeaders", () => {
@@ -116,6 +190,37 @@ describe("processRemoteExperimentHeaders", () => {
     expect(processRemoteExperimentHeaders({}, existing).requestHeaders).toEqual(
       {},
     );
+  });
+
+  it("normalizes header names to lowercase and preserves existing values across casing changes", () => {
+    const existing = {
+      authorization: { secret: true, value: encrypt("Bearer token-123") },
+    };
+
+    // Same header resubmitted with different casing and an empty value must
+    // still find and preserve the stored secret.
+    const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
+      { Authorization: { secret: true, value: "" } },
+      existing,
+    );
+
+    expect(Object.keys(requestHeaders)).toEqual(["authorization"]);
+    expect(decrypt(requestHeaders.authorization.value)).toBe(
+      "Bearer token-123",
+    );
+    expect(Object.keys(displayHeaders)).toEqual(["authorization"]);
+  });
+
+  it("rejects duplicate header names that differ only in casing", () => {
+    expect(() =>
+      processRemoteExperimentHeaders(
+        {
+          Authorization: { secret: false, value: "a" },
+          authorization: { secret: false, value: "b" },
+        },
+        {},
+      ),
+    ).toThrow(/Duplicate header/);
   });
 
   it("rejects protected header names", () => {

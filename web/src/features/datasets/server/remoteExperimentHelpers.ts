@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { RequestHeaderSchema } from "@langfuse/shared";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   decrypt,
   encrypt,
@@ -31,7 +32,40 @@ export function parseStoredRemoteExperimentHeaders(
 }
 
 /**
+ * Single read path for remote experiment configuration including the
+ * secret-bearing columns that are globally omitted from Prisma results
+ * (see db.ts). Routes must use this helper instead of selecting
+ * `remoteExperimentSecretKey` / `remoteExperimentRequestHeaders` directly, so
+ * secret access stays auditable in one place.
+ */
+export async function getRemoteExperimentConfigWithSecrets({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
+  return prisma.dataset.findUnique({
+    where: {
+      id_projectId: { id: datasetId, projectId },
+    },
+    select: {
+      id: true,
+      name: true,
+      remoteExperimentUrl: true,
+      remoteExperimentPayload: true,
+      remoteExperimentEnabled: true,
+      remoteExperimentSecretKey: true,
+      remoteExperimentDisplaySecretKey: true,
+      remoteExperimentRequestHeaders: true,
+    },
+  });
+}
+
+/**
  * Processes remote experiment headers following the webhook semantics:
+ * - header names are normalized to lowercase (HTTP headers are
+ *   case-insensitive); duplicate names that differ only in casing are rejected
  * - protected header names are rejected
  * - empty submitted values preserve the existing (encrypted) value, so masked
  *   secrets do not need to be resent on every update
@@ -55,22 +89,43 @@ export function processRemoteExperimentHeaders(
     };
   }
 
-  const plaintextHeaders: RemoteExperimentHeaders = {};
+  // Lookups against stored headers are case-insensitive so changing the casing
+  // of a name cannot create duplicates or orphan an existing secret.
+  const existingByLowerKey: RemoteExperimentHeaders = Object.fromEntries(
+    Object.entries(existingEncryptedHeaders).map(([k, v]) => [
+      k.toLowerCase(),
+      v,
+    ]),
+  );
 
-  for (const [key, headerObj] of Object.entries(inputHeaders)) {
-    if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(key.toLowerCase())) {
+  const plaintextHeaders: RemoteExperimentHeaders = {};
+  const seenKeys = new Set<string>();
+
+  for (const [rawKey, headerObj] of Object.entries(inputHeaders)) {
+    const key = rawKey.trim().toLowerCase();
+    if (!key) continue;
+
+    if (seenKeys.has(key)) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `Header "${key}" is set by Langfuse and cannot be overridden`,
+        message: `Duplicate header "${rawKey}" (header names are case-insensitive)`,
+      });
+    }
+    seenKeys.add(key);
+
+    if (REMOTE_EXPERIMENT_PROTECTED_HEADERS.includes(key)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Header "${rawKey}" is set by Langfuse and cannot be overridden`,
       });
     }
 
-    const existingHeader = existingEncryptedHeaders[key];
+    const existingHeader = existingByLowerKey[key];
 
     if (headerObj.secret && headerObj.value.trim() === "" && !existingHeader) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `Header "${key}" cannot be made secret without providing a value`,
+        message: `Header "${rawKey}" cannot be made secret without providing a value`,
       });
     }
 
@@ -81,7 +136,7 @@ export function processRemoteExperimentHeaders(
     ) {
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `Header "${key}" secret status can only be changed when providing a value`,
+        message: `Header "${rawKey}" secret status can only be changed when providing a value`,
       });
     }
 
@@ -133,7 +188,9 @@ export function ensureRemoteExperimentSecret(existing: {
 /**
  * Builds the outbound request body and headers for a remote experiment
  * trigger. Custom headers are decrypted and applied first; protected headers
- * are applied last so they always win.
+ * are applied last so they always win. `sensitiveHeaderNames` lists the
+ * secret custom headers and must be passed to `fetchWithSecureRedirects` as
+ * `additionalSensitiveHeaders` so they are stripped on cross-origin redirects.
  */
 export function buildRemoteExperimentRequest({
   storedHeaders,
@@ -143,9 +200,14 @@ export function buildRemoteExperimentRequest({
   storedHeaders: unknown;
   encryptedSecretKey: string | null;
   bodyObject: Record<string, unknown>;
-}): { body: string; headers: Record<string, string> } {
+}): {
+  body: string;
+  headers: Record<string, string>;
+  sensitiveHeaderNames: string[];
+} {
   const body = JSON.stringify(bodyObject);
   const headers: Record<string, string> = {};
+  const sensitiveHeaderNames: string[] = [];
 
   const customHeaders = decryptSecretHeaders(
     parseStoredRemoteExperimentHeaders(storedHeaders),
@@ -155,6 +217,9 @@ export function buildRemoteExperimentRequest({
       continue;
     }
     headers[key] = headerObj.value;
+    if (headerObj.secret) {
+      sensitiveHeaderNames.push(key);
+    }
   }
 
   headers["Content-Type"] = "application/json";
@@ -166,5 +231,5 @@ export function buildRemoteExperimentRequest({
     );
   }
 
-  return { body, headers };
+  return { body, headers, sensitiveHeaderNames };
 }

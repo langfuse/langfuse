@@ -99,6 +99,7 @@ import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
+  getRemoteExperimentConfigWithSecrets,
   parseStoredRemoteExperimentHeaders,
   processRemoteExperimentHeaders,
   RemoteExperimentHeadersSchema,
@@ -2139,21 +2140,11 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      // Explicit select to opt back into the globally omitted secret columns;
-      // required to preserve existing secrets across updates.
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        select: {
-          id: true,
-          remoteExperimentSecretKey: true,
-          remoteExperimentDisplaySecretKey: true,
-          remoteExperimentRequestHeaders: true,
-        },
+      // Secret-bearing columns are required to preserve existing secrets
+      // across updates; read them through the centralized helper.
+      const dataset = await getRemoteExperimentConfigWithSecrets({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
 
       if (!dataset) {
@@ -2268,24 +2259,11 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        // Explicit select opts back into the globally omitted secret columns;
-        // this is the delivery path that decrypts and signs.
-        select: {
-          id: true,
-          name: true,
-          remoteExperimentUrl: true,
-          remoteExperimentPayload: true,
-          remoteExperimentEnabled: true,
-          remoteExperimentSecretKey: true,
-          remoteExperimentRequestHeaders: true,
-        },
+      // Delivery path: reads the secret-bearing columns through the
+      // centralized helper to decrypt and sign the outbound request.
+      const dataset = await getRemoteExperimentConfigWithSecrets({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
 
       if (!dataset) {
@@ -2322,16 +2300,17 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const { body, headers } = buildRemoteExperimentRequest({
-        storedHeaders: dataset.remoteExperimentRequestHeaders,
-        encryptedSecretKey: dataset.remoteExperimentSecretKey,
-        bodyObject: {
-          projectId: input.projectId,
-          datasetId: input.datasetId,
-          datasetName: dataset.name,
-          payload: input.payload ?? dataset.remoteExperimentPayload,
-        },
-      });
+      const { body, headers, sensitiveHeaderNames } =
+        buildRemoteExperimentRequest({
+          storedHeaders: dataset.remoteExperimentRequestHeaders,
+          encryptedSecretKey: dataset.remoteExperimentSecretKey,
+          bodyObject: {
+            projectId: input.projectId,
+            datasetId: input.datasetId,
+            datasetName: dataset.name,
+            payload: input.payload ?? dataset.remoteExperimentPayload,
+          },
+        });
 
       try {
         const { response, redirectChain, finalUrl } =
@@ -2345,6 +2324,8 @@ export const datasetRouter = createTRPCRouter({
             },
             {
               maxRedirects: REMOTE_EXPERIMENT_MAX_REDIRECTS,
+              // Strip custom secret headers on cross-origin redirects
+              additionalSensitiveHeaders: sensitiveHeaderNames,
               redirectValidation: {
                 validateUrl: validateWebhookURL,
                 whitelist,
