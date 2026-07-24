@@ -1,5 +1,12 @@
 import { z } from "zod";
+import { OBSERVATION_FIELD_SIZE_LIMIT_BYTES } from "./domain/observation-field-spill";
 import { removeEmptyEnvVariables } from "./utils/environment";
+
+export const langfuseObservationFieldSizeLimitBytesSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .default(OBSERVATION_FIELD_SIZE_LIMIT_BYTES);
 
 // Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
 // idSchema cap). Lower to 255 for MinIO on ext4. Affects only new writes —

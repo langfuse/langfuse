@@ -1,8 +1,8 @@
+import { removeEmptyEnvVariables } from "@langfuse/shared";
 import {
-  OBSERVATION_FIELD_SIZE_LIMIT_BYTES,
-  removeEmptyEnvVariables,
-} from "@langfuse/shared";
-import { langfuseS3EventKeyMaxSegmentBytesSchema } from "@langfuse/shared/src/env";
+  langfuseObservationFieldSizeLimitBytesSchema,
+  langfuseS3EventKeyMaxSegmentBytesSchema,
+} from "@langfuse/shared/src/env";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -360,11 +360,8 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
-  LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(OBSERVATION_FIELD_SIZE_LIMIT_BYTES),
+  LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES:
+    langfuseObservationFieldSizeLimitBytesSchema,
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
