@@ -52,14 +52,22 @@ import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferen
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useTraceData } from "@/src/components/trace/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
-import { LockIcon, SquarePen } from "lucide-react";
+import { LockIcon, MoreHorizontal, SquarePen } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
   DrawerTrigger,
 } from "@/src/components/ui/drawer";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
+import { CollapsibleBadgeRow } from "@/src/components/trace/components/_shared/CollapsibleBadgeRow";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { cn } from "@/src/utils/tailwind";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -102,6 +110,7 @@ export const ObservationDetailViewHeader = memo(
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
+    const isMobile = useIsMobile();
     const { isBetaEnabled: isV4Enabled } = useV4Beta();
     const { trace, serverScores } = useTraceData();
 
@@ -129,7 +138,12 @@ export const ObservationDetailViewHeader = memo(
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
           <div className="flex w-full flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
-            <span className="mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
+            <span
+              className={cn(
+                "mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+                isMobile && "flex-1",
+              )}
+            >
               {observation.name || observation.id}
             </span>
             <DetailHeaderActionsMenu
@@ -146,98 +160,217 @@ export const ObservationDetailViewHeader = memo(
                 sessionId: observation.sessionId ?? null,
               }}
             />
-          </div>
-          {/* Action buttons */}
-          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-            {observationWithIO && (
-              <NewDatasetItemFromExistingObject
-                traceId={traceId}
-                observationId={observation.id}
-                projectId={projectId}
-                input={observationWithIO.input}
-                output={observationWithIO.output}
-                metadata={observationWithIO.metadata}
-                key={observation.id}
-                size="sm"
-              />
-            )}
-            {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-            {!isAnnotationMode && (
-              <div className="flex items-start">
-                {isV4Enabled ? (
-                  <Drawer key={"annotation-drawer-" + observation.id}>
-                    <DrawerTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={!hasAnnotationAccess}
-                        className="rounded-r-none"
-                      >
-                        {!hasAnnotationAccess ? (
-                          <LockIcon className="mr-1.5 h-3 w-3" />
-                        ) : (
-                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        <span>Annotate</span>
-                      </Button>
-                    </DrawerTrigger>
-                    <DrawerContent className="p-3">
-                      <DualAnnotationContent
+            {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
+                full-width labeled rows, next to the `⋮` utility menu. */}
+            {isMobile && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="More actions"
+                    className="ml-auto shrink-0"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  // forceMount + hide-when-closed: CommentDrawerButton lives in
+                  // here, and its deep-link auto-open effect (?comments=open) and
+                  // controlled inline-selection flow only work while mounted. A
+                  // default Popover unmounts its content when closed (the default
+                  // state), silently breaking both. Keep it mounted, just hidden.
+                  forceMount
+                  className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
+                >
+                  {observationWithIO && (
+                    <NewDatasetItemFromExistingObject
+                      traceId={traceId}
+                      observationId={observation.id}
+                      projectId={projectId}
+                      input={observationWithIO.input}
+                      output={observationWithIO.output}
+                      metadata={observationWithIO.metadata}
+                      layout="menu"
+                    />
+                  )}
+                  {!isAnnotationMode && (
+                    <>
+                      {isV4Enabled ? (
+                        <Drawer
+                          key={"annotation-drawer-menu-" + observation.id}
+                        >
+                          <DrawerTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={!hasAnnotationAccess}
+                              className="w-full justify-start gap-2 font-normal"
+                            >
+                              {!hasAnnotationAccess ? (
+                                <LockIcon className="h-3 w-3" />
+                              ) : (
+                                <SquarePen className="h-4 w-4" />
+                              )}
+                              <span className="text-sm">Annotate</span>
+                            </Button>
+                          </DrawerTrigger>
+                          <DrawerContent className="p-3">
+                            <DualAnnotationContent
+                              projectId={projectId}
+                              traceId={traceId}
+                              observationId={observation.id}
+                              traceEnvironment={trace.environment}
+                              observationEnvironment={observation.environment}
+                              observationScores={observationScores}
+                              traceScores={traceScores}
+                            />
+                          </DrawerContent>
+                        </Drawer>
+                      ) : (
+                        <AnnotateDrawer
+                          key={"annotation-drawer-menu-" + observation.id}
+                          projectId={projectId}
+                          scoreTarget={{
+                            type: "trace",
+                            traceId: traceId,
+                            observationId: observation.id,
+                          }}
+                          scores={observationScores}
+                          scoreMetadata={{
+                            projectId: projectId,
+                            environment: observation.environment,
+                          }}
+                          layout="menu"
+                        />
+                      )}
+                      <CreateNewAnnotationQueueItem
                         projectId={projectId}
-                        traceId={traceId}
-                        observationId={observation.id}
-                        traceEnvironment={trace.environment}
-                        observationEnvironment={observation.environment}
-                        observationScores={observationScores}
-                        traceScores={traceScores}
+                        objectId={observation.id}
+                        objectType={AnnotationQueueObjectType.OBSERVATION}
+                        layout="menu"
                       />
-                    </DrawerContent>
-                  </Drawer>
-                ) : (
-                  <AnnotateDrawer
-                    key={"annotation-drawer-" + observation.id}
+                    </>
+                  )}
+                  {observationWithIO &&
+                    isGenerationLike(observationWithIO.type) && (
+                      <JumpToPlaygroundButton
+                        source="generation"
+                        generation={observationWithIO}
+                        analyticsEventName="trace_detail:test_in_playground_button_click"
+                        layout="menu"
+                      />
+                    )}
+                  <CommentDrawerButton
                     projectId={projectId}
-                    scoreTarget={{
-                      type: "trace",
-                      traceId: traceId,
-                      observationId: observation.id,
-                    }}
-                    scores={observationScores}
-                    scoreMetadata={{
-                      projectId: projectId,
-                      environment: observation.environment,
-                    }}
+                    objectId={observation.id}
+                    objectType="OBSERVATION"
+                    count={commentCount}
+                    layout="menu"
+                    pendingSelection={pendingSelection}
+                    onSelectionUsed={onSelectionUsed}
+                    isOpen={isCommentDrawerOpen}
+                    onOpenChange={onCommentDrawerOpenChange}
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
+          {/* Action buttons (desktop inline cluster) */}
+          {!isMobile && (
+            <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+              {observationWithIO && (
+                <NewDatasetItemFromExistingObject
+                  traceId={traceId}
+                  observationId={observation.id}
+                  projectId={projectId}
+                  input={observationWithIO.input}
+                  output={observationWithIO.output}
+                  metadata={observationWithIO.metadata}
+                  key={observation.id}
+                  size="sm"
+                />
+              )}
+              {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+              {!isAnnotationMode && (
+                <div className="flex items-start">
+                  {isV4Enabled ? (
+                    <Drawer key={"annotation-drawer-" + observation.id}>
+                      <DrawerTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={!hasAnnotationAccess}
+                          className="rounded-r-none"
+                        >
+                          {!hasAnnotationAccess ? (
+                            <LockIcon className="mr-1.5 h-3 w-3" />
+                          ) : (
+                            <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          <span>Annotate</span>
+                        </Button>
+                      </DrawerTrigger>
+                      <DrawerContent className="p-3">
+                        <DualAnnotationContent
+                          projectId={projectId}
+                          traceId={traceId}
+                          observationId={observation.id}
+                          traceEnvironment={trace.environment}
+                          observationEnvironment={observation.environment}
+                          observationScores={observationScores}
+                          traceScores={traceScores}
+                        />
+                      </DrawerContent>
+                    </Drawer>
+                  ) : (
+                    <AnnotateDrawer
+                      key={"annotation-drawer-" + observation.id}
+                      projectId={projectId}
+                      scoreTarget={{
+                        type: "trace",
+                        traceId: traceId,
+                        observationId: observation.id,
+                      }}
+                      scores={observationScores}
+                      scoreMetadata={{
+                        projectId: projectId,
+                        environment: observation.environment,
+                      }}
+                      size="sm"
+                    />
+                  )}
+                  <CreateNewAnnotationQueueItem
+                    projectId={projectId}
+                    objectId={observation.id}
+                    objectType={AnnotationQueueObjectType.OBSERVATION}
+                    size="sm"
+                  />
+                </div>
+              )}
+              {observationWithIO &&
+                isGenerationLike(observationWithIO.type) && (
+                  <JumpToPlaygroundButton
+                    source="generation"
+                    generation={observationWithIO}
+                    analyticsEventName="trace_detail:test_in_playground_button_click"
                     size="sm"
                   />
                 )}
-                <CreateNewAnnotationQueueItem
-                  projectId={projectId}
-                  objectId={observation.id}
-                  objectType={AnnotationQueueObjectType.OBSERVATION}
-                  size="sm"
-                />
-              </div>
-            )}
-            {observationWithIO && isGenerationLike(observationWithIO.type) && (
-              <JumpToPlaygroundButton
-                source="generation"
-                generation={observationWithIO}
-                analyticsEventName="trace_detail:test_in_playground_button_click"
+              <CommentDrawerButton
+                projectId={projectId}
+                objectId={observation.id}
+                objectType="OBSERVATION"
+                count={commentCount}
                 size="sm"
+                pendingSelection={pendingSelection}
+                onSelectionUsed={onSelectionUsed}
+                isOpen={isCommentDrawerOpen}
+                onOpenChange={onCommentDrawerOpenChange}
               />
-            )}
-            <CommentDrawerButton
-              projectId={projectId}
-              objectId={observation.id}
-              objectType="OBSERVATION"
-              count={commentCount}
-              size="sm"
-              pendingSelection={pendingSelection}
-              onSelectionUsed={onSelectionUsed}
-              isOpen={isCommentDrawerOpen}
-              onOpenChange={onCommentDrawerOpenChange}
-            />
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Metadata badges */}
@@ -254,7 +387,7 @@ export const ObservationDetailViewHeader = memo(
 
           {/* Other badges */}
           {!isAnnotationMode && (
-            <div className="flex flex-wrap items-center gap-1">
+            <CollapsibleBadgeRow>
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
@@ -317,7 +450,7 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            </div>
+            </CollapsibleBadgeRow>
           )}
         </div>
       </div>

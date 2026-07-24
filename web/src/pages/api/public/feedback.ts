@@ -12,17 +12,6 @@ export default withMiddlewares({
     bodySchema: PostFeedbackBody,
     responseSchema: PostFeedbackResponse,
     successStatusCode: 201,
-    redactLogBody: (body) => {
-      const candidate =
-        typeof body === "object" && body !== null
-          ? (body as {
-              targetType?: unknown;
-            })
-          : {};
-      return {
-        targetType: candidate.targetType,
-      };
-    },
     fn: async ({ body, auth }) =>
       await submitFeedback({
         input: body,

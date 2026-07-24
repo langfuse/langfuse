@@ -38,25 +38,25 @@
 export const JSON_VIEW_RENDER_CHAR_LIMIT = 2_000_000;
 
 /**
- * Node ceiling for rendering a field in the *virtualized* JSON Beta viewer
- * (AdvancedJsonViewer). Measured in fully-expanded rows (`countJsonRows`), NOT
- * chars — the Beta viewer virtualizes the DOM, so its cost is the O(N)
- * tree-build (`buildMultiSectionTree` materializes every node) + row-count, not
- * the visible DOM. A char limit is the wrong metric here: a 20 MB single string
- * (e.g. a base64 data-URI) is one node and renders instantly as a media chip,
- * while 20 MB of nested JSON is ~1M nodes and freezes the tab building the tree
- * (LFE-10847 — matches the "freezes switching to JSON view on large
- * conversations" report). Above this limit the field renders the same bounded
- * preview + download fallback the plain JSON view uses.
+ * Row threshold at/above which a field in the JSON Beta view renders through the
+ * lazy byte-engine viewer (AdvancedJsonViewer/lazy) instead of the eager tree.
+ * Measured in fully-expanded rows (`countJsonRows`), NOT chars — a char limit is
+ * the wrong metric: a 20 MB single string (e.g. a base64 data-URI) is one node
+ * and renders instantly, while 20 MB of nested JSON is ~1M nodes.
  *
- * 50k is chosen deliberately:
- * - 15× the viewer's own `VIRTUALIZATION_THRESHOLD` (3333), so ordinary large
- *   traces (a few thousand rows) are never gated and keep rendering.
- * - Far below the measured ~1M-node freeze; a 50k-node tree builds in tens of
- *   ms and virtualizes fine.
- * Users keep full access via the Formatted (lazy) view and the raw download.
+ * This equals the viewer's virtualization threshold on purpose: any field big
+ * enough to need windowing goes to the lazy viewer, whose cost is bounded to
+ * what's expanded/visible. There is NO safe "eager but virtualized" middle band.
+ * The old eager virtualized path (`buildMultiSectionTree` materializes every
+ * node, then React renders the whole node set synchronously on mount) froze the
+ * tab for minutes at only tens of thousands of nodes — e.g. a 44k-row
+ * big-number payload pegged the main thread ~4 min in dev (LFE-10847). So above
+ * this threshold we ALWAYS render lazily; below it a field is small enough to
+ * render eagerly inline. The raw download stays available as a secondary hatch.
+ *
+ * Keep in sync with `VIRTUALIZATION_THRESHOLD` in IOPreviewJSON (imported there).
  */
-export const JSON_VIEW_RENDER_ROW_LIMIT = 50_000;
+export const JSON_VIEW_RENDER_ROW_LIMIT = 3_333;
 
 export interface JsonFieldProbe {
   /** Serialized length in UTF-16 chars; drives the gating decision. */

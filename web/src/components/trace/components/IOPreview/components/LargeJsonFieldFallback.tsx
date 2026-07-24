@@ -31,6 +31,7 @@ export function LargeJsonFieldFallback({
   rowCount,
   downloadFileBase,
   hideTitle = false,
+  downloadOnly = false,
 }: {
   title: string;
   /** Pre-serialized content: raw text for string fields, compact JSON for
@@ -49,6 +50,10 @@ export function LargeJsonFieldFallback({
   /** Omit the field-name heading — used when the surrounding section already
    *  renders the title (JSON Beta section footer). */
   hideTitle?: boolean;
+  /** Render just the download escape hatch (size note + button), no "too large"
+   *  message or preview. Used when the field IS being rendered lazily above and
+   *  the download is only a secondary escape hatch. */
+  downloadOnly?: boolean;
 }) {
   const capture = usePostHogClientCapture();
 
@@ -77,6 +82,22 @@ export function LargeJsonFieldFallback({
       : "application/json; charset=utf-8";
     downloadTextFile(serialized, `${downloadFileBase}.${extension}`, mimeType);
   };
+
+  if (downloadOnly) {
+    // The field is being rendered lazily above; this is only the secondary
+    // escape hatch (raw download), so no "too large" message or preview.
+    return (
+      <div className="io-message-content">
+        <div className="text-muted-foreground flex items-center gap-2 px-1 py-1 text-xs">
+          <span>{sizeSummary}</span>
+          <Button variant="outline" size="sm" onClick={onDownload}>
+            <Download className="mr-1 h-3.5 w-3.5" />
+            Download {title}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="io-message-content">

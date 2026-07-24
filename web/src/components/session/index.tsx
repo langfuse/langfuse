@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
@@ -21,6 +22,7 @@ import { useSession } from "next-auth/react";
 import {
   CheckIcon,
   ChevronDown,
+  ChevronUp,
   CopyIcon,
   Download,
   ExternalLinkIcon,
@@ -86,6 +88,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
@@ -214,6 +217,69 @@ export function SessionUsers({
   );
 }
 
+/**
+ * SessionControlsBar — the session's sticky metadata/controls bar (LLM-call
+ * preset, Saved Views, "Filter observations", trace/cost/user/score stats).
+ *
+ * Desktop (>=768px): renders the always-visible bar exactly as before — the
+ * caller passes the original `desktopClassName`, so the DOM is byte-identical.
+ *
+ * Mobile: that bar wraps into a tall block which, stacked under the page title
+ * and action row, leaves the virtualized trace feed only a sliver of the
+ * viewport. Here it collapses into a default-closed accordion: a sticky summary
+ * header the user taps to reveal the full bar, mirroring the trace view's
+ * mobile NavigationPanel (plain `useState` + a click handler, no effects).
+ */
+const SessionControlsBar = ({
+  isMobile,
+  summary,
+  desktopClassName,
+  children,
+}: {
+  isMobile: boolean;
+  summary: React.ReactNode;
+  desktopClassName: string;
+  children: React.ReactNode;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!isMobile) {
+    return <div className={desktopClassName}>{children}</div>;
+  }
+
+  return (
+    <div className="bg-background sticky top-0 z-40 flex shrink-0 flex-col border-b">
+      <Button
+        variant="ghost"
+        className="flex w-full justify-between gap-2 rounded-none px-4 py-3 text-left"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <span className="flex min-w-0 items-center gap-2">{summary}</span>
+        {isExpanded ? (
+          <ChevronUp className="h-4 w-4 shrink-0" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0" />
+        )}
+      </Button>
+      {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
+          TableViewPresetsDrawer trigger (#session-detail-view-trigger) lives in
+          here, and the per-trace "Switch the view" link clicks it by id — it
+          must be in the DOM before the accordion is ever expanded. `hidden`
+          (display:none) still takes no layout space, so the content keeps the
+          reclaimed viewport. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-t p-4",
+          !isExpanded && "hidden",
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const SessionScores = ({
   scores,
 }: {
@@ -227,9 +293,36 @@ const SessionScores = ({
 };
 const CopySessionIdButton: React.FC<{
   sessionId: string;
-}> = ({ sessionId }) => {
+  /** "menu" renders a full-width labeled row for the mobile ⋯ overflow;
+   *  default "toolbar" keeps the inline icon-only button. */
+  layout?: "toolbar" | "menu";
+}> = ({ sessionId, layout = "toolbar" }) => {
   const capture = usePostHogClientCapture();
   const { copy, isCopied } = useCopyToClipboard();
+  const isMenu = layout === "menu";
+  const onCopy = async () => {
+    capture("session_detail:copy_session_id_click");
+    await copy(sessionId);
+  };
+
+  if (isMenu) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="Copy session ID"
+        className="w-full justify-start gap-2 font-normal"
+        onClick={onCopy}
+      >
+        {isCopied ? (
+          <CheckIcon className="text-muted-green h-4 w-4" />
+        ) : (
+          <CopyIcon className="h-4 w-4" />
+        )}
+        <span className="text-sm">Copy session ID</span>
+      </Button>
+    );
+  }
 
   return (
     <Button
@@ -237,10 +330,7 @@ const CopySessionIdButton: React.FC<{
       size="icon-xs"
       title="Copy session ID"
       aria-label="Copy session ID"
-      onClick={async () => {
-        capture("session_detail:copy_session_id_click");
-        await copy(sessionId);
-      }}
+      onClick={onCopy}
     >
       {isCopied ? (
         <CheckIcon className="text-muted-green h-4 w-4" />
@@ -260,6 +350,7 @@ export const SessionPage: React.FC<{
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -496,10 +587,101 @@ export const SessionPage: React.FC<{
               </div>
             </>
           ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.data?.bookmarked ?? false}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.data?.public ?? false}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDownloadSessionAsJson}
+                className="w-full justify-start gap-2 font-normal"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-sm">Download JSON</span>
+              </Button>
+              <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                <span className="text-sm">Show corrections</span>
+                <Switch
+                  checked={showCorrections}
+                  onCheckedChange={setShowCorrectionsForSession}
+                  size="sm"
+                />
+              </label>
+            </>
+          ),
         }}
       >
         <div className="flex h-full flex-col overflow-auto">
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4">
+          <SessionControlsBar
+            isMobile={isMobile}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
+            summary={
+              <>
+                <span className="text-sm font-bold">Session controls</span>
+                <span
+                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
+                    session.data?.totalCost ?? 0,
+                    2,
+                  )}`}
+                >
+                  {session.data?.traces.length ?? 0} traces ·{" "}
+                  {usdFormatter(session.data?.totalCost ?? 0, 2)}
+                </span>
+              </>
+            }
+          >
             {session.data?.users?.length ? (
               <SessionUsers projectId={projectId} users={session.data.users} />
             ) : null}
@@ -512,7 +694,7 @@ export const SessionPage: React.FC<{
               </Badge>
             )}
             <SessionScores scores={session.data?.scores ?? []} />
-          </div>
+          </SessionControlsBar>
           <div ref={parentRef} className="flex-1 overflow-auto p-4">
             <div
               style={{
@@ -660,6 +842,7 @@ const LoadedSessionEventsPage: React.FC<{
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
   });
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -1327,6 +1510,86 @@ const LoadedSessionEventsPage: React.FC<{
               ) : null}
             </>
           ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.bookmarked}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.public}
+                label="Share"
+              />
+              <CopySessionIdButton sessionId={sessionId} layout="menu" />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.scores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              {isModernSessionEnabled ? (
+                displayOptions.map(({ label, checked, onCheckedChange }) => (
+                  <label
+                    key={label}
+                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                  >
+                    <span className="text-sm capitalize">{label}</span>
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={onCheckedChange}
+                      size="sm"
+                    />
+                  </label>
+                ))
+              ) : (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show corrections</span>
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </label>
+              )}
+            </>
+          ),
         }}
       >
         <div
@@ -1336,7 +1599,25 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
+          <SessionControlsBar
+            isMobile={isMobile && !isModernSessionEnabled}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+            summary={
+              <>
+                <span className="text-sm font-bold">Session controls</span>
+                <span
+                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  title={`${session.countTraces} traces · ${usdFormatter(
+                    session.totalCost ?? 0,
+                    2,
+                  )}`}
+                >
+                  {session.countTraces} traces ·{" "}
+                  {usdFormatter(session.totalCost ?? 0, 2)}
+                </span>
+              </>
+            }
+          >
             {isModernSessionEnabled ? (
               <Popover>
                 <PopoverTrigger asChild>
@@ -1444,7 +1725,7 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
-          </div>
+          </SessionControlsBar>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
               <div
