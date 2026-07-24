@@ -138,7 +138,6 @@ type ChartType = {
   name: string;
   value: DashboardWidgetChartType;
   icon: React.ElementType;
-  supportsBreakdown: boolean;
 };
 
 const getDateRangeFilter = (
@@ -152,62 +151,57 @@ const getDateRangeFilter = (
       ]
     : undefined;
 
+// chartTypes drives the chart-type SelectGroup rendering (group/name/value/
+// icon). Whether a type supports a breakdown dimension is derived on demand via
+// widgetChartTypeSupportsBreakdown(chartType) at each gate, not stored here.
 const chartTypes: ChartType[] = [
   {
     group: "total-value",
     name: "Big Number",
     value: "NUMBER",
     icon: Hash,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("NUMBER"),
   },
   {
     group: "time-series",
     name: "Line Chart",
     value: "LINE_TIME_SERIES",
     icon: LineChart,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("LINE_TIME_SERIES"),
   },
   {
     group: "time-series",
     name: "Vertical Bar Chart",
     value: "BAR_TIME_SERIES",
     icon: BarChart,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("BAR_TIME_SERIES"),
   },
   {
     group: "total-value",
     name: "Horizontal Bar Chart",
     value: "HORIZONTAL_BAR",
     icon: BarChartHorizontal,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("HORIZONTAL_BAR"),
   },
   {
     group: "total-value",
     name: "Vertical Bar Chart",
     value: "VERTICAL_BAR",
     icon: BarChart,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("VERTICAL_BAR"),
   },
   {
     group: "total-value",
     name: "Histogram",
     value: "HISTOGRAM",
     icon: BarChart3,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("HISTOGRAM"),
   },
   {
     group: "total-value",
     name: "Pie Chart",
     value: "PIE",
     icon: PieChart,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("PIE"),
   },
   {
     group: "total-value",
     name: "Pivot Table",
     value: "PIVOT_TABLE",
     icon: Table,
-    supportsBreakdown: widgetChartTypeSupportsBreakdown("PIVOT_TABLE"),
   },
 ];
 
