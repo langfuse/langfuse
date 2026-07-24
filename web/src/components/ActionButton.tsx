@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Lock, AlertCircle, Sparkle } from "lucide-react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
@@ -9,14 +9,6 @@ import {
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-
-const BUTTON_STATE_MESSAGES = {
-  limitReached: (current: number, max: number) =>
-    `You have reached the limit (${current}/${max}) for this resource at your current plan. Upgrade your plan to increase the limit.`,
-  noAccess:
-    "You do not have access to this resource, please ask your admin to grant you access.",
-  entitlement: "This feature is not available in your current plan.",
-} as const;
 
 type ForwardedButtonProps = Pick<
   ButtonProps,
@@ -67,24 +59,35 @@ export const ActionButton = React.forwardRef<
   ref,
 ) {
   const capture = usePostHogClientCapture();
+
   const hasReachedLimit =
     usageLimit?.current !== undefined && usageLimit.current >= usageLimit.max;
+
   const isDisabled =
     disabled || !hasAccess || !hasEntitlement || hasReachedLimit;
 
-  const getMessage = () => {
-    if (!hasAccess) return BUTTON_STATE_MESSAGES.noAccess;
-    if (!hasEntitlement) return BUTTON_STATE_MESSAGES.entitlement;
-    if (hasReachedLimit && usageLimit?.current !== undefined) {
-      return BUTTON_STATE_MESSAGES.limitReached(
-        usageLimit.current,
-        usageLimit.max,
-      );
-    }
-    return null;
-  };
+  const usageLimitCurrent = usageLimit?.current ?? 0;
+  const usageLimitMax = usageLimit?.max ?? 0;
 
-  const message = getMessage();
+  const disabledReason = useMemo(() => {
+    if (!hasAccess) {
+      return "You do not have access to this resource, please ask your admin to grant you access.";
+    }
+    if (!hasEntitlement) {
+      return "This feature is not available in your current plan.";
+    }
+    if (hasReachedLimit) {
+      return `You have reached the limit (${usageLimitCurrent}/${usageLimitMax}) for this resource at your current plan. Upgrade your plan to increase the limit.`;
+    }
+
+    return null;
+  }, [
+    hasAccess,
+    hasEntitlement,
+    hasReachedLimit,
+    usageLimitCurrent,
+    usageLimitMax,
+  ]);
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (trackingEventName) {
@@ -111,7 +114,7 @@ export const ActionButton = React.forwardRef<
     </ButtonContent>
   );
 
-  if (isDisabled && message) {
+  if (isDisabled && disabledReason) {
     return (
       <HoverCard openDelay={200}>
         <HoverCardTrigger asChild>
@@ -119,7 +122,7 @@ export const ActionButton = React.forwardRef<
         </HoverCardTrigger>
         <HoverCardPortal>
           <HoverCardContent className="w-80 text-sm">
-            {message}
+            {disabledReason}
           </HoverCardContent>
         </HoverCardPortal>
       </HoverCard>
