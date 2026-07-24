@@ -83,10 +83,7 @@ export function NavMain({
       {items.grouped &&
         Object.entries(items.grouped).map(([group, items]) => (
           <SidebarGroup key={group}>
-            {/* Mono section eyebrow per the sessions-view handoff. */}
-            <SidebarGroupLabel className="h-auto px-2 pt-3 pb-0.5 font-mono text-[10px] font-normal tracking-[0.05em] uppercase">
-              {group}
-            </SidebarGroupLabel>
+            <SidebarGroupLabel>{group}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {items.map((item) => (

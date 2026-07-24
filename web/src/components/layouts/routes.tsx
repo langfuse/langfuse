@@ -275,10 +275,7 @@ function CommandMenuTrigger() {
         });
         setOpen(true);
       }}
-      tooltip="Go to... (⌘K)"
-      // Sessions-handoff "Go to…" row: inset, closed by a dashed hairline,
-      // no fill on hover (the icon rail keeps the square hover fill).
-      className="border-sidebar-border group-data-[collapsible=icon]:hover:bg-sidebar-accent mx-2 w-[calc(100%-1rem)] rounded-none border-b border-dashed whitespace-nowrap group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:rounded-sm group-data-[collapsible=icon]:border-0 hover:bg-transparent"
+      className="whitespace-nowrap"
     >
       <Search className="h-4 w-4" />
       Go to...
