@@ -44,8 +44,7 @@ import {
   isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
   getSandboxToolCallFiles,
-  appendRunEvents,
-  partitionPendingRunEvents,
+  flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
@@ -407,34 +406,14 @@ export default async function handler(request: Request) {
             },
           ];
 
-          const flushPersistedRunEvents = async () => {
-            const pendingEventCount = pendingPersistedEvents.length;
-
-            if (pendingEventCount === 0) {
-              return;
-            }
-
-            const { eventsToAppend, retainedEvents } =
-              partitionPendingRunEvents(
-                pendingPersistedEvents.slice(0, pendingEventCount),
-              );
-
-            if (eventsToAppend.length > 0) {
-              await appendRunEvents({
-                prisma,
-                projectId,
-                conversationId: conversation.id,
-                runId: sanitizedInput.runId,
-                events: eventsToAppend,
-              });
-            }
-
-            pendingPersistedEvents.splice(
-              0,
-              pendingEventCount,
-              ...retainedEvents,
-            );
-          };
+          const flushPersistedRunEvents = () =>
+            flushPendingRunEvents({
+              prisma,
+              projectId,
+              conversationId: conversation.id,
+              runId: sanitizedInput.runId,
+              pendingEvents: pendingPersistedEvents,
+            });
 
           await flushPersistedRunEvents();
 

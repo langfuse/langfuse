@@ -33,7 +33,7 @@ import {
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
   appendRunEvents,
-  partitionPendingRunEvents,
+  flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
@@ -204,34 +204,6 @@ describe("in-app agent persistence", () => {
     return events;
   };
 
-  const flushPendingEvents = async (params: {
-    projectId: string;
-    conversationId: string;
-    runId: string;
-    events: AgUiEvent[];
-  }) => {
-    const pendingEventCount = params.events.length;
-
-    if (pendingEventCount === 0) {
-      return;
-    }
-
-    const { eventsToAppend, retainedEvents } = partitionPendingRunEvents(
-      params.events.slice(0, pendingEventCount),
-    );
-
-    if (eventsToAppend.length > 0) {
-      await appendRunEvents({
-        prisma,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        runId: params.runId,
-        events: eventsToAppend,
-      });
-    }
-    params.events.splice(0, pendingEventCount, ...retainedEvents);
-  };
-
   const processAndPersistEvent = async (params: {
     projectId: string;
     conversationId: string;
@@ -251,7 +223,13 @@ describe("in-app agent persistence", () => {
       return;
     }
 
-    await flushPendingEvents(params);
+    await flushPendingRunEvents({
+      prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      pendingEvents: params.events,
+    });
   };
 
   const appendAssistantText = async (params: {

@@ -658,7 +658,7 @@ export function shouldFlushPersistedEvent(event: AgUiEvent) {
   );
 }
 
-export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
+function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   eventsToAppend: AgUiEvent[];
   retainedEvents: AgUiEvent[];
 } {
@@ -698,6 +698,49 @@ export function partitionPendingRunEvents(events: readonly AgUiEvent[]): {
   }
 
   return { eventsToAppend, retainedEvents };
+}
+
+// Flushes a caller-owned pending-event buffer: appends every completed unit and
+// keeps only unfinished redirect lifecycles buffered. Only the events present
+// at call time are flushed, so events pushed onto the buffer while the append
+// awaits survive for the next flush.
+export async function flushPendingRunEvents(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  runId: string;
+  pendingEvents: AgUiEvent[];
+}) {
+  const pendingEventCount = params.pendingEvents.length;
+
+  if (pendingEventCount === 0) {
+    return;
+  }
+
+  const { eventsToAppend, retainedEvents } = partitionPendingRunEvents(
+    params.pendingEvents.slice(0, pendingEventCount),
+  );
+
+  if (eventsToAppend.length > 0) {
+    const appended = await appendRunEvents({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      runId: params.runId,
+      events: eventsToAppend,
+    });
+
+    if (!appended) {
+      logger.warn("In-app agent run event append fenced by terminal run", {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        runId: params.runId,
+        droppedEventCount: eventsToAppend.length,
+      });
+    }
+  }
+
+  params.pendingEvents.splice(0, pendingEventCount, ...retainedEvents);
 }
 
 export function toPersistableAgentEvent(event: AgUiEvent): AgUiEvent | null {
