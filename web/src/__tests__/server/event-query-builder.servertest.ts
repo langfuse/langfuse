@@ -96,6 +96,38 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("reuses row-selection score dependencies and full-table routing", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "metadata",
+          operator: "=",
+          key: "region",
+          value: "eu",
+          type: "stringObject",
+        },
+        {
+          column: "scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+          type: "numberObject",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("LEFT JOIN scores_agg AS s");
+    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(built.query).toContain("FROM events_full e");
+    expect(Object.values(built.params)).toContain("quality");
+  });
+
   it("applies the scored traces scope without caller-provided raw SQL", () => {
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",

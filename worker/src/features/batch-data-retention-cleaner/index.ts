@@ -59,6 +59,7 @@ interface ProjectWorkload extends ProjectRetention {
 interface ProjectWorkloadSelection {
   observedWorkloads: ProjectWorkload[];
   selectedWorkloads: ProjectWorkload[];
+  projectCountMeasurementComplete: boolean;
   lagMeasurementComplete: boolean;
 }
 
@@ -70,6 +71,19 @@ interface CandidateDiscoveryResult {
 interface EnrichmentResult {
   workloads: ProjectWorkload[];
   complete: boolean;
+}
+
+function summarizeBacklog(workloads: ProjectWorkload[]) {
+  return {
+    pendingProjects: workloads.length,
+    secondsPastCutoff: workloads.reduce(
+      (maximum, workload) =>
+        workload.secondsPastCutoff === null
+          ? maximum
+          : Math.max(maximum, workload.secondsPastCutoff),
+      0,
+    ),
+  };
 }
 
 /**
@@ -194,49 +208,40 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
    */
   protected async execute(): Promise<void> {
     const timestampColumn = TIMESTAMP_COLUMN_MAP[this.tableName];
-
-    // Reset gauges before attempting lock - ensures they don't appear stuck
-    // if another worker holds the lock
-    recordGauge(`${METRIC_PREFIX}.pending_projects`, 0, {
-      table: this.tableName,
-    });
-    recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, 0, {
-      table: this.tableName,
-    });
+    let observedBacklog: ReturnType<typeof summarizeBacklog> | undefined;
+    let observedLagMeasurementComplete = false;
+    const recordBacklog = (
+      {
+        pendingProjects,
+        secondsPastCutoff,
+      }: ReturnType<typeof summarizeBacklog>,
+      includeLag = true,
+    ) => {
+      recordGauge(`${METRIC_PREFIX}.pending_projects`, pendingProjects, {
+        table: this.tableName,
+      });
+      if (includeLag) {
+        recordGauge(`${METRIC_PREFIX}.seconds_past_cutoff`, secondsPastCutoff, {
+          table: this.tableName,
+        });
+      }
+    };
 
     await this.withLock(
       async () => {
         // Step 1: Get project workloads (streamed CH candidates + PG config)
-        const { observedWorkloads, selectedWorkloads, lagMeasurementComplete } =
-          await this.getProjectWorkloads();
+        const {
+          observedWorkloads,
+          selectedWorkloads,
+          projectCountMeasurementComplete,
+          lagMeasurementComplete,
+        } = await this.getProjectWorkloads();
 
-        recordGauge(
-          `${METRIC_PREFIX}.pending_projects`,
-          observedWorkloads.length,
-          {
-            table: this.tableName,
-          },
-        );
+        const currentBacklog = summarizeBacklog(observedWorkloads);
 
-        // Retention cutoffs come from Postgres and are frozen once per run.
-        // Fold the per-project results here to preserve one maximum across all
-        // bounded ClickHouse queries.
-        const observedMaxSecondsPastCutoff = observedWorkloads.reduce(
-          (maximum, workload) =>
-            workload.secondsPastCutoff === null
-              ? maximum
-              : Math.max(maximum, workload.secondsPastCutoff),
-          0,
-        );
-
-        if (lagMeasurementComplete) {
-          recordGauge(
-            `${METRIC_PREFIX}.seconds_past_cutoff`,
-            observedMaxSecondsPastCutoff,
-            {
-              table: this.tableName,
-            },
-          );
+        if (projectCountMeasurementComplete) {
+          observedBacklog = currentBacklog;
+          observedLagMeasurementComplete = lagMeasurementComplete;
         }
 
         // Step 2: Execute DELETE
@@ -248,7 +253,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
                 (workload) => workload.projectId,
               ),
               pendingProjectsSeen: observedWorkloads.length,
-              observedMaxSecondsPastCutoff,
+              observedMaxSecondsPastCutoff: currentBacklog.secondsPastCutoff,
               lagMeasurementComplete,
             },
           );
@@ -265,6 +270,14 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           );
         }
 
+        if (projectCountMeasurementComplete) {
+          // selectedWorkloads is the leading PROJECT_LIMIT slice.
+          recordBacklog(
+            summarizeBacklog(observedWorkloads.slice(selectedWorkloads.length)),
+            lagMeasurementComplete,
+          );
+        }
+
         // Record successful deletion metrics
         recordIncrement(`${METRIC_PREFIX}.delete_successes`, 1, {
           table: this.tableName,
@@ -278,10 +291,14 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         );
       },
       () => {
+        if (observedBacklog) {
+          recordBacklog(observedBacklog, observedLagMeasurementComplete);
+        }
         recordIncrement(`${METRIC_PREFIX}.delete_failures`, 1, {
           table: this.tableName,
         });
       },
+      () => recordBacklog({ pendingProjects: 0, secondsPastCutoff: 0 }),
     );
   }
 
@@ -309,6 +326,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       return {
         observedWorkloads: [],
         selectedWorkloads: [],
+        projectCountMeasurementComplete: true,
         lagMeasurementComplete: true,
       };
     }
@@ -369,6 +387,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
             );
             return {
               workloads: enrichment.workloads,
+              discoveryComplete: discovery.complete,
               complete: discovery.complete && enrichment.complete,
             };
           } catch (error) {
@@ -426,6 +445,9 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       selectedWorkloads: workloads.slice(
         0,
         env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_PROJECT_LIMIT,
+      ),
+      projectCountMeasurementComplete: chunkResults.every(
+        (result) => result.discoveryComplete,
       ),
       lagMeasurementComplete: chunkResults.every((result) => result.complete),
     };
