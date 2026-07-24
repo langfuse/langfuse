@@ -32,6 +32,42 @@ export function compactTextMessageChunks(
   return compactedEvents;
 }
 
+export function compactPersistedEventDeltas(
+  events: readonly AgUiEvent[],
+): AgUiEvent[] {
+  const compactedEvents: AgUiEvent[] = [];
+
+  for (const event of compactTextMessageChunks(events)) {
+    const previousEvent = compactedEvents.at(-1);
+
+    if (
+      isReasoningDelta(event) &&
+      previousEvent &&
+      isReasoningDelta(previousEvent) &&
+      getString(event, "messageId") === getString(previousEvent, "messageId")
+    ) {
+      compactedEvents[compactedEvents.length - 1] = {
+        ...previousEvent,
+        delta:
+          (getString(previousEvent, "delta") ?? "") +
+          (getString(event, "delta") ?? ""),
+      };
+      continue;
+    }
+
+    compactedEvents.push(event);
+  }
+
+  return compactedEvents;
+}
+
+function isReasoningDelta(event: AgUiEvent) {
+  return (
+    event.type === EventType.REASONING_MESSAGE_CHUNK ||
+    event.type === EventType.REASONING_MESSAGE_CONTENT
+  );
+}
+
 function getTextChunkRole(event: unknown) {
   const role = getString(event, "role");
 

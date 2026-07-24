@@ -6,8 +6,9 @@ import type {
   AgUiEvent,
   InAppAgentToolApprovalRequest,
 } from "@/src/ee/features/in-app-agent/schema";
-import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
+import { appendRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -670,9 +671,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -745,9 +747,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox-resume",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,

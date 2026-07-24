@@ -14,6 +14,7 @@ import { vi } from "vitest";
 
 import { InAppAgentRunErrorCode, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import type { Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   generateLLMText,
@@ -31,7 +32,8 @@ import {
   finishRun,
   getConversationMessagesForReplay,
   maybeInferAndPersistConversationTitle,
-  replaceRunEvents,
+  appendRunEvents,
+  flushPendingRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
@@ -174,29 +176,29 @@ describe("in-app agent persistence", () => {
       role: "user" as const,
       content: params.content,
     };
-    const events: AgUiEvent[] = [
-      {
-        type: EventType.RUN_STARTED,
-        threadId: params.conversationId,
-        runId: params.runId,
-        input: {
-          threadId: params.conversationId,
-          runId: params.runId,
-          state: null,
-          messages: [userMessage],
-          tools: [],
-          context: [],
-          forwardedProps: {},
-        },
-      },
-    ];
+    const events: AgUiEvent[] = [];
 
-    await replaceRunEvents({
+    await appendRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      events,
+      events: [
+        {
+          type: EventType.RUN_STARTED,
+          threadId: params.conversationId,
+          runId: params.runId,
+          input: {
+            threadId: params.conversationId,
+            runId: params.runId,
+            state: null,
+            messages: [userMessage],
+            tools: [],
+            context: [],
+            forwardedProps: {},
+          },
+        },
+      ],
     });
 
     return events;
@@ -221,12 +223,12 @@ describe("in-app agent persistence", () => {
       return;
     }
 
-    await replaceRunEvents({
+    await flushPendingRunEvents({
       prisma,
       projectId: params.projectId,
       conversationId: params.conversationId,
       runId: params.runId,
-      events: params.events,
+      pendingEvents: params.events,
     });
   };
 
@@ -287,6 +289,15 @@ describe("in-app agent persistence", () => {
       runId: run1.id,
       messageId: "user-message-1",
       content: "Please inspect today's traces for outliers",
+    });
+    const sentinelCreatedAt = new Date("2020-01-02T03:04:05.000Z");
+    await prisma.inAppAgentEvent.updateMany({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run1.id,
+      },
+      data: { createdAt: sentinelCreatedAt },
     });
     await appendAssistantText({
       projectId,
@@ -388,12 +399,18 @@ describe("in-app agent persistence", () => {
     const events = await prisma.inAppAgentEvent.findMany({
       where: { projectId, conversationId: conversation.id },
       orderBy: { sequenceNumber: "asc" },
-      select: { sequenceNumber: true, type: true, event: true },
+      select: {
+        sequenceNumber: true,
+        type: true,
+        event: true,
+        createdAt: true,
+      },
     });
 
     expect(events.map((event) => event.sequenceNumber)).toEqual([
       0, 1, 2, 3, 4, 5, 6,
     ]);
+    expect(events[0]?.createdAt).toEqual(sentinelCreatedAt);
     expect(events.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.TEXT_MESSAGE_START,
@@ -445,6 +462,113 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  // Behavior: append-written multi-run history remains replayable after the latest run is rewritten by the legacy writer.
+  // Crucial: the unflagged rollout must be safely reversible without corrupting event order or changing model context.
+  // Necessary: existing append and fencing tests do not exercise the mixed-version writer transition created by a rollback.
+  it("preserves replay when the latest append-written run is rewritten by the legacy writer", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run1 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events1 = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      messageId: "rollback-user-1",
+      content: "Inspect the first trace",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run1.id,
+      events: events1,
+      messageId: "rollback-assistant-1",
+      chunks: ["First trace inspected."],
+    });
+    await finishRun({ prisma, runId: run1.id, projectId });
+
+    const run2 = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events2 = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      messageId: "rollback-user-2",
+      content: "Inspect the second trace",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run2.id,
+      events: events2,
+      messageId: "rollback-assistant-2",
+      chunks: ["Second trace inspected."],
+    });
+
+    const replayBeforeRollback = await getConversationMessagesForReplay({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+    const latestRunEvents = await prisma.inAppAgentEvent.findMany({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run2.id,
+      },
+      orderBy: { sequenceNumber: "asc" },
+      select: { type: true, event: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.inAppAgentEvent.deleteMany({
+        where: {
+          projectId,
+          conversationId: conversation.id,
+          runId: run2.id,
+        },
+      });
+      const latestRemainingEvent = await tx.inAppAgentEvent.findFirst({
+        where: { projectId, conversationId: conversation.id },
+        orderBy: { sequenceNumber: "desc" },
+        select: { sequenceNumber: true },
+      });
+      await tx.inAppAgentEvent.createMany({
+        data: latestRunEvents.map((event, index) => ({
+          projectId,
+          conversationId: conversation.id,
+          runId: run2.id,
+          sequenceNumber:
+            (latestRemainingEvent?.sequenceNumber ?? -1) + index + 1,
+          type: event.type,
+          event: event.event as Prisma.InputJsonValue,
+        })),
+      });
+    });
+
+    const rewrittenEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { sequenceNumber: true },
+    });
+    expect(rewrittenEvents.map((event) => event.sequenceNumber)).toEqual(
+      rewrittenEvents.map((_, index) => index),
+    );
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(replayBeforeRollback);
   });
 
   it("does not overwrite user-renamed conversation titles", async () => {
@@ -633,7 +757,7 @@ describe("in-app agent persistence", () => {
     ).resolves.toBe(1);
   });
 
-  it("stores and reduces tool calls, tool results, and activities", async () => {
+  it("hydrates visible reasoning without including it in model replay", async () => {
     const { projectId, userId, caller } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -700,6 +824,9 @@ describe("in-app agent persistence", () => {
       role: "tool",
     });
     await process({
+      type: EventType.REASONING_START,
+    });
+    await process({
       type: EventType.REASONING_MESSAGE_START,
       messageId: "reasoning-1",
       role: "reasoning",
@@ -707,7 +834,12 @@ describe("in-app agent persistence", () => {
     await process({
       type: EventType.REASONING_MESSAGE_CONTENT,
       messageId: "reasoning-1",
-      delta: "Checking filters",
+      delta: "Checking ",
+    });
+    await process({
+      type: EventType.REASONING_MESSAGE_CONTENT,
+      messageId: "reasoning-1",
+      delta: "filters",
     });
     await process({
       type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -720,70 +852,148 @@ describe("in-app agent persistence", () => {
       messageId: "reasoning-1",
     });
     await process({
+      type: EventType.REASONING_END,
+    });
+    await process({
       type: EventType.ACTIVITY_SNAPSHOT,
       messageId: "activity-1",
       activityType: "progress",
       content: { status: "done" },
     });
 
+    const expectedDisplayMessages = [
+      {
+        id: "tool-user",
+        role: "user" as const,
+        content: "Search traces",
+      },
+      {
+        id: "tool-assistant",
+        role: "assistant" as const,
+        content: "I searched traces.",
+        runId: run.id,
+        toolCalls: [
+          {
+            id: "tool-call-1",
+            type: "function" as const,
+            function: {
+              name: "list_traces",
+              arguments: '{"limit":10}',
+            },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "tool-call-1",
+      },
+      {
+        id: "reasoning-1",
+        role: "reasoning" as const,
+        content: "Checking filters",
+      },
+      {
+        id: "activity-1",
+        role: "activity" as const,
+        activityType: "progress",
+        content: { status: "done" },
+      },
+    ];
+    const expectedReplayMessages = [
+      {
+        id: "tool-user",
+        role: "user" as const,
+        content: "Search traces",
+      },
+      {
+        id: "tool-assistant",
+        role: "assistant" as const,
+        content: "I searched traces.",
+        toolCalls: [
+          {
+            id: "tool-call-1",
+            type: "function" as const,
+            function: {
+              name: "list_traces",
+              arguments: '{"limit":10}',
+            },
+          },
+        ],
+      },
+      {
+        id: "tool-result-1",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "tool-call-1",
+      },
+      {
+        id: "activity-1",
+        role: "activity" as const,
+        activityType: "progress",
+        content: { status: "done" },
+      },
+    ];
+
     await expect(
       caller.getConversation({ projectId, conversationId: conversation.id }),
     ).resolves.toMatchObject({
-      messages: [
-        {
-          id: "tool-user",
-          role: "user",
-          content: "Search traces",
+      messages: expectedDisplayMessages,
+    });
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+
+    const persistedEvents = await prisma.inAppAgentEvent.findMany({
+      where: { projectId, conversationId: conversation.id, runId: run.id },
+      orderBy: { sequenceNumber: "asc" },
+      select: { sequenceNumber: true, type: true, event: true },
+    });
+    expect(
+      persistedEvents
+        .filter((event) => event.type === EventType.REASONING_MESSAGE_CONTENT)
+        .map((event) => event.event),
+    ).toEqual([
+      expect.objectContaining({
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        delta: "Checking filters",
+      }),
+    ]);
+    expect(JSON.stringify(persistedEvents)).not.toContain(
+      "encrypted-reasoning",
+    );
+
+    await prisma.inAppAgentEvent.create({
+      data: {
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        sequenceNumber: (persistedEvents.at(-1)?.sequenceNumber ?? -1) + 1,
+        type: "FUTURE_REASONING_METADATA",
+        event: {
+          type: "FUTURE_REASONING_METADATA",
+          payload: "ignored",
         },
-        {
-          id: "tool-assistant",
-          role: "assistant",
-          content: "I searched traces.",
-          toolCalls: [
-            {
-              id: "tool-call-1",
-              type: "function",
-              function: {
-                name: "list_traces",
-                arguments: '{"limit":10}',
-              },
-            },
-          ],
-        },
-        {
-          id: "tool-result-1",
-          role: "tool",
-          content: "[]",
-          toolCallId: "tool-call-1",
-        },
-        {
-          id: "activity-1",
-          role: "activity",
-          activityType: "progress",
-          content: { status: "done" },
-        },
-      ],
+      },
     });
 
     await expect(
-      prisma.inAppAgentEvent.count({
-        where: { projectId, conversationId: conversation.id, runId: run.id },
+      caller.getConversation({ projectId, conversationId: conversation.id }),
+    ).resolves.toMatchObject({
+      messages: expectedDisplayMessages,
+    });
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
       }),
-    ).resolves.toBe(9);
-
-    const persistedEventTypes = (
-      await prisma.inAppAgentEvent.findMany({
-        where: { projectId, conversationId: conversation.id, runId: run.id },
-        select: { type: true },
-      })
-    ).map((event) => event.type);
-    expect(persistedEventTypes).not.toContain(
-      EventType.REASONING_MESSAGE_START,
-    );
-    expect(persistedEventTypes).not.toContain(
-      EventType.REASONING_MESSAGE_CONTENT,
-    );
-    expect(persistedEventTypes).not.toContain(EventType.REASONING_MESSAGE_END);
+    ).resolves.toEqual(expectedReplayMessages);
   });
 
   it("stores only compact events and skips raw adapter payloads", async () => {
@@ -1208,8 +1418,8 @@ describe("in-app agent persistence", () => {
     ]);
   });
 
-  it("drops failed redirect tool results before replay", async () => {
-    const { projectId, userId } = await createCaller();
+  it("flushes sibling tools while retaining only successful redirect actions for display", async () => {
+    const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
       projectId,
@@ -1253,6 +1463,60 @@ describe("in-app agent persistence", () => {
       toolCallId: "redirect-tool-call",
     });
     await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "sibling-tool-call",
+      toolCallName: "list_traces",
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "sibling-tool-call",
+      delta: "{}",
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "sibling-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "sibling-tool-result",
+      toolCallId: "sibling-tool-call",
+      content: "[]",
+      role: "tool",
+    });
+
+    const expectedReplayMessages = [
+      { id: "user-1", role: "user" as const, content: "open a trace" },
+      {
+        id: "assistant-1",
+        role: "assistant" as const,
+        toolCalls: [
+          {
+            id: "sibling-tool-call",
+            type: "function" as const,
+            function: { name: "list_traces", arguments: "{}" },
+          },
+        ],
+      },
+      {
+        id: "sibling-tool-result",
+        role: "tool" as const,
+        content: "[]",
+        toolCallId: "sibling-tool-call",
+      },
+    ];
+
+    // A completed sibling tool unit must reach the Postgres-backed replay
+    // surface without waiting for an unrelated redirect result.
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual(expectedReplayMessages);
+
+    await process({
       type: EventType.TOOL_CALL_RESULT,
       messageId: "tool-result-1",
       toolCallId: "redirect-tool-call",
@@ -1260,15 +1524,79 @@ describe("in-app agent persistence", () => {
       role: "tool",
     });
 
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "successful-redirect-tool-call",
+      toolCallName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "successful-redirect-tool-call",
+      delta: '{"destination":"trace"}',
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "successful-redirect-tool-call",
+    });
+    const redirectActionContent = JSON.stringify({
+      type: "redirectAction",
+      label: "Open trace",
+      href: `/project/${projectId}/traces/trace-1`,
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "successful-redirect-result",
+      toolCallId: "successful-redirect-tool-call",
+      content: redirectActionContent,
+      role: "tool",
+    });
+
+    // Successful redirect actions must survive refresh as render-only results,
+    // while failed redirects and their evolving call arguments stay absent.
+    await expect(
+      caller.getConversation({
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toMatchObject({
+      messages: [
+        { id: "user-1", role: "user", content: "open a trace" },
+        {
+          id: "assistant-1",
+          role: "assistant",
+          runId: run.id,
+          toolCalls: [
+            {
+              id: "sibling-tool-call",
+              type: "function",
+              function: { name: "list_traces", arguments: "{}" },
+            },
+          ],
+        },
+        {
+          id: "sibling-tool-result",
+          role: "tool",
+          content: "[]",
+          toolCallId: "sibling-tool-call",
+        },
+        {
+          id: "successful-redirect-result",
+          role: "tool",
+          content: redirectActionContent,
+          toolCallId: "successful-redirect-tool-call",
+        },
+      ],
+    });
+
+    // Render-only redirect actions must never enter the next model request.
     await expect(
       getConversationMessagesForReplay({
         prisma,
         projectId,
         conversationId: conversation.id,
       }),
-    ).resolves.toEqual([
-      { id: "user-1", role: "user", content: "open a trace" },
-    ]);
+    ).resolves.toEqual(expectedReplayMessages);
   });
 
   it("drops empty assistant messages after removing orphan tool calls before replay", async () => {
