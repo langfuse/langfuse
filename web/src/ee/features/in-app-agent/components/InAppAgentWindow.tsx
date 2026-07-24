@@ -386,16 +386,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
-  // On mobile, opening the assistant must NOT auto-focus the input: focusing a
-  // textarea there springs the on-screen keyboard, which eats half the viewport
-  // and scrolls the panel into an unreadable state before the user has decided
-  // to type. Let them open it, read, and tap the input themselves.
-  //
-  // `autoFocus` is a mount-only DOM attribute, so it must be correct on the
-  // FIRST render — but useIsMobile() reports false on its first render (it
-  // resolves the media query in an effect), which would let the focus fire
-  // before it flips. Read the viewport width synchronously so the mount value
-  // is right; the window is client-only (opened on interaction), so no SSR.
+  // No auto-focus on mobile — it springs the keyboard and buries the panel.
+  // autoFocus is mount-only and useIsMobile() is false on first render, so read
+  // the viewport synchronously (window is client-only here).
   const isNarrowViewport =
     typeof window !== "undefined" && window.innerWidth < 768;
   const isRateLimited = isInAppAgentRateLimited(error);
@@ -486,14 +479,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
 
+      // Skip on mobile: refocusing after a turn re-springs the keyboard, even
+      // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
-        previousIsInputDisabledRef.current && !isInputDisabled;
+        previousIsInputDisabledRef.current &&
+        !isInputDisabled &&
+        !isNarrowViewport;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isInputDisabled],
+    [isInputDisabled, isNarrowViewport],
   );
 
   useEffect(() => {
