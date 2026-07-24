@@ -78,7 +78,6 @@ overrides:
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.27 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
   # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
   # Remove once @langchain/anthropic allows the same SDK range.
   # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
