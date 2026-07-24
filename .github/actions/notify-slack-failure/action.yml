@@ -144,4 +144,4 @@ runs:
           event: "${{ github.event_name }}"
           commit: "${{ github.sha }}"
           workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          failure_reason: "${{ steps.failure-reason.outputs.reason }}"
+          failure_reason: ${{ toJSON(steps.failure-reason.outputs.reason) }}
