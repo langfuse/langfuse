@@ -14,7 +14,7 @@ pnpm run seed -- deep-chain --v4  # 1401 sequential generations in ONE parent ch
 pnpm run seed -- agent-timeline --turns 6 --v4  # realistic agent flow-with-loop over a timeline (graph view)
 pnpm run seed -- support-agent --v4 --id-prefix <hex>  # demo-grade handcrafted support-copilot run (videos/screenshots)
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
-pnpm run seed -- session-shapes --shape all        # chat / coding-agent / mixed v4 sessions
+pnpm run seed -- session-shapes --shape all        # chat / coding-agent / ChatML tools / mixed v4 sessions
 pnpm run seed -- many-traces --count 100000 --days 14
 pnpm run seed -- scored-traces --traces 24 --v4   # scores w/ spaces in the name
 ```
