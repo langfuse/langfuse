@@ -1,3 +1,4 @@
+import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
@@ -21,6 +22,7 @@ import { useSession } from "next-auth/react";
 import {
   CheckIcon,
   ChevronDown,
+  ChevronUp,
   CopyIcon,
   Download,
   ExternalLinkIcon,
@@ -86,6 +88,7 @@ import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualiz
 import { createSessionDetailStore } from "@/src/components/session/sessionDetailStore";
 import { ModernSession } from "@/src/components/session/ModernSession";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/components/session/useHistoryEntryRevisit";
 import {
@@ -214,6 +217,69 @@ export function SessionUsers({
   );
 }
 
+/**
+ * SessionControlsBar — the session's sticky metadata/controls bar (LLM-call
+ * preset, Saved Views, "Filter observations", trace/cost/user/score stats).
+ *
+ * Desktop (>=768px): renders the always-visible bar exactly as before — the
+ * caller passes the original `desktopClassName`, so the DOM is byte-identical.
+ *
+ * Mobile: that bar wraps into a tall block which, stacked under the page title
+ * and action row, leaves the virtualized trace feed only a sliver of the
+ * viewport. Here it collapses into a default-closed accordion: a sticky summary
+ * header the user taps to reveal the full bar, mirroring the trace view's
+ * mobile NavigationPanel (plain `useState` + a click handler, no effects).
+ */
+const SessionControlsBar = ({
+  isMobile,
+  summary,
+  desktopClassName,
+  children,
+}: {
+  isMobile: boolean;
+  summary: React.ReactNode;
+  desktopClassName: string;
+  children: React.ReactNode;
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!isMobile) {
+    return <div className={desktopClassName}>{children}</div>;
+  }
+
+  return (
+    <div className="bg-background sticky top-0 z-40 flex shrink-0 flex-col border-b">
+      <Button
+        variant="ghost"
+        className="flex w-full justify-between gap-2 rounded-none px-4 py-3 text-left"
+        aria-expanded={isExpanded}
+        onClick={() => setIsExpanded((prev) => !prev)}
+      >
+        <span className="flex min-w-0 items-center gap-2">{summary}</span>
+        {isExpanded ? (
+          <ChevronUp className="h-4 w-4 shrink-0" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0" />
+        )}
+      </Button>
+      {/* Keep children MOUNTED when collapsed (hidden, not unmounted): the
+          TableViewPresetsDrawer trigger (#session-detail-view-trigger) lives in
+          here, and the per-trace "Switch the view" link clicks it by id — it
+          must be in the DOM before the accordion is ever expanded. `hidden`
+          (display:none) still takes no layout space, so the content keeps the
+          reclaimed viewport. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2 border-t p-4",
+          !isExpanded && "hidden",
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
+
 const SessionScores = ({
   scores,
 }: {
@@ -284,6 +350,7 @@ export const SessionPage: React.FC<{
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const session = api.sessions.byIdWithScores.useQuery(
     {
@@ -596,7 +663,25 @@ export const SessionPage: React.FC<{
         }}
       >
         <div className="flex h-full flex-col overflow-auto">
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4">
+          <SessionControlsBar
+            isMobile={isMobile}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap gap-2 border-b p-4"
+            summary={
+              <>
+                <span className="text-sm font-bold">Session controls</span>
+                <span
+                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
+                    session.data?.totalCost ?? 0,
+                    2,
+                  )}`}
+                >
+                  {session.data?.traces.length ?? 0} traces ·{" "}
+                  {usdFormatter(session.data?.totalCost ?? 0, 2)}
+                </span>
+              </>
+            }
+          >
             {session.data?.users?.length ? (
               <SessionUsers projectId={projectId} users={session.data.users} />
             ) : null}
@@ -609,7 +694,7 @@ export const SessionPage: React.FC<{
               </Badge>
             )}
             <SessionScores scores={session.data?.scores ?? []} />
-          </div>
+          </SessionControlsBar>
           <div ref={parentRef} className="flex-1 overflow-auto p-4">
             <div
               style={{
@@ -757,6 +842,7 @@ const LoadedSessionEventsPage: React.FC<{
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
   });
+  const isMobile = useIsMobile();
   const parentRef = useRef<HTMLDivElement>(null);
   const defaultPresetAppliedRef = useRef(false);
 
@@ -1513,7 +1599,25 @@ const LoadedSessionEventsPage: React.FC<{
               : "flex h-full flex-col overflow-auto"
           }
         >
-          <div className="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4">
+          <SessionControlsBar
+            isMobile={isMobile && !isModernSessionEnabled}
+            desktopClassName="bg-background sticky top-0 z-40 flex flex-wrap items-center gap-2 border-b p-4"
+            summary={
+              <>
+                <span className="text-sm font-bold">Session controls</span>
+                <span
+                  className="text-muted-foreground min-w-0 truncate text-xs"
+                  title={`${session.countTraces} traces · ${usdFormatter(
+                    session.totalCost ?? 0,
+                    2,
+                  )}`}
+                >
+                  {session.countTraces} traces ·{" "}
+                  {usdFormatter(session.totalCost ?? 0, 2)}
+                </span>
+              </>
+            }
+          >
             {isModernSessionEnabled ? (
               <Popover>
                 <PopoverTrigger asChild>
@@ -1621,7 +1725,7 @@ const LoadedSessionEventsPage: React.FC<{
 
             {/* Scores */}
             <SessionScores scores={session.scores} />
-          </div>
+          </SessionControlsBar>
           {!isModernSessionEnabled ? (
             <div ref={parentRef} className="flex-1 overflow-auto p-4">
               <div
