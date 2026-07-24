@@ -11,7 +11,7 @@
  */
 import { parseArgs } from "node:util";
 import { prisma } from "../../src/db";
-import { logger, redis } from "../../src/server";
+import { getEnvironmentsWithCountsForProject, logger, redis } from "../../src/server";
 import { preflight, runDoctor } from "./doctor";
 import { scenarios } from "./scenarios";
 import { ScenarioContext, ScenarioFlag, SeedError } from "./scenarios/types";
@@ -71,6 +71,7 @@ const usage = (): string => {
     "Usage:",
     "  pnpm run seed -- doctor [--json] [--project <id>]   check the local stack, print fixes",
     "  pnpm run seed -- list [--json]          list scenarios and flags",
+    "  pnpm run seed -- env [--json] [--project <id>]   list environments + trace counts for the project",
     "  pnpm run seed -- <scenario> [flags]     seed one scenario",
     "",
     "Scenarios:",
@@ -94,6 +95,7 @@ const usage = (): string => {
     "  pnpm run seed -- long-session --traces 300 --observations-per-trace 8",
   );
   lines.push("  pnpm run seed -- many-traces --count 100000 --days 14");
+  lines.push("  pnpm run seed -- env                      # inspect envs and trace counts");
   return lines.join("\n");
 };
 
@@ -159,6 +161,37 @@ const printDoctor = (
       ? "\nStack is ready for seeding."
       : "\nFix the FAIL items above, then re-run: pnpm run seed -- doctor",
   );
+};
+
+const printEnv = (
+  projectId: string,
+  rows: Awaited<ReturnType<typeof getEnvironmentsWithCountsForProject>>,
+  json: boolean,
+): void => {
+  if (json) {
+    console.log(JSON.stringify({ projectId, environments: rows }));
+    return;
+  }
+  if (rows.length === 0) {
+    console.log("(no environments)");
+    return;
+  }
+  const envWidth = Math.max(
+    "ENV".length,
+    ...rows.map((r) => r.environment.length),
+  );
+  const countWidth = Math.max(
+    "TRACES".length,
+    ...rows.map((r) => String(r.count).length),
+  );
+  console.log(
+    `${"ENV".padEnd(envWidth)}  ${"TRACES".padStart(countWidth)}`,
+  );
+  for (const row of rows) {
+    console.log(
+      `${row.environment.padEnd(envWidth)}  ${String(row.count).padStart(countWidth)}`,
+    );
+  }
 };
 
 const main = async (): Promise<number> => {
@@ -241,12 +274,34 @@ const main = async (): Promise<number> => {
     return 0;
   }
 
+  if (command === "env") {
+    let values: { json?: boolean; project?: string };
+    try {
+      values = parseArgs({
+        args: argv.slice(1),
+        options: {
+          json: { type: "boolean" },
+          project: { type: "string" },
+        },
+      }).values;
+    } catch (error) {
+      throw new SeedError(
+        (error as Error).message,
+        "supported usage: env [--json] [--project <id>]",
+      );
+    }
+    const projectId = values.project ?? DEFAULT_PROJECT_ID;
+    const rows = await getEnvironmentsWithCountsForProject({ projectId });
+    printEnv(projectId, rows, values.json === true);
+    return 0;
+  }
+
   const scenario = Object.hasOwn(scenarios, command)
     ? scenarios[command]
     : undefined;
   if (!scenario) {
     throw new SeedError(
-      `unknown scenario "${command}" — available: ${Object.keys(scenarios).join(", ")}, doctor, list`,
+      `unknown scenario "${command}" — available: ${Object.keys(scenarios).join(", ")}, doctor, list, env`,
       "run `pnpm run seed -- list` to see scenarios and flags",
     );
   }

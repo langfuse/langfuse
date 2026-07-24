@@ -16,6 +16,7 @@ import {
   createTracesCh,
   createTrace,
   getEnvironmentsForProject,
+  getEnvironmentsWithCountsForProject,
 } from "@langfuse/shared/src/server";
 import { env } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
@@ -61,5 +62,41 @@ describe("Clickhouse Project Repository Test", () => {
         { environment: "default" },
       ]),
     );
+  });
+});
+
+describe("getEnvironmentsWithCountsForProject (legacy)", () => {
+  it("returns the default environment with zero count when the project has no traces", async () => {
+    const projectId = randomUUID();
+    const rows = await getEnvironmentsWithCountsForProject({ projectId });
+    expect(rows).toEqual([{ environment: "default", count: 0 }]);
+  });
+
+  it("returns distinct-trace counts per environment, sorted by count desc", async () => {
+    const projectId = randomUUID();
+    const envA = randomUUID();
+    const envB = randomUUID();
+    // 3 traces in envA, 1 trace in envB, 2 traces in default
+    await createTracesCh([
+      createTrace({ project_id: projectId, environment: envA }),
+      createTrace({ project_id: projectId, environment: envA }),
+      createTrace({ project_id: projectId, environment: envA }),
+      createTrace({ project_id: projectId, environment: envB }),
+      createTrace({ project_id: projectId }), // default env
+      createTrace({ project_id: projectId }), // default env
+    ]);
+
+    const rows = await getEnvironmentsWithCountsForProject({ projectId });
+    const byEnv = Object.fromEntries(rows.map((r) => [r.environment, r.count]));
+
+    // envA wins, default is second, envB is third.
+    expect(rows[0].environment).toBe(envA);
+    expect(rows[0].count).toBe(3);
+    expect(byEnv.default).toBe(2);
+    expect(byEnv[envB]).toBe(1);
+
+    // The default env is always present even if no rows were inserted for it
+    // (in this case it IS present because we inserted 2 default-env traces).
+    expect(rows.some((r) => r.environment === "default")).toBe(true);
   });
 });
