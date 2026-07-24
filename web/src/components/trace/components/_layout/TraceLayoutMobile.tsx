@@ -101,11 +101,19 @@ export function TraceLayoutMobile({
   const activeTab: MobileTraceTab =
     requestedTab === "graph" && !showGraph ? "tree" : requestedTab;
 
-  // Auto-switch writes REPLACE (they piggyback on the selection the navigator
-  // just pushed — one user action stays one history entry); explicit tab taps
-  // push (so Back returns to the previous tab).
+  // Auto-switch writes PUSH, not replace. A navigator's select handler writes
+  // the `?observation=` param (pushIn) and then calls this in the SAME tick, so
+  // with use-query-params batching (`enableBatching`, set in _app.tsx) both
+  // writes fold into one navigation whose updateType is taken from the LAST
+  // enqueued write. If this used `replaceIn` it would downgrade the whole merged
+  // navigation to history.replaceState — dropping the selection's own history
+  // entry, so Back would leave the trace view entirely instead of clearing the
+  // selection. Writing `pushIn` keeps the combined selection+tab change as ONE
+  // pushed entry (Back returns to the pre-selection view). The effect below
+  // stays `replaceIn` precisely because it fires while REACTING to an already-
+  // committed param change (incl. Back/Forward) and must not add its own entry.
   const switchToInfoTab = useCallback(() => {
-    setTabParam("info", "replaceIn");
+    setTabParam("info", "pushIn");
   }, [setTabParam]);
 
   // The single sanctioned selection→tab effect: synchronize the tab to an
