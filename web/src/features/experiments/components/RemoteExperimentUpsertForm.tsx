@@ -343,53 +343,51 @@ export const RemoteExperimentUpsertForm = ({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="signingEnabled"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Sign requests</FormLabel>
+                    <FormDescription>
+                      {field.value
+                        ? existingRemoteExperiment?.displaySecretKey
+                          ? "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."
+                          : "A signing secret will be generated when you save and shown once."
+                        : "Requests will be sent without an x-langfuse-signature header."}
+                    </FormDescription>
+                    {field.value &&
+                      existingRemoteExperiment?.displaySecretKey && (
+                        <div className="pt-2">
+                          <CodeView
+                            className="bg-muted/50"
+                            content={existingRemoteExperiment.displaySecretKey}
+                            defaultCollapsed={true}
+                          />
+                          <div className="text-muted-foreground mt-1 text-xs">
+                            Secret is encrypted and can only be viewed when
+                            generated
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
             <Accordion type="single" collapsible>
               <AccordionItem value="advanced" className="border-b-0">
                 <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-bold [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                   Advanced Options
                 </AccordionTrigger>
                 <AccordionContent className="space-y-6 px-1 pt-2">
-                  <FormField
-                    control={form.control}
-                    name="signingEnabled"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                          <FormLabel>Sign requests</FormLabel>
-                          <FormDescription>
-                            {field.value
-                              ? existingRemoteExperiment?.displaySecretKey
-                                ? "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."
-                                : "A signing secret will be generated when you save and shown once."
-                              : "Requests will be sent without an x-langfuse-signature header."}
-                          </FormDescription>
-                          {field.value &&
-                            existingRemoteExperiment?.displaySecretKey && (
-                              <div className="pt-2">
-                                <CodeView
-                                  className="bg-muted/50"
-                                  content={
-                                    existingRemoteExperiment.displaySecretKey
-                                  }
-                                  defaultCollapsed={true}
-                                />
-                                <div className="text-muted-foreground mt-1 text-xs">
-                                  Secret is encrypted and can only be viewed
-                                  when generated
-                                </div>
-                              </div>
-                            )}
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
                   <div>
                     <FormLabel>Custom headers</FormLabel>
                     <FormDescription className="mb-2">
