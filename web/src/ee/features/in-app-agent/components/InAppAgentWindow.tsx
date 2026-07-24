@@ -386,6 +386,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     screenContextDescription,
   );
   const capture = usePostHogClientCapture();
+  // No auto-focus on mobile — it springs the keyboard and buries the panel.
+  // autoFocus is mount-only and useIsMobile() is false on first render, so read
+  // the viewport synchronously (window is client-only here).
+  const isNarrowViewport =
+    typeof window !== "undefined" && window.innerWidth < 768;
   const isRateLimited = isInAppAgentRateLimited(error);
   const isInputDisabled = baseIsInputDisabled || isRateLimited;
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -474,14 +479,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     (input: HTMLTextAreaElement | null) => {
       inputRef.current = input;
 
+      // Skip on mobile: refocusing after a turn re-springs the keyboard, even
+      // for the quick-action flow that never focused the input.
       const shouldRefocusInput =
-        previousIsInputDisabledRef.current && !isInputDisabled;
+        previousIsInputDisabledRef.current &&
+        !isInputDisabled &&
+        !isNarrowViewport;
 
       if (input && shouldRefocusInput) {
         input.focus();
       }
     },
-    [isInputDisabled],
+    [isInputDisabled, isNarrowViewport],
   );
 
   useEffect(() => {
@@ -914,7 +923,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
-              autoFocus={!isExpanded}
+              autoFocus={!isExpanded && !isNarrowViewport}
               ref={setInputRef}
               value={input}
               onChange={(event) => {
