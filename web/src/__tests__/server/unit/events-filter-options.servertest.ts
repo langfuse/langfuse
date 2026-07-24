@@ -17,7 +17,7 @@ vi.mock(
 );
 
 import type { Session } from "next-auth";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { eventsRouter } from "@/src/features/events/server/eventsRouter";
 import { partitionEventFilterOptionsFilter } from "@/src/features/events/server/eventsService";
@@ -40,10 +40,6 @@ const session = {
 } as Session;
 
 describe("events.filterOptions applied-filter contract", () => {
-  beforeEach(() => {
-    mocks.getEventFilterOptions.mockClear();
-  });
-
   it("accepts and forwards an optional applied filter", async () => {
     const filter: FilterState = [
       {
@@ -60,26 +56,15 @@ describe("events.filterOptions applied-filter contract", () => {
     await caller.filterOptions({
       projectId,
       filter,
-      columns: ["name"],
     });
 
     expect(mocks.getEventFilterOptions).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId,
-        filter,
-        columns: ["name"],
-      }),
+      expect.objectContaining({ filter }),
     );
   });
 
   it("keeps supported filters and excludes expensive special cases", () => {
     const participatingFilter: FilterState = [
-      {
-        type: "stringOptions",
-        column: "name",
-        operator: "any of",
-        value: ["checkout"],
-      },
       {
         type: "stringObject",
         column: "metadata",

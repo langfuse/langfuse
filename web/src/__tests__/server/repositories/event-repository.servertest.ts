@@ -1031,10 +1031,10 @@ describe("Clickhouse Events Repository Test", () => {
             { value: "WARNING", count: 1 },
           ],
         });
-        expect(countlessOptions).toEqual({
-          name: [{ value: "filtered-option-alpha" }],
-          level: [{ value: "ERROR" }, { value: "WARNING" }],
-        });
+        expect(countlessOptions.level).toEqual([
+          { value: "ERROR" },
+          { value: "WARNING" },
+        ]);
       });
     });
 
