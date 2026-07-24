@@ -6,7 +6,8 @@
   "private": true,
   "files": [
     "dist/**",
-    "entrypoint.sh"
+    "entrypoint.sh",
+    "entrypoint.mjs"
   ],
   "engines": {
     "node": "24"

@@ -453,6 +453,94 @@ jobs:
           name: test-docker-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/docker-diagnostics
           if-no-files-found: ignore
+
+  test-docker-enterprise-build:
+    timeout-minutes: 20
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    # The enterprise Dockerfiles use a private WizOS base image directly, so
+    # this job only runs where OIDC/ECR access is available.
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && github.repository == 'langfuse/langfuse' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-to-assume: arn:aws:iam::816069167615:role/GitHubOpenIdConnectECRPull
+          aws-region: eu-west-1
+      - name: Login to AWS ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        with:
+          registries: 816069167615
+      - name: Login to Docker Hub
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_READ }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
+      - name: Set NEXT_PUBLIC_BUILD_ID
+        run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Start dependency containers in background
+        # Independent of the image build, so let the build overlap it. The
+        # healthcheck step below surfaces its output and re-validates health.
+        run: |
+          (set +e; docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/enterprise-deps-up.log 2>&1; echo $? > /tmp/enterprise-deps-up.exit) &
+      - name: Build enterprise images
+        # Skip the Next.js type check inside the web image build: the lint job
+        # runs `pnpm run typecheck` already. Release builds keep type-checking.
+        run: |
+          docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" build --print > /tmp/enterprise-bake.json
+          docker buildx bake -f /tmp/enterprise-bake.json \
+            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
+      - name: Start compose services and wait for healthchecks
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/enterprise-deps-up.exit ]; do sleep 1; done' || true
+          cat /tmp/enterprise-deps-up.log
+          docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" up --no-build -d --wait --wait-timeout 180
+      - name: Check worker health
+        run: |
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3030/api/health
+      - name: Check server health
+        run: |
+          curl --retry 10 --retry-delay 2 --retry-all-errors --silent --show-error --fail \
+            http://localhost:3000/api/public/health
+      - name: Capture docker diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/docker-enterprise-diagnostics
+
+          docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" ps -a \
+            | tee /tmp/docker-enterprise-diagnostics/compose-state.txt || true
+
+          timeout 15 docker events --since 20m --until "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            | tee /tmp/docker-enterprise-diagnostics/docker-events.txt || true
+
+          ss -ltnp | tee /tmp/docker-enterprise-diagnostics/host-listeners.txt || true
+
+          for service in langfuse-web langfuse-worker postgres redis minio clickhouse; do
+            container_id="$(docker compose -f "docker-compose.build.yml" -f "docker-compose.enterprise-build.yml" ps -q "$service" || true)"
+            if [ -z "$container_id" ]; then
+              echo "No container found for ${service}" | tee -a /tmp/docker-enterprise-diagnostics/missing-containers.txt
+              continue
+            fi
+
+            docker inspect "$container_id" > "/tmp/docker-enterprise-diagnostics/${service}-inspect.json" || true
+            docker logs --timestamps "$container_id" > "/tmp/docker-enterprise-diagnostics/${service}-docker-logs.txt" 2>&1 || true
+          done
+      - name: Upload docker diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-docker-enterprise-build-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/docker-enterprise-diagnostics
+          if-no-files-found: ignore
   tests-web:
     timeout-minutes: 30
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -1026,6 +1114,7 @@ jobs:
         test-worker-llm-connections,
         e2e-tests,
         test-docker-build,
+        test-docker-enterprise-build,
         e2e-server-tests,
       ]
     if: always()
