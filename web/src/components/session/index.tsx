@@ -573,7 +573,7 @@ export const SessionPage: React.FC<{
               <>
                 <span className="text-sm font-bold">Session controls</span>
                 <span
-                  className="text-muted-foreground truncate text-xs"
+                  className="text-muted-foreground min-w-0 truncate text-xs"
                   title={`${session.data?.traces.length ?? 0} traces · ${usdFormatter(
                     session.data?.totalCost ?? 0,
                     2,
@@ -1429,7 +1429,7 @@ const LoadedSessionEventsPage: React.FC<{
               <>
                 <span className="text-sm font-bold">Session controls</span>
                 <span
-                  className="text-muted-foreground truncate text-xs"
+                  className="text-muted-foreground min-w-0 truncate text-xs"
                   title={`${session.countTraces} traces · ${usdFormatter(
                     session.totalCost ?? 0,
                     2,
