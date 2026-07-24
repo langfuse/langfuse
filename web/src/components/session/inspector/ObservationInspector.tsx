@@ -1,5 +1,4 @@
 import React from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -36,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import { Layer } from "@/src/components/ui/layer";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
 import { useSessionDetailStore } from "@/src/components/session/SessionDetailStoreProvider";
@@ -376,9 +376,7 @@ export function ObservationInspector({
       },
     );
 
-  // The sheet is portalled to <body>; there is no document on the server
-  // (the selection can be non-null on first render via the URL params).
-  if (!inspected || typeof document === "undefined") return null;
+  if (!inspected) return null;
 
   // Defensive against both response shapes (see TraceEventsRow, LFE-10958).
   type ObservationsResponse =
@@ -413,16 +411,17 @@ export function ObservationInspector({
         onClick={closeInspector}
       />
       {/* Full-viewport-height sheet per the mock: fixed right, floating OVER
-          the top bar and transcript. Portalled to <body> so no ancestor
-          stacking context (sticky page header) can paint above it. Light =
-          paper sheet on the white plane; dark = #1c1c19 sheet with the deep
-          drop shadow. */}
-      {createPortal(
+          the top bar and transcript. Rendered through the `panel` overlay
+          layer (docked side surface — see ui/layer.tsx) so it escapes every
+          in-app stacking context (sticky page header) by DOM order, without
+          any z-index. Light = paper sheet on the white plane; dark = #1c1c19
+          sheet with the deep drop shadow. */}
+      <Layer name="panel">
         <aside
           ref={asideRef}
           aria-label="Observation details"
           style={{ width }}
-          className="bg-background dark:bg-modal dark:border-border-contrast animate-in slide-in-from-right fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l shadow-[-16px_0_40px_hsl(var(--foreground)/0.10)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-[-20px_0_48px_hsl(var(--surface-code)/0.5)]"
+          className="bg-background dark:bg-modal dark:border-border-contrast animate-in slide-in-from-right fixed inset-y-0 right-0 flex max-w-full flex-col border-l shadow-[-16px_0_40px_hsl(var(--foreground)/0.10)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-[-20px_0_48px_hsl(var(--surface-code)/0.5)]"
         >
           {/* Left-edge drag handle — resize the overlay (320–720px). */}
           <div
@@ -512,9 +511,8 @@ export function ObservationInspector({
               ) : null}
             </div>
           )}
-        </aside>,
-        document.body,
-      )}
+        </aside>
+      </Layer>
     </>
   );
 }
