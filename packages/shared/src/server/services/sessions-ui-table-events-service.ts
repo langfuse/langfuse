@@ -53,6 +53,14 @@ export type SessionTraceFromEvents = {
   environment: string | null;
   userId: string | null;
   observationCount: number;
+  /** Trace wall-clock duration in ms (first start to last end). */
+  latencyMs: number | null;
+  /** Summed generation cost of the trace (null when no cost datum exists). */
+  totalCost: number | null;
+  /** Summed input/output/total token usage (null when no usage datum). */
+  inputUsage: number | null;
+  outputUsage: number | null;
+  totalUsage: number | null;
 };
 
 export const getSessionTracesFromEvents = async (props: {
@@ -90,6 +98,9 @@ export const getSessionTracesFromEvents = async (props: {
     environment: string | null;
     user_id: string | null;
     observation_count: number | string;
+    latency_milliseconds: number | string | null;
+    total_cost: number | string | null;
+    usage_details: Record<string, number | string> | null;
   }>({
     query,
     params: input.params,
@@ -97,14 +108,34 @@ export const getSessionTracesFromEvents = async (props: {
     preferredClickhouseService: "EventsReadOnly",
   });
 
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    environment: row.environment,
-    userId: row.user_id,
-    observationCount: Number(row.observation_count),
-  }));
+  return rows.map((row): SessionTraceFromEvents => {
+    // usage_details is a sumMap over generation usage: sum the keys containing
+    // "input"/"output" (mirrors the session-level aggregation) and read the
+    // canonical "total" key. Null (not 0) when the trace has no usage datum.
+    const usageEntries = Object.entries(row.usage_details ?? {});
+    const sumUsage = (predicate: (key: string) => boolean): number | null => {
+      const matching = usageEntries.filter(([key]) => predicate(key));
+      if (matching.length === 0) return null;
+      return matching.reduce((sum, [, value]) => sum + Number(value), 0);
+    };
+    const totalUsage = sumUsage((key) => key === "total");
+    return {
+      id: row.id,
+      name: row.name,
+      timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+      environment: row.environment,
+      userId: row.user_id,
+      observationCount: Number(row.observation_count),
+      latencyMs:
+        row.latency_milliseconds === null
+          ? null
+          : Number(row.latency_milliseconds),
+      totalCost: row.total_cost === null ? null : Number(row.total_cost),
+      inputUsage: sumUsage((key) => key.toLowerCase().includes("input")),
+      outputUsage: sumUsage((key) => key.toLowerCase().includes("output")),
+      totalUsage,
+    };
+  });
 };
 
 export const getSessionsTableCountFromEvents = async (props: {

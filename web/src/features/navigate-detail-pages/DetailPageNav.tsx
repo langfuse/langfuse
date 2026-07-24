@@ -13,7 +13,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { cn } from "@/src/utils/tailwind";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -34,8 +34,29 @@ export const DetailPageNav = (props: {
    * of icon-xs controls instead of standing out. Shortcuts still work.
    */
   compact?: boolean;
+  /**
+   * Labeled ghost links per the session-detail redesign:
+   * `⌃ Prev` / `Next ⌄`, tertiary grey, darkening on hover.
+   */
+  ghostLabeled?: boolean;
+  /**
+   * Disable the global j/k listener (and hide the K/J hints). The Modern
+   * Session page claims j/k for stepping TURNS inside the workspace, so
+   * session paging there is button-only — the two must not fight over the
+   * same keys.
+   */
+  keyboardShortcuts?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate, size, compact } = props;
+  const {
+    currentId,
+    path,
+    listKey,
+    onNavigate,
+    size,
+    compact,
+    ghostLabeled,
+    keyboardShortcuts = true,
+  } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -109,6 +130,7 @@ export const DetailPageNav = (props: {
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
+    if (!keyboardShortcuts) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       // don't trigger keyboard shortcuts if the user is typing in an input
       if (
@@ -134,7 +156,58 @@ export const DetailPageNav = (props: {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
+  }, [
+    keyboardShortcuts,
+    previousPageEntry,
+    nextPageEntry,
+    navigateToEntry,
+    pulseShortcut,
+  ]);
+
+  if (entries.length > 1 && ghostLabeled) {
+    const linkClassName = (active: boolean) =>
+      cn(
+        "text-muted-foreground hover:text-foreground gap-1.5 px-1.5",
+        "transition-[color] duration-150",
+        active && "text-foreground",
+      );
+    return (
+      <div className="flex flex-row items-center gap-1">
+        <Button
+          variant="ghost"
+          type="button"
+          size="sm"
+          className={linkClassName(shortcutPulse === "previous")}
+          disabled={!previousPageEntry}
+          onClick={() => {
+            if (previousPageEntry) {
+              navigateToEntry(previousPageEntry, "previous", "button");
+            }
+          }}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+          Prev
+          {keyboardShortcuts && <KeyboardShortcut>K</KeyboardShortcut>}
+        </Button>
+        <Button
+          variant="ghost"
+          type="button"
+          size="sm"
+          className={linkClassName(shortcutPulse === "next")}
+          disabled={!nextPageEntry}
+          onClick={() => {
+            if (nextPageEntry) {
+              navigateToEntry(nextPageEntry, "next", "button");
+            }
+          }}
+        >
+          Next
+          {keyboardShortcuts && <KeyboardShortcut>J</KeyboardShortcut>}
+          <ChevronDown className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    );
+  }
 
   if (entries.length > 1) {
     const buttonClassName = (active: boolean) =>

@@ -1,15 +1,24 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
 
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
-import { ItemBadge } from "@/src/components/ItemBadge";
+import { ObservationInspector } from "@/src/components/session/inspector/ObservationInspector";
 import { LazySessionTraceEventsRow } from "@/src/components/session/LazySessionTraceEventsRow";
+import { ObservationList } from "@/src/components/session/ObservationList";
 import { SessionVirtualizedRow } from "@/src/components/session/SessionVirtualizedRow";
-import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
+import {
+  useSessionDetailStore,
+  useSessionDetailStoreApi,
+} from "@/src/components/session/SessionDetailStoreProvider";
 import { type EventSessionTrace } from "@/src/components/session/sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "@/src/components/session/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
-import { usdFormatter } from "@/src/utils/numbers";
 
 const MODERN_SESSION_OVERSCAN = 5;
 
@@ -24,188 +33,9 @@ type ModernSessionProps = {
   filterState: FilterState;
   filterMeasurementKey: string;
   viewLabel: string | null;
-  totalCost: number;
   showInlineToolCalls: boolean;
   showSystemPrompt: boolean;
 };
-
-const ModernSessionMinimapItem = React.memo(
-  ({
-    trace,
-    index,
-    isActive,
-    projectId,
-    traceCommentCounts,
-    openPeek,
-    onSelect,
-  }: {
-    trace: EventSessionTrace;
-    index: number;
-    isActive: boolean;
-    projectId: string;
-    traceCommentCounts: Map<string, number> | undefined;
-    openPeek: OpenPeek;
-    onSelect: (index: number) => void;
-  }) => {
-    const observationCount = trace.observationCount ?? 0;
-    const observationLabel = `${observationCount} observation${observationCount === 1 ? "" : "s"}`;
-
-    return (
-      <div
-        className={cn(
-          "group relative border-b border-l-2 transition-colors",
-          isActive
-            ? "border-l-primary bg-accent/60"
-            : "hover:bg-muted/60 border-l-transparent",
-        )}
-        data-modern-session-minimap-active={isActive}
-      >
-        <button
-          type="button"
-          className="flex w-full min-w-0 flex-col gap-1.5 px-3 py-3 text-left"
-          onClick={() =>
-            isActive ? openPeek(trace.id, trace) : onSelect(index)
-          }
-          aria-current={isActive ? "true" : undefined}
-        >
-          <span className="flex min-w-0 items-center gap-1.5">
-            <ItemBadge type="TRACE" isSmall />
-            <span
-              className="min-w-0 flex-1 truncate text-xs font-bold"
-              title={trace.name ?? "Trace"}
-            >
-              {trace.name ?? "Trace"}
-            </span>
-          </span>
-          <time className="text-muted-foreground text-xs">
-            {trace.timestamp.toLocaleString()}
-          </time>
-          <span
-            className="text-muted-foreground truncate font-mono text-[11px]"
-            title={trace.id}
-          >
-            {trace.id}
-          </span>
-          <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
-            <span>{observationLabel}</span>
-            <span>·</span>
-            {trace.scores.length > 0 ? (
-              <span>{trace.scores.length} scores</span>
-            ) : (
-              <span>no scores</span>
-            )}
-          </span>
-          {isActive && trace.scores.length > 0 ? (
-            <span className="flex max-h-10 flex-wrap gap-1 overflow-hidden">
-              <GroupedScoreBadges scores={trace.scores} />
-            </span>
-          ) : null}
-        </button>
-
-        {isActive ? (
-          <div
-            className="px-3 pb-2"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <SessionTraceActionButtons
-              projectId={projectId}
-              traceId={trace.id}
-              timestamp={trace.timestamp}
-              environment={trace.environment}
-              scores={trace.scores}
-              traceCommentCounts={traceCommentCounts}
-              density="compact"
-              className="gap-1"
-            />
-          </div>
-        ) : null}
-      </div>
-    );
-  },
-);
-ModernSessionMinimapItem.displayName = "ModernSessionMinimapItem";
-
-const ModernSessionMinimap = React.memo(
-  ({
-    traces,
-    activeTraceId,
-    projectId,
-    traceCommentCounts,
-    openPeek,
-    onSelect,
-    totalCost,
-  }: {
-    traces: EventSessionTrace[];
-    activeTraceId: string | undefined;
-    projectId: string;
-    traceCommentCounts: Map<string, number> | undefined;
-    openPeek: OpenPeek;
-    onSelect: (index: number) => void;
-    totalCost: number;
-  }) => {
-    const minimapRef = useRef<HTMLDivElement>(null);
-    const virtualizer = useVirtualizer({
-      count: traces.length,
-      getScrollElement: () => minimapRef.current,
-      estimateSize: () => 105,
-      overscan: MODERN_SESSION_OVERSCAN,
-      getItemKey: (index) => traces[index]?.id ?? index,
-    });
-
-    return (
-      <div
-        ref={minimapRef}
-        role="complementary"
-        aria-label="Session traces"
-        className="bg-muted/10 min-h-0 overflow-y-auto border-r"
-      >
-        <div className="bg-background sticky top-0 z-10 flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-muted-foreground text-xs font-bold tracking-wide uppercase">
-            Traces · {traces.length}
-          </span>
-          <span className="text-muted-foreground text-xs font-bold">
-            Total cost · {usdFormatter(totalCost, 2)}
-          </span>
-        </div>
-        <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            position: "relative",
-            width: "100%",
-          }}
-        >
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
-            const isActive = trace.id === activeTraceId;
-
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${isActive}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
-                <ModernSessionMinimapItem
-                  trace={trace}
-                  index={virtualItem.index}
-                  isActive={isActive}
-                  projectId={projectId}
-                  traceCommentCounts={traceCommentCounts}
-                  openPeek={openPeek}
-                  onSelect={onSelect}
-                />
-              </SessionVirtualizedRow>
-            );
-          })}
-        </div>
-      </div>
-    );
-  },
-);
-ModernSessionMinimap.displayName = "ModernSessionMinimap";
 
 export function ModernSession({
   traces,
@@ -216,12 +46,14 @@ export function ModernSession({
   filterState,
   filterMeasurementKey,
   viewLabel,
-  totalCost,
   showInlineToolCalls,
   showSystemPrompt,
 }: ModernSessionProps) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [selectedTraceId, setSelectedTraceId] = useState<string>();
+  const [isSpanListOpen, setIsSpanListOpen] = useState(true);
+  // Row heights change with the generation view — remeasure on switch.
+  const generationView = useSessionDetailStore((state) => state.generationView);
   const virtualizer = useVirtualizer({
     count: traces.length,
     getScrollElement: () => feedRef.current,
@@ -239,6 +71,15 @@ export function ModernSession({
     traces[activeVirtualItem?.index ?? 0]?.id ?? traces[0]?.id;
   const activeTraceId = selectedTraceId ?? scrollSpyTraceId;
 
+  // Idle gap before each turn (index 0 has none) for the feed's separators.
+  const idleGapSeconds = useMemo(
+    () =>
+      traces.map((trace, index) =>
+        index === 0 ? null : computeIdleGapSeconds(traces[index - 1], trace),
+      ),
+    [traces],
+  );
+
   const scrollToTrace = useCallback(
     (index: number) => {
       const feed = feedRef.current;
@@ -252,77 +93,150 @@ export function ModernSession({
     [virtualizer],
   );
 
+  const storeApi = useSessionDetailStoreApi();
   const selectTrace = useCallback(
     (index: number) => {
       const trace = traces[index];
       if (!trace) return;
       setSelectedTraceId(trace.id);
       scrollToTrace(index);
+      // Rail ↔ transcript ↔ inspector selection sync: an OPEN inspector
+      // follows the turn selection (retargeting to the new turn at trace
+      // level). Span-row clicks retarget again right after — last write wins.
+      const { inspectedObservation, actions } = storeApi.getState();
+      if (inspectedObservation && inspectedObservation.traceId !== trace.id) {
+        actions.openInspector({ traceId: trace.id, observationId: null });
+      }
     },
-    [scrollToTrace, traces],
+    [scrollToTrace, storeApi, traces],
   );
 
   const restoreScrollSpy = () => setSelectedTraceId(undefined);
 
+  // `↑`/`↓` AND `j`/`k` move the selected turn (the rail's advertised
+  // shortcuts). Session paging keeps its header buttons only on this page —
+  // DetailPageNav's j/k listener is disabled (keyboardShortcuts={false}) so
+  // the two never fight over the same keys. The window is the external
+  // system here; the refs keep the listener stable across scroll-spy churn.
+  // Skipped while typing or inside open overlays.
+  const activeTraceIdRef = useRef(activeTraceId);
+  activeTraceIdRef.current = activeTraceId;
+  const tracesRef = useRef(traces);
+  tracesRef.current = traces;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isNext = event.key === "ArrowDown" || event.key === "j";
+      const isPrevious = event.key === "ArrowUp" || event.key === "k";
+      if (!isNext && !isPrevious) return;
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "input,textarea,select,[contenteditable='true'],[role='menu'],[role='listbox'],[role='dialog']",
+        )
+      )
+        return;
+      const currentTraces = tracesRef.current;
+      const currentIndex = currentTraces.findIndex(
+        (trace) => trace.id === activeTraceIdRef.current,
+      );
+      const nextIndex = isNext
+        ? Math.min(currentTraces.length - 1, Math.max(0, currentIndex + 1))
+        : Math.max(0, currentIndex - 1);
+      if (nextIndex === currentIndex) return;
+      event.preventDefault();
+      selectTrace(nextIndex);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectTrace]);
+
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)] lg:grid-rows-1">
-      <ModernSessionMinimap
+    <div
+      className={cn(
+        // Workspace chrome per the mock: paper canvas, 16px left/bottom
+        // inset, transcript flush to the right edge. Dark = #171714 base
+        // chrome (one step above the recessed transcript plane).
+        "bg-background dark:bg-header relative grid min-h-0 flex-1 gap-x-4 overflow-hidden pb-4 pl-4 lg:grid-rows-1",
+        isSpanListOpen
+          ? "grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)]"
+          : "grid-rows-[2.25rem_minmax(0,1fr)] lg:grid-cols-[36px_minmax(0,1fr)]",
+      )}
+    >
+      <ObservationList
         traces={traces}
-        activeTraceId={activeTraceId}
         projectId={projectId}
-        traceCommentCounts={traceCommentCounts}
-        openPeek={openPeek}
+        sessionId={sessionId}
+        filterState={filterState}
+        activeTraceId={activeTraceId}
+        selectedTraceId={selectedTraceId}
         onSelect={selectTrace}
-        totalCost={totalCost}
+        onOpenPeek={(trace) => openPeek(trace.id, trace)}
+        isOpen={isSpanListOpen}
+        onToggleOpen={() => setIsSpanListOpen((current) => !current)}
       />
-      <div
-        ref={feedRef}
-        className="min-h-0 overflow-y-auto scroll-smooth"
-        onWheel={restoreScrollSpy}
-        onTouchMove={restoreScrollSpy}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) restoreScrollSpy();
-        }}
-      >
+      {/* Conversation — a full-bleed plane split off by one hairline
+          (mock: plane-conv white / #121210 with border-left only). */}
+      <div className="bg-card dark:bg-background relative min-h-0 min-w-[320px] border-l">
         <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
+          ref={feedRef}
+          className="h-full min-h-0 overflow-y-auto scroll-smooth"
+          onWheel={restoreScrollSpy}
+          onTouchMove={restoreScrollSpy}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) restoreScrollSpy();
           }}
         >
-          {virtualItems.map((virtualItem) => {
-            const trace = traces[virtualItem.index];
-            if (!trace) return null;
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const trace = traces[virtualItem.index];
+              if (!trace) return null;
 
-            return (
-              <SessionVirtualizedRow
-                key={virtualItem.key}
-                itemKey={String(virtualItem.key)}
-                measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}`}
-                source="modern"
-                virtualItem={virtualItem}
-                virtualizer={virtualizer}
-              >
-                <LazySessionTraceEventsRow
-                  trace={trace}
-                  projectId={projectId}
-                  sessionId={sessionId}
-                  openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts}
-                  index={virtualItem.index}
-                  filterState={filterState}
-                  viewLabel={viewLabel}
-                  surface="modern"
-                  contentMode={showInlineToolCalls ? "all" : "conversation"}
-                  showSystemPrompt={showSystemPrompt}
-                  isActive={trace.id === activeTraceId}
-                />
-              </SessionVirtualizedRow>
-            );
-          })}
+              return (
+                <SessionVirtualizedRow
+                  key={virtualItem.key}
+                  itemKey={String(virtualItem.key)}
+                  measurementKey={`${String(virtualItem.key)}:${showInlineToolCalls}:${showSystemPrompt}:${filterMeasurementKey}:${generationView}`}
+                  source="modern"
+                  virtualItem={virtualItem}
+                  virtualizer={virtualizer}
+                >
+                  <LazySessionTraceEventsRow
+                    trace={trace}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    openPeek={openPeek}
+                    traceCommentCounts={traceCommentCounts}
+                    index={virtualItem.index}
+                    filterState={filterState}
+                    viewLabel={viewLabel}
+                    surface="modern"
+                    contentMode={showInlineToolCalls ? "all" : "conversation"}
+                    showSystemPrompt={showSystemPrompt}
+                    isActive={trace.id === activeTraceId}
+                    idleGapSeconds={idleGapSeconds[virtualItem.index]}
+                    onSelectTurnIndex={selectTrace}
+                  />
+                </SessionVirtualizedRow>
+              );
+            })}
+          </div>
         </div>
       </div>
+      <ObservationInspector
+        projectId={projectId}
+        sessionId={sessionId}
+        traces={traces}
+        filterState={filterState}
+        openPeek={openPeek}
+      />
     </div>
   );
 }

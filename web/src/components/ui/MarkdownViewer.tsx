@@ -486,6 +486,7 @@ export function MarkdownView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  bordered = false,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
@@ -501,6 +502,10 @@ export function MarkdownView({
       (`role === "system"`) — the title can be a message `name` instead of the
       role. Falls back to matching the title for callers without role data. */
   isSystemPrompt?: boolean;
+  /** Draw the shared 1px rounded IO box chrome around the content (matches
+      PrettyJsonView's table/empty/JSON sections). Off by default so non-IO
+      consumers (comments, session conversation feed) keep their own chrome. */
+  bordered?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -573,15 +578,20 @@ export function MarkdownView({
             handleOnCopy={handleOnCopy}
             controlButtons={controlButtons}
           />
-          <div className="border-t" />
+          {/* The bordered box already separates header and content. */}
+          {!bordered && <div className="border-t" />}
         </>
       ) : null}
       {afterHeader}
       <div
         className={cn(
           "io-message-content grid grid-flow-row gap-2 px-1 py-2",
+          bordered && "rounded-sm border",
           title === "assistant" || title === "Output" || title === "Model"
-            ? "bg-accent-light-green"
+            ? cn(
+                "bg-accent-light-green",
+                bordered && "dark:border-accent-dark-green/30",
+              )
             : "",
           title === "system" || title === "Input" ? "bg-card" : "",
           className,

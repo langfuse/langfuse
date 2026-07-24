@@ -138,6 +138,24 @@
     var(--find-match-selected-foreground)
   );
 
+  /* Observation-type accents (v4 session design): generation pink, tool
+     orange, agent purple. Full color values (not HSL triples) so the light
+     values can stay exactly on the handoff's spec. */
+  --color-session-generation: var(--session-type-generation);
+  --color-session-tool: var(--session-type-tool);
+  --color-session-agent: var(--session-type-agent);
+
+  /* Code-well palette (sessions handoff): I/O frames are DARK in both
+     themes — "code is a well". Values from the handoff CSS. */
+  --color-code-well: var(--session-code-well);
+  --color-code-well-strip: var(--session-code-well-strip);
+  --color-code-well-border: var(--session-code-well-border);
+  --color-code-well-ink: var(--session-code-well-ink);
+  --color-code-well-muted: var(--session-code-well-muted);
+  --color-code-well-bright: var(--session-code-well-bright);
+  --color-code-role-user: var(--session-code-role-user);
+  --color-code-role-assistant: var(--session-code-role-assistant);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -361,6 +379,23 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
+    /* Observation-type accents (v4 session design handoff): generation pink,
+       tool orange, agent purple. Full color values, paired in .dark below. */
+    --session-type-generation: #d05376;
+    --session-type-tool: #c17e2e;
+    --session-type-agent: oklch(52% 0.17 300);
+
+    /* PROPOSED (review): code-well frame palette — dark wells in light mode
+       too, per the sessions handoff. */
+    --session-code-well: #333333;
+    --session-code-well-strip: #3d3d3d;
+    --session-code-well-border: rgba(69, 69, 64, 0.55);
+    --session-code-well-ink: rgba(255, 252, 242, 0.88);
+    --session-code-well-muted: rgba(255, 252, 242, 0.5);
+    --session-code-well-bright: #fffcf2;
+    --session-code-role-user: #e3a78a;
+    --session-code-role-assistant: #b3abef;
+
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -516,6 +551,23 @@
     --find-match-selected-background: 60 100% 50%;
     --find-match-selected-foreground: 0 0% 0%;
 
+    /* Observation-type accents — brightened so they read on dark surfaces
+       (pink/orange follow the handoff's dark sheet; purple lifted to match). */
+    --session-type-generation: #e86b9a;
+    --session-type-tool: #e8935a;
+    --session-type-agent: oklch(72% 0.13 300);
+
+    /* PROPOSED (review): dark code well recesses to the handoff's #121210
+       canvas tier with the #171714 strip. */
+    --session-code-well: #121210;
+    --session-code-well-strip: #171714;
+    --session-code-well-border: rgba(255, 252, 242, 0.08);
+    --session-code-well-ink: rgba(232, 232, 220, 0.75);
+    --session-code-well-muted: rgba(232, 232, 220, 0.5);
+    --session-code-well-bright: #fffcf2;
+    --session-code-role-user: #e3a78a;
+    --session-code-role-assistant: #b3abef;
+
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -650,7 +702,36 @@
   }
 }
 
-/* 
+/*
+ * Trace side panel: cap markdown heading scale to the panel's text rhythm
+ * (io-style-fixes finding #4). Markdown body already renders at text-sm, but
+ * uncapped `#`/`##` headings from LLM output (h1 = --text-2xl) dwarf the
+ * adjacent text-xs JSON/table sections. Values step the heading ladder down
+ * two sizes on the --text-* scale (lg/base/sm/sm/xs/xs); font-weight is
+ * untouched so headings stay bold. Scoped to `[data-panel-markdown-scale]`
+ * (TraceSidePanel/TraceDetailView bodies) — other MarkdownView consumers
+ * (session conversation feed, comments, prompts) keep the default scale.
+ */
+[data-panel-markdown-scale] .io-message-content h1 {
+  font-size: 1.1rem; /* --text-lg */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h2 {
+  font-size: 0.9rem; /* --text-base */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h3,
+[data-panel-markdown-scale] .io-message-content h4 {
+  font-size: 0.825rem; /* --text-sm */
+  line-height: 1.4;
+}
+[data-panel-markdown-scale] .io-message-content h5,
+[data-panel-markdown-scale] .io-message-content h6 {
+  font-size: 0.7rem; /* --text-xs */
+  line-height: 1.4;
+}
+
+/*
  * Fix for Vaul drawer blocking text selection
  * Vaul applies user-select: none to the entire drawer on desktop via CSS media query
  * We override this for drawers that set blockTextSelection={false}

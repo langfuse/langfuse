@@ -185,7 +185,7 @@ export const SessionObservationIO = ({
               onClick={openInTraceView}
               className="text-primary underline underline-offset-2 hover:no-underline"
             >
-              Open in trace view
+              Open Trace View
             </button>{" "}
             for full metadata.
           </p>
@@ -227,7 +227,7 @@ export const SessionObservationIO = ({
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
           <ExternalLinkIcon className="mr-1 h-3.5 w-3.5" />
-          Open in trace view
+          Open Trace View
         </Button>
         <Button
           variant="outline"

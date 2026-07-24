@@ -89,6 +89,7 @@ export function MarkdownJsonView({
   controlButtons,
   afterHeader,
   isSystemPrompt,
+  bordered,
 }: {
   content?: unknown;
   title?: string;
@@ -103,6 +104,9 @@ export function MarkdownJsonView({
   /** Collapse long content to a preview (from raw `role === "system"`, since
       the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
+  /** Draw the shared 1px rounded IO box chrome around the markdown content
+      (PrettyJsonView draws its own box chrome in the JSON fallback path). */
+  bordered?: boolean;
 }) {
   const validatedOpenAIContent = useMemo(
     () => OpenAIContentSchema.safeParse(content),
@@ -129,6 +133,7 @@ export function MarkdownJsonView({
           controlButtons={controlButtons}
           afterHeader={afterHeader}
           isSystemPrompt={isSystemPrompt}
+          bordered={bordered}
         />
       ) : (
         <PrettyJsonView
