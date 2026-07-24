@@ -34,7 +34,11 @@ import {
   probeJsonField,
 } from "./lib/jsonViewSizeGate";
 
-const VIRTUALIZATION_THRESHOLD = 3333;
+// A field needing windowing is gated to the lazy byte-engine viewer, so the
+// gate row limit IS the virtualization threshold (single source of truth). The
+// eager virtualized viewer is therefore unreachable for trace I/O — see the
+// `needsVirtualization` note below.
+const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
 
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
@@ -244,7 +248,13 @@ function IOPreviewJSONInner({
     metadataRows,
   ]);
 
-  // Determine if virtualization is needed based on threshold
+  // Whether the eager MultiSectionJsonViewer must virtualize its own DOM. This
+  // is now ALWAYS false: a field with more rows than VIRTUALIZATION_THRESHOLD is
+  // gated to the lazy viewer above (so it contributes 0 to rowCounts), and a
+  // field with fewer never crosses the threshold. The eager virtualized path is
+  // effectively retired for trace I/O (it froze the tab at tens of thousands of
+  // nodes — LFE-10847); the residual small data renders eagerly non-virtualized.
+  // Left in place until that path is removed wholesale in a follow-up.
   const needsVirtualization = useMemo(() => {
     return (
       rowCounts.input > VIRTUALIZATION_THRESHOLD ||

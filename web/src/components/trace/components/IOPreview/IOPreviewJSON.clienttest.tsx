@@ -93,7 +93,37 @@ const FALLBACK_TEXT = /too large to render in JSON view/i;
 const manyRows = () =>
   Array.from({ length: JSON_VIEW_RENDER_ROW_LIMIT }, (_, i) => i);
 
+// A field big enough to need windowing but well under the old 50k limit. This
+// "dead zone" (3,333–50,000 rows) used to fall to the eager virtualized viewer,
+// which synchronously builds+renders the whole node set — a 44k-row big-number
+// output pegged the main thread ~4 min (LFE-10847). It must now route to the
+// lazy viewer, same as any over-threshold field. Fixed count, independent of the
+// gate constant, so it keeps guarding the regression if the constant moves.
+const deadZoneRows = () => Array.from({ length: 5_000 }, (_, i) => i);
+
 describe("IOPreviewJSON node-count gating", () => {
+  it("routes a dead-zone field (thousands of rows) to the lazy viewer, not the eager tree", () => {
+    render(
+      <IOPreviewJSON
+        input={deadZoneRows()}
+        hideOutput
+        hideIfNull
+        showCorrections={false}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+
+    // Gated → lazy viewer + download hatch; the eager viewer builds no tree.
+    expect(screen.getByTestId("lazy-json-viewer")).toBeInTheDocument();
+    expect(screen.queryByText(FALLBACK_TEXT)).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-input__oversized")).toHaveAttribute(
+      "data-hide-data",
+      "true",
+    );
+    expect(screen.queryByTestId("data-input")).not.toBeInTheDocument();
+  });
+
   it("renders an over-limit field lazily with a download hatch (no dead-end)", () => {
     render(
       <IOPreviewJSON
