@@ -496,6 +496,78 @@ export const SessionPage: React.FC<{
               </div>
             </>
           ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.data?.bookmarked ?? false}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.data?.public ?? false}
+                label="Share"
+              />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.data?.scores ?? []}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.data?.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDownloadSessionAsJson}
+                className="w-full justify-start gap-2 font-normal"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-sm">Download JSON</span>
+              </Button>
+              <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                <span className="text-sm">Show corrections</span>
+                <Switch
+                  checked={showCorrections}
+                  onCheckedChange={setShowCorrectionsForSession}
+                  size="sm"
+                />
+              </label>
+            </>
+          ),
         }}
       >
         <div className="flex h-full flex-col overflow-auto">
@@ -1325,6 +1397,85 @@ const LoadedSessionEventsPage: React.FC<{
                   </span>
                 </label>
               ) : null}
+            </>
+          ),
+          // Mobile compact header: the same session actions as full-width
+          // labeled menu rows for the `⋯` overflow popover, instead of the
+          // inline icon toolbar. Session-to-session nav stays desktop-only.
+          actionButtonsMenu: (
+            <>
+              <StarSessionToggle
+                projectId={projectId}
+                sessionId={sessionId}
+                value={session.bookmarked}
+                showLabel
+              />
+              <PublishSessionSwitch
+                projectId={projectId}
+                sessionId={sessionId}
+                isPublic={session.public}
+                label="Share"
+              />
+              <CommentDrawerButton
+                variant="outline"
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                count={getNumberFromMap(sessionCommentCounts.data, sessionId)}
+                layout="menu"
+              />
+              <AnnotateDrawer
+                projectId={projectId}
+                scoreTarget={{
+                  type: "session",
+                  sessionId,
+                }}
+                scores={session.scores}
+                scoreMetadata={{
+                  projectId: projectId,
+                  environment: session.environment,
+                }}
+                buttonVariant="outline"
+                layout="menu"
+              />
+              <CreateNewAnnotationQueueItem
+                projectId={projectId}
+                objectId={sessionId}
+                objectType="SESSION"
+                variant="outline"
+                layout="menu"
+              />
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+                layout="menu"
+              />
+              {isModernSessionEnabled ? (
+                displayOptions.map(({ label, checked, onCheckedChange }) => (
+                  <label
+                    key={label}
+                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
+                  >
+                    <span className="text-sm capitalize">{label}</span>
+                    <Switch
+                      checked={checked}
+                      onCheckedChange={onCheckedChange}
+                      size="sm"
+                    />
+                  </label>
+                ))
+              ) : (
+                <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
+                  <span className="text-sm">Show corrections</span>
+                  <Switch
+                    checked={showCorrections}
+                    onCheckedChange={setShowCorrectionsForSession}
+                    size="sm"
+                  />
+                </label>
+              )}
             </>
           ),
         }}
