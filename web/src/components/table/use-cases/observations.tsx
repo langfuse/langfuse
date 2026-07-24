@@ -1746,6 +1746,7 @@ const GenerationsDynamicCell = ({
         col === "input" && "bg-muted/50",
       )}
       singleLine={singleLine}
+      enableExpandOnHover={singleLine}
     />
   );
 };

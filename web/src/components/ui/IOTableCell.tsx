@@ -7,7 +7,7 @@ import {
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 import { cn } from "@/src/utils/tailwind";
-import { memo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   HoverCard,
   HoverCardContent,
@@ -80,8 +80,6 @@ const IOTableCellContent = ({
   padding: IOTableCellPadding;
   suppressTitle?: boolean;
 }) => {
-  const stringifiedJson =
-    data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
   const paddingClassName = ioTableCellPaddingClassNames[padding];
 
   // Native title tooltips render on top of open popovers, so the single-line
@@ -90,13 +88,60 @@ const IOTableCellContent = ({
   // while the pointer is over a media chip (which has its own hover peek).
   const [isPointerOverMediaTag, setIsPointerOverMediaTag] = useState(false);
 
-  // perf: truncate to IO_TABLE_CHAR_LIMIT characters as table becomes unresponsive attempting to render large JSONs with high levels of nesting
-  const shouldTruncate =
-    stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
-
-  const singleLineText = stringifiedJson
-    ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-    : stringifiedJson;
+  // Memoize on `data` so the pointer handler below — which flips
+  // isPointerOverMediaTag on every chip-boundary crossing — doesn't re-run
+  // stringifyJsonNode + decodeUnicodeEscapesOnly on up to 10 KB each time.
+  // Also folds together the perf cap for both row heights: the multi-line
+  // path was already capped at IO_TABLE_CHAR_LIMIT, and the single-line
+  // path had to match — without it a grid row carrying megabytes of base64
+  // or an opaque token stream (e.g. Gemini thought_signature) would land
+  // the full payload in both the DOM text node and the native title
+  // tooltip, stalling the traces/observations lists (issue #9933). Full
+  // content is still reachable via the expand-on-hover card and the row
+  // peek panel.
+  const { displayText, shouldTruncate } = useMemo(() => {
+    const stringified =
+      data !== null && data !== undefined ? stringifyJsonNode(data) : undefined;
+    if (!stringified) {
+      return { displayText: undefined, shouldTruncate: false };
+    }
+    if (stringified.length <= IO_TABLE_CHAR_LIMIT) {
+      return {
+        displayText: decodeUnicodeEscapesOnly(stringified, true),
+        shouldTruncate: false,
+      };
+    }
+    let sliced = stringified.slice(0, IO_TABLE_CHAR_LIMIT);
+    // If the naive cut lands mid `@@@langfuseMedia:…@@@`, back off so a
+    // chip never leaks into the preview as literal text. Two shapes,
+    // mutually exclusive:
+    //   1. Full opener present with closer past the limit → trim to before it.
+    //   2. Cut inside the 17-char opener itself (e.g. slice ends with
+    //      "@@@langfuseMed") → trim the longest opener prefix from the tail.
+    // If (1) fires we've already dropped everything from the opener onward,
+    // so skip (2) — otherwise it would chip at safe content that happens to
+    // end with `@` (e.g. an email address before a real ref).
+    const OPENER = "@@@langfuseMedia:";
+    const openIdx = sliced.lastIndexOf(OPENER);
+    if (
+      openIdx !== -1 &&
+      sliced.indexOf("@@@", openIdx + OPENER.length) === -1
+    ) {
+      sliced = sliced.slice(0, openIdx);
+    } else {
+      for (let i = OPENER.length - 1; i > 0; i--) {
+        if (sliced.endsWith(OPENER.slice(0, i))) {
+          sliced = sliced.slice(0, sliced.length - i);
+          break;
+        }
+      }
+    }
+    const withTail = `${sliced}...[truncated ${stringified.length - sliced.length} characters]`;
+    return {
+      displayText: decodeUnicodeEscapesOnly(withTail, true),
+      shouldTruncate: true,
+    };
+  }, [data]);
 
   return singleLine ? (
     <div
@@ -105,9 +150,7 @@ const IOTableCellContent = ({
         paddingClassName,
         className,
       )}
-      title={
-        suppressTitle || isPointerOverMediaTag ? undefined : singleLineText
-      }
+      title={suppressTitle || isPointerOverMediaTag ? undefined : displayText}
       // With suppressTitle the state cannot affect output, so skip the
       // handler to avoid re-rendering on every chip-boundary crossing.
       onPointerOver={
@@ -119,16 +162,12 @@ const IOTableCellContent = ({
               )
       }
     >
-      {singleLineText ? renderStringWithMediaReferences(singleLineText) : null}
+      {displayText ? renderStringWithMediaReferences(displayText) : null}
     </div>
   ) : shouldTruncate ? (
     <div className="grid h-full grid-cols-1">
       <JSONView
-        json={decodeUnicodeEscapesOnly(
-          stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
-            `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
-          true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
-        )}
+        json={displayText}
         className={cn(
           "h-full w-full self-stretch overflow-hidden rounded-sm",
           className,
@@ -143,9 +182,7 @@ const IOTableCellContent = ({
     </div>
   ) : (
     <JSONView
-      json={
-        stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
-      }
+      json={displayText ?? data}
       className={cn(
         "h-full w-full self-stretch overflow-hidden rounded-sm",
         className,
