@@ -1,4 +1,5 @@
-import { EnvLabel } from "@/src/components/EnvLabel";
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
@@ -61,6 +62,7 @@ const PageHeader = ({
   breadcrumbBadges,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -105,7 +107,12 @@ const PageHeader = ({
                 )
               )}
               <div>
-                <EnvLabel />
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onClick={envLabel.dismiss}
+                  />
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
