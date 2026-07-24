@@ -12,6 +12,11 @@ inputs:
     description: Slack Workflow webhook URL.
     required: true
 
+outputs:
+  reason:
+    description: The computed failure reason, for debugging in the Actions UI (the actual Slack message text depends on the Workflow Builder template rendering failure_reason).
+    value: ${{ steps.failure-reason.outputs.reason }}
+
 runs:
   using: composite
   steps:
