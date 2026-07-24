@@ -98,7 +98,10 @@ export const ExperimentGridView = ({
 
       return {
         accessorKey: `exp_${index}`, // Avoid nested path syntax that confuses TanStack
-        id: expId,
+        // Keep the table column id stable by position. Experiment ids are UUIDs
+        // and were causing the shared table header to fall back to 150px while
+        // the body used the configured column size.
+        id: `experiment_${index}`,
         header: () => (
           <div className="flex items-center gap-2">
             <span
@@ -119,6 +122,7 @@ export const ExperimentGridView = ({
           </div>
         ),
         size: 400,
+        minSize: 280,
         cell: ({ row }) => {
           // Find this experiment's data
           const expData = row.original.experiments.find(
@@ -149,6 +153,8 @@ export const ExperimentGridView = ({
               startTime={expData.startTime}
               totalCost={expData.totalCost}
               latencyMs={expData.latencyMs}
+              baselineTotalCost={baselineData?.totalCost}
+              baselineLatencyMs={baselineData?.latencyMs}
               observationId={expData.observationId}
               traceId={expData.traceId}
               scores={expData.observationScores ?? {}}
@@ -230,6 +236,7 @@ export const ExperimentGridView = ({
       customRowHeights={GRID_VIEW_ROW_HEIGHTS}
       topAlignCells
       peekView={peekView}
+      className="[&_table]:min-w-max"
       columnVisibility={columnVisibility}
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}

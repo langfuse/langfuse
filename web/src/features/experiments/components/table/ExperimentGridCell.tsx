@@ -6,7 +6,10 @@ import {
 } from "@langfuse/shared";
 import { useMemo, Fragment, useState } from "react";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
-import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import {
+  calculateNumericDiff,
+  type BaselineDiff,
+} from "@/src/features/datasets/lib/calculateBaselineDiff";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
@@ -21,7 +24,13 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { MessageCircleMore, BracesIcon, Copy, Check } from "lucide-react";
+import {
+  MessageCircleMore,
+  BracesIcon,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { api } from "@/src/utils/api";
@@ -30,6 +39,7 @@ import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { decomposeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { cn } from "@/src/utils/tailwind";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
+import Link from "next/link";
 
 type ExperimentGridCellProps = {
   projectId: string;
@@ -39,6 +49,8 @@ type ExperimentGridCellProps = {
   startTime: Date;
   totalCost?: number | null;
   latencyMs?: number | null;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
   observationId: string;
   traceId: string;
   scores: ScoreAggregate;
@@ -64,6 +76,8 @@ type GridCellData = {
   startTime: Date;
   totalCost?: number | null;
   latencyMs?: number | null;
+  totalCostDiff?: BaselineDiff;
+  latencyDiff?: BaselineDiff;
   observationId: string;
   traceId: string;
   scores: ScoreAggregate;
@@ -310,6 +324,8 @@ export const ExperimentGridCell = ({
   startTime,
   totalCost,
   latencyMs,
+  baselineTotalCost,
+  baselineLatencyMs,
   observationId,
   traceId,
   scores,
@@ -339,6 +355,19 @@ export const ExperimentGridCell = ({
     [traceScores, baselineTraceScores, isBaseline],
   );
 
+  const totalCostDiff = useMemo(
+    () =>
+      isBaseline
+        ? null
+        : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, totalCost],
+  );
+  const latencyDiff = useMemo(
+    () =>
+      isBaseline ? null : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs],
+  );
+
   const orderedObservationKeys = useMemo(
     () =>
       observationScoreOrder.length > 0
@@ -363,6 +392,8 @@ export const ExperimentGridCell = ({
     startTime,
     totalCost,
     latencyMs,
+    totalCostDiff,
+    latencyDiff,
     observationId,
     traceId,
     scores,
@@ -444,6 +475,23 @@ export const ExperimentGridCell = ({
             ),
           },
           {
+            accessorKey: "traceId",
+            cell: ({ data }) => (
+              <MetadataItem label="Execution Trace">
+                <Link
+                  href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
+                  className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <span className="truncate font-mono text-xs">
+                    {data.traceId}
+                  </span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </Link>
+              </MetadataItem>
+            ),
+          },
+          {
             accessorKey: "level",
             cell: ({ data }) => (
               <MetadataItem label="Level">
@@ -463,11 +511,18 @@ export const ExperimentGridCell = ({
             accessorKey: "totalCost",
             cell: ({ data }) => (
               <MetadataItem label="Total Cost">
-                <span className="text-xs">
+                <span className="inline-flex items-center gap-1 text-xs">
                   {data.totalCost != null ? (
                     usdFormatter(data.totalCost, 2, 6)
                   ) : (
                     <span className="text-muted-foreground">-</span>
+                  )}
+                  {data.totalCostDiff && (
+                    <DiffLabel
+                      diff={data.totalCostDiff}
+                      preferNegativeDiff
+                      formatValue={(value) => usdFormatter(value, 2, 6)}
+                    />
                   )}
                 </span>
               </MetadataItem>
@@ -478,8 +533,15 @@ export const ExperimentGridCell = ({
             cell: ({ data }) =>
               data.latencyMs != null ? (
                 <MetadataItem label="Latency">
-                  <span className="text-xs">
+                  <span className="inline-flex items-center gap-1 text-xs">
                     {latencyFormatter(data.latencyMs)}
+                    {data.latencyDiff && (
+                      <DiffLabel
+                        diff={data.latencyDiff}
+                        preferNegativeDiff
+                        formatValue={(value) => latencyFormatter(value)}
+                      />
+                    )}
                   </span>
                 </MetadataItem>
               ) : undefined,
@@ -514,7 +576,7 @@ export const ExperimentGridCell = ({
     .filter((section) => section.content !== null);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-y-auto">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto">
       {sectionsToRender.map((section, index) => {
         const { row, content } = section;
         const isFirst = index === 0;
@@ -567,7 +629,7 @@ export const ExperimentGridCell = ({
  */
 export const ExperimentGridCellEmpty = () => {
   return (
-    <div className="flex h-full w-full items-start justify-start p-2">
+    <div className="flex h-full min-w-0 w-full items-start justify-start p-2">
       <span className="text-muted-foreground text-xs">No data</span>
     </div>
   );
