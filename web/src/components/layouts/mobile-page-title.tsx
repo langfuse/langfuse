@@ -4,20 +4,27 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
+import { Button } from "@/src/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { MoreHorizontal } from "lucide-react";
 
 /**
  * The page-specific block for the minimal-chrome mobile shell. Rendered between
  * the slim sticky chrome and the page content (not inside the sticky bar), so
  * the title reads as part of the page and scrolls with it. Holds the
- * org/project context switcher, the large page title, page actions, the hoisted
- * controls slot (time range / refresh), the agent launcher, and the section
- * tabs.
+ * org/project context switcher, the compact page title (type icon + heading)
+ * with its page actions collapsed into a single `⋯` overflow popover, the
+ * hoisted controls slot (time range / refresh), and the section tabs.
  *
  * Takes the same `headerProps` the desktop PageHeader gets, so any Page-style
  * wrapper renders it consistently. Controls + agent live here for now; they
@@ -51,16 +58,16 @@ export const MobilePageTitle = ({
         {breadcrumbBadges}
       </div>
 
-      {/* Title on its own full-width line. On desktop the PageHeader packs the
-          title and its action clusters onto one justified row, but at phone
-          width there is no room: a `shrink-0` action cluster sharing the row
-          crushes the `min-w-0` title (a fixed-width search input, or a
-          dashboard selector + edit + setup, would overlap the heading). So the
-          mobile title owns its line and every action cluster wraps onto its
-          own row below — matching how the controls/agent row already behaves. */}
-      <div className="mt-1.5 flex min-w-0 items-center gap-2">
-        {itemType && <ItemBadge type={itemType} showLabel />}
-        <h1 className="text-primary text-2xl leading-tight font-bold wrap-break-word">
+      {/* Title row. On desktop the PageHeader packs the title and its action
+          clusters onto one justified row; at phone width the compact mobile
+          header keeps the type icon + title on the left and collapses every
+          action cluster into a single `⋯` overflow popover pinned to the right,
+          so the header top block stays ~2 rows instead of the 4–5 it used to
+          take (a big labelled type chip, a text-2xl title, then each action
+          cluster wrapping onto its own row). */}
+      <div className="mt-1 flex min-w-0 items-center gap-2">
+        {itemType && <ItemBadge type={itemType} />}
+        <h1 className="text-primary text-base leading-tight font-bold wrap-break-word">
           {titleContent ? (
             titleContent
           ) : titleTooltip ? (
@@ -91,19 +98,31 @@ export const MobilePageTitle = ({
         {titleBadges && (
           <div className="flex items-center gap-1">{titleBadges}</div>
         )}
+        {/* Actions collapse into a single right-aligned overflow popover. The
+            caller-supplied nodes (buttons, dropdowns, drawer openers) render
+            as-is; their own dialogs/drawers portal through the layer system, so
+            they keep working from inside the popover. */}
+        {(actionButtonsRight || actionButtonsLeft) && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="More actions"
+                className="ml-auto shrink-0"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-auto min-w-44 p-1">
+              <div className="flex flex-col items-stretch gap-1">
+                {actionButtonsRight}
+                {actionButtonsLeft}
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
-
-      {actionButtonsRight && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {actionButtonsRight}
-        </div>
-      )}
-
-      {actionButtonsLeft && (
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {actionButtonsLeft}
-        </div>
-      )}
 
       {/* Hoisted page controls (time range, auto-refresh). The assistant
           launcher lives in the sticky MobileTopBar now (prominent + always
