@@ -67,6 +67,10 @@ import {
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
+import {
+  processObservationFieldSpill,
+  type ProcessObservationFieldSpill,
+} from "../../features/observation-field-spill/processObservationFieldSpill";
 
 /**
  * Parse a value to a UInt16-compatible number (0–65535).
@@ -170,6 +174,7 @@ export class IngestionService {
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
+    private readonly fieldSpillProcessor: ProcessObservationFieldSpill = processObservationFieldSpill,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -430,6 +435,8 @@ export class IngestionService {
   /**
    * Writes an event record directly to the events_full table.
    * A materialized view auto-populates events_core from events_full.
+   * Legacy observation writes and staging-based dual writes intentionally do
+   * not use field spilling.
    * Use createEventRecord() first to get the record, then call this to write.
    *
    * Enqueues a new record whose `event_bytes` describes the final normalized
@@ -438,10 +445,36 @@ export class IngestionService {
    *
    * @param eventRecord - The event record to write
    */
-  public writeEventRecord(eventRecord: EventRecordInsertType): void {
+  public async writeEventRecord(
+    eventRecord: EventRecordInsertType,
+  ): Promise<void> {
+    const spillResult = await this.fieldSpillProcessor({
+      projectId: eventRecord.project_id,
+      traceId: eventRecord.trace_id,
+      observationId: eventRecord.span_id,
+      fields: {
+        input: eventRecord.input,
+        output: eventRecord.output,
+        metadata: eventRecord.metadata_values,
+      },
+    });
+    const persistedMetadataValues = Array.isArray(spillResult.fields.metadata)
+      ? spillResult.fields.metadata
+      : [];
+    const persistedRecord: EventRecordInsertType = {
+      ...eventRecord,
+      input: spillResult.fields.input ?? undefined,
+      output: spillResult.fields.output ?? undefined,
+      metadata_values: persistedMetadataValues.map((value) =>
+        typeof value === "string"
+          ? value
+          : (JSON.stringify(value) ?? String(value)),
+      ),
+    };
+
     this.clickHouseWriter.addToQueue(
       TableName.EventsFull,
-      withSerializedEventByteLength(eventRecord),
+      withSerializedEventByteLength(persistedRecord),
     );
   }
 

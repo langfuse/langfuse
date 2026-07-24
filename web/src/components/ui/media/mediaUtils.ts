@@ -75,6 +75,7 @@ export function classifyMediaValue(value: unknown) {
       contentType: parsed.data.type,
       mediaId: parsed.data.id,
       referenceString: parsed.data.referenceString,
+      source: parsed.data.source,
     };
   }
 
