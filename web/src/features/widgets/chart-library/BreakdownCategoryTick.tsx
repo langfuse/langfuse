@@ -164,7 +164,15 @@ export function BreakdownCategoryTick({
                 title={label}
                 onMouseEnter={openOnHover}
                 onMouseLeave={scheduleClose}
-                onClick={markActivation}
+                onClick={(e) => {
+                  markActivation();
+                  // Radix's PopoverTrigger composes its own onClick
+                  // (toggling open) after ours, but skips that toggle if we
+                  // called preventDefault. Without this, clicking a label
+                  // already open via hover would immediately re-close it
+                  // (open -> toggle -> closed) instead of staying open.
+                  if (open) e.preventDefault();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") markActivation();
                 }}
