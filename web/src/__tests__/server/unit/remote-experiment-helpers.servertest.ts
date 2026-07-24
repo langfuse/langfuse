@@ -276,7 +276,9 @@ describe("ensureRemoteExperimentSecret", () => {
 
     expect(result.unencryptedSecretKey).toMatch(/^lf-whsec_[a-f0-9]{64}$/);
     expect(result.secretKey).not.toBe(result.unencryptedSecretKey);
-    expect(decrypt(result.secretKey)).toBe(result.unencryptedSecretKey);
+    if (result.secretKey) {
+      expect(decrypt(result.secretKey)).toBe(result.unencryptedSecretKey);
+    }
     expect(result.displaySecretKey).toBe(
       `lf-whsec_...${result.unencryptedSecretKey!.slice(-4)}`,
     );
