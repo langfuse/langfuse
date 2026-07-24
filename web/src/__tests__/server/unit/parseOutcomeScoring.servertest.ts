@@ -83,6 +83,23 @@ describe("deriveParseOutcomeScores", () => {
     });
   });
 
+  it("does not flag a clean, unfenced answer whose filter VALUE echoes a literal ``` (LFE-11001)", () => {
+    const raw =
+      '[{"type":"stringOptions","column":"output","operator":"contains","value":"```"}]';
+    const scores = deriveParseOutcomeScores(raw, {
+      filters: fakeFilters(1),
+      queryText: 'output contains "```"',
+      droppedCount: 0,
+      unknownScoreNames: [],
+    });
+
+    expect(scores.find((s) => s.name === "output-markdown-fenced")).toEqual({
+      name: "output-markdown-fenced",
+      dataType: "BOOLEAN",
+      value: 0,
+    });
+  });
+
   it("reports dropped filters and unknown score names as counts", () => {
     const raw =
       '[{"type":"numberObject","column":"scores_avg","key":"my_score","operator":">","value":1}]';

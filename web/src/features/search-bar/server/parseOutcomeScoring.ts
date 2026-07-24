@@ -82,13 +82,15 @@ export function deriveParseOutcomeScores(
     {
       // THE key Haiku-adherence signal we're watching while tuning the
       // prompt: the system prompt says "no markdown fences", yet the model
-      // frequently wraps its JSON answer in ```...``` anyway. Computed from
-      // the RAW completion (before any parsing/extraction), so it reflects
-      // the model's literal output regardless of whether parsing recovered
-      // from it.
+      // frequently OPENS its answer with a ```...``` fence anyway. Anchored
+      // to the start of the (trimmed) RAW completion — before any
+      // parsing/extraction — rather than a substring search over the whole
+      // completion, so a filter VALUE that happens to echo a literal ```
+      // (e.g. a `contains` filter on a code block) can never flip this flag;
+      // only the model actually opening its answer with a fence can.
       name: "output-markdown-fenced",
       dataType: "BOOLEAN",
-      value: /```/.test(raw) ? 1 : 0,
+      value: raw.trim().startsWith("```") ? 1 : 0,
     },
   ];
 }
