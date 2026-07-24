@@ -5,9 +5,14 @@
  * counts, wide-container pagination + load-more, revision bumps on structural
  * change, and on-demand value materialization (LFE-11080).
  */
-import { createRowModelStore } from "./rowModelStore";
+// The store reports genuine byte-engine failures to Sentry via reportError;
+// stub it so the error-capture tests can assert without touching Sentry.
+vi.mock("@/src/utils/reportError", () => ({ reportError: vi.fn() }));
+
+import { createRowModelStore, type LazyViewerMetric } from "./rowModelStore";
 import { PAGE_SIZE } from "../treeRowModel";
 import type { JsonRow, RowModel, RowWindow } from "../rowModel";
+import { reportError } from "@/src/utils/reportError";
 
 const visibleRows = (
   store: ReturnType<typeof createRowModelStore>,
@@ -64,6 +69,36 @@ describe("rowModelStore", () => {
 
     await store.getState().toggle(b.nodeId, true); // collapse
     expect(store.getState().totalVisible).toBe(3);
+  });
+
+  it("emits an `indexed` perf metric once the first window is ready (LFE-14419)", async () => {
+    const metrics: LazyViewerMetric[] = [];
+    const store = createRowModelStore({ onMetric: (m) => metrics.push(m) });
+    await store.getState().init({ a: 1, b: [10, 20, 30] });
+
+    const indexed = metrics.filter((m) => m.kind === "indexed");
+    expect(indexed).toHaveLength(1);
+    expect(indexed[0]).toMatchObject({ kind: "indexed", rowCount: 3 });
+    // buildMs is a real, non-negative duration (time-to-first-row).
+    expect((indexed[0] as { buildMs: number }).buildMs).toBeGreaterThanOrEqual(
+      0,
+    );
+  });
+
+  it("emits an `expand` metric on expand but not on collapse (LFE-14419)", async () => {
+    const metrics: LazyViewerMetric[] = [];
+    const store = createRowModelStore({ onMetric: (m) => metrics.push(m) });
+    await store.getState().init({ a: 1, b: [10, 20, 30] });
+
+    const b = findRow(store, "b")!;
+    await store.getState().toggle(b.nodeId, false); // expand
+    await store.getState().toggle(b.nodeId, true); // collapse
+
+    // Expand pays the deferred per-container scan and is measured; collapse has
+    // no scan and emits nothing.
+    const expands = metrics.filter((m) => m.kind === "expand");
+    expect(expands).toHaveLength(1);
+    expect((expands[0] as { ms: number }).ms).toBeGreaterThanOrEqual(0);
   });
 
   it("load-more reveals the next page and drops the load-more row when drained", async () => {
@@ -266,5 +301,64 @@ describe("rowModelStore async correctness", () => {
     // The stale toggle targeted doc A's node 9; it must be abandoned, never
     // applied to document B's engine.
     expect(bExpand).not.toHaveBeenCalled();
+  });
+});
+
+describe("rowModelStore error capture", () => {
+  beforeEach(() => {
+    vi.mocked(reportError).mockClear();
+  });
+
+  const okModel = (over: Partial<RowModel>): RowModel => ({
+    getRevision: () => 0,
+    getTotalVisible: () => 2,
+    getRows: async () => ({ revision: 0, rows: [makeRow(0)] }),
+    expand: async () => {},
+    collapse: async () => {},
+    loadMore: async () => {},
+    getValue: async () => ({
+      ok: true as const,
+      value: {
+        nodeId: 0,
+        type: "number" as const,
+        value: 0,
+        lossyNumber: false,
+        truncated: false,
+        byteLength: 1,
+      },
+    }),
+    ...over,
+  });
+
+  it("captures a byte-engine throw on expand and surfaces the error state", async () => {
+    // The per-container scan is deferred to expand, so a malformed-slice throw
+    // happens HERE, not at init — it must be reported, not swallowed.
+    const model = okModel({
+      expand: async () => {
+        throw new Error("byte scan failed");
+      },
+    });
+    const store = createRowModelStore({ buildModel: async () => model });
+    await store.getState().init(null);
+    expect(store.getState().status).toBe("ready");
+
+    await store.getState().toggle(0, false); // expand throws
+
+    expect(reportError).toHaveBeenCalledTimes(1);
+    expect(store.getState().status).toBe("error");
+  });
+
+  it("captures a getValue failure WITHOUT tearing down the viewer", async () => {
+    const model = okModel({
+      getValue: async () => ({ ok: false as const, error: "bad slice" }),
+    });
+    const store = createRowModelStore({ buildModel: async () => model });
+    await store.getState().init(null);
+
+    await store.getState().materialize(0);
+
+    expect(reportError).toHaveBeenCalledTimes(1);
+    // One leaf failing must not nuke the whole viewer.
+    expect(store.getState().status).toBe("ready");
   });
 });

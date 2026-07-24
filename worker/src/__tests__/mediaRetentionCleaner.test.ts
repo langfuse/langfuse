@@ -5,6 +5,7 @@ import {
   findExpiredMediaBatchByProjectId,
   findNextMediaRetentionProject,
   getS3MediaStorageClient,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { MediaRetentionCleaner } from "../features/media-retention-cleaner";
@@ -36,6 +37,12 @@ vi.mock("../env", async () => {
 
 const mockDeleteFiles = vi.fn().mockResolvedValue(undefined);
 const mockS3Client = { deleteFiles: mockDeleteFiles };
+
+class TestMediaRetentionCleaner extends MediaRetentionCleaner {
+  public getLockForTest() {
+    return this.lock;
+  }
+}
 
 async function createTestMedia(
   projectId: string,
@@ -106,6 +113,64 @@ describe("MediaRetentionCleaner", () => {
   });
 
   describe("processBatch", () => {
+    it("keeps the project retryable when blob cleanup loses the lock", async () => {
+      await drainExpiredMedia();
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+      await createTestMedia(
+        projectId,
+        new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      );
+
+      const originalBlobStorageFlag = env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG;
+      Object.assign(env, {
+        LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: "true",
+      });
+
+      let now = Date.now();
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      try {
+        const cleaner = new TestMediaRetentionCleaner();
+        const extendSpy = vi
+          .spyOn(cleaner.getLockForTest(), "extend")
+          .mockResolvedValueOnce(true)
+          .mockResolvedValueOnce(false);
+        let cleanupFinished = false;
+        vi.mocked(
+          removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+        ).mockImplementation(async (_projectId, _cutoffDate, options) => {
+          now += 6 * 60 * 1000;
+          await options?.onProgress?.();
+          cleanupFinished = true;
+        });
+
+        await cleaner.processBatch();
+
+        expect(extendSpy).toHaveBeenCalledTimes(2);
+        expect(cleanupFinished).toBe(false);
+        await expect(getMediaCount(projectId)).resolves.toBe(1);
+        await expect(findNextMediaRetentionProject()).resolves.toEqual(
+          expect.objectContaining({ projectId }),
+        );
+        expect(
+          removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
+        ).toHaveBeenCalledWith(
+          projectId,
+          expect.any(Date),
+          expect.objectContaining({ onProgress: expect.any(Function) }),
+        );
+      } finally {
+        dateNowSpy.mockRestore();
+        Object.assign(env, {
+          LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: originalBlobStorageFlag,
+        });
+      }
+    });
+
     it("runs again immediately after work and waits when empty", async () => {
       await drainExpiredMedia();
 

@@ -15,7 +15,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getRetentionCutoffDate } from "../utils";
-import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
+import {
+  PeriodicExclusiveRunner,
+  PeriodicExclusiveRunnerLeaseLostError,
+} from "../../utils/PeriodicExclusiveRunner";
 
 // Tables for batch data retention cleaning (ClickHouse only; also no dataset_run_items)
 export const BATCH_DATA_RETENTION_TABLES = [
@@ -30,13 +33,6 @@ export type BatchDataRetentionTable =
   (typeof BATCH_DATA_RETENTION_TABLES)[number];
 
 const METRIC_PREFIX = "langfuse.batch_data_retention_cleaner";
-
-class BatchDataRetentionCleanerLeaseLostError extends Error {
-  constructor(tableName: BatchDataRetentionTable) {
-    super(`Batch data retention cleaner lost its lease for ${tableName}`);
-    this.name = "BatchDataRetentionCleanerLeaseLostError";
-  }
-}
 
 export const BATCH_DATA_RETENTION_CLEANER_LOCK_PREFIX =
   "langfuse:batch-data-retention-cleaner";
@@ -143,9 +139,6 @@ function buildRetentionConditions(
 export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   private readonly tableName: BatchDataRetentionTable;
   private readonly candidateQueryHttpTimeoutSeconds: number;
-  private readonly lockExtensionMinIntervalMs: number;
-  private lastLockExtensionAt = 0;
-  private lockExtensionInFlight: Promise<void> | null = null;
 
   protected get defaultIntervalMs(): number {
     return env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_INTERVAL_MS;
@@ -176,7 +169,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     this.candidateQueryHttpTimeoutSeconds = Math.ceil(
       candidateQueryTimeoutMs / 1000,
     );
-    this.lockExtensionMinIntervalMs = Math.floor((lockTtlSeconds * 1000) / 3);
   }
 
   /**
@@ -197,39 +189,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
   }
 
   /**
-   * Renew the lease when work advances, without issuing one Redis command per
-   * streamed row. A failed renewal means this worker no longer owns the batch.
-   */
-  private async extendLockOnProgress(force = false): Promise<void> {
-    if (
-      !force &&
-      Date.now() - this.lastLockExtensionAt < this.lockExtensionMinIntervalMs
-    ) {
-      return;
-    }
-
-    if (this.lockExtensionInFlight) {
-      return this.lockExtensionInFlight;
-    }
-
-    const extension = (async () => {
-      if (!(await this.lock.extend())) {
-        throw new BatchDataRetentionCleanerLeaseLostError(this.tableName);
-      }
-      this.lastLockExtensionAt = Date.now();
-    })();
-    this.lockExtensionInFlight = extension;
-
-    try {
-      await extension;
-    } finally {
-      if (this.lockExtensionInFlight === extension) {
-        this.lockExtensionInFlight = null;
-      }
-    }
-  }
-
-  /**
    * Process a batch for data retention for this table.
    * Preflight and deletion are both under lock to avoid redundant expensive queries.
    */
@@ -247,10 +206,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
 
     await this.withLock(
       async () => {
-        // Each acquisition starts a fresh lease, so progress in a prior run
-        // must not throttle the first renewal in this one.
-        this.lastLockExtensionAt = 0;
-
         // Step 1: Get project workloads (streamed CH candidates + PG config)
         const { observedWorkloads, selectedWorkloads, lagMeasurementComplete } =
           await this.getProjectWorkloads();
@@ -417,7 +372,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
               complete: discovery.complete && enrichment.complete,
             };
           } catch (error) {
-            if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
+            if (error instanceof PeriodicExclusiveRunnerLeaseLostError) {
               leaseLost = true;
             }
             throw error;
@@ -534,7 +489,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         await this.extendLockOnProgress();
       }
     } catch (error) {
-      if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
+      if (error instanceof PeriodicExclusiveRunnerLeaseLostError) {
         throw error;
       }
       complete = false;
@@ -658,7 +613,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       await this.extendLockOnProgress();
       return { workloads, complete: true };
     } catch (error) {
-      if (error instanceof BatchDataRetentionCleanerLeaseLostError) {
+      if (error instanceof PeriodicExclusiveRunnerLeaseLostError) {
         throw error;
       }
       // Preserve the APM error, but let a successful retry keep the runner outcome healthy.
@@ -684,7 +639,7 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
         await this.extendLockOnProgress();
         return { workloads, complete: true };
       } catch (retryError) {
-        if (retryError instanceof BatchDataRetentionCleanerLeaseLostError) {
+        if (retryError instanceof PeriodicExclusiveRunnerLeaseLostError) {
           throw retryError;
         }
 
