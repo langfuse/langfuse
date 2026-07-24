@@ -190,7 +190,7 @@ function WidgetActionsCell({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={handleCopyToClipboard}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy to clipboard
+            Copy widget as JSON
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!hasCUDAccess} onClick={handleDuplicate}>
             <CopyPlus className="mr-2 h-4 w-4" />

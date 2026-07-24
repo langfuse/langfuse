@@ -64,6 +64,9 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  categoryHrefs,
+  onCategoryLabelCopy,
+  onCategoryLabelViewAsTable,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -102,6 +105,20 @@ const ChartComponent = ({
    * dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Per-category "drill into this row" link for a breakdown chart's bars,
+   * keyed by the bar's full (untruncated) dimension value. Built upstream
+   * (DashboardWidget) via `buildTableFilterHref` — the visualiser only looks
+   * values up, it never decides a href. Undefined/missing entries render no
+   * link (e.g. the widget isn't a traces/observations view, or the dimension
+   * can't be expressed as a table filter). Consumed by HorizontalBarChart.
+   * (LFE-10962)
+   */
+  categoryHrefs?: Map<string, string>;
+  /** Fired when a user copies a category label's full value from its popover. */
+  onCategoryLabelCopy?: () => void;
+  /** Fired when a user follows a category label's "View filtered table" link. */
+  onCategoryLabelViewAsTable?: () => void;
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -213,6 +230,9 @@ const ChartComponent = ({
             showValueLabels={chartConfig?.show_value_labels}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
+            categoryHrefs={categoryHrefs}
+            onCategoryLabelCopy={onCategoryLabelCopy}
+            onCategoryLabelViewAsTable={onCategoryLabelViewAsTable}
           />
         );
       case "VERTICAL_BAR":

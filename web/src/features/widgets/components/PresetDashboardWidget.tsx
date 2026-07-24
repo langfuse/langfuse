@@ -238,7 +238,11 @@ export function PresetDashboardWidget({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleCopyToClipboard}>
               <CopyIcon className="mr-2 h-4 w-4" />
-              Copy to clipboard
+              {/* Unlike DashboardWidget/WidgetTable, this copies a preset
+                  REFERENCE ($langfusePreset {presetId} — see
+                  buildPresetExport above), not a widget definition, so the
+                  label must say "card", not "widget". (LFE-10962) */}
+              Copy card as JSON
             </DropdownMenuItem>
             {onPasteWidget && (
               <DropdownMenuItem
