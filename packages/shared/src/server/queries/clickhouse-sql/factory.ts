@@ -175,6 +175,7 @@ export const createFilterFromFilterState = (
           operator: frontEndFilter.operator,
           value: frontEndFilter.value,
           tablePrefix: column.queryPrefix,
+          clickhouseTypeOverwrite: column.clickhouseTypeOverwrite,
         });
       case "booleanObject":
         return new BooleanObjectFilter({

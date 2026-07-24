@@ -208,12 +208,14 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "scores",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",

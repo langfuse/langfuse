@@ -324,12 +324,14 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "scores",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (numeric)",
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "s.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",
@@ -348,6 +350,7 @@ export const eventsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "ts.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Trace Scores (categorical)",

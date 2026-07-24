@@ -62,6 +62,7 @@ export const experimentScoreAggCols: UiColumnMappings = [
     uiTableId: "obs_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "obs_scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",
@@ -81,6 +82,7 @@ export const experimentScoreAggCols: UiColumnMappings = [
     uiTableId: "trace_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "trace_scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Trace Scores (categorical)",
