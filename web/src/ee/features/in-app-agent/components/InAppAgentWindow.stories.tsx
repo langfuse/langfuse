@@ -57,6 +57,36 @@ function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   );
 }
 
+function StatefulQueuedInAppAgentWindow(args: InAppAgentWindowProps) {
+  const [draft, setDraft] = useState(args.draft ?? "");
+  const [queuedMessages, setQueuedMessages] = useState(() =>
+    Array.from(args.queuedMessages ?? []),
+  );
+
+  return (
+    <StatefulInAppAgentWindow
+      {...args}
+      draft={draft}
+      queuedMessages={queuedMessages}
+      onDraftChange={setDraft}
+      onEditQueuedMessage={(messageId, content) => {
+        args.onEditQueuedMessage?.(messageId, content);
+        setQueuedMessages((current) =>
+          current.map((message) =>
+            message.id === messageId ? { ...message, content } : message,
+          ),
+        );
+      }}
+      onDeleteQueuedMessage={(messageId) => {
+        args.onDeleteQueuedMessage?.(messageId);
+        setQueuedMessages((current) =>
+          current.filter(({ id }) => id !== messageId),
+        );
+      }}
+    />
+  );
+}
+
 const streamingSeedMessages: InAppAgentWindowMessage[] = [
   {
     id: "seed-user-1",
@@ -654,6 +684,43 @@ export const ToolApprovalRequired = meta.story({
   },
 });
 
+export const RunningWithQueuedFollowUps = meta.story({
+  render: (args) => <StatefulQueuedInAppAgentWindow {...args} />,
+  args: {
+    isAssistantTurnInProgress: true,
+    isInputDisabled: false,
+    selectedConversationId: "conversation-1",
+    draft: "A third follow-up can still be composed",
+    queuedMessages: [
+      { id: "queued-1", content: "Compare this with last week." },
+      {
+        id: "queued-2",
+        content:
+          "Break down the result by model.\nHighlight regressions above 10%.",
+      },
+    ],
+    onDraftChange: fn(),
+    onEditQueuedMessage: fn(),
+    onDeleteQueuedMessage: fn(),
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: { type: "text", text: "Investigate today's latency spike." },
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Inspecting slow traces and comparing model latency.",
+          isStreaming: true,
+        },
+      },
+    ],
+  },
+});
+
 export const Empty = meta.story({
   args: {
     messages: [],
@@ -950,11 +1017,11 @@ export const LoadingAfterToolCall = meta.story({
 });
 
 export const FeedbackControlsWaitForTurnEnd = meta.story({
-  name: "(Test) Feedback Controls Wait For Turn End",
+  name: "(Test) Feedback Controls Stay During Queued Handoff",
   args: {
     selectedConversationId: "conversation-1",
-    isInputDisabled: true,
-    isAssistantTurnInProgress: true,
+    isInputDisabled: false,
+    isAssistantTurnInProgress: false,
     onSubmitFeedback: fn(),
     messages: [
       {
@@ -967,11 +1034,18 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
       },
       {
         id: "assistant-1",
-        runId: "run-1",
         role: "assistant",
         content: {
           type: "text",
           text: "I found a cluster of ingestion errors around malformed JSON payloads",
+        },
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Which payloads were affected?",
         },
       },
     ],
@@ -983,14 +1057,12 @@ export const FeedbackControlsWaitForTurnEnd = meta.story({
       "I found a cluster of ingestion errors around malformed JSON payloads",
     );
 
-    await waitFor(() => {
-      expect(
-        canvas.queryByRole("button", { name: "Good response" }),
-      ).not.toBeInTheDocument();
-      expect(
-        canvas.queryByRole("button", { name: "Bad response" }),
-      ).not.toBeInTheDocument();
-    });
+    await expect(
+      canvas.findByRole("button", { name: "Good response" }),
+    ).resolves.toBeDisabled();
+    await expect(
+      canvas.findByRole("button", { name: "Bad response" }),
+    ).resolves.toBeDisabled();
   },
 });
 
@@ -1131,10 +1203,10 @@ export const RateLimited = meta.story({
     await expect(canvas.getByRole("button", { name: "Reject" })).toBeDisabled();
     await expect(
       canvas.getByRole("button", { name: "Start new conversation" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await expect(
       canvas.getByRole("button", { name: "Conversation history" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   },
 });
 

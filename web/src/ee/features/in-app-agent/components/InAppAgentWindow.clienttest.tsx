@@ -142,4 +142,68 @@ describe("InAppAgentWindow quick actions", () => {
       screen.getByRole("button", { name: /^Create a prompt/ }),
     ).toBeInTheDocument();
   });
+
+  it("keeps follow-up, new conversation, history, and switching controls available while running", async () => {
+    const onNewConversation = vi.fn();
+    const onSelectConversation = vi.fn();
+    const onEditQueuedMessage = vi.fn();
+
+    render(
+      windowElement({
+        conversations: [
+          {
+            id: "conversation-1",
+            title: "Running conversation",
+            updatedAt: new Date(),
+          },
+        ],
+        isAssistantTurnInProgress: true,
+        isInputDisabled: false,
+        draft: "Unsent draft",
+        queuedMessages: [{ id: "queued-1", content: "Queued follow-up" }],
+        messages: [
+          {
+            id: "message-1",
+            role: "user",
+            content: { type: "text", text: "First" },
+          },
+        ],
+        onNewConversation,
+        onSelectConversation,
+        onEditQueuedMessage,
+        onDeleteQueuedMessage: vi.fn(),
+      }),
+    );
+
+    expect(screen.getByLabelText("Message the assistant")).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit queued message 1" }),
+    );
+    const editor = screen.getByRole("textbox", {
+      name: "Edit queued message",
+    });
+    expect(editor).toHaveValue("Queued follow-up");
+    fireEvent.change(editor, { target: { value: "Edited follow-up" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save queued message" }),
+    );
+    expect(onEditQueuedMessage).toHaveBeenCalledWith(
+      "queued-1",
+      "Edited follow-up",
+    );
+    expect(screen.getByLabelText("Message the assistant")).toHaveValue(
+      "Unsent draft",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Start new conversation" }),
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Conversation history" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(await screen.findByText("Running conversation"));
+
+    expect(onNewConversation).toHaveBeenCalledOnce();
+    expect(onSelectConversation).toHaveBeenCalledWith("conversation-1");
+  });
 });

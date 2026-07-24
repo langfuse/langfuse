@@ -1,4 +1,9 @@
-import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
+import {
+  type KeyboardEvent,
+  type SyntheticEvent,
+  useRef,
+  useState,
+} from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -26,9 +31,10 @@ export function InAppAgentWidgetComposer({
 }: {
   onSubmitted: () => void;
 }) {
-  const { isAvailable, isRunning, isSubmitting, openAssistant, submit } =
-    useInAppAiAgent();
+  const { isAvailable, openAssistant, submit } = useInAppAiAgent();
   const [request, setRequest] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlightRef = useRef(false);
 
   if (!isAvailable) {
     return null;
@@ -38,7 +44,7 @@ export function InAppAgentWidgetComposer({
     event.preventDefault();
     const trimmedRequest = request.trim();
 
-    if (!trimmedRequest || isRunning || isSubmitting) {
+    if (!trimmedRequest || submitInFlightRef.current) {
       return;
     }
 
@@ -46,14 +52,21 @@ export function InAppAgentWidgetComposer({
       return;
     }
 
-    const started = await submit(getWidgetCreationPrompt(trimmedRequest), {
-      newConversation: true,
-      entryPoint: "add-widget-modal",
-    });
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const started = await submit(getWidgetCreationPrompt(trimmedRequest), {
+        newConversation: true,
+        entryPoint: "add-widget-modal",
+      });
 
-    if (started) {
-      setRequest("");
-      onSubmitted();
+      if (started) {
+        setRequest("");
+        onSubmitted();
+      }
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -102,7 +115,7 @@ export function InAppAgentWidgetComposer({
           className="h-8 w-8 shrink-0 rounded-md border"
           variant="outline"
           aria-label="Add with Langfuse Assistant"
-          disabled={!request.trim() || isRunning || isSubmitting}
+          disabled={!request.trim() || isSubmitting}
         >
           <SendHorizontal className="h-4 w-4" />
         </Button>

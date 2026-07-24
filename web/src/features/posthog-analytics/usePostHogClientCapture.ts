@@ -291,6 +291,7 @@ export const events = {
     "entry_point_click",
     "new_chat_started",
     "new_chat_turn",
+    "message_queued",
     "quick_action_started",
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
