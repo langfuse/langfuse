@@ -151,6 +151,27 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
   the UI.
+- **Mobile-friendly by default.** The app is used on phones — build responsive
+  (`useIsMobile()` at 768px, or `md:`) and verify live at ~390px. `useIsMobile()`
+  is correct on the first render, so it's safe to gate mount-only behavior like
+  `autoFocus`. Non-obvious traps:
+  - Don't auto-focus inputs when a panel opens on mobile — it springs the keyboard
+    and buries the surface; let the user tap.
+  - Fold header/toolbar actions into one `⋯` menu of labeled rows (not inline
+    icons), and keep the type icon + title compact and truncating.
+  - Truncating flex text needs `min-w-0`; keep the icon a `shrink-0` sibling and
+    never nest a help/`?`/mount-effect element inside the truncating box (it clips).
+  - Wide content scrolls in its own `overflow-x-auto` box — the page body never
+    scrolls sideways.
+  - A collapsible/overlay hosting a mount-lifetime effect (deep-link open,
+    controlled state, a listener) must stay mounted when closed (`forceMount` +
+    hide) or it silently breaks.
+  - Batched URL param writes take the *last* write's push-vs-replace — keep one
+    action's writes consistent so Back works, and don't fight Back/Forward with a
+    state-sync effect.
+  - Keep dense views as tables, not card lists.
+  - Toward the mobile-friendly future: route every surface's actions through the
+    shared compact-header menu contract instead of folding raw toolbar nodes.
 - **Z-index / layers — key idea: we are migrating from z-indexes to a layer
   system** (start of a developing design system; extend it, don't work around
   it). **To put something on top of something else, use a layer, not a
