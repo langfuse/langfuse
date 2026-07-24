@@ -64,6 +64,23 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const Enabled = meta.story({
+  args: {
+    state: {
+      modernSession: { enabled: true, onToggle: fn(), isToggling: false },
+    },
+  },
+});
+
+export const MultipleFeatures = meta.story({
+  args: {
+    state: {
+      modernSession: { enabled: true, onToggle: fn(), isToggling: false },
+      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
+    },
+  },
+});
+
 export const Warning = meta.story({
   args: {
     state: {

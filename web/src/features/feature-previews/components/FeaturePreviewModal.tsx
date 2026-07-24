@@ -5,11 +5,11 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
@@ -31,6 +31,14 @@ type PreviewIllustration = {
   alt: string;
 };
 
+/** Static provenance shown as a small mono metadata line in the detail pane.
+ *  Dates come from the git history of the registry entry — update `updated`
+ *  when a preview materially changes. Optional; omit rather than guess. */
+type PreviewDates = {
+  added: string;
+  updated?: string;
+};
+
 type PreviewRegistryItem = {
   flag: PreviewFlag;
   title: string;
@@ -39,6 +47,7 @@ type PreviewRegistryItem = {
   details: string;
   feedbackUrl: string;
   illustration: PreviewIllustration;
+  dates?: PreviewDates;
 };
 
 /** Per-preview dynamic state, supplied by ControlledFeaturePreviewModal (which
@@ -68,6 +77,7 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
     },
+    dates: { added: "Jul 20, 2026" },
   },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
   // events tables and no longer surfaced in the dialog (no state entry in
@@ -87,12 +97,11 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       dark: filterSearchBarDarkIllustration,
       alt: "The filter search bar turns typed queries like level:ERROR -env:dev into Observations and Traces table filters with inline suggestions.",
     },
+    dates: { added: "Jun 17, 2026", updated: "Jun 18, 2026" },
   },
 ];
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
-const FEATURE_PREVIEW_MODAL_SUBTITLE =
-  "Try upcoming and experimental product experiences before they become generally available.";
 
 export type FeaturePreviewModalProps = {
   open: boolean;
@@ -116,102 +125,105 @@ export function FeaturePreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        size="lg"
-        closeOnInteractionOutside
-        overlayMode="blocking"
-        className="border-border bg-background text-foreground max-h-[88vh] p-0 shadow-2xl sm:rounded-2xl"
-      >
+      <DialogContent size="lg" closeOnInteractionOutside overlayMode="blocking">
         <DialogHeader>
-          <DialogTitle className="text-foreground text-lg font-bold">
+          <DialogTitle className="text-lg font-bold">
             {FEATURE_PREVIEW_MODAL_TITLE}
           </DialogTitle>
-          <DialogDescription className="mt-0">
-            {FEATURE_PREVIEW_MODAL_SUBTITLE}
-          </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[220px_1fr]">
-          <aside className="border-border bg-muted/20 border-b p-3 md:border-r md:border-b-0">
-            <div className="flex gap-2 overflow-x-auto md:flex-col md:overflow-x-visible">
-              {items.map((item) => {
-                const isSelected = item.flag === selected?.flag;
-                return (
+        <DialogBody className="grid min-h-0 gap-0 overflow-hidden p-0 md:grid-cols-[240px_1fr]">
+          <aside className="border-border flex flex-col gap-1 border-b p-2 md:border-r md:border-b-0">
+            {items.map((item) => {
+              const itemState = state[item.flag];
+              const isSelected = item.flag === selected?.flag;
+              return (
+                <div
+                  key={item.flag}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 transition-colors",
+                    isSelected ? "bg-muted" : "hover:bg-muted/50",
+                  )}
+                >
                   <button
-                    key={item.flag}
                     type="button"
                     onClick={() => setSelectedFlag(item.flag)}
                     aria-pressed={isSelected}
+                    title={item.sidebarLabel}
                     className={cn(
-                      "flex min-w-48 items-start rounded-md border px-3 py-3 text-left transition-colors md:min-w-0",
-                      isSelected
-                        ? "bg-muted text-foreground border-transparent"
-                        : "text-muted-foreground hover:bg-muted/50 border-transparent",
+                      "min-w-0 flex-1 truncate text-left text-sm font-bold",
+                      isSelected ? "text-foreground" : "text-muted-foreground",
                     )}
                   >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold">
-                        {item.sidebarLabel}
-                      </span>
-                      <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
-                        {state[item.flag]?.disabled
-                          ? "Unavailable"
-                          : state[item.flag]?.enabled
-                            ? "Enabled"
-                            : "Available"}
-                      </span>
-                    </span>
+                    {item.sidebarLabel}
                   </button>
-                );
-              })}
-            </div>
+                  <Switch
+                    checked={itemState?.enabled === true}
+                    disabled={
+                      itemState?.disabled === true ||
+                      itemState?.isToggling === true
+                    }
+                    onCheckedChange={(enabled) => {
+                      setSelectedFlag(item.flag);
+                      itemState?.onToggle(enabled);
+                    }}
+                    aria-label={`Toggle ${item.title}`}
+                  />
+                </div>
+              );
+            })}
           </aside>
 
-          <section className="bg-background min-h-0 overflow-y-auto p-6">
+          <section className="min-h-0 overflow-y-auto p-6">
             {selected && selectedState ? (
               <>
                 {selectedState.warningReason ? (
-                  <div className="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200">
+                  <div className="mb-4 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-sm text-yellow-800 dark:text-yellow-200">
                     {selectedState.warningReason}
                   </div>
                 ) : null}
 
-                <div className="flex items-start justify-between gap-6">
-                  <div>
-                    <h2 className="text-foreground text-xl font-bold">
-                      {selected.title}
-                    </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
-                      {selected.description}
-                    </p>
-                    <Button asChild className="mt-4">
-                      <a
-                        href={selected.feedbackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Give feedback
-                      </a>
-                    </Button>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <Switch
-                      checked={selectedState.enabled}
-                      disabled={
-                        selectedState.disabled === true ||
-                        selectedState.isToggling === true
-                      }
-                      onCheckedChange={selectedState.onToggle}
-                      aria-label={`Toggle ${selected.title}`}
-                    />
-                  </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h2 className="text-foreground text-xl font-bold">
+                    {selected.title}
+                  </h2>
+                  <Badge
+                    variant={selectedState.enabled ? "success" : "secondary"}
+                  >
+                    {selectedState.enabled ? "Enabled" : "Disabled"}
+                  </Badge>
                 </div>
+
+                <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
+                  {selected.description}
+                </p>
+
+                {selected.dates ? (
+                  <p className="text-muted-foreground mt-2 font-mono text-xs">
+                    added {selected.dates.added}
+                    {selected.dates.updated
+                      ? ` · updated ${selected.dates.updated}`
+                      : null}
+                  </p>
+                ) : null}
 
                 <PreviewMockupPanel illustration={selected.illustration} />
 
                 <p className="text-muted-foreground mt-5 text-sm leading-5">
                   {selected.details}
                 </p>
+
+                <div className="border-border mt-6 border-t border-dashed" />
+
+                <Button asChild className="mt-4">
+                  <a
+                    href={selected.feedbackUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Give feedback
+                  </a>
+                </Button>
               </>
             ) : null}
           </section>
@@ -227,7 +239,7 @@ function PreviewMockupPanel({
   illustration: PreviewIllustration;
 }) {
   return (
-    <div className="border-border bg-muted/30 mt-6 overflow-hidden rounded-2xl border shadow-inner">
+    <div className="border-border bg-muted/30 mt-6 overflow-hidden rounded-md border">
       <Image
         src={illustration.light}
         alt={illustration.alt}
