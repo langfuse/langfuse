@@ -28,6 +28,15 @@ runs:
         REPOSITORY: ${{ github.repository }}
         RUN_ID: ${{ github.run_id }}
       run: |
+        # GitHub Actions runs composite `bash` steps with `-e -o pipefail`.
+        # Several greps below intentionally return 1 on "no match" (e.g. no
+        # ##[error] annotation, no post-job cleanup marker) as a normal,
+        # expected outcome, not a real error — every empty case is already
+        # handled explicitly below, so disable both here rather than litter
+        # every pipeline with `|| true`.
+        set +e
+        set +o pipefail
+
         FAILED_JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate \
           | jq -sc --arg self_job "$GITHUB_JOB" \
             '[.[].jobs[] | select(.conclusion == "failure" and .name != $self_job)]')"
