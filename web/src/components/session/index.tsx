@@ -1210,7 +1210,6 @@ const LoadedSessionEventsPage: React.FC<{
   const router = useRouter();
   const { setDetailPageList, detailPagelists } = useDetailPageLists();
   const userSession = useSession();
-  const capture = usePostHogClientCapture();
   const isModernSessionEnabled = useIsFeatureEnabled("modernSession", {
     enableForAdmins: false,
   });
@@ -1296,39 +1295,6 @@ const LoadedSessionEventsPage: React.FC<{
     },
     [sessionDetailStore, setShowCorrections],
   );
-
-  const setInlineToolCallsForSession = (isEnabled: boolean) => {
-    capture("session_detail:inline_tools_toggled", { isEnabled, isV4: true });
-    sessionDetailStore.getState().actions.setShowInlineToolCalls(isEnabled);
-  };
-
-  const setShowSystemPromptForSession = (isEnabled: boolean) => {
-    capture("session_detail:system_prompt_toggled", {
-      isEnabled,
-      isV4: true,
-    });
-    sessionDetailStore.getState().actions.setShowSystemPrompt(isEnabled);
-  };
-
-  // Display toggles surfaced in the mobile `⋯` header menu (the redesigned
-  // desktop workspace reads these from the session-detail store directly).
-  const displayOptions = [
-    {
-      label: "corrections",
-      checked: showCorrections,
-      onCheckedChange: setShowCorrectionsForSession,
-    },
-    {
-      label: "tool calls",
-      checked: showInlineToolCalls,
-      onCheckedChange: setInlineToolCallsForSession,
-    },
-    {
-      label: "system prompt",
-      checked: showSystemPrompt,
-      onCheckedChange: setShowSystemPromptForSession,
-    },
-  ];
 
   const sessionCommentCounts = api.comments.getCountByObjectId.useQuery(
     {
@@ -1947,21 +1913,11 @@ const LoadedSessionEventsPage: React.FC<{
                 sessionId={sessionId}
                 layout="menu"
               />
-              {isModernSessionEnabled ? (
-                displayOptions.map(({ label, checked, onCheckedChange }) => (
-                  <label
-                    key={label}
-                    className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5"
-                  >
-                    <span className="text-sm capitalize">{label}</span>
-                    <Switch
-                      checked={checked}
-                      onCheckedChange={onCheckedChange}
-                      size="sm"
-                    />
-                  </label>
-                ))
-              ) : (
+              {/* Display toggles removed from the modern path per review
+                  decision (tool lines always render; system prompt +
+                  corrections live in the inspector). Legacy keeps its
+                  corrections switch. */}
+              {isModernSessionEnabled ? null : (
                 <label className="hover:bg-accent flex w-full items-center justify-between gap-4 rounded-md px-2 py-1.5">
                   <span className="text-sm">Show corrections</span>
                   <Switch
