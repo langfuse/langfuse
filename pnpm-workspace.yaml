@@ -22,6 +22,7 @@ minimumReleaseAgeExclude:
   - "@clickhouse/client@1.23.1"
   - "@next/env@16.2.11"
   - "@next/eslint-plugin-next@16.2.11"
+  - "next-auth@4.24.15"
   - "@next/swc-darwin-arm64@16.2.11"
   - "@next/swc-darwin-x64@16.2.11"
   - "@next/swc-linux-arm64-gnu@16.2.11"
@@ -86,7 +87,7 @@ overrides:
   # Remove once next-auth allows nodemailer ^9.
   "next-auth>nodemailer": "^9.0.3"
 patchedDependencies:
-  next-auth@4.24.14: patches/next-auth@4.24.14.patch
+  next-auth@4.24.15: patches/next-auth@4.24.15.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
