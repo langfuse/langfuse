@@ -9,7 +9,7 @@ service:
     create:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, create experiment data via the SDK experiment runner or the OpenTelemetry endpoint at POST /api/public/otel/v1/traces."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, create experiment data via the SDK experiment runner or the OpenTelemetry endpoint at POST /api/public/otel/v1/traces."
       method: POST
       docs: Create a dataset run item
       path: /dataset-run-items
@@ -18,7 +18,7 @@ service:
     list:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint will be removed in a future release. In Langfuse v4, dataset run items are replaced by experiment items; use GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to> instead."
+        message: "Langfuse v3 is deprecated; this endpoint will be removed on October 31, 2026. In Langfuse v4, dataset run items are replaced by experiment items; use GET /api/public/experiment-items?fromStartTime=<from>&toStartTime=<to> instead."
       method: GET
       docs: List dataset run items
       path: /dataset-run-items
