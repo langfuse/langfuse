@@ -1,13 +1,17 @@
 // v4 search-bar AI filter endpoint.
 //
 // Unlike the legacy `naturalLanguageFilters.createCompletion` (whose remotely
-// managed prompt targets the OLD trace columns), this procedure builds its
-// prompt from the search-bar field registry (`buildFilterSystemPrompt`), so the
-// model's vocabulary is exactly the v4 events grammar. It then ROUND-TRIPS the
-// model output through `filterStateToQueryText` and returns only the filters
-// that lower to bar pills — a hallucinated/unknown column can never reach the
-// client. The frontend applies the result via the bar's existing setFilterState
-// path (apply-immediately), and the bar re-derives the editable pills.
+// managed prompt targets the OLD trace columns), this procedure's system
+// prompt is anchored to the search-bar field registry: it prefers a MANAGED
+// `search-bar-filter` Langfuse prompt compiled with registry-derived
+// variables, falling back to a fully code-built skeleton when the managed
+// prompt is unavailable (see `resolveFilterPrompt.ts`). Either way, the
+// model's column vocabulary is exactly the v4 events grammar. It then
+// ROUND-TRIPS the model output through `filterStateToQueryText` and returns
+// only the filters that lower to bar pills — a hallucinated/unknown column
+// can never reach the client. The frontend applies the result via the bar's
+// existing setFilterState path (apply-immediately), and the bar re-derives
+// the editable pills.
 
 import {
   createTRPCRouter,
@@ -28,10 +32,8 @@ import {
   MAX_SCORE_NAME_LENGTH,
   MAX_SCORE_NAMES_PER_TYPE,
 } from "../lib/observed-options";
-import {
-  buildFilterContextMessage,
-  buildFilterSystemPrompt,
-} from "./buildFilterPrompt";
+import { buildFilterContextMessage } from "./buildFilterPrompt";
+import { resolveFilterSystemPrompt } from "./resolveFilterPrompt";
 import { parseGeneratedFilters } from "./parseFilterCompletion";
 import {
   generateLangfuseAIText,
@@ -127,16 +129,6 @@ export const searchBarRouter = createTRPCRouter({
         const now = new Date();
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
-        const systemPrompt = buildFilterSystemPrompt(currentDatetime);
-        // The current query being refined and the observed project data are
-        // injected DATA, not instructions — sent as their own user message so
-        // a trace shows the prompt and the data it was handed as distinct
-        // messages. Omitted entirely (not sent as an empty message) when
-        // there's neither.
-        const contextMessage = buildFilterContextMessage(
-          input.currentQuery,
-          input.dataContext,
-        );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
 
@@ -147,17 +139,38 @@ export const searchBarRouter = createTRPCRouter({
           });
         }
 
+        // Prefer the MANAGED `search-bar-filter` Langfuse prompt (dogfooding
+        // — same AI-features project/client the v3 natural-language-filter
+        // path uses); falls back to the code-built skeleton whenever the
+        // managed prompt is unavailable. Never throws — see
+        // `resolveFilterPrompt.ts` for the fallback conditions. Gated on
+        // AI-features keys only, NOT on `aiTelemetryEnabled` — reading our
+        // own prompt sends no org data out, so telemetry consent has nothing
+        // to gate here; it still gates the trace write + version link below.
+        const { messages: systemMessages, usedPrompt } =
+          await resolveFilterSystemPrompt({
+            currentDatetime,
+            projectId: input.projectId,
+            aiFeaturesPublicKey: env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+            aiFeaturesSecretKey: env.LANGFUSE_AI_FEATURES_SECRET_KEY,
+            aiFeaturesHost: env.LANGFUSE_AI_FEATURES_HOST,
+          });
+
+        // The current query being refined and the observed project data are
+        // injected DATA, not instructions — sent as their own user message so
+        // a trace shows the prompt and the data it was handed as distinct
+        // messages. Omitted entirely (not sent as an empty message) when
+        // there's neither.
+        const contextMessage = buildFilterContextMessage(
+          input.currentQuery,
+          input.dataContext,
+        );
+
         // Built imperatively (rather than a conditional-spread array literal)
         // so each push is checked against `ChatMessage` individually — a
         // ternary-spread literal loses the enum-member literal types TS needs
         // to match the discriminated union.
-        const messages: ChatMessage[] = [
-          {
-            role: ChatMessageRole.System,
-            content: systemPrompt,
-            type: ChatMessageType.PublicAPICreated,
-          },
-        ];
+        const messages: ChatMessage[] = [...systemMessages];
         if (contextMessage !== null) {
           messages.push({
             role: ChatMessageRole.User,
@@ -205,6 +218,10 @@ export const searchBarRouter = createTRPCRouter({
                   langfuse_current_query: input.currentQuery?.trim() || null,
                   langfuse_data_context_chars: input.dataContext?.length ?? 0,
                 },
+                // Links the trace to the exact managed-prompt version when
+                // it served this request; omitted (undefined) when the code
+                // fallback served it instead.
+                prompt: usedPrompt,
               })
             : undefined,
         });

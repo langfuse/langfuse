@@ -61,6 +61,11 @@ export const getBlobStorageByProjectIdBeforeDate = (
       projectId,
       beforeDate: convertDateToClickhouseDateTime(beforeDate),
     },
+    clickhouseConfigs: {
+      clickhouse_settings: {
+        max_execution_time: 0,
+      },
+    },
     tags: { projectId },
   });
 };

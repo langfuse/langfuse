@@ -17,7 +17,13 @@ const KeyboardShortcut = React.forwardRef<HTMLElement, KeyboardShortcutProps>(
     <kbd
       ref={ref}
       className={cn(
-        "bg-muted text-muted-foreground pointer-events-none inline-flex h-5 min-w-5 items-center justify-center gap-1 rounded-md border px-1.5 font-mono text-[10px] leading-none font-bold shadow-xs select-none",
+        // Hidden below `md` (768px, matches useIsMobile) by default: a
+        // keyboard-shortcut hint is noise on a touch device with no physical
+        // keyboard. This only hides the visual chip — the shortcut's own
+        // keydown handler is untouched, so a Bluetooth keyboard still works.
+        // CSS-only (no useIsMobile()) so SSR'd hints don't hydration-mismatch
+        // or flash on first paint (LFE-11067).
+        "bg-muted text-muted-foreground pointer-events-none hidden h-5 min-w-5 items-center justify-center gap-1 rounded-md border px-1.5 font-mono text-[10px] leading-none font-bold shadow-xs select-none md:inline-flex",
         className,
       )}
       {...props}

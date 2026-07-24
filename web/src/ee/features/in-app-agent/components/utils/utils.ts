@@ -22,7 +22,10 @@ export type InAppAgentError =
   | { type: "rate_limit"; retryAt: number };
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
-  z.object({ isLoading: z.boolean().optional() }),
+  z.object({
+    isLoading: z.boolean().optional(),
+    feedbackMessageId: z.string().optional(),
+  }),
 );
 
 export type InAppAiAgentMessage = z.infer<typeof InAppAiAgentMessageSchema>;
@@ -430,6 +433,9 @@ export function getDrawerMessages({
         id: message.id,
         ...(message.role === "assistant" && message.runId
           ? { runId: message.runId }
+          : {}),
+        ...(message.role === "assistant" && message.feedbackMessageId
+          ? { feedbackMessageId: message.feedbackMessageId }
           : {}),
         role,
         content: {

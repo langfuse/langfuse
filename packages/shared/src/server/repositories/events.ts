@@ -15,7 +15,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
@@ -23,6 +22,7 @@ import {
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
 import {
+  getLastTraceTimestampsByProjectsFromTracesTable,
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
   hasAnyTrace,
@@ -885,23 +885,12 @@ async function getObservationsFromEventsTableInternal<T>(
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return measureAndReturn({
-    operationName: "getObservationsFromEventsTableInternal",
-    projectId,
-    input: {
-      params,
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-        preferredClickhouseService:
-          preferredClickhouseService ?? "EventsReadOnly",
-      });
-    },
+  return queryClickhouse<T>({
+    query,
+    params,
+    tags: { projectId },
+    clickhouseConfigs,
+    preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
 }
 
@@ -1116,22 +1105,11 @@ export const getTraceByIdFromEventsTable = async ({
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const records = await measureAndReturn({
-    operationName: "getTraceByIdFromEventsTable",
-    projectId,
-    input: {
-      params,
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<TraceRecordReadType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService:
-          preferredClickhouseService ?? "EventsReadOnly",
-      });
-    },
+  const records = await queryClickhouse<TraceRecordReadType>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
 
   const res = records.map((record) =>
@@ -1223,20 +1201,13 @@ export const hasAnyTraceFromEventsTable = async (
     LIMIT 1
   `;
 
-  const rows = await measureAndReturn({
-    operationName: "hasAnyTraceFromEventsTable",
-    projectId,
-    input: { params: { projectId } },
-    fn: async (input) => {
-      return queryClickhouse<{ 1: number }>({
-        query,
-        params: input.params,
-        tags: { projectId },
-        preferredClickhouseService: "EventsReadOnly",
-        clickhouseSettings: {
-          max_threads: 1,
-        },
-      });
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings: {
+      max_threads: 1,
     },
   });
 
@@ -1265,6 +1236,58 @@ export const hasAnyTracingData = async (projectId: string) => {
     await persistProjectHasTracesFlag(projectId);
   }
   return result;
+};
+
+/**
+ * Last event start_time per project from the events table, capped to the last
+ * 30 days (matches the traces-table variant's window).
+ */
+export const getLastTraceTimestampsByProjectsFromEventsTable = async ({
+  projectIds,
+}: {
+  projectIds: string[];
+}) => {
+  if (projectIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      project_id,
+      max(start_time) as last_trace_at
+    FROM events_core
+    WHERE project_id IN ({projectIds: Array(String)})
+    AND start_time >= now() - INTERVAL 30 DAY
+    AND is_deleted = 0
+    GROUP BY project_id
+  `;
+
+  const rows = await queryClickhouse<{
+    project_id: string;
+    last_trace_at: string;
+  }>({
+    query,
+    params: { projectIds },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    projectId: row.project_id,
+    lastTraceAt: parseClickhouseUTCDateTimeFormat(row.last_trace_at),
+  }));
+};
+
+/**
+ * Routing wrapper for "last trace timestamp per project" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ */
+export const getLastTraceTimestampsByProjects = async (
+  params: Parameters<typeof getLastTraceTimestampsByProjectsFromTracesTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getLastTraceTimestampsByProjectsFromTracesTable(params);
+  }
+  return getLastTraceTimestampsByProjectsFromEventsTable(params);
 };
 
 type PublicApiObservationsQuery = {
@@ -1502,26 +1525,15 @@ function applyCursorPagination(
 async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
-  operationName = "getObservationsFromEventsTableForPublicApi_rows",
   extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
-  return await measureAndReturn({
-    operationName,
-    projectId,
-    input: {
-      params,
-      tags: { projectId, ...extraTags },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  return await queryClickhouse<T>({
+    query,
+    params,
+    tags: { projectId, ...extraTags },
+    preferredClickhouseService: "EventsReadOnly",
   });
 }
 
@@ -1541,21 +1553,11 @@ async function getObservationsCountFromEventsTableForPublicApiInternal(
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const result = await measureAndReturn({
-    operationName: "getObservationsFromEventsTableForPublicApi_count",
-    projectId,
-    input: {
-      params,
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<{ count: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const result = await queryClickhouse<{ count: string }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return result;
@@ -1875,21 +1877,11 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const result = await measureAndReturn({
-    operationName: `getTracesFromEventsTableForPublicApi_${opts.select}`,
-    projectId,
-    input: {
-      params,
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const result = await queryClickhouse<T>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return result;
@@ -2378,21 +2370,11 @@ export async function getAgentGraphDataFromEventsTable(params: {
       AND e.start_time <= {chMaxStartTime: DateTime64(3)}
   `;
 
-  return measureAndReturn({
-    operationName: "getAgentGraphDataFromEventsTable",
-    projectId,
-    input: {
-      params: { projectId, traceId, chMinStartTime, chMaxStartTime },
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  return queryClickhouse({
+    query,
+    params: { projectId, traceId, chMinStartTime, chMaxStartTime },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 }
 
@@ -3280,18 +3262,11 @@ export const hasAnySessionFromEventsTable = async (
     LIMIT 1
   `;
 
-  const rows = await measureAndReturn({
-    operationName: "hasAnySessionFromEventsTable",
-    projectId,
-    input: { params: { projectId } },
-    fn: async (input) => {
-      return queryClickhouse<{ 1: number }>({
-        query,
-        params: input.params,
-        tags: { projectId },
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.length > 0;
@@ -3315,26 +3290,17 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
 
   const { query, params } = builder.buildWithParams();
 
-  return measureAndReturn({
-    operationName: "getTraceMetadataByIdsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: { projectId: props.projectId },
-    },
-    fn: async (input) =>
-      queryClickhouse<{
-        id: string;
-        name: string;
-        user_id: string;
-        tags: string[];
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs: props.clickhouseConfigs,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
+  return queryClickhouse<{
+    id: string;
+    name: string;
+    user_id: string;
+    tags: string[];
+  }>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    clickhouseConfigs: props.clickhouseConfigs,
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 
@@ -3401,20 +3367,11 @@ export const getSessionMetricsFromEvents = async (props: {
 
   const { query, params } = builder.buildWithParams();
 
-  const rows = await measureAndReturn({
-    operationName: "getSessionMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: { projectId: props.projectId },
-    },
-    fn: async (input) =>
-      queryClickhouse<SessionEventsMetricsRow>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
+  const rows = await queryClickhouse<SessionEventsMetricsRow>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({
@@ -3565,27 +3522,17 @@ export const getTracesIdentifierForSessionFromEvents = async (
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const rows = await measureAndReturn({
-    operationName: "getTracesIdentifierForSessionFromEvents",
-    projectId,
-    input: {
-      params,
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<{
-        id: string;
-        user_id: string;
-        name: string;
-        timestamp: string;
-        environment: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const rows = await queryClickhouse<{
+    id: string;
+    user_id: string;
+    name: string;
+    timestamp: string;
+    environment: string;
+  }>({
+    query,
+    params,
+    tags: { projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.map((row) => ({

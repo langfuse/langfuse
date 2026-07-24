@@ -24,6 +24,7 @@ export const TopicGroups = {
     "Prompt Management",
     "Evaluation",
     "Platform",
+    "V4 Migration",
     "Other",
   ],
 } as const;

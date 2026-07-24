@@ -17,7 +17,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import TableLink from "@/src/components/table/table-link";
 import TableIdOrName from "@/src/components/table/table-id";
