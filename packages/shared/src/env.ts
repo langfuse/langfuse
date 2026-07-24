@@ -27,7 +27,7 @@ export const redisSocketTimeoutMsSchema = z.coerce
   })
   .default(30_000);
 
-const EnvSchema = z.object({
+const BaseEnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
   // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
@@ -191,8 +191,9 @@ const EnvSchema = z.object({
     .positive()
     .default(1),
   LANGFUSE_CODE_EVAL_DISPATCHER: z
-    .enum(["insecure-local", "aws-lambda"])
+    .enum(["insecure-local", "aws-lambda", "external"])
     .optional(),
+  LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
   LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
     .string()
@@ -535,6 +536,27 @@ const EnvSchema = z.object({
       s ? s.split(",").map((h) => h.toLowerCase().trim()) : [],
     ),
 });
+
+function validateExternalCodeEvalDispatcherConfig(
+  environment: z.infer<typeof BaseEnvSchema>,
+  ctx: z.RefinementCtx,
+): void {
+  if (
+    environment.LANGFUSE_CODE_EVAL_DISPATCHER === "external" &&
+    !environment.LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT"],
+      message:
+        "LANGFUSE_CODE_EVAL_EXTERNAL_ENDPOINT is required when LANGFUSE_CODE_EVAL_DISPATCHER=external",
+    });
+  }
+}
+
+const EnvSchema = BaseEnvSchema.superRefine(
+  validateExternalCodeEvalDispatcherConfig,
+);
 
 export type SharedEnv = z.infer<typeof EnvSchema>;
 

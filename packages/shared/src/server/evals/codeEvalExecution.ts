@@ -31,6 +31,7 @@ const INTERNAL_CODE_EVAL_ERROR_MESSAGE = "An internal error occurred";
 const INTERNAL_CODE_EVAL_ERROR_CODE = "INTERNAL_ERROR" as const;
 
 const INTERNAL_CODE_EVAL_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
+  CodeEvalDispatcherErrorCodes.EXTERNAL_INVOCATION_ERROR,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONFIGURATION_ERROR,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
