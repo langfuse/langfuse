@@ -28,6 +28,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { TreeRowModel } from "../treeRowModel";
 import { sourceFromValue } from "../asyncJsonSource";
 import type { JsonRow, RowModel, ValueResult } from "../rowModel";
+import { reportError } from "@/src/utils/reportError";
 
 /** Rows fetched for the first paint before the virtualizer reports a range. */
 export const INITIAL_ROW_COUNT = 200;
@@ -131,6 +132,21 @@ export function createRowModelStore(
       await get().ensureRange(lastStart, lastCount);
     };
 
+    /**
+     * A byte-engine / model failure is an our-code failure (a malformed index /
+     * unexpected shape), not an expected state — capture it and surface the
+     * error UI. The per-container scan is DEFERRED until expand, so this must be
+     * reachable from every mutation, not just the initial build. (skill:
+     * sentry-instrumentation.)
+     */
+    const captureAndSetError = (e: unknown) => {
+      reportError(e, { area: "json-viewer" });
+      set({
+        status: "error",
+        error: e instanceof Error ? e.message : String(e),
+      });
+    };
+
     return {
       status: "loading",
       error: null,
@@ -166,10 +182,7 @@ export function createRowModelStore(
           set({ status: "ready" });
         } catch (e) {
           if (gen !== myGen) return;
-          set({
-            status: "error",
-            error: e instanceof Error ? e.message : String(e),
-          });
+          captureAndSetError(e);
         }
       },
 
@@ -242,6 +255,10 @@ export function createRowModelStore(
             }
             if (gen !== callGen) return;
             await refreshAfterMutation();
+          } catch (e) {
+            // Deferred per-container scan threw on expand — don't let serialize's
+            // rejection handler swallow it silently.
+            if (gen === callGen) captureAndSetError(e);
           } finally {
             if (gen === callGen) setPending(nodeId, false);
           }
@@ -257,6 +274,9 @@ export function createRowModelStore(
             await model.loadMore(loadMoreId);
             if (gen !== callGen) return;
             await refreshAfterMutation();
+          } catch (e) {
+            // Deferred scan of the next page threw — capture, don't swallow.
+            if (gen === callGen) captureAndSetError(e);
           } finally {
             if (gen === callGen) setPending(loadMoreId, false);
           }
@@ -266,11 +286,23 @@ export function createRowModelStore(
       materialize: async (nodeId, maxBytes) => {
         if (!model) return;
         const myGen = gen;
-        const result = await model.getValue(nodeId, maxBytes);
-        if (gen !== myGen) return;
-        const next = new Map(get().values);
-        next.set(nodeId, result);
-        set({ values: next });
+        try {
+          const result = await model.getValue(nodeId, maxBytes);
+          if (gen !== myGen) return;
+          // getValue reports failures as data (ok:false). Surface a genuine
+          // materialization failure to Sentry, but do NOT tear down the whole
+          // viewer for one leaf — store the result and let the caller react.
+          if (!result.ok) {
+            reportError(new Error(result.error), { area: "json-viewer" });
+          }
+          const next = new Map(get().values);
+          next.set(nodeId, result);
+          set({ values: next });
+        } catch (e) {
+          // Defensive: the seam says getValue never throws, but a future source
+          // might. Report without tearing the viewer down.
+          if (gen === myGen) reportError(e, { area: "json-viewer" });
+        }
       },
 
       dispose: () => {
