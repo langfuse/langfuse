@@ -6,6 +6,7 @@ for coding agents.
 ```bash
 pnpm run seed -- doctor                  # check the stack, get the exact fix per failure
 pnpm run seed -- list                    # scenarios and flags (--json for machines)
+pnpm run seed -- env                     # environments + trace counts for the project (--json for machines)
 pnpm run seed -- trace-tree --observations 5000 --breadth 1000 --v4
 pnpm run seed -- long-session --traces 300 --observations-per-trace 8
 pnpm run seed -- many-traces --count 100000 --days 14
