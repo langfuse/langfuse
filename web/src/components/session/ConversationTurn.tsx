@@ -284,7 +284,10 @@ export const ConversationTurn = ({
                   className="text-session-generation h-3.5 w-3.5 shrink-0"
                   strokeWidth={2}
                 />
-                <span className="min-w-0 truncate text-[13px]">
+                <span
+                  className="min-w-0 truncate text-[13px]"
+                  title={observation.name ?? observation.model ?? "Generation"}
+                >
                   {observation.name ?? observation.model ?? "Generation"}
                 </span>
                 {metaParts.length > 0 ? (

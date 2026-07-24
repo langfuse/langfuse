@@ -422,7 +422,7 @@ export function ObservationInspector({
           ref={asideRef}
           aria-label="Observation details"
           style={{ width }}
-          className="bg-background dark:bg-modal dark:border-border-contrast animate-in slide-in-from-right fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l shadow-[-16px_0_40px_rgba(34,34,32,0.10)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-[-20px_0_48px_rgba(0,0,0,0.5)]"
+          className="bg-background dark:bg-modal dark:border-border-contrast animate-in slide-in-from-right fixed inset-y-0 right-0 z-40 flex max-w-full flex-col border-l shadow-[-16px_0_40px_hsl(var(--foreground)/0.10)] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] dark:shadow-[-20px_0_48px_hsl(var(--surface-code)/0.5)]"
         >
           {/* Left-edge drag handle — resize the overlay (320–720px). */}
           <div
