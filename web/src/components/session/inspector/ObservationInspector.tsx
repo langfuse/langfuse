@@ -333,18 +333,25 @@ export function ObservationInspector({
     );
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
+    // Pointer capture routes every move/up to the handle until release —
+    // even when the pointer leaves the browser window mid-drag, so the
+    // listeners can't leak on an off-window mouse release.
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
     // The overlay is right-anchored, so its right edge stays put while the
     // width changes — measure once and drag against it.
     const rightEdge =
       asideRef.current?.getBoundingClientRect().right ?? window.innerWidth;
     const onMove = (moveEvent: PointerEvent) =>
       setWidth(clampWidth(rightEdge - moveEvent.clientX));
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+    const onEnd = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onEnd);
+      handle.removeEventListener("pointercancel", onEnd);
     };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onEnd);
+    handle.addEventListener("pointercancel", onEnd);
   };
 
   const isOpen = inspected !== null;
