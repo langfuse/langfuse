@@ -63,7 +63,11 @@ function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
   const result = JSONPath({
     path: jsonSelector,
     json: selectedColumn as any, // JSONPath accepts unknown but types are strict
-    eval: false,
+    // `eval: "safe"` enables filter expressions (e.g. `$[?(@.role=="user")]`)
+    // via jsonpath-plus's sandboxed evaluator. `eval: false` disabled all
+    // filter expressions; "safe" keeps RCE protection (no Function/vm) while
+    // restoring this functionality.
+    eval: "safe",
   });
 
   if (!Array.isArray(result) || result.length === 0) {

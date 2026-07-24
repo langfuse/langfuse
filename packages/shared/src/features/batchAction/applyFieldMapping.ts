@@ -65,7 +65,11 @@ export function evaluateJsonPath(data: unknown, jsonPath: string): unknown {
     path: jsonPath,
     json: parsed as string | object,
     wrap: false,
-    eval: false,
+    // `eval: "safe"` enables filter expressions (e.g. `$[?(@.role=="user")]`)
+    // via jsonpath-plus's sandboxed evaluator, matching `testJsonPath` above.
+    // `eval: false` disabled all filter expressions; "safe" keeps RCE
+    // protection (no Function/vm) while restoring this functionality.
+    eval: "safe",
   });
 
   return result;
