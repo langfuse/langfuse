@@ -1,4 +1,4 @@
-import { expect, describe, it, afterEach } from "vitest";
+import { expect, describe, it, afterEach, vi } from "vitest";
 import { randomUUID } from "crypto";
 import {
   BatchProjectCleaner,
@@ -16,6 +16,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "../env";
+import type { RedisLock } from "../utils/RedisLock";
+
+type TestableBatchProjectCleaner = {
+  lock: RedisLock;
+  getProjectCounts: (projectIds: string[]) => Promise<Map<string, number>>;
+};
 
 async function getClickhouseCount(
   table: string,
@@ -77,7 +83,7 @@ describe("BatchProjectCleaner", () => {
         env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS,
       );
 
-      // Verify lock was not taken
+      // Verify lock was released
       const lockValue = await redis?.get(TEST_LOCK_KEY);
       expect(lockValue).toBeNull();
     });
@@ -102,11 +108,16 @@ describe("BatchProjectCleaner", () => {
 
       // Run processBatch
       const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const extendLockSpy = vi.spyOn(
+        (cleaner as unknown as TestableBatchProjectCleaner).lock,
+        "extend",
+      );
       const nextDelayMs = await cleaner.processBatch();
 
       // Verify traces were deleted
       const countAfter = await getClickhouseCount(TEST_TABLE, projectId);
       expect(countAfter).toBe(0);
+      expect(extendLockSpy).toHaveBeenCalledOnce();
 
       // Verify returned check interval (work was done)
       expect(nextDelayMs).toBe(
@@ -198,7 +209,13 @@ describe("BatchProjectCleaner", () => {
 
       // Run processBatch - should skip because lock is held
       const cleaner = new BatchProjectCleaner(TEST_TABLE);
+      const getProjectCountsSpy = vi.spyOn(
+        cleaner as unknown as TestableBatchProjectCleaner,
+        "getProjectCounts",
+      );
       const nextDelayMs = await cleaner.processBatch();
+
+      expect(getProjectCountsSpy).not.toHaveBeenCalled();
 
       // Verify traces were NOT deleted (lock blocked processing)
       expect(await getClickhouseCount(TEST_TABLE, projectId)).toBe(1);
