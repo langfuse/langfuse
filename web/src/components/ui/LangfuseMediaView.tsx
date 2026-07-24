@@ -6,6 +6,7 @@ import { Button } from "@/src/components/ui/button";
 import { ImageOff } from "lucide-react";
 import {
   MediaReferenceStringSchema,
+  OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
 import {
@@ -24,6 +25,7 @@ import {
   Video,
   Volume2,
 } from "lucide-react";
+import { JsonMediaTag } from "@/src/components/ui/media/JsonMediaTag";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of
 // rendering inline, so a large file isn't fetched/decoded just by opening a view.
@@ -45,7 +47,12 @@ export const LangfuseMediaView = ({
   // Non-previewable types (e.g. PDF) are always a click-to-open icon.
   variant?: "inline" | "icon" | "preview";
 }) => {
-  let mediaData: { id: string; type: MediaContentType } | null = null;
+  let mediaData: {
+    id: string;
+    type: MediaContentType;
+    referenceString?: string;
+    source?: string;
+  } | null = null;
 
   const projectId = useProjectIdFromURL();
 
@@ -56,11 +63,15 @@ export const LangfuseMediaView = ({
       mediaData = {
         id: parsedTag.id,
         type: parsedTag.type as MediaContentType,
+        referenceString: parsedTag.referenceString,
+        source: parsedTag.source,
       };
   } else if (mediaReferenceString && typeof mediaReferenceString !== "string") {
     mediaData = {
       id: mediaReferenceString.id,
       type: mediaReferenceString.type as MediaContentType,
+      referenceString: mediaReferenceString.referenceString,
+      source: mediaReferenceString.source,
     };
   } else if (mediaAPIReturnValue) {
     mediaData = {
@@ -84,19 +95,36 @@ export const LangfuseMediaView = ({
     );
   }
 
+  const isOversizedField =
+    mediaData.source === OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE;
+
   const { data } = api.media.getById.useQuery(
     {
       mediaId: mediaData.id,
       projectId: projectId as string,
     },
     {
-      enabled: Boolean(projectId),
+      enabled: Boolean(projectId) && !isOversizedField,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
       staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
     },
   );
+
+  if (isOversizedField && mediaData.referenceString) {
+    return (
+      <JsonMediaTag
+        descriptor={{
+          kind: "langfuseRef",
+          contentType: mediaData.type,
+          mediaId: mediaData.id,
+          referenceString: mediaData.referenceString,
+          source: OBSERVATION_FIELD_SIZE_LIMIT_MEDIA_SOURCE,
+        }}
+      />
+    );
+  }
 
   const mediaUrl = data?.url;
 
