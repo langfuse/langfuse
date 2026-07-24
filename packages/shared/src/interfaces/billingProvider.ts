@@ -10,7 +10,7 @@ type OrgWithCloudConfig = {
  * Parse the ClickHouse Billing cutoff instant from the environment.
  *
  * First-time upgrades on/after this instant route to CHB; unset (or
- * unparseable) means the CHB path is off entirely. Read lazily so web and
+ * unparsable) means the CHB path is off entirely. Read lazily so web and
  * worker share one implementation and tests can vary the env — format
  * validation happens loudly in each app's env schema, so an invalid value
  * here only ever fails closed to Stripe.

@@ -119,7 +119,7 @@ describe("getBillingProvider", () => {
       ).toBe("stripe");
     });
 
-    it("unparseable cutoff fails closed to stripe", () => {
+    it("unparsable cutoff fails closed to stripe", () => {
       process.env.LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE = "not-a-date";
       expect(getChbCutoffDate()).toBeNull();
       expect(getBillingProvider(orgWith({}))).toBe("stripe");
