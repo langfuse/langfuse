@@ -16,22 +16,17 @@
  * / row click that already targeted an observation opens on Info, otherwise on
  * Tree.
  *
- * Selection → Info wiring is two-pronged:
- *  - An effect mirrors the external `?observation=` param (written by all three
- *    navigators, including the graph which bypasses our imperative path) onto
- *    the tab whenever the selection CHANGES.
- *  - `switchToInfoTab()` on the context covers same-node re-taps, where the URL
- *    param — and thus the effect — wouldn't fire. Tree/Timeline call it in their
- *    select handlers; the graph wrapper routes its onObservationSelect to it.
+ * Selection → Info wiring is purely imperative: all three navigators
+ * (Tree/Timeline/Graph) call `switchToInfoTab()` on select, so selecting a node
+ * jumps to Info. There is deliberately NO reactive selection→tab effect — see
+ * `switchToInfoTab` for why one would corrupt Back/Forward.
  */
 
 import {
   createContext,
   useContext,
   useCallback,
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -101,34 +96,25 @@ export function TraceLayoutMobile({
   const activeTab: MobileTraceTab =
     requestedTab === "graph" && !showGraph ? "tree" : requestedTab;
 
-  // Auto-switch writes PUSH, not replace. A navigator's select handler writes
-  // the `?observation=` param (pushIn) and then calls this in the SAME tick, so
-  // with use-query-params batching (`enableBatching`, set in _app.tsx) both
-  // writes fold into one navigation whose updateType is taken from the LAST
-  // enqueued write. If this used `replaceIn` it would downgrade the whole merged
-  // navigation to history.replaceState — dropping the selection's own history
-  // entry, so Back would leave the trace view entirely instead of clearing the
-  // selection. Writing `pushIn` keeps the combined selection+tab change as ONE
-  // pushed entry (Back returns to the pre-selection view). The effect below
-  // stays `replaceIn` precisely because it fires while REACTING to an already-
-  // committed param change (incl. Back/Forward) and must not add its own entry.
+  // Auto-switch to Info writes PUSH, not replace. Every navigator's select
+  // handler writes the `?observation=` param (pushIn) and calls this in the
+  // SAME tick, so with use-query-params batching (`enableBatching`, set in
+  // _app.tsx) both writes fold into ONE navigation whose updateType is taken
+  // from the LAST enqueued write — pushIn here keeps the combined selection+tab
+  // change as a single pushed history entry, so Back returns to the
+  // pre-selection view. (replaceIn would downgrade the whole batch to
+  // history.replaceState and drop that entry, so Back would leave the trace.)
+  //
+  // There is deliberately NO reactive selection→tab effect. All three
+  // navigators call this imperatively, so an effect keyed on `selectedNodeId`
+  // would be redundant on forward selections — and would BREAK Back/Forward: a
+  // POP that restores an older `{observation, mobileTab=tree}` entry changes
+  // `selectedNodeId`, which an effect cannot distinguish from a live tap, so it
+  // would immediately overwrite the just-restored tab back to Info and trap the
+  // user (LFE-11067). Letting the restored URL win outright is correct.
   const switchToInfoTab = useCallback(() => {
     setTabParam("info", "pushIn");
   }, [setTabParam]);
-
-  // The single sanctioned selection→tab effect: synchronize the tab to an
-  // EXTERNAL change of the `?observation=` param. All three navigators land on
-  // that param, so this covers cross-navigator selection and — crucially — the
-  // graph, which writes `?observation=` directly rather than through our
-  // imperative switchToInfoTab. Guarded to genuine changes (ref seeded to the
-  // mount value) so a plain deep link is handled by `initialTab`, not a write.
-  const prevSelectedRef = useRef<string | null>(selectedNodeId ?? null);
-  useEffect(() => {
-    if (selectedNodeId && selectedNodeId !== prevSelectedRef.current) {
-      setTabParam("info", "replaceIn");
-    }
-    prevSelectedRef.current = selectedNodeId ?? null;
-  }, [selectedNodeId, setTabParam]);
 
   const contextValue = useMemo<MobileLayoutContextValue>(
     () => ({ switchToInfoTab }),
