@@ -188,6 +188,19 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    // Retry strategy for initial connections to sentinel nodes. Without this,
+    // ioredis uses a default strategy that gives up after a bounded number of
+    // attempts, causing "All sentinels are unreachable" errors to become
+    // permanent when sentinels are temporarily unavailable (e.g. during pod
+    // startup, network blips, or sentinel failover). Uses linear backoff
+    // capped at 10 seconds so the client never stops trying to reach sentinels.
+    sentinelRetryStrategy: (retries: number) =>
+      Math.min(retries * 200, 10_000),
+    // Reconnect strategy for sentinel connections after they are lost.
+    // Mirrors the retry strategy to ensure consistent reconnection behavior
+    // and prevent permanent disconnection after transient sentinel failures.
+    sentinelReconnectStrategy: (retries: number) =>
+      Math.min(retries * 200, 10_000),
     ...(sentinelTlsRequested && redisTlsEnabled && tlsOptions.tls
       ? {
           enableTLSForSentinelMode: true,
