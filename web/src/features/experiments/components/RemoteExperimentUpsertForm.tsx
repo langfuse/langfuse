@@ -44,6 +44,7 @@ const RemoteExperimentSetupSchema = z.object({
   url: z.url(),
   defaultPayload: z.string(),
   enabled: z.boolean(),
+  signingEnabled: z.boolean(),
   headers: z.array(
     z.object({
       name: z.string(),
@@ -95,6 +96,7 @@ export const RemoteExperimentUpsertForm = ({
       url: existingRemoteExperiment?.url || "",
       defaultPayload: getFormattedPayload(existingRemoteExperiment?.payload),
       enabled: existingRemoteExperiment?.enabled ?? true,
+      signingEnabled: Boolean(existingRemoteExperiment?.displaySecretKey),
       headers: Object.entries(
         existingRemoteExperiment?.displayHeaders ?? {},
       ).map(([name, header]) => ({
@@ -197,6 +199,7 @@ export const RemoteExperimentUpsertForm = ({
       url: data.url,
       defaultPayload: data.defaultPayload,
       enabled: data.enabled,
+      signingEnabled: data.signingEnabled,
       requestHeaders,
     });
   };
@@ -316,30 +319,6 @@ export const RemoteExperimentUpsertForm = ({
               )}
             />
 
-            <div>
-              <FormLabel>Signing secret</FormLabel>
-              <FormDescription className="mb-2">
-                Requests are signed with the <code>x-langfuse-signature</code>{" "}
-                header so your service can verify they come from Langfuse.
-              </FormDescription>
-              {existingRemoteExperiment?.displaySecretKey ? (
-                <div className="rounded-md border p-3">
-                  <CodeView
-                    className="bg-muted/50"
-                    content={existingRemoteExperiment.displaySecretKey}
-                    defaultCollapsed={false}
-                  />
-                  <div className="text-muted-foreground mt-1 text-xs">
-                    Secret is encrypted and can only be viewed when generated
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-muted/50 text-muted-foreground rounded-md border p-3 text-sm">
-                  A signing secret will be generated when you save.
-                </div>
-              )}
-            </div>
-
             <FormField
               control={form.control}
               name="defaultPayload"
@@ -370,6 +349,47 @@ export const RemoteExperimentUpsertForm = ({
                   Advanced Options
                 </AccordionTrigger>
                 <AccordionContent className="space-y-6 px-1 pt-2">
+                  <FormField
+                    control={form.control}
+                    name="signingEnabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <FormLabel>Sign requests</FormLabel>
+                          <FormDescription>
+                            {field.value
+                              ? existingRemoteExperiment?.displaySecretKey
+                                ? "Requests include an x-langfuse-signature header so your service can verify they come from Langfuse."
+                                : "A signing secret will be generated when you save and shown once."
+                              : "Requests will be sent without an x-langfuse-signature header."}
+                          </FormDescription>
+                          {field.value &&
+                            existingRemoteExperiment?.displaySecretKey && (
+                              <div className="pt-2">
+                                <CodeView
+                                  className="bg-muted/50"
+                                  content={
+                                    existingRemoteExperiment.displaySecretKey
+                                  }
+                                  defaultCollapsed={true}
+                                />
+                                <div className="text-muted-foreground mt-1 text-xs">
+                                  Secret is encrypted and can only be viewed
+                                  when generated
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
                   <div>
                     <FormLabel>Custom headers</FormLabel>
                     <FormDescription className="mb-2">

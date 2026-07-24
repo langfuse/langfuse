@@ -2140,6 +2140,7 @@ export const datasetRouter = createTRPCRouter({
         url: z.string(),
         defaultPayload: z.string(),
         enabled: z.boolean().optional(),
+        signingEnabled: z.boolean().optional(),
         requestHeaders: RemoteExperimentHeadersSchema.optional(),
       }),
     )
@@ -2180,10 +2181,16 @@ export const datasetRouter = createTRPCRouter({
         ),
       );
 
-      const { secretKey, displaySecretKey, unencryptedSecretKey } =
-        ensureRemoteExperimentSecret({
-          displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
-        });
+      const signingSecret =
+        input.signingEnabled === false
+          ? {
+              secretKey: undefined,
+              displaySecretKey: undefined,
+              unencryptedSecretKey: undefined,
+            }
+          : ensureRemoteExperimentSecret({
+              displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
+            });
 
       // Result excludes the secret columns via the global Prisma omit, so it
       // is safe to audit-log and return.
@@ -2198,12 +2205,18 @@ export const datasetRouter = createTRPCRouter({
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
           remoteExperimentEnabled: input.enabled,
-          ...(secretKey && displaySecretKey
+          ...(input.signingEnabled === false
             ? {
-                remoteExperimentSecretKey: secretKey,
-                remoteExperimentDisplaySecretKey: displaySecretKey,
+                remoteExperimentSecretKey: null,
+                remoteExperimentDisplaySecretKey: null,
               }
-            : {}),
+            : signingSecret.secretKey && signingSecret.displaySecretKey
+              ? {
+                  remoteExperimentSecretKey: signingSecret.secretKey,
+                  remoteExperimentDisplaySecretKey:
+                    signingSecret.displaySecretKey,
+                }
+              : {}),
           remoteExperimentRequestHeaders: requestHeaders,
           remoteExperimentDisplayHeaders: displayHeaders,
         },
@@ -2220,7 +2233,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         datasetId: updatedDataset.id,
         // Only present when a new secret was generated; shown once in the UI.
-        unencryptedSecretKey,
+        unencryptedSecretKey: signingSecret.unencryptedSecretKey,
       };
     }),
   getRemoteExperiment: protectedProjectProcedure

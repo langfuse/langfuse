@@ -205,6 +205,34 @@ describe("remote experiment auth headers and signing secret", () => {
     );
   });
 
+  it("does not create or retain a signing secret when signing is disabled", async () => {
+    const { caller, projectId } = await prepare();
+    const datasetId = await createDataset(projectId);
+
+    await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.com/hook",
+      defaultPayload: "{}",
+      enabled: true,
+      signingEnabled: true,
+    });
+
+    const first = await caller.datasets.upsertRemoteExperiment({
+      projectId,
+      datasetId,
+      url: "https://example.com/hook",
+      defaultPayload: "{}",
+      enabled: true,
+      signingEnabled: false,
+    });
+
+    expect(first.unencryptedSecretKey).toBeUndefined();
+    const stored = await selectSecretColumns(datasetId, projectId);
+    expect(stored.remoteExperimentSecretKey).toBeNull();
+    expect(stored.remoteExperimentDisplaySecretKey).toBeNull();
+  });
+
   it("stores secret headers encrypted and only exposes masked display values", async () => {
     const { caller, projectId } = await prepare();
     const datasetId = await createDataset(projectId);
