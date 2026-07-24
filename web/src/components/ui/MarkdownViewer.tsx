@@ -10,9 +10,8 @@ import {
   createElement,
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
-import Link from "next/link";
 import remarkGfm from "remark-gfm";
-import { CodeBlock } from "@/src/components/ui/Codeblock";
+import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -40,6 +39,7 @@ import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { env } from "@/src/env.mjs";
 import {
   getPromptReferenceMarkdownHref,
   getPromptReferenceMarkdownLabel,
@@ -89,6 +89,23 @@ const transformListItemChildren = (children: ReactNode) =>
         })
       : child,
   );
+
+/**
+ * A Next.js `<Link>` auto-prepends the configured `NEXT_PUBLIC_BASE_PATH` to
+ * root-relative internal hrefs (`/project/...`); a native `<a>` does not. Since
+ * markdown links now render as native anchors, replicate that so a hand-authored
+ * internal link still resolves under the base path on subpath deployments.
+ * Only root-relative paths are rewritten — absolute URLs (with a scheme),
+ * protocol-relative (`//`), hash (`#`), search (`?`), and `./`/`../` refs are
+ * left untouched (Next's `<Link>` did not prepend the base path to those either).
+ */
+export const prependBasePathToInternalHref = (
+  href: string,
+  basePath: string,
+): string =>
+  basePath && href.startsWith("/") && !href.startsWith("//")
+    ? `${basePath}${href}`
+    : href;
 
 const isImageNode = (node?: ReactMarkdownNode): boolean =>
   !!node &&
@@ -204,12 +221,12 @@ function MarkdownRenderer({
   markdown,
   theme,
   className,
-  customCodeHeaderClassName,
+  customCodeHeaderVariant,
 }: {
   markdown: string;
   theme?: string;
   className?: string;
-  customCodeHeaderClassName?: string;
+  customCodeHeaderVariant?: "card";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -283,18 +300,31 @@ function MarkdownRenderer({
                 );
               }
 
-              // Handle regular links
+              // Handle regular links. These are user-content URLs opened in a
+              // new tab (target="_blank"), so a native <a> is correct: a Next.js
+              // <Link> gives no client-routing benefit for an external new-tab
+              // navigation, but it DOES run the router's href validation, which
+              // throws "Invalid href '…' passed to next/router" for the many
+              // malformed URLs embedded in trace content (e.g. a URL containing
+              // a second `https://`). That was a top Sentry noise family
+              // (LANGFUSE-5DZ / 5EA / 5ER, ~40k lifetime events). getSafeLinkUrl
+              // already gates the protocol/shape; a native <a> never validates.
+              // Re-apply NEXT_PUBLIC_BASE_PATH for root-relative internal hrefs,
+              // which <Link> used to prepend automatically (subpath deploys).
               const safeHref = getSafeLinkUrl(href);
               if (safeHref) {
                 return (
-                  <Link
-                    href={safeHref}
+                  <a
+                    href={prependBasePathToInternalHref(
+                      safeHref,
+                      env.NEXT_PUBLIC_BASE_PATH ?? "",
+                    )}
                     className="underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {children}
-                  </Link>
+                  </a>
                 );
               }
               return (
@@ -352,8 +382,8 @@ function MarkdownRenderer({
                   key={Math.random()}
                   language={language}
                   value={codeContent}
-                  theme={theme}
-                  className={customCodeHeaderClassName}
+                  theme={theme === "dark" ? "dark" : "light"}
+                  variant={customCodeHeaderVariant}
                 />
               ) : (
                 // inline code
@@ -399,7 +429,7 @@ function MarkdownRenderer({
             },
             th({ children }) {
               return (
-                <th className="px-4 py-2 text-left text-xs font-medium tracking-wider uppercase">
+                <th className="px-4 py-2 text-left text-xs font-bold tracking-wider uppercase">
                   {children}
                 </th>
               );
@@ -449,23 +479,28 @@ export function MarkdownView({
   markdown,
   title,
   titleIcon,
-  customCodeHeaderClassName,
+  customCodeHeaderVariant,
   audio,
   media,
   className,
   controlButtons,
   afterHeader,
+  isSystemPrompt,
 }: {
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
-  customCodeHeaderClassName?: string;
+  customCodeHeaderVariant?: "card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
   controlButtons?: React.ReactNode;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** Collapse long content to a preview. Pass the raw message role check
+      (`role === "system"`) — the title can be a message `name` instead of the
+      role. Falls back to matching the title for callers without role data. */
+  isSystemPrompt?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const { resolvedTheme: theme } = useTheme();
@@ -474,14 +509,26 @@ export function MarkdownView({
   const markdownContent =
     typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
 
+  // Collapse preview is built from text parts only: serialized image/audio
+  // parts (media-reference strings, base64 data URIs) neither survive the
+  // generic markdown renderer nor belong in a first-lines text preview — and
+  // media alone should not make a prompt collapsible.
+  const collapsibleContent =
+    typeof markdown === "string"
+      ? markdown
+      : (markdown ?? [])
+          .filter(isOpenAITextContentPart)
+          .map((part) => part.text)
+          .join("\n");
+
   const {
     shouldBeCollapsible,
     isCollapsed,
     toggleCollapsed,
     truncatedContent,
   } = useCollapsibleSystemPrompt({
-    role: title ?? "",
-    content: markdownContent,
+    isSystemPrompt: isSystemPrompt ?? title === "system",
+    content: collapsibleContent,
   });
 
   const handleOnCopy = () => {
@@ -503,6 +550,17 @@ export function MarkdownView({
     media,
     getRenderedInlineMediaIds({ markdown, audio }),
   );
+
+  const collapseToggle = shouldBeCollapsible ? (
+    <Button
+      variant="ghost"
+      size="xs"
+      onClick={toggleCollapsed}
+      className="w-fit text-xs underline"
+    >
+      {isCollapsed ? "Expand system prompt" : "Collapse system prompt"}
+    </Button>
+  ) : null;
 
   return (
     <div className="overflow-hidden" key={theme}>
@@ -541,84 +599,80 @@ export function MarkdownView({
           ) : (
             <>
               <MarkdownRenderer
-                markdown={
-                  shouldBeCollapsible && isCollapsed
-                    ? truncatedContent
-                    : markdown
-                }
+                markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
+                customCodeHeaderVariant={customCodeHeaderVariant}
               />
-              {shouldBeCollapsible && (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  onClick={toggleCollapsed}
-                  className="w-fit text-xs underline"
-                >
-                  {isCollapsed
-                    ? "Expand system prompt"
-                    : "Collapse system prompt"}
-                </Button>
-              )}
+              {collapseToggle}
             </>
           )
         ) : (
-          // content parts (multi-modal)
-          (markdown ?? []).map((content, index) => {
-            if (isOpenAITextContentPart(content)) {
-              return (
-                <MarkdownRenderer
-                  key={index}
-                  markdown={content.text}
-                  theme={theme}
-                  customCodeHeaderClassName={customCodeHeaderClassName}
-                />
-              );
-            }
-
-            if (isOpenAIImageContentPart(content)) {
-              const imageUrl = content.image_url.url;
-              const safeImageUrl =
-                typeof imageUrl === "string" &&
-                OpenAIUrlImageUrl.safeParse(imageUrl).success
-                  ? getSafeImageUrl(imageUrl)
-                  : null;
-
-              return safeImageUrl ? (
-                <div key={index}>
-                  <ResizableImage src={safeImageUrl} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                <LangfuseMediaView mediaReferenceString={imageUrl} />
-              ) : (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                  <span title="<Base64 data URI>" className="h-4 w-4">
-                    <ImageOff className="h-4 w-4" />
-                  </span>
-                  <span
-                    className="truncate text-sm"
-                    title={imageUrl.toString()}
-                  >
-                    {imageUrl.toString()}
-                  </span>
-                </div>
-              );
-            }
-
-            return content.type === "input_audio" ? (
-              <LangfuseMediaView
-                mediaReferenceString={content.input_audio.data}
+          // content parts (multi-modal); collapsed = preview of the joined text
+          <>
+            {isCollapsed ? (
+              <MarkdownRenderer
+                markdown={truncatedContent}
+                theme={theme}
+                customCodeHeaderVariant={customCodeHeaderVariant}
               />
-            ) : null;
-          })
+            ) : (
+              (markdown ?? []).map((content, index) => {
+                if (isOpenAITextContentPart(content)) {
+                  return (
+                    <MarkdownRenderer
+                      key={index}
+                      markdown={content.text}
+                      theme={theme}
+                      customCodeHeaderVariant={customCodeHeaderVariant}
+                    />
+                  );
+                }
+
+                if (isOpenAIImageContentPart(content)) {
+                  const imageUrl = content.image_url.url;
+                  const safeImageUrl =
+                    typeof imageUrl === "string" &&
+                    OpenAIUrlImageUrl.safeParse(imageUrl).success
+                      ? getSafeImageUrl(imageUrl)
+                      : null;
+
+                  return safeImageUrl ? (
+                    <div key={index}>
+                      <ResizableImage src={safeImageUrl} />
+                    </div>
+                  ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                    <LangfuseMediaView mediaReferenceString={imageUrl} />
+                  ) : (
+                    <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                      <span title="<Base64 data URI>" className="h-4 w-4">
+                        <ImageOff className="h-4 w-4" />
+                      </span>
+                      <span
+                        className="truncate text-sm"
+                        title={imageUrl.toString()}
+                      >
+                        {imageUrl.toString()}
+                      </span>
+                    </div>
+                  );
+                }
+
+                return content.type === "input_audio" ? (
+                  <LangfuseMediaView
+                    mediaReferenceString={content.input_audio.data}
+                  />
+                ) : null;
+              })
+            )}
+            {collapseToggle}
+          </>
         )}
         {audio ? (
           <>
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
-              customCodeHeaderClassName={customCodeHeaderClassName}
+              customCodeHeaderVariant={customCodeHeaderVariant}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}

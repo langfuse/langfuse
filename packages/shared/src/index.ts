@@ -31,6 +31,7 @@ export * from "./domain/home-dashboard";
 
 // llm api
 export * from "./server/llm/types";
+export * from "./server/llm/promptToolConfig";
 
 // evals
 export * from "./features/evals/types";
@@ -45,6 +46,9 @@ export * from "./features/batchAction/types";
 export * from "./features/batchAction/addToDatasetTypes";
 export * from "./features/batchAction/applyFieldMapping";
 export { BatchTableNames } from "./interfaces/tableNames";
+
+// in-app agent
+export * from "./features/inAppAgent/types";
 
 // annotation
 export * from "./features/annotation/types";

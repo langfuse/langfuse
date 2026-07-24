@@ -5,36 +5,9 @@
     "catalog": "off",
   },
   "ignoreIssues": {
-    "web/**": [
-      "files",
-      "exports",
-      "nsExports",
-      "types",
-      "nsTypes",
-      "enumMembers",
-      "namespaceMembers",
-      "duplicates",
-    ],
-    "packages/shared/**": [
-      "files",
-      "exports",
-      "nsExports",
-      "types",
-      "nsTypes",
-      "enumMembers",
-      "namespaceMembers",
-      "duplicates",
-    ],
-    "worker/**": [
-      "files",
-      "exports",
-      "nsExports",
-      "types",
-      "nsTypes",
-      "enumMembers",
-      "namespaceMembers",
-      "duplicates",
-    ],
+    "web/**": ["files", "exports", "types"],
+    "packages/shared/**": ["files", "exports", "types"],
+    "worker/**": ["files", "exports", "types"],
   },
   "workspaces": {
     "worker": {
@@ -62,6 +35,10 @@
       ],
     },
     "ee": {
+      "project": ["src/**/*.ts"],
+    },
+    "packages/in-app-agent-sandbox-runtime": {
+      "entry": ["src/server.ts"],
       "project": ["src/**/*.ts"],
     },
     "packages/config-eslint": {

@@ -22,7 +22,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/src/components/ui/radio-group";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -135,7 +135,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
             <DialogBody>
               <p className="text-muted-foreground text-sm">
                 Copy all prompts from{" "}
-                <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold break-all">
+                <code className="bg-muted relative rounded px-[0.3rem] py-[0.2rem] font-mono text-sm font-bold break-all">
                   {folderPath}/
                 </code>{" "}
                 to a new folder path.
@@ -228,7 +228,7 @@ export function DuplicateFolder({ folderPath }: { folderPath: string }) {
                 )}
               {error && (
                 <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  <p className="font-medium">Error:</p>
+                  <p className="font-bold">Error:</p>
                   <p className="whitespace-pre-wrap">{error}</p>
                 </div>
               )}

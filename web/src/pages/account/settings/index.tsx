@@ -169,7 +169,7 @@ function DeleteAccountButton() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+          <DialogTitle className="text-lg font-bold">
             Delete Account
           </DialogTitle>
           <DialogDescription>
@@ -184,7 +184,7 @@ function DeleteAccountButton() {
                     <li key={org.id}>
                       <Link
                         href={`/organization/${org.id}/settings`}
-                        className="text-primary hover:text-primary/80 font-semibold underline"
+                        className="text-primary hover:text-primary/80 font-bold underline"
                       >
                         {org.name}
                       </Link>

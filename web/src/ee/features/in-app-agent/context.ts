@@ -1,4 +1,10 @@
 import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
+import {
+  isInAppAgentQuickActionContext,
+  type InAppAgentQuickActionAttribution,
+} from "@/src/ee/features/in-app-agent/quickActions";
+import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
+import type { FilterState } from "@langfuse/shared";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];
 
@@ -24,48 +30,36 @@ export type InAppAgentScreenContextDescription =
   | { type: "datasets-list"; hasAppliedFilters: boolean };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
+const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
+const QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION = "quick_action_category";
+const MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION = "message_entry_point";
 const MAX_SCREEN_CONTEXT_SEARCH_PARAMS = 30;
 const MAX_CONTEXT_KEY_LENGTH = 80;
 const MAX_CONTEXT_VALUE_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_PATH_LENGTH = 500;
 const MAX_SCREEN_CONTEXT_HASH_LENGTH = 200;
 const MAX_SCREEN_CONTEXT_JSON_LENGTH = 4_000;
+const MAX_QUICK_ACTION_KEY_LENGTH = 80;
+const QUICK_ACTION_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const USER_CONTEXT_DESCRIPTIONS = new Set([
   "user_name",
   "current_timezone",
   "browser_languages",
 ]);
 
+// Entity-granular classifier of a project URL, used for the screen-context
+// banner and focused quick actions. getInAppAgentQuickActionContext() in
+// quickActions.ts classifies the same URL coarsely by section for the picker.
 export function getInAppAgentScreenContextDescription(
   currentUrl: string,
 ): InAppAgentScreenContextDescription {
-  let parsedUrl: URL;
+  const projectRoute = getInAppAgentProjectRoute(currentUrl);
 
-  try {
-    parsedUrl = new URL(currentUrl, "https://langfuse.local");
-  } catch {
+  if (!projectRoute) {
     return { type: "page" };
   }
 
-  const rawPathSegments = parsedUrl.pathname.split("/").filter(Boolean);
-  const projectSegmentIndex = rawPathSegments.indexOf("project");
-
-  if (
-    projectSegmentIndex === -1 ||
-    rawPathSegments.length <= projectSegmentIndex + 2
-  ) {
-    return { type: "page" };
-  }
-
-  let routeSegments: string[];
-
-  try {
-    routeSegments = rawPathSegments
-      .slice(projectSegmentIndex + 2)
-      .map((segment) => decodeURIComponent(segment));
-  } catch {
-    return { type: "page" };
-  }
+  const { parsedUrl, routeSegments } = projectRoute;
 
   const section = routeSegments[0];
   const detailId = routeSegments[1];
@@ -174,6 +168,7 @@ export function createInAppAgentScreenContext(params: {
 export function sanitizeInAppAgentContext(
   context: InAppAgentContext,
   projectId: string,
+  viewFilters?: FilterState,
 ): InAppAgentContext {
   const sanitizedContext: InAppAgentContext = [];
   const currentUrlContext = context.find(
@@ -188,14 +183,26 @@ export function sanitizeInAppAgentContext(
     const serializedCurrentUrl = currentUrl
       ? JSON.stringify(currentUrl)
       : undefined;
+    const serializedResolvedCurrentUrl =
+      currentUrl && viewFilters
+        ? JSON.stringify({
+            ...currentUrl,
+            savedView: { filters: viewFilters },
+          })
+        : undefined;
+    const boundedCurrentUrl =
+      serializedResolvedCurrentUrl &&
+      serializedResolvedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
+        ? serializedResolvedCurrentUrl
+        : serializedCurrentUrl;
 
     if (
-      serializedCurrentUrl &&
-      serializedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
+      boundedCurrentUrl &&
+      boundedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
     ) {
       sanitizedContext.push({
         description: CURRENT_URL_CONTEXT_DESCRIPTION,
-        value: serializedCurrentUrl,
+        value: boundedCurrentUrl,
       });
     }
   }
@@ -203,6 +210,99 @@ export function sanitizeInAppAgentContext(
   sanitizedContext.push(...sanitizeUserContext(context));
 
   return sanitizedContext;
+}
+
+export function createInAppAgentQuickActionAttributionContext(
+  attribution: InAppAgentQuickActionAttribution,
+): InAppAgentContext {
+  return [
+    {
+      description: QUICK_ACTION_KEY_CONTEXT_DESCRIPTION,
+      value: attribution.key,
+    },
+    {
+      description: QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
+      value: attribution.category,
+    },
+  ];
+}
+
+// Attribution is telemetry only: it is validated by shape here and read for
+// trace metadata, but never forwarded into the model-visible sanitized context.
+export function getInAppAgentQuickActionAttribution(
+  context: InAppAgentContext,
+): InAppAgentQuickActionAttribution | undefined {
+  const quickActionKey = context
+    .find((item) => item.description === QUICK_ACTION_KEY_CONTEXT_DESCRIPTION)
+    ?.value.trim();
+  const quickActionCategory = context
+    .find(
+      (item) => item.description === QUICK_ACTION_CATEGORY_CONTEXT_DESCRIPTION,
+    )
+    ?.value.trim();
+
+  if (
+    !quickActionKey ||
+    quickActionKey.length > MAX_QUICK_ACTION_KEY_LENGTH ||
+    !QUICK_ACTION_KEY_PATTERN.test(quickActionKey) ||
+    !quickActionCategory ||
+    !isInAppAgentQuickActionContext(quickActionCategory)
+  ) {
+    return undefined;
+  }
+
+  return { key: quickActionKey, category: quickActionCategory };
+}
+
+export function getInAppAgentQuickActionTraceMetadata(
+  context: InAppAgentContext,
+): Record<string, string> {
+  const attribution = getInAppAgentQuickActionAttribution(context);
+
+  return attribution
+    ? {
+        quick_action_key: attribution.key,
+        quick_action_category: attribution.category,
+      }
+    : {};
+}
+
+export const IN_APP_AGENT_MESSAGE_ENTRY_POINTS = [
+  "chat",
+  "add-widget-modal",
+] as const;
+
+export type InAppAgentMessageEntryPoint =
+  (typeof IN_APP_AGENT_MESSAGE_ENTRY_POINTS)[number];
+
+export function createInAppAgentMessageEntryPointContext(
+  entryPoint: InAppAgentMessageEntryPoint,
+): InAppAgentContext {
+  return [
+    {
+      description: MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
+      value: entryPoint,
+    },
+  ];
+}
+
+// Telemetry only, like quick-action attribution: read for trace metadata but
+// never forwarded into the model-visible sanitized context.
+export function getInAppAgentMessageEntryPointTraceMetadata(
+  context: InAppAgentContext,
+): Record<string, string> {
+  const entryPoint = context
+    .find(
+      (item) => item.description === MESSAGE_ENTRY_POINT_CONTEXT_DESCRIPTION,
+    )
+    ?.value.trim();
+
+  return entryPoint &&
+    (IN_APP_AGENT_MESSAGE_ENTRY_POINTS as readonly string[]).includes(
+      entryPoint,
+    )
+    ? { message_entry_point: entryPoint }
+    : {};
 }
 
 function sanitizeUserContext(context: InAppAgentContext): InAppAgentContext {

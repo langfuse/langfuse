@@ -105,6 +105,13 @@
       "cache": true,
       "outputLogs": "errors-only"
     },
+    "@repo/in-app-agent-sandbox-runtime#build:docker-image": {
+      "dependsOn": ["build"],
+      "inputs": ["Dockerfile", "package.json", "tsconfig.json"],
+      "outputs": [".local-image-built"],
+      "cache": true,
+      "outputLogs": "errors-only"
+    },
     "worker#dev": {
       "cache": false,
       "persistent": true

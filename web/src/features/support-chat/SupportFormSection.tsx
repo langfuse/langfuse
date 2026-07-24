@@ -63,6 +63,8 @@ import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
 type SupportFormInput = z.input<typeof SupportFormSchema>;
@@ -203,12 +205,18 @@ export function SupportFormSection({
   // confirmation step.
   const [sev1ConfirmOpen, setSev1ConfirmOpen] = useState(false);
 
+  const { initialTopic } = useSupportDrawer();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const productFeatureTopics = TopicGroups["Product Features"].filter(
+    (topic) => topic !== "V4 Migration" || v4UpgradeUiEnabled,
+  );
+
   const form = useForm<SupportFormInput>({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
       messageType: "Question" as MessageType,
       severity: SEVERITY_3,
-      topic: "",
+      topic: initialTopic ?? "",
       message: "",
       integrationType: "",
     },
@@ -378,7 +386,7 @@ export function SupportFormSection({
 
   return (
     <div className="mt-1 flex flex-col gap-3">
-      <div className="flex items-center gap-2 text-base font-semibold">
+      <div className="flex items-center gap-2 text-base font-bold">
         E-Mail a Support Engineer
       </div>
       <p className="text-muted-foreground text-sm">
@@ -407,9 +415,7 @@ export function SupportFormSection({
                     {MESSAGE_TYPES.map((v) => (
                       <Button
                         key={v}
-                        variant={
-                          field.value === v ? "default" : "outline-solid"
-                        }
+                        variant={field.value === v ? "default" : "outline"}
                         className="flex w-full items-center gap-2 text-sm font-normal"
                         size="default"
                         onClick={() => field.onChange(v)}
@@ -495,17 +501,17 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       <div className="p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Product Features
                         </div>
-                        {TopicGroups["Product Features"].map((t) => (
+                        {productFeatureTopics.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>
                         ))}
                       </div>
                       <div className="border-t p-2">
-                        <div className="text-muted-foreground mb-2 text-xs font-medium">
+                        <div className="text-muted-foreground mb-2 text-xs font-bold">
                           Operations
                         </div>
                         {TopicGroups.Operations.map((t) => (
@@ -637,8 +643,8 @@ export function SupportFormSection({
                 </Dropzone>
 
                 {files && files.length > 0 && (
-                  <div className="p-0 text-left text-sm font-medium">
-                    <div className="text-muted-foreground mb-2 text-xs font-medium">
+                  <div className="p-0 text-left text-sm font-bold">
+                    <div className="text-muted-foreground mb-2 text-xs font-bold">
                       Attached files
                     </div>
                     {files?.map((file) => (

@@ -103,8 +103,7 @@ export function DetailHeaderActionsMenu({
                 onSelect={() => router.push(href)}
               >
                 <span className="max-w-[260px] truncate" title={spanName}>
-                  filter by{" "}
-                  <span className="font-semibold">name:{spanName}</span>
+                  filter by <span className="font-bold">name:{spanName}</span>
                 </span>
               </DropdownMenuItem>
             )}
@@ -117,8 +116,7 @@ export function DetailHeaderActionsMenu({
                   className="max-w-[260px] truncate"
                   title={filterTypeLabel}
                 >
-                  filter by{" "}
-                  <span className="font-semibold">{filterTypeLabel}</span>
+                  filter by <span className="font-bold">{filterTypeLabel}</span>
                 </span>
               </DropdownMenuItem>
             )}

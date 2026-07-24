@@ -41,7 +41,7 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { Slider } from "@/src/components/ui/slider";
 import { Card } from "@/src/components/ui/card";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   evalConfigFormSchema,
@@ -146,7 +146,7 @@ const TracesPreview = memo(
     return (
       <>
         <div className="flex flex-col items-start gap-1">
-          <span className="text-sm leading-none font-medium">
+          <span className="text-sm leading-none font-bold">
             Preview sample matched traces
           </span>
           <FormDescription>
@@ -211,7 +211,7 @@ const ObservationsPreview = memo(
               <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
                 <AlertTriangle className="text-dark-yellow h-8 w-8" />
                 <div className="flex flex-col gap-1">
-                  <span className="text-foreground font-medium">
+                  <span className="text-foreground font-bold">
                     Please verify your SDK version
                   </span>
                   <span className="text-muted-foreground max-w-md text-sm">
@@ -224,7 +224,7 @@ const ObservationsPreview = memo(
                       href="https://langfuse.com/docs/observability/sdk/upgrade-path"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-dark-blue font-medium hover:opacity-80"
+                      className="text-dark-blue font-bold hover:opacity-80"
                     >
                       Learn more
                     </a>
@@ -988,7 +988,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="grid gap-1.5 leading-none">
                               <label
                                 htmlFor="newObjects"
-                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 New {getTargetDisplayName(form.watch("target"))}
                               </label>
@@ -1013,7 +1013,7 @@ export const InnerEvaluatorForm = (props: {
                             <div className="flex items-center gap-1.5 leading-none">
                               <label
                                 htmlFor="existingObjects"
-                                className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                className="text-sm leading-none font-bold peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                               >
                                 Existing{" "}
                                 {getTargetDisplayName(form.watch("target"))}

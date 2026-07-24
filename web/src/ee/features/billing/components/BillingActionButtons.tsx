@@ -4,6 +4,7 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { StripeCustomerPortalButton } from "./StripeCustomerPortalButton";
 import { BillingSwitchPlanDialog } from "./BillingSwitchPlanDialog";
 import { useBillingInformation } from "./useBillingInformation";
@@ -17,6 +18,7 @@ export const BillingActionButtons = () => {
     isLoading,
   } = useBillingInformation();
   const { setOpen } = useSupportDrawer();
+  const { setOpen: setMigrationPanelOpen } = useV4MigrationPanel();
 
   // Show pricing page button
   const shouldDisableChangePlan = useMemo(() => {
@@ -30,7 +32,13 @@ export const BillingActionButtons = () => {
   if (organization?.cloudConfig?.plan) {
     return (
       <div className="mt-4 flex flex-row items-center gap-2">
-        <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setMigrationPanelOpen(false);
+            setOpen(true);
+          }}
+        >
           Change plan (via support)
         </Button>
         <Button variant="secondary" asChild>

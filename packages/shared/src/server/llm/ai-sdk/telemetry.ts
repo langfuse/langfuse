@@ -7,6 +7,7 @@ import {
   type Tracer,
   context,
   ROOT_CONTEXT,
+  SpanKind,
   SpanStatusCode,
   trace,
   type Span,
@@ -215,6 +216,7 @@ export function createAiSdkTelemetryCapture(params: {
 
   const setRootError = (error: unknown): void => {
     if (flushed) return;
+    rootSpan.setAttribute("error.type", getErrorType(error));
     rootSpan.setStatus({
       code: SpanStatusCode.ERROR,
       message: error instanceof Error ? error.message : String(error),
@@ -292,6 +294,7 @@ export function createGenerationSpanTelemetry(params: {
   const endAllOpenSpans = (error?: unknown): void => {
     for (const span of openSpans.values()) {
       if (error !== undefined) {
+        span.setAttribute("error.type", getErrorType(error));
         span.setStatus({
           code: SpanStatusCode.ERROR,
           message: error instanceof Error ? error.message : String(error),
@@ -313,7 +316,9 @@ export function createGenerationSpanTelemetry(params: {
       const span = tracer.startSpan(
         `chat ${event.modelId}`,
         {
+          kind: SpanKind.CLIENT,
           attributes: {
+            "gen_ai.operation.name": "chat",
             "gen_ai.provider.name": event.provider,
             "gen_ai.request.model": event.modelId,
             ...definedNumberAttributes({
@@ -361,8 +366,8 @@ export function createGenerationSpanTelemetry(params: {
       span.end();
     },
 
-    onError(error) {
-      endAllOpenSpans(error);
+    onError(event) {
+      endAllOpenSpans(getTelemetryError(event));
     },
 
     onAbort() {
@@ -394,6 +399,26 @@ function safeJsonStringify(value: unknown): string {
   } catch {
     return "[Unserializable content]";
   }
+}
+
+function getErrorType(error: unknown): string {
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    typeof error.name === "string" &&
+    error.name.length > 0
+  ) {
+    return error.name;
+  }
+
+  return "_OTHER";
+}
+
+function getTelemetryError(event: unknown): unknown {
+  return event !== null && typeof event === "object" && "error" in event
+    ? event.error
+    : event;
 }
 /**
  * Maps the internal experiment context to the `langfuse.experiment.*` span

@@ -19,7 +19,10 @@ import { validateFilters } from "@/src/components/table/table-view-presets/valid
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
-import { sessionFilterConfig } from "./config/sessions-config";
+import {
+  sessionEventsFilterConfig,
+  sessionFilterConfig,
+} from "./config/sessions-config";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import {
   decodeAndNormalizeFilters,
@@ -565,6 +568,28 @@ describe("Config Validation of old saved views", () => {
 
     expect(invalidFacets).toEqual([]);
   });
+
+  it("exposes metadata only on the v4 sessions filter config", () => {
+    expect(
+      sessionEventsFilterConfig.columnDefinitions.find(
+        (column) => column.id === "metadata",
+      ),
+    ).toMatchObject({ type: "stringObject" });
+    expect(
+      sessionEventsFilterConfig.facets.find(
+        (facet) => facet.column === "metadata",
+      ),
+    ).toMatchObject({ type: "stringKeyValue", label: "Metadata" });
+
+    expect(
+      sessionFilterConfig.columnDefinitions.some(
+        (column) => column.id === "metadata",
+      ),
+    ).toBe(false);
+    expect(
+      sessionFilterConfig.facets.some((facet) => facet.column === "metadata"),
+    ).toBe(false);
+  });
 });
 
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
@@ -800,7 +825,7 @@ describe("Saved view validation", () => {
     ];
     // LFE-10520: the default view is "All observations with I/O", expressed as
     // a real, renderable boolean filter (not a hidden flag). Selecting a
-    // generation preset still applies its positionInTrace filters.
+    // LLM-call preset still applies its positionInTrace filters.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: false,
@@ -827,19 +852,19 @@ describe("Saved view validation", () => {
       validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
     ).toEqual(defaultPreset?.filters ?? []);
 
-    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "First Generation in Trace",
+    const firstLlmCallPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First LLM Call per Trace",
     );
-    const appliedFirstGeneration = getSessionDetailPresetToApply({
-      selectedViewId: firstGenerationPreset?.id ?? null,
+    const appliedFirstLlmCall = getSessionDetailPresetToApply({
+      selectedViewId: firstLlmCallPreset?.id ?? null,
       hasFilters: false,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "Last Generation in Trace",
+      (preset) => preset.name === "Last LLM Call per Trace",
     );
 
-    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
-    expect(firstGenerationPreset?.filters).toEqual([
+    expect(appliedFirstLlmCall).toEqual(firstLlmCallPreset);
+    expect(firstLlmCallPreset?.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -854,11 +879,8 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(
-        firstGenerationPreset?.filters ?? [],
-        sessionEventColumns,
-      ),
-    ).toEqual(firstGenerationPreset?.filters ?? []);
+      validateFilters(firstLlmCallPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(firstLlmCallPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",

@@ -1,16 +1,21 @@
 import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
-import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import {
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
+import { Prisma } from "@langfuse/shared/src/db";
 import type {
   InAppAgentConversation,
-  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 
@@ -19,6 +24,7 @@ import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
 } from "@/src/features/ai-features/server/bedrockCompletion";
+import { getProductBaseUrl } from "@/src/utils/base-url";
 import { truncate } from "@/src/utils/string";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -29,26 +35,30 @@ import {
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { safeJsonParse } from "@/src/utils/json";
+import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
 const ACTIVE_RUN_STALE_AFTER_MS = 150 * 1000;
 const ACTIVE_RUN_CONFLICT_MESSAGE =
   "Assistant is already responding in this conversation";
-const STALE_RUN_ERROR_CODE = "stale";
 const STALE_RUN_ERROR_MESSAGE =
   "Run was marked stale before starting a new run";
+const SANDBOX_CONVERSATION_WRITE_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 export type SerializedInAppAgentConversation = {
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
+  isWriteLocked: boolean;
 };
 
-type PersistedConversationEvent = {
+export type PersistedConversationEvent = {
   event: AgUiEvent;
   runId: string;
+  createdAt: Date;
 };
 
 export function serializeConversation(
@@ -56,13 +66,41 @@ export function serializeConversation(
     InAppAgentConversation,
     "id" | "title" | "createdAt" | "updatedAt"
   >,
+  options?: { isWriteLocked?: boolean },
 ): SerializedInAppAgentConversation {
   return {
     id: conversation.id,
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    isWriteLocked: options?.isWriteLocked ?? false,
   };
+}
+
+export function isInAppAgentConversationWriteLocked(params: {
+  conversation: Pick<InAppAgentConversation, "createdAt">;
+  events: readonly PersistedConversationEvent[];
+  now?: Date;
+}) {
+  const now = params.now ?? new Date();
+  const ageMs = now.getTime() - params.conversation.createdAt.getTime();
+
+  if (ageMs <= SANDBOX_CONVERSATION_WRITE_WINDOW_MS) {
+    return false;
+  }
+
+  return params.events.some(({ event }) => {
+    if (event.type !== EventType.TOOL_CALL_START) {
+      return false;
+    }
+
+    const toolName = getString(event, "toolCallName");
+    if (!toolName) {
+      return false;
+    }
+
+    return IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName);
+  });
 }
 
 export async function getOwnedConversationOrThrow(params: {
@@ -145,8 +183,9 @@ export async function createRun(params: {
         createdAt: { lt: staleBefore },
       },
       data: {
+        status: InAppAgentRunStatus.FAILED,
         finishedAt: now,
-        errorCode: STALE_RUN_ERROR_CODE,
+        errorCode: InAppAgentRunErrorCode.STALE,
         errorMessage: STALE_RUN_ERROR_MESSAGE,
       },
     });
@@ -164,16 +203,35 @@ export async function createRun(params: {
       throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
     }
 
-    return tx.inAppAgentRun.create({
-      data: {
-        id: params.runId,
-        projectId: params.projectId,
-        conversationId: params.conversationId,
-        triggeredByUserId: params.triggeredByUserId,
-        model: params.model,
-        mcpApiKeyId: params.mcpApiKeyId,
-      },
-    });
+    try {
+      return await tx.inAppAgentRun.create({
+        data: {
+          id: params.runId,
+          projectId: params.projectId,
+          conversationId: params.conversationId,
+          triggeredByUserId: params.triggeredByUserId,
+          model: params.model,
+          mcpApiKeyId: params.mcpApiKeyId,
+          // The foreground path has no queue/claim step; runs start executing.
+          status: InAppAgentRunStatus.RUNNING,
+        },
+      });
+    } catch (error) {
+      // Backstop: the partial unique index on active runs. The conversation
+      // lock above should make this unreachable; surface it as the same
+      // conflict as the primary check instead of a 500. The insert can also
+      // violate the (id, project_id) primary key (a replayed runId), so only
+      // map the active-run index — Prisma reports it via its column names.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes("conversation_id")
+      ) {
+        throw new LangfuseConflictError(ACTIVE_RUN_CONFLICT_MESSAGE);
+      }
+      throw error;
+    }
   });
 }
 
@@ -181,9 +239,16 @@ export async function finishRun(params: {
   prisma: PrismaClient;
   runId: string;
   projectId: string;
-  errorCode?: string | null;
+  errorCode?: InAppAgentRunErrorCode | null;
   errorMessage?: string | null;
 }) {
+  const errorCode = params.errorCode ?? null;
+  const status =
+    errorCode == null
+      ? InAppAgentRunStatus.SUCCEEDED
+      : errorCode === InAppAgentRunErrorCode.CANCELLED
+        ? InAppAgentRunStatus.CANCELLED
+        : InAppAgentRunStatus.FAILED;
   await params.prisma.inAppAgentRun
     .updateMany({
       where: {
@@ -192,8 +257,9 @@ export async function finishRun(params: {
         finishedAt: null,
       },
       data: {
+        status,
         finishedAt: new Date(),
-        errorCode: params.errorCode ?? null,
+        errorCode,
         errorMessage: params.errorMessage ?? null,
       },
     })
@@ -287,13 +353,89 @@ export async function getConversationEvents(params: {
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true, runId: true },
+    select: { event: true, runId: true, createdAt: true },
   });
 
-  return events.map(({ event, runId }) => ({
+  return events.map(({ event, runId, createdAt }) => ({
     event: event as unknown as AgUiEvent,
     runId,
+    createdAt,
   }));
+}
+
+/**
+ * Returns `tool_calls` file payloads reconstructed from prior non-sandbox tool
+ * calls so each sandbox session can mount the same context.
+ */
+export function getSandboxToolCallFiles(
+  events: readonly PersistedConversationEvent[],
+) {
+  const drafts = new Map<
+    string,
+    {
+      createdAt: Date;
+      toolName: string;
+      request: string;
+    }
+  >();
+  const files: Array<{ path: string; content: string }> = [];
+
+  for (const { event, createdAt } of events) {
+    if (event.type === EventType.TOOL_CALL_START) {
+      const toolCallId = getString(event, "toolCallId");
+      const toolName = getString(event, "toolCallName");
+
+      if (
+        toolCallId &&
+        toolName &&
+        !IN_APP_AGENT_SANDBOX_TOOL_NAMES.has(toolName)
+      ) {
+        drafts.set(toolCallId, {
+          createdAt,
+          toolName,
+          request: "",
+        });
+      }
+      continue;
+    }
+
+    if (event.type === EventType.TOOL_CALL_ARGS) {
+      const toolCallId = getString(event, "toolCallId");
+      const draft = toolCallId ? drafts.get(toolCallId) : undefined;
+
+      if (draft) {
+        draft.request += getString(event, "delta") ?? "";
+      }
+      continue;
+    }
+
+    if (event.type !== EventType.TOOL_CALL_RESULT) {
+      continue;
+    }
+
+    const toolCallId = getString(event, "toolCallId");
+    const draft = toolCallId ? drafts.get(toolCallId) : undefined;
+
+    if (!toolCallId || !draft) {
+      continue;
+    }
+
+    drafts.delete(toolCallId);
+    files.push({
+      path: `tool_calls/${formatSandboxToolCallTimestamp(draft.createdAt)}_${draft.toolName}_${toolCallId}.json`,
+      content: JSON.stringify(
+        {
+          request: parseSandboxToolCallValue(draft.request),
+          response: parseSandboxToolCallValue(getString(event, "content")),
+          error: getString(event, "error") ?? null,
+        },
+        null,
+        2,
+      ),
+    });
+  }
+
+  return files;
 }
 
 export async function getConversationMessages(params: {
@@ -432,6 +574,10 @@ ${JSON.stringify(transcript, null, 2)}
             traceName: "in-app-agent-conversation-title",
             userId: params.userId,
             metadata: {
+              langfuse_project_url: new URL(
+                `project/${encodeURIComponent(params.projectId)}`,
+                getProductBaseUrl(),
+              ).toString(),
               conversation_id: params.conversationId,
             },
           })
@@ -1179,7 +1325,20 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-export function getDefaultConversationTitle(date: Date) {
+function parseSandboxToolCallValue(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = safeJsonParse(value);
+  return parsed === undefined ? value : parsed;
+}
+
+function formatSandboxToolCallTimestamp(date: Date) {
+  return date.toISOString().replaceAll(":", "-");
+}
+
+function getDefaultConversationTitle(date: Date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");

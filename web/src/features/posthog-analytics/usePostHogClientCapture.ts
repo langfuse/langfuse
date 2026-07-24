@@ -38,9 +38,19 @@ export const events = {
     "graph_view_toggle",
     // Aggregated vs expanded graph build mode (LFE-10676).
     "graph_mode_switch",
+    // `source` distinguishes the inline expand/collapse button from the
+    // trace settings switch; `collapsed` is the new preference value.
+    "system_prompt_collapse_toggle",
     // Fired from the tree, timeline, graph, and search-result click handlers;
     // `source` says which surface drove the navigation.
     "node_selected",
+    // Download from the large-string IO fallback (LFE-10991): a top-level
+    // string over the render limit is shown as a bounded preview + download
+    // instead of the full Pretty/JSON viewer. Measures how often users hit it.
+    "large_string_field_download",
+    // Raw download from the JSON-view fallback shown when a field is too large
+    // to render in the unvirtualized viewer (LFE-10989).
+    "json_view_large_field_download",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -112,6 +122,10 @@ export const events = {
     "publish_button_click",
     "download_button_click",
     "copy_session_id_click",
+    "truncated_observation_open_trace_click",
+    "truncated_observation_download_click",
+    "inline_tools_toggled",
+    "system_prompt_toggled",
   ],
   eval_config: [
     "new_form_submit",
@@ -161,6 +175,7 @@ export const events = {
     "widget_copied_to_project",
     "widget_json_downloaded",
     "widget_copied_to_clipboard",
+    "widget_view_as_table",
     "widget_pasted",
     "widget_paste_rejected",
     "widget_duplicated",
@@ -217,6 +232,10 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Version-update reload notification (LFE-10978). `banner_shown` fires once
+  // per appearance; the two actions measure the reload-vs-dismiss split. No
+  // props carry user content.
+  version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   toast: ["report_issue", "dismiss"],
   tag: [
@@ -228,10 +247,11 @@ export const events = {
   onboarding: [
     "code_example_tab_switch",
     "tracing_check_active",
+    "tracing_api_key_create_clicked",
     "tracing_agent_prompt_copy_clicked",
     "tracing_manual_docs_link_clicked",
   ],
-  user_settings: ["theme_changed"],
+  user_settings: ["theme_changed", "feature_preview_toggled"],
   project_settings: [
     "project_delete",
     "rename_form_submit",
@@ -267,10 +287,28 @@ export const events = {
     "message_sent",
     "community_hours_click",
   ], // also used on landing page for consistency
-  in_app_agent: ["new_chat_started", "new_chat_turn"],
+  in_app_agent: [
+    "entry_point_click",
+    "new_chat_started",
+    "new_chat_turn",
+    "quick_action_started",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
-  sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  sidebar: [
+    "book_a_call_clicked",
+    "v4_beta_toggled",
+    "v4_migration_card_clicked",
+  ],
+  v4_migration: [
+    "in_app_agent_opened",
+    "coding_agent_prompt_copied",
+    "delay_badge_clicked",
+    "project_chip_clicked",
+    "contact_book_call_clicked",
+    "contact_support_clicked",
+    "status_row_clicked",
+  ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
@@ -279,6 +317,10 @@ export const events = {
     "applied",
     "cleared",
     "facet_operator_toggled",
+    "active_only_toggled",
+    "facet_added",
+    "facet_mode_switched",
+    "sidebar_toggled",
     "search_submitted",
     "search_error",
     "ai_generate_requested",

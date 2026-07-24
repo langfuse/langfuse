@@ -81,6 +81,51 @@ describe("traces trpc", () => {
   });
 
   describe("traces.all", () => {
+    it("rejects a search query without any search types", async () => {
+      await expect(
+        caller.traces.all({
+          projectId,
+          filter: null,
+          searchQuery: "trace-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: {
+            column: "timestamp",
+            order: "DESC",
+          },
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a legacy observation search without any search types", async () => {
+      await expect(
+        caller.generations.all({
+          projectId,
+          filter: [],
+          searchQuery: "observation-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: null,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a v4 event search without any search types", async () => {
+      await expect(
+        caller.events.all({
+          projectId,
+          filter: [],
+          searchQuery: "event-id",
+          searchType: [],
+          page: 0,
+          limit: 50,
+          orderBy: null,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
     it("ignores legacy full-text-only search when legacy IO search is disabled", async () => {
       mutableEnv.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH = "true";
       const tag = `legacy-io-search-disabled-${randomUUID()}`;
@@ -567,23 +612,34 @@ describe("traces trpc", () => {
     // the events table instead of 404ing on the legacy `traces` miss — the
     // fast-preview list showed such traces while the detail view threw
     // "Trace not found".
-    // Gate matches the code: events-table reads work in dual (fallback) and
-    // events_only (getTraceById routing); legacy deployments (azure /
-    // redis-cluster CI) have no events tables and skip.
-    const eventsTraceReadable =
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
-    (eventsTraceReadable ? it : it.skip)(
+    // This specifically covers the dual-write fallback. Events-only routing is
+    // covered in traces-trpc-events-only.servertest.ts.
+    const isDualWrite = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual";
+    (isDualWrite ? it : it.skip)(
       "access trace that only exists in the events table",
       async () => {
         const traceId = randomUUID();
+        const rootId = randomUUID();
+        const clickedId = randomUUID();
+        const rootTimestamp = new Date("2026-07-14T21:42:12.184Z");
+        const clickedTimestamp = new Date("2026-07-15T00:27:13.935Z");
 
         await createEventsCh([
           createEvent({
-            id: traceId,
-            span_id: traceId,
+            id: rootId,
+            span_id: rootId,
             trace_id: traceId,
             project_id: projectId,
             parent_span_id: null,
+            start_time: rootTimestamp.getTime() * 1000,
+          }),
+          createEvent({
+            id: clickedId,
+            span_id: clickedId,
+            trace_id: traceId,
+            project_id: projectId,
+            parent_span_id: rootId,
+            start_time: clickedTimestamp.getTime() * 1000,
           }),
         ]);
 
@@ -594,12 +650,15 @@ describe("traces trpc", () => {
 
         // ClickHouse insert visibility can lag.
         await waitForExpect(async () => {
-          const traceRes = await caller.traces.byId({
+          const result = await caller.events.byTraceId({
             projectId,
             traceId,
+            timestamp: clickedTimestamp,
           });
-          expect(traceRes?.id).toEqual(traceId);
-          expect(traceRes?.projectId).toEqual(projectId);
+          expect(result.observations.map(({ id }) => id)).toEqual(
+            expect.arrayContaining([rootId, clickedId]),
+          );
+          expect(result.observations).toHaveLength(2);
         });
       },
     );

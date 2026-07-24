@@ -7,6 +7,7 @@
  * - Show Duration
  * - Show Cost/Tokens
  * - Color Code Metrics (dependent on duration or cost being enabled)
+ * - Collapse System Prompts
  * - Minimum Observation Level filter
  * - Show Graph (hidden when graph view not available)
  *
@@ -90,6 +91,8 @@ export function TraceViewOptionsMenuItems({
     setColorCodeMetrics,
     minObservationLevel,
     setMinObservationLevel,
+    collapseSystemPrompt,
+    setCollapseSystemPrompt,
   } = useViewPreferences();
 
   // Color coding is only available when duration or cost metrics are shown
@@ -224,6 +227,31 @@ export function TraceViewOptionsMenuItems({
             />
           </div>
         </DropdownMenuItem>
+
+        {/* Collapse System Prompts Toggle */}
+        <DropdownMenuItem
+          asChild
+          onSelect={(e) => e.preventDefault()}
+          className="px-2 py-1"
+        >
+          <div className="flex w-full items-center justify-between">
+            <span className="mr-2">Collapse System Prompts</span>
+            <Switch
+              size="sm"
+              checked={collapseSystemPrompt}
+              onCheckedChange={(checked) => {
+                // No analyticsDimensions: the inline toggle fires this event
+                // from shared components without trace context, and the event
+                // must keep one shape across sources.
+                capture("trace_detail:system_prompt_collapse_toggle", {
+                  collapsed: checked,
+                  source: "settings",
+                });
+                setCollapseSystemPrompt(checked);
+              }}
+            />
+          </div>
+        </DropdownMenuItem>
       </div>
 
       {/* Minimum Observation Level Submenu */}
@@ -234,7 +262,7 @@ export function TraceViewOptionsMenuItems({
           </span>
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
-          <DropdownMenuLabel className="font-semibold">
+          <DropdownMenuLabel className="font-bold">
             Minimum Level
           </DropdownMenuLabel>
           {Object.values(ObservationLevel).map((level) => (

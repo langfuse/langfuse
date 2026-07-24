@@ -168,20 +168,20 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         {/* Connection Status */}
         <div className="flex items-center gap-2">
           <CheckCircle className="h-4 w-4 text-green-500" />
-          <span className="text-sm font-medium">Connected</span>
+          <span className="text-sm font-bold">Connected</span>
         </div>
 
         {/* Team Information */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Workspace:</span>
+            <span className="text-sm font-bold">Workspace:</span>
             <Badge variant="secondary" className="text-xs">
               {integrationStatus.teamName}
             </Badge>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Team ID:</span>
+            <span className="text-sm font-bold">Team ID:</span>
             <Badge variant="outline" className="font-mono text-xs">
               {integrationStatus.teamId}
             </Badge>
@@ -189,7 +189,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Bot User:</span>
+              <span className="text-sm font-bold">Bot User:</span>
               <Badge variant="outline" className="font-mono text-xs">
                 {integrationStatus.botUserId}
               </Badge>

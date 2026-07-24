@@ -7,7 +7,11 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
-import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
+import {
+  getInAppAgentMessageEntryPointTraceMetadata,
+  getInAppAgentQuickActionTraceMetadata,
+  sanitizeInAppAgentContext,
+} from "@/src/ee/features/in-app-agent/context";
 import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
 import {
   AgUiRunAgentInputSchema,
@@ -35,12 +39,20 @@ import {
   createRun,
   ensureOwnedConversation,
   finishRun,
+  getConversationEvents,
   getConversationMessagesForReplay,
+  isInAppAgentConversationWriteLocked,
   maybeInferAndPersistConversationTitle,
+  getSandboxToolCallFiles,
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
+import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
+import {
+  createInAppAgentSandboxProvider,
+  getDefaultInAppAgentSandboxProviderType,
+} from "@/src/ee/features/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -51,19 +63,27 @@ import {
 } from "@/src/features/public-api/server/RateLimitService";
 import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
+import { getProductBaseUrl } from "@/src/utils/base-url";
+import { parseSavedViewFromURL } from "@/src/utils/product-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
+  type FilterState,
+  InAppAgentRunErrorCode,
   InvalidRequestError,
+  LangfuseNotFoundError,
   type RateLimitResult,
+  TableViewPresetTableName,
   UnauthorizedError,
   CloudConfigSchema,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  addUserToSpan,
   logger,
   redis,
+  TableViewService,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import {
@@ -73,6 +93,8 @@ import {
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 
 export default async function handler(request: Request) {
   try {
@@ -85,6 +107,11 @@ export default async function handler(request: Request) {
 
     const user = session.user;
     const userId = user.id;
+
+    addUserToSpan({
+      userId,
+      email: user.email ?? undefined,
+    });
 
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       throw new BaseError(
@@ -182,7 +209,11 @@ export default async function handler(request: Request) {
       );
     }
 
-    const sanitizedInput = sanitizeAgentInput(input, projectId);
+    const sanitizedInput = await prepareAgentInput(
+      input,
+      projectId,
+      user.v4BetaEnabled ?? false,
+    );
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
@@ -219,13 +250,21 @@ export default async function handler(request: Request) {
       false,
     );
 
-    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
-    const rateLimitScope = getInAppAgentRateLimitScope(
+    const rateLimitScope = getInAppAgentApiAccessScope(
       user,
       projectId,
       project.organization,
     );
 
+    addUserToSpan({
+      userId,
+      email: user.email ?? undefined,
+      projectId: rateLimitScope.projectId ?? undefined,
+      orgId: rateLimitScope.orgId,
+      plan: rateLimitScope.plan,
+    });
+
+    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitResponse = await rateLimitInAppAgentRequest(
       rateLimitScope,
       "in-app-agent-run",
@@ -241,6 +280,25 @@ export default async function handler(request: Request) {
       conversationId,
       userId: userId,
     });
+    const conversationEvents = await getConversationEvents({
+      prisma,
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    if (
+      isInAppAgentConversationWriteLocked({
+        conversation,
+        events: conversationEvents,
+      })
+    ) {
+      throw new BaseError(
+        "PreconditionFailedError",
+        412,
+        SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        true,
+      );
+    }
 
     if (isResumeAgentInput(sanitizedInput)) {
       await validatePendingToolApproval({
@@ -261,6 +319,30 @@ export default async function handler(request: Request) {
     );
     const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
       ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+      : undefined;
+    const sandboxProviderType = getDefaultInAppAgentSandboxProviderType();
+    const sandboxProvider =
+      await getInAppAgentSandboxProvider(sandboxProviderType);
+    const sandboxState = sandboxProvider
+      ? await createInAppAgentSandbox({
+          conversationId: conversation.id,
+          projectId,
+          providerSessionId: conversation.providerSessionId,
+          provider: sandboxProvider,
+          getToolCallFiles: async () =>
+            getSandboxToolCallFiles(conversationEvents),
+          saveState: async (state) => {
+            await prisma.inAppAgentConversation.update({
+              where: {
+                id_projectId: {
+                  id: conversation.id,
+                  projectId,
+                },
+              },
+              data: state,
+            });
+          },
+        })
       : undefined;
 
     const approvedResumeApprovalRequest =
@@ -345,7 +427,7 @@ export default async function handler(request: Request) {
           }
 
           const finishCurrentRun = (error?: {
-            errorCode: string;
+            errorCode: InAppAgentRunErrorCode;
             errorMessage: string;
           }) =>
             finishRun({
@@ -424,7 +506,7 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "cancelled",
+                      errorCode: InAppAgentRunErrorCode.CANCELLED,
                       errorMessage: "Client aborted request",
                     }),
                   ),
@@ -433,14 +515,18 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "agent_error",
+                      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
                       errorMessage:
                         error instanceof Error
                           ? error.message
                           : "Unknown agent error",
                     }),
                   ),
-              onFinish: cleanupMcpApiKey,
+              sandbox: sandboxState?.sandbox,
+              onFinish: async () => {
+                await cleanupMcpApiKey();
+                await sandboxState?.onTurnEnded();
+              },
               awsBedrock: {
                 region: env.LANGFUSE_AWS_BEDROCK_REGION,
                 modelId: bedrockModelId,
@@ -477,6 +563,10 @@ export default async function handler(request: Request) {
                     langfuse_ai_feature: "in-app-agent",
                     langfuse_user_id: userId,
                     langfuse_project_id: projectId,
+                    langfuse_project_url: new URL(
+                      `project/${encodeURIComponent(projectId)}`,
+                      getProductBaseUrl(),
+                    ).toString(),
                     conversation_id: conversation.id,
                     thread_id: sanitizedInput.threadId,
                     run_id: sanitizedInput.runId,
@@ -485,6 +575,10 @@ export default async function handler(request: Request) {
                       parsedState.data.type === "existingConversation"
                         ? "existing"
                         : "new",
+                    ...getInAppAgentQuickActionTraceMetadata(input.context),
+                    ...getInAppAgentMessageEntryPointTraceMetadata(
+                      input.context,
+                    ),
                   },
                 });
 
@@ -522,7 +616,7 @@ export default async function handler(request: Request) {
               prisma,
               runId: sanitizedInput.runId,
               projectId,
-              errorCode: "init_failed",
+              errorCode: InAppAgentRunErrorCode.INIT_FAILED,
               errorMessage:
                 error instanceof Error
                   ? error.message
@@ -547,6 +641,25 @@ export default async function handler(request: Request) {
   }
 }
 
+async function getInAppAgentSandboxProvider(
+  providerType: ReturnType<typeof getDefaultInAppAgentSandboxProviderType>,
+) {
+  if (providerType === null || env.NODE_ENV === "test") {
+    return undefined;
+  }
+
+  if (providerType === "dangerous-docker") {
+    logger.warn(
+      "Using dangerous-docker in-app agent sandbox provider. This is for local development only.",
+    );
+    logger.warn(
+      "The dangerous-docker sandbox provider executes commands in a local Docker container and should not be enabled in production.",
+    );
+  }
+
+  return createInAppAgentSandboxProvider(providerType);
+}
+
 type SessionUser = NonNullable<Session["user"]>;
 
 function getInAppAgentUserAccess(
@@ -563,7 +676,7 @@ function getInAppAgentUserAccess(
   };
 }
 
-function getInAppAgentRateLimitScope(
+function getInAppAgentApiAccessScope(
   user: SessionUser,
   projectId: string,
   projectOrganization: {
@@ -767,10 +880,11 @@ function isResumeAgentInput(
   return "command" in input.forwardedProps;
 }
 
-function sanitizeAgentInput(
+async function prepareAgentInput(
   input: AgUiRunAgentInput,
   projectId: string,
-): SanitizedAgentInput {
+  isV4Enabled: boolean,
+): Promise<SanitizedAgentInput> {
   const forwardedProps: unknown = input.forwardedProps;
 
   if (
@@ -781,6 +895,48 @@ function sanitizeAgentInput(
   ) {
     throw new InvalidRequestError("Invalid forwarded props");
   }
+
+  const currentUrlContext = input.context.find(
+    (item) => item.description === "current_url",
+  );
+  const selectedSavedView = currentUrlContext
+    ? parseSavedViewFromURL(currentUrlContext.value, isV4Enabled)
+    : undefined;
+  let viewFilters: FilterState | undefined;
+
+  if (selectedSavedView) {
+    try {
+      const { filters, tableName } =
+        await TableViewService.getTableViewPresetsById(
+          selectedSavedView.viewId,
+          projectId,
+        );
+
+      if (
+        tableName === selectedSavedView.tableName ||
+        (selectedSavedView.tableName ===
+          TableViewPresetTableName.ObservationsEvents &&
+          tableName === TableViewPresetTableName.Observations)
+      ) {
+        viewFilters = filters;
+      }
+    } catch (error) {
+      // Saved views can be deleted while their URLs remain open or shared.
+      if (!(error instanceof LangfuseNotFoundError)) {
+        logger.warn("Failed to resolve saved view for in-app agent context", {
+          error,
+          projectId,
+          savedViewId: selectedSavedView.viewId,
+        });
+      }
+    }
+  }
+
+  const context = sanitizeInAppAgentContext(
+    input.context,
+    projectId,
+    viewFilters,
+  );
 
   if (forwardedProps && "command" in forwardedProps) {
     const resumeForwardedProps =
@@ -797,7 +953,7 @@ function sanitizeAgentInput(
       state: null,
       messages: [],
       tools: [],
-      context: sanitizeInAppAgentContext(input.context, projectId),
+      context,
       forwardedProps: resumeForwardedProps.data,
     };
   }
@@ -815,7 +971,7 @@ function sanitizeAgentInput(
     state: null,
     messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
-    context: sanitizeInAppAgentContext(input.context, projectId),
+    context,
     forwardedProps: {},
   };
 }

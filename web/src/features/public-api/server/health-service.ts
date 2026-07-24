@@ -4,7 +4,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
   logger,
-  measureAndReturn,
   queryClickhouse,
   traceException,
 } from "@langfuse/shared/src/server";
@@ -51,23 +50,17 @@ export const runHealthCheck = async ({
           // longer written, so they would always look stale. Ingestion
           // completeness is instead reflected by recent rows in events_core
           // (the query-optimized projection of events_full).
-          const events = await measureAndReturn({
-            operationName: "healthCheckEvents",
-            projectId: "__CROSS_PROJECT__",
-            input: {
+          const events = await queryClickhouse<{ span_id: string }>({
+            query: `
+              SELECT span_id
+              FROM events_core
+              WHERE start_time <= {now: DateTime64(3)}
+              AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+            params: {
               now: clickhouseNow,
             },
-            fn: async (params: { now: string }) =>
-              queryClickhouse<{ span_id: string }>({
-                query: `
-                  SELECT span_id
-                  FROM events_core
-                  WHERE start_time <= {now: DateTime64(3)}
-                  AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-                  LIMIT 1
-                `,
-                params,
-              }),
           });
 
           if (events.length === 0) {
@@ -78,23 +71,17 @@ export const runHealthCheck = async ({
             };
           }
         } else {
-          const traces = await measureAndReturn({
-            operationName: "healthCheckTraces",
-            projectId: "__CROSS_PROJECT__",
-            input: {
+          const traces = await queryClickhouse<{ id: string }>({
+            query: `
+              SELECT id
+              FROM traces
+              WHERE timestamp <= {now: DateTime64(3)}
+              AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+            params: {
               now: clickhouseNow,
             },
-            fn: async (params: { now: string }) =>
-              queryClickhouse<{ id: string }>({
-                query: `
-                  SELECT id
-                  FROM traces
-                  WHERE timestamp <= {now: DateTime64(3)}
-                  AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-                  LIMIT 1
-                `,
-                params,
-              }),
           });
 
           const observations = await queryClickhouse<{ id: string }>({

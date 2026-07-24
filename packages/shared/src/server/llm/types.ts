@@ -42,6 +42,14 @@ export const JSONSchemaFormSchema = z
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
+export const LLMToolNameSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
+  )
+  .min(1, "Name is required");
+
 export const LLMToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string(),
@@ -400,7 +408,9 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
@@ -423,7 +433,9 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",

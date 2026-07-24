@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/router";
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
-import { PanelLeft } from "lucide-react";
+import { Menu, PanelLeft } from "lucide-react";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
@@ -67,6 +68,7 @@ const SidebarProvider = React.forwardRef<
     ref,
   ) => {
     const isMobile = useIsMobile();
+    const router = useRouter();
     const [openMobile, setOpenMobile] = React.useState(false);
 
     // Use local storage to persist sidebar state
@@ -114,6 +116,18 @@ const SidebarProvider = React.forwardRef<
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [toggleSidebar]);
 
+    // Close the mobile drawer as soon as a navigation starts. The drawer is a
+    // full-screen overlay Sheet on mobile; without this it stays open on top of
+    // the destination after tapping a nav link or switching project/org (the
+    // Next.js router does shallow client transitions, so the component never
+    // unmounts to reset `openMobile`). Subscribing to router events is a genuine
+    // external-system effect. No-op on desktop, where `openMobile` is unused.
+    React.useEffect(() => {
+      const closeDrawer = () => setOpenMobile(false);
+      router.events.on("routeChangeStart", closeDrawer);
+      return () => router.events.off("routeChangeStart", closeDrawer);
+    }, [router.events]);
+
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed";
@@ -151,7 +165,11 @@ const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper min-h-screen-with-banner text-sidebar-foreground has-data-[variant=inset]:bg-sidebar flex w-full",
+              // No text-sidebar-foreground here: this wrapper contains the
+              // MAIN CONTENT too, and the dimmed sidebar text tint (60% grey
+              // in dark) must not leak into it. The Sidebar containers below
+              // set it on themselves.
+              "group/sidebar-wrapper min-h-screen-with-banner has-data-[variant=inset]:bg-sidebar flex w-full",
               className,
             )}
             ref={ref}
@@ -225,7 +243,7 @@ const Sidebar = React.forwardRef<
     return (
       <div
         ref={ref}
-        className="group peer hidden md:block"
+        className="text-sidebar-foreground group peer hidden md:block"
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
         data-variant={variant}
@@ -284,14 +302,20 @@ const SidebarTrigger = React.forwardRef<
       data-sidebar="trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-5 w-5", className)}
+      // A real hamburger tap target on mobile (where it opens the off-canvas
+      // nav sheet); compact on desktop where it's just a panel-collapse toggle
+      // next to the docked sidebar.
+      className={cn("h-9 w-9 md:h-5 md:w-5", className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();
       }}
       {...props}
     >
-      <PanelLeft />
+      {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
+          desktop (toggles the docked sidebar). */}
+      <Menu className="size-5 md:hidden" />
+      <PanelLeft className="hidden md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -456,7 +480,7 @@ const SidebarGroupLabel = React.forwardRef<
       ref={ref}
       data-sidebar="group-label"
       className={cn(
-        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center px-[9px] text-xs font-medium whitespace-nowrap outline-hidden transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center px-[9px] text-xs font-bold whitespace-nowrap outline-hidden transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:hidden",
         "-mb-2",
         className,
@@ -534,7 +558,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden group-data-[collapsible=icon]:rounded-sm p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden group-data-[collapsible=icon]:rounded-sm p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-bold data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -613,7 +637,7 @@ const SidebarMenuButton = React.forwardRef<
           side="right"
           align="center"
           hidden={state !== "collapsed" || isMobile}
-          className="text-sm font-semibold"
+          className="text-sm font-bold"
           {...tooltip}
         />
       </Tooltip>
@@ -661,7 +685,7 @@ const SidebarMenuBadge = React.forwardRef<
     ref={ref}
     data-sidebar="menu-badge"
     className={cn(
-      "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center px-1 text-xs font-medium tabular-nums select-none",
+      "text-sidebar-foreground pointer-events-none absolute right-1 flex h-5 min-w-5 items-center justify-center px-1 text-xs font-bold tabular-nums select-none",
       "peer-hover/menu-button:text-sidebar-accent-foreground peer-data-[active=true]/menu-button:text-sidebar-accent-foreground",
       "peer-data-[size=sm]/menu-button:top-1",
       "peer-data-[size=default]/menu-button:top-1.5",

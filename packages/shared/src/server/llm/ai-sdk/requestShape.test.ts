@@ -54,17 +54,22 @@ type CapturedRequest = {
  * provider response, so the assertion target is the exact wire format the AI
  * SDK provider constructs (URL, auth header, JSON body).
  */
-function createCaptureFetch(response: unknown) {
+function createCaptureFetch(
+  response: unknown | ((request: CapturedRequest) => unknown),
+) {
   const calls: CapturedRequest[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const request = new Request(input, init);
-    calls.push({
+    const capturedRequest = {
       url: request.url,
       method: request.method,
       headers: request.headers,
       body: JSON.parse(await request.text()) as Record<string, unknown>,
-    });
-    return new Response(JSON.stringify(response), {
+    };
+    calls.push(capturedRequest);
+    const responseBody =
+      typeof response === "function" ? response(capturedRequest) : response;
+    return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -366,7 +371,7 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("api-key")).toBe("azure-key");
   });
 
-  it("OpenAI chat completions: gpt-5.4 mini keeps non-reasoning request params", async () => {
+  it("OpenAI chat completions: gpt-5.4 mini uses portable non-reasoning settings", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "openai",
@@ -380,10 +385,50 @@ describe("AI SDK request shapes", () => {
       response: OPENAI_CHAT_RESPONSE,
     });
 
-    expect(request.body.max_tokens).toBe(64);
-    expect(request.body.max_completion_tokens).toBeUndefined();
+    expect(request.body.max_tokens).toBeUndefined();
+    expect(request.body.max_completion_tokens).toBe(64);
     expect(request.body.temperature).toBe(0.2);
     expect(request.body.top_p).toBe(0.9);
+    expect(request.body.reasoning_effort).toBe("none");
+    expect(request.body.forceReasoning).toBeUndefined();
+  });
+
+  it("OpenAI-compatible chat completions: gpt-5.4 mini does not leak internal reasoning controls", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-5.4-mini",
+        max_tokens: 64,
+        temperature: 0.2,
+        top_p: 0.9,
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.max_tokens).toBe(64);
+    expect(request.body.temperature).toBe(0.2);
+    expect(request.body.top_p).toBe(0.9);
+    expect(request.body.forceReasoning).toBeUndefined();
+  });
+
+  it("OpenAI-compatible chat completions: explicit gpt-5.4 mini reasoning remains a wire setting", async () => {
+    const { request } = await runCompletion({
+      modelParams: {
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        model: "gpt-5.4-mini",
+        providerOptions: { reasoning_effort: "high" },
+      },
+      apiKey: "custom-key",
+      baseURL: "https://openai-compatible.example.com/v1",
+      response: OPENAI_CHAT_RESPONSE,
+    });
+
+    expect(request.body.reasoning_effort).toBe("high");
+    expect(request.body.forceReasoning).toBeUndefined();
   });
 
   it("Anthropic: /v1/messages on a custom origin with snake_case thinking body", async () => {
@@ -496,17 +541,23 @@ describe("AI SDK request shapes", () => {
 
   // The Bedrock builder deliberately uses no custom fetch (VPC endpoints),
   // so capture at the global fetch the AI SDK falls back to.
-  async function runBedrockCompletion() {
+  async function runBedrockCompletion(params?: {
+    model?: string;
+    output?: ReturnType<typeof createLLMOutput>;
+    response?: unknown | ((request: CapturedRequest) => unknown);
+  }) {
     const modelParams: ModelParams = {
       provider: "bedrock",
       adapter: LLMAdapter.Bedrock,
-      model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+      model: params?.model ?? "anthropic.claude-3-5-sonnet-20241022-v2:0",
       max_tokens: 64,
       providerOptions: { top_k: 10 },
     };
     const llmConnectionConfig = { region: "us-east-1" };
 
-    const { calls, fetch } = createCaptureFetch(BEDROCK_RESPONSE);
+    const { calls, fetch } = createCaptureFetch(
+      params?.response ?? BEDROCK_RESPONSE,
+    );
     vi.stubGlobal("fetch", fetch);
 
     const result = await generateLLMText({
@@ -524,15 +575,18 @@ describe("AI SDK request shapes", () => {
         },
       }),
       timeout: 10_000,
+      output: params?.output,
     });
 
-    expect(result.text).toBe("ok");
+    if (!params?.output) {
+      expect(result.text).toBe("ok");
+    }
     expect(calls).toHaveLength(1);
-    return calls[0];
+    return { result, request: calls[0] };
   }
 
   it("Bedrock: converse URL from validated region, SigV4 auth, verbatim additional fields", async () => {
-    const request = await runBedrockCompletion();
+    const { request } = await runBedrockCompletion();
 
     expect(decodeURIComponent(request.url)).toBe(
       "https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20241022-v2:0/converse",
@@ -540,6 +594,64 @@ describe("AI SDK request shapes", () => {
     expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);
     expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
     expect(request.body.inferenceConfig).toMatchObject({ maxTokens: 64 });
+  });
+
+  it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    } as const;
+    const { result, request } = await runBedrockCompletion({
+      model: "us.anthropic.claude-sonnet-5",
+      output: createLLMOutput(schema),
+      response: (capturedRequest: CapturedRequest) =>
+        capturedRequest.body.toolConfig
+          ? {
+              output: {
+                message: {
+                  role: "assistant",
+                  content: [
+                    {
+                      toolUse: {
+                        toolUseId: "tool-1",
+                        name: "json",
+                        input: { answer: "ok" },
+                      },
+                    },
+                  ],
+                },
+              },
+              stopReason: "tool_use",
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+              metrics: { latencyMs: 1 },
+            }
+          : {
+              ...BEDROCK_RESPONSE,
+              output: {
+                message: {
+                  role: "assistant",
+                  content: [{ text: '{"answer":"ok"}' }],
+                },
+              },
+            },
+    });
+
+    expect(result.output).toEqual({ answer: "ok" });
+    expect(request.body.additionalModelRequestFields).toEqual({ top_k: 10 });
+    expect(request.body.toolConfig).toEqual({
+      tools: [
+        {
+          toolSpec: {
+            name: "json",
+            description: "Respond with a JSON object.",
+            inputSchema: { json: schema },
+          },
+        },
+      ],
+      toolChoice: { any: {} },
+    });
   });
 
   it("Bedrock: tenant credentials suppress server-level env auth fallbacks", async () => {
@@ -550,7 +662,7 @@ describe("AI SDK request shapes", () => {
     vi.stubEnv("AWS_BEARER_TOKEN_BEDROCK", "server-bearer-token");
     vi.stubEnv("AWS_SESSION_TOKEN", "server-session-token");
 
-    const request = await runBedrockCompletion();
+    const { request } = await runBedrockCompletion();
 
     // SigV4 with the tenant keys — not `Bearer server-bearer-token`.
     expect(request.headers.get("authorization")).toMatch(/^AWS4-HMAC-SHA256/);

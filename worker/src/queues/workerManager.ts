@@ -58,6 +58,16 @@ export class WorkerManager {
     };
   }
 
+  // Empty failed set emits 0 so monitors see the gauge reset after a DLQ
+  // drain.
+  public static computeDlqOldestAgeMs(
+    jobs: (Job | undefined)[],
+    nowMs: number,
+  ): number {
+    const oldest = jobs.find(Boolean);
+    return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
+  }
+
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
@@ -113,6 +123,15 @@ export class WorkerManager {
             recordGauge(oldMetric + ".dlq_length", count, {
               unit: "records",
             });
+          }),
+          // getFailed returns newest-first (ZREVRANGE on failure time), so
+          // index -1 is the oldest job.
+          queue?.getFailed(-1, -1).then((jobs) => {
+            recordGauge(
+              oldMetric + ".dlq_oldest_age",
+              WorkerManager.computeDlqOldestAgeMs(jobs, Date.now()),
+              { unit: "milliseconds" },
+            );
           }),
           queue?.getActiveCount().then((count) => {
             recordGauge(oldMetric + ".active", count, {

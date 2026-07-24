@@ -34,11 +34,20 @@ import {
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";
 import {
+  createInAppAgentMessageEntryPointContext,
+  createInAppAgentQuickActionAttributionContext,
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
+  type InAppAgentMessageEntryPoint,
 } from "@/src/ee/features/in-app-agent/context";
+import type {
+  InAppAgentQuickActionAttribution,
+  InAppAgentSubmitOptions,
+} from "@/src/ee/features/in-app-agent/quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getInAppAgentError,
@@ -46,12 +55,20 @@ import {
   type InAppAiAgentMessage,
 } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
+import { InAppAgentDisabledDialog } from "@/src/ee/features/in-app-agent/components/InAppAgentDisabledDialog";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
 const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
+const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
+  "Sandbox-enabled conversations become read-only after 8 hours. Start a new conversation to continue.";
 const EMPTY_MESSAGES: AgUiMessage[] = [];
+
+export type InAppAgentEntryPoint =
+  | "top_nav"
+  | "keyboard_shortcut"
+  | "dashboard_widget";
 
 const MastraSuspendEventSchema = z.object({
   type: z.literal("mastra_suspend"),
@@ -74,6 +91,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  openAssistant: () => false,
   isExpanded: false,
   setIsExpanded: () => undefined,
   isRunning: false,
@@ -82,10 +100,12 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isSelectedConversationHydrating: false,
   error: null,
   messages: [],
+  liveMessageVersion: 0,
   conversations: [],
   hasMoreConversations: false,
   isLoadingMoreConversations: false,
   selectedConversationId: undefined,
+  selectedConversationIsWriteLocked: false,
   loadMoreConversations: () => undefined,
   invalidateConversations: () => undefined,
   selectConversation: () => undefined,
@@ -101,6 +121,33 @@ type InAppAiAgentFeedbackByConversationId = Record<
   Record<string, InAppAgentMessageFeedback>
 >;
 
+type InAppAgentDisplayPlacement = {
+  anchorMessageId: string;
+  order: number;
+};
+
+type InAppAgentDisplayState = {
+  latestPlacement: InAppAgentDisplayPlacement | null;
+  nativeToolCallParentMessageId: string | null;
+  latestNewMessageId: string | null;
+  nextOrder: number;
+  seenMessageIds: ReadonlySet<string>;
+  textByMessageId: Record<
+    string,
+    {
+      nativeContent: string;
+      publishedContent: string;
+      segments: Array<
+        InAppAgentDisplayPlacement & {
+          id: string;
+          content: string;
+        }
+      >;
+    }
+  >;
+  toolCallPlacements: Record<string, InAppAgentDisplayPlacement | null>;
+};
+
 export type InAppAgentPendingToolApproval = {
   id: string;
   approvalRequest: InAppAgentToolApprovalRequest;
@@ -111,12 +158,17 @@ export type InAppAiAgentConversation = {
   id: string;
   title: string | null;
   updatedAt: Date;
+  isWriteLocked: boolean;
 };
 
 type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  /** Open the assistant from an entrypoint. Owns the AI-features gate: shows
+   * the disabled dialog and returns false when the organization has AI
+   * features turned off. */
+  openAssistant: (source: InAppAgentEntryPoint) => boolean;
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
@@ -125,15 +177,20 @@ type InAppAiAgentContextType = {
   isSelectedConversationHydrating: boolean;
   error: InAppAgentError | null;
   messages: InAppAiAgentMessage[];
+  liveMessageVersion: number;
   conversations: InAppAiAgentConversation[];
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
   selectedConversationId: string | undefined;
+  selectedConversationIsWriteLocked: boolean;
   loadMoreConversations: () => void;
   invalidateConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   deleteConversation: (conversationId: string) => Promise<void>;
-  submit: (content: string) => Promise<boolean>;
+  submit: (
+    content: string,
+    options?: InAppAgentSubmitOptions,
+  ) => Promise<boolean>;
   approveToolCall: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
   submitFeedback: (params: {
@@ -213,6 +270,8 @@ function InAppAiAgentProviderInner({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const session = useSession();
+  const { organization } = useQueryProjectOrOrganization();
+  const [enableDialogOpen, setEnableDialogOpen] = useState(false);
   const [_selectedConversationId, setSelectedConversationId] =
     useSessionStorage<string | null>(
       `${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -224,6 +283,13 @@ function InAppAiAgentProviderInner({
       {},
     );
   const [messages, setMessages] = useState<AgUiMessage[]>([]);
+  // Only live AG-UI publications increment this version. The display smoother
+  // uses it to distinguish stream updates from history hydration, including
+  // updates where the agent mutates message objects in place.
+  const [liveMessageVersion, setLiveMessageVersion] = useState(0);
+  const [displayState, setDisplayState] = useState(
+    createInAppAgentDisplayState,
+  );
   const [pendingToolApprovals, setPendingToolApprovals] = useState<
     InAppAgentPendingToolApproval[]
   >([]);
@@ -239,6 +305,7 @@ function InAppAiAgentProviderInner({
   const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
+  const runInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
     null,
   );
@@ -277,6 +344,8 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
+  const selectedConversationIsWriteLocked =
+    conversationQuery.data?.conversation.isWriteLocked ?? false;
   const currentMessages = useMemo(() => {
     if (isSelectedConversationNotFound) {
       return EMPTY_MESSAGES;
@@ -310,8 +379,12 @@ function InAppAiAgentProviderInner({
         ? feedbackByConversationId[selectedConversationId]
         : undefined,
     );
+    const displayMessages = projectInAppAgentMessagesForDisplay(
+      messagesWithFeedback,
+      displayState,
+    );
 
-    return messagesWithFeedback.map((message) => {
+    return displayMessages.map((message) => {
       if (message.role === "reasoning") {
         return { ...message, isLoading: loadingEventIds.has(message.id) };
       }
@@ -337,6 +410,7 @@ function InAppAiAgentProviderInner({
     currentMessages,
     loadingEventIds,
     selectedConversationId,
+    displayState,
   ]);
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
@@ -411,6 +485,26 @@ function InAppAiAgentProviderInner({
       currentIds.size > 0 ? new Set() : currentIds,
     );
   }, []);
+  const publishLiveMessages = useCallback((messages: AgUiMessage[]) => {
+    setMessages(messages);
+    setLiveMessageVersion((currentVersion) => currentVersion + 1);
+  }, []);
+  const publishAgentMessages = useCallback(
+    (agentMessages: readonly unknown[]) => {
+      const nextMessages = agentMessages.filter(isAgentConversationMessage);
+      setDisplayState((currentState) =>
+        recordInAppAgentMessagesForDisplay(currentState, nextMessages),
+      );
+
+      publishLiveMessages(
+        attachActiveRunIdToAssistantMessages(
+          nextMessages,
+          activeRunIdRef.current,
+        ),
+      );
+    },
+    [publishLiveMessages],
+  );
 
   const resetAgent = useCallback(() => {
     if (agentRef.current?.isRunning) {
@@ -422,6 +516,7 @@ function InAppAiAgentProviderInner({
     agentRef.current?.abortRun();
     agentRef.current = null;
     activeRunIdRef.current = null;
+    setDisplayState(createInAppAgentDisplayState());
     pendingToolApprovalsRef.current = [];
     setPendingToolApprovals([]);
     clearLoadingEvents();
@@ -468,14 +563,27 @@ function InAppAiAgentProviderInner({
       }
 
       subscriptionRef.current = agent.subscribe({
-        onRunStartedEvent: (payload: { event: unknown }) => {
+        onRunStartedEvent: ({
+          event,
+          messages: runMessages,
+        }: {
+          event: unknown;
+          messages: readonly unknown[];
+        }) => {
+          setDisplayState((currentState) =>
+            recordInAppAgentMessagesForDisplay(
+              currentState,
+              runMessages.filter(isAgentConversationMessage),
+            ),
+          );
+
           if (
-            typeof payload.event === "object" &&
-            payload.event !== null &&
-            "runId" in payload.event &&
-            typeof payload.event.runId === "string"
+            typeof event === "object" &&
+            event !== null &&
+            "runId" in event &&
+            typeof event.runId === "string"
           ) {
-            activeRunIdRef.current = payload.event.runId;
+            activeRunIdRef.current = event.runId;
           }
         },
         onEvent: ({ event }) => {
@@ -496,6 +604,14 @@ function InAppAiAgentProviderInner({
           }
 
           if (event.type === EventType.TOOL_CALL_START) {
+            setDisplayState((currentState) =>
+              recordInAppAgentToolCallForDisplay(
+                currentState,
+                event.toolCallId,
+                event.parentMessageId,
+              ),
+            );
+
             updateLoadingEvent(event.toolCallId, true);
             return;
           }
@@ -558,24 +674,19 @@ function InAppAiAgentProviderInner({
           console.error("In-app agent drawer run error", event);
         },
         onMessagesChanged: ({ messages }) => {
-          setMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
-          );
+          publishAgentMessages(messages);
         },
         onStateChanged: ({ messages }) => {
-          setMessages(
-            attachActiveRunIdToAssistantMessages(
-              messages.filter(isAgentConversationMessage),
-              activeRunIdRef.current,
-            ),
-          );
+          publishAgentMessages(messages);
         },
       });
     },
-    [clearLoadingEvents, updateLoadingEvent, updatePendingToolApprovals],
+    [
+      clearLoadingEvents,
+      publishAgentMessages,
+      updateLoadingEvent,
+      updatePendingToolApprovals,
+    ],
   );
 
   const getOrCreateAgent = useCallback(
@@ -618,27 +729,43 @@ function InAppAiAgentProviderInner({
       agent: HttpAgent,
       conversationId: string,
       runParameters?: Parameters<HttpAgent["runAgent"]>[0],
+      quickActionAttribution?: InAppAgentQuickActionAttribution,
+      messageEntryPoint?: InAppAgentMessageEntryPoint,
     ) => {
+      if (runInFlightRef.current) {
+        return Promise.resolve(false);
+      }
+
+      runInFlightRef.current = true;
       clearLoadingEvents();
       setIsRunning(true);
-      return agent
-        .runAgent({
-          ...runParameters,
-          context: createInAppAgentScreenContext({
-            currentUrl: window.location.href,
-          }).concat(
-            ...createInAppAgentUserContext({
-              userName: session.data?.user?.name,
-              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              languages:
-                navigator.languages.length > 0
-                  ? Array.from(navigator.languages)
-                  : [navigator.language],
-            }),
-          ),
-        })
-        .then(() => true)
-        .catch((error) => {
+      return (async () => {
+        try {
+          await agent.runAgent({
+            ...runParameters,
+            context: createInAppAgentScreenContext({
+              currentUrl: window.location.href,
+            }).concat(
+              createInAppAgentUserContext({
+                userName: session.data?.user?.name,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                languages:
+                  navigator.languages.length > 0
+                    ? Array.from(navigator.languages)
+                    : [navigator.language],
+              }),
+              quickActionAttribution
+                ? createInAppAgentQuickActionAttributionContext(
+                    quickActionAttribution,
+                  )
+                : [],
+              messageEntryPoint
+                ? createInAppAgentMessageEntryPointContext(messageEntryPoint)
+                : [],
+            ),
+          });
+          return true;
+        } catch (error) {
           if (intentionalAbortRef.current) {
             return false;
           }
@@ -650,12 +777,11 @@ function InAppAiAgentProviderInner({
           setError(getInAppAgentError(error));
           console.error("In-app agent drawer error", error);
           return false;
-        })
-        .finally(() => {
+        } finally {
           const runId = activeRunIdRef.current;
           clearLoadingEvents();
           setIsRunning(false);
-          setMessages(
+          publishLiveMessages(
             attachActiveRunIdToAssistantMessages(
               agent.messages.filter(isAgentConversationMessage),
               runId,
@@ -669,11 +795,14 @@ function InAppAiAgentProviderInner({
           releaseSubmitLock();
           activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
-        });
+          runInFlightRef.current = false;
+        }
+      })();
     },
     [
       projectId,
       clearLoadingEvents,
+      publishLiveMessages,
       releaseSubmitLock,
       session.data?.user?.name,
       utils.inAppAgent.getConversation,
@@ -753,13 +882,15 @@ function InAppAiAgentProviderInner({
   );
 
   const submit = useCallback(
-    async (content: string) => {
+    async (content: string, options?: InAppAgentSubmitOptions) => {
       if (
         !content ||
         isRunning ||
         isInAppAgentRateLimited(error) ||
-        isSelectedConversationHydrating ||
-        submitInFlightRef.current
+        (options?.newConversation !== true &&
+          isSelectedConversationHydrating) ||
+        submitInFlightRef.current ||
+        runInFlightRef.current
       ) {
         return false;
       }
@@ -770,9 +901,24 @@ function InAppAiAgentProviderInner({
 
       let startedRun = false;
       try {
-        const isNewConversation = !selectedConversationId;
-        const conversationId =
-          selectedConversationId ?? createInAppAgentConversationId();
+        const isNewConversation =
+          options?.newConversation === true || !selectedConversationId;
+
+        if (!isNewConversation && selectedConversationIsWriteLocked) {
+          setError({
+            type: "generic",
+            message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+          });
+          return false;
+        }
+
+        const conversationId = isNewConversation
+          ? createInAppAgentConversationId()
+          : selectedConversationId;
+
+        if (!conversationId) {
+          return false;
+        }
 
         if (isNewConversation) {
           setSelectedConversationId(conversationId);
@@ -807,12 +953,19 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        const entryPoint = options?.entryPoint ?? "chat";
         if (isNewConversation) {
-          capture("in_app_agent:new_chat_started");
+          capture("in_app_agent:new_chat_started", { entryPoint });
         }
-        capture("in_app_agent:new_chat_turn");
+        capture("in_app_agent:new_chat_turn", { entryPoint });
         startedRun = true;
-        runAgent(agent, conversationId);
+        runAgent(
+          agent,
+          conversationId,
+          undefined,
+          options?.quickAction,
+          entryPoint,
+        );
         return true;
       } catch (error) {
         setError(getInAppAgentError(error));
@@ -836,6 +989,7 @@ function InAppAiAgentProviderInner({
       releaseSubmitLock,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       setSelectedConversationId,
     ],
   );
@@ -910,8 +1064,31 @@ function InAppAiAgentProviderInner({
     [open, setOpen],
   );
 
+  const openAssistant = useCallback(
+    (source: InAppAgentEntryPoint) => {
+      capture("in_app_agent:entry_point_click", { source });
+
+      if (organization && !organization.aiFeaturesEnabled) {
+        setEnableDialogOpen(true);
+        return false;
+      }
+
+      setAgentOpen(true);
+      return true;
+    },
+    [capture, organization, setAgentOpen],
+  );
+
   const resumeToolApproval = useCallback(
     async (approvalId: string, approved: boolean) => {
+      if (selectedConversationIsWriteLocked) {
+        setError({
+          type: "generic",
+          message: SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
+        });
+        return;
+      }
+
       const approval = pendingToolApprovals.find(
         (approval) => approval.id === approvalId,
       );
@@ -920,6 +1097,7 @@ function InAppAiAgentProviderInner({
         !approval ||
         !selectedConversationId ||
         isRunning ||
+        runInFlightRef.current ||
         isInAppAgentRateLimited(error)
       ) {
         return;
@@ -1007,6 +1185,7 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals,
       runAgent,
       selectedConversationId,
+      selectedConversationIsWriteLocked,
       updatePendingToolApprovals,
     ],
   );
@@ -1026,6 +1205,7 @@ function InAppAiAgentProviderInner({
       isAvailable: true,
       open,
       setOpen: setAgentOpen,
+      openAssistant,
       isExpanded,
       setIsExpanded,
       isRunning,
@@ -1036,10 +1216,12 @@ function InAppAiAgentProviderInner({
       isSelectedConversationHydrating,
       error,
       messages: messagesWithUiState,
+      liveMessageVersion,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
       selectedConversationId: selectedConversationId ?? undefined,
+      selectedConversationIsWriteLocked,
       loadMoreConversations,
       invalidateConversations,
       selectConversation,
@@ -1058,12 +1240,15 @@ function InAppAiAgentProviderInner({
       isLoadingMoreConversations,
       isRunning,
       isSelectedConversationHydrating,
+      selectedConversationIsWriteLocked,
       isSubmitting,
       isSelectedConversationNotFound,
       deleteConversation,
       loadMoreConversations,
+      liveMessageVersion,
       messagesWithUiState,
       open,
+      openAssistant,
       pendingToolApprovals,
       rejectToolCall,
       setAgentOpen,
@@ -1078,6 +1263,11 @@ function InAppAiAgentProviderInner({
   return (
     <InAppAiAgentContext.Provider value={value}>
       {children}
+      <InAppAgentDisabledDialog
+        open={enableDialogOpen}
+        onOpenChange={setEnableDialogOpen}
+        organizationId={organization?.id}
+      />
     </InAppAiAgentContext.Provider>
   );
 }
@@ -1135,6 +1325,269 @@ function attachActiveRunIdToAssistantMessages(
     }
 
     return { ...message, runId };
+  });
+}
+
+export function createInAppAgentDisplayState() {
+  const state: InAppAgentDisplayState = {
+    latestPlacement: null,
+    nativeToolCallParentMessageId: null,
+    latestNewMessageId: null,
+    nextOrder: 0,
+    seenMessageIds: new Set(),
+    textByMessageId: {},
+    toolCallPlacements: {},
+  };
+
+  return state;
+}
+
+export function recordInAppAgentMessagesForDisplay(
+  state: InAppAgentDisplayState,
+  messages: AgUiMessage[],
+): InAppAgentDisplayState {
+  const seenMessageIds = new Set(state.seenMessageIds);
+  const textByMessageId = { ...state.textByMessageId };
+  let latestNewMessageId = state.latestNewMessageId;
+  let latestPlacement = state.latestPlacement;
+  let nativeToolCallParentMessageId = state.nativeToolCallParentMessageId;
+  let nextOrder = state.nextOrder;
+
+  for (const message of messages) {
+    if (seenMessageIds.has(message.id)) {
+      continue;
+    }
+
+    seenMessageIds.add(message.id);
+    latestNewMessageId = message.id;
+    latestPlacement = null;
+    nativeToolCallParentMessageId = null;
+
+    if (message.role === "assistant" && typeof message.content === "string") {
+      textByMessageId[message.id] = {
+        nativeContent: message.content,
+        publishedContent: message.content,
+        segments: [],
+      };
+    }
+  }
+
+  for (const message of messages) {
+    if (message.role !== "assistant" || typeof message.content !== "string") {
+      continue;
+    }
+
+    const textState = textByMessageId[message.id];
+    if (!textState || textState.publishedContent === message.content) {
+      continue;
+    }
+
+    nativeToolCallParentMessageId = null;
+    if (!message.content.startsWith(textState.publishedContent)) {
+      textByMessageId[message.id] = {
+        nativeContent: message.content,
+        publishedContent: message.content,
+        segments: [],
+      };
+      continue;
+    }
+
+    const appendedContent = message.content.slice(
+      textState.publishedContent.length,
+    );
+    const latestSegment = textState.segments.at(-1);
+    if (latestPlacement && latestSegment?.order === latestPlacement.order) {
+      textByMessageId[message.id] = {
+        ...textState,
+        publishedContent: message.content,
+        segments: textState.segments.slice(0, -1).concat({
+          ...latestSegment,
+          content: latestSegment.content + appendedContent,
+        }),
+      };
+      continue;
+    }
+
+    if (latestNewMessageId === message.id && latestPlacement === null) {
+      textByMessageId[message.id] = {
+        ...textState,
+        nativeContent: textState.nativeContent + appendedContent,
+        publishedContent: message.content,
+      };
+      continue;
+    }
+
+    const anchorMessageId =
+      latestPlacement?.anchorMessageId ?? latestNewMessageId;
+    if (!anchorMessageId) {
+      textByMessageId[message.id] = {
+        ...textState,
+        nativeContent: textState.nativeContent + appendedContent,
+        publishedContent: message.content,
+      };
+      continue;
+    }
+
+    const placement = { anchorMessageId, order: nextOrder };
+    const segment = {
+      ...placement,
+      id: `display-text-${message.id}-${textState.segments.length + 1}`,
+      content: appendedContent,
+    };
+    nextOrder += 1;
+    latestPlacement = placement;
+    textByMessageId[message.id] = {
+      ...textState,
+      publishedContent: message.content,
+      segments: textState.segments.concat(segment),
+    };
+  }
+
+  return {
+    ...state,
+    latestPlacement,
+    nativeToolCallParentMessageId,
+    latestNewMessageId,
+    nextOrder,
+    seenMessageIds,
+    textByMessageId,
+  };
+}
+
+export function recordInAppAgentToolCallForDisplay(
+  state: InAppAgentDisplayState,
+  toolCallId: string,
+  parentMessageId: string | undefined,
+): InAppAgentDisplayState {
+  if (toolCallId in state.toolCallPlacements) {
+    return state;
+  }
+
+  const anchorMessageId =
+    state.latestPlacement?.anchorMessageId ?? state.latestNewMessageId;
+  const placement = anchorMessageId
+    ? { anchorMessageId, order: state.nextOrder }
+    : null;
+  const isNativePlacement =
+    (state.latestPlacement === null && anchorMessageId === parentMessageId) ||
+    state.nativeToolCallParentMessageId === parentMessageId;
+
+  return {
+    ...state,
+    latestPlacement: placement,
+    nativeToolCallParentMessageId: isNativePlacement ? anchorMessageId : null,
+    nextOrder: state.nextOrder + 1,
+    toolCallPlacements: {
+      ...state.toolCallPlacements,
+      [toolCallId]: isNativePlacement ? null : placement,
+    },
+  };
+}
+
+export function projectInAppAgentMessagesForDisplay(
+  messages: AgUiMessage[],
+  state: InAppAgentDisplayState,
+) {
+  // Canonical messages stay untouched for persistence and subsequent runs.
+  const messageIds = new Set(messages.map((message) => message.id));
+  const placementsByAnchor = new Map<
+    string,
+    Array<{ order: number; message: AgUiMessage }>
+  >();
+
+  const addPlacement = (
+    placement: InAppAgentDisplayPlacement,
+    message: AgUiMessage,
+  ) => {
+    if (!messageIds.has(placement.anchorMessageId)) {
+      return;
+    }
+
+    placementsByAnchor.set(
+      placement.anchorMessageId,
+      (placementsByAnchor.get(placement.anchorMessageId) ?? []).concat({
+        order: placement.order,
+        message,
+      }),
+    );
+  };
+
+  for (const message of messages) {
+    if (message.role !== "assistant") {
+      continue;
+    }
+
+    for (const toolCall of message.toolCalls ?? []) {
+      const placement = state.toolCallPlacements[toolCall.id];
+      if (
+        !placement ||
+        toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME
+      ) {
+        continue;
+      }
+
+      addPlacement(placement, {
+        id: `display-tool-${toolCall.id}`,
+        role: "assistant",
+        content: "",
+        toolCalls: [toolCall],
+      });
+    }
+  }
+
+  for (const [sourceMessageId, textState] of Object.entries(
+    state.textByMessageId,
+  )) {
+    const sourceMessage = messages.find(
+      (message) =>
+        message.role === "assistant" && message.id === sourceMessageId,
+    );
+
+    for (const segment of textState.segments) {
+      addPlacement(segment, {
+        id: segment.id,
+        role: "assistant",
+        content: segment.content,
+        ...(sourceMessage?.role === "assistant"
+          ? {
+              runId: sourceMessage.runId,
+              feedback: sourceMessage.feedback,
+              feedbackMessageId: sourceMessage.id,
+            }
+          : {}),
+      });
+    }
+  }
+
+  return messages.flatMap<InAppAiAgentMessage>((message) => {
+    const projectedMessage =
+      message.role === "assistant"
+        ? {
+            ...message,
+            content:
+              state.textByMessageId[message.id]?.nativeContent ??
+              message.content,
+            toolCalls: message.toolCalls?.filter((toolCall) => {
+              const placement = state.toolCallPlacements[toolCall.id];
+              return (
+                toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME ||
+                !placement ||
+                !messageIds.has(placement.anchorMessageId)
+              );
+            }),
+          }
+        : message;
+    const placements = placementsByAnchor.get(message.id);
+    if (!placements) {
+      return [projectedMessage];
+    }
+
+    return [
+      projectedMessage,
+      ...placements
+        .sort((left, right) => left.order - right.order)
+        .map(({ message: placedMessage }) => placedMessage),
+    ];
   });
 }
 
@@ -1203,4 +1656,20 @@ export function useInAppAiAgent() {
     return NOOP_CONTEXT;
   }
   return ctx;
+}
+
+/** Whether the current user/context may use the in-app assistant at all.
+ * Shared gate for the launcher button and the window host. */
+export function useCanUseInAppAgent() {
+  const { isAvailable } = useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProjectOrOrganization();
+
+  return (
+    isAvailable &&
+    hasInAppAgentEntitlement &&
+    isLangfuseCloud &&
+    Boolean(organization)
+  );
 }

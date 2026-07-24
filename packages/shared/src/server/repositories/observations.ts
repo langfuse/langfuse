@@ -33,7 +33,6 @@ import {
 import { OrderByState } from "../../interfaces/orderBy";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { getTracesByIds } from "./traces";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -526,6 +525,20 @@ export type ObservationTableQuery = {
   offset?: number;
   selectIOAndMetadata?: boolean;
   renderingProps?: RenderingProps;
+  /**
+   * Per-field I/O size cap (events table only): fields whose full length is
+   * within `inlineChars` come back whole, larger fields come back as a
+   * `previewChars` head plus true lengths and truncation flags. Takes
+   * precedence over `renderingProps.truncated` for the I/O select.
+   */
+  ioSizeCap?: { inlineChars: number; previewChars: number };
+  /**
+   * Events table only: collapse un-merged ReplacingMergeTree row versions to
+   * one row per span (`ORDER BY ..., event_ts DESC` + `LIMIT 1 BY span_id`),
+   * so row counts equal distinct observations and the newest version wins.
+   * Required by callers whose limits/paging count observations.
+   */
+  dedupeBySpanId?: boolean;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
@@ -824,32 +837,27 @@ const getObservationsTableInternal = async <T>(
       ${opts.select === "rows" && !skipDedup ? "LIMIT 1 BY o.id, o.project_id" : ""}
       ${limit !== undefined && offset !== undefined ? `LIMIT ${limit} OFFSET ${offset}` : ""};`;
 
-  return measureAndReturn({
-    operationName: "getObservationsTableInternal",
-    projectId,
-    input: {
-      params: {
-        ...appliedScoresFilter.params,
-        ...appliedObservationsFilter.params,
-        ...(timeFilter
-          ? {
-              tracesTimestampFilter: convertDateToClickhouseDateTime(
-                timeFilter.value as Date,
-              ),
-            }
-          : {}),
-        ...search.params,
-      },
-      tags: { projectId },
+  const input = {
+    params: {
+      ...appliedScoresFilter.params,
+      ...appliedObservationsFilter.params,
+      ...(timeFilter
+        ? {
+            tracesTimestampFilter: convertDateToClickhouseDateTime(
+              timeFilter.value as Date,
+            ),
+          }
+        : {}),
+      ...search.params,
     },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-    },
+    tags: { projectId },
+  };
+
+  return queryClickhouse<T>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    clickhouseConfigs,
   });
 };
 
@@ -1875,7 +1883,8 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
-    tags: { projectId },
+    // Tagged explicitly: worker baggage isn't active during the deferred stream send.
+    tags: { projectId, surface: "worker", route: "analytics_integration" },
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
       ...(options.useGraceHash
@@ -2095,28 +2104,23 @@ export const generateObservationsForPublicApi = async ({
     ORDER BY start_time DESC
   `;
 
-  return measureAndReturn({
-    operationName: "generateObservationsForPublicApi",
-    projectId,
-    input: {
-      params: {
-        ...appliedFilter.params,
-        projectId,
-        limit: pagination.limit,
-        offset: (pagination.page - 1) * pagination.limit,
-      },
-      tags: { projectId },
+  const input = {
+    params: {
+      ...appliedFilter.params,
+      projectId,
+      limit: pagination.limit,
+      offset: (pagination.page - 1) * pagination.limit,
     },
-    fn: async (input) => {
-      const result = await queryClickhouse<ObservationRecordReadType>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-      return result.map((r) => convertObservation(r));
-    },
+    tags: { projectId },
+  };
+
+  const result = await queryClickhouse<ObservationRecordReadType>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: input.params,
+    tags: input.tags,
+    preferredClickhouseService: "ReadOnly",
   });
+  return result.map((r) => convertObservation(r));
 };
 
 export const getObservationsCountForPublicApi = async ({
@@ -2138,21 +2142,11 @@ export const getObservationsCountForPublicApi = async ({
     AND ${appliedFilter.query}
   `;
 
-  return measureAndReturn({
-    operationName: "getObservationsCountForPublicApi",
-    projectId,
-    input: {
-      params: { ...appliedFilter.params, projectId },
-      tags: { projectId },
-    },
-    fn: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
+  const records = await queryClickhouse<{ count: string }>({
+    query: query.replace("__TRACE_TABLE__", "traces"),
+    params: { ...appliedFilter.params, projectId },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
+  return records.map((record) => Number(record.count)).shift();
 };

@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { createOpenAI } from "@ai-sdk/openai";
-import { tool } from "ai";
+import { APICallError, tool } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { encrypt } from "../../encryption";
-import { LLMCompletionError } from "./errors";
+import { LLMValidationError } from "./errors";
 import {
   createLLMOutput,
   createLLMToolSet,
@@ -158,6 +158,24 @@ describe("generateLLMText", () => {
     expect(result.toolResults).toEqual([]);
   });
 
+  it("rethrows native AI SDK provider errors unchanged", async () => {
+    const providerError = new APICallError({
+      message: "Incorrect API key provided",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 401,
+    });
+    useModel(
+      new MockLanguageModelV4({
+        doGenerate: async () => {
+          throw providerError;
+        },
+      }),
+    );
+
+    await expect(generateLLMText(openAIOptions())).rejects.toBe(providerError);
+  });
+
   it("rejects executable tools instead of running an agent loop", async () => {
     const execute = vi.fn();
 
@@ -172,9 +190,9 @@ describe("generateLLMText", () => {
         },
       }),
     ).rejects.toMatchObject({
-      name: "LLMCompletionError",
-      responseStatusCode: 400,
-      isRetryable: false,
+      name: "LLMValidationError",
+      code: "invalid-request",
+      statusCode: 400,
     });
     expect(execute).not.toHaveBeenCalled();
     expect(createOpenAI).not.toHaveBeenCalled();
@@ -212,11 +230,11 @@ describe("generateLLMText", () => {
         ],
       }),
     ).rejects.toMatchObject({
-      name: "LLMCompletionError",
+      name: "LLMValidationError",
       message:
         "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
-      responseStatusCode: 400,
-      isRetryable: false,
+      code: "invalid-request",
+      statusCode: 400,
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -253,11 +271,11 @@ describe("generateLLMText", () => {
         ],
       }),
     ).rejects.toMatchObject({
-      name: "LLMCompletionError",
+      name: "LLMValidationError",
       message:
         "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
-      responseStatusCode: 400,
-      isRetryable: false,
+      code: "invalid-request",
+      statusCode: 400,
     });
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -305,7 +323,7 @@ describe("streamLLMText", () => {
     expect(await result.text).toBe("Hello there");
   });
 
-  it("maps asynchronous timeout errors before exposing them to consumers", async () => {
+  it("preserves asynchronous native timeout errors for consumers", async () => {
     const timeoutError = new DOMException(
       "The operation timed out",
       "TimeoutError",
@@ -335,18 +353,9 @@ describe("streamLLMText", () => {
 
     expect(errorPart).toMatchObject({
       type: "error",
-      error: {
-        name: "LLMCompletionError",
-        message: "Request timed out after 25ms",
-        isRetryable: false,
-      },
+      error: timeoutError,
     });
-    expect(onError).toHaveBeenCalledWith({
-      error: expect.objectContaining({
-        name: "LLMCompletionError",
-        message: "Request timed out after 25ms",
-      }),
-    });
+    expect(onError).toHaveBeenCalledWith({ error: timeoutError });
   });
 });
 
@@ -399,22 +408,26 @@ describe("legacy compatibility boundary", () => {
     });
   });
 
-  it("preserves explicit non-reasoning OpenAI gpt-5.4 mini/nano handling", () => {
-    const mapped = mapLegacyLLMCompletionParams({
-      messages: legacyMessages,
-      modelParams: {
-        provider: "openai",
-        adapter: LLMAdapter.OpenAI,
-        model: "gpt-5.4-mini",
-        providerOptions: { service_tier: "flex" },
-      },
-      connection: encryptedConnection,
-    });
+  it.each(["gpt-5.4-mini", "gpt-5.4-nano"])(
+    "uses portable non-reasoning defaults for OpenAI %s",
+    (model) => {
+      const mapped = mapLegacyLLMCompletionParams({
+        messages: legacyMessages,
+        modelParams: {
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          model,
+          providerOptions: { service_tier: "flex" },
+        },
+        connection: encryptedConnection,
+      });
 
-    expect(mapped.providerOptions).toEqual({
-      openai: { serviceTier: "flex", forceReasoning: false },
-    });
-  });
+      expect(mapped).toMatchObject({
+        reasoning: "none",
+        providerOptions: { openai: { serviceTier: "flex" } },
+      });
+    },
+  );
 
   it("passes unknown OpenAI provider options through for OpenAI-compatible endpoints", () => {
     const mapped = mapLegacyLLMCompletionParams({
@@ -465,10 +478,10 @@ describe("legacy compatibility boundary", () => {
         },
       }),
     ).toThrow(
-      expect.objectContaining<Partial<LLMCompletionError>>({
-        name: "LLMCompletionError",
-        responseStatusCode: 400,
-        isRetryable: false,
+      expect.objectContaining<Partial<LLMValidationError>>({
+        name: "LLMValidationError",
+        statusCode: 400,
+        code: "invalid-request",
       }),
     );
   });
@@ -489,10 +502,10 @@ describe("legacy compatibility boundary", () => {
         },
       }),
     ).toThrow(
-      expect.objectContaining<Partial<LLMCompletionError>>({
-        name: "LLMCompletionError",
-        responseStatusCode: 400,
-        isRetryable: false,
+      expect.objectContaining<Partial<LLMValidationError>>({
+        name: "LLMValidationError",
+        statusCode: 400,
+        code: "invalid-request",
       }),
     );
   });
@@ -510,10 +523,10 @@ describe("legacy compatibility boundary", () => {
         connection: encryptedConnection,
       }),
     ).toThrow(
-      expect.objectContaining<Partial<LLMCompletionError>>({
-        name: "LLMCompletionError",
-        responseStatusCode: 400,
-        isRetryable: false,
+      expect.objectContaining<Partial<LLMValidationError>>({
+        name: "LLMValidationError",
+        statusCode: 400,
+        code: "invalid-request",
       }),
     );
   });
@@ -526,9 +539,9 @@ describe("legacy compatibility boundary", () => {
         messages: [...messages],
       }),
     ).rejects.toMatchObject({
-      name: "LLMCompletionError",
-      responseStatusCode: 400,
-      isRetryable: false,
+      name: "LLMValidationError",
+      statusCode: 400,
+      code: "invalid-connection",
     });
 
     await expect(
@@ -537,10 +550,10 @@ describe("legacy compatibility boundary", () => {
         credentialSource: "langfuse",
       }),
     ).rejects.toMatchObject({
-      name: "LLMCompletionError",
+      name: "LLMValidationError",
       message: "Langfuse credentials are only supported for Amazon Bedrock",
-      responseStatusCode: 400,
-      isRetryable: false,
+      statusCode: 400,
+      code: "invalid-connection",
     });
   });
 });

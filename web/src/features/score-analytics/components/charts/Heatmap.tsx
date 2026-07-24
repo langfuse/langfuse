@@ -211,7 +211,7 @@ export function Heatmap({
                           className="w-auto"
                         >
                           <div className="space-y-1">
-                            <p className="font-semibold">{label}</p>
+                            <p className="font-bold">{label}</p>
                           </div>
                         </HoverCardContent>
                       </HoverCard>

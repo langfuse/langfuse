@@ -1,3 +1,8 @@
+// Must stay the first import: installs a `crypto.randomUUID` fallback for
+// non-secure (plain-HTTP) origins before any other module can call it
+// (LFE-10858).
+import "@/src/polyfills/crypto-random-uuid";
+
 import { type AppType } from "next/app";
 import { type Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
@@ -75,6 +80,7 @@ import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
+import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { InAppAiAgentProvider } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
@@ -112,6 +118,8 @@ const MyApp: AppType<{ session: Session | null }> = ({
   pageProps: { session, ...pageProps },
 }) => {
   const router = useRouter();
+  const skipAppLayout =
+    "skipAppLayout" in Component && Component.skipAppLayout === true;
 
   useEffect(() => {
     // PostHog (cloud.langfuse.com)
@@ -127,6 +135,13 @@ const MyApp: AppType<{ session: Session | null }> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const page = (
+    <>
+      <Component {...pageProps} />
+      <UserTracking />
+    </>
+  );
 
   return (
     <QueryParamProvider
@@ -152,12 +167,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                     <ScoreCacheProvider>
                       <CorrectionCacheProvider>
                         <SupportDrawerProvider defaultOpen={false}>
-                          <InAppAiAgentProvider defaultOpen={false}>
-                            <AppLayout>
-                              <Component {...pageProps} />
-                              <UserTracking />
-                            </AppLayout>
-                          </InAppAiAgentProvider>
+                          <V4MigrationPanelProvider defaultOpen={false}>
+                            <InAppAiAgentProvider defaultOpen={false}>
+                              {skipAppLayout ? (
+                                page
+                              ) : (
+                                <AppLayout>{page}</AppLayout>
+                              )}
+                            </InAppAiAgentProvider>
+                          </V4MigrationPanelProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>
                     </ScoreCacheProvider>

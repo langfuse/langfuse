@@ -298,7 +298,7 @@ export function CodeView(props: {
       <>
         {props.title ? (
           <div className="my-1 flex shrink-0 items-center justify-between pl-1">
-            <div className="text-sm font-medium">{props.title}</div>
+            <div className="text-sm font-bold">{props.title}</div>
             <Button
               variant="ghost"
               size="icon-xs"

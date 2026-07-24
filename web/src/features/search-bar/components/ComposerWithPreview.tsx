@@ -8,10 +8,14 @@
 // projection, undo history, selection mirroring), and a preview never needs any
 // of that. Stacking keeps the editor MOUNTED — unmounting would wipe its
 // undo/selection/autocomplete refs — and never reprojects its DOM, so a preview
-// cannot interact with editing state by construction. The grid cell sizes to
-// max(editor, preview), so a wrapping preview grows the band instead of
-// clipping. Both surfaces share their chrome via composer-chrome.ts so the
-// overlay renders pixel-identical.
+// cannot interact with editing state by construction. The EDITOR owns the band
+// height (kept mounted + visibility:invisible under an active preview); the
+// preview overlays it ABSOLUTELY and clips (overflow-hidden) to that height, so
+// hovering a long preset preview never resizes the field. Growing the band on
+// hover otherwise fed a layout-thrash loop at narrow widths: the taller field
+// shifted the anchored presets dropdown out from under the cursor, changing the
+// hovered row → the preview → the height, oscillating (LFE-11067). Both surfaces
+// share their chrome via composer-chrome.ts so the overlay renders pixel-identical.
 
 import * as React from "react";
 
@@ -40,12 +44,13 @@ export function ComposerWithPreview(
   );
 
   return (
-    <div className="grid">
+    <div className="relative grid">
       <div
         className={cn(
           "col-start-1 row-start-1 min-w-0",
           // visibility (not display) keeps the editor's height contributing
-          // to the cell, so the band never collapses under a shorter preview.
+          // to the band, so it stays the single source of the band height —
+          // the preview (absolute, below) neither grows nor collapses it.
           previewActive && "invisible",
         )}
       >
@@ -56,7 +61,10 @@ export function ComposerWithPreview(
           data-testid="search-bar-preview"
           data-composer-preview-text={previewText}
           className={cn(
-            "col-start-1 row-start-1 min-w-0",
+            // Overlay the editor's box and clip to its height (rather than a
+            // grid cell sized to max(editor, preview)); a wrapping preview then
+            // clips instead of growing the band — see the header note.
+            "absolute inset-0 min-w-0 overflow-hidden",
             "animate-in fade-in-0 duration-150",
           )}
         >
@@ -66,6 +74,8 @@ export function ComposerWithPreview(
                 draft={previewText}
                 showDiagnostics={false}
                 scoreTypes={scoreTypes}
+                fieldReason={props.fieldReason}
+                freeTextReason={props.freeTextReason}
               />
             </div>
           </div>

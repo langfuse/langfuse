@@ -94,7 +94,7 @@
     "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^5.0.8",
+    "@ai-sdk/amazon-bedrock": "^5.0.24",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
     "@ai-sdk/google": "^4.0.6",
@@ -140,7 +140,7 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^9.0.3",
     "oci-common": "^2.125.0",
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
@@ -163,7 +163,7 @@
     "prisma": "^6.19.3",
     "tsx": "^4.20.5",
     "typescript": "catalog:",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

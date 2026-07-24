@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 
-const STORAGE_KEY = "monospace-char-width-0.7rem";
+// Keyed to the app's mono font token: the JSON rows render with
+// `var(--font-mono)`, so the measurement must use the exact same family or the
+// fixed-grid column math drifts. The key includes "font-mono" so widths cached
+// under the old generic-monospace measurement are never reused.
+const STORAGE_KEY = "font-mono-char-width-0.7rem";
 const DEFAULT_CHAR_WIDTH = 6.2; // Fallback for SSR or measurement failure
 
 /**
  * Hook to measure and cache the actual rendered width of monospace characters
  *
- * Measures the width of '0' character in the current browser's monospace font
- * at 0.7rem font size. Caches result in sessionStorage to avoid re-measuring.
- *
- * This provides accurate width estimation regardless of which monospace font
- * the browser uses (Menlo, Consolas, Monaco, DejaVu Sans Mono, etc.)
+ * Measures the width of '0' character in the app's mono font stack
+ * (`var(--font-mono)`, same as the JSON viewer rows) at 0.7rem font size.
+ * Caches result in sessionStorage to avoid re-measuring.
  *
  * @param fontSize - Font size to measure (default: "0.7rem")
  * @returns Measured character width in pixels
@@ -56,7 +58,8 @@ export function useMonospaceCharWidth(fontSize = "0.7rem"): number {
     try {
       // Create invisible measurement element
       const measureEl = document.createElement("span");
-      measureEl.style.fontFamily = "monospace";
+      // Must match the fontFamily used by the JSON row components exactly.
+      measureEl.style.fontFamily = "var(--font-mono)";
       measureEl.style.fontSize = fontSize;
       measureEl.style.visibility = "hidden";
       measureEl.style.position = "absolute";

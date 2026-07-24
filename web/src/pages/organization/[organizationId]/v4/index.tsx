@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { v4MigrationOrgScope } from "@/src/features/rbac/constants/organizationAccessRights";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -147,7 +145,7 @@ const ProjectReadinessTable = ({
               <TableCell density="comfortable">
                 <Link
                   href={`/project/${project.projectId}`}
-                  className="font-medium hover:underline"
+                  className="font-bold hover:underline"
                 >
                   {project.projectName}
                 </Link>
@@ -226,10 +224,11 @@ export default function OrganizationV4Page() {
     allowedRanges: V4_TIME_RANGE_PRESETS,
     fallback: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   });
-  const canViewOrgV4Page = useHasOrganizationAccess({
-    organizationId,
-    scope: v4MigrationOrgScope,
-  });
+  const canViewOrgV4Page =
+    session.data?.user?.admin === true ||
+    session.data?.user?.organizations.some(
+      (organization) => organization.id === organizationId,
+    ) === true;
 
   const absoluteTimeRange = useMemo(() => {
     return getCappedAbsoluteTimeRange(timeRange);
@@ -555,7 +554,7 @@ export default function OrganizationV4Page() {
             <div className="flex flex-col gap-4">
               <section className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-medium">
+                  <h3 className="text-sm font-bold">
                     Projects with required changes
                   </h3>
                   <Badge variant="outline-solid" size="sm">
@@ -606,7 +605,7 @@ export default function OrganizationV4Page() {
                   <AccordionItem value="migrated" className="border-b-0">
                     <AccordionTrigger className="py-3 text-sm hover:no-underline">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="font-medium">
+                        <span className="font-bold">
                           Projects without required changes
                         </span>
                         <Badge variant="outline-solid" size="sm">

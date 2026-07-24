@@ -48,6 +48,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
+import { LLMValidationError } from "@langfuse/shared/src/server";
 
 const baseBody = {
   projectId: "project-1",
@@ -166,6 +167,34 @@ describe("chatCompletionHandler", () => {
     );
   });
 
+  it("preserves extracted tool names for provider validation", async () => {
+    const toolSet = { "ns:get_time": { description: "Get the time" } };
+    mocks.createToolSet.mockReturnValue(toolSet);
+    mocks.generate.mockResolvedValue({
+      text: "",
+      finalStep: {},
+      toolCalls: [],
+    });
+
+    const toolDefinition = {
+      name: "ns:get_time",
+      description: "Get the time",
+      parameters: { type: "object", properties: {} },
+    };
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        tools: [toolDefinition],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createToolSet).toHaveBeenCalledWith([toolDefinition]);
+    expect(mocks.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: toolSet }),
+    );
+  });
+
   it("preserves the text/plain streaming response", async () => {
     const textStream = new ReadableStream<string>({
       start(controller) {
@@ -187,16 +216,17 @@ describe("chatCompletionHandler", () => {
   });
 
   it("preserves terminal LLM configuration status codes", async () => {
-    const error = new Error("Unsupported provider options: unknown_parameter");
-    error.name = "LLMCompletionError";
-    Object.assign(error, { responseStatusCode: 400, isRetryable: false });
+    const error = new LLMValidationError({
+      code: "invalid-request",
+      message: "Unsupported provider options: unknown_parameter",
+    });
     mocks.generate.mockRejectedValue(error);
 
     const response = await chatCompletionHandler(createRequest(baseBody));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "LLMCompletionError",
+      error: "LLMValidationError",
       message: "Unsupported provider options: unknown_parameter",
     });
   });

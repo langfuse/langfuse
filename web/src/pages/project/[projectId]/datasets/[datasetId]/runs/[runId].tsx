@@ -7,6 +7,7 @@ import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -23,8 +24,10 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-export default function Dataset() {
+function DatasetRunLegacy() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const datasetId = router.query.datasetId as string;
@@ -49,7 +52,7 @@ export default function Dataset() {
     <Page
       headerProps={{
         title: run.data?.name ?? runId,
-        itemType: "DATASET_RUN",
+        itemType: "EXPERIMENT",
         breadcrumb: [
           ...breadcrumb,
           {
@@ -121,7 +124,7 @@ export default function Dataset() {
               <>
                 {run.data?.datasetVersion && (
                   <div className="flex flex-col gap-2 p-1">
-                    <span className="text-sm font-medium">Dataset Version</span>
+                    <span className="text-sm font-bold">Dataset Version</span>
                     <Link
                       href={`/project/${projectId}/datasets/${datasetId}/items?version=${run.data.datasetVersion.toISOString()}`}
                       className="text-link hover:text-link-hover text-sm"
@@ -156,4 +159,31 @@ export default function Dataset() {
       </div>
     </Page>
   );
+}
+
+export default function DatasetRun() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runId = router.query.runId as string;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId ||
+      !runId
+    ) {
+      return;
+    }
+
+    router.replace(singleRunToExperimentsUrl(projectId, runId));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runId]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return <DatasetRunLegacy />;
 }

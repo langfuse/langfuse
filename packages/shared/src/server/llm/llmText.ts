@@ -4,9 +4,6 @@ import { ProxyAgent } from "undici";
 import {
   Output,
   generateText,
-  getChunkTimeoutMs,
-  getStepTimeoutMs,
-  getTotalTimeoutMs,
   jsonSchema,
   streamText,
   tool,
@@ -16,10 +13,10 @@ import {
   type GenerateTextResult,
   type Experimental_DownloadFunction,
   type JSONValue,
+  type LanguageModelCallOptions,
   type ModelMessage,
   type StreamTextOnErrorCallback,
   type StreamTextResult,
-  type StreamTextTransform,
   type TimeoutConfiguration,
   type ToolSet,
 } from "ai";
@@ -27,11 +24,7 @@ import {
 import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
-import {
-  hasTimeoutAbortInCauseChain,
-  mapToLLMCompletionError,
-} from "./completionErrorMapping";
-import { LLMCompletionError } from "./errors";
+import { LLMValidationError } from "./errors";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
 import { buildAiSdkModel } from "./ai-sdk/providers";
 import { translateAnthropicProviderOptions } from "./ai-sdk/providers/anthropic";
@@ -107,6 +100,7 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   /** Canonical, provider-namespaced AI SDK options. */
   providerOptions?: ProviderOptions;
   maxRetries?: number;
@@ -151,6 +145,7 @@ type PreparedLLMTextCall<TOOLS extends ToolSet> = {
     maxOutputTokens?: number;
     temperature?: number;
     topP?: number;
+    reasoning?: LanguageModelCallOptions["reasoning"];
     providerOptions?: ProviderOptions;
     maxRetries?: number;
     timeout: TimeoutConfiguration<TOOLS>;
@@ -192,12 +187,8 @@ export async function generateLLMText<
 
     return result;
   } catch (error) {
-    const completionError = toCompletionError(
-      error,
-      prepared.callOptions.timeout,
-    );
-    capture?.setRootError(completionError);
-    throw completionError;
+    capture?.setRootError(error);
+    throw error;
   } finally {
     await capture?.flush();
   }
@@ -217,7 +208,6 @@ export async function streamLLMText<
 ): Promise<StreamLLMTextResult<TOOLS, OUTPUT>> {
   const prepared = await prepareLLMTextCall(options);
   const { capture, runInTraceContext } = prepared;
-  const timeout = prepared.callOptions.timeout;
 
   try {
     return runInTraceContext(() =>
@@ -225,10 +215,6 @@ export async function streamLLMText<
         model: prepared.languageModel,
         ...prepared.callOptions,
         output: options.output,
-        // Map asynchronous provider and timeout failures before AI SDK's
-        // event processor exposes them through streams, promises, callbacks,
-        // and `consumeStream`.
-        experimental_transform: createCompletionErrorTransform(timeout),
         onEnd: async (event) => {
           capture?.setRootOutput(
             toTraceOutput({
@@ -244,7 +230,6 @@ export async function streamLLMText<
           }
         },
         onError: async (event) => {
-          // `event.error` has already passed through the transform above.
           capture?.setRootError(event.error);
           try {
             await options.onError?.(event);
@@ -253,19 +238,16 @@ export async function streamLLMText<
           }
         },
         onAbort: async (event) => {
+          const nativeEvent = event as GenerateTextAbortEvent<
+            TOOLS,
+            RuntimeContext
+          >;
           capture?.setRootError(
-            new LLMCompletionError({
-              message: "LLM completion aborted",
-              responseStatusCode: 499,
-              isRetryable: false,
-            }),
+            nativeEvent.reason ??
+              new DOMException("LLM call aborted", "AbortError"),
           );
           try {
-            // streamText's public callback type currently omits callId/reason,
-            // although its runtime event includes the full native abort event.
-            await options.onAbort?.(
-              event as GenerateTextAbortEvent<TOOLS, RuntimeContext>,
-            );
+            await options.onAbort?.(nativeEvent);
           } finally {
             await capture?.flush();
           }
@@ -273,10 +255,9 @@ export async function streamLLMText<
       }),
     );
   } catch (error) {
-    const completionError = toCompletionError(error, timeout);
-    capture?.setRootError(completionError);
+    capture?.setRootError(error);
     await capture?.flush();
-    throw completionError;
+    throw error;
   }
 }
 
@@ -292,92 +273,88 @@ async function prepareLLMTextCall<
   const timeout =
     options.timeout ?? env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
 
-  try {
-    const modelConfig = resolveAiSdkModelConfig({
-      model: options.model,
-      connectionConfig: options.connection.config,
-      baseURL: options.connection.baseURL,
-      credentialSource,
-    });
-    recordAiSdkExecution({ model: options.model, modelConfig });
+  const modelConfig = resolveAiSdkModelConfig({
+    model: options.model,
+    connectionConfig: options.connection.config,
+    baseURL: options.connection.baseURL,
+    credentialSource,
+  });
+  recordAiSdkExecution({ model: options.model, modelConfig });
 
-    const apiKey = decrypt(options.connection.secretKey);
-    const extraHeaders = decryptAndParseExtraHeaders(
-      options.connection.extraHeaders,
-    );
+  const apiKey = decrypt(options.connection.secretKey);
+  const extraHeaders = decryptAndParseExtraHeaders(
+    options.connection.extraHeaders,
+  );
 
-    const proxyDispatcher = env.HTTPS_PROXY
-      ? new ProxyAgent(env.HTTPS_PROXY)
-      : undefined;
-    const createFetch = (
-      logContext: string,
-      additionalSensitiveHeaders?: string[],
-    ) =>
-      createSecureLlmFetch({
-        logContext,
-        // Connection-specific headers are encrypted at rest and can contain
-        // gateway credentials. Keep them on same-origin redirects, but strip
-        // them alongside provider auth headers when the origin changes.
-        additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
-          Object.keys(extraHeaders ?? {}),
-        ),
-        dispatcher: proxyDispatcher,
-      });
-
-    const languageModel = await buildAiSdkModel({
-      model: options.model,
-      modelConfig,
-      apiKey,
-      baseURL: options.connection.baseURL,
-      extraHeaders,
-      config: options.connection.config,
-      credentialSource,
-      createFetch,
+  const proxyDispatcher = env.HTTPS_PROXY
+    ? new ProxyAgent(env.HTTPS_PROXY)
+    : undefined;
+  const createFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      // Connection-specific headers are encrypted at rest and can contain
+      // gateway credentials. Keep them on same-origin redirects, but strip
+      // them alongside provider auth headers when the origin changes.
+      additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
+        Object.keys(extraHeaders ?? {}),
+      ),
+      dispatcher: proxyDispatcher,
     });
 
-    const capture = options.trace
-      ? createAiSdkTelemetryCapture({
-          traceSinkParams: options.trace,
-          rootInput: options.messages,
-        })
-      : undefined;
+  const languageModel = await buildAiSdkModel({
+    model: options.model,
+    modelConfig,
+    apiKey,
+    baseURL: options.connection.baseURL,
+    extraHeaders,
+    config: options.connection.config,
+    credentialSource,
+    createFetch,
+  });
 
-    return {
-      languageModel,
-      capture,
-      runInTraceContext: <T>(fn: () => T): T =>
-        capture ? capture.run(fn) : fn(),
-      callOptions: {
-        messages: options.messages,
-        allowSystemInMessages: true,
-        tools: options.tools,
-        maxOutputTokens: options.maxOutputTokens,
-        temperature: options.temperature,
-        topP: options.topP,
-        providerOptions: options.providerOptions,
-        maxRetries: options.maxRetries,
-        timeout,
-        abortSignal: options.abortSignal,
-        // Do not let AI SDK download remote media on the Langfuse server.
-        // Callers must use provider-supported URLs or inline data.
-        experimental_download: rejectRemoteMediaDownloads,
-        ...(capture ? { telemetry: capture.telemetry } : {}),
-      },
-    };
-  } catch (error) {
-    throw toCompletionError(error, timeout);
-  }
+  const capture = options.trace
+    ? createAiSdkTelemetryCapture({
+        traceSinkParams: options.trace,
+        rootInput: options.messages,
+      })
+    : undefined;
+
+  return {
+    languageModel,
+    capture,
+    runInTraceContext: <T>(fn: () => T): T =>
+      capture ? capture.run(fn) : fn(),
+    callOptions: {
+      messages: options.messages,
+      allowSystemInMessages: true,
+      tools: options.tools,
+      maxOutputTokens: options.maxOutputTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      reasoning: options.reasoning,
+      providerOptions: options.providerOptions,
+      maxRetries: options.maxRetries,
+      timeout,
+      abortSignal: options.abortSignal,
+      // Do not let AI SDK download remote media on the Langfuse server.
+      // Callers must use provider-supported URLs or inline data.
+      experimental_download: rejectRemoteMediaDownloads,
+      ...(capture ? { telemetry: capture.telemetry } : {}),
+    },
+  };
 }
 
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   downloads,
 ) => {
   if (downloads.length > 0) {
-    throw new LLMCompletionError({
+    throw new LLMValidationError({
+      code: "invalid-request",
       message:
         "Remote media downloads are not supported on the Langfuse server; use provider-supported URLs or inline data instead",
-      responseStatusCode: 400,
-      isRetryable: false,
     });
   }
   return [];
@@ -392,53 +369,10 @@ function assertDefinitionOnlyTools(tools: ToolSet | undefined): void {
   );
   if (!executableTool) return;
 
-  throw new LLMCompletionError({
+  throw new LLMValidationError({
+    code: "invalid-request",
     message: `Tool "${executableTool[0]}" must not define execute; LLM text calls only accept tool definitions`,
-    responseStatusCode: 400,
-    isRetryable: false,
   });
-}
-
-function createCompletionErrorTransform<TOOLS extends ToolSet>(
-  timeout: TimeoutConfiguration<TOOLS>,
-): StreamTextTransform<TOOLS> {
-  return () =>
-    new TransformStream({
-      transform(part, controller) {
-        controller.enqueue(
-          part.type === "error"
-            ? { ...part, error: toCompletionError(part.error, timeout) }
-            : part,
-        );
-      },
-    });
-}
-
-function toCompletionError<TOOLS extends ToolSet>(
-  error: unknown,
-  timeout: TimeoutConfiguration<TOOLS>,
-): LLMCompletionError {
-  if (hasTimeoutAbortInCauseChain(error)) {
-    return new LLMCompletionError({
-      message: `Request timed out after ${getTimeoutMs(timeout)}ms`,
-      responseStatusCode: 500,
-      isRetryable: false,
-      cause: error,
-    });
-  }
-
-  return mapToLLMCompletionError(error);
-}
-
-function getTimeoutMs<TOOLS extends ToolSet>(
-  timeout: TimeoutConfiguration<TOOLS>,
-): number {
-  return (
-    getTotalTimeoutMs(timeout) ??
-    getStepTimeoutMs(timeout) ??
-    getChunkTimeoutMs(timeout) ??
-    env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS
-  );
 }
 
 function toTraceOutput(params: {
@@ -508,6 +442,7 @@ export type LegacyLLMTextOptions = {
   maxOutputTokens?: number;
   temperature?: number;
   topP?: number;
+  reasoning?: LanguageModelCallOptions["reasoning"];
   providerOptions?: ProviderOptions;
   credentialSource: LLMCredentialSource;
 };
@@ -537,6 +472,11 @@ export function mapLegacyLLMCompletionParams(params: {
     maxOutputTokens: modelParams.max_tokens,
     temperature: modelParams.temperature,
     topP: modelParams.top_p,
+    reasoning:
+      modelParams.adapter === LLMAdapter.OpenAI &&
+      isOpenAIDefaultNonReasoningModel(modelParams.model)
+        ? "none"
+        : undefined,
     providerOptions,
     credentialSource: params.credentialSource ?? "user",
   };
@@ -560,16 +500,10 @@ function translateLegacyProviderOptions(params: {
         passthroughUnknown: useOpenAICompatibleChat,
         target: useOpenAICompatibleChat ? "openai-compatible" : "openai",
       });
-      if (
-        translated.ok &&
-        isOpenAINonReasoningChatModel(modelParams.model) &&
-        translated.value?.forceReasoning === undefined
-      ) {
-        translated.value = {
-          ...(translated.value ?? {}),
-          forceReasoning: false,
-        };
-      }
+      // Never add Langfuse-derived controls to these translated options.
+      // Custom OpenAI-compatible connections intentionally forward unknown
+      // keys to the wire. Portable controls such as reasoning belong on the
+      // top-level AI SDK call instead.
       break;
     }
     case LLMAdapter.Azure:
@@ -609,19 +543,17 @@ function translateLegacyProviderOptions(params: {
     }
     default: {
       const _exhaustiveCheck: never = modelParams.adapter;
-      throw new LLMCompletionError({
+      throw new LLMValidationError({
+        code: "invalid-request",
         message: `Unsupported LLM adapter: ${_exhaustiveCheck}`,
-        responseStatusCode: 400,
-        isRetryable: false,
       });
     }
   }
 
   if (!translated.ok) {
-    throw new LLMCompletionError({
+    throw new LLMValidationError({
+      code: "invalid-request",
       message: `Unsupported ${modelParams.adapter} provider options: ${translated.unknownKeys.join(", ")}`,
-      responseStatusCode: 400,
-      isRetryable: false,
     });
   }
 
@@ -630,7 +562,7 @@ function translateLegacyProviderOptions(params: {
     : undefined;
 }
 
-function isOpenAINonReasoningChatModel(model: string): boolean {
+function isOpenAIDefaultNonReasoningModel(model: string): boolean {
   return /^gpt-5\.4-(mini|nano)(-\d{4}-\d{2}-\d{2})?$/i.test(
     model.replace(/^openai\//i, ""),
   );

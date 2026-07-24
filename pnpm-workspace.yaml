@@ -5,20 +5,37 @@ packages:
   - "packages/**"
   - "ee"
 catalog:
-  "@aws-sdk/client-cloudwatch": 3.1056.0
-  "@aws-sdk/client-lambda": 3.1056.0
-  "@aws-sdk/client-s3": 3.1056.0
-  "@aws-sdk/client-sesv2": 3.1056.0
-  "@aws-sdk/credential-providers": 3.1056.0
-  "@aws-sdk/lib-storage": 3.1056.0
-  "@aws-sdk/s3-request-presigner": 3.1056.0
+  "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-lambda": 3.1074.0
+  "@aws-sdk/client-lambda-microvms": 3.1074.0
+  "@aws-sdk/client-s3": 3.1074.0
+  "@aws-sdk/client-sesv2": 3.1074.0
+  "@aws-sdk/credential-providers": 3.1074.0
+  "@aws-sdk/lib-storage": 3.1074.0
+  "@aws-sdk/s3-request-presigner": 3.1074.0
   typescript: ^6.0.3
 # 5 day delay for new dep upgrades to reduce supply chain attack risk
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
+  - "postcss@8.5.22"
   - "@clickhouse/client@1.23.1"
+  - "@next/env@16.2.11"
+  - "@next/eslint-plugin-next@16.2.11"
+  - "next-auth@4.24.15"
+  - "@next/swc-darwin-arm64@16.2.11"
+  - "@next/swc-darwin-x64@16.2.11"
+  - "@next/swc-linux-arm64-gnu@16.2.11"
+  - "@next/swc-linux-arm64-musl@16.2.11"
+  - "@next/swc-linux-x64-gnu@16.2.11"
+  - "@next/swc-linux-x64-musl@16.2.11"
+  - "@next/swc-win32-arm64-msvc@16.2.11"
+  - "@next/swc-win32-x64-msvc@16.2.11"
+  - "eslint-config-next@16.2.11"
+  - "next@16.2.11"
+  - "ws@8.21.1"
+  - "fast-uri@3.1.4"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -37,7 +54,10 @@ allowBuilds:
   protobufjs: false
   "@datadog/pprof": false
   "@scarf/scarf": false
+  cpu-features: true
+  ssh2: true
 overrides:
+  postcss: 8.5.22
   esbuild: "0.28.1"
   "undici@7": 7.28.0
   zod: 4.3.6
@@ -54,7 +74,10 @@ overrides:
   ip-address@10.1.0: 10.2.0
   "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
-  "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
+  # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
+  # evaluation needs exports (validatorSymbol) that only exist in its own
+  # provider-utils 2.x line — exempt it from the blanket 4.0.27 lift above.
+  "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
   # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
   # Remove once @langchain/anthropic allows the same SDK range.
   # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
@@ -62,10 +85,10 @@ overrides:
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
-  # Remove once next-auth allows nodemailer ^8.
-  "next-auth>nodemailer": "^8.0.11"
+  # Remove once next-auth allows nodemailer ^9.
+  "next-auth>nodemailer": "^9.0.3"
 patchedDependencies:
-  next-auth@4.24.14: patches/next-auth@4.24.14.patch
+  next-auth@4.24.15: patches/next-auth@4.24.15.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"

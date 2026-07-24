@@ -27,9 +27,11 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  getConversationEvents,
   getConversationMessagesForDisplay,
   getConversationMessages,
   getOwnedConversationOrThrow,
+  isInAppAgentConversationWriteLocked,
   serializeConversation,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 
@@ -96,7 +98,9 @@ export const inAppAgentRouter = createTRPCRouter({
       const lastConversation = page.at(-1);
 
       return {
-        conversations: page.map(serializeConversation),
+        conversations: page.map((conversation) =>
+          serializeConversation(conversation),
+        ),
         nextCursor:
           conversations.length > input.limit && lastConversation
             ? {
@@ -119,14 +123,26 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessagesForDisplay({
-        prisma: ctx.prisma,
-        projectId: input.projectId,
-        conversationId: input.conversationId,
-      });
+      const [messages, events] = await Promise.all([
+        getConversationMessagesForDisplay({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+        }),
+        getConversationEvents({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+        }),
+      ]);
 
       return {
-        conversation: serializeConversation(conversation),
+        conversation: serializeConversation(conversation, {
+          isWriteLocked: isInAppAgentConversationWriteLocked({
+            conversation,
+            events,
+          }),
+        }),
         messages,
         state: {
           type: "existingConversation" as const,
@@ -156,6 +172,7 @@ export const inAppAgentRouter = createTRPCRouter({
           },
         },
         data: {
+          providerSessionId: null,
           deletedAt: new Date(),
         },
       });
