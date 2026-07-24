@@ -167,7 +167,7 @@ describe("in-app agent docker sandbox provider", () => {
 
   it("recreates the named container when it was manually removed", async () => {
     const { createDockerSandboxProvider } =
-      await import("@/src/ee/features/in-app-agent/server/sandbox/providers/docker");
+      await import("@langfuse/shared/ee/in-app-agent/server/sandbox/providers/docker");
     const provider = await createDockerSandboxProvider({
       image: "langfuse-in-app-agent-sandbox:latest",
     });

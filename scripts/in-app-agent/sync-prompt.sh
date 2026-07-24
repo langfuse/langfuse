@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-PROMPT_FILE="${REPO_ROOT}/web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt"
+PROMPT_FILE="${REPO_ROOT}/packages/shared/src/ee/in-app-agent/server/prompts/in-app-agent-system-prompt.ts"
 PROMPT_NAME="in-app-agent-system-prompt"
 REGIONS=(STAGING EU US JP HIPAA)
 BASE_URLS=(
@@ -19,7 +19,13 @@ if [[ ! -f "${PROMPT_FILE}" ]]; then
   exit 1
 fi
 
-PROMPT_CONTENT="$(<"${PROMPT_FILE}")"
+# The prompt lives in a TS module (plain erasable TS); Node's native type
+# stripping loads it without a build step.
+PROMPT_CONTENT="$(node -e "
+  import(process.argv[1]).then((m) =>
+    process.stdout.write(m.IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE),
+  );
+" "${PROMPT_FILE}")"
 REQUEST_BODY="$(
   jq -n \
     --arg name "${PROMPT_NAME}" \

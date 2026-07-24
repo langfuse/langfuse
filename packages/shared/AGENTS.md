@@ -57,6 +57,15 @@ Use root [AGENTS.md](../../AGENTS.md) for monorepo-level rules.
 - `@langfuse/shared/encryption` via `src/encryption/index.ts`: encryption and
   signature helpers for secrets and signed payloads.
 - `@langfuse/shared/query` via `src/features/query/index.ts`: dashboard query feature.
+- `@langfuse/shared/ee/in-app-agent` via `src/ee/in-app-agent/index.ts`:
+  client-safe contracts (AG-UI schemas, constants, id helpers) of the
+  EE-licensed in-app-agent module. Never re-export server code here.
+- `@langfuse/shared/ee/in-app-agent/server` (plus per-module subpaths via the
+  `./ee/in-app-agent/server/*` wildcard) via `src/ee/in-app-agent/server/`:
+  the EE-licensed in-app-agent runtime (Mastra/Bedrock/MCP loop, tools,
+  persistence, sandbox), consumed by web's foreground adapter and the future
+  worker background-execution processor. `src/ee/**` is EE-licensed — see
+  `src/ee/README.md` and the root `LICENSE`.
 - Narrower exported subpaths also exist for targeted imports:
   `@langfuse/shared/src/server/auth/apiKeys`,
   `@langfuse/shared/src/server/ee/ingestionMasking`, and

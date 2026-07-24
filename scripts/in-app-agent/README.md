@@ -4,11 +4,15 @@
 
 The generated in-app agent skills live at:
 
-`web/src/ee/features/in-app-agent/server/skills/generated/raw`
+`packages/shared/src/ee/in-app-agent/server/skills/generated/raw`
 
 The generated TypeScript index lives at:
 
-`web/src/ee/features/in-app-agent/server/skills/generated/skill-markdown.ts`
+`packages/shared/src/ee/in-app-agent/server/skills/generated/skill-markdown.ts`
+
+The generated module inlines each markdown file as a string literal so it
+compiles under plain `tsc` in `@langfuse/shared`; the `raw/*.md` copies exist
+for reviewable diffs only.
 
 Use `sync-raw-skills.mjs` to download all markdown files from
 `https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
@@ -29,9 +33,9 @@ node scripts/in-app-agent/sync-raw-skills.mjs --check
 
 The canonical system prompt for the in-app agent lives at:
 
-`web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
+`packages/shared/src/ee/in-app-agent/server/prompts/in-app-agent-system-prompt.ts`
 
-The local Postgres seeder reads this file and creates the text prompt named
+The local Postgres seeder imports this module and creates the text prompt named
 `in-app-agent-system-prompt` in the seed project
 `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a` with the `production` and `latest`
 labels.

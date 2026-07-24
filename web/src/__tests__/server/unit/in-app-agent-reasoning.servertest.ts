@@ -1,4 +1,4 @@
-import { getBedrockReasoningProviderOptions } from "@/src/ee/features/in-app-agent/server/agent";
+import { getBedrockReasoningProviderOptions } from "@langfuse/shared/ee/in-app-agent/server/agent";
 
 describe("getBedrockReasoningProviderOptions", () => {
   it("sends adaptive thinking with summarized display to Claude models by default", () => {

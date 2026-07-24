@@ -1,10 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "../../src/ee/in-app-agent/server/prompts/in-app-agent-system-prompt";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
@@ -43,26 +42,7 @@ const options = {
 
 const prisma = new PrismaClient();
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
-  __dirname,
-  "../../../..",
-  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
-);
-
-// The path above resolves to `web/src` relative to this file, which only exists
-// in a monorepo checkout. In built/published packages (e.g. the worker image
-// that runs the seeder in deployed environments) the web source isn't present,
-// so fall back to an empty prompt instead of throwing at import time — the
-// in-app-agent demo prompt is optional seed content.
-let inAppAgentSystemPrompt = "";
-try {
-  inAppAgentSystemPrompt = readFileSync(
-    IN_APP_AGENT_SYSTEM_PROMPT_PATH,
-    "utf-8",
-  );
-} catch {
-  inAppAgentSystemPrompt = "";
-}
+const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
   const environment = parseArgs({

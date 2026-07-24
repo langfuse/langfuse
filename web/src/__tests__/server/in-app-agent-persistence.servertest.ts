@@ -22,8 +22,8 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/ee/features/in-app-agent/ids";
-import { type AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+} from "@langfuse/shared/ee/in-app-agent";
+import { type AgUiEvent } from "@langfuse/shared/ee/in-app-agent";
 import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
@@ -34,9 +34,9 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@langfuse/shared/ee/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/ee/in-app-agent";
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),

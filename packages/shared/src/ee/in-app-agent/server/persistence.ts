@@ -6,37 +6,34 @@ import {
   InAppAgentRunStatus,
   LangfuseConflictError,
   LangfuseNotFoundError,
-} from "@langfuse/shared";
+} from "../../../index";
 import {
   ChatMessageRole,
   ChatMessageType,
   LangfuseInternalTraceEnvironment,
   logger,
-} from "@langfuse/shared/src/server";
-import { Prisma } from "@langfuse/shared/src/db";
-import type {
-  InAppAgentConversation,
-  PrismaClient,
-} from "@langfuse/shared/src/db";
+} from "../../../server";
+import { Prisma } from "../../../db";
+import type { InAppAgentConversation, PrismaClient } from "../../../db";
 
-import { env } from "@/src/env.mjs";
+import { env } from "../../../env";
 import {
   generateLangfuseAIText,
   getLangfuseAITraceSinkParams,
-} from "@/src/features/ai-features/server/bedrockCompletion";
-import { getProductBaseUrl } from "@/src/utils/base-url";
-import { truncate } from "@/src/utils/string";
-import { assertUnreachable } from "@/src/utils/types";
+} from "../../../server/llm/langfuseAiCompletion";
+import { getProductBaseUrl } from "../../../server/utils/baseUrl";
+import { truncate } from "../../../utils/stringChecks";
+import { assertUnreachable } from "../../../utils/typeChecks";
 import {
   AgUiMessageSchema,
   InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
-} from "@/src/ee/features/in-app-agent/schema";
-import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import { safeJsonParse } from "@/src/utils/json";
-import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "@/src/ee/features/in-app-agent/server/tools";
+} from "../schema";
+import { compactTextMessageChunks } from "./eventCompaction";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import { safeJsonParse } from "../../../utils/json";
+import { IN_APP_AGENT_SANDBOX_TOOL_NAMES } from "./tools";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -108,7 +105,7 @@ export async function getOwnedConversationOrThrow(params: {
   projectId: string;
   conversationId: string;
   userId: string;
-}) {
+}): Promise<InAppAgentConversation> {
   const conversation = await params.prisma.inAppAgentConversation.findFirst({
     where: {
       id: params.conversationId,
@@ -130,7 +127,7 @@ export async function ensureOwnedConversation(params: {
   projectId: string;
   conversationId: string;
   userId: string;
-}) {
+}): Promise<InAppAgentConversation> {
   const existing = await params.prisma.inAppAgentConversation.findUnique({
     where: {
       id_projectId: {

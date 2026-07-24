@@ -10,7 +10,7 @@ import {
   TerminateMicrovmCommand,
   type RunMicrovmCommandInput,
 } from "@aws-sdk/client-lambda-microvms";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "../../../../../server";
 import { z } from "zod";
 
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";

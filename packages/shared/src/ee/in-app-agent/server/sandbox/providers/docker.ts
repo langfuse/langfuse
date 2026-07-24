@@ -1,7 +1,7 @@
 import { PassThrough } from "node:stream";
 
 import type Docker from "dockerode";
-import { logger } from "@langfuse/shared/src/server";
+import { logger } from "../../../../../server";
 
 import type { SandboxFile, SandboxProvider, SandboxSession } from "../types";
 

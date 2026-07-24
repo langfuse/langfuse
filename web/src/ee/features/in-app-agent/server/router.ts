@@ -18,8 +18,8 @@ import { env } from "@/src/env.mjs";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
-} from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
+} from "@langfuse/shared/ee/in-app-agent";
+import { InAppAgentMessageFeedbackValueSchema } from "@langfuse/shared/ee/in-app-agent";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -33,7 +33,7 @@ import {
   getOwnedConversationOrThrow,
   isInAppAgentConversationWriteLocked,
   serializeConversation,
-} from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@langfuse/shared/ee/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
 

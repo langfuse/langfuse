@@ -21,8 +21,8 @@ import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "@/src/ee/features/in-app-agent/ids";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+} from "@langfuse/shared/ee/in-app-agent";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/ee/in-app-agent";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
@@ -30,7 +30,7 @@ import {
   type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
   type InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
+} from "@langfuse/shared/ee/in-app-agent";
 import type { InAppAgentError } from "@/src/ee/features/in-app-agent/components/utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";

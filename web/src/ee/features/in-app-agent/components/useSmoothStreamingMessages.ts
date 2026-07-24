@@ -1,8 +1,8 @@
 import { useEffect, useEffectEvent, useReducer } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import type { AgUiMessage } from "@/src/ee/features/in-app-agent/schema";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@langfuse/shared/ee/in-app-agent";
+import type { AgUiMessage } from "@langfuse/shared/ee/in-app-agent";
 import { assertUnreachable } from "@/src/utils/types";
 
 const FRAME_DURATION_MS = 40;

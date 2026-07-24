@@ -1,8 +1,8 @@
 import { EventType } from "@ag-ui/core";
 import { describe, expect, it } from "vitest";
 
-import { getSandboxToolCallFiles } from "@/src/ee/features/in-app-agent/server/persistence";
-import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
+import { getSandboxToolCallFiles } from "@langfuse/shared/ee/in-app-agent/server/persistence";
+import { createInAppAgentSandbox } from "@langfuse/shared/ee/in-app-agent/server/sandbox";
 
 describe("in-app agent sandbox", () => {
   it("persists sandbox session state when a turn ends", async () => {

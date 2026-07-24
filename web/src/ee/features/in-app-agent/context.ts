@@ -1,4 +1,4 @@
-import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
+import type { AgUiRunAgentInput } from "@langfuse/shared/ee/in-app-agent";
 import {
   isInAppAgentQuickActionContext,
   type InAppAgentQuickActionAttribution,
