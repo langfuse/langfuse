@@ -149,4 +149,32 @@ describe("TreeRowModel over the byte engine", () => {
     const emptyRow = (await allRows(m)).find((r) => r.keyOrIndex === "empty")!;
     expect(emptyRow.childCount).toBe(0);
   });
+
+  it("re-expanding an empty container scans it only once", async () => {
+    // An empty {}/[] never pushes into childIds, so `childIds.length === 0`
+    // could not tell "never scanned" from "scanned and empty" — every re-expand
+    // would re-issue childrenPage. Harmless in-process (cached), but a wasted
+    // round-trip once the Worker source lands, so an explicit `scanned` flag
+    // guards the rescan. Count childrenPage calls per node to prove it.
+    const source = sourceFromValue({ empty: {} });
+    const scans = new Map<number, number>();
+    const origChildrenPage = source.childrenPage.bind(source);
+    source.childrenPage = (nodeId, offset, limit) => {
+      scans.set(nodeId, (scans.get(nodeId) ?? 0) + 1);
+      return origChildrenPage(nodeId, offset, limit);
+    };
+
+    const m = await TreeRowModel.create(source);
+    const emptyId = (await allRows(m)).find(
+      (r) => r.keyOrIndex === "empty",
+    )!.nodeId;
+
+    await m.expand(emptyId); // first scan
+    await m.collapse(emptyId);
+    await m.expand(emptyId); // must reuse the known-empty result, not rescan
+    await m.collapse(emptyId);
+    await m.expand(emptyId);
+
+    expect(scans.get(emptyId)).toBe(1);
+  });
 });

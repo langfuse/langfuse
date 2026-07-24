@@ -24,6 +24,13 @@ interface NodeState {
   keyOrIndex: string | number | null;
   expandable: boolean;
   expanded: boolean;
+  /**
+   * True once this container has been scanned at least once (its first page
+   * fetched). Distinguishes "never scanned" from "scanned and empty" — an empty
+   * `{}`/`[]` never pushes into `childIds`, so `childIds.length` cannot tell
+   * them apart, which would re-scan an empty container on every re-expand.
+   */
+  scanned: boolean;
   /** Materialized child nodeIds, in order (grows as pages load). */
   childIds: number[];
   loadedCount: number;
@@ -80,6 +87,7 @@ export class TreeRowModel implements RowModel {
       keyOrIndex,
       expandable: descriptor.expandable,
       expanded: false,
+      scanned: false,
       childIds: [],
       loadedCount: 0,
       total: descriptor.childCount ?? 0,
@@ -107,6 +115,7 @@ export class TreeRowModel implements RowModel {
     state.loadedCount += page.children.length;
     state.total = page.total;
     state.hasMore = page.hasMore;
+    state.scanned = true;
     // The container has now been scanned (childrenPage built its child table),
     // so re-describe it. The descriptor captured pre-scan (from the parent's
     // page) carries the raw-JSON preview and an unknown childCount; the
@@ -216,7 +225,7 @@ export class TreeRowModel implements RowModel {
   async expand(nodeId: number): Promise<void> {
     const state = this.states.get(nodeId);
     if (!state || !state.expandable || state.expanded) return;
-    if (state.childIds.length === 0) await this.loadPage(state);
+    if (!state.scanned) await this.loadPage(state);
     state.expanded = true;
     this.revision++;
     this.rebuildVisible();
