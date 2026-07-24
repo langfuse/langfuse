@@ -10,12 +10,14 @@ import {
   deleteDatasetRunForApi,
   getDatasetRunForApi,
 } from "@/src/features/datasets/server/publicDatasetService";
+import { DATASET_RUNS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "get-dataset-run",
     querySchema: GetDatasetRunV1Query,
     responseSchema: GetDatasetRunV1Response,
+    deprecation: DATASET_RUNS_DEPRECATION,
     rateLimitResource: "datasets",
     // Embeds run items read from the legacy dataset_run_items ClickHouse
     // table, which is no longer populated in events_only mode;

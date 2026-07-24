@@ -8,9 +8,13 @@ import {
 } from "@/src/components/ui/drawer";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
 
 export function MobileRightDrawer({ children }: PropsWithChildren) {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
+  const { open: migrationOpen, setOpen: setMigrationOpen } =
+    useV4MigrationPanel();
 
   return (
     <>
@@ -44,6 +48,40 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
           </DrawerHeader>
           <div className="mt-4 max-h-full">
             <SupportDrawer showCloseButton={false} className="h-full pb-20" />
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer
+        open={migrationOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMigrationOpen(false);
+          }
+        }}
+        forceDirection="bottom"
+      >
+        <DrawerContent
+          id="v4-migration-drawer"
+          className="min-h-screen-with-banner inset-x-0 top-[calc(var(--banner-offset)+10px)] bottom-0"
+          size="full"
+        >
+          <DrawerHeader className="absolute inset-x-0 top-0 p-0 text-left">
+            <div className="flex w-full items-center justify-center pt-3">
+              <div className="bg-muted h-2 w-20 rounded-full" />
+            </div>
+            {/* sr-only for screen readers and accessibility */}
+            <DrawerTitle className="sr-only">Migrate to v4</DrawerTitle>
+            <DrawerDescription className="sr-only">
+              Information about migrating to Langfuse v4 and upcoming
+              deprecations.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="mt-4 max-h-full">
+            <V4MigrationPanel
+              showCloseButton={false}
+              className="h-full pb-20"
+            />
           </div>
         </DrawerContent>
       </Drawer>

@@ -4,26 +4,39 @@ import { logger } from "../logger";
 import {
   transformMediaPayload,
   type MediaDetectionPath,
+  type MediaIgnoredReason,
+  type MediaInvalidReason,
   type MediaPayloadCandidate,
   type MediaPayloadKind,
 } from "../media/MediaPayloadProcessor";
 import type { UploadMediaForTraceResult } from "../media/mediaService";
 
 export type OtelMediaKind = MediaPayloadKind;
+export type OtelMediaWritePath = "direct" | "legacy";
 
-/** A normalized OTEL observation destined for direct events-table storage. */
-export type OtelMediaEvent = {
-  traceId: string;
-  spanId: string;
+/** Mutable input, output, and metadata fields owned by one normalized event. */
+export type OtelMediaPayload = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
 };
 
+/**
+ * Storage context plus the mutable normalized payload to inspect.
+ *
+ * `observationId` is absent for trace-level input, output, and metadata.
+ * Successful media replacements mutate `payload` in place.
+ */
+export type OtelMediaTarget = {
+  traceId: string;
+  observationId?: string;
+  payload: OtelMediaPayload;
+};
+
 export type UploadOtelMedia = (params: {
   projectId: string;
   traceId: string;
-  observationId: string;
+  observationId?: string;
   field: MediaField;
   contentType: MediaContentType;
   contentBytes: Buffer;
@@ -37,8 +50,10 @@ export type OtelMediaProcessResult = {
   uploaded: number;
   /** Candidates already present in media storage and linked without uploading. */
   reused: number;
-  /** Values matching a media shape but failing MIME type or base64 validation. */
+  /** Plausible media values that fail header, base64, or decoding validation. */
   invalid: number;
+  /** Unsupported media types and implausible Data URI prefix matches. */
+  ignored: number;
   /** Valid candidates whose upload or media-link operation failed. */
   failed: number;
   /**
@@ -63,8 +78,9 @@ export type OtelMediaProcessResult = {
 type ProcessContext = {
   projectId: string;
   traceId: string;
-  observationId: string;
+  observationId?: string;
   field: MediaField;
+  writePath: OtelMediaWritePath;
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
@@ -72,8 +88,8 @@ type ProcessContext = {
 };
 
 /**
- * Detects and uploads embedded media for normalized OTEL events that are
- * destined for direct persistence in the events table.
+ * Detects and uploads embedded media for normalized OTEL payloads selected by
+ * either the direct or legacy events-table persistence path.
  *
  * Events, fields, and candidates are processed sequentially to bound peak
  * decoded media memory. Successful replacements mutate each event in place.
@@ -81,17 +97,26 @@ type ProcessContext = {
  * reflected in the returned counters instead of failing the whole run.
  */
 export async function processOtelMedia(params: {
-  events: OtelMediaEvent[];
+  targets: OtelMediaTarget[];
   projectId: string;
+  writePath: OtelMediaWritePath;
   mediaBucket: string;
   mediaPrefix: string;
   uploadMedia: UploadOtelMedia;
 }): Promise<OtelMediaProcessResult> {
-  const { events, projectId, mediaBucket, mediaPrefix, uploadMedia } = params;
+  const {
+    targets,
+    projectId,
+    writePath,
+    mediaBucket,
+    mediaPrefix,
+    uploadMedia,
+  } = params;
   const result: OtelMediaProcessResult = {
     uploaded: 0,
     reused: 0,
     invalid: 0,
+    ignored: 0,
     failed: 0,
     bytesRemoved: 0,
     candidates: 0,
@@ -107,16 +132,17 @@ export async function processOtelMedia(params: {
       structured_payload: 0,
     },
   };
-  for (const event of events) {
+  for (const target of targets) {
     for (const field of ["input", "output", "metadata"] as const) {
-      const originalValue = event[field];
+      const originalValue = target.payload[field];
       if (originalValue == null) continue;
 
       const context: ProcessContext = {
         projectId,
-        traceId: event.traceId,
-        observationId: event.spanId,
+        traceId: target.traceId,
+        observationId: target.observationId,
         field,
+        writePath,
         mediaBucket,
         mediaPrefix,
         uploadMedia,
@@ -124,7 +150,10 @@ export async function processOtelMedia(params: {
       };
       const transformed = await transformMediaPayload(originalValue, {
         processCandidate: (candidate) => processCandidate(candidate, context),
-        onInvalidCandidate: (kind) => recordInvalidCandidate(kind, context),
+        onInvalidCandidate: (kind, reason) =>
+          recordInvalidCandidate(kind, reason, context),
+        onIgnoredCandidate: (kind, reason) =>
+          recordIgnoredCandidate(kind, reason, context),
         onDetectionPath: (path, checkedBytes) =>
           recordDetectionCheck(path, checkedBytes, context),
       });
@@ -132,13 +161,14 @@ export async function processOtelMedia(params: {
       // Structured objects are mutated by transformMediaPayload itself and keep
       // their identity. Strings instead return a new value that must be assigned.
       if (transformed.value !== originalValue) {
-        event[field] = transformed.value;
+        target.payload[field] = transformed.value;
       }
       if (transformed.bytesRemoved > 0) {
         result.bytesRemoved += transformed.bytesRemoved;
         recordDistribution(
           "langfuse.ingestion.otel.media.bytes_removed",
           transformed.bytesRemoved,
+          { write_path: context.writePath },
         );
       }
     }
@@ -164,11 +194,11 @@ async function processCandidate(
         ? Buffer.from(candidate.encodedData, "base64")
         : decodePythonBytesLiteral(candidate.encodedData);
     if (contentBytes.length === 0) {
-      recordInvalidCandidate(candidate.kind, context);
+      recordInvalidCandidate(candidate.kind, "empty_payload", context);
       return;
     }
   } catch {
-    recordInvalidCandidate(candidate.kind, context);
+    recordInvalidCandidate(candidate.kind, "decode_failed", context);
     return;
   }
 
@@ -191,6 +221,7 @@ async function processCandidate(
     recordIncrement("langfuse.ingestion.otel.media", 1, {
       outcome: uploadResult.outcome,
       media_kind: candidate.kind,
+      write_path: context.writePath,
     });
     recordDistribution(
       "langfuse.ingestion.otel.media.byte_length",
@@ -198,6 +229,7 @@ async function processCandidate(
       {
         outcome: uploadResult.outcome,
         media_kind: candidate.kind,
+        write_path: context.writePath,
       },
     );
 
@@ -207,6 +239,7 @@ async function processCandidate(
     recordIncrement("langfuse.ingestion.otel.media", 1, {
       outcome: "failed",
       media_kind: candidate.kind,
+      write_path: context.writePath,
     });
     logger.warn(
       "OTEL media upload failed; leaving normalized value unchanged",
@@ -310,21 +343,39 @@ function recordDetectionCheck(
   context.result.detectionCheckedBytes[path] += checkedBytes;
   recordIncrement("langfuse.ingestion.otel.media.detection_check", 1, {
     path,
+    write_path: context.writePath,
   });
   recordDistribution(
     "langfuse.ingestion.otel.media.detection_check_byte_length",
     checkedBytes,
-    { path },
+    { path, write_path: context.writePath },
   );
 }
 
 function recordInvalidCandidate(
   kind: MediaPayloadKind,
+  reason: MediaInvalidReason,
   context: ProcessContext,
 ): void {
   context.result.invalid += 1;
   recordIncrement("langfuse.ingestion.otel.media", 1, {
     outcome: "invalid",
     media_kind: kind,
+    reason,
+    write_path: context.writePath,
+  });
+}
+
+function recordIgnoredCandidate(
+  kind: MediaPayloadKind,
+  reason: MediaIgnoredReason,
+  context: ProcessContext,
+): void {
+  context.result.ignored += 1;
+  recordIncrement("langfuse.ingestion.otel.media", 1, {
+    outcome: "ignored",
+    media_kind: kind,
+    reason,
+    write_path: context.writePath,
   });
 }
