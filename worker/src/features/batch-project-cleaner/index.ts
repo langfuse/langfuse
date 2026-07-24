@@ -36,16 +36,20 @@ interface ProjectCount {
  *
  * Flow:
  * 1. Query PG for projects with deleted_at set (no lock needed)
- * 2. Query ClickHouse for counts per project (no lock needed)
- * 3. Acquire Redis lock for DELETE only
- * 4. Execute DELETE
- * 5. On failure: re-run count query to determine partial success
+ * 2. Acquire the per-table Redis lock
+ * 3. Query ClickHouse for counts per project
+ * 4. Renew the lock and execute DELETE
+ * 5. On failure: re-run count query before releasing the lock
  */
 export class BatchProjectCleaner extends PeriodicExclusiveRunner {
   private readonly tableName: BatchDeletionTable;
 
   protected get defaultIntervalMs(): number {
     return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+  }
+
+  protected get initialDelayMs(): number {
+    return BATCH_DELETION_TABLES.indexOf(this.tableName) * 10_000;
   }
 
   constructor(tableName: BatchDeletionTable) {
@@ -60,6 +64,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       metricScope: tableName,
       lockKey: `${BATCH_PROJECT_CLEANER_LOCK_PREFIX}:${tableName}`,
       lockTtlSeconds,
+      onUnavailable: "fail",
     });
     this.tableName = tableName;
   }
@@ -102,37 +107,44 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
-    // Step 2: Query ClickHouse for counts per project (no lock needed)
-    let initialCounts: Map<string, number>;
-    try {
-      initialCounts = await this.getProjectCounts(
-        deletedProjects.map((p) => p.id),
-      );
-    } catch (error) {
-      logger.error(
-        `${this.instanceName}: Failed to query ClickHouse counts`,
-        error,
-      );
-      this.markRunFailed(error);
+    if (deletedProjects.length === 0) {
+      logger.info(`${this.instanceName}: No deleted projects found`);
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
     }
 
-    // Filter to only projects that have data
-    const projectIdsWithData = Array.from(initialCounts.entries())
-      .filter(([, count]) => count > 0)
-      .map(([projectId]) => projectId);
+    let deleteAttemptProjectIds: string[] | undefined;
 
-    if (projectIdsWithData.length === 0) {
-      logger.info(
-        `${this.instanceName}: No data found for deleted projects in ${this.tableName}`,
-      );
-      return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
-    }
-
-    // Step 3 & 4: Execute DELETE under distributed lock
+    // Steps 2-5: Keep the entire ClickHouse count/delete cycle under the lock.
     return (
       (await this.withLock(
         async () => {
+          let initialCounts: Map<string, number>;
+          try {
+            initialCounts = await this.getProjectCounts(
+              deletedProjects.map((p) => p.id),
+            );
+          } catch (error) {
+            logger.error(
+              `${this.instanceName}: Failed to query ClickHouse counts`,
+              error,
+            );
+            this.markRunFailed(error);
+            return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+          }
+
+          const projectIdsWithData = Array.from(initialCounts.entries())
+            .filter(([, count]) => count > 0)
+            .map(([projectId]) => projectId);
+
+          if (projectIdsWithData.length === 0) {
+            logger.info(
+              `${this.instanceName}: No data found for deleted projects in ${this.tableName}`,
+            );
+            return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+          }
+
+          await this.extendLockOnProgress(true);
+          deleteAttemptProjectIds = projectIdsWithData;
           await this.executeDelete(projectIdsWithData);
 
           const totalRows = Array.from(initialCounts.values()).reduce(
@@ -148,29 +160,34 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
           return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
         },
         async (error) => {
-          // Step 5: On failure, re-run count query to determine partial success
+          if (!deleteAttemptProjectIds) {
+            return env.LANGFUSE_BATCH_PROJECT_CLEANER_SLEEP_ON_EMPTY_MS;
+          }
+
           recordIncrement("langfuse.batch_project_cleaner.delete_failures", 1, {
             table: this.tableName,
           });
 
           let finalCounts: Map<string, number> | undefined;
           try {
-            finalCounts = await this.getProjectCounts(projectIdsWithData);
+            await this.extendLockOnProgress(true);
+            finalCounts =
+              await this.getProjectCounts(deleteAttemptProjectIds);
           } catch (countError) {
             // Can't determine partial success
             logger.error(
-              `${this.instanceName}: Failed to re-query counts after DELETE failure`,
+              `${this.instanceName}: Failed to renew lock or re-query counts after DELETE failure`,
               countError,
             );
           }
 
           // Calculate projects that couldn't be fully cleaned
           const incompleteProjects = finalCounts
-            ? projectIdsWithData.filter((projectId) => {
+            ? deleteAttemptProjectIds.filter((projectId) => {
                 const finalCount = finalCounts.get(projectId) ?? 0;
                 return finalCount > 0;
               })
-            : projectIdsWithData;
+            : deleteAttemptProjectIds;
 
           if (incompleteProjects.length > 0) {
             recordIncrement(
