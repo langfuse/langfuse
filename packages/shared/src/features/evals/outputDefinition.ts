@@ -18,8 +18,11 @@ export type LegacyEvalOutputDefinition = z.infer<
   typeof LegacyEvalOutputDefinitionSchema
 >;
 
+// Descriptions may be empty: execution falls back to a description generated
+// from the structured fields (data type, bounds, categories) — see
+// getGeneratedScoreDescription / getGeneratedReasoningDescription.
 const EvalOutputFieldDefinitionSchema = z.object({
-  description: z.string().trim().min(1),
+  description: z.string().trim().default(""),
 });
 
 export const MinimumCategoricalCategoryCount = 2;
@@ -69,12 +72,29 @@ export function getCategoricalCategoryRuleViolations(categories: string[]) {
 
 const EvalCategoricalCategorySchema = z.string().trim().min(1);
 
-export const NumericEvalOutputDefinitionV2Schema = z.object({
-  version: z.literal(2),
-  dataType: z.literal(ScoreDataTypeEnum.NUMERIC),
-  reasoning: EvalOutputFieldDefinitionSchema,
-  score: EvalOutputFieldDefinitionSchema,
-});
+export const NumericEvalOutputDefinitionV2Schema = z
+  .object({
+    version: z.literal(2),
+    dataType: z.literal(ScoreDataTypeEnum.NUMERIC),
+    reasoning: EvalOutputFieldDefinitionSchema,
+    score: EvalOutputFieldDefinitionSchema.extend({
+      minValue: z.number().nullish(),
+      maxValue: z.number().nullish(),
+    }),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.score.minValue != null &&
+      value.score.maxValue != null &&
+      value.score.minValue >= value.score.maxValue
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Minimum must be less than maximum",
+        path: ["score", "minValue"],
+      });
+    }
+  });
 export type NumericEvalOutputDefinitionV2 = z.infer<
   typeof NumericEvalOutputDefinitionV2Schema
 >;
@@ -95,8 +115,12 @@ export const CategoricalEvalOutputDefinitionV2Schema = z
     dataType: z.literal(ScoreDataTypeEnum.CATEGORICAL),
     reasoning: EvalOutputFieldDefinitionSchema,
     score: z.object({
-      description: z.string().trim().min(1),
+      description: z.string().trim().default(""),
       categories: z.array(EvalCategoricalCategorySchema),
+      // Optional numeric equivalent per category label — the mapping the
+      // choices UI captures (e.g. frustrated → 0, ok → 1). Kept separate from
+      // `categories` so the public evaluator contract (string[]) is untouched.
+      categoryValues: z.record(z.string(), z.number()).nullish(),
       shouldAllowMultipleMatches: z.boolean().default(false),
     }),
   })
@@ -141,6 +165,8 @@ export type ResolvedEvalOutputDefinition =
       dataType: typeof ScoreDataTypeEnum.NUMERIC;
       reasoningDescription: string;
       scoreDescription: string;
+      minValue: number | null;
+      maxValue: number | null;
     }
   | {
       dataType: typeof ScoreDataTypeEnum.BOOLEAN;
@@ -152,8 +178,58 @@ export type ResolvedEvalOutputDefinition =
       reasoningDescription: string;
       scoreDescription: string;
       categories: string[];
+      categoryValues: Record<string, number> | null;
       shouldAllowMultipleMatches: boolean;
     };
+
+/**
+ * Default score-field description generated from the structured settings
+ * (data type, bounds, single/multi match). Used when the persisted
+ * description is empty — the setup form only asks advanced users to write
+ * one — and as the form's placeholder so users see what the judge will get.
+ */
+export function getGeneratedScoreDescription(params: {
+  dataType: EvalOutputDataType;
+  minValue?: number | null;
+  maxValue?: number | null;
+  shouldAllowMultipleMatches?: boolean;
+}): string {
+  if (params.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return "Return true if the answer satisfies the criteria, otherwise return false.";
+  }
+  if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
+    return params.shouldAllowMultipleMatches
+      ? "Choose one or more categories from the provided list. Only return categories that clearly apply."
+      : "Choose exactly one category from the provided list.";
+  }
+  const { minValue, maxValue } = params;
+  if (minValue != null && maxValue != null) {
+    return `Return a numeric score between ${minValue} and ${maxValue}, where ${minValue} is the worst outcome and ${maxValue} is the best outcome.`;
+  }
+  if (minValue != null) {
+    return `Return a numeric score of ${minValue} or higher, where a higher score is a better outcome.`;
+  }
+  if (maxValue != null) {
+    return `Return a numeric score of ${maxValue} or lower, where a higher score is a better outcome.`;
+  }
+  return "Return a numeric score between 0 and 1, where 0 is the worst outcome and 1 is the best outcome.";
+}
+
+/** Reasoning-field counterpart of getGeneratedScoreDescription. */
+export function getGeneratedReasoningDescription(params: {
+  dataType: EvalOutputDataType;
+  shouldAllowMultipleMatches?: boolean;
+}): string {
+  if (params.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return "Explain briefly why the answer does or does not satisfy the criteria.";
+  }
+  if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
+    return params.shouldAllowMultipleMatches
+      ? "Explain why each selected category applies."
+      : "Explain why the selected category is the best match.";
+  }
+  return "Explain the assigned score in one concise sentence.";
+}
 
 type RawEvalOutputResult = {
   score: number | boolean | string | string[];
@@ -187,13 +263,22 @@ export function resolvePersistedEvalOutputDefinition(
       dataType: ScoreDataTypeEnum.NUMERIC,
       reasoningDescription: outputDefinition.reasoning,
       scoreDescription: outputDefinition.score,
+      minValue: null,
+      maxValue: null,
     };
   }
 
-  if (
-    outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC ||
-    outputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN
-  ) {
+  if (outputDefinition.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return {
+      dataType: outputDefinition.dataType,
+      reasoningDescription: outputDefinition.reasoning.description,
+      scoreDescription: outputDefinition.score.description,
+      minValue: outputDefinition.score.minValue ?? null,
+      maxValue: outputDefinition.score.maxValue ?? null,
+    };
+  }
+
+  if (outputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN) {
     return {
       dataType: outputDefinition.dataType,
       reasoningDescription: outputDefinition.reasoning.description,
@@ -206,6 +291,7 @@ export function resolvePersistedEvalOutputDefinition(
     reasoningDescription: outputDefinition.reasoning.description,
     scoreDescription: outputDefinition.score.description,
     categories: outputDefinition.score.categories,
+    categoryValues: outputDefinition.score.categoryValues ?? null,
     shouldAllowMultipleMatches:
       outputDefinition.score.shouldAllowMultipleMatches,
   };
@@ -214,6 +300,8 @@ export function resolvePersistedEvalOutputDefinition(
 export function createNumericEvalOutputDefinition(params: {
   reasoningDescription: string;
   scoreDescription: string;
+  minValue?: number | null;
+  maxValue?: number | null;
 }) {
   return NumericEvalOutputDefinitionV2Schema.parse({
     version: 2,
@@ -223,6 +311,8 @@ export function createNumericEvalOutputDefinition(params: {
     },
     score: {
       description: params.scoreDescription,
+      minValue: params.minValue ?? null,
+      maxValue: params.maxValue ?? null,
     },
   });
 }
@@ -247,6 +337,7 @@ export function createCategoricalEvalOutputDefinition(params: {
   reasoningDescription: string;
   scoreDescription: string;
   categories: string[];
+  categoryValues?: Record<string, number> | null;
   shouldAllowMultipleMatches?: boolean;
 }) {
   return CategoricalEvalOutputDefinitionV2Schema.parse({
@@ -258,6 +349,7 @@ export function createCategoricalEvalOutputDefinition(params: {
     score: {
       description: params.scoreDescription,
       categories: params.categories,
+      categoryValues: params.categoryValues ?? null,
       shouldAllowMultipleMatches: params.shouldAllowMultipleMatches ?? false,
     },
   });
@@ -266,9 +358,15 @@ export function createCategoricalEvalOutputDefinition(params: {
 function buildResultSchemaForResolvedOutputDefinition(
   resolvedOutputDefinition: ResolvedEvalOutputDefinition,
 ) {
-  const reasoningSchema = z
-    .string()
-    .describe(resolvedOutputDefinition.reasoningDescription);
+  // Empty descriptions fall back to text generated from the structured
+  // settings, so the judge always gets meaningful field instructions.
+  const reasoningDescription =
+    resolvedOutputDefinition.reasoningDescription ||
+    getGeneratedReasoningDescription(resolvedOutputDefinition);
+  const scoreDescription =
+    resolvedOutputDefinition.scoreDescription ||
+    getGeneratedScoreDescription(resolvedOutputDefinition);
+  const reasoningSchema = z.string().describe(reasoningDescription);
 
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.CATEGORICAL) {
     const [firstCategory, ...remainingCategories] =
@@ -302,20 +400,27 @@ function buildResultSchemaForResolvedOutputDefinition(
 
     return z.object({
       reasoning: reasoningSchema,
-      score: scoreSchema.describe(resolvedOutputDefinition.scoreDescription),
+      score: scoreSchema.describe(scoreDescription),
     });
   }
 
   if (resolvedOutputDefinition.dataType === ScoreDataTypeEnum.BOOLEAN) {
     return z.object({
       reasoning: reasoningSchema,
-      score: z.boolean().describe(resolvedOutputDefinition.scoreDescription),
+      score: z.boolean().describe(scoreDescription),
     });
   }
 
+  let numericSchema = z.number();
+  if (resolvedOutputDefinition.minValue != null) {
+    numericSchema = numericSchema.min(resolvedOutputDefinition.minValue);
+  }
+  if (resolvedOutputDefinition.maxValue != null) {
+    numericSchema = numericSchema.max(resolvedOutputDefinition.maxValue);
+  }
   return z.object({
     reasoning: reasoningSchema,
-    score: z.number().describe(resolvedOutputDefinition.scoreDescription),
+    score: numericSchema.describe(scoreDescription),
   });
 }
 

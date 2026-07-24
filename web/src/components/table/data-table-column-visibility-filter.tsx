@@ -9,7 +9,14 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Component, Menu, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Component,
+  Menu,
+  Settings2,
+  X,
+} from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -54,6 +61,7 @@ interface DataTableColumnVisibilityFilterProps<TData, TValue> {
   setColumnVisibility: Dispatch<SetStateAction<VisibilityState>>;
   columnOrder?: ColumnOrderState;
   setColumnOrder?: Dispatch<SetStateAction<ColumnOrderState>>;
+  iconOnly?: boolean;
 }
 
 const calculateColumnCounts = <TData, TValue>(
@@ -295,6 +303,7 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   setColumnVisibility,
   columnOrder,
   setColumnOrder,
+  iconOnly = false,
 }: DataTableColumnVisibilityFilterProps<TData, TValue>) {
   const capture = usePostHogClientCapture();
   const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
@@ -394,9 +403,20 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
     >
       <Drawer modal={false}>
         <DrawerTrigger asChild>
-          <Button variant="outline" title="Show/hide columns">
-            <span>Columns</span>
-            <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
+          <Button
+            variant="outline"
+            size={iconOnly ? "icon-xs" : "default"}
+            title="Configure columns"
+            aria-label={iconOnly ? "Configure columns" : undefined}
+          >
+            {iconOnly ? (
+              <Settings2 className="h-3.5 w-3.5" />
+            ) : (
+              <>
+                <span>Columns</span>
+                <div className="bg-input ml-1 rounded-sm px-1 text-xs">{`${count}/${total}`}</div>
+              </>
+            )}
           </Button>
         </DrawerTrigger>
         <DrawerContent overlayClassName="bg-primary/10">

@@ -873,6 +873,25 @@ describe("processObservationEval", () => {
       );
     });
 
+    it("executes explicit manual evals on internal observations", async () => {
+      const deps = setupExecutableJob("langfuse-in-app-agent");
+
+      await processObservationEval({
+        event: { ...baseEvent, executionMode: "MANUAL" },
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+        deps,
+      });
+
+      expect(runLLMAsJudgeEvaluation).toHaveBeenCalledTimes(1);
+      expect(prisma.jobExecution.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: JobExecutionStatus.CANCELLED,
+          }),
+        }),
+      );
+    });
+
     it("executes evals on sanctioned prompt-experiment targets", async () => {
       const deps = setupExecutableJob("langfuse-prompt-experiment");
 

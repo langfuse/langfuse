@@ -68,7 +68,7 @@ export function ComposerWithPreview(
             "animate-in fade-in-0 duration-150",
           )}
         >
-          <div className={COMPOSER_SURFACE_CLASSES}>
+          <div className={cn(COMPOSER_SURFACE_CLASSES, props.surfaceClassName)}>
             <div className={COMPOSER_TEXT_CLASSES}>
               <ComposerTokens
                 draft={previewText}

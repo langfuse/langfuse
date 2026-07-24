@@ -2,6 +2,7 @@ import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { type ParsedUrlQuery } from "querystring";
+import { type ReactNode } from "react";
 
 export type TabDefinition = {
   value: string;
@@ -18,6 +19,7 @@ export type TabDefinition = {
 export type PageTabsProps = {
   tabs: TabDefinition[];
   activeTab: string;
+  actionButtonsRight?: ReactNode;
   className?: string;
   listClassName?: string;
   /** Horizontal scroll for narrow viewports (mobile). */
@@ -31,16 +33,25 @@ export type PageTabsProps = {
 export const PageTabs = ({
   tabs,
   activeTab,
+  actionButtonsRight,
   className,
   listClassName,
   scrollable = false,
 }: PageTabsProps) => {
   const router = useRouter();
   return (
-    <div className={cn(scrollable && "-mx-1 overflow-x-auto px-1", className)}>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-2",
+        actionButtonsRight ? "min-h-10" : "min-h-8",
+        scrollable && "-mx-1 overflow-x-auto px-1",
+        className,
+      )}
+    >
       <div
         className={cn(
-          "inline-flex h-8 items-center justify-start",
+          "inline-flex items-center justify-start",
+          actionButtonsRight ? "h-10" : "h-8",
           listClassName,
         )}
       >
@@ -82,6 +93,11 @@ export const PageTabs = ({
           );
         })}
       </div>
+      {actionButtonsRight && (
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
+          {actionButtonsRight}
+        </div>
+      )}
     </div>
   );
 };

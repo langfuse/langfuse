@@ -27,7 +27,8 @@ export type InAppAgentScreenContextDescription =
   | { type: "observations-list"; hasAppliedFilters: boolean }
   | { type: "sessions-list"; hasAppliedFilters: boolean }
   | { type: "prompts-list"; hasAppliedFilters: boolean }
-  | { type: "datasets-list"; hasAppliedFilters: boolean };
+  | { type: "datasets-list"; hasAppliedFilters: boolean }
+  | { type: "evaluators-list" };
 
 const CURRENT_URL_CONTEXT_DESCRIPTION = "current_url";
 const QUICK_ACTION_KEY_CONTEXT_DESCRIPTION = "quick_action_key";
@@ -149,6 +150,12 @@ export function getInAppAgentScreenContextDescription(
 
   if (section === "datasets" && !detailId) {
     return { type: "datasets-list", hasAppliedFilters };
+  }
+
+  if (section === "evals") {
+    if (!detailId || (detailId === "v2" && routeSegments.length === 2)) {
+      return { type: "evaluators-list" };
+    }
   }
 
   return { type: "page" };

@@ -289,6 +289,145 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
+
+    it("should record the attached rule that matched", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ environment: "production" });
+      const sampling = {
+        toNumber: () => 1,
+      } as unknown as Prisma.Decimal;
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            evaluationRules: [
+              {
+                id: "staging-rule",
+                enabled: true,
+                targetObject: EvalTargetObject.EVENT,
+                sampling,
+                filter: [
+                  {
+                    column: "environment",
+                    type: "stringOptions",
+                    operator: "any of",
+                    value: ["staging"],
+                  },
+                ],
+              },
+              {
+                id: "production-rule",
+                enabled: true,
+                targetObject: EvalTargetObject.EVENT,
+                sampling,
+                filter: [
+                  {
+                    column: "environment",
+                    type: "stringOptions",
+                    operator: "any of",
+                    value: ["production"],
+                  },
+                ],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ ruleId: "production-rule" }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("should schedule one execution per matching evaluator-rule pair", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const config = createMockConfig({
+        evaluationRules: [
+          {
+            id: "rule-a",
+            enabled: true,
+            targetObject: EvalTargetObject.EVENT,
+            sampling: {
+              toNumber: () => 1,
+            } as unknown as Prisma.Decimal,
+            filter: [],
+          },
+          {
+            id: "rule-b",
+            enabled: true,
+            targetObject: EvalTargetObject.EVENT,
+            sampling: {
+              toNumber: () => 1,
+            } as unknown as Prisma.Decimal,
+            filter: [],
+          },
+        ],
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
+
+      for (const [index, ruleId] of ["rule-a", "rule-b"].entries()) {
+        const jobExecutionId = createW3CTraceId(
+          JSON.stringify([
+            "observation-eval",
+            config.id,
+            ruleId,
+            observation.trace_id,
+            observation.span_id,
+          ]),
+        );
+        expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({ id: jobExecutionId, ruleId }),
+        );
+        expect(schedulerDeps.enqueueEvalJob).toHaveBeenNthCalledWith(
+          index + 1,
+          expect.objectContaining({ jobExecutionId }),
+        );
+      }
+    });
+
+    it("should skip disabled rules without falling back to the evaluator config", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            evaluationRules: [
+              {
+                id: "disabled-rule",
+                enabled: false,
+                targetObject: EvalTargetObject.EVENT,
+                sampling: {
+                  toNumber: () => 1,
+                } as unknown as Prisma.Decimal,
+                filter: [],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).not.toHaveBeenCalled();
+      expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
+    });
   });
 
   describe("sampling", () => {

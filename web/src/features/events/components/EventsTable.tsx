@@ -1,11 +1,22 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import {
   DataTableControlsProvider,
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  type Dispatch,
+  type SetStateAction,
+  type UIEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import {
@@ -68,6 +79,7 @@ import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -223,6 +235,59 @@ export type EventsTableProps = {
   externalFilterState?: FilterState;
   externalDateRange?: TableDateRange;
   limitRows?: number;
+  /**
+   * Embedded previews: paginate with local state (page size given) instead
+   * of URL params, so the host page's query string stays untouched.
+   * Mutually exclusive with limitRows (limitRows wins).
+   */
+  embeddedPageSize?: number;
+  /**
+   * With embeddedPageSize: replace the pagination footer with infinite
+   * scrolling — scrolling near the bottom grows the fetch limit by
+   * embeddedPageSize while the already-loaded rows stay visible.
+   */
+  embeddedInfiniteScroll?: boolean;
+  /**
+   * When set (embedded previews), overrides the stored column visibility:
+   * listed column ids are shown, every other column is hidden.
+   */
+  externalColumnVisibility?: Record<string, boolean>;
+  /**
+   * When set together with `externalColumnVisibility`, renders a columns
+   * picker so users can adjust the pinned set. Rendered into
+   * `columnsPickerContainer` when provided (portal), otherwise in a slim row
+   * above the embedded table.
+   */
+  onExternalColumnVisibilityChange?: Dispatch<
+    SetStateAction<Record<string, boolean>>
+  >;
+  /** External element to render the embedded columns picker into. */
+  columnsPickerContainer?: HTMLElement | null;
+  /**
+   * Keeps column visibility/order state independent when multiple embedded
+   * event tables are mounted for the same project.
+   */
+  tableStateStorageKeySuffix?: string;
+  /**
+   * When set (embedded previews), row clicks call this instead of opening
+   * the peek view.
+   */
+  onExternalRowClick?: (row: EventsTableRow) => void;
+  /**
+   * Single-select row picker (embedded previews): when not undefined, a
+   * leading radio-dot column marks the picked row (`null` = nothing picked
+   * yet) and the picked row is highlighted. Clicking the dot picks without
+   * triggering `onExternalRowClick`'s row behavior.
+   */
+  externalSelectedRowId?: string | null;
+  /** Pick handler for the radio-dot cell (row clicks use onExternalRowClick). */
+  onExternalRowPick?: (row: EventsTableRow) => void;
+  /**
+   * When set (embedded previews), reports the currently displayed rows after
+   * each load, so the embedder can derive state (e.g. sample candidates)
+   * from the same data the preview shows.
+   */
+  onExternalRowsChange?: (rows: EventsTableRow[]) => void;
   sessionId?: string;
   /**
    * When true, render the time-range picker and auto-refresh button in the
@@ -275,6 +340,16 @@ export default function ObservationsEventsTable({
   externalFilterState,
   externalDateRange,
   limitRows,
+  embeddedPageSize,
+  embeddedInfiniteScroll = false,
+  externalColumnVisibility,
+  onExternalColumnVisibilityChange,
+  columnsPickerContainer,
+  tableStateStorageKeySuffix,
+  onExternalRowClick,
+  externalSelectedRowId,
+  onExternalRowPick,
+  onExternalRowsChange,
   sessionId,
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
@@ -321,6 +396,30 @@ export default function ObservationsEventsTable({
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
+  // Embedded previews paginate locally so the host page's URL stays clean.
+  const [embeddedPagination, setEmbeddedPagination] = useState({
+    page: 1,
+    limit: embeddedPageSize ?? 10,
+  });
+  const effectivePagination = limitRows
+    ? { page: 1, limit: limitRows }
+    : embeddedPageSize
+      ? embeddedPagination
+      : paginationState;
+  // A changed filter invalidates the page position (the cursor-style footer
+  // can't auto-reset without a total count), so jump back to page 1. In
+  // infinite mode the grown limit belongs to the old result set, so it
+  // shrinks back to one chunk too.
+  useEffect(() => {
+    setEmbeddedPagination((prev) => {
+      const limit = embeddedInfiniteScroll
+        ? (embeddedPageSize ?? 10)
+        : prev.limit;
+      return prev.page === 1 && prev.limit === limit
+        ? prev
+        : { page: 1, limit };
+    });
+  }, [externalFilterState, embeddedInfiniteScroll, embeddedPageSize]);
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
     "observations",
@@ -787,9 +886,7 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
-    paginationState: limitRows
-      ? { page: 1, limit: limitRows }
-      : paginationState,
+    paginationState: effectivePagination,
     orderByState,
     searchQuery,
     searchType,
@@ -1073,7 +1170,32 @@ export default function ObservationsEventsTable({
   const isMobile = useIsMobile();
   const enableSorting = !hideControls;
 
+  // Single-select sample picker: checkbox styling keeps this consistent with
+  // table selection, while the externally-owned id still permits one sample.
+  // Radix renders a button, so the row-click handler ignores it and picking a
+  // sample does not also open the row peek.
+  const externalRowPickerColumn: LangfuseColumnDef<EventsTableRow> = {
+    accessorKey: "externalRowPicker",
+    id: "externalRowPicker",
+    header: "Sample",
+    size: 55,
+    enableHiding: false,
+    cell: ({ row }) => {
+      const isPicked = row.original.id === externalSelectedRowId;
+      return (
+        <Checkbox
+          checked={isPicked}
+          aria-label={
+            isPicked ? "Selected sample" : "Use this row as the sample"
+          }
+          onCheckedChange={() => onExternalRowPick?.(row.original)}
+        />
+      );
+    },
+  };
+
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
+    ...(externalSelectedRowId !== undefined ? [externalRowPickerColumn] : []),
     ...(hideControls || isMobile ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
@@ -1675,12 +1797,63 @@ export default function ObservationsEventsTable({
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<EventsTableRow>(
-      `eventsColumnVisibility-${projectId}`,
+      `eventsColumnVisibility-${projectId}${
+        tableStateStorageKeySuffix ? `-${tableStateStorageKeySuffix}` : ""
+      }`,
       columns,
     );
 
+  // Embedded previews pin an explicit column set instead of the stored
+  // visibility: listed ids are shown, every other column is hidden.
+  const effectiveColumnVisibility = externalColumnVisibility
+    ? (() => {
+        const visibility: Record<string, boolean> = {};
+        const collect = (defs: LangfuseColumnDef<EventsTableRow>[]) => {
+          for (const def of defs) {
+            const id =
+              def.id ??
+              ("accessorKey" in def && typeof def.accessorKey === "string"
+                ? def.accessorKey
+                : undefined);
+            // Non-hideable columns (e.g. the sample picker) are always shown;
+            // stored visibility maps predate them.
+            if (id)
+              visibility[id] =
+                def.enableHiding === false
+                  ? true
+                  : (externalColumnVisibility[id] ?? false);
+            if (def.columns) collect(def.columns);
+          }
+        };
+        collect(columns);
+        return visibility;
+      })()
+    : columnVisibility;
+
+  // Embedded previews show few narrow columns in a full-width container; the
+  // fixed table layout would stretch all of them proportionally (the date
+  // column balloons). Let the last visible column absorb the leftover space
+  // instead, so the others keep their declared widths and hug the left edge.
+  const displayColumns = (() => {
+    if (!externalColumnVisibility) return columns;
+    const lastVisibleIndex = columns.reduce((acc, def, index) => {
+      const id =
+        def.id ??
+        ("accessorKey" in def && typeof def.accessorKey === "string"
+          ? def.accessorKey
+          : undefined);
+      return id && effectiveColumnVisibility[id] ? index : acc;
+    }, -1);
+    if (lastVisibleIndex < 0) return columns;
+    return columns.map((def, index) =>
+      index === lastVisibleIndex ? { ...def, isFlexWidth: true } : def,
+    );
+  })();
+
   const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
-    `eventsColumnOrder-${projectId}`,
+    `eventsColumnOrder-${projectId}${
+      tableStateStorageKeySuffix ? `-${tableStateStorageKeySuffix}` : ""
+    }`,
     columns,
   );
 
@@ -1803,6 +1976,62 @@ export default function ObservationsEventsTable({
 
     return result;
   }, [observations]);
+
+  // Report loaded rows to embedders; skipped while loading so an embedder
+  // can distinguish "no matches" from "not loaded yet".
+  const observationsStatus = observations.status;
+  useEffect(() => {
+    if (onExternalRowsChange && observationsStatus === "success") {
+      onExternalRowsChange(rows);
+    }
+  }, [onExternalRowsChange, observationsStatus, rows]);
+
+  // Infinite embedded mode: growing the limit refetches the whole page, and
+  // the query reports "loading" while its placeholder data is stale — so the
+  // last loaded rows are kept here and shown during that window, avoiding a
+  // skeleton flash and scroll reset on every load-more.
+  const [lastLoadedRows, setLastLoadedRows] = useState<EventsTableRow[]>([]);
+  const loadMorePendingRef = useRef(false);
+  useEffect(() => {
+    if (!embeddedInfiniteScroll) return;
+    if (observationsStatus === "success") {
+      setLastLoadedRows(rows);
+    }
+    if (observationsStatus !== "loading") {
+      loadMorePendingRef.current = false;
+    }
+  }, [embeddedInfiniteScroll, observationsStatus, rows]);
+  // A filter change starts a new result set: drop the stale rows so the
+  // skeleton shows instead of the old set, and jump back to the top — a
+  // preserved deep scroll position would land mid-list and, via the
+  // browser's scroll clamp, immediately re-trigger load-more.
+  const infiniteScrollWrapperRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    setLastLoadedRows((prev) => (prev.length === 0 ? prev : []));
+    infiniteScrollWrapperRef.current
+      ?.querySelectorAll<HTMLElement>(".overflow-auto")
+      .forEach((el) => {
+        el.scrollTop = 0;
+      });
+  }, [externalFilterState]);
+
+  // Scroll events don't bubble, so the wrapper listens in the capture phase
+  // to observe the scroll container inside DataTable.
+  const handleInfiniteScrollCapture = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (!hasMore || loadMorePendingRef.current) return;
+      const el = event.target;
+      if (!(el instanceof HTMLElement)) return;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 50) {
+        loadMorePendingRef.current = true;
+        setEmbeddedPagination((prev) => ({
+          ...prev,
+          limit: prev.limit + (embeddedPageSize ?? 10),
+        }));
+      }
+    },
+    [hasMore, embeddedPageSize],
+  );
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -2047,7 +2276,7 @@ export default function ObservationsEventsTable({
                 "name",
                 "promptName",
               ]}
-              columnVisibility={columnVisibility}
+              columnVisibility={effectiveColumnVisibility}
               setColumnVisibility={setColumnVisibilityState}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
@@ -2163,6 +2392,33 @@ export default function ObservationsEventsTable({
           </div>
         )}
 
+        {/* Embedded previews hide the full toolbar but can still offer the
+            standard columns picker when the embedder controls visibility —
+            portaled into the embedder's own layout when a container is given. */}
+        {hideControls &&
+          externalColumnVisibility &&
+          onExternalColumnVisibilityChange &&
+          (columnsPickerContainer ? (
+            createPortal(
+              <DataTableColumnVisibilityFilter
+                columns={columns}
+                columnVisibility={effectiveColumnVisibility}
+                setColumnVisibility={onExternalColumnVisibilityChange}
+                iconOnly
+              />,
+              columnsPickerContainer,
+            )
+          ) : (
+            <div className="flex justify-end p-1">
+              <DataTableColumnVisibilityFilter
+                columns={columns}
+                columnVisibility={effectiveColumnVisibility}
+                setColumnVisibility={onExternalColumnVisibilityChange}
+                iconOnly
+              />
+            </div>
+          ))}
+
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
@@ -2186,7 +2442,13 @@ export default function ObservationsEventsTable({
             />
           )}
 
-          <div className="flex flex-1 flex-col overflow-hidden">
+          <div
+            ref={embeddedInfiniteScroll ? infiniteScrollWrapperRef : undefined}
+            className="flex flex-1 flex-col overflow-hidden"
+            onScrollCapture={
+              embeddedInfiniteScroll ? handleInfiniteScrollCapture : undefined
+            }
+          >
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}
@@ -2198,13 +2460,25 @@ export default function ObservationsEventsTable({
               />
             ) : (
               <DataTable
-                key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
+                // Infinite mode needs a stable key: a remount would recreate the
+                // scroll container and reset its position on every load-more.
+                key={
+                  embeddedInfiniteScroll
+                    ? "observations-table-infinite"
+                    : `observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`
+                }
                 tableName="observations"
-                columns={columns}
+                columns={displayColumns}
                 peekView={peekConfig}
                 data={
                   observations.status === "loading" || isViewLoading
-                    ? { isLoading: true, isError: false }
+                    ? lastLoadedRows.length > 0
+                      ? {
+                          isLoading: false,
+                          isError: false,
+                          data: lastLoadedRows,
+                        }
+                      : { isLoading: true, isError: false }
                     : observations.status === "error"
                       ? isSilencedError
                         ? {
@@ -2231,43 +2505,60 @@ export default function ObservationsEventsTable({
                   ) : undefined
                 }
                 pagination={
-                  limitRows
+                  limitRows || embeddedInfiniteScroll
                     ? undefined
                     : {
                         totalCount,
                         hasNextPage: hasMore,
                         hideTotalCount: true,
                         canJumpPages: false,
+                        ...(embeddedPageSize
+                          ? { options: [5, 10, 20, 50] }
+                          : {}),
                         onChange: (updater) => {
                           const newState =
                             typeof updater === "function"
                               ? updater({
-                                  pageIndex: paginationState.page - 1,
-                                  pageSize: paginationState.limit,
+                                  pageIndex: effectivePagination.page - 1,
+                                  pageSize: effectivePagination.limit,
                                 })
                               : updater;
-                          setPaginationState({
+                          (embeddedPageSize
+                            ? setEmbeddedPagination
+                            : setPaginationState)({
                             page: newState.pageIndex + 1,
                             limit: newState.pageSize,
                           });
                         },
                         state: {
-                          pageIndex: paginationState.page - 1,
-                          pageSize: paginationState.limit,
+                          pageIndex: effectivePagination.page - 1,
+                          pageSize: effectivePagination.limit,
                         },
                       }
                 }
-                rowSelection={selectedRows}
+                rowSelection={
+                  // Picker mode: the picked row doubles as the (highlighted)
+                  // selection — bulk selection is off in embedded previews.
+                  externalSelectedRowId !== undefined
+                    ? externalSelectedRowId
+                      ? { [externalSelectedRowId]: true }
+                      : {}
+                    : selectedRows
+                }
                 highlightAllRows={selectAll}
                 setRowSelection={setSelectedRows}
                 setOrderBy={setOrderByState}
                 orderBy={orderByState}
                 columnOrder={columnOrder}
                 onColumnOrderChange={setColumnOrder}
-                columnVisibility={columnVisibility}
+                columnVisibility={effectiveColumnVisibility}
                 onColumnVisibilityChange={setColumnVisibilityState}
                 rowHeight={rowHeight}
                 onRowClick={(row, event) => {
+                  if (onExternalRowClick) {
+                    onExternalRowClick(row);
+                    return;
+                  }
                   // Handle Command/Ctrl+click to open observation in new tab
                   if (event && (event.metaKey || event.ctrlKey)) {
                     // Prevent the default peek behavior

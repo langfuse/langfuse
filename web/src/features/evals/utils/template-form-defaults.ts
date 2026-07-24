@@ -1,37 +1,57 @@
-import { ScoreDataTypeEnum } from "@langfuse/shared";
+import {
+  getGeneratedReasoningDescription,
+  getGeneratedScoreDescription,
+  ScoreDataTypeEnum,
+} from "@langfuse/shared";
 
+// The default descriptions are the generated ones (shared with evaluator
+// execution, which falls back to them when a persisted description is empty).
 export const numericOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.NUMERIC,
-  reasoningDescription: "Explain the assigned score in one concise sentence.",
-  scoreDescription:
-    "Return a numeric score between 0 and 1, where 0 is the worst outcome and 1 is the best outcome.",
+  reasoningDescription: getGeneratedReasoningDescription({
+    dataType: ScoreDataTypeEnum.NUMERIC,
+  }),
+  scoreDescription: getGeneratedScoreDescription({
+    dataType: ScoreDataTypeEnum.NUMERIC,
+  }),
   categories: [] as Array<{ value: string }>,
   shouldAllowMultipleMatches: false,
 };
 
 export const booleanOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.BOOLEAN,
-  reasoningDescription:
-    "Explain briefly why the answer does or does not satisfy the criteria.",
-  scoreDescription:
-    "Return true if the answer satisfies the criteria, otherwise return false.",
+  reasoningDescription: getGeneratedReasoningDescription({
+    dataType: ScoreDataTypeEnum.BOOLEAN,
+  }),
+  scoreDescription: getGeneratedScoreDescription({
+    dataType: ScoreDataTypeEnum.BOOLEAN,
+  }),
   categories: [] as Array<{ value: string }>,
   shouldAllowMultipleMatches: false,
 };
 
 export const categoricalSingleOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
-  reasoningDescription: "Explain why the selected category is the best match.",
-  scoreDescription: "Choose exactly one category from the provided list.",
+  reasoningDescription: getGeneratedReasoningDescription({
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+  }),
+  scoreDescription: getGeneratedScoreDescription({
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+  }),
   categories: [] as Array<{ value: string }>,
   shouldAllowMultipleMatches: false,
 };
 
 export const categoricalMultiOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
-  reasoningDescription: "Explain why each selected category applies.",
-  scoreDescription:
-    "Choose one or more categories from the provided list. Only return categories that clearly apply.",
+  reasoningDescription: getGeneratedReasoningDescription({
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    shouldAllowMultipleMatches: true,
+  }),
+  scoreDescription: getGeneratedScoreDescription({
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    shouldAllowMultipleMatches: true,
+  }),
   categories: [] as Array<{ value: string }>,
   shouldAllowMultipleMatches: true,
 };

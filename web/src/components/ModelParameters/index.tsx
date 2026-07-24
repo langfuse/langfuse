@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -55,87 +55,57 @@ export type ModelParamsContext = {
   isEmbedded?: boolean;
 };
 
-export const ModelParameters: React.FC<ModelParamsContext> = ({
+/**
+ * Standalone trigger + popover for the model's advanced settings (sliders,
+ * provider options, API key info). Extracted so embedded model pickers (e.g.
+ * the evals v2 judge model select) can reuse it next to their own trigger.
+ */
+export function ModelParamsSettingsButton({
   modelParams,
-  availableProviders,
-  availableModels,
-  providerModelCombinations,
   updateModelParamValue,
   setModelParamEnabled,
   formDisabled = false,
-  modelParamsDescription,
-  customHeader,
-  layout = "vertical",
-  isEmbedded = false,
-}) => {
+  align = "end",
+  label,
+  className,
+}: {
+  modelParams: UIModelParams;
+  updateModelParamValue: ModelParamsContext["updateModelParamValue"];
+  setModelParamEnabled?: ModelParamsContext["setModelParamEnabled"];
+  formDisabled?: boolean;
+  align?: "start" | "end";
+  /** When set, renders a labeled button instead of the icon-only square. */
+  label?: string;
+  className?: string;
+}) {
   const projectId = useProjectIdFromURL();
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
-  const [modelSettingsUsed, setModelSettingsUsed] = useState(false);
 
-  // Standalone dialog for the "no providers yet" empty state (renders its own
-  // trigger button, not inside a dropdown).
-  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
-    useState(false);
-  // Coordinates the inline "Add LLM Connection" action inside the combined
-  // provider/model Select (compact layout) — see useAddLlmConnectionSelect.
-  const providerSelect = useAddLlmConnectionSelect();
+  const modelSettingsUsed = Object.keys(modelParams).some(
+    (key) =>
+      !["adapter", "provider", "model"].includes(key) &&
+      modelParams[key as keyof typeof modelParams].enabled,
+  );
 
-  useEffect(() => {
-    const hasEnabledModelSetting = Object.keys(modelParams).some(
-      (key) =>
-        !["adapter", "provider", "model"].includes(key) &&
-        modelParams[key as keyof typeof modelParams].enabled,
-    );
-
-    if (hasEnabledModelSetting) {
-      setModelSettingsUsed(true);
-    } else {
-      setModelSettingsUsed(false);
-    }
-  }, [setModelSettingsUsed, modelParams]);
-
-  if (!projectId) return null;
-
-  if (availableProviders.length === 0) {
-    return (
-      <div className="flex flex-col space-y-4 pr-1">
-        {customHeader ? (
-          customHeader
-        ) : (
-          <div className="flex items-center justify-between">
-            <p className="font-bold">Model</p>
-          </div>
-        )}
-        <p className="text-xs">No LLM API key set in project. </p>
-        <CreateLLMApiKeyDialog
-          open={createLlmApiKeyDialogOpen}
-          setOpen={setCreateLlmApiKeyDialogOpen}
-        />
-      </div>
-    );
-  }
-
-  // Settings button component for reuse
-  const SettingsButton = (
+  return (
     <Popover open={modelSettingsOpen} onOpenChange={setModelSettingsOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="icon"
-          className="relative h-7 w-7"
+          size={label ? "sm" : "icon"}
+          className={cn("relative", label ? "h-8" : "h-7 w-7", className)}
           disabled={formDisabled}
+          aria-label={label ? undefined : "Model parameters"}
+          title={label ? undefined : "Model parameters"}
         >
-          <Settings2 size={14} />
+          <Settings2 size={14} className={label ? "mr-1.5" : undefined} />
+          {label}
           {modelSettingsUsed && (
             <div className="bg-primary absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="p-4"
-        align={layout === "compact" ? "start" : "end"}
-        sideOffset={5}
-      >
+      <PopoverContent className="p-4" align={align} sideOffset={5}>
         <div className="mb-3">
           <h4 className="mb-1 text-sm font-bold">Model Advanced Settings</h4>
           <p className="text-muted-foreground text-xs">
@@ -205,10 +175,66 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             setModelParamEnabled={setModelParamEnabled}
             updateModelParam={updateModelParamValue}
           />
-          <LLMApiKeyComponent {...{ projectId, modelParams }} />
+          {projectId && <LLMApiKeyComponent {...{ projectId, modelParams }} />}
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+export const ModelParameters: React.FC<ModelParamsContext> = ({
+  modelParams,
+  availableProviders,
+  availableModels,
+  providerModelCombinations,
+  updateModelParamValue,
+  setModelParamEnabled,
+  formDisabled = false,
+  modelParamsDescription,
+  customHeader,
+  layout = "vertical",
+  isEmbedded = false,
+}) => {
+  const projectId = useProjectIdFromURL();
+
+  // Standalone dialog for the "no providers yet" empty state (renders its own
+  // trigger button, not inside a dropdown).
+  const [createLlmApiKeyDialogOpen, setCreateLlmApiKeyDialogOpen] =
+    useState(false);
+  // Coordinates the inline "Add LLM Connection" action inside the combined
+  // provider/model Select (compact layout) — see useAddLlmConnectionSelect.
+  const providerSelect = useAddLlmConnectionSelect();
+
+  if (!projectId) return null;
+
+  if (availableProviders.length === 0) {
+    return (
+      <div className="flex flex-col space-y-4 pr-1">
+        {customHeader ? (
+          customHeader
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className="font-bold">Model</p>
+          </div>
+        )}
+        <p className="text-xs">No LLM API key set in project. </p>
+        <CreateLLMApiKeyDialog
+          open={createLlmApiKeyDialogOpen}
+          setOpen={setCreateLlmApiKeyDialogOpen}
+        />
+      </div>
+    );
+  }
+
+  // Settings button component for reuse
+  const SettingsButton = (
+    <ModelParamsSettingsButton
+      modelParams={modelParams}
+      updateModelParamValue={updateModelParamValue}
+      setModelParamEnabled={setModelParamEnabled}
+      formDisabled={formDisabled}
+      align={layout === "compact" ? "start" : "end"}
+    />
   );
 
   // Compact layout - single horizontal row following standard codebase patterns

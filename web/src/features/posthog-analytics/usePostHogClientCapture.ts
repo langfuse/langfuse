@@ -139,6 +139,8 @@ export const events = {
     "update",
     "delete_form_open",
     "delete_evaluator_button_click",
+    "run_scope_attachment_validated",
+    "creation_path_selected",
   ],
   eval_templates: [
     "view_version",
