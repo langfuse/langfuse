@@ -166,6 +166,51 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Checkout Claude observability plugin
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        env:
+          PLUGIN_COMMIT: 9ad0076a7a24e8673ac6e7ac6f7b658b18826bb6
+        run: |
+          set -euo pipefail
+
+          # Clone outside the workspace so the plugin files never show up in
+          # the audit diff that guards the allowed edit surface.
+          plugin_dir="$RUNNER_TEMP/claude-observability-plugin"
+          git clone --no-checkout --depth 1 \
+            https://github.com/langfuse/Claude-Observability-Plugin.git "$plugin_dir"
+          git -C "$plugin_dir" fetch --depth 1 origin "$PLUGIN_COMMIT"
+          git -C "$plugin_dir" checkout "$PLUGIN_COMMIT"
+
+      - name: Install uv
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: "0.11.2"
+
+      - name: Check Claude observability secrets and pre-warm hook
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        env:
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for secret_name in LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY LANGFUSE_BASE_URL; do
+            if [ -z "${!secret_name:-}" ]; then
+              missing+=("$secret_name")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::warning::Langfuse tracing is disabled for this run because these secrets are not set: ${missing[*]}. The audit runs normally without traces; set them in the repository secrets to enable tracing."
+            exit 0
+          fi
+
+          # Pre-warm the uv cache so the first Stop hook does not spend its timeout budget resolving dependencies.
+          uv run --quiet --script "$RUNNER_TEMP/claude-observability-plugin/hooks/langfuse_hook.py" < /dev/null || true
+
       - name: Run Claude price audit
         id: claude-audit
         if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
@@ -177,6 +222,41 @@ jobs:
           anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           github_token: ${{ github.token }}
           display_report: "true"
+          settings: |
+            {
+              "env": {
+                "LANGFUSE_PUBLIC_KEY": "${{ secrets.LANGFUSE_PUBLIC_KEY }}",
+                "LANGFUSE_SECRET_KEY": "${{ secrets.LANGFUSE_SECRET_KEY }}",
+                "LANGFUSE_BASE_URL": "${{ secrets.LANGFUSE_BASE_URL }}",
+                "LANGFUSE_USER_ID": "${{ github.actor }}",
+                "CC_LANGFUSE_DEBUG": "false",
+                "CC_LANGFUSE_MAX_CHARS": "20000",
+                "CC_LANGFUSE_SKILL_TAGS": "true",
+                "CC_LANGFUSE_CAPTURE_SKILL_CONTENT": "false"
+              },
+              "hooks": {
+                "Stop": [
+                  {
+                    "hooks": [
+                      {
+                        "type": "command",
+                        "command": "uv run --quiet --script ${{ runner.temp }}/claude-observability-plugin/hooks/langfuse_hook.py"
+                      }
+                    ]
+                  }
+                ],
+                "SessionEnd": [
+                  {
+                    "hooks": [
+                      {
+                        "type": "command",
+                        "command": "uv run --quiet --script ${{ runner.temp }}/claude-observability-plugin/hooks/langfuse_hook.py"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
           prompt: |
             You are running Langfuse's scheduled default model price audit.
 
@@ -237,7 +317,6 @@ jobs:
             --model ${{ steps.validate-inputs.outputs.claude_model }}
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
             --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
-            --no-session-persistence
             --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:developers.openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"auditDate":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"pullRequestTitle":{"type":"string","maxLength":100},"modelsChecked":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"properties":{"provider":{"type":"string","minLength":1},"model":{"type":"string","minLength":1},"pricingChecked":{"type":"string","minLength":1},"priceConfirmed":{"type":"string","enum":["yes","no"]},"tieringChecked":{"type":"string","minLength":1},"tieringCorrect":{"type":"string","enum":["yes","no","not_applicable"]},"change":{"type":"string","enum":["none","updated","added","unresolved"]},"officialSources":{"type":"array","items":{"type":"string"}},"comments":{"type":"string"}},"required":["provider","model","pricingChecked","priceConfirmed","tieringChecked","tieringCorrect","change","officialSources","comments"]}},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","auditDate","pullRequestTitle","modelsChecked","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
