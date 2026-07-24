@@ -133,7 +133,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+                // forceMount + hide-when-closed: CommentDrawerButton lives in
+                // here, and its deep-link auto-open effect (?comments=open) and
+                // controlled inline-selection flow only work while mounted. A
+                // default Popover unmounts its content when closed (the default
+                // state), silently breaking both. Keep it mounted, just hidden.
+                forceMount
+                className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
                 <NewDatasetItemFromExistingObject
                   traceId={trace.id}
