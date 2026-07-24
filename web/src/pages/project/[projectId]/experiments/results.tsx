@@ -35,6 +35,7 @@ export default function ExperimentResults() {
     setLayout,
     itemVisibility,
     setItemVisibility,
+    allExperimentIds,
   } = useExperimentResultsState();
 
   const [isOverviewOpen, setIsOverviewOpen] = useSessionStorage(
@@ -60,6 +61,28 @@ export default function ExperimentResults() {
     router.replace(`/project/${projectId}/datasets`);
   }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId ||
+      allExperimentIds.length > 0
+    ) {
+      return;
+    }
+
+    // A bare Results URL has no meaningful content. Return to the experiment
+    // list instead of leaving users on an empty comparison screen.
+    router.replace(`/project/${projectId}/experiments`);
+  }, [
+    allExperimentIds.length,
+    isExperimentsBetaActive,
+    isInitializing,
+    projectId,
+    router,
+  ]);
+
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
     {
@@ -72,7 +95,7 @@ export default function ExperimentResults() {
   );
 
   // Show spinner while session loads or while redirecting when beta is off
-  if (!isExperimentsBetaActive) {
+  if (!isExperimentsBetaActive || allExperimentIds.length === 0) {
     return (
       <Page headerProps={{ title: "Experiments" }}>
         <div className="flex h-full items-center justify-center">
