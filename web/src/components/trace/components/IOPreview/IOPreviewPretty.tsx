@@ -109,6 +109,7 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   showCorrections?: boolean;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  searchQuery?: string;
 }
 
 /**
@@ -153,6 +154,7 @@ export function IOPreviewPretty({
   showCorrections = true,
   contentMode = "all",
   showSystemPrompt,
+  searchQuery,
 }: IOPreviewPrettyProps) {
   // Use pre-parsed data if available (from useParsedObservation hook),
   // otherwise parse with size/depth limits to prevent UI freeze
@@ -291,6 +293,7 @@ export function IOPreviewPretty({
             inputMessageCount={inputMessageCount}
             contentMode={contentMode}
             showSystemPrompt={showSystemPrompt}
+            searchQuery={searchQuery}
           />
           {showCorrections && (
             <CorrectedOutputField

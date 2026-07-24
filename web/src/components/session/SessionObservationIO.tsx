@@ -12,13 +12,12 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type ChatMLParserResult } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
+import { SESSION_SEARCH_PREVIEW_DISPLAY_CHARS } from "@/src/components/session/sessionMessageSearchController";
 
 export type SessionTraceObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
 
 /** Display cap of a preview section — matches the server's preview head. */
-const PREVIEW_DISPLAY_CHARS = 4_000;
-
 /**
  * One field of an over-limit observation: a bounded, non-interactive preview
  * head. Never grows with payload size — the display is capped even when the
@@ -39,8 +38,8 @@ const TruncatedIOSection = ({
   if (value === null || value === undefined || value === "") return null;
   const text = typeof value === "string" ? value : JSON.stringify(value);
   const shown =
-    text.length > PREVIEW_DISPLAY_CHARS
-      ? text.slice(0, PREVIEW_DISPLAY_CHARS)
+    text.length > SESSION_SEARCH_PREVIEW_DISPLAY_CHARS
+      ? text.slice(0, SESSION_SEARCH_PREVIEW_DISPLAY_CHARS)
       : text;
 
   return (
@@ -86,6 +85,7 @@ export const SessionObservationIO = ({
   parsedOutput,
   parsedMetadata,
   chatMLParserResult,
+  searchQuery,
 }: {
   observation: SessionTraceObservation;
   projectId: string;
@@ -101,6 +101,7 @@ export const SessionObservationIO = ({
   parsedOutput?: unknown;
   parsedMetadata?: unknown;
   chatMLParserResult?: ChatMLParserResult;
+  searchQuery?: string;
 }) => {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -170,6 +171,7 @@ export const SessionObservationIO = ({
       parsedOutput={parsedOutput}
       parsedMetadata={parsedMetadata}
       chatMLParserResult={chatMLParserResult}
+      searchQuery={searchQuery}
     />
   );
 
