@@ -382,7 +382,7 @@ function MarkdownRenderer({
                   key={Math.random()}
                   language={language}
                   value={codeContent}
-                  theme={theme}
+                  theme={theme === "dark" ? "dark" : "light"}
                   variant={customCodeHeaderVariant}
                 />
               ) : (

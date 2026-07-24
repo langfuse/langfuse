@@ -1,21 +1,27 @@
+import { cva, type VariantProps } from "class-variance-authority";
 import { Button } from "@/src/components/ui/button";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import { useTheme } from "next-themes";
 
-const headerVariantClasses = {
-  default: "bg-secondary",
-  card: "bg-card",
-} as const;
+const headerVariants = cva("flex w-full items-center justify-between px-2", {
+  variants: {
+    variant: {
+      default: "bg-secondary",
+      card: "bg-card",
+    },
+  },
+  defaultVariants: {
+    variant: "default",
+  },
+});
 
-interface Props {
+interface Props extends VariantProps<typeof headerVariants> {
   language: string;
   value: string;
-  theme?: string;
-  variant?: keyof typeof headerVariantClasses;
+  theme?: "light" | "dark";
 }
 
 const CodeBlock: FC<Props> = memo(
@@ -31,12 +37,7 @@ const CodeBlock: FC<Props> = memo(
 
     return (
       <div className="codeblock dark:bg-surface-code relative w-full overflow-hidden rounded border font-sans">
-        <div
-          className={cn(
-            "flex w-full items-center justify-between px-2",
-            headerVariantClasses[variant],
-          )}
-        >
+        <div className={headerVariants({ variant })}>
           <span className="text-xs lowercase">{language}</span>
           <div className="flex items-center py-1">
             <Button
