@@ -206,6 +206,7 @@ export const TraceSidePanelHeader = memo(function TraceSidePanelHeader({
                   ? "min-w-0 truncate text-sm font-bold"
                   : "line-clamp-2 min-w-0 text-sm font-bold break-all md:break-normal md:wrap-break-word"
               }
+              title={observation.name || observation.id}
             >
               {observation.name || observation.id}
             </div>

@@ -142,6 +142,17 @@
   --color-session-tool: var(--session-type-tool);
   --color-session-agent: var(--session-type-agent);
 
+  /* Code-well palette (sessions handoff): I/O frames are DARK in both
+     themes — "code is a well". Values from the handoff CSS. */
+  --color-code-well: var(--session-code-well);
+  --color-code-well-strip: var(--session-code-well-strip);
+  --color-code-well-border: var(--session-code-well-border);
+  --color-code-well-ink: var(--session-code-well-ink);
+  --color-code-well-muted: var(--session-code-well-muted);
+  --color-code-well-bright: var(--session-code-well-bright);
+  --color-code-role-user: var(--session-code-role-user);
+  --color-code-role-assistant: var(--session-code-role-assistant);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -376,6 +387,17 @@
     --session-type-tool: #c17e2e;
     --session-type-agent: oklch(52% 0.17 300);
 
+    /* PROPOSED (review): code-well frame palette — dark wells in light mode
+       too, per the sessions handoff. */
+    --session-code-well: #333333;
+    --session-code-well-strip: #3d3d3d;
+    --session-code-well-border: rgba(69, 69, 64, 0.55);
+    --session-code-well-ink: rgba(255, 252, 242, 0.88);
+    --session-code-well-muted: rgba(255, 252, 242, 0.5);
+    --session-code-well-bright: #fffcf2;
+    --session-code-role-user: #e3a78a;
+    --session-code-role-assistant: #b3abef;
+
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;
     --chart-3: 240 4% 46%;
@@ -559,6 +581,17 @@
     --session-type-generation: #e86b9a;
     --session-type-tool: #e8935a;
     --session-type-agent: oklch(72% 0.13 300);
+
+    /* PROPOSED (review): dark code well recesses to the handoff's #121210
+       canvas tier with the #171714 strip. */
+    --session-code-well: #121210;
+    --session-code-well-strip: #171714;
+    --session-code-well-border: rgba(255, 252, 242, 0.08);
+    --session-code-well-ink: rgba(232, 232, 220, 0.75);
+    --session-code-well-muted: rgba(232, 232, 220, 0.5);
+    --session-code-well-bright: #fffcf2;
+    --session-code-role-user: #e3a78a;
+    --session-code-role-assistant: #b3abef;
 
     --chart-1: 239 84% 58%;
     --chart-2: 188 94% 43%;

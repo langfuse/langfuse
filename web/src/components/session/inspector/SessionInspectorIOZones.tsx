@@ -111,17 +111,14 @@ export const buildSessionIOZonesModel = (
 };
 
 /* Mock code-well palette — dark frames in BOTH themes (the handoff's
-   "code is a well" treatment; values from the handoff CSS). */
-const FRAME =
-  "rounded-sm border border-[rgba(69,69,64,0.55)] bg-[#333333] dark:border-[rgba(255,252,242,0.08)] dark:bg-[#121210]";
-const STRIP = "bg-[#3d3d3d] dark:bg-[#171714]";
-const CODE_INK =
-  "text-[rgba(255,252,242,0.88)] dark:text-[rgba(232,232,220,0.75)]";
-const CODE_MUTED =
-  "text-[rgba(255,252,242,0.5)] dark:text-[rgba(232,232,220,0.5)]";
+   "code is a well" treatment); tokens live in globals.css. */
+const FRAME = "border-code-well-border bg-code-well rounded-sm border";
+const STRIP = "bg-code-well-strip";
+const CODE_INK = "text-code-well-ink";
+const CODE_MUTED = "text-code-well-muted";
 const ROLE_COLORS: Record<string, string> = {
-  user: "text-[#e3a78a]",
-  assistant: "text-[#b3abef]",
+  user: "text-code-role-user",
+  assistant: "text-code-role-assistant",
 };
 
 const ZoneEyebrow = ({ children }: { children: React.ReactNode }) => (
@@ -177,7 +174,7 @@ export function SessionInspectorIOZones({
       typeof rawInput === "string"
         ? rawInput
         : JSON.stringify(rawInput, null, 2);
-    void copyTextToClipboard(text ?? "");
+    copyTextToClipboard(text ?? "").catch(() => undefined);
     setIsCopied(true);
     window.setTimeout(() => setIsCopied(false), 1200);
   };
@@ -198,7 +195,7 @@ export function SessionInspectorIOZones({
               type="button"
               onClick={handleCopy}
               className={cn(
-                "cursor-pointer font-mono text-[10px] hover:text-[#fffcf2]",
+                "hover:text-code-well-bright cursor-pointer font-mono text-[10px]",
                 CODE_MUTED,
               )}
             >
@@ -211,7 +208,7 @@ export function SessionInspectorIOZones({
                 type="button"
                 onClick={() => setShowAllInput(true)}
                 className={cn(
-                  "cursor-pointer self-start font-mono text-[11px] hover:text-[#fffcf2]",
+                  "hover:text-code-well-bright cursor-pointer self-start font-mono text-[11px]",
                   CODE_MUTED,
                 )}
               >
