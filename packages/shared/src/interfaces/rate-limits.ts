@@ -12,6 +12,7 @@ export const RateLimitResource = z.enum([
   "prompts",
   "legacy-ingestion",
   "datasets",
+  "annotation-queues",
   "trace-delete",
   "score-delete",
   "in-app-agent-run",
