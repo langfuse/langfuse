@@ -233,7 +233,16 @@ const generateDatasetQuery = ({
   // CTE to get datasets for given project (same for root and folder queries)
   const datasetsCTE = Prisma.sql`
   filtered_datasets AS (
-   SELECT d.*
+   SELECT
+     d.id,
+     d.name,
+     d.description,
+     d.metadata,
+     d.project_id,
+     d.updated_at,
+     d.created_at,
+     d.input_schema,
+     d.expected_output_schema
    FROM datasets d
    WHERE d.project_id = ${projectId}
      ${pathFilter}
@@ -2300,19 +2309,19 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const { body, headers, sensitiveHeaderNames } =
-        buildRemoteExperimentRequest({
-          storedHeaders: dataset.remoteExperimentRequestHeaders,
-          encryptedSecretKey: dataset.remoteExperimentSecretKey,
-          bodyObject: {
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            datasetName: dataset.name,
-            payload: input.payload ?? dataset.remoteExperimentPayload,
-          },
-        });
-
       try {
+        const { body, headers, sensitiveHeaderNames } =
+          buildRemoteExperimentRequest({
+            storedHeaders: dataset.remoteExperimentRequestHeaders,
+            encryptedSecretKey: dataset.remoteExperimentSecretKey,
+            bodyObject: {
+              projectId: input.projectId,
+              datasetId: input.datasetId,
+              datasetName: dataset.name,
+              payload: input.payload ?? dataset.remoteExperimentPayload,
+            },
+          });
+
         const { response, redirectChain, finalUrl } =
           await fetchWithSecureRedirects(
             dataset.remoteExperimentUrl,
