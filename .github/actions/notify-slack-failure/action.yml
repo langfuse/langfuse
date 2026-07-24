@@ -15,6 +15,108 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Get failure reason
+      id: failure-reason
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPOSITORY: ${{ github.repository }}
+        RUN_ID: ${{ github.run_id }}
+      run: |
+        FAILED_JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate \
+          | jq -sc --arg self_job "$GITHUB_JOB" \
+            '[.[].jobs[] | select(.conclusion == "failure" and .name != $self_job)]')"
+        FAILED_COUNT=$(jq 'length' <<<"$FAILED_JOBS_JSON")
+        MAX_JOBS=3
+        MAX_EXCERPT_LEN=250
+        ESC=$'\033'
+        REASON=""
+
+        # Cap how many failed jobs we pull logs for — a GitHub-wide outage can
+        # fail a dozen unrelated jobs at once, and we don't want to balloon the
+        # Slack message or the API call count for that case. Excludes the
+        # current job itself: the gate jobs that call this action
+        # (all-ci-passed, notify-docker-image-release) deliberately fail
+        # themselves to propagate branch-protection status, which would
+        # otherwise always show up as meaningless noise.
+        while IFS= read -r job; do
+          JOB_ID=$(jq -r '.id' <<<"$job")
+          JOB_NAME=$(jq -r '.name' <<<"$job")
+          FAILED_STEPS=$(jq -r '[.steps[]? | select(.conclusion == "failure") | .name] | join(", ")' <<<"$job")
+
+          JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null || true)"
+
+          # The runner appends post-job cleanup noise (credential teardown,
+          # registry logout, orphan process termination, its own completion
+          # hook) after the real step output. Cut the log off at the first
+          # such marker so the excerpt below isn't swallowed by that noise.
+          CUTOFF_LINE=$(printf '%s\n' "$JOB_LOG" \
+            | grep -n '##\[group\]' \
+            | grep -iE 'post |logout from|job_completed\.sh|complete job|complete runner' \
+            | head -1 | cut -d: -f1)
+          if [ -n "$CUTOFF_LINE" ]; then
+            JOB_LOG_BODY="$(printf '%s\n' "$JOB_LOG" | head -n "$((CUTOFF_LINE - 1))")"
+          else
+            JOB_LOG_BODY="$JOB_LOG"
+          fi
+
+          # Prefer GitHub's own ##[error] annotations when they carry a real
+          # message (e.g. a linter/typechecker). GitHub also auto-emits a
+          # content-free "Process completed with exit code N" on every
+          # failing step, which we ignore since it's never the actual reason
+          # — e.g. test-runner assertions are printed as plain output, not as
+          # an annotation, so those fall through to the raw-tail branch below.
+          EXCERPT="$(printf '%s\n' "$JOB_LOG_BODY" | grep -F '##[error]' | sed -E 's/^.*##\[error\]//' \
+            | grep -vE '^Process completed with exit code [0-9]+\.$' | head -5)"
+          if [ -z "$EXCERPT" ]; then
+            EXCERPT="$(printf '%s\n' "$JOB_LOG_BODY" | tail -n 80 \
+              | grep -vE '^\S+ \[command\]|Removing (SSH command configuration|HTTP extra header|includeIf entries)|Temporarily overriding HOME|Adding repository directory|A job completed hook|Cleaning up orphan processes|Terminate orphan process|No active SSH sessions detected|Docker container caching not enabled|Logging (in to|out of) registry|^\S+ git version|##\[error\]Process completed with exit code|Post job cleanup\.$')"
+          fi
+          # Strip the per-line timestamp GitHub prefixes every log line with,
+          # and any ANSI color codes, so the excerpt is readable in Slack.
+          EXCERPT="$(printf '%s\n' "$EXCERPT" \
+            | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z //' \
+            | sed -E "s/${ESC}\[[0-9;]*[a-zA-Z]//g" \
+            | sed '/^[[:space:]]*$/d' \
+            | tail -n 8)"
+
+          ENTRY="$JOB_NAME"
+          [ -n "$FAILED_STEPS" ] && ENTRY="$ENTRY → $FAILED_STEPS"
+          if [ -n "$EXCERPT" ]; then
+            # Keep the END of the excerpt (not the start) when truncating —
+            # the actual error is at the tail of a step's output, not the start.
+            if [ "${#EXCERPT}" -gt "$MAX_EXCERPT_LEN" ]; then
+              EXCERPT="…${EXCERPT: -$MAX_EXCERPT_LEN}"
+            fi
+            ENTRY="$(printf '%s:\n%s' "$ENTRY" "$EXCERPT")"
+          fi
+
+          if [ -n "$REASON" ]; then
+            REASON="$(printf '%s\n\n%s' "$REASON" "$ENTRY")"
+          else
+            REASON="$ENTRY"
+          fi
+        done < <(jq -c ".[0:$MAX_JOBS][]" <<<"$FAILED_JOBS_JSON")
+
+        if [ "$FAILED_COUNT" -gt "$MAX_JOBS" ]; then
+          REASON="$(printf '%s\n\n…and %s more failed job(s)' "$REASON" "$((FAILED_COUNT - MAX_JOBS))")"
+        fi
+
+        if [ -z "$REASON" ]; then
+          REASON="Unknown (no failed job found via the Actions API — check the workflow run)"
+        fi
+
+        max_len=1200
+        if [ "${#REASON}" -gt "$max_len" ]; then
+          REASON="${REASON:0:$max_len}…"
+        fi
+
+        DELIM="REASON_EOF_${RANDOM}${RANDOM}"
+        {
+          echo "reason<<$DELIM"
+          echo "$REASON"
+          echo "$DELIM"
+        } >> "$GITHUB_OUTPUT"
     - name: Notify Slack
       uses: slackapi/slack-github-action@45a88b9581bfab2566dc881e2cd66d334e621e2c # v3.0.3
       with:
@@ -28,3 +130,4 @@ runs:
           event: "${{ github.event_name }}"
           commit: "${{ github.sha }}"
           workflow_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          failure_reason: "${{ steps.failure-reason.outputs.reason }}"
