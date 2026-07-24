@@ -205,6 +205,14 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(2_000),
+  // Opt-in to filter/script JSONPath expressions (e.g. `$[?(@.role=='user')]`)
+  // in eval variable mapping. Disabled by default so hosted deployments stay
+  // locked down; when enabled, expressions run through jsonpath-plus' sandboxed
+  // `eval: 'safe'` engine (jsep-based, no eval()/Function) rather than being
+  // rejected outright.
+  LANGFUSE_ENABLE_JSONPATH_FILTER_EXPRESSIONS: z
+    .enum(["true", "false"])
+    .default("false"),
   LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
