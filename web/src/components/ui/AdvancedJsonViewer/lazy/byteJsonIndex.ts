@@ -490,9 +490,12 @@ export function parseNumberPreservePrecision(text: string): {
     // Overflows double range (e.g. 1e400) -> keep exact text.
     return { value: t, lossy: true };
   }
-  if (n === 0 && /[1-9]/.test(t)) {
-    // Underflowed to 0 (e.g. 1e-400) but the literal is non-zero — rendering it
-    // as `0` would silently lose the value, so keep the exact text (lossy).
+  // Underflowed to 0 (e.g. 1e-400) but the literal is non-zero — rendering it
+  // as `0` would silently lose the value, so keep the exact text (lossy). Test
+  // only the mantissa (text before the exponent) for a nonzero digit: a genuine
+  // zero in scientific notation (e.g. "0e10", "-0e100") has a nonzero digit in
+  // its exponent but is exactly 0, and must stay a plain `0`.
+  if (n === 0 && /[1-9]/.test(t.split(/[eE]/)[0]!)) {
     return { value: t, lossy: true };
   }
   const lossy = significantDigitCount(t) > DOUBLE_SAFE_SIG_DIGITS;

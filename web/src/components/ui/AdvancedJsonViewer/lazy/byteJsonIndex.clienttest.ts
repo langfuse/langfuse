@@ -238,6 +238,21 @@ describe("byteJsonIndex", () => {
         value: 0,
         lossy: false,
       });
+      // A genuine zero in scientific notation is exactly 0: the nonzero digit
+      // lives in the exponent, not the mantissa, so it must NOT be flagged
+      // lossy (only the mantissa is inspected for underflow).
+      expect(parseNumberPreservePrecision("0e10")).toEqual({
+        value: 0,
+        lossy: false,
+      });
+      expect(parseNumberPreservePrecision("-0e100")).toEqual({
+        value: -0,
+        lossy: false,
+      });
+      expect(parseNumberPreservePrecision("0.0e12")).toEqual({
+        value: 0,
+        lossy: false,
+      });
     });
   });
 
