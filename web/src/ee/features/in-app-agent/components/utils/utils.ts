@@ -219,6 +219,7 @@ export function getDrawerMessages({
     ? new Set(runningToolCallIds)
     : null;
   const mappedPendingApprovalIds = new Set<string>();
+  const mappedToolCallIds = new Set<string>();
 
   const mappedMessages: InAppAgentWindowMessage[] = [];
   let pendingTools: InAppAgentToolCallContent[] = [];
@@ -327,6 +328,11 @@ export function getDrawerMessages({
       message.role === "assistant"
         ? (message.toolCalls?.flatMap(
             (toolCall): InAppAgentToolCallContent[] => {
+              if (mappedToolCallIds.has(toolCall.id)) {
+                return [];
+              }
+              mappedToolCallIds.add(toolCall.id);
+
               if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
                 return [];
               }

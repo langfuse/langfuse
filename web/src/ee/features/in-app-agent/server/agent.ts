@@ -15,7 +15,10 @@ import {
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
-import { createManualToolApprovalRunInput } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import {
+  createManualToolApprovalRunInput,
+  parseInAppAgentInterruptEvent,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -299,6 +302,7 @@ export async function createAgUiStream(params: {
     start(controller) {
       let streamedRunError: string | null = null;
       let streamedRunErrorHandled = false;
+      let hasPendingToolApproval = false;
 
       const failStream = (error: unknown, eventType?: string) => {
         if (closed) {
@@ -555,7 +559,18 @@ export async function createAgUiStream(params: {
               const agUiEvents = normalizeAdapterEvent(
                 event satisfies AgUiEvent,
                 params.input,
-              );
+              ).filter((agUiEvent) => {
+                if (!parseInAppAgentInterruptEvent(agUiEvent)) {
+                  return true;
+                }
+
+                if (hasPendingToolApproval) {
+                  return false;
+                }
+
+                hasPendingToolApproval = true;
+                return true;
+              });
 
               instrumentation?.recordEvents(agUiEvents);
 

@@ -426,6 +426,17 @@ export default async function handler(request: Request) {
             pendingToolApprovalConsumed = true;
           }
 
+          // A new run supersedes any still-pending approvals (for a resume,
+          // its own approval was consumed above): the continuation re-requests
+          // whatever is still needed, and a stale approval must not remain
+          // resumable against a conversation that has moved on.
+          await prisma.inAppAgentPendingToolApproval.deleteMany({
+            where: {
+              projectId,
+              conversationId: conversation.id,
+            },
+          });
+
           const finishCurrentRun = (error?: {
             errorCode: InAppAgentRunErrorCode;
             errorMessage: string;
