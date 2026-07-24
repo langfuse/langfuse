@@ -136,6 +136,9 @@ const EnvSchema = z.object({
   // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
   // and avoid overwhelming the target instance (see issue #12786).
   LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
+  // this bounds the export rate for fast-acknowledging target instances.
+  LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
   LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
@@ -496,24 +499,30 @@ const EnvSchema = z.object({
     .default(5),
 
   // V4 migration flags. See LFE-9778.
+  // Defaults reflect the Langfuse v4 target state: net-new deployments write
+  // straight into the events tables. The v3 line ships these as `legacy` /
+  // `dual_write` / `false`; local dev and CI pin explicit values via
+  // .env.dev*.example, so these defaults only apply to bare deployments.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
     .enum(["legacy", "dual", "events_only"])
-    .default("legacy"),
+    .default("events_only"),
   LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
     .enum(["dual_write", "direct"])
-    .default("dual_write"),
+    .default("direct"),
   LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
 
   // Background-migration env gates. Names share the LANGFUSE_BACKGROUND_MIGRATION_
   // prefix so the BackgroundMigrationManager can discover them by scanning env
   // keys; each gates one or more rows in the background_migrations table via
-  // `args.envGate`. Default to "false" so dormant migrations only run when the
-  // operator explicitly opts in.
+  // `args.envGate`. The historic backfill defaults on in v4 (it is a no-op for
+  // net-new deployments with no legacy data); the pid/tid sorting-table cleanup
+  // stays opt-in so its intermediate artifacts are only dropped once the
+  // operator confirms the backfill succeeded.
   LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
     .enum(["true", "false"])
     .default("false"),

@@ -46,14 +46,15 @@ export default function EvaluationRulesPage() {
           tabs: getEvalsV2Tabs(projectId),
           activeTab: EVALS_V2_TABS.RULES,
           actionButtonsRight: (
-            <ActionButton
-              hasAccess={hasWriteAccess}
-              icon={<Plus className="h-4 w-4" />}
-              className="-translate-y-2"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              New rule
-            </ActionButton>
+            <div className="-translate-y-2">
+              <ActionButton
+                hasAccess={hasWriteAccess}
+                icon={<Plus className="h-4 w-4" />}
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                New rule
+              </ActionButton>
+            </div>
           ),
         },
       }}

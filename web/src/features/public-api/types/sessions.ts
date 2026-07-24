@@ -1,5 +1,6 @@
 import { APITrace } from "@/src/features/public-api/types/traces";
 import {
+  deprecationResponseZod,
   paginationMetaResponseZod,
   publicApiPaginationZod,
 } from "@langfuse/shared";
@@ -35,6 +36,7 @@ export const GetSessionsV1Response = z
   .object({
     data: z.array(APISession),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -44,4 +46,5 @@ export const GetSessionV1Query = z.object({
 });
 export const GetSessionV1Response = APISession.extend({
   traces: z.array(APITrace),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();

@@ -56,6 +56,7 @@ import {
   GUTTER_VISUAL_DEPTH,
 } from "../_shared/visual-depth";
 import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
+import { useMobileLayoutContextOptional } from "../_layout/TraceLayoutMobile";
 import { type TreeNode } from "../../lib/types";
 import { cn } from "@/src/utils/tailwind";
 
@@ -247,6 +248,9 @@ export function TraceTimeline() {
   const analyticsDimensions = useTraceAnalyticsDimensions();
   // Optional (null in the mobile layout): reopen the detail panel on select.
   const layout = useDesktopLayoutContextOptional();
+  // Optional (null on desktop): its presence also means the timeline is
+  // rendered inside a narrow mobile tab, and selecting jumps to the Info tab.
+  const mobileLayout = useMobileLayoutContextOptional();
 
   // The chart is the single vertical scroller; the gutter content is a one-way
   // transform projection of it (gutterInnerRef), so the two panes can't drift.
@@ -258,8 +262,14 @@ export function TraceTimeline() {
   // whole row (caption + chart), which CSS :hover can't do across two panes.
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
-  // Resizable name gutter so users can trade name space for chart space.
-  const [gutterWidth, setGutterWidth] = useState(GUTTER_WIDTH_DEFAULT);
+  // Resizable name gutter so users can trade name space for chart space. On
+  // mobile the timeline lives in a narrow tab, so start the gutter at its MIN
+  // and let the waterfall (the point of the timeline) claim the rest — the
+  // chart pane keeps its own horizontal scroll, so the bars scroll within the
+  // tab instead of overflowing the page.
+  const [gutterWidth, setGutterWidth] = useState(() =>
+    mobileLayout ? GUTTER_WIDTH_MIN : GUTTER_WIDTH_DEFAULT,
+  );
   const startGutterResize = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
@@ -525,8 +535,10 @@ export function TraceTimeline() {
       // Reopen the detail panel on any select — including re-clicking the
       // already-selected row, where the URL param wouldn't fire an effect.
       layout?.expandDetailPanel();
+      // Mobile: jump to the Info tab on the same re-click path (no-op on desktop).
+      mobileLayout?.switchToInfoTab();
     },
-    [setSelectedNodeId, layout, capture, analyticsDimensions],
+    [setSelectedNodeId, layout, mobileLayout, capture, analyticsDimensions],
   );
   const handleHoverNode = useCallback(
     (node: TreeNode) => {

@@ -10,13 +10,14 @@ export function EvaluatorCreateButton({
   onStartFromTemplate: () => void;
 }) {
   return (
-    <ActionButton
-      hasAccess={hasWriteAccess}
-      icon={<Plus className="h-4 w-4" />}
-      className="-translate-y-2"
-      onClick={onStartFromTemplate}
-    >
-      New evaluator
-    </ActionButton>
+    <div className="-translate-y-2">
+      <ActionButton
+        hasAccess={hasWriteAccess}
+        icon={<Plus className="h-4 w-4" />}
+        onClick={onStartFromTemplate}
+      >
+        New evaluator
+      </ActionButton>
+    </div>
   );
 }

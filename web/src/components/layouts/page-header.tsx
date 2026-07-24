@@ -1,4 +1,5 @@
-import { EnvLabel } from "@/src/components/EnvLabel";
+import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
+import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
@@ -32,6 +33,13 @@ export type PageHeaderProps = {
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
+  /** Mobile-only: the same actions rendered as full-width labeled menu rows
+   * (icon + label), for the compact header's `⋯` overflow. Pages pass a
+   * `layout="menu"` variant of their actions here (mirrors the table peek's
+   * `actionsMenu`). When omitted, the mobile header falls back to folding the
+   * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
+   * `PageHeader` ignores this. */
+  actionButtonsMenu?: React.ReactNode;
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
@@ -64,6 +72,7 @@ const PageHeader = ({
   breadcrumbBadges,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
+  const envLabel = useEnvLabel();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -108,7 +117,12 @@ const PageHeader = ({
                 )
               )}
               <div>
-                <EnvLabel />
+                {envLabel.visible && (
+                  <EnvLabelBadge
+                    region={envLabel.region}
+                    onClick={envLabel.dismiss}
+                  />
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />

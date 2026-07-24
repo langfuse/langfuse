@@ -129,17 +129,18 @@ export default function ConfigureRetention() {
                 </FormItem>
               )}
             />
-            <ActionButton
-              variant="secondary"
-              hasAccess={hasAccess}
-              hasEntitlement={hasEntitlement}
-              loading={setRetention.isPending}
-              disabled={form.getValues().retention === null}
-              className="mt-4"
-              type="submit"
-            >
-              Save
-            </ActionButton>
+            <div className="mt-4">
+              <ActionButton
+                variant="secondary"
+                hasAccess={hasAccess}
+                hasEntitlement={hasEntitlement}
+                loading={setRetention.isPending}
+                disabled={form.getValues().retention === null}
+                type="submit"
+              >
+                Save
+              </ActionButton>
+            </div>
           </form>
         </Form>
       </Card>

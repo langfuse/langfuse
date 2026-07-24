@@ -2,6 +2,13 @@ import { logger, getCurrentSpan } from "@langfuse/shared/src/server";
 import { PeriodicRunner } from "./PeriodicRunner";
 import { OnUnavailableBehavior, RedisLock } from "./RedisLock";
 
+export class PeriodicExclusiveRunnerLeaseLostError extends Error {
+  constructor(runnerName: string) {
+    super(`${runnerName} lost its lease`);
+    this.name = "PeriodicExclusiveRunnerLeaseLostError";
+  }
+}
+
 /**
  * Abstract base class for periodic tasks that require distributed locking.
  *
@@ -14,20 +21,29 @@ import { OnUnavailableBehavior, RedisLock } from "./RedisLock";
 export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
   protected readonly instanceName: string;
   protected readonly lock: RedisLock;
+  private readonly lockExtensionMinIntervalMs: number;
+  private lastLockExtensionAt = 0;
+  private lockExtensionInFlight: Promise<void> | null = null;
 
   constructor(params: {
     name: string;
+    metricName: string;
+    metricScope?: string;
     lockKey: string;
     lockTtlSeconds: number;
     onUnavailable?: OnUnavailableBehavior;
   }) {
-    super();
+    super(params.metricName, params.metricScope);
     this.instanceName = params.name;
     this.lock = new RedisLock(params.lockKey, {
       ttlSeconds: params.lockTtlSeconds,
       name: params.name,
       onUnavailable: params.onUnavailable || "proceed",
+      onError: (error) => this.markRunFailed(error),
     });
+    this.lockExtensionMinIntervalMs = Math.floor(
+      (params.lockTtlSeconds * 1000) / 3,
+    );
   }
 
   protected get name(): string {
@@ -47,6 +63,39 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
   }
 
   /**
+   * Renew the lease when work advances, without issuing one Redis command per
+   * progress event. Concurrent callers share the same renewal.
+   */
+  protected async extendLockOnProgress(force = false): Promise<void> {
+    if (
+      !force &&
+      Date.now() - this.lastLockExtensionAt < this.lockExtensionMinIntervalMs
+    ) {
+      return;
+    }
+
+    if (this.lockExtensionInFlight) {
+      return this.lockExtensionInFlight;
+    }
+
+    const extension = (async () => {
+      if (!(await this.lock.extend())) {
+        throw new PeriodicExclusiveRunnerLeaseLostError(this.instanceName);
+      }
+      this.lastLockExtensionAt = Date.now();
+    })();
+    this.lockExtensionInFlight = extension;
+
+    try {
+      await extension;
+    } finally {
+      if (this.lockExtensionInFlight === extension) {
+        this.lockExtensionInFlight = null;
+      }
+    }
+  }
+
+  /**
    * Execute operation under distributed lock.
    * Returns operation result, onFailure result, or undefined if lock not acquired.
    */
@@ -55,11 +104,13 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
     onFailure?: (error: unknown) => T | Promise<T | void> | void,
   ): Promise<T | undefined> {
     const result = await this.lock.withLock(async () => {
+      this.lastLockExtensionAt = 0;
       try {
         return await operation();
       } catch (error) {
         logger.error(`${this.instanceName}: Operation failed`, { error });
-        // Error will be traced by parent instrumentAsync in PeriodicRunner
+        // This error is intentionally handled below, so instrumentAsync will not see it.
+        this.markRunFailed(error);
         return await onFailure?.(error);
       }
     });
@@ -70,6 +121,7 @@ export abstract class PeriodicExclusiveRunner extends PeriodicRunner {
     span?.setAttribute("lock.key", this.lock.key);
 
     if (result === null) {
+      this.markRunSkipped();
       logger.debug(
         `${this.instanceName}: Lock not acquired, another worker is processing`,
       );

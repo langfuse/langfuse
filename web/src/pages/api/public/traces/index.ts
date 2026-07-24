@@ -32,6 +32,7 @@ import {
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
@@ -80,6 +81,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      deprecation: TRACES_DEPRECATION,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {

@@ -70,6 +70,7 @@ import {
   BaseError,
   ForbiddenError,
   type FilterState,
+  InAppAgentRunErrorCode,
   InvalidRequestError,
   LangfuseNotFoundError,
   type RateLimitResult,
@@ -79,6 +80,7 @@ import {
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  addUserToSpan,
   logger,
   redis,
   TableViewService,
@@ -105,6 +107,11 @@ export default async function handler(request: Request) {
 
     const user = session.user;
     const userId = user.id;
+
+    addUserToSpan({
+      userId,
+      email: user.email ?? undefined,
+    });
 
     if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
       throw new BaseError(
@@ -243,13 +250,21 @@ export default async function handler(request: Request) {
       false,
     );
 
-    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
-    const rateLimitScope = getInAppAgentRateLimitScope(
+    const rateLimitScope = getInAppAgentApiAccessScope(
       user,
       projectId,
       project.organization,
     );
 
+    addUserToSpan({
+      userId,
+      email: user.email ?? undefined,
+      projectId: rateLimitScope.projectId ?? undefined,
+      orgId: rateLimitScope.orgId,
+      plan: rateLimitScope.plan,
+    });
+
+    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitResponse = await rateLimitInAppAgentRequest(
       rateLimitScope,
       "in-app-agent-run",
@@ -412,7 +427,7 @@ export default async function handler(request: Request) {
           }
 
           const finishCurrentRun = (error?: {
-            errorCode: string;
+            errorCode: InAppAgentRunErrorCode;
             errorMessage: string;
           }) =>
             finishRun({
@@ -491,7 +506,7 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "cancelled",
+                      errorCode: InAppAgentRunErrorCode.CANCELLED,
                       errorMessage: "Client aborted request",
                     }),
                   ),
@@ -500,7 +515,7 @@ export default async function handler(request: Request) {
                   .then(() => restorePendingToolApprovalIfRetryable())
                   .finally(() =>
                     finishCurrentRun({
-                      errorCode: "agent_error",
+                      errorCode: InAppAgentRunErrorCode.AGENT_ERROR,
                       errorMessage:
                         error instanceof Error
                           ? error.message
@@ -601,7 +616,7 @@ export default async function handler(request: Request) {
               prisma,
               runId: sanitizedInput.runId,
               projectId,
-              errorCode: "init_failed",
+              errorCode: InAppAgentRunErrorCode.INIT_FAILED,
               errorMessage:
                 error instanceof Error
                   ? error.message
@@ -661,7 +676,7 @@ function getInAppAgentUserAccess(
   };
 }
 
-function getInAppAgentRateLimitScope(
+function getInAppAgentApiAccessScope(
   user: SessionUser,
   projectId: string,
   projectOrganization: {

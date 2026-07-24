@@ -91,6 +91,7 @@ export const env = createEnv({
       )
       .optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
+    LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
@@ -450,10 +451,11 @@ export const env = createEnv({
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
 
-    // V4 preview opt-in. See LFE-9778.
+    // V4 preview opt-in. See LFE-9778. Defaults on for the v4 target state so
+    // the events read paths are available out of the box (v3 shipped "false").
     LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
       .enum(["true", "false"])
-      .default("false"),
+      .default("true"),
 
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
@@ -463,9 +465,11 @@ export const env = createEnv({
     // public API routes that rely on the legacy traces/observations tables.
     // The worker owns the writes; the web only needs to know whether legacy
     // tables are still being populated to decide whether to serve reads.
+    // Defaults to `events_only` for the v4 target state (v3 shipped `legacy`);
+    // keep this value in sync with worker/src/env.ts and packages/shared/src/env.ts.
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
-      .default("legacy"),
+      .default("events_only"),
 
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
@@ -590,6 +594,8 @@ export const env = createEnv({
     LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION:
       process.env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
+    LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK:
+      process.env.LANGFUSE_FEEDBACK_INTAKE_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,

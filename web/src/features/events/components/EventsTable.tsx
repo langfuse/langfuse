@@ -62,8 +62,13 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import {
   toAbsoluteTimeRange,
   type TableDateRange,
+  TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TimeRangePicker } from "@/src/components/date-picker";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { type ScoreAggregate } from "@langfuse/shared";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -74,7 +79,7 @@ import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Badge } from "@/src/components/ui/badge";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { type RowSelectionState } from "@tanstack/react-table";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -126,6 +131,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import {
   observedScoreNamesFromOptions,
@@ -1157,6 +1163,11 @@ export default function ObservationsEventsTable({
     },
   ];
 
+  // Mobile collapses the whole toolbar away, so the batch-action surface (the
+  // action menu + select-all banner it hosts) is gone — orphan selection
+  // checkboxes would do nothing. Omit the select column on mobile until a
+  // dedicated mobile action affordance exists.
+  const isMobile = useIsMobile();
   const enableSorting = !hideControls;
 
   // Single-select sample picker: checkbox styling keeps this consistent with
@@ -1177,9 +1188,6 @@ export default function ObservationsEventsTable({
           aria-label={
             isPicked ? "Selected sample" : "Use this row as the sample"
           }
-          title={
-            isPicked ? "This row is the sample" : "Use this row as the sample"
-          }
           onCheckedChange={() => onExternalRowPick?.(row.original)}
         />
       );
@@ -1188,7 +1196,7 @@ export default function ObservationsEventsTable({
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(externalSelectedRowId !== undefined ? [externalRowPickerColumn] : []),
-    ...(hideControls ? [] : [selectActionColumn]),
+    ...(hideControls || isMobile ? [] : [selectActionColumn]),
     {
       accessorKey: "startTime",
       id: "startTime",
@@ -2051,17 +2059,153 @@ export default function ObservationsEventsTable({
     setInterval: setRefreshInterval,
   };
 
+  // Mobile collapses the whole toolbar into one Filters bottom sheet. Desktop
+  // (≥768px) is byte-identical to before — everything below is gated on
+  // `isMobile`, declared above near the column list.
+  // Count shown on the mobile Filters trigger. Same source as the desktop
+  // rail's active-facet count — distinct filtered COLUMNS (a facet can emit
+  // several FilterState entries) — plus free-text search, which now also lives
+  // in the sheet.
+  const mobileActiveFilterCount =
+    new Set(
+      (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
+    ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
+
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {showControlsInPageHeader && !hideControls && (
+        {showControlsInPageHeader && !hideControls && !isMobile && (
           <TableHeaderControls
             timeRange={timeRange}
             setTimeRange={setTimeRange}
             refresh={refreshConfig}
           />
         )}
-        {!hideControls && (
+        {/* Mobile: a single toolbar row — Filters(N) sheet trigger + view-mode
+            toggle. Search, time range, preset chips, saved views and the facet
+            sidebar all move INTO the sheet (same controllers, hosted there).
+            Columns / row-height / export are omitted on the card list. */}
+        {!hideControls && isMobile && (
+          <div className="my-2 flex items-center gap-2 px-2">
+            <MobileFiltersSheet
+              activeCount={mobileActiveFilterCount}
+              resultCount={totalCount}
+              onClearAll={() => {
+                queryFilter.clearAll();
+                setSearchQuery("");
+              }}
+              search={
+                searchBarMode ? (
+                  <EventsSearchBarRow
+                    projectId={projectId}
+                    tableName={eventsFilterConfig.tableName}
+                    store={searchBarStore}
+                    commit={searchBarCommit}
+                    observed={observedOptions}
+                    erroredColumns={erroredColumns}
+                    fieldReason={
+                      chartActive ? chartSearchFieldReason : undefined
+                    }
+                    freeTextReason={
+                      chartFreeTextIgnored
+                        ? CHART_SEARCH_QUERY_REASON
+                        : undefined
+                    }
+                    onApplyFilters={searchBarApplyFilters}
+                    onRequestColumns={requestColumns}
+                    aiDataContext={aiDataContext}
+                    aiScoreNames={aiScoreNames}
+                    // Flush inside the sheet: the section container owns the
+                    // padding, so the bar lines up with time range / presets.
+                    className="p-0"
+                  />
+                ) : (
+                  // No grammar bar (userId/sessionId-scoped tables): fall back
+                  // to the legacy full-text search so mobile keeps the search
+                  // desktop has via the toolbar's searchConfig (LFE-11067).
+                  <MobileFullTextSearch
+                    currentQuery={searchQuery ?? undefined}
+                    updateQuery={setSearchQuery}
+                    tableAllowsFullTextSearch
+                    metadataSearchFields={["ID", "Name", "Trace Name", "Model"]}
+                  />
+                )
+              }
+              headerControls={
+                // Compact time-range + refresh, pulled up into the sheet's
+                // header row so the body is a single uninterrupted scroll.
+                <div className="flex min-w-0 items-center gap-1">
+                  <TimeRangePicker
+                    compact
+                    timeRange={timeRange}
+                    onTimeRangeChange={setTimeRange}
+                    timeRangePresets={TABLE_AGGREGATION_OPTIONS}
+                    className="my-0"
+                  />
+                  <DataTableRefreshButton
+                    compact
+                    onRefresh={refreshConfig.onRefresh}
+                    isRefreshing={refreshConfig.isRefreshing}
+                    interval={refreshConfig.interval}
+                    setInterval={refreshConfig.setInterval}
+                  />
+                </div>
+              }
+              presets={
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <CategoryPresetChips
+                    projectId={projectId}
+                    activeViewId={
+                      viewControllers.appliedViewId ??
+                      viewControllers.selectedViewId
+                    }
+                    onApplyView={viewControllers.handleSetViewId}
+                    applyViewState={viewControllers.applyViewState}
+                    onPreviewView={previewViewInSearchBar}
+                  />
+                )
+              }
+              savedViews={
+                tableStatePolicy.disableSavedViews ? undefined : (
+                  <TableViewPresetsDrawer
+                    viewConfig={{
+                      tableName: TableViewPresetTableName.ObservationsEvents,
+                      projectId,
+                      controllers: viewControllers,
+                    }}
+                    currentState={{
+                      orderBy: orderByState ?? null,
+                      filters: queryFilter.explicitFilterState ?? [],
+                      columnOrder,
+                      columnVisibility,
+                      searchQuery: searchQuery ?? "",
+                    }}
+                  />
+                )
+              }
+              facets={
+                <DataTableControls
+                  key={viewControllers.selectedViewId ?? "no-view"}
+                  queryFilter={queryFilter}
+                  filterWithAI={!searchBarMode}
+                  blockedColumnReason={
+                    chartActive ? chartFilterExclusionReason : undefined
+                  }
+                  // inline: flow at natural height in the sheet's single scroll
+                  // (no internal ScrollArea). Desktop sidebar stays default.
+                  layout="inline"
+                />
+              }
+            />
+            {chartEnabled && (
+              <ViewModeToggle
+                mode={chartViewMode}
+                onModeChange={setChartViewMode}
+              />
+            )}
+          </div>
+        )}
+        {!hideControls && !isMobile && (
           <div
             className={cn(
               // This is a table-internal sticky band below PageHeader. Using
@@ -2278,7 +2422,10 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
-          {!hideControls && (
+          {/* On mobile the facet sidebar moves into the Filters sheet above,
+              so it is not rendered inline here (leaving only the table content
+              in the layout). */}
+          {!hideControls && !isMobile && (
             <DataTableControls
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.selectedViewId ?? "no-view"}
