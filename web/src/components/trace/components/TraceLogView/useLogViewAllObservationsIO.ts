@@ -49,7 +49,13 @@ export function getObservationQueryKey(
   return [
     ["observations", "byId"],
     {
-      input: { observationId, traceId, projectId, startTime },
+      input: {
+        observationId,
+        traceId,
+        projectId,
+        startTime,
+        verbosity: "truncated",
+      },
       type: "query",
     },
   ];
@@ -200,6 +206,7 @@ export function useLogViewAllObservationsIO({
                 traceId,
                 projectId,
                 startTime: item.node.startTime,
+                verbosity: "truncated",
               });
 
               const baseData: ObservationIOData = {
