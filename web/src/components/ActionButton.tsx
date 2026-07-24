@@ -103,8 +103,9 @@ export const ActionButton = React.forwardRef<
       hasAccess={hasAccess}
       hasEntitlement={hasEntitlement}
       hasReachedLimit={hasReachedLimit}
-      buttonProps={{ ...buttonProps, onClick: handleClick }}
       href={href}
+      {...buttonProps}
+      onClick={handleClick}
     >
       {children}
     </ButtonContent>
@@ -138,17 +139,16 @@ const isExternalUrl = (url: string) => {
 
 const ButtonContent = React.forwardRef<
   HTMLButtonElement,
-  {
+  Pick<
+    ForwardedButtonProps,
+    "onClick" | "size" | "title" | "type" | "variant"
+  > & {
     icon?: React.ReactNode;
     isDisabled: boolean;
     loading: boolean;
     hasAccess: boolean;
     hasEntitlement: boolean;
     hasReachedLimit: boolean;
-    buttonProps: Pick<
-      ForwardedButtonProps,
-      "onClick" | "size" | "title" | "type" | "variant"
-    >;
     children: React.ReactNode;
     href?: string;
   }
@@ -160,9 +160,9 @@ const ButtonContent = React.forwardRef<
     hasAccess,
     hasEntitlement,
     hasReachedLimit,
-    buttonProps,
     children,
     href,
+    ...buttonProps
   },
   ref,
 ) {
