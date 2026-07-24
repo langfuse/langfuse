@@ -43,6 +43,7 @@ export const MobilePageTitle = ({
     itemType,
     actionButtonsLeft,
     actionButtonsRight,
+    actionButtonsMenu,
     titleBadges,
     breadcrumb,
     breadcrumbBadges,
@@ -98,11 +99,14 @@ export const MobilePageTitle = ({
         {titleBadges && (
           <div className="flex items-center gap-1">{titleBadges}</div>
         )}
-        {/* Actions collapse into a single right-aligned overflow popover. The
-            caller-supplied nodes (buttons, dropdowns, drawer openers) render
-            as-is; their own dialogs/drawers portal through the layer system, so
-            they keep working from inside the popover. */}
-        {(actionButtonsRight || actionButtonsLeft) && (
+        {/* Actions collapse into a single right-aligned overflow popover of
+            full-width labeled rows (icon + label) — the same pattern the table
+            peek uses. Pages pass `actionButtonsMenu` (a `layout="menu"` variant
+            of their actions) for proper menu rows; when they don't, we fall
+            back to folding the inline `actionButtonsRight`/`actionButtonsLeft`
+            nodes as-is. Either way the actions' own dialogs/drawers portal
+            through the layer system, so they keep working from the popover. */}
+        {(actionButtonsMenu || actionButtonsRight || actionButtonsLeft) && (
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -115,9 +119,13 @@ export const MobilePageTitle = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-auto min-w-44 p-1">
-              <div className="flex flex-col items-stretch gap-1">
-                {actionButtonsRight}
-                {actionButtonsLeft}
+              <div className="flex flex-col items-stretch gap-0.5">
+                {actionButtonsMenu ?? (
+                  <>
+                    {actionButtonsRight}
+                    {actionButtonsLeft}
+                  </>
+                )}
               </div>
             </PopoverContent>
           </Popover>

@@ -31,6 +31,13 @@ export type PageHeaderProps = {
   breadcrumb?: { name: string; href?: string }[];
   actionButtonsLeft?: React.ReactNode; // Right-side actions (buttons, etc.)
   actionButtonsRight?: React.ReactNode; // Right-side actions (buttons, etc.)
+  /** Mobile-only: the same actions rendered as full-width labeled menu rows
+   * (icon + label), for the compact header's `⋯` overflow. Pages pass a
+   * `layout="menu"` variant of their actions here (mirrors the table peek's
+   * `actionsMenu`). When omitted, the mobile header falls back to folding the
+   * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
+   * `PageHeader` ignores this. */
+  actionButtonsMenu?: React.ReactNode;
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
