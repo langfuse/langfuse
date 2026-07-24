@@ -7,12 +7,12 @@ import {
   getAppRootSavedViewComparisonFilters,
   getAppRootSuppressionToPersist,
   removeAppRootDefaultFilter,
-  shouldQuerySdkVersion,
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
 import {
   getSdkVersionCapability,
+  getSdkVersionCapabilityStatus,
   toSdkVersionInfo,
 } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
@@ -28,7 +28,6 @@ const basePolicy = {
   routerReady: true,
   appRootSupported: true,
   sdkCheckedAt: "2026-07-14T12:00:00.000Z",
-  sdkCheckSettled: false,
   preference: null,
   defaultViewSettled: true,
   savedViewOwnsState: false,
@@ -38,21 +37,28 @@ const basePolicy = {
 
 describe("app-root default policy", () => {
   it.each([
-    ["javascript", "5.4.0", true],
-    ["javascript", "5.3.9", false],
-    ["typescript", "5.10.0", true],
-    ["python", "4.7.0", true],
-    ["python", "4.6.9", false],
-    ["python", "4.7.0rc1", false],
-    ["unknown", "99.0.0", false],
-  ])("classifies %s %s", (name, version, expected) => {
-    expect(
-      getSdkVersionCapability(
-        toSdkVersionInfo({ isOtel: true, name, version }),
-        "appRootObservations",
-      ),
-    ).toBe(expected);
-  });
+    ["javascript", "5.4.0", "supported"],
+    ["javascript", "5.3.9", "unsupported"],
+    ["typescript", "5.10.0", "supported"],
+    ["python", "4.7.0", "supported"],
+    ["python", "4.6.9", "unsupported"],
+    ["python", "4.7.0rc1", "supported"],
+    ["python", "4.6.9rc1", "unsupported"],
+    ["javascript", "5.4.0-beta.1", "supported"],
+    ["javascript", "5.3.9-beta.1", "unsupported"],
+    ["custom", "1.0.0", "unknown"],
+  ] as const)(
+    "reports the %s %s capability status as %s",
+    (name, version, expected) => {
+      const sdkVersion = toSdkVersionInfo({ isOtel: true, name, version });
+      expect(
+        getSdkVersionCapabilityStatus(sdkVersion, "appRootObservations"),
+      ).toBe(expected);
+      expect(getSdkVersionCapability(sdkVersion, "appRootObservations")).toBe(
+        expected === "supported",
+      );
+    },
+  );
 
   it.each([
     [{}, true],
@@ -66,39 +72,6 @@ describe("app-root default policy", () => {
     expect(
       getAppRootDefaultPolicy({ ...basePolicy, ...override }).shouldApplyFilter,
     ).toBe(apply);
-  });
-
-  it("queries the SDK version only when a refresh could matter", () => {
-    const base = {
-      enabled: true,
-      routerReady: true,
-      sdkCheckedAt: null,
-      dismissed: false,
-      now,
-    };
-    expect(shouldQuerySdkVersion(base)).toBe(true);
-    expect(
-      shouldQuerySdkVersion({
-        ...base,
-        sdkCheckedAt: "2026-07-14T12:00:00.000Z",
-      }),
-    ).toBe(false);
-    expect(
-      shouldQuerySdkVersion({
-        ...base,
-        sdkCheckedAt: "2026-05-01T12:00:00.000Z",
-      }),
-    ).toBe(true);
-    expect(shouldQuerySdkVersion({ ...base, dismissed: true })).toBe(false);
-  });
-
-  it("persists the SDK check only after it settles", () => {
-    const stale = { ...basePolicy, sdkCheckedAt: null };
-    expect(getAppRootDefaultPolicy(stale).shouldPersistSdkVersion).toBe(false);
-    expect(
-      getAppRootDefaultPolicy({ ...stale, sdkCheckSettled: true })
-        .shouldPersistSdkVersion,
-    ).toBe(true);
   });
 
   it("URL table-state params own the table on arrival", () => {

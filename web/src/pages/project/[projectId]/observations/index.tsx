@@ -10,6 +10,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function Generations() {
   const router = useRouter();
@@ -41,6 +42,9 @@ export default function Generations() {
     <Page
       headerProps={{
         title: "Tracing",
+        // Match traces/index.tsx: no delay badge while onboarding tells the
+        // user to set up tracing for the first time.
+        titleBadges: showOnboarding ? undefined : <V4MigrationDelayBadge />,
         help: {
           description:
             "An observation captures a single function call in an application. See docs to learn more.",

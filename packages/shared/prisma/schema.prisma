@@ -285,11 +285,23 @@ model InAppAgentRun {
   errorCode         String?                @map("error_code")
   errorMessage      String?                @map("error_message")
   finishedAt        DateTime?              @map("finished_at")
+  // Nullable until the first status reader ships (see RFC-background-execution
+  // PR 4), whose migration backfills NULLs and sets DEFAULT/NOT NULL.
+  // NULL means "row written by code that predates the status column".
+  status            String?
+  request           Json?
+  claimedAt         DateTime?              @map("claimed_at")
+  heartbeatAt       DateTime?              @map("heartbeat_at")
+  cancelRequestedAt DateTime?              @map("cancel_requested_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
 
   events InAppAgentEvent[]
 
+  // A conversation can have at most one unfinished run, enforced via the
+  // partial unique index in_app_agent_runs_active_conversation_key on
+  // (project_id, conversation_id) WHERE finished_at IS NULL, added in the
+  // migration since Prisma cannot express partial uniqueness in the schema DSL.
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")
