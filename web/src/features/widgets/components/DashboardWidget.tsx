@@ -548,8 +548,38 @@ export function DashboardWidget({
     widget.data?.chartType === "HORIZONTAL_BAR"
       ? widget.data.dimensions.slice().shift()?.field
       : undefined;
+
+  // Breakdown-category labels that came from joining a multi-value ARRAY
+  // dimension (e.g. an un-exploded `tags` column, which has no
+  // `explodeArray`) rather than one filterable string — recomputed straight
+  // from the raw query rows so it can never drift from transformedData's own
+  // `Array.isArray(val) -> val.join(", ")` branch above. A whole-array bucket
+  // groups by the WHOLE array, so its joined label (e.g. "prod, urgent")
+  // isn't literally any row's value: an "any of" filter on it would silently
+  // resolve to zero rows, the same failure class as the n/a bucket. A
+  // dimension that DOES explode its array arrives here as a plain string per
+  // element and stays linkable. (LFE-10962)
+  const arrayValuedCategoryLabels = useMemo(() => {
+    if (!breakdownDimensionField || !queryResult.data) return undefined;
+    const labels = new Set<string>();
+    for (const item of queryResult.data as any[]) {
+      const value = item[breakdownDimensionField];
+      if (Array.isArray(value)) {
+        labels.add(value.join(", "));
+      }
+    }
+    return labels;
+  }, [breakdownDimensionField, queryResult.data]);
+
   const categoryTableHrefs = useMemo(() => {
     if (!tableViewInputs || !breakdownDimensionField) return undefined;
+
+    // The collapsed null-dimension bucket is a rendering sentinel, not a
+    // real value (see MISSING_DIMENSION_LABEL above); whole-array buckets
+    // are likewise unfilterable (see arrayValuedCategoryLabels above) —
+    // neither ever gets a "View filtered table" link.
+    const nonLinkableLabels = new Set(arrayValuedCategoryLabels);
+    nonLinkableLabels.add(MISSING_DIMENSION_LABEL);
 
     return buildCategoryTableHrefs(
       projectId,
@@ -558,14 +588,13 @@ export function DashboardWidget({
       dateRange,
       breakdownDimensionField,
       transformedData.map((row) => row.dimension),
-      // The collapsed null-dimension bucket is a rendering sentinel, not a
-      // real value — never link it (see MISSING_DIMENSION_LABEL above).
-      MISSING_DIMENSION_LABEL,
+      nonLinkableLabels,
     );
   }, [
     tableViewInputs,
     breakdownDimensionField,
     transformedData,
+    arrayValuedCategoryLabels,
     projectId,
     dateRange,
   ]);

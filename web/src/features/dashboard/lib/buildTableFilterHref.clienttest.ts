@@ -330,7 +330,7 @@ describe("buildCategoryTableHrefs", () => {
   // MISSING_DIMENSION_LABEL) — it must never get a drill-in href, or a
   // by-user-ID breakdown's null bucket (often the largest bar) would link to
   // a table filtered on the literal string "n/a" instead of the real rows.
-  it("omits the excludeValue sentinel bucket while a real value still gets an href", () => {
+  it("omits the excludeValues sentinel bucket while a real value still gets an href", () => {
     const hrefs = buildCategoryTableHrefs(
       "proj-1",
       "traces",
@@ -338,7 +338,7 @@ describe("buildCategoryTableHrefs", () => {
       DATE_RANGE,
       "userId",
       ["u-42", "n/a", "u-42", undefined],
-      "n/a",
+      new Set(["n/a"]),
     );
 
     expect(hrefs.has("n/a")).toBe(false);
@@ -348,7 +348,7 @@ describe("buildCategoryTableHrefs", () => {
     expect(hrefs.size).toBe(1);
   });
 
-  it("still links a value equal to the sentinel string when no excludeValue is passed", () => {
+  it("still links a value equal to the sentinel string when no excludeValues is passed", () => {
     const hrefs = buildCategoryTableHrefs(
       "proj-1",
       "traces",
@@ -359,6 +359,28 @@ describe("buildCategoryTableHrefs", () => {
     );
 
     expect(hrefs.has("n/a")).toBe(true);
+  });
+
+  // Regression (LFE-10962 review fix): a multi-value ARRAY dimension with no
+  // `explodeArray` (e.g. traces `tags`) groups by the WHOLE array. The chart
+  // label joins it into one display string ("prod, urgent"), but no trace's
+  // tags column literally equals that joined string — an "any of" filter on
+  // it would silently resolve to zero rows. A single-value/exploded bucket
+  // (plain string, not in excludeValues) still gets its href.
+  it("omits an array-joined bucket passed via excludeValues while a plain-string bucket still gets an href", () => {
+    const hrefs = buildCategoryTableHrefs(
+      "proj-1",
+      "traces",
+      [],
+      DATE_RANGE,
+      "tags",
+      ["prod, urgent", "prod"],
+      new Set(["prod, urgent"]),
+    );
+
+    expect(hrefs.has("prod, urgent")).toBe(false);
+    expect(hrefs.has("prod")).toBe(true);
+    expect(hrefs.get("prod")).toMatch(/^\/project\/proj-1\/traces\?/);
   });
 
   it("omits a value whose column type can't be expressed as a table filter", () => {

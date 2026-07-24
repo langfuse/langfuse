@@ -236,12 +236,19 @@ export function buildTableFilterHref(
  * DashboardWidget's `categoryTableHrefs` memo as its own seam so the
  * guard below is unit-testable in isolation.
  *
- * `excludeValue`, when given, is skipped even though it is a string — for a
- * rendering sentinel like the collapsed null-dimension bucket ("n/a"), which
- * is not a real, filterable value: linking it would pin `column = "n/a"` and
- * land on zero/wrong rows (worse, for a by-user-ID breakdown the null bucket
- * is often the largest bar). The caller passes its own sentinel constant
- * rather than this module guessing one. (LFE-10962)
+ * `excludeValues`, when given, are skipped even though they are strings —
+ * display labels that look like a value but aren't a real, single filterable
+ * one:
+ *  - the collapsed null-dimension bucket ("n/a" — DashboardWidget's own
+ *    sentinel constant, not guessed here): linking it would pin
+ *    `column = "n/a"` and land on zero/wrong rows (worse, for a by-user-ID
+ *    breakdown the null bucket is often the largest bar).
+ *  - a whole-array bucket (e.g. an un-exploded `tags` dimension): the chart
+ *    label joins the array into one string (`"prod, urgent"`), but no row's
+ *    column literally equals that joined string — an "any of" filter on it
+ *    would silently land on zero rows, same failure class as the n/a case.
+ * The caller passes its own set rather than this module guessing one.
+ * (LFE-10962)
  *
  * A value whose column type can't be expressed as a table filter
  * (`categoryFilterApplied=false` — e.g. a metadata/score breakdown) is
@@ -255,11 +262,15 @@ export function buildCategoryTableHrefs(
   dateRange: { from: Date; to: Date } | undefined,
   column: string,
   dimensionValues: ReadonlyArray<unknown>,
-  excludeValue?: string,
+  excludeValues?: ReadonlySet<string>,
 ): Map<string, string> {
   const hrefs = new Map<string, string>();
   for (const value of dimensionValues) {
-    if (typeof value !== "string" || value === excludeValue || hrefs.has(value))
+    if (
+      typeof value !== "string" ||
+      excludeValues?.has(value) ||
+      hrefs.has(value)
+    )
       continue;
 
     const result = buildTableFilterHref(projectId, view, filters, dateRange, {
