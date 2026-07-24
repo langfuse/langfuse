@@ -1,10 +1,11 @@
 import { useState } from "react";
+import Link from "next/link";
 import { CheckIcon, CopyIcon, TableIcon } from "lucide-react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -25,10 +26,15 @@ const TICK_AREA_HEIGHT = 20;
  * element that can host a focusable copy button or a link. This uses
  * `<foreignObject>` to embed one ordinary HTML button inside the axis tick's
  * SVG, visually identical to the plain-text label it replaces, but
- * keyboard-focusable and click-to-open. Its popover (a Radix `Popover`,
+ * keyboard-focusable and hover/focus-to-open. Its card (a Radix `HoverCard`,
  * portaled to the app's `popover` overlay layer — see `components/ui/layer`)
  * renders completely outside the chart's SVG tree, so it is never clipped by
- * the chart's own bounds. (LFE-10962)
+ * the chart's own bounds. Opens on pointer hover of the trigger OR keyboard
+ * focus (both wired by Radix HoverCard itself), and stays open while the
+ * pointer moves onto the card's own content, so the copy button and "View
+ * filtered table" link stay reachable — Radix's default open/close delays
+ * already provide that grace, hovering the gap between trigger and content
+ * doesn't dismiss it. (LFE-10962)
  *
  * `href` (the "drill into this row" deep link) and the analytics callbacks
  * are decided upstream (DashboardWidget, via `buildTableFilterHref`) — this
@@ -72,8 +78,8 @@ export function BreakdownCategoryTick({
 
   return (
     <g transform={`translate(${x},${y})`}>
-      {/* Native fallback tooltip for a bare mouseover; the popover below,
-          opened by clicking/focusing the label, is the primary affordance. */}
+      {/* Native fallback tooltip for a bare mouseover; the card below, opened
+          by hovering/focusing the label, is the primary affordance. */}
       <title>{label}</title>
       <foreignObject
         x={-TICK_AREA_WIDTH}
@@ -94,8 +100,8 @@ export function BreakdownCategoryTick({
             overflow: "hidden",
           }}
         >
-          <Popover>
-            <PopoverTrigger asChild>
+          <HoverCard>
+            <HoverCardTrigger asChild>
               <button
                 type="button"
                 title={label}
@@ -103,8 +109,8 @@ export function BreakdownCategoryTick({
               >
                 {formatAxisLabel(label)}
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" side="right" className="w-72 min-w-0">
+            </HoverCardTrigger>
+            <HoverCardContent align="end" side="right" className="w-72 min-w-0">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-1.5">
                   <Input
@@ -135,17 +141,16 @@ export function BreakdownCategoryTick({
                     variant="outline"
                     size="sm"
                     className="w-full"
-                    onClick={() => onViewAsTable?.()}
                   >
-                    <a href={href}>
+                    <Link href={href} onClick={() => onViewAsTable?.()}>
                       <TableIcon className="mr-2 h-3.5 w-3.5" />
                       View filtered table
-                    </a>
+                    </Link>
                   </Button>
                 )}
               </div>
-            </PopoverContent>
-          </Popover>
+            </HoverCardContent>
+          </HoverCard>
         </div>
       </foreignObject>
     </g>
