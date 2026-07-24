@@ -1000,10 +1000,10 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.output).toEqual({
         index: 0,
         finish_reason: "stop",
-        message: JSON.stringify({
+        message: {
           role: "assistant",
           content: "The capital of France is Paris.",
-        }),
+        },
       });
     });
 
@@ -4355,10 +4355,10 @@ describe("OTel Resource Span Mapping", () => {
           },
           entityAttributeKey: "output",
           entityAttributeValue: {
-            message: JSON.stringify({
+            message: {
               role: "assistant",
               content: "The capital of France is Paris.",
-            }),
+            },
           },
         },
       ],
