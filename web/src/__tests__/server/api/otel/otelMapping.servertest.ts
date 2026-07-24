@@ -7422,6 +7422,262 @@ describe("OTel Resource Span Mapping", () => {
       expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
       expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
     });
+
+    it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
+      // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
+      const traceId = "abcdef1234567890abcdef1234567893";
+
+      const litellmAnthropicSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "anthropic-raw-cache-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation_input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        litellmAnthropicSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: 100 - 20 - 10 = 70
+      expect(observationEvent?.body.usageDetails.input).toBe(70);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(20);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      // sum of all input* buckets must equal the reported (inclusive) input count
+      const inputSum = Object.entries(
+        observationEvent?.body.usageDetails as Record<string, number>,
+      )
+        .filter(([key]) => key.startsWith("input"))
+        .reduce((acc, [, value]) => acc + value, 0);
+      expect(inputSum).toBe(100);
+      // The raw Anthropic keys must NOT be passed through after normalization
+      expect(
+        observationEvent?.body.usageDetails["cache_read_input_tokens"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["cache_creation_input_tokens"],
+      ).toBeUndefined();
+    });
+
+    it("should subtract cache tokens only once when dotted and flat Anthropic spellings arrive together", async () => {
+      // dotted and flat spellings for the same value must subtract exactly once
+      const traceId = "abcdef1234567890abcdef1234567896";
+
+      const bothSpellingsSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde5", "hex"),
+                name: "anthropic-both-cache-spellings",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation_input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        bothSpellingsSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // single subtraction only: 100 - 20 - 10 = 70, not 100 - 2*20 - 2*10 = 40
+      expect(usageDetails.input).toBe(70);
+      expect(usageDetails.input_cached_tokens).toBe(20);
+      expect(usageDetails.input_cache_creation).toBe(10);
+      // neither raw spelling may be passed through as its own bucket
+      expect(usageDetails["cache_read.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_read_input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_creation.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_creation_input_tokens"]).toBeUndefined();
+    });
+
+    it("should let a dotted cache value of 0 shadow the flat spelling (?? alias chain)", async () => {
+      // pins pre-existing ??-chain behavior: a dotted 0 shadows the flat spelling
+      const traceId = "abcdef1234567890abcdef1234567897";
+
+      const dottedZeroSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "litellm",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde6", "hex"),
+                name: "anthropic-dotted-zero-cache",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 0, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read_input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        dottedZeroSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      const usageDetails = observationEvent?.body.usageDetails as Record<
+        string,
+        number
+      >;
+      // input stays 100: the dotted 0 wins the ?? chain, the flat 20 is never subtracted
+      expect(usageDetails.input).toBe(100);
+      // the winning dotted 0 materializes as a zero-valued cache bucket
+      expect(usageDetails.input_cached_tokens).toBe(0);
+      // neither raw spelling is passed through as its own bucket
+      expect(usageDetails["cache_read.input_tokens"]).toBeUndefined();
+      expect(usageDetails["cache_read_input_tokens"]).toBeUndefined();
+    });
   });
 
   describe("Vercel AI SDK Usage details", () => {
