@@ -42,6 +42,16 @@ import {
 import { aggregateTraceMetrics } from "@/src/components/trace/lib/trace-aggregation";
 import { resolveEvalExecutionMetadata } from "@/src/components/trace/lib/resolve-metadata";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
+import { CollapsibleBadgeRow } from "@/src/components/trace/components/_shared/CollapsibleBadgeRow";
+import { useIsMobile } from "@/src/hooks/use-mobile";
+import { Button } from "@/src/components/ui/button";
+import { MoreHorizontal } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { cn } from "@/src/utils/tailwind";
 
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -74,6 +84,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   onCommentDrawerOpenChange,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const isMobile = useIsMobile();
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
     [observations],
@@ -90,7 +101,12 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
       <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
         <div className="flex w-full flex-row items-center gap-1">
           <ItemBadge type="TRACE" isSmall />
-          <span className="line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word">
+          <span
+            className={cn(
+              "line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+              isMobile && "flex-1",
+            )}
+          >
             {trace.name || trace.id}
           </span>
           <DetailHeaderActionsMenu
@@ -101,55 +117,126 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               sessionId: trace.sessionId ?? null,
             }}
           />
-        </div>
-        {/* Action buttons */}
-        <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
-          <NewDatasetItemFromExistingObject
-            traceId={trace.id}
-            projectId={projectId}
-            input={trace.input}
-            output={trace.output}
-            metadata={trace.metadata}
-            key={trace.id}
-            size="sm"
-          />
-          {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-          {!isAnnotationMode && (
-            <div className="flex items-start">
-              <AnnotateDrawer
-                key={"annotation-drawer-" + trace.id}
-                projectId={projectId}
-                scoreTarget={{
-                  type: "trace",
-                  traceId: trace.id,
-                }}
-                scores={traceScores}
-                scoreMetadata={{
-                  projectId: projectId,
-                  environment: trace.environment,
-                }}
-                size="sm"
-              />
-              <CreateNewAnnotationQueueItem
-                projectId={projectId}
-                objectId={trace.id}
-                objectType={AnnotationQueueObjectType.TRACE}
-                size="sm"
-              />
-            </div>
+          {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
+              full-width labeled rows, next to the `⋮` utility menu. */}
+          {isMobile && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="More actions"
+                  className="ml-auto shrink-0"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                // forceMount + hide-when-closed: CommentDrawerButton lives in
+                // here, and its deep-link auto-open effect (?comments=open) and
+                // controlled inline-selection flow only work while mounted. A
+                // default Popover unmounts its content when closed (the default
+                // state), silently breaking both. Keep it mounted, just hidden.
+                forceMount
+                className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
+              >
+                <NewDatasetItemFromExistingObject
+                  traceId={trace.id}
+                  projectId={projectId}
+                  input={trace.input}
+                  output={trace.output}
+                  metadata={trace.metadata}
+                  layout="menu"
+                />
+                {!isAnnotationMode && (
+                  <>
+                    <AnnotateDrawer
+                      projectId={projectId}
+                      scoreTarget={{
+                        type: "trace",
+                        traceId: trace.id,
+                      }}
+                      scores={traceScores}
+                      scoreMetadata={{
+                        projectId: projectId,
+                        environment: trace.environment,
+                      }}
+                      layout="menu"
+                    />
+                    <CreateNewAnnotationQueueItem
+                      projectId={projectId}
+                      objectId={trace.id}
+                      objectType={AnnotationQueueObjectType.TRACE}
+                      layout="menu"
+                    />
+                  </>
+                )}
+                <CommentDrawerButton
+                  projectId={projectId}
+                  objectId={trace.id}
+                  objectType="TRACE"
+                  count={commentCount}
+                  layout="menu"
+                  pendingSelection={pendingSelection}
+                  onSelectionUsed={onSelectionUsed}
+                  isOpen={isCommentDrawerOpen}
+                  onOpenChange={onCommentDrawerOpenChange}
+                />
+              </PopoverContent>
+            </Popover>
           )}
-          <CommentDrawerButton
-            projectId={projectId}
-            objectId={trace.id}
-            objectType="TRACE"
-            count={commentCount}
-            size="sm"
-            pendingSelection={pendingSelection}
-            onSelectionUsed={onSelectionUsed}
-            isOpen={isCommentDrawerOpen}
-            onOpenChange={onCommentDrawerOpenChange}
-          />
         </div>
+        {/* Action buttons (desktop inline cluster) */}
+        {!isMobile && (
+          <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
+            <NewDatasetItemFromExistingObject
+              traceId={trace.id}
+              projectId={projectId}
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              key={trace.id}
+              size="sm"
+            />
+            {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+            {!isAnnotationMode && (
+              <div className="flex items-start">
+                <AnnotateDrawer
+                  key={"annotation-drawer-" + trace.id}
+                  projectId={projectId}
+                  scoreTarget={{
+                    type: "trace",
+                    traceId: trace.id,
+                  }}
+                  scores={traceScores}
+                  scoreMetadata={{
+                    projectId: projectId,
+                    environment: trace.environment,
+                  }}
+                  size="sm"
+                />
+                <CreateNewAnnotationQueueItem
+                  projectId={projectId}
+                  objectId={trace.id}
+                  objectType={AnnotationQueueObjectType.TRACE}
+                  size="sm"
+                />
+              </div>
+            )}
+            <CommentDrawerButton
+              projectId={projectId}
+              objectId={trace.id}
+              objectType="TRACE"
+              count={commentCount}
+              size="sm"
+              pendingSelection={pendingSelection}
+              onSelectionUsed={onSelectionUsed}
+              isOpen={isCommentDrawerOpen}
+              onOpenChange={onCommentDrawerOpenChange}
+            />
+          </div>
+        )}
       </div>
 
       {/* Metadata badges */}
@@ -165,7 +252,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
 
         {/* Other badges */}
         {!isAnnotationMode && (
-          <div className="flex flex-wrap items-center gap-1">
+          <CollapsibleBadgeRow>
             <LatencyBadge latencySeconds={trace.latency ?? null} />
             <SessionBadge sessionId={trace.sessionId} projectId={projectId} />
             <UserIdBadge userId={trace.userId} projectId={projectId} />
@@ -190,7 +277,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   usageDetails={aggregatedMetrics.usageDetails}
                 />
               )}
-          </div>
+          </CollapsibleBadgeRow>
         )}
       </div>
     </div>
