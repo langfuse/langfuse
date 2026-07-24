@@ -171,8 +171,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
           let finalCounts: Map<string, number> | undefined;
           try {
             await this.extendLockOnProgress(true);
-            finalCounts =
-              await this.getProjectCounts(deleteAttemptProjectIds);
+            finalCounts = await this.getProjectCounts(deleteAttemptProjectIds);
           } catch (countError) {
             // Can't determine partial success
             logger.error(
