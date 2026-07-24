@@ -116,9 +116,11 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
 
     // Delete blob storage entries (S3 + ClickHouse soft delete)
     if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
+      await this.extendLockOnProgress();
       await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
         workload.projectId,
         workload.cutoffDate,
+        { onProgress: () => this.extendLockOnProgress() },
       );
     }
 
