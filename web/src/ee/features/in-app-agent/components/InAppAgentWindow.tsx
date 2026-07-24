@@ -232,6 +232,7 @@ function formatScreenContextNotice(
 
 export type InAppAgentWindowMessage = {
   id: string;
+  feedbackMessageId?: string;
   runId?: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
@@ -775,7 +776,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         feedbackRunId
                           ? (params) =>
                               onSubmitFeedback({
-                                messageId: message.id,
+                                messageId:
+                                  message.feedbackMessageId ?? message.id,
                                 runId: feedbackRunId,
                                 ...params,
                               })
