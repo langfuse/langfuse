@@ -444,6 +444,9 @@ export const env = createEnv({
     // CHB's resource-server identifier. Defaulted because it is the same value
     // in every CHB tenant, and overridable in case that stops being true.
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE: z.string().default("billing-api"),
+    // HMAC secret for inbound CHB webhooks. Unset makes the endpoint 500 rather
+    // than accept unverified events.
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -1010,6 +1013,8 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_AUTH0_CLIENT_SECRET,
     CLICKHOUSE_BILLING_AUTH0_AUDIENCE:
       process.env.CLICKHOUSE_BILLING_AUTH0_AUDIENCE,
+    CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET:
+      process.env.CLICKHOUSE_BILLING_WEBHOOK_SIGNING_SECRET,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
