@@ -53,6 +53,21 @@ export const mapStripeProductIdToChbPlanCode = (
   return mappedPlan ? mapPlanToChbPlanCode(mappedPlan) : null;
 };
 
+/**
+ * Reverse bridge for UI compatibility: components resolve plan labels and
+ * pending-switch targets via Stripe product ids, so CHB subscription info is
+ * translated back until plan-code-first inputs ship.
+ */
+export const mapChbPlanCodeToStripeProductId = (
+  planCode: string,
+): string | null => {
+  const mappedPlan = mapChbPlanCodeToPlan(planCode);
+  return mappedPlan
+    ? (stripeProducts.find((product) => product.mappedPlan === mappedPlan)
+        ?.stripeProductId ?? null)
+    : null;
+};
+
 export const isChbUpgrade = (
   currentPlanCode: string,
   newPlanCode: string,
@@ -67,5 +82,6 @@ export const ChbCatalogue = {
   mapChbPlanCodeToPlan,
   mapPlanToChbPlanCode,
   mapStripeProductIdToChbPlanCode,
+  mapChbPlanCodeToStripeProductId,
   isUpgrade: isChbUpgrade,
 } as const;
