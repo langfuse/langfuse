@@ -9,31 +9,21 @@ import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/components/session/SessionObservationIO";
 import { api } from "@/src/utils/api";
 import { FilterX } from "lucide-react";
-import isEqual from "lodash/isEqual";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/components/session/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/components/session/SessionTraceActionButtons";
 import { type IOPreviewContentMode } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { useChatMLParser } from "@/src/components/trace/components/IOPreview/hooks/useChatMLParser";
 import {
-  hasRenderableConversationMessages,
-  isOnlyJsonMessage,
-} from "@/src/components/trace/components/IOPreview/components/chat-message-utils";
+  SessionMessageSearchTarget,
+  useSessionMessageSearchQuery,
+} from "@/src/components/session/SessionMessageSearch";
+import {
+  isModernSessionConversation,
+  SESSION_OBSERVATIONS_PER_TRACE_LIMIT,
+  selectVisibleSessionObservations,
+} from "@/src/components/session/sessionMessageSearchController";
 
 export type TraceEventsSurface = "card" | "modern";
-
-// Display copy for the per-card observation cap; the authoritative limit is
-// SESSION_OBSERVATIONS_PER_TRACE_LIMIT in the sessions router (LFE-10958).
-const SESSION_CARD_OBSERVATIONS_NOTICE_COUNT = 50;
-
-const hasContent = (value: unknown): boolean =>
-  value !== null &&
-  value !== undefined &&
-  !(typeof value === "string" && value.trim() === "");
-
-const observationHasIO = (observation: {
-  input?: unknown;
-  output?: unknown;
-}): boolean => hasContent(observation.input) || hasContent(observation.output);
 
 type SessionObservation =
   RouterOutputs["sessions"]["observationsForTraceFromEvents"][number];
@@ -59,6 +49,7 @@ const ModernSessionObservation = ({
   showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
 }) => {
+  const searchQuery = useSessionMessageSearchQuery();
   const parsed = React.useMemo(
     () => ({
       input: deepParseJson(observation.input, {
@@ -85,14 +76,11 @@ const ModernSessionObservation = ({
     parsed.output,
     parsed.metadata,
   );
-  const isConversation =
-    chatMLParserResult.canDisplayAsChat &&
-    (contentMode === "conversation"
-      ? hasRenderableConversationMessages(
-          chatMLParserResult.allMessages,
-          showSystemPrompt,
-        )
-      : !chatMLParserResult.allMessages.every(isOnlyJsonMessage));
+  const isConversation = isModernSessionConversation({
+    parserResult: chatMLParserResult,
+    contentMode,
+    showSystemPrompt,
+  });
 
   return (
     <div
@@ -103,22 +91,25 @@ const ModernSessionObservation = ({
       }
     >
       {!isConversation ? <ObservationHeader observation={observation} /> : null}
-      <SessionObservationIO
-        observation={observation}
-        projectId={projectId}
-        sessionId={sessionId}
-        traceId={traceId}
-        environment={environment}
-        showCorrections={showCorrections}
-        onOpenInTraceView={onOpenInTraceView}
-        contentMode={isConversation ? contentMode : "all"}
-        showSystemPrompt={showSystemPrompt}
-        currentView={isConversation ? "pretty" : undefined}
-        parsedInput={parsed.input}
-        parsedOutput={parsed.output}
-        parsedMetadata={parsed.metadata}
-        chatMLParserResult={chatMLParserResult}
-      />
+      <SessionMessageSearchTarget targetId={`${traceId}:${observation.id}`}>
+        <SessionObservationIO
+          observation={observation}
+          projectId={projectId}
+          sessionId={sessionId}
+          traceId={traceId}
+          environment={environment}
+          showCorrections={showCorrections}
+          onOpenInTraceView={onOpenInTraceView}
+          contentMode={isConversation ? contentMode : "all"}
+          showSystemPrompt={showSystemPrompt}
+          currentView={isConversation ? "pretty" : undefined}
+          parsedInput={parsed.input}
+          parsedOutput={parsed.output}
+          parsedMetadata={parsed.metadata}
+          chatMLParserResult={chatMLParserResult}
+          searchQuery={searchQuery}
+        />
+      </SessionMessageSearchTarget>
     </div>
   );
 };
@@ -325,54 +316,10 @@ export const TraceEventsRow = React.memo(
           visibleObservations: undefined,
           hasMoreObservations: false,
         };
-      const syntheticTraceRowId = `t-${trace.id}`;
-      // The server returns up to SESSION_CARD_OBSERVATIONS_NOTICE_COUNT + 1
-      // real observations; the extra (+1) row is the "more exist" sentinel.
-      // Show only the first NOTICE_COUNT real observations, keeping the
-      // synthetic trace-level row wherever it sits (it never consumes a slot).
-      let realCount = 0;
-      let realShown = 0;
-      const page: typeof all = [];
-      for (const observation of all) {
-        if (observation.id === syntheticTraceRowId) {
-          page.push(observation);
-          continue;
-        }
-        realCount++;
-        if (realShown >= SESSION_CARD_OBSERVATIONS_NOTICE_COUNT) continue;
-        page.push(observation);
-        realShown++;
-      }
-      const hasMoreObservations =
-        realCount > SESSION_CARD_OBSERVATIONS_NOTICE_COUNT;
-
-      const syntheticRow = page.find(
-        (observation) => observation.id === syntheticTraceRowId,
-      );
-      const realObservations = page.filter(
-        (observation) => observation.id !== syntheticTraceRowId,
-      );
-      // I/O can be server-truncated to a preview head (LFE-10958), so equal
-      // heads alone don't prove equal payloads — the true lengths must match
-      // too (equal head + equal full length ≈ identical content).
-      const syntheticRowIsRedundant =
-        !syntheticRow ||
-        !observationHasIO(syntheticRow) ||
-        realObservations.some(
-          (observation) =>
-            (hasContent(syntheticRow.input) &&
-              isEqual(observation.input, syntheticRow.input) &&
-              observation.inputLength === syntheticRow.inputLength) ||
-            (hasContent(syntheticRow.output) &&
-              isEqual(observation.output, syntheticRow.output) &&
-              observation.outputLength === syntheticRow.outputLength),
-        );
-      const visibleObservations = !syntheticRowIsRedundant
-        ? page
-        : realObservations.length > 0
-          ? realObservations
-          : page;
-      return { visibleObservations, hasMoreObservations };
+      return selectVisibleSessionObservations({
+        traceId: trace.id,
+        observations: all,
+      });
     }, [observations, trace.id]);
 
     const Frame = surface === "card" ? Card : "div";
@@ -483,7 +430,7 @@ export const TraceEventsRow = React.memo(
                 })}
                 {hasMoreObservations && (
                   <p className="text-muted-foreground text-xs">
-                    Only the first {SESSION_CARD_OBSERVATIONS_NOTICE_COUNT}{" "}
+                    Only the first {SESSION_OBSERVATIONS_PER_TRACE_LIMIT}{" "}
                     observations are shown here.{" "}
                     <button
                       type="button"

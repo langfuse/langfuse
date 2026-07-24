@@ -102,6 +102,10 @@ import {
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
 import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
+import {
+  SessionMessageSearchToolbar,
+  useSessionMessageSearchController,
+} from "@/src/components/session/SessionMessageSearch";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 3;
@@ -1182,6 +1186,16 @@ const LoadedSessionEventsPage: React.FC<{
     () => JSON.stringify(visibleFilterState),
     [visibleFilterState],
   );
+  const messageSearch = useSessionMessageSearchController({
+    enabled: isModernSessionEnabled,
+    traces: traces ?? [],
+    projectId,
+    sessionId,
+    filterState: visibleFilterState,
+    scopeKey: `${sessionId}:${traces?.length ?? 0}:${traces?.[0]?.id ?? ""}:${traces?.at(-1)?.id ?? ""}:${visibleFilterMeasurementKey}:${showInlineToolCalls}:${showSystemPrompt}`,
+    showInlineToolCalls,
+    showSystemPrompt,
+  });
 
   // Stub state for Saved Views (no actual table columns in this view)
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>([]);
@@ -1619,6 +1633,13 @@ const LoadedSessionEventsPage: React.FC<{
             }
           >
             {isModernSessionEnabled ? (
+              <SessionMessageSearchToolbar
+                controller={messageSearch}
+                className="max-w-[28rem]"
+              />
+            ) : null}
+
+            {isModernSessionEnabled ? (
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1778,6 +1799,7 @@ const LoadedSessionEventsPage: React.FC<{
               totalCost={session.totalCost ?? 0}
               showInlineToolCalls={showInlineToolCalls}
               showSystemPrompt={showSystemPrompt}
+              messageSearch={messageSearch}
             />
           )}
         </div>

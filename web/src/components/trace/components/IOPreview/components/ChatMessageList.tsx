@@ -28,6 +28,7 @@ export interface ChatMessageListProps {
   inputMessageCount?: number;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
+  searchQuery?: string;
 }
 
 /**
@@ -50,6 +51,7 @@ export function ChatMessageList({
   inputMessageCount,
   contentMode = "all",
   showSystemPrompt,
+  searchQuery,
 }: ChatMessageListProps) {
   // Filter messages to only those with renderable content
   const messagesToRender = useMemo(
@@ -78,10 +80,11 @@ export function ChatMessageList({
       messagesToRender.filter(
         (_, filteredIndex) =>
           !isCollapsed ||
+          Boolean(searchQuery) ||
           filteredIndex === 0 ||
           filteredIndex > messagesToRender.length - COLLAPSE_THRESHOLD,
       ),
-    [isCollapsed, messagesToRender],
+    [isCollapsed, messagesToRender, searchQuery],
   );
 
   const remainingMedia = useMemo(() => {

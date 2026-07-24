@@ -663,3 +663,12 @@
   -moz-user-select: text !important;
   -ms-user-select: text !important;
 }
+::highlight(session-message-search-match) {
+  background-color: hsl(var(--find-match-background));
+  color: inherit;
+}
+
+::highlight(session-message-search-active) {
+  background-color: hsl(var(--find-match-selected-background));
+  color: hsl(var(--find-match-selected-foreground));
+}
