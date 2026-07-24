@@ -2,12 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
-  closePeek: vi.fn(),
-  openPeek: vi.fn(),
-  peekView: vi.fn(),
   push: vi.fn(),
   replace: vi.fn(),
   routerQuery: {} as Record<string, string>,
+  editViewMounts: 0,
 }));
 
 vi.mock("next/router", () => ({
@@ -34,32 +32,9 @@ vi.mock("@/src/components/layouts/page", () => ({
   ),
 }));
 
-vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
-  usePeekNavigation: () => ({
-    openPeek: mocks.openPeek,
-    closePeek: mocks.closePeek,
-  }),
-}));
-
 vi.mock(
   "@/src/features/evals/v2/components/EvaluatorConfigurationView",
   () => ({
-    EvaluatorConfigurationView: ({
-      onViewEvaluationRule,
-      onEditEvaluationRule,
-    }: {
-      onViewEvaluationRule: (ruleId: string) => void;
-      onEditEvaluationRule: (ruleId: string) => void;
-    }) => (
-      <>
-        <button type="button" onClick={() => onViewEvaluationRule("rule-1")}>
-          View evaluation rule
-        </button>
-        <button type="button" onClick={() => onEditEvaluationRule("rule-1")}>
-          Edit evaluation rule
-        </button>
-      </>
-    ),
     EvaluatorDefinitionView: ({
       sourceCode,
       prompt,
@@ -70,22 +45,29 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/evals/v2/components/EvaluationRulePeekView", () => ({
-  TablePeekViewEvaluationRuleDetail: (props: unknown) => {
-    mocks.peekView(props);
-    return <div data-testid="evaluation rule-peek" />;
-  },
-}));
-
 vi.mock("@/src/features/evals/v2/components/ActivateEvaluatorDialog", () => ({
   ActivateEvaluatorDialog: () => null,
 }));
 vi.mock("@/src/features/evals/v2/components/EvaluatorEditView", () => ({
-  EvaluatorEditView: ({ onCancel }: { onCancel: () => void }) => (
-    <button type="button" onClick={onCancel}>
-      Cancel evaluator edit
-    </button>
-  ),
+  EvaluatorEditView: ({
+    onCancel,
+    onSaved,
+  }: {
+    onCancel: () => void;
+    onSaved: () => void;
+  }) => {
+    mocks.editViewMounts += 1;
+    return (
+      <>
+        <button type="button" onClick={onCancel}>
+          Cancel evaluator edit
+        </button>
+        <button type="button" onClick={onSaved}>
+          Save evaluator edit
+        </button>
+      </>
+    );
+  },
 }));
 vi.mock("@/src/features/evals/v2/components/EvaluatorTitleEditor", () => ({
   EvaluatorTitleEditor: () => null,
@@ -208,6 +190,7 @@ import EvaluatorDetailPage from "./evaluator-detail";
 describe("EvaluatorDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.editViewMounts = 0;
     Object.keys(mocks.routerQuery).forEach((key) => {
       delete mocks.routerQuery[key];
     });
@@ -219,65 +202,33 @@ describe("EvaluatorDetailPage", () => {
     mocks.replace.mockResolvedValue(true);
   });
 
-  it("reserves the shared peek parameter for traces while editing", () => {
-    Object.assign(mocks.routerQuery, {
-      edit: "1",
-      peek: "trace-1",
-      peekView: "expanded",
-      observation: "observation-1",
-      display: "details",
-      timestamp: "2026-07-20T12:00:00.000Z",
-    });
-
+  it("always shows the evaluator as an editable form", () => {
     render(<EvaluatorDetailPage />);
 
     expect(
-      screen.queryByTestId("evaluation rule-peek"),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Cancel evaluator edit" }),
+    ).toBeInTheDocument();
+  });
+
+  it("returns to the evaluator overview when cancelling", () => {
+    render(<EvaluatorDetailPage />);
 
     fireEvent.click(
       screen.getByRole("button", { name: "Cancel evaluator edit" }),
     );
-    expect(mocks.replace).toHaveBeenCalledWith(
-      {
-        pathname: "/project/[projectId]/evals/v2/[evaluatorId]",
-        query: {
-          projectId: "project-1",
-          evaluatorId: "evaluator-1",
-        },
-      },
-      undefined,
-      { shallow: true },
-    );
+
+    expect(mocks.replace).toHaveBeenCalledWith("/project/project-1/evals/v2");
   });
 
-  it("opens an attached evaluation rule in edit mode without leaving the evaluator", () => {
+  it("remounts the edit form after a successful save so its dirty state resets", () => {
     render(<EvaluatorDetailPage />);
+    expect(mocks.editViewMounts).toBe(1);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Edit evaluation rule" }),
+      screen.getByRole("button", { name: "Save evaluator edit" }),
     );
 
-    expect(mocks.openPeek).toHaveBeenCalledWith("rule-1", { openEdit: true });
-    expect(mocks.peekView).toHaveBeenCalledWith(
-      expect.objectContaining({
-        itemType: "EVALUATION_RULE",
-        projectId: "project-1",
-        closePeek: mocks.closePeek,
-      }),
-    );
-    expect(mocks.push).not.toHaveBeenCalled();
-  });
-
-  it("opens an evaluation rule in view mode without leaving the evaluator", () => {
-    render(<EvaluatorDetailPage />);
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "View evaluation rule" }),
-    );
-
-    expect(mocks.openPeek).toHaveBeenCalledWith("rule-1");
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.editViewMounts).toBe(2);
   });
 
   it("opens a saved evaluator version from the version history", () => {

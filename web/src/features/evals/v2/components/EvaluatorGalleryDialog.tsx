@@ -137,14 +137,12 @@ function EvaluatorCard({
           <span className="truncate text-sm font-bold" title={template.name}>
             {template.name}
           </span>
-          {description ? (
-            <p
-              className="text-muted-foreground line-clamp-1 text-sm leading-relaxed"
-              title={description}
-            >
-              {description}
-            </p>
-          ) : null}
+          <p
+            className="text-muted-foreground line-clamp-1 h-[1.421875rem] text-sm leading-relaxed"
+            title={description}
+          >
+            {description}
+          </p>
         </div>
         <div className="mt-2 flex items-center gap-2">
           {attribution ? (
@@ -180,7 +178,9 @@ function SectionHeader({
   return (
     <div>
       <h4 className="text-base leading-6 font-bold">{label}</h4>
-      <p className="text-muted-foreground text-xs">{description}</p>
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        {description}
+      </p>
     </div>
   );
 }
@@ -189,7 +189,7 @@ function GallerySkeleton() {
   return (
     <div className="flex flex-col gap-3 pt-2">
       <Skeleton className="h-5 w-32" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(384px,1fr))] gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-25 rounded-lg" />
         ))}
@@ -341,9 +341,13 @@ export function EvaluatorGalleryDialog({
           {item.label}
         </span>
         {item.count !== undefined ? (
-          <span className="text-muted-foreground ml-auto text-xs tabular-nums">
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="text-muted-foreground ml-auto font-normal tabular-nums"
+          >
             {item.count}
-          </span>
+          </Badge>
         ) : null}
       </Button>
     );
@@ -421,7 +425,7 @@ export function EvaluatorGalleryDialog({
       : templates.slice(0, MAX_TILES_PER_SECTION);
     return (
       <>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(384px,1fr))] gap-3">
           {shown.map((template) => (
             <EvaluatorCard
               key={template.id}
@@ -567,47 +571,50 @@ export function EvaluatorGalleryDialog({
 
                   {filteredProjectTemplates.length > 0 ||
                   visibleCategorySections.length > 0 ? (
-                    <h3 className="text-xl leading-7 font-bold">
-                      Start from Examples
-                    </h3>
-                  ) : null}
+                    <div className="flex flex-col gap-2.5">
+                      <h3 className="text-xl leading-7 font-bold">
+                        Start from Examples
+                      </h3>
+                      <div className="flex flex-col gap-8">
+                        {filteredProjectTemplates.length > 0 ? (
+                          <section
+                            ref={setSectionRef(CUSTOM_SECTION_KEY)}
+                            className="flex scroll-mt-1 flex-col gap-2.5"
+                          >
+                            <SectionHeader
+                              label="Your Examples"
+                              description="Start from an evaluator this project already created."
+                            />
+                            {renderTemplateGrid(
+                              CUSTOM_SECTION_KEY,
+                              filteredProjectTemplates,
+                              User,
+                              "bg-muted text-muted-foreground",
+                            )}
+                          </section>
+                        ) : null}
 
-                  {filteredProjectTemplates.length > 0 ? (
-                    <section
-                      ref={setSectionRef(CUSTOM_SECTION_KEY)}
-                      className="flex scroll-mt-1 flex-col gap-2.5"
-                    >
-                      <SectionHeader
-                        label="Your Examples"
-                        description="Start from an evaluator this project already created."
-                      />
-                      {renderTemplateGrid(
-                        CUSTOM_SECTION_KEY,
-                        filteredProjectTemplates,
-                        User,
-                        "bg-muted text-muted-foreground",
-                      )}
-                    </section>
+                        {visibleCategorySections.map((category) => (
+                          <section
+                            key={category.key}
+                            ref={setSectionRef(category.key)}
+                            className="flex scroll-mt-1 flex-col gap-2.5"
+                          >
+                            <SectionHeader
+                              label={category.label}
+                              description={category.description}
+                            />
+                            {renderTemplateGrid(
+                              category.key,
+                              templatesByCategory.get(category.key) ?? [],
+                              category.icon,
+                              getCategoryIconClasses(category.key),
+                            )}
+                          </section>
+                        ))}
+                      </div>
+                    </div>
                   ) : null}
-
-                  {visibleCategorySections.map((category) => (
-                    <section
-                      key={category.key}
-                      ref={setSectionRef(category.key)}
-                      className="flex scroll-mt-1 flex-col gap-2.5"
-                    >
-                      <SectionHeader
-                        label={category.label}
-                        description={category.description}
-                      />
-                      {renderTemplateGrid(
-                        category.key,
-                        templatesByCategory.get(category.key) ?? [],
-                        category.icon,
-                        getCategoryIconClasses(category.key),
-                      )}
-                    </section>
-                  ))}
 
                   {visibleCategorySections.length === 0 &&
                   filteredProjectTemplates.length === 0 ? (

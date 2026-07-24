@@ -25,6 +25,7 @@ import {
   type CatalogTemplate,
   type EvaluatorSetupRuleControls,
 } from "@/src/features/evals/v2/components/EvaluatorSetupForm";
+import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
 import { CreateEvaluatorActivationDialog } from "@/src/features/evals/v2/components/CreateEvaluatorActivationDialog";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
@@ -80,9 +81,6 @@ export function EvaluatorEditView({
   const createRule = api.evalsV2.createRule.useMutation({
     onError: (error) => trpcErrorToast(error),
   });
-  const detachEvaluator = api.evalsV2.detachEvaluatorFromRule.useMutation({
-    onError: (error) => trpcErrorToast(error),
-  });
 
   if (rules.isPending) {
     return <Skeleton className="m-6 h-96 w-auto" />;
@@ -97,8 +95,10 @@ export function EvaluatorEditView({
     ? editedFilters !== null &&
       JSON.stringify(editedFilters) !== JSON.stringify(initialRule.filter)
     : true;
-  const ruleSavePending =
-    updateRule.isPending || createRule.isPending || detachEvaluator.isPending;
+  // A rule attached to only this evaluator can be updated in place; only a
+  // rule shared with other evaluators needs the fork-or-share choice.
+  const isRuleShared = (initialRule?.evaluatorCount ?? 0) > 1;
+  const ruleSavePending = updateRule.isPending || createRule.isPending;
 
   const finishRuleSaveChoice = (shouldContinue: boolean) => {
     setPendingRuleControls(null);
@@ -137,6 +137,8 @@ export function EvaluatorEditView({
     finishRuleSaveChoice(true);
   };
 
+  // Only called for evaluators with no rule attached yet; a rule attached to
+  // only this evaluator is updated in place instead (see updateExistingRule).
   const createNewRule = async (
     controls: EvaluatorSetupRuleControls,
   ): Promise<boolean> => {
@@ -151,17 +153,10 @@ export function EvaluatorEditView({
         name,
         targetObject: "event",
         filter: controls.filterState,
-        sampling: initialRule?.sampling ?? 1,
+        sampling: controls.sampling,
         enabled: true,
         evaluatorIds: [evaluatorId],
       });
-      if (initialRule) {
-        await detachEvaluator.mutateAsync({
-          projectId,
-          evaluatorId,
-          ruleId: initialRule.id,
-        });
-      }
     } catch {
       return false;
     }
@@ -169,9 +164,7 @@ export function EvaluatorEditView({
     setEditedFilters(null);
     showSuccessToast({
       title: "New rule created",
-      description: initialRule
-        ? `This evaluator now uses “${name}” instead of “${initialRule.name}”.`
-        : `This evaluator now uses “${name}”.`,
+      description: `This evaluator now uses “${name}”.`,
     });
     return true;
   };
@@ -198,7 +191,7 @@ export function EvaluatorEditView({
         onBeforeSave={(controls) => {
           if (!filtersEdited) return Promise.resolve(true);
           setPendingRuleControls(controls);
-          setPendingSaveChoice(initialRule ? "rule" : "activation");
+          setPendingSaveChoice(isRuleShared ? "rule" : "activation");
           return new Promise<boolean>((resolve) => {
             pendingSaveResolver.current = resolve;
           });
@@ -249,52 +242,46 @@ export function EvaluatorEditView({
           if (!open && !ruleSavePending) finishRuleSaveChoice(false);
         }}
       >
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl" closeOnInteractionOutside>
           <DialogHeader variant="action">
-            <DialogTitle>Save filter changes</DialogTitle>
+            <DialogTitle>Save filter changes?</DialogTitle>
           </DialogHeader>
-          <DialogBody>
+
+          <DialogBody className="gap-4">
             <DialogDescription>
-              {initialRule
-                ? `Update “${initialRule.name}” for every evaluator using it, or create a new rule with these filters for only this evaluator.`
-                : "Create a new rule with these filters for this evaluator."}
+              You changed the filters, but “{initialRule?.name}” is shared with
+              other evaluators — updating it here changes what they run on too.
             </DialogDescription>
+
+            {pendingRuleControls ? (
+              <ActivationCostEstimate
+                projectId={projectId}
+                filter={pendingRuleControls.filterState}
+                sampling={pendingRuleControls.sampling}
+                testRunCostUsd={null}
+                isCodeEvaluator={sourceTemplate.type === "CODE"}
+                enabled={pendingSaveChoice === "rule"}
+              />
+            ) : null}
           </DialogBody>
+
           <DialogFooter variant="action">
             <Button
               type="button"
               variant="outline"
               disabled={ruleSavePending}
-              onClick={() => finishRuleSaveChoice(false)}
+              onClick={() => finishRuleSaveChoice(true)}
             >
-              Cancel
+              Save evaluator only
             </Button>
             <Button
               type="button"
-              variant={initialRule ? "outline" : "default"}
-              loading={createRule.isPending || detachEvaluator.isPending}
+              loading={updateRule.isPending}
               disabled={ruleSavePending}
-              onClick={() => {
-                if (!pendingRuleControls) return;
-                createNewRule(pendingRuleControls)
-                  .then((created) => {
-                    if (created) finishRuleSaveChoice(true);
-                  })
-                  .catch(() => undefined);
-              }}
+              onClick={() => updateExistingRule().catch(() => undefined)}
             >
-              Create new rule
+              Update rule
             </Button>
-            {initialRule ? (
-              <Button
-                type="button"
-                loading={updateRule.isPending}
-                disabled={ruleSavePending}
-                onClick={() => updateExistingRule().catch(() => undefined)}
-              >
-                Update existing rule
-              </Button>
-            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -314,6 +301,10 @@ export function EvaluatorEditView({
           onSave={(runContinuously) => {
             if (!runContinuously) {
               finishRuleSaveChoice(true);
+              return;
+            }
+            if (initialRule) {
+              updateExistingRule().catch(() => undefined);
               return;
             }
             createNewRule(pendingRuleControls)

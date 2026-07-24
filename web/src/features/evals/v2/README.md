@@ -2,7 +2,13 @@
 
 ## Ownership map
 
-- `pages/evaluator-detail.tsx` owns evaluator detail/edit routing and header state.
+- `pages/evaluator-detail.tsx` always renders the evaluator as an editable
+  form (`EvaluatorEditView`) and owns header state. There is no separate
+  read-only view; `EvaluatorSetupForm`'s Save button stays disabled until the
+  draft actually differs from the loaded evaluator. Cancel and a successful
+  save both return to a clean state — cancel navigates back to the overview,
+  save remounts the form (via a bumped `key`) so its internal "initial value"
+  baselines reset to the just-saved data.
 - `components/EvaluatorSetupForm.tsx` owns the shared create/edit definition form,
   three-step sample/definition/metadata flow, narrow test pane, and reusable
   rule-filter suggestions. Prompt editing and variable mapping render as sibling
@@ -22,10 +28,10 @@
 - `components/EvaluationRuleForm.tsx` owns the shared three-step evaluation-rule
   structure. Create and edit render the same interactive form; inspection
   reuses the step shell with read-only field content.
-- `components/EvaluatorConfigurationView.tsx` owns read-only evaluator and
-  rule-assignment presentation. It reuses the edit hierarchy for prompt-variable
-  mappings and score output; controls become read-only while `Advanced` remains
-  inspectable. `EvaluatorDefinitionView` is shared by both detail surfaces.
+- `components/EvaluatorConfigurationView.tsx` exports only
+  `EvaluatorDefinitionView`, a read-only rendering of the prompt/code, score
+  output, and prompt-variable mappings reused by the evaluator detail page's
+  version-history sheet.
 - `server/router.ts` owns the project-scoped tRPC contract.
 - `server/evaluationRuleService.ts` owns evaluator ↔ rule assignment workflows.
 - `server/evaluatorActivationService.ts` owns draft activation.

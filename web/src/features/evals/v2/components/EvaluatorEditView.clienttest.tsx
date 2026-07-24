@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   beforeSaveResult: vi.fn(),
   updateRule: vi.fn(),
   createRule: vi.fn(),
-  detachEvaluatorFromRule: vi.fn(),
   invalidateRules: vi.fn(),
   invalidateEvalsV2: vi.fn(),
   invalidateEvals: vi.fn(),
@@ -25,6 +24,7 @@ const mocks = vi.hoisted(() => ({
       targetObject: "event",
       filter: [{ column: "environment", value: ["production"] }],
       sampling: 0.5,
+      evaluatorCount: 2,
     },
     {
       id: "secondary-rule",
@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
       targetObject: "event",
       filter: [{ column: "environment", value: ["staging"] }],
       sampling: 0.25,
+      evaluatorCount: 2,
     },
   ],
 }));
@@ -118,6 +119,10 @@ vi.mock(
   }),
 );
 
+vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
+  ActivationCostEstimate: () => <div>Estimated usage &amp; cost</div>,
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
@@ -149,12 +154,6 @@ vi.mock("@/src/utils/api", () => ({
           isPending: false,
         }),
       },
-      detachEvaluatorFromRule: {
-        useMutation: () => ({
-          mutateAsync: mocks.detachEvaluatorFromRule,
-          isPending: false,
-        }),
-      },
     },
   },
 }));
@@ -166,7 +165,6 @@ describe("EvaluatorEditView", () => {
     vi.clearAllMocks();
     mocks.updateRule.mockResolvedValue({ id: "attached-rule" });
     mocks.createRule.mockResolvedValue({ id: "new-rule" });
-    mocks.detachEvaluatorFromRule.mockResolvedValue({});
     mocks.invalidateRules.mockResolvedValue(undefined);
     mocks.invalidateEvalsV2.mockResolvedValue(undefined);
     mocks.invalidateEvals.mockResolvedValue(undefined);
@@ -178,6 +176,7 @@ describe("EvaluatorEditView", () => {
         targetObject: "event",
         filter: [{ column: "environment", value: ["production"] }],
         sampling: 0.5,
+        evaluatorCount: 2,
       },
       {
         id: "secondary-rule",
@@ -185,6 +184,7 @@ describe("EvaluatorEditView", () => {
         targetObject: "event",
         filter: [{ column: "environment", value: ["staging"] }],
         sampling: 0.25,
+        evaluatorCount: 2,
       },
     ];
   });
@@ -310,7 +310,7 @@ describe("EvaluatorEditView", () => {
 
     expect(mocks.createRule).not.toHaveBeenCalled();
     expect(
-      screen.queryByRole("dialog", { name: "Save filter changes" }),
+      screen.queryByRole("dialog", { name: "Save filter changes?" }),
     ).not.toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true),
@@ -394,13 +394,11 @@ describe("EvaluatorEditView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
 
     expect(
-      await screen.findByRole("dialog", { name: "Save filter changes" }),
+      await screen.findByRole("dialog", { name: "Save filter changes?" }),
     ).toHaveTextContent(
-      "Update “Production rule” for every evaluator using it",
+      "You changed the filters, but “Production rule” is shared with other evaluators",
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Update existing rule" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Update rule" }));
 
     await waitFor(() =>
       expect(mocks.updateRule).toHaveBeenCalledWith({
@@ -423,7 +421,7 @@ describe("EvaluatorEditView", () => {
     );
   });
 
-  it("forks the selected rule for only this evaluator", async () => {
+  it("keeps the shared rule untouched when saving evaluator changes only", async () => {
     render(
       <EvaluatorEditView
         projectId="project-1"
@@ -441,33 +439,67 @@ describe("EvaluatorEditView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit filters" }));
     fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Create new rule" }),
+      await screen.findByRole("button", { name: "Save evaluator only" }),
     );
 
+    expect(mocks.updateRule).not.toHaveBeenCalled();
+    expect(mocks.createRule).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect(mocks.createRule).toHaveBeenCalledWith(
-        expect.objectContaining({
-          projectId: "project-1",
-          targetObject: "event",
-          filter: [
-            {
-              column: "environment",
-              type: "stringOptions",
-              operator: "any of",
-              value: ["development"],
-            },
-          ],
-          sampling: 0.5,
-          enabled: true,
-          evaluatorIds: ["evaluator-1"],
-        }),
-      ),
+      expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true),
     );
-    expect(mocks.detachEvaluatorFromRule).toHaveBeenCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
-      ruleId: "attached-rule",
-    });
+  });
+
+  it("updates the rule directly through the activation flow when it isn't shared", async () => {
+    mocks.rules = [
+      {
+        id: "attached-rule",
+        name: "Production rule",
+        targetObject: "event",
+        filter: [{ column: "environment", value: ["production"] }],
+        sampling: 0.5,
+        evaluatorCount: 1,
+      },
+    ];
+
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule"]}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save evaluator" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "Save and start running?" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save & run" }));
+
+    await waitFor(() =>
+      expect(mocks.updateRule).toHaveBeenCalledWith({
+        projectId: "project-1",
+        ruleId: "attached-rule",
+        name: "Production rule",
+        filter: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["development"],
+          },
+        ],
+        sampling: 0.5,
+      }),
+    );
+    expect(mocks.createRule).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.beforeSaveResult).toHaveBeenCalledWith(true),
     );

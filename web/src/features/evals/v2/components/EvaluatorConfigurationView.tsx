@@ -4,13 +4,7 @@ import { SiPython, SiTypescript } from "react-icons/si";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { Badge } from "@/src/components/ui/badge";
 import { Label } from "@/src/components/ui/label";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/src/components/ui/resizable";
 import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
-import { EvaluatorRuleAssignments } from "@/src/features/evals/v2/components/EvaluatorRuleAssignments";
 import { PromptVariableEditor } from "@/src/features/evals/v2/components/PromptVariableEditor";
 import { MAPPABLE_COLUMNS } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import {
@@ -18,10 +12,7 @@ import {
   toScoreOutputFormState,
 } from "@/src/features/evals/v2/components/ScoreOutputSection";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
-import {
-  type FilterState,
-  type ObservationVariableMapping,
-} from "@langfuse/shared";
+import { type ObservationVariableMapping } from "@langfuse/shared";
 
 function mappingLabel(mapping: ObservationVariableMapping): string {
   const columnLabel =
@@ -221,92 +212,5 @@ export function EvaluatorDefinitionView({
         </>
       )}
     </div>
-  );
-}
-
-export function EvaluatorConfigurationView({
-  evaluatorType,
-  sourceCode,
-  sourceCodeLanguage,
-  prompt,
-  modelLabel,
-  usesProjectDefaultModel,
-  outputDefinition,
-  mappings,
-  projectId,
-  evaluatorId,
-  evaluatorName,
-  attachedEvaluationRules,
-  attachRuleOnOpen = false,
-  hasWriteAccess,
-  onViewEvaluationRule,
-  onEditEvaluationRule,
-}: {
-  evaluatorType: "LLM_AS_JUDGE" | "CODE";
-  sourceCode: string | null;
-  sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
-  prompt: string | null;
-  modelLabel: string;
-  usesProjectDefaultModel: boolean;
-  outputDefinition: unknown;
-  mappings: ObservationVariableMapping[];
-  projectId: string;
-  evaluatorId: string;
-  evaluatorName: string;
-  attachedEvaluationRules: Array<{
-    id: string;
-    name: string;
-    filter: FilterState;
-    enabled: boolean;
-  }>;
-  attachRuleOnOpen?: boolean;
-  hasWriteAccess: boolean;
-  onViewEvaluationRule: (ruleId: string) => void;
-  onEditEvaluationRule: (ruleId: string) => void;
-}) {
-  return (
-    <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-      <ResizablePanel
-        id="evaluator-definition"
-        defaultSize="65%"
-        minSize="35%"
-        className="min-h-0 min-w-0 overflow-y-auto"
-      >
-        <div className="w-full px-6 py-6">
-          <EvaluatorDefinitionView
-            evaluatorType={evaluatorType}
-            sourceCode={sourceCode}
-            sourceCodeLanguage={sourceCodeLanguage}
-            prompt={prompt}
-            modelLabel={modelLabel}
-            usesProjectDefaultModel={usesProjectDefaultModel}
-            outputDefinition={outputDefinition}
-            mappings={mappings}
-          />
-        </div>
-      </ResizablePanel>
-
-      <ResizableHandle withHandle />
-
-      <ResizablePanel
-        id="attached-evaluation-rules"
-        defaultSize="35%"
-        minSize="25%"
-        className="min-h-0 min-w-0 overflow-y-auto"
-      >
-        <div className="px-6 py-6">
-          <EvaluatorRuleAssignments
-            projectId={projectId}
-            evaluatorId={evaluatorId}
-            evaluatorName={evaluatorName}
-            rules={attachedEvaluationRules}
-            rulePickerInitiallyOpen={attachRuleOnOpen}
-            hasWriteAccess={hasWriteAccess}
-            onView={onViewEvaluationRule}
-            onEdit={onEditEvaluationRule}
-          />
-        </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
   );
 }

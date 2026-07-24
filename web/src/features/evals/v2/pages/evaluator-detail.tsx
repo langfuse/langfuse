@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { ArrowLeft, History, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, History, MoreVertical, Trash2 } from "lucide-react";
 
 import Page from "@/src/components/layouts/page";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
@@ -23,12 +22,8 @@ import {
 } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ActivateEvaluatorDialog } from "@/src/features/evals/v2/components/ActivateEvaluatorDialog";
-import {
-  EvaluatorConfigurationView,
-  EvaluatorDefinitionView,
-} from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
+import { EvaluatorDefinitionView } from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
 import { EvaluatorEditView } from "@/src/features/evals/v2/components/EvaluatorEditView";
-import { TablePeekViewEvaluationRuleDetail } from "@/src/features/evals/v2/components/EvaluationRulePeekView";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -36,27 +31,8 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
-const EVALUATION_RULE_PEEK_CONFIG = {
-  queryParams: ["editRule"],
-  extractParamsValuesFromRow: (row: {
-    openEdit?: boolean;
-  }): Record<string, string> => (row.openEdit ? { editRule: "1" } : {}),
-};
-
-const EVALUATOR_DETAIL_PEEK_QUERY_PARAMS = [
-  "peek",
-  "peekView",
-  "editRule",
-  "observation",
-  "display",
-  "timestamp",
-] as const;
-
 export default function EvaluatorDetailPage() {
   const router = useRouter();
-  const evaluationRulePeekNavigation = usePeekNavigation(
-    EVALUATION_RULE_PEEK_CONFIG,
-  );
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
@@ -65,6 +41,10 @@ export default function EvaluatorDetailPage() {
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  // Bumped after every successful save to remount EvaluatorEditView, so its
+  // internal "initial value" baselines (score name, mapping, ...) reset to
+  // the just-saved values instead of staying frozen at first-mount.
+  const [formResetKey, setFormResetKey] = useState(0);
   const utils = api.useUtils();
   const evaluator = api.evals.configById.useQuery(
     { projectId, id: evaluatorId },
@@ -93,8 +73,6 @@ export default function EvaluatorDetailPage() {
   );
 
   const activationDialogOpen = router.query.activate === "1";
-  const attachRuleOnOpen = router.query.attachRule === "1";
-  const editMode = router.query.edit === "1";
   const initialEvaluationRuleId =
     typeof router.query.ruleId === "string" ? router.query.ruleId : undefined;
   const hasWriteAccess = useHasProjectAccess({
@@ -139,25 +117,6 @@ export default function EvaluatorDetailPage() {
   const redirectToEvaluatorOverview = () => {
     router.replace(`/project/${projectId}/evals/v2`).catch(() => undefined);
   };
-  const setEditMode = (editing: boolean, ruleId?: string) => {
-    const query = { ...router.query };
-    EVALUATOR_DETAIL_PEEK_QUERY_PARAMS.forEach((param) => delete query[param]);
-    if (editing) {
-      query.edit = "1";
-      delete query.ruleId;
-      delete query.newRule;
-      if (ruleId) query.ruleId = ruleId;
-    } else {
-      delete query.edit;
-      delete query.ruleId;
-      delete query.newRule;
-    }
-    router
-      .replace({ pathname: router.pathname, query }, undefined, {
-        shallow: true,
-      })
-      .catch(() => undefined);
-  };
 
   if (evaluator.isPending) {
     return (
@@ -188,12 +147,6 @@ export default function EvaluatorDetailPage() {
     .catch([])
     .parse(data.variableMapping);
   const sampling = data.sampling.toNumber();
-  const usesProjectDefaultModel = !template.provider || !template.model;
-  const modelLabel = usesProjectDefaultModel
-    ? defaultModel.data
-      ? `${defaultModel.data.provider} / ${defaultModel.data.model}`
-      : "Project default model"
-    : `${template.provider} / ${template.model}`;
   const versions = evaluatorVersions.data?.templates ?? [];
   const selectedVersion = versions.find(
     (version) => version.id === selectedVersionId,
@@ -212,12 +165,11 @@ export default function EvaluatorDetailPage() {
   return (
     <Page
       headerProps={{
-        title: editMode ? "Edit evaluator" : `Evaluator: ${data.scoreName}`,
+        title: `Evaluator: ${data.scoreName}`,
         fitTitleToContent: true,
-        titleDescription:
-          !editMode && data.description ? (
-            <p className="text-muted-foreground text-sm">{data.description}</p>
-          ) : null,
+        titleDescription: data.description ? (
+          <p className="text-muted-foreground text-sm">{data.description}</p>
+        ) : null,
         breadcrumb: [
           { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
         ],
@@ -234,97 +186,49 @@ export default function EvaluatorDetailPage() {
             >
               <History className="h-3.5 w-3.5" />
             </Button>
-            {!editMode ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label="Evaluator actions"
-                    title="Evaluator actions"
-                  >
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    disabled={!hasWriteAccess}
-                    onSelect={() => setEditMode(true)}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={!hasWriteAccess}
-                    className="text-destructive focus:text-destructive"
-                    onSelect={() => setDeleteDialogOpen(true)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label="Evaluator actions"
+                  title="Evaluator actions"
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={!hasWriteAccess}
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setDeleteDialogOpen(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
       }}
     >
       <div className="flex h-full min-h-0 flex-col">
-        {editMode ? (
-          <EvaluatorEditView
-            projectId={projectId}
-            evaluatorId={data.id}
-            sourceTemplate={template}
-            initialMapping={mappings}
-            scoreName={data.scoreName}
-            description={data.description ?? ""}
-            attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
-            initialEvaluationRuleId={initialEvaluationRuleId}
-            onSaved={() => setEditMode(false)}
-            onCancel={() => setEditMode(false)}
-          />
-        ) : (
-          <EvaluatorConfigurationView
-            evaluatorType={template.type}
-            sourceCode={template.sourceCode}
-            sourceCodeLanguage={template.sourceCodeLanguage}
-            prompt={template.prompt}
-            modelLabel={modelLabel}
-            usesProjectDefaultModel={usesProjectDefaultModel}
-            outputDefinition={template.outputDefinition}
-            mappings={mappings}
-            projectId={projectId}
-            evaluatorId={data.id}
-            evaluatorName={data.scoreName}
-            attachedEvaluationRules={data.ruleAssignments.map(({ rule }) => ({
-              id: rule.id,
-              name: rule.name,
-              filter: z.array(singleFilter).catch([]).parse(rule.filter),
-              enabled: rule.enabled,
-            }))}
-            attachRuleOnOpen={attachRuleOnOpen}
-            hasWriteAccess={hasWriteAccess}
-            onViewEvaluationRule={(ruleId) =>
-              evaluationRulePeekNavigation.openPeek(ruleId)
-            }
-            onEditEvaluationRule={(ruleId) =>
-              evaluationRulePeekNavigation.openPeek(ruleId, {
-                openEdit: true,
-              })
-            }
-          />
-        )}
-      </div>
-
-      {!editMode ? (
-        <TablePeekViewEvaluationRuleDetail
-          itemType="EVALUATION_RULE"
+        <EvaluatorEditView
+          key={`${data.id}-${formResetKey}`}
           projectId={projectId}
-          closePeek={evaluationRulePeekNavigation.closePeek}
+          evaluatorId={data.id}
+          sourceTemplate={template}
+          initialMapping={mappings}
+          scoreName={data.scoreName}
+          description={data.description ?? ""}
+          attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
+          initialEvaluationRuleId={initialEvaluationRuleId}
+          onSaved={() => setFormResetKey((key) => key + 1)}
+          onCancel={redirectToEvaluatorOverview}
         />
-      ) : null}
+      </div>
 
       <ActivateEvaluatorDialog
         projectId={projectId}

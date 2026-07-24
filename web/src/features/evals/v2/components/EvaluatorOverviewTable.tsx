@@ -333,7 +333,7 @@ export function EvaluatorOverviewTable({
                 disabled={!hasWriteAccess}
                 onClick={() =>
                   router.push(
-                    `/project/${projectId}/evals/v2/${encodeURIComponent(row.original.id)}?attachRule=1#attached-evaluation-rules`,
+                    `/project/${projectId}/evals/v2/${encodeURIComponent(row.original.id)}`,
                   )
                 }
               >
