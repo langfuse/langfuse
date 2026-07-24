@@ -19,6 +19,7 @@ import { useSelection } from "../contexts/SelectionContext";
 import { useIsObservationActive } from "../contexts/PlayheadContext";
 import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
 import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
+import { useMobileLayoutContextOptional } from "./_layout/TraceLayoutMobile";
 import { type TreeNode } from "../lib/types";
 import { cn } from "@/src/utils/tailwind";
 import type Decimal from "decimal.js";
@@ -96,6 +97,10 @@ export function TraceTree() {
   // Optional (null on mobile): reopen the detail panel on select, including
   // re-selecting the already-selected node.
   const layout = useDesktopLayoutContextOptional();
+  // Optional (null on desktop): jump to the Info tab on select, including
+  // re-selecting the already-selected node (URL param unchanged → the tab
+  // effect wouldn't fire).
+  const mobileLayout = useMobileLayoutContextOptional();
   const handleSelectNode = (id: string | null) => {
     if (id) {
       capture("trace_detail:node_selected", {
@@ -105,6 +110,7 @@ export function TraceTree() {
     }
     setSelectedNodeId(id);
     layout?.expandDetailPanel();
+    if (id) mobileLayout?.switchToInfoTab();
   };
 
   // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
