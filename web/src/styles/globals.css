@@ -25,12 +25,9 @@
   --font-sans:
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
-  /* PROPOSED (review): Geist Mono (OFL) adopted per the sessions handoff —
-     loaded in src/styles/fonts.ts via next/font, declared on :root from
-     _app. Previous stack started at ui-monospace. */
   --font-mono:
-    var(--font-geist-mono, "Geist Mono"), ui-monospace, SFMono-Regular, Menlo,
-    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
      Both are font-relative, so components never hardcode numbers.
@@ -254,15 +251,10 @@
 
 @layer base {
   :root {
-    /* PROPOSED (review): warm paper canvas from the sessions-view handoff.
-       Previous value: 0 0% 100%. */
-    --background: 60 14% 96%;
+    --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
 
-    /* PROPOSED (review): raised warm grey (#EDEDE8) from the sessions-view
-       handoff — one clear step below the paper canvas. Previous value:
-       210 40% 96.1% (indistinguishable from the new canvas). */
-    --muted: 60 12% 92%;
+    --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
@@ -284,22 +276,14 @@
     --modal: 0 0% 100%;
     --modal-foreground: var(--foreground);
 
-    /* PROPOSED (review): header chrome joins the paper canvas — the mock's
-       top bar / session header sit on #F6F6F3, not a separate near-white.
-       Previous value: 210 40% 98%. */
-    --header: 60 14% 96%;
+    --header: 210 40% 98%;
     --header-foreground: var(--foreground);
 
-    /* PROPOSED (review): the handoff's structure line #CFCFC9 — warmer and a
-       full step darker than before ("Sharp" crisp hairline). Previous value:
-       214.3 31.8% 91.4%. --input follows --border, as before. */
-    --border: 60 6% 80%;
+    --border: 214.3 31.8% 91.4%;
     /* Structural/viz lines (tree connectors, timeline grid + bar outlines):
-       one clear step stronger than the hairline --border.
-       PROPOSED (review): handoff dashed-divider tone #BEBEB6. Previous
-       value: 214.3 20% 80%. */
-    --border-contrast: 60 6% 73%;
-    --input: 60 6% 80%;
+       one clear step stronger than the hairline --border. */
+    --border-contrast: 214.3 20% 80%;
+    --input: 214.3 31.8% 91.4%;
 
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
@@ -382,17 +366,13 @@
     --qlang-keyword: 221 83% 53%;
 
     --radius: 0.5rem;
-    /* PROPOSED (review): sidenav joins the paper canvas (mock plane-side
-       #F6F6F3) with the handoff hairline; hover fill = surface-1 #EDEDE8.
-       Previous values: 0 0% 100% / 240 5.3% 26.1% / 210 40% 96.9% /
-       220 13% 91%. */
-    --sidebar-background: 60 14% 96%;
-    --sidebar-foreground: 240 4% 36%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 60 12% 92%;
+    --sidebar-accent: 210 40% 96.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 60 6% 80%;
+    --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     --find-match-background: 60 60% 85%;
@@ -459,67 +439,43 @@
        dimmer than content until active. Bright tiers cap near 91% (the docs
        site caps at 90%) — never near-white. Don't compress the ramp — the
        gap is the hierarchy. */
-    /* PROPOSED (review): dark elevation ramp moved from pure hue-0 grey to
-       the sessions handoff's single GREIGE family (hue 60, sat 5–8%) so
-       light (already warm since r2) and dark share one neutral family.
-       Lightness steps are unchanged unless noted; anchors pinned to the
-       handoff hexes: #0e0e0c code well, #121210 recessed canvas, #171714
-       base, #1c1c19 sheet, #21211e raised, #2b2b27 active, #45453f dashed
-       line. Previous values in the per-token comments. */
-    /* PROPOSED (review): #121210 recessed canvas. Previous: 0 0% 6%. */
-    --background: 60 6% 6.7%;
+    --background: 0 0% 6%;
     --foreground: 0 0% 70%;
 
-    /* PROPOSED (review): #21211e raised (fields, bubbles, hover fills).
-       Previous: 0 0% 11.6%. */
-    --muted: 60 6% 12.4%;
+    --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
     --foreground-tertiary: 0 0% 40%;
-    /* PROPOSED (review): #0e0e0c code well — the one recessed tier.
-       Previous: 0 0% 2.3% (well rises to stay one step below the new
-       canvas, same relation). */
-    --surface-code: 60 8% 5.1%;
+    --surface-code: 0 0% 2.3%;
 
-    /* PROPOSED (review): greige, one step above modal. Previous: 0 0% 12%. */
-    --popover: 60 6% 14%;
+    --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
 
-    /* PROPOSED (review): #171714 base. Previous: 0 0% 7.5%. */
-    --card: 60 7% 8.4%;
+    --card: 0 0% 7.5%;
     --card-foreground: var(--foreground);
 
-    /* PROPOSED (review): #1c1c19 sheet. Previous: 0 0% 9%. */
-    --modal: 60 6% 10.4%;
+    --modal: 0 0% 9%;
     --modal-foreground: var(--foreground);
 
-    /* PROPOSED (review): #171714 base chrome — the mock's top bar / rail
-       tier (one step ABOVE the recessed canvas, per the handoff ramp).
-       Previous: 0 0% 2%, then 60 8% 3.5% earlier in this branch. */
-    --header: 60 7% 8.4%;
+    --header: 0 0% 2%;
     --header-foreground: var(--foreground);
 
-    /* Hairline must read on EVERY surface tier, including popover.
-       PROPOSED (review): hue-shift only. Previous: 0 0% 15% / 0 0% 26%
-       (#45453f is the handoff's dashed-line tone) / 0 0% 18%. */
-    --border: 60 5% 15%;
-    --border-contrast: 60 5% 26%;
-    --input: 60 5% 18%;
+    /* Hairline must read on EVERY surface tier, including popover (12%). */
+    --border: 0 0% 15%;
+    --border-contrast: 0 0% 26%;
+    --input: 0 0% 18%;
 
     --primary: 0 0% 90%;
     --primary-foreground: 0 0% 3.5%;
 
-    /* PROPOSED (review): follows --muted (#21211e). Previous: 0 0% 11.6%. */
-    --secondary: 60 6% 12.4%;
+    --secondary: 0 0% 11.6%;
     --secondary-foreground: 0 0% 88%;
 
-    /* PROPOSED (review): #2b2b27 active/pressed. Previous: 0 0% 16.5%. */
-    --tertiary: 60 5% 16%;
+    --tertiary: 0 0% 16.5%;
     --tertiary-foreground: 0 0% 88%;
 
-    /* One clear step above --popover — focus:bg-accent is the only focus
-       cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1.
-       PROPOSED (review): hue-shift only. Previous: 0 0% 18%. */
-    --accent: 60 5% 18%;
+    /* One clear step above --popover (12%) — focus:bg-accent is the only
+       focus cue in menus/selects/⌘K, and 14.3% was a near-invisible ~1.13:1. */
+    --accent: 0 0% 18%;
     --accent-foreground: 0 0% 91%;
 
     --destructive: 0 78.7% 63.1%;
@@ -531,21 +487,18 @@
     --link: 246 55% 70%;
     --link-hover: 246 95% 85%;
     --control-fill: 0 0% 78%;
-    /* PROPOSED (review): hue-shift only. Previous: 0 0% 24%. */
-    --control-track: 60 5% 24%;
+    --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
-       border alone; 20% was ~1.58:1 on the canvas.
-       PROPOSED (review): hue-shift only. Previous: 0 0% 26%. */
-    --control-border: 60 5% 26%;
+       border alone; 20% was ~1.58:1 on the canvas. */
+    --control-border: 0 0% 26%;
 
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
-       of --border-contrast (26%).
-       PROPOSED (review): hue-shift only. Previous: 0 0% 16%. */
-    --muted-gray: 60 5% 16%;
+       of --border-contrast (26%). */
+    --muted-gray: 0 0% 16%;
 
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
@@ -585,16 +538,13 @@
 
     --radius: 0.5rem;
 
-    /* PROPOSED (review): sidenav = #121210 recessed (the mock's dark
-       plane-side), hover fill = #21211e raised. Previous: 0 0% 2% /
-       0 0% 10% / 0 0% 12%, then 60 8% 3.5% earlier in this branch. */
-    --sidebar-background: 60 6% 6.7%;
+    --sidebar-background: 0 0% 2%;
     --sidebar-foreground: 0 0% 60%;
     --sidebar-primary: 0 0% 90%;
     --sidebar-primary-foreground: 0 0% 3.5%;
-    --sidebar-accent: 60 6% 12.4%;
+    --sidebar-accent: 0 0% 10%;
     --sidebar-accent-foreground: 0 0% 91%;
-    --sidebar-border: 60 5% 15%;
+    --sidebar-border: 0 0% 12%;
     --sidebar-ring: 246 55% 70%;
 
     --find-match-background: 60 100% 20%;

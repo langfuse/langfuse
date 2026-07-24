@@ -6,16 +6,14 @@ import { assertUnreachable } from "@/src/utils/types";
 import { cva } from "class-variance-authority";
 import { useMemo } from "react";
 
-// Neutral mono chip per the sessions handoff; production regions keep the red
-// text as a safety signal.
 const envLabelBadgeVariants = cva(
-  "bg-muted flex cursor-pointer items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-[10px] tracking-[0.05em] whitespace-nowrap uppercase",
+  "flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
   {
     variants: {
       variant: {
-        development: "text-muted-foreground",
-        staging: "text-muted-foreground",
-        production: "text-dark-red",
+        development: "bg-light-green text-dark-green",
+        staging: "bg-light-blue text-dark-blue",
+        production: "bg-light-red text-dark-red",
       },
     },
   },
