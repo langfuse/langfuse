@@ -485,7 +485,14 @@ function IOPreviewJSONInner({
         // Add corrected output as footer when corrections are enabled
         renderFooter: () => (
           <CorrectedOutputField
-            actualOutput={effectiveOutput}
+            // Don't hand the full oversized object to the diff dialog: it
+            // `JSON.stringify`s `actualOutput` unmemoized in its render body on
+            // every render (incl. every keystroke while editing a correction),
+            // which would re-serialize megabytes on exactly the large-output
+            // case this viewer gates. `actualOutputTooLarge` drives the
+            // "too large to diff" branch, so `undefined` here is sufficient
+            // (and `effectiveOutput` stays decoded for the lazy viewer/probe).
+            actualOutput={outputTooLarge ? undefined : effectiveOutput}
             actualOutputTooLarge={outputTooLarge}
             existingCorrection={outputCorrection}
             observationId={observationId}

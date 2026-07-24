@@ -40,8 +40,28 @@ vi.mock(
   }),
 );
 
+// Capture the props CorrectedOutputField receives — the diff dialog it mounts
+// JSON.stringifies `actualOutput` unmemoized on every render, so an oversized
+// output must NOT be handed to it. `vi.hoisted` so the holder exists when the
+// hoisted mock factory runs.
+const correctedField = vi.hoisted(() => ({
+  props: undefined as
+    | { actualOutput?: unknown; actualOutputTooLarge?: boolean }
+    | undefined,
+}));
 vi.mock("./components/CorrectedOutputField", () => ({
-  CorrectedOutputField: () => <div data-testid="corrected-output" />,
+  CorrectedOutputField: (props: {
+    actualOutput?: unknown;
+    actualOutputTooLarge?: boolean;
+  }) => {
+    // Read each field explicitly (not the whole object) so the capture is
+    // exactly what the tests assert — and to satisfy react/no-unused-prop-types.
+    correctedField.props = {
+      actualOutput: props.actualOutput,
+      actualOutputTooLarge: props.actualOutputTooLarge,
+    };
+    return <div data-testid="corrected-output" />;
+  },
 }));
 
 // The lazy renderer runs a byte engine + virtualizer; stub it to a marker so
@@ -240,6 +260,42 @@ describe("IOPreviewJSON node-count gating", () => {
       "section-input__oversized",
       "section-output",
     ]);
+  });
+
+  it("does not hand an oversized output to the correction diff (avoids per-render re-stringify)", () => {
+    // Regression (LFE-10847 review 🔴): CorrectedOutputField always mounts the
+    // diff dialog, which JSON.stringifies `actualOutput` unmemoized in its
+    // render body — so handing it the full oversized output re-serializes
+    // megabytes on every render/keystroke. A gated output must reach it as
+    // undefined (actualOutputTooLarge=true drives the "too large to diff"
+    // branch); the decoded value still feeds the lazy viewer/probe separately.
+    render(
+      <IOPreviewJSON
+        output={manyRows()}
+        hideInput
+        hideIfNull={false}
+        showCorrections={true}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    expect(correctedField.props?.actualOutputTooLarge).toBe(true);
+    expect(correctedField.props?.actualOutput).toBeUndefined();
+  });
+
+  it("still hands a small (non-gated) output to the correction diff", () => {
+    render(
+      <IOPreviewJSON
+        output={{ answer: "ok" }}
+        hideInput
+        hideIfNull={false}
+        showCorrections={true}
+        projectId="p"
+        traceId="t"
+      />,
+    );
+    expect(correctedField.props?.actualOutputTooLarge).toBe(false);
+    expect(correctedField.props?.actualOutput).toEqual({ answer: "ok" });
   });
 
   it("renders normal small I/O with its data and no fallback", () => {
