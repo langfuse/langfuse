@@ -426,6 +426,12 @@ export const env = createEnv({
         "must be an EventBridge bus ARN (arn:aws:events:<region>:<account-id>:event-bus/<name>)",
       )
       .optional(),
+    // Bearer token we present to CHB's REST API (checkout sessions, bundles,
+    // invoices). Not used for the event bus, which authenticates via IAM.
+    CLICKHOUSE_BILLING_SERVICE_TOKEN: z.string().optional(),
+    // CHB REST API base url. Unset (or a missing service token) makes the CHB
+    // billing service refuse to construct, so no half-configured calls go out.
+    CLICKHOUSE_BILLING_BASE_URL: z.url().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     SENTRY_CSP_REPORT_URI: z.string().optional(),
     LANGFUSE_RATE_LIMITS_ENABLED: z.enum(["true", "false"]).default("true"),
@@ -961,6 +967,9 @@ export const env = createEnv({
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
+    CLICKHOUSE_BILLING_SERVICE_TOKEN:
+      process.env.CLICKHOUSE_BILLING_SERVICE_TOKEN,
+    CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
     SENTRY_CSP_REPORT_URI: process.env.SENTRY_CSP_REPORT_URI,
     LANGFUSE_RATE_LIMITS_ENABLED: process.env.LANGFUSE_RATE_LIMITS_ENABLED,
