@@ -318,16 +318,6 @@ async function main() {
     }
   };
 
-  // Pending invitations mark not-yet-accepted invite leads. Accepted
-  // invitations are deleted, so for everyone else the lead source is derived
-  // from membership role history. Pending invites are a small table — load
-  // the emails once instead of querying per user.
-  const pendingInviteEmails = new Set(
-    (
-      await prisma.membershipInvitation.findMany({ select: { email: true } })
-    ).map((invite) => invite.email.toLowerCase()),
-  );
-
   const nonExcludedOrgFilter = cli.excludeOrgIds.size
     ? { orgId: { notIn: [...cli.excludeOrgIds] } }
     : {};
@@ -340,10 +330,7 @@ async function main() {
   // Lead source from the user's global membership history — must not depend
   // on which org unit triggers the send, or multi-org users would get
   // order-dependent values.
-  const resolveLeadSource = async (
-    userId: string,
-    email: string,
-  ): Promise<SfdcLeadSource> => {
+  const resolveLeadSource = async (userId: string): Promise<SfdcLeadSource> => {
     const firstMembership = await prisma.organizationMembership.findFirst({
       where: {
         userId,
@@ -357,9 +344,7 @@ async function main() {
       return firstMembership.role === Role.OWNER
         ? "Langfuse Cloud Signup"
         : "Langfuse Cloud Invite";
-    return pendingInviteEmails.has(email.toLowerCase())
-      ? "Langfuse Cloud Invite"
-      : "Langfuse Cloud Signup";
+    return "Langfuse Cloud Signup";
   };
 
   // One Lead send per user per run; multi-org users keep their first outcome
@@ -374,7 +359,7 @@ async function main() {
   }): Promise<boolean> => {
     const existing = leadOutcome.get(user.id);
     if (existing) return existing === "sent";
-    const leadSource = await resolveLeadSource(user.id, user.email);
+    const leadSource = await resolveLeadSource(user.id);
     sample("upsertUser", {
       userId: user.id,
       email: user.email,
