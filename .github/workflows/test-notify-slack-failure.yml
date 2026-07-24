@@ -5,6 +5,9 @@ name: TEST - Notify Slack Failure
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - analyze-ci-failures-slack
 
 permissions: {}
 
