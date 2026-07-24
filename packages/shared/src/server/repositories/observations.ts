@@ -1175,9 +1175,13 @@ export const getCostForTraces = async (
   traceIds: string[],
 ) => {
   // Wrapping the query in a CTE allows us to skip FINAL which allows Clickhouse to use skip indexes.
+  // Roll up the resolved cost: prefer caller-ingested `total_cost`, fall back to the
+  // model-calculated `calculated_total_cost` (MATERIALIZED from `cost_details`) so the
+  // session total matches the metrics API and trace-detail views when callers send
+  // usage only and let Langfuse derive the cost.
   const query = `
     WITH selected_observations AS (
-      SELECT o.total_cost as total_cost
+      SELECT COALESCE(o.total_cost, o.calculated_total_cost, 0) AS total_cost
       FROM observations o
       WHERE o.project_id = {projectId: String}
       AND o.trace_id IN ({traceIds: Array(String)})
