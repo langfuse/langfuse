@@ -7,7 +7,7 @@ import { safeJsonParse, stableJsonStringify } from "@/src/utils/json";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@/src/ee/features/in-app-agent/constants";
+} from "@langfuse/shared/ee/in-app-agent";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
@@ -15,7 +15,7 @@ import {
   type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
   InAppAgentMessageSourceSchema,
-} from "@/src/ee/features/in-app-agent/schema";
+} from "@langfuse/shared/ee/in-app-agent";
 
 export type InAppAgentError =
   | { type: "generic"; message: string }

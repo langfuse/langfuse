@@ -48,6 +48,11 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.
+- The in-app-agent runtime lives in shared:
+  `@langfuse/shared/ee/in-app-agent` is the client-safe contracts entry;
+  `@langfuse/shared/ee/in-app-agent/server` (and per-module subpaths) is
+  server-only. Web keeps only the thin adapters in
+  `src/ee/features/in-app-agent/` (handler, router, UI).
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,

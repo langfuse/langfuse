@@ -64,6 +64,100 @@ function markdownRawPlugin() {
 
 export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
+  resolve: {
+    // The in-app-agent runtime lives in @langfuse/shared. Its built dist is
+    // CJS, whose require() calls bypass vitest's mocker — so tests that mock
+    // the runtime's dependencies (@mastra/*, instrumentation, …) would hit
+    // the real modules. Alias the runtime subpaths to shared *source* so
+    // vite processes it as ESM and mocks intercept.
+    alias: [
+      {
+        find: /^@langfuse\/shared\/ee\/in-app-agent\/server\/(.+)$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/ee/in-app-agent/server/$1",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/ee\/in-app-agent\/server$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/ee/in-app-agent/server/index.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/ee\/in-app-agent$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/ee/in-app-agent/index.ts",
+        ),
+      },
+      // The runtime source reaches the rest of shared via relative imports
+      // (../../../server etc.), so shared's other entry points must resolve
+      // to the same source files — otherwise tests would load a second dist
+      // copy of shared (split singletons, vi.mock("@langfuse/shared/src/
+      // server") missing the runtime's imports).
+      {
+        find: /^@langfuse\/shared\/src\/(.+)$/,
+        replacement: join(import.meta.dirname, "../packages/shared/src/$1"),
+      },
+      {
+        find: /^@langfuse\/shared\/encryption$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/encryption/index.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/query$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/features/query/index.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/query\/server$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/features/query/server/index.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/monitors$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/features/monitors/index.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared\/monitors\/server$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/features/monitors/server.ts",
+        ),
+      },
+      {
+        find: /^@langfuse\/shared$/,
+        replacement: join(
+          import.meta.dirname,
+          "../packages/shared/src/index.ts",
+        ),
+      },
+    ],
+    // The runtime source resolves Mastra/AG-UI/Bedrock through shared's
+    // node_modules symlinks — a different module id than the test files'
+    // vi.mock registrations, which resolve through web's. Dedupe forces a
+    // single resolution so the mocks intercept the runtime's imports.
+    dedupe: [
+      "@mastra/core",
+      "@mastra/mcp",
+      "@ag-ui/core",
+      "@ag-ui/client",
+      "@ag-ui/mastra",
+      "ai-sdk-amazon-bedrock-v4",
+      "langfuse",
+    ],
+  },
   test: {
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]

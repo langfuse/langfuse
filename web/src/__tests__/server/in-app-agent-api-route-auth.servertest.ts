@@ -1,12 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
-import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@langfuse/shared/ee/in-app-agent/server/tools";
+import { storePendingToolApproval } from "@langfuse/shared/ee/in-app-agent/server/human-in-the-loop";
 import type {
   AgUiEvent,
   InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
-import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@langfuse/shared/ee/in-app-agent";
+import { replaceRunEvents } from "@langfuse/shared/ee/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
@@ -76,7 +76,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
+vi.mock("@langfuse/shared/ee/in-app-agent/server/agent", () => ({
   createAgUiStream: agentMocks.createAgUiStream,
 }));
 

@@ -1,9 +1,7 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "./prompts/in-app-agent-system-prompt";
+import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
@@ -14,36 +12,33 @@ import {
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
-} from "@/src/ee/features/in-app-agent/schema";
-import { createManualToolApprovalRunInput } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+} from "../schema";
+import { createManualToolApprovalRunInput } from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
-} from "@/src/ee/features/in-app-agent/server/instrumentation";
-import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+} from "./instrumentation";
+import { createInAppAgentInstrumentation } from "./instrumentation";
 import {
   createSandboxTools,
   createRedirectActionTool,
   filterInAppAgentAvailableLangfuseMcpTools,
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
-} from "@/src/ee/features/in-app-agent/server/tools";
-import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/server/skills";
-import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
-import { logger } from "@langfuse/shared/src/server";
+} from "./tools";
+import { LANGFUSE_IN_APP_AGENT_SKILLS } from "./skills";
+import type { InAppAgentSandbox } from "./sandbox";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "../../../features/filters/internalEnvironments";
+import { env } from "../../../env";
+import { logger } from "../../../server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@/src/ee/features/in-app-agent/constants";
+} from "../constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
-const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
-  process.cwd(),
-  "src/ee/features/in-app-agent/prompts/",
-);
 const MAX_AGENT_STEPS = 10;
 const BEDROCK_CLAUDE_MODEL_ID_PART = "anthropic.claude";
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
@@ -191,8 +186,7 @@ export async function createAgUiStream(params: {
   options: CreateAgUiStreamOptions;
 }) {
   const encoder = new TextEncoder();
-  const awsProfile =
-    process.env.AWS_PROFILE ?? params.options.awsBedrock.profile;
+  const awsProfile = env.AWS_PROFILE ?? params.options.awsBedrock.profile;
 
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
@@ -1060,16 +1054,11 @@ async function getSystemPromptInstructions(params: {
   };
 }): Promise<{ instructions: string; prompt: InAppAgentPromptMetadata }> {
   if (params.useLocalPrompt) {
-    const promptTemplate = await readFile(
-      path.join(
-        LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR,
-        `${IN_APP_AGENT_SYSTEM_PROMPT_NAME}.txt`,
-      ),
-      "utf8",
-    );
-
     return {
-      instructions: compileLocalPrompt(promptTemplate, params.variables),
+      instructions: compileLocalPrompt(
+        IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE,
+        params.variables,
+      ),
       prompt: {
         name: IN_APP_AGENT_SYSTEM_PROMPT_NAME,
         version: 1,

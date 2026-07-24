@@ -30,7 +30,7 @@ import {
   type InAppAgentMessageFeedback,
   type InAppAgentMessageFeedbackValue,
   type InAppAgentMessageSource,
-} from "@/src/ee/features/in-app-agent/schema";
+} from "@langfuse/shared/ee/in-app-agent";
 import {
   Popover,
   PopoverAnchor,

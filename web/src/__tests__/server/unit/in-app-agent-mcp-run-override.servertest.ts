@@ -1,7 +1,7 @@
 import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
-} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+} from "@langfuse/shared/ee/in-app-agent/server/human-in-the-loop";
 
 describe("in-app agent MCP run override", () => {
   it("serializes the override as plain JSON", async () => {

@@ -1,8 +1,10 @@
 import { createTool } from "@mastra/core/tools";
-import type { InAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
-import type { ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { assertUnreachable } from "@/src/utils/types";
+import type { InAppAgentSandbox } from "./sandbox";
+import {
+  hasProjectAccessByRole,
+  type ProjectScope,
+} from "../../../features/rbac/projectAccessRights";
+import { assertUnreachable } from "../../../utils/typeChecks";
 import {
   buildDashboardsPath,
   buildDashboardWidgetPath,
@@ -20,13 +22,12 @@ import {
   buildSessionsPath,
   buildTracePath,
   buildTracesPath,
-} from "@/src/utils/product-url";
+} from "../../../server/utils/productUrl";
 import z from "zod";
-import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
-import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
-import { Role } from "@langfuse/shared/src/db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
-import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+import { TABLE_AGGREGATION_OPTIONS } from "../../../utils/dateRanges";
+import { ObservationLevelDomain, TracingSearchType } from "../../../index";
+import { Role } from "../../../db";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
 
 type InAppAgentMcpToolApproval = "auto" | "approval";
 
@@ -44,12 +45,12 @@ type InAppAgentMcpToolPolicy = {
 };
 
 // Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
-// MCP registry names; tests compare this map with toolRegistry so new MCP tools
-// must be classified before the in-app agent can auto/approval-gate them.
-export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
-  McpToolName,
-  InAppAgentMcpToolPolicy
-> = {
+// MCP registry names and are the source of truth for the tool-name type below.
+// Exhaustiveness against web's MCP toolRegistry is enforced by a compile-time
+// assertion in web (features/mcp/server/inAppAgentToolPolicy.check.ts) plus
+// the registry-comparison servertest, so new MCP tools must be classified
+// before the in-app agent can auto/approval-gate them.
+export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
   listAnnotationQueues: {
     approval: "auto",
     availability: { scope: "annotationQueues:read" },
@@ -366,11 +367,17 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES: Record<
     approval: "approval",
     availability: { scope: "dashboards:CUD" },
   },
-};
+} satisfies Record<string, InAppAgentMcpToolPolicy>;
 
-export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES = new Set<McpToolName>(
-  Object.keys(IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES) as McpToolName[],
-);
+export type InAppAgentLangfuseMcpToolName =
+  keyof typeof IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES;
+
+export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES =
+  new Set<InAppAgentLangfuseMcpToolName>(
+    Object.keys(
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+    ) as InAppAgentLangfuseMcpToolName[],
+  );
 
 export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
@@ -394,12 +401,16 @@ export const IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES = new Set([
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
 ]);
 
-export function isMcpToolName(input: string): input is McpToolName {
-  return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(input as McpToolName);
+export function isMcpToolName(
+  input: string,
+): input is InAppAgentLangfuseMcpToolName {
+  return IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(
+    input as InAppAgentLangfuseMcpToolName,
+  );
 }
 
 export function isInAppAgentLangfuseMcpToolAvailable(params: {
-  toolName: McpToolName;
+  toolName: InAppAgentLangfuseMcpToolName;
   userAccess?: InAppAgentUserAccess;
 }): boolean {
   if (!params.userAccess) {
@@ -412,7 +423,7 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
     return false;
   }
 
-  return hasProjectAccess({
+  return hasProjectAccessByRole({
     role: params.userAccess.projectRole ?? Role.MEMBER,
     admin: params.userAccess.isAdmin,
     scope: policy.availability.scope,
@@ -420,9 +431,9 @@ export function isInAppAgentLangfuseMcpToolAvailable(params: {
 }
 
 export function filterInAppAgentAvailableLangfuseMcpTools<TTool>(params: {
-  tools: Partial<Record<McpToolName, TTool>> | undefined;
+  tools: Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> | undefined;
   userAccess?: InAppAgentUserAccess;
-}): Partial<Record<McpToolName, TTool>> {
+}): Partial<Record<InAppAgentLangfuseMcpToolName, TTool>> {
   return Object.fromEntries(
     Object.entries(params.tools ?? {}).flatMap(([toolName, tool]) => {
       if (!isMcpToolName(toolName)) {

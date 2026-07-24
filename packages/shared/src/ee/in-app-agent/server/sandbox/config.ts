@@ -1,8 +1,8 @@
 import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 import type { InAppAgentSandboxProviderType, SandboxProvider } from "./types";
-import { env } from "@/src/env.mjs";
-import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "@/src/ee/features/in-app-agent/constants";
-import { assertUnreachable } from "@/src/utils/types";
+import { env } from "../../../../env";
+import { IN_APP_AGENT_LOCAL_SANDBOX_IMAGE } from "../../constants";
+import { assertUnreachable } from "../../../../utils/typeChecks";
 
 export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProviderType | null {
   const providerType = env.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER ?? null;
@@ -31,7 +31,8 @@ export async function createInAppAgentSandboxProvider(
     }
 
     // Keep the Docker provider behind a runtime import since it's only used in development
-    const { createDockerSandboxProvider } = await import("./providers/docker");
+    const { createDockerSandboxProvider } =
+      await import("./providers/docker.js");
     return createDockerSandboxProvider({
       image: IN_APP_AGENT_LOCAL_SANDBOX_IMAGE,
     });

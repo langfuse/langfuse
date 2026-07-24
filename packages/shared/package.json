@@ -62,6 +62,22 @@
     "./monitors/server": {
       "import": "./dist/src/features/monitors/server.js",
       "require": "./dist/src/features/monitors/server.js"
+    },
+    "./ee/in-app-agent": {
+      "import": "./dist/src/ee/in-app-agent/index.js",
+      "require": "./dist/src/ee/in-app-agent/index.js"
+    },
+    "./ee/in-app-agent/server": {
+      "import": "./dist/src/ee/in-app-agent/server/index.js",
+      "require": "./dist/src/ee/in-app-agent/server/index.js"
+    },
+    "./ee/in-app-agent/server/sandbox": {
+      "import": "./dist/src/ee/in-app-agent/server/sandbox/index.js",
+      "require": "./dist/src/ee/in-app-agent/server/sandbox/index.js"
+    },
+    "./ee/in-app-agent/server/*": {
+      "import": "./dist/src/ee/in-app-agent/server/*.js",
+      "require": "./dist/src/ee/in-app-agent/server/*.js"
     }
   },
   "scripts": {
@@ -94,6 +110,9 @@
     "seed": "dotenv -e ../../.env -- tsx scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
+    "@ag-ui/client": "^0.0.52",
+    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/mastra": "1.1.1",
     "@ai-sdk/amazon-bedrock": "^5.0.24",
     "@ai-sdk/anthropic": "^4.0.5",
     "@ai-sdk/azure": "^4.0.5",
@@ -103,6 +122,7 @@
     "@ai-sdk/openai-compatible": "^3.0.3",
     "@aws-sdk/client-cloudwatch": "catalog:",
     "@aws-sdk/client-lambda": "catalog:",
+    "@aws-sdk/client-lambda-microvms": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
     "@aws-sdk/client-sesv2": "catalog:",
     "@aws-sdk/credential-providers": "catalog:",
@@ -111,10 +131,13 @@
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "1.23.1",
     "@google-cloud/storage": "^7.19.0",
+    "@mastra/core": "1.46.0",
+    "@mastra/mcp": "1.8.1",
     "@opentelemetry/api": ">=1.0.0 <1.10.0",
     "@opentelemetry/otlp-transformer": "^0.220.0",
     "@opentelemetry/resources": "^2.9.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@paralleldrive/cuid2": "^2.2.2",
     "@prisma/client": "^6.19.3",
     "@react-email/components": "^0.5.1",
     "@react-email/render": "^1.2.1",
@@ -123,6 +146,7 @@
     "@smithy/node-http-handler": "4.5.1",
     "@types/bcryptjs": "^2.4.6",
     "ai": "^7.0.0",
+    "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "bcryptjs": "^2.4.3",
@@ -135,6 +159,7 @@
     "ioredis": "^5.10.1",
     "ipaddr.js": "^2.2.0",
     "jsonpath-plus": "10.3.0",
+    "langfuse": "3.38.4",
     "langfuse-langchain": "3.38.20",
     "lodash": "^4.18.1",
     "lossless-json": "^4.1.1",
@@ -148,16 +173,19 @@
     "undici": "^7.28.0",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",
+    "yaml": "^2.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@opentelemetry/context-async-hooks": "^2.9.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/dockerode": "^4.0.1",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "19.2.14",
+    "dockerode": "^4.0.9",
     "dotenv-cli": "^7.4.4",
     "eslint": "^9.39.2",
     "prisma": "^6.19.3",

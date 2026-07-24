@@ -6,13 +6,13 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "@/src/ee/features/in-app-agent/ids";
+} from "@langfuse/shared/ee/in-app-agent";
 import {
   getInAppAgentMessageEntryPointTraceMetadata,
   getInAppAgentQuickActionTraceMetadata,
   sanitizeInAppAgentContext,
 } from "@/src/ee/features/in-app-agent/context";
-import { getInAppAgentInstrumentationTraceId } from "@/src/ee/features/in-app-agent/constants";
+import { getInAppAgentInstrumentationTraceId } from "@langfuse/shared/ee/in-app-agent";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -21,19 +21,21 @@ import {
   type AgUiMessage,
   ResumeForwardedPropsSchema,
   type ResumeForwardedProps,
-} from "@/src/ee/features/in-app-agent/schema";
-import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
+} from "@langfuse/shared/ee/in-app-agent";
+import { createAgUiStream } from "@langfuse/shared/ee/in-app-agent/server/agent";
 import {
   consumeAndValidatePendingToolApproval,
   createInAppAgentMcpRunOverride,
   parseInAppAgentInterruptEvent,
   storePendingToolApproval,
   validatePendingToolApproval,
-} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+} from "@langfuse/shared/ee/in-app-agent/server/human-in-the-loop";
 import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
   isMcpToolName,
+  type InAppAgentLangfuseMcpToolName,
   type InAppAgentUserAccess,
-} from "@/src/ee/features/in-app-agent/server/tools";
+} from "@langfuse/shared/ee/in-app-agent/server/tools";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
 import {
   createRun,
@@ -47,12 +49,12 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/ee/features/in-app-agent/server/persistence";
-import { createInAppAgentSandbox } from "@/src/ee/features/in-app-agent/server/sandbox";
+} from "@langfuse/shared/ee/in-app-agent/server/persistence";
+import { createInAppAgentSandbox } from "@langfuse/shared/ee/in-app-agent/server/sandbox";
 import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
-} from "@/src/ee/features/in-app-agent/server/sandbox/config";
+} from "@langfuse/shared/ee/in-app-agent/server/sandbox/config";
 import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
@@ -86,10 +88,20 @@ import {
   TableViewService,
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
+
 import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+
+// Compile-time exhaustiveness contract between web's MCP tool registry and the
+// shared runtime's tool policies (the runtime can no longer import the
+// registry type): every registry tool must be classified in the policies map,
+// and every policy key must still exist in the registry.
+IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES satisfies Record<McpToolName, unknown>;
+type AssertPolicyKeysInRegistry<T extends McpToolName = McpToolName> = T;
+export type _InAppAgentPolicyKeysAreRegistryTools =
+  AssertPolicyKeysInRegistry<InAppAgentLangfuseMcpToolName>;
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
@@ -601,7 +613,10 @@ export default async function handler(request: Request) {
           });
           streamCreated = true;
 
-          return new Response(stream, {
+          // Shared compiles without the DOM lib; its declared stream type is
+          // Node's stream/web ReadableStream, which is what Response accepts
+          // at runtime.
+          return new Response(stream as unknown as BodyInit, {
             headers: {
               "Content-Type": "text/event-stream; charset=utf-8",
               "Content-Encoding": "none",

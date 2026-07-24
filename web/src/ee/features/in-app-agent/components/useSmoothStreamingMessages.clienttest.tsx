@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 
 import type { InAppAgentPendingToolApproval } from "./InAppAiAgentProvider";
-import type { AgUiMessage } from "@/src/ee/features/in-app-agent/schema";
+import type { AgUiMessage } from "@langfuse/shared/ee/in-app-agent";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 
 const userMessage = {

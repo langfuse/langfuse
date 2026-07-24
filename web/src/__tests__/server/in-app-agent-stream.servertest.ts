@@ -4,27 +4,30 @@ import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import type { AgUiEvent } from "@langfuse/shared/ee/in-app-agent";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_MCP_USER_AGENT,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@/src/ee/features/in-app-agent/constants";
-import { patchMastraApprovalChunks } from "@/src/ee/features/in-app-agent/server/agent";
+} from "@langfuse/shared/ee/in-app-agent";
+import {
+  patchMastraApprovalChunks,
+  type createAgUiStream,
+} from "@langfuse/shared/ee/in-app-agent/server/agent";
 import {
   createInAppAgentSandbox,
   type SandboxProvider,
   type SandboxSession,
-} from "@/src/ee/features/in-app-agent/server/sandbox";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@/src/ee/features/in-app-agent/server/tools";
+} from "@langfuse/shared/ee/in-app-agent/server/sandbox";
+import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES } from "@langfuse/shared/ee/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
 import type { MastraAgent } from "@ag-ui/mastra";
 import type { Langfuse } from "langfuse";
-import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import type { InAppAgentTracingConfig } from "@langfuse/shared/ee/in-app-agent/server/instrumentation";
 
 // Shape of the tool entries the mocked MCP client feeds into the Agent
 // constructor. `Agent`'s own `tools` type is a `DynamicArgument` union that
@@ -173,7 +176,7 @@ vi.mock("@ag-ui/mastra", () => ({
   }),
 }));
 
-vi.mock("@ai-sdk/amazon-bedrock", () => ({
+vi.mock("ai-sdk-amazon-bedrock-v4", () => ({
   createAmazonBedrock: vi.fn(() => vi.fn(() => ({}))),
 }));
 
@@ -257,7 +260,7 @@ vi.mock("@mastra/mcp", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
+vi.mock("@langfuse/shared/ee/in-app-agent/server/instrumentation", () => ({
   createInAppAgentInstrumentation:
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
@@ -433,7 +436,7 @@ describe("createAgUiStream", () => {
 
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -786,7 +789,7 @@ describe("createAgUiStream", () => {
 
   it("does not enable Bedrock reasoning for non-Claude models", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -858,7 +861,7 @@ describe("createAgUiStream", () => {
 
   it("executes approved tools manually and continues with tool result history", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     adapterEvents.inputs = [];
     adapterEvents.items = [
@@ -1052,7 +1055,7 @@ describe("createAgUiStream", () => {
 
   it("continues approved tools with a tool error result when execution fails", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(true);
     const validationErrorMessage =
       "MCP error -32602: Validation failed: categories: Category must be an array of objects with label value pairs, where labels and values are unique.";
@@ -1187,7 +1190,7 @@ describe("createAgUiStream", () => {
 
   it("escapes screen context delimiters before compiling prompt instructions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1261,7 +1264,7 @@ describe("createAgUiStream", () => {
 
   it("continues after rejected tools and asks the user how to proceed", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = createToolApprovalResumeInput(false);
     const rejectionError = JSON.stringify({
       code: IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
@@ -1428,7 +1431,7 @@ describe("createAgUiStream", () => {
 
   it("uses V4-compatible filters for traces redirect actions", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1508,7 +1511,7 @@ describe("createAgUiStream", () => {
 
   it("lets HttpAgent subscribers observe streamed run errors", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1564,7 +1567,7 @@ describe("createAgUiStream", () => {
       },
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(serverStream, {
+      new Response(serverStream as unknown as BodyInit, {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
       }),
@@ -1598,7 +1601,7 @@ describe("createAgUiStream", () => {
 
   it("does not expose sandbox tools when sandboxing is disabled", async () => {
     const { createAgUiStream } =
-      await import("@/src/ee/features/in-app-agent/server/agent");
+      await import("@langfuse/shared/ee/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -1667,7 +1670,9 @@ describe("createAgUiStream", () => {
 });
 
 async function readStream(
-  stream: ReadableStream<Uint8Array>,
+  // Shared compiles without the DOM lib, so createAgUiStream's declared
+  // return type is Node's stream/web ReadableStream, not the DOM one.
+  stream: Awaited<ReturnType<typeof createAgUiStream>>,
   onEvent?: (event: AgUiEvent) => void,
 ) {
   const reader = stream.getReader();

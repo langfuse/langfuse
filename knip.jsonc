@@ -32,6 +32,13 @@
         "raw-loader",
         // The next-auth patch requires this module from core/lib/oauth/client.js.
         "https-proxy-agent",
+        // In-app-agent servertests vi.mock these runtime deps of the shared
+        // agent module (@langfuse/shared/ee/in-app-agent/server); the mock
+        // specifiers must resolve from web.
+        "@aws-sdk/client-lambda-microvms",
+        "@aws-sdk/credential-providers",
+        "dockerode",
+        "@types/dockerode",
       ],
     },
     "ee": {

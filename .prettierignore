@@ -1,5 +1,9 @@
 # Generated code
 packages/shared/prisma/generated
 
+# Verbatim upstream skill markdown; must stay byte-identical for
+# scripts/in-app-agent/sync-raw-skills.mjs --check
+packages/shared/src/ee/in-app-agent/server/skills/generated/raw
+
 # Local, untracked screenshot/review archives
 .screenshots-review

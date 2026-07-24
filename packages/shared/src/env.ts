@@ -484,6 +484,23 @@ const EnvSchema = z.object({
   LANGFUSE_AWS_BEDROCK_MODEL: z.string().optional(),
   LANGFUSE_AWS_BEDROCK_SMALL_MODEL: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  // Ambient AWS profile of the host process; the in-app agent prefers it over
+  // the configured Bedrock profile so local dev credentials win.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
