@@ -134,6 +134,7 @@ export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
 export { scoreDomainToV3 } from "./repositories/scores";
 export * from "./repositories/observations";
 export * from "./repositories/traces";
+export * from "./trajectories";
 export * from "./repositories/dataset-items";
 export * from "./utils/metadata_conversion";
 export * from "./repositories/experiments";
