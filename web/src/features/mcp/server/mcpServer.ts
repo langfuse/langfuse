@@ -28,6 +28,12 @@ const MCP_SERVER_NAME = "langfuse";
 // Tool availability and schemas may evolve over time, including the addition, removal, or modification of tools and fields.
 // Clients are expected to tolerate schema changes and refresh capabilities dynamically.
 const MCP_SERVER_VERSION = "0.3.0-unstable";
+const MCP_SERVER_INSTRUCTIONS = [
+  "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
+  "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
+  "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
+  "To send feedback about Langfuse skills, MCP tools, CLI, docs, or public API, ask the user for permission, show the exact feedback payload, avoid secrets/customer data/trace payloads, then call submitFeedback.",
+].join("\n");
 
 /**
  * Create and configure the MCP server instance.
@@ -58,6 +64,7 @@ export function createMcpServer(context: ServerContext): Server {
       capabilities: {
         tools: {},
       },
+      instructions: MCP_SERVER_INSTRUCTIONS,
     },
   );
 

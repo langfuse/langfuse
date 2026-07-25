@@ -11,7 +11,7 @@ import {
 } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CodeBlock } from "@/src/components/ui/Codeblock";
+import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { useTheme } from "next-themes";
 import { ImageOff, Info } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -221,12 +221,12 @@ function MarkdownRenderer({
   markdown,
   theme,
   className,
-  customCodeHeaderClassName,
+  customCodeHeaderVariant,
 }: {
   markdown: string;
   theme?: string;
   className?: string;
-  customCodeHeaderClassName?: string;
+  customCodeHeaderVariant?: "card";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -382,8 +382,8 @@ function MarkdownRenderer({
                   key={Math.random()}
                   language={language}
                   value={codeContent}
-                  theme={theme}
-                  className={customCodeHeaderClassName}
+                  theme={theme === "dark" ? "dark" : "light"}
+                  variant={customCodeHeaderVariant}
                 />
               ) : (
                 // inline code
@@ -479,7 +479,7 @@ export function MarkdownView({
   markdown,
   title,
   titleIcon,
-  customCodeHeaderClassName,
+  customCodeHeaderVariant,
   audio,
   media,
   className,
@@ -490,7 +490,7 @@ export function MarkdownView({
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
-  customCodeHeaderClassName?: string;
+  customCodeHeaderVariant?: "card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
@@ -601,7 +601,7 @@ export function MarkdownView({
               <MarkdownRenderer
                 markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
+                customCodeHeaderVariant={customCodeHeaderVariant}
               />
               {collapseToggle}
             </>
@@ -613,7 +613,7 @@ export function MarkdownView({
               <MarkdownRenderer
                 markdown={truncatedContent}
                 theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
+                customCodeHeaderVariant={customCodeHeaderVariant}
               />
             ) : (
               (markdown ?? []).map((content, index) => {
@@ -623,7 +623,7 @@ export function MarkdownView({
                       key={index}
                       markdown={content.text}
                       theme={theme}
-                      customCodeHeaderClassName={customCodeHeaderClassName}
+                      customCodeHeaderVariant={customCodeHeaderVariant}
                     />
                   );
                 }
@@ -672,7 +672,7 @@ export function MarkdownView({
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
-              customCodeHeaderClassName={customCodeHeaderClassName}
+              customCodeHeaderVariant={customCodeHeaderVariant}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}

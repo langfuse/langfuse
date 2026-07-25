@@ -10,6 +10,7 @@ import {
   createDatasetRunItemForApi,
   listDatasetRunItemsForApi,
 } from "@/src/features/datasets/server/publicDatasetService";
+import { DATASET_RUN_ITEMS_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
@@ -29,6 +30,7 @@ export default withMiddlewares({
     name: "Get Dataset Run Items",
     querySchema: GetDatasetRunItemsV1Query,
     responseSchema: GetDatasetRunItemsV1Response,
+    deprecation: DATASET_RUN_ITEMS_DEPRECATION,
     rateLimitResource: "datasets",
     // Reads from the legacy dataset_run_items ClickHouse table, which is no
     // longer populated in events_only mode; GET /api/public/experiment-items
