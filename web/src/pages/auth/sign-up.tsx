@@ -224,84 +224,86 @@ function StandardSignupFlow({
 
   return (
     <SignupPageShell>
-      <Form {...form}>
-        <form
-          className="space-y-6"
-          onSubmit={
-            showPasswordStep
-              ? form.handleSubmit(onSubmit)
-              : (e) => {
-                  e.preventDefault();
-                  handleContinue();
-                }
-          }
-        >
-          {showPasswordStep && (
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Jane Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="jsdoe@example.com"
-                    allowPasswordManager
-                    autoComplete="email"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {showPasswordStep && (
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <PasswordInput {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
-          <Button
-            type="submit"
-            className="w-full"
-            loading={
-              showPasswordStep ? form.formState.isSubmitting : continueLoading
+      {authProviders.credentials && (
+        <Form {...form}>
+          <form
+            className="space-y-6"
+            onSubmit={
+              showPasswordStep
+                ? form.handleSubmit(onSubmit)
+                : (e) => {
+                    e.preventDefault();
+                    handleContinue();
+                  }
             }
-            disabled={showPasswordStep ? false : form.watch("email") === ""}
-            data-testid="submit-email-password-sign-up-form"
           >
-            {showPasswordStep ? "Sign up" : "Continue"}
-          </Button>
-          {formError ? (
-            <div className="text-destructive text-center text-sm font-bold">
-              {formError}
-            </div>
-          ) : null}
-        </form>
-      </Form>
+            {showPasswordStep && (
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Jane Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="jsdoe@example.com"
+                      allowPasswordManager
+                      autoComplete="email"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {showPasswordStep && (
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <PasswordInput {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <Button
+              type="submit"
+              className="w-full"
+              loading={
+                showPasswordStep ? form.formState.isSubmitting : continueLoading
+              }
+              disabled={showPasswordStep ? false : form.watch("email") === ""}
+              data-testid="submit-email-password-sign-up-form"
+            >
+              {showPasswordStep ? "Sign up" : "Continue"}
+            </Button>
+            {formError ? (
+              <div className="text-destructive text-center text-sm font-bold">
+                {formError}
+              </div>
+            ) : null}
+          </form>
+        </Form>
+      )}
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
@@ -478,57 +480,59 @@ function VerifiedSignupFlow({
   // Form phase
   return (
     <SignupPageShell>
-      <Form {...form}>
-        <form
-          className="space-y-6"
-          onSubmit={form.handleSubmit(onVerifiedSubmit)}
-        >
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Jane Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="jsdoe@example.com"
-                    allowPasswordManager
-                    autoComplete="email"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button
-            type="submit"
-            className="w-full"
-            loading={form.formState.isSubmitting}
-            data-testid="submit-email-password-sign-up-form"
+      {authProviders.credentials && (
+        <Form {...form}>
+          <form
+            className="space-y-6"
+            onSubmit={form.handleSubmit(onVerifiedSubmit)}
           >
-            Continue
-          </Button>
-          {formError ? (
-            <div className="text-destructive text-center text-sm font-bold">
-              {formError}
-            </div>
-          ) : null}
-        </form>
-      </Form>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Jane Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="jsdoe@example.com"
+                      allowPasswordManager
+                      autoComplete="email"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type="submit"
+              className="w-full"
+              loading={form.formState.isSubmitting}
+              data-testid="submit-email-password-sign-up-form"
+            >
+              Continue
+            </Button>
+            {formError ? (
+              <div className="text-destructive text-center text-sm font-bold">
+                {formError}
+              </div>
+            ) : null}
+          </form>
+        </Form>
+      )}
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
