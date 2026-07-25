@@ -20,6 +20,7 @@ import {
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
 export default withMiddlewares(
   {
@@ -32,6 +33,7 @@ export default withMiddlewares(
       rateLimitUpgradePath:
         legacyPublicApiRateLimitUpgradePaths.observationsList,
       rejectInEventsOnlyMode: true,
+      deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
         const filterProps = {
           projectId: auth.scope.projectId,

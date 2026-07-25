@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -92,7 +91,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderClassName="bg-card"
+            customCodeHeaderVariant="card"
           />
         </div>
         <div style={{ display: shouldRenderMarkdown ? "none" : "block" }}>
@@ -183,6 +182,11 @@ export function ChatMessage({
       </>
     );
 
+    let customCodeHeaderVariant: "card" | undefined;
+    if (message.role === "system") {
+      customCodeHeaderVariant = "card";
+    }
+
     return (
       <div className="hover:bg-muted transition-colors">
         {/* Markdown view */}
@@ -190,10 +194,7 @@ export function ChatMessage({
           <MarkdownJsonView
             title={title}
             content={message.content || ""}
-            customCodeHeaderClassName={cn(
-              message.role === "assistant" && "bg-secondary",
-              message.role === "system" && "bg-card",
-            )}
+            customCodeHeaderVariant={customCodeHeaderVariant}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}

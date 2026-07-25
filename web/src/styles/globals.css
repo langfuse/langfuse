@@ -71,12 +71,14 @@
   --color-muted-gray: hsl(var(--muted-gray));
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
-  --color-light-red: hsl(var(--light-red));
-  --color-dark-red: hsl(var(--dark-red));
-  --color-light-yellow: hsl(var(--light-yellow));
-  --color-dark-yellow: hsl(var(--dark-yellow));
-  --color-light-green: hsl(var(--light-green));
-  --color-dark-green: hsl(var(--dark-green));
+  /* These six status tokens hold complete oklch colors (tints carry baked
+     alpha), unlike the hsl-triplet tokens around them — do not wrap in hsl(). */
+  --color-light-red: var(--light-red);
+  --color-dark-red: var(--dark-red);
+  --color-light-yellow: var(--light-yellow);
+  --color-dark-yellow: var(--dark-yellow);
+  --color-light-green: var(--light-green);
+  --color-dark-green: var(--dark-green);
   --color-light-blue: hsl(var(--light-blue));
   --color-dark-blue: hsl(var(--dark-blue));
   --color-accent-light-blue: hsl(var(--accent-light-blue));
@@ -307,17 +309,19 @@
     --accent-light-green: 138 76.5% 96.7%;
     --accent-dark-green: 112 100% 32%;
 
-    --light-red: 329 77.8% 94.7%;
-    --dark-red: 0 72.2% 50.6%;
+    /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
+       readable text/icon color on them. */
+    --light-red: oklch(93.6% 0.032 17.717 / 0.7);
+    --dark-red: oklch(63.7% 0.237 25.331);
 
-    --light-yellow: 55 91.7% 95.3%;
-    --dark-yellow: 43 96% 40%;
+    --light-yellow: oklch(97.3% 0.071 103.193 / 0.7);
+    --dark-yellow: oklch(47.6% 0.114 61.907);
 
-    --light-green: 141 84.2% 92.5%;
-    --dark-green: 176 60.8% 19%;
+    --light-green: oklch(95% 0.052 163.051 / 0.7);
+    --dark-green: oklch(59.6% 0.145 163.225);
 
     --light-blue: 214 94.6% 92.7%;
-    --dark-blue: 217 91.2% 59.8%;
+    --dark-blue: 219 85% 52%;
 
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
@@ -461,19 +465,19 @@
        of --border-contrast (26%). */
     --muted-gray: 0 0% 16%;
 
-    /* Status pairs on Linear's hues: light-* are dark tinted backgrounds,
+    /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
-    --light-red: 0 35% 14%;
-    --dark-red: 0 78.7% 63.1%;
+    --light-red: oklch(39.6% 0.141 25.723 / 0.7);
+    --dark-red: oklch(57.7% 0.245 27.325);
 
-    --light-yellow: 48 45% 13%;
-    --dark-yellow: 48 100% 47.1%;
+    --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
+    --dark-yellow: oklch(79.5% 0.184 86.047);
 
-    --light-green: 134 35% 13%;
-    --dark-green: 134 62% 40.2%;
+    --light-green: oklch(37.8% 0.077 168.94 / 0.7);
+    --dark-green: oklch(76.5% 0.177 163.223);
 
     --light-blue: 209 45% 15%;
-    --dark-blue: 209 96.7% 64.7%;
+    --dark-blue: 209 88% 60%;
 
     /* accent-light-green doubles as a full-height output/diff surface
        (PrettyJsonView), so it stays a whisper above --card, not chip-strength. */

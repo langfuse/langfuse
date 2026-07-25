@@ -1,6 +1,6 @@
 import { normalizeIngestionSdkName } from "@langfuse/shared";
 
-export type SdkMetadata = {
+type SdkMetadata = {
   isOtel: boolean;
   name?: string;
   version?: string;
@@ -19,14 +19,18 @@ export const sdkVersionStorageKeys = (projectId: string) => ({
   checkedAt: `events-sdk-checkedAt:${projectId}`,
 });
 
-export const SDK_VERSION_CAPABILITIES = {
+const SDK_VERSION_CAPABILITIES = {
   appRootObservations: {
     javascript: [5, 4, 0],
     python: [4, 7, 0],
   },
 } as const;
 
-export type SdkVersionCapability = keyof typeof SDK_VERSION_CAPABILITIES;
+type SdkVersionCapability = keyof typeof SDK_VERSION_CAPABILITIES;
+export type SdkVersionCapabilityStatus =
+  | "supported"
+  | "unsupported"
+  | "unknown";
 
 export const toSdkVersionInfo = (
   sdk: SdkMetadata | undefined,
@@ -48,32 +52,37 @@ export const sdkVersionNeedsRefresh = (
   );
 };
 
-const parseStableVersion = (version?: string | null) => {
+const parseVersionCore = (version?: string | null) => {
   const match = version
     ?.trim()
-    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/);
+    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+.]?[0-9A-Za-z][0-9A-Za-z.-]*)?$/);
   if (!match) return null;
 
   const parsed = match.slice(1, 4).map(Number);
   return parsed.every(Number.isSafeInteger) ? parsed : null;
 };
 
-export const getSdkVersionCapability = (
+export const getSdkVersionCapabilityStatus = (
   sdk: SdkVersionInfo | undefined,
   capability: SdkVersionCapability,
-): boolean => {
-  if (!sdk) return false;
+): SdkVersionCapabilityStatus => {
+  if (!sdk) return "unknown";
 
   const sdkName = normalizeIngestionSdkName(sdk.language);
-  const version = parseStableVersion(sdk.version);
-  if (!sdkName || !version) return false;
+  const version = parseVersionCore(sdk.version);
+  if (!sdkName || !version) return "unknown";
 
   const minimum = SDK_VERSION_CAPABILITIES[capability][sdkName];
   for (let index = 0; index < version.length; index++) {
     if (version[index] !== minimum[index]) {
-      return version[index]! > minimum[index]!;
+      return version[index]! > minimum[index]! ? "supported" : "unsupported";
     }
   }
 
-  return true;
+  return "supported";
 };
+
+export const getSdkVersionCapability = (
+  sdk: SdkVersionInfo | undefined,
+  capability: SdkVersionCapability,
+): boolean => getSdkVersionCapabilityStatus(sdk, capability) === "supported";

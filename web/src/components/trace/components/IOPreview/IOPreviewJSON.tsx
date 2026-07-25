@@ -25,15 +25,37 @@ import { InlineCommentBubble } from "@/src/features/comments/components/InlineCo
 import { type CommentedPathsByField } from "@/src/components/ui/AdvancedJsonViewer/utils/commentRanges";
 import { type ExpansionState } from "@/src/components/ui/AdvancedJsonViewer/types";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
-import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
+import {
+  decodeUnicodeInJson,
+  DECODE_UNICODE_MAX_NODES,
+} from "@/src/utils/decodeUnicodeInJson";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
+import { LazyJsonViewer } from "@/src/components/ui/AdvancedJsonViewer/lazy/react/LazyJsonViewer";
 import {
   JSON_VIEW_RENDER_ROW_LIMIT,
   probeJsonField,
 } from "./lib/jsonViewSizeGate";
 
-const VIRTUALIZATION_THRESHOLD = 3333;
+// A field needing windowing is gated to the lazy byte-engine viewer, so the
+// gate row limit IS the virtualization threshold (single source of truth). The
+// eager virtualized viewer is therefore unreachable for trace I/O — see the
+// `needsVirtualization` note below.
+const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
+
+/**
+ * Decode a field's \uXXXX escapes, but only when it fits under the decoder's
+ * node budget. `decodeUnicodeInJson` caps at DECODE_UNICODE_MAX_NODES and copies
+ * the remainder through un-decoded; since the same value backs both the viewer
+ * and the raw download, a larger field would export a traversal-order-dependent
+ * MIX of decoded/escaped unicode. Past the budget, return it raw (fully
+ * un-decoded) — consistent and faithful — rather than partially decoded.
+ */
+function decodeIfWithinBudget(value: unknown, rowCount: number): unknown {
+  return rowCount > DECODE_UNICODE_MAX_NODES
+    ? value
+    : decodeUnicodeInJson(value);
+}
 
 export interface IOPreviewJSONProps {
   input?: Prisma.JsonValue;
@@ -164,26 +186,32 @@ function IOPreviewJSONInner({
   // ensure_ascii=True) at the data source so that search-match offsets, comment
   // ranges, rendering and copy-to-clipboard all operate on the same decoded
   // strings. Decoding at the leaf renderer instead would desync highlight
-  // offsets. Already-decoded strings are a no-op. Over-limit fields skip decode
-  // and the tree entirely — they render the bounded fallback instead.
+  // offsets. Already-decoded strings are a no-op. We decode over-render-limit
+  // fields too (they render lazily over this decoded value), so a field's
+  // display doesn't change just because it crossed the render gate.
+  //
+  // BUT `decodeUnicodeInJson` caps its walk at DECODE_UNICODE_MAX_NODES and
+  // copies the remainder through un-decoded. A field bigger than that would be
+  // PARTIALLY decoded, and since the same value backs both the viewer and the
+  // raw download, the download would carry a traversal-order-dependent MIX of
+  // decoded/escaped unicode (LFE-10847 review). Decode all-or-nothing: past the
+  // budget, show it fully raw — consistent and faithful — rather than partial.
   const effectiveInput = useMemo(
     () =>
-      isParsing || inputTooLarge ? undefined : decodeUnicodeInJson(inputParsed),
-    [inputParsed, isParsing, inputTooLarge],
+      isParsing ? undefined : decodeIfWithinBudget(inputParsed, inputRows),
+    [inputParsed, inputRows, isParsing],
   );
   const effectiveOutput = useMemo(
     () =>
-      isParsing || outputTooLarge
-        ? undefined
-        : decodeUnicodeInJson(outputParsed),
-    [outputParsed, isParsing, outputTooLarge],
+      isParsing ? undefined : decodeIfWithinBudget(outputParsed, outputRows),
+    [outputParsed, outputRows, isParsing],
   );
   const effectiveMetadata = useMemo(
     () =>
-      isParsing || metadataTooLarge
+      isParsing
         ? undefined
-        : decodeUnicodeInJson(metadataParsed),
-    [metadataParsed, isParsing, metadataTooLarge],
+        : decodeIfWithinBudget(metadataParsed, metadataRows),
+    [metadataParsed, metadataRows, isParsing],
   );
 
   // Probe over-limit fields once for the bounded fallback (preview + download).
@@ -191,17 +219,29 @@ function IOPreviewJSONInner({
   // preview, download and reported size all reflect what tripped the gate (a
   // string field that deep-parses into a large tree would otherwise show its
   // short raw length).
+  // Probe the DECODED value (the same one the lazy viewer renders), so its
+  // serialized string is reused for BOTH the download and the byte engine — one
+  // JSON.stringify, not two (the lazy branch below passes `probe.serialized`).
   const inputProbe = useMemo(
-    () => (inputTooLarge ? probeJsonField(inputParsed) : null),
-    [inputParsed, inputTooLarge],
+    () =>
+      inputTooLarge && effectiveInput !== undefined
+        ? probeJsonField(effectiveInput)
+        : null,
+    [effectiveInput, inputTooLarge],
   );
   const outputProbe = useMemo(
-    () => (outputTooLarge ? probeJsonField(outputParsed) : null),
-    [outputParsed, outputTooLarge],
+    () =>
+      outputTooLarge && effectiveOutput !== undefined
+        ? probeJsonField(effectiveOutput)
+        : null,
+    [effectiveOutput, outputTooLarge],
   );
   const metadataProbe = useMemo(
-    () => (metadataTooLarge ? probeJsonField(metadataParsed) : null),
-    [metadataParsed, metadataTooLarge],
+    () =>
+      metadataTooLarge && effectiveMetadata !== undefined
+        ? probeJsonField(effectiveMetadata)
+        : null,
+    [effectiveMetadata, metadataTooLarge],
   );
 
   // A gated field parses to undefined above but is not empty — it is too big.
@@ -235,7 +275,13 @@ function IOPreviewJSONInner({
     metadataRows,
   ]);
 
-  // Determine if virtualization is needed based on threshold
+  // Whether the eager MultiSectionJsonViewer must virtualize its own DOM. This
+  // is now ALWAYS false: a field with more rows than VIRTUALIZATION_THRESHOLD is
+  // gated to the lazy viewer above (so it contributes 0 to rowCounts), and a
+  // field with fewer never crosses the threshold. The eager virtualized path is
+  // effectively retired for trace I/O (it froze the tab at tens of thousands of
+  // nodes — LFE-10847); the residual small data renders eagerly non-virtualized.
+  // Left in place until that path is removed wholesale in a follow-up.
   const needsVirtualization = useMemo(() => {
     return (
       rowCounts.input > VIRTUALIZATION_THRESHOLD ||
@@ -375,18 +421,51 @@ function IOPreviewJSONInner({
           <span className="text-xs font-bold">{title}</span>
         </div>
       ),
-      renderFooter: () =>
-        probe ? (
-          <LargeJsonFieldFallback
-            title={title}
-            hideTitle
-            serialized={probe.serialized}
-            isString={probe.isString}
-            charCount={probe.size}
-            rowCount={rowCount}
-            downloadFileBase={`${fieldKey}-${downloadName}`}
-          />
-        ) : null,
+      renderFooter: () => {
+        if (!probe) return null;
+        // A huge STRING (e.g. a base64 image) is a single leaf — the lazy tree
+        // adds nothing, so keep the bounded preview + download. A huge
+        // STRUCTURED value is where the eager tree-build froze the tab: render
+        // it through the lazy byte-engine viewer (main thread, no eager tree,
+        // cost proportional to what's expanded), with download as a secondary
+        // escape hatch.
+        if (probe.isString) {
+          return (
+            <LargeJsonFieldFallback
+              title={title}
+              hideTitle
+              serialized={probe.serialized}
+              isString={probe.isString}
+              charCount={probe.size}
+              rowCount={rowCount}
+              downloadFileBase={`${fieldKey}-${downloadName}`}
+            />
+          );
+        }
+        return (
+          <div className="io-message-content flex flex-col gap-1">
+            <div
+              style={{ height: 400 }}
+              className="overflow-hidden rounded-md border"
+            >
+              {/* Feed the byte engine the probe's serialized JSON, so the field
+                  is stringified once (probe) and reused here — not a second time
+                  inside the viewer. */}
+              <LazyJsonViewer serialized={probe.serialized} />
+            </div>
+            <LargeJsonFieldFallback
+              title={title}
+              hideTitle
+              serialized={probe.serialized}
+              isString={probe.isString}
+              charCount={probe.size}
+              rowCount={rowCount}
+              downloadFileBase={`${fieldKey}-${downloadName}`}
+              downloadOnly
+            />
+          </div>
+        );
+      },
     });
 
     const result = [];
@@ -433,7 +512,14 @@ function IOPreviewJSONInner({
         // Add corrected output as footer when corrections are enabled
         renderFooter: () => (
           <CorrectedOutputField
-            actualOutput={effectiveOutput}
+            // Don't hand the full oversized object to the diff dialog: it
+            // `JSON.stringify`s `actualOutput` unmemoized in its render body on
+            // every render (incl. every keystroke while editing a correction),
+            // which would re-serialize megabytes on exactly the large-output
+            // case this viewer gates. `actualOutputTooLarge` drives the
+            // "too large to diff" branch, so `undefined` here is sufficient
+            // (and `effectiveOutput` stays decoded for the lazy viewer/probe).
+            actualOutput={outputTooLarge ? undefined : effectiveOutput}
             actualOutputTooLarge={outputTooLarge}
             existingCorrection={outputCorrection}
             observationId={observationId}

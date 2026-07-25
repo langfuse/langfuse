@@ -951,6 +951,93 @@ describe("Clickhouse Events Repository Test", () => {
       });
     });
 
+    it("refines bulk facets and omits counts for non-participating filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["filtered-option-alpha"],
+      };
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-beta",
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const getOptions = (filter: FilterCondition[]) =>
+          getEventFilterOptions({
+            projectId: uniqueProjectId,
+            startTimeFilter: [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: ">=",
+                value: new Date(now - 60_000),
+              },
+            ],
+            filter,
+            columns: ["name", "level"],
+          });
+
+        const countedOptions = await getOptions([nameFilter]);
+        const countlessOptions = await getOptions([
+          nameFilter,
+          {
+            type: "string",
+            column: "input",
+            operator: "contains",
+            value: "expensive",
+          },
+        ]);
+
+        expect(countedOptions).toEqual({
+          name: [{ value: "filtered-option-alpha", count: 2 }],
+          level: [
+            { value: "ERROR", count: 1 },
+            { value: "WARNING", count: 1 },
+          ],
+        });
+        expect(countlessOptions.level).toEqual([
+          { value: "ERROR" },
+          { value: "WARNING" },
+        ]);
+      });
+    });
+
     it("loads requested boolean score filter option columns", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();

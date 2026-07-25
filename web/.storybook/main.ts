@@ -10,6 +10,8 @@ import {
 
 const STORY_EXTENSIONS = "@(js|jsx|mjs|ts|tsx)";
 const DESIGN_COMPONENT_STORIES = [
+  "Checkbox/Checkbox",
+  "Codeblock/Codeblock",
   "LangfuseIcon/LangfuseIcon",
   "Progress/Progress",
   "Spinner/Spinner",
