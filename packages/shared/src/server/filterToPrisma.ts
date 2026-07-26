@@ -48,8 +48,7 @@ export function tableColumnsToSqlFilter(
     // Get column definition to map column to internal name, e.g. "t.id"
     const col = tableColumns.find(
       (c) =>
-        // TODO: Only use id instead of name
-        c.name === filter.column || c.id === filter.column,
+        c.id === filter.column,
     );
     if (!col) {
       logger.error("Invalid filter column", filter.column);
