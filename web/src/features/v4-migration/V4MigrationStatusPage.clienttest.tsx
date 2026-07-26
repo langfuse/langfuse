@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import V4MigrationStatusPage from "./V4MigrationStatusPage";
 
 const mocks = vi.hoisted(() => ({
+  capture: vi.fn(),
+  openForProject: vi.fn(),
+  routerPush: vi.fn(),
   sdk: {
     status: "latest" as
       | "latest"
@@ -14,6 +17,10 @@ const mocks = vi.hoisted(() => ({
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
   },
+}));
+
+vi.mock("next/router", () => ({
+  useRouter: () => ({ push: mocks.routerPush }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -51,7 +58,7 @@ vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationPanelProvider", () => ({
-  useV4MigrationPanel: () => ({ openForProject: vi.fn() }),
+  useV4MigrationPanel: () => ({ openForProject: mocks.openForProject }),
 }));
 
 vi.mock(
@@ -66,7 +73,7 @@ vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
-  usePostHogClientCapture: () => vi.fn(),
+  usePostHogClientCapture: () => mocks.capture,
 }));
 
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
@@ -100,6 +107,9 @@ vi.mock("@/src/utils/api", () => ({
 
 describe("V4MigrationStatusPage", () => {
   beforeEach(() => {
+    mocks.capture.mockClear();
+    mocks.openForProject.mockClear();
+    mocks.routerPush.mockClear();
     mocks.sdk = {
       status: "latest",
       sdkUsageSeries: [],
@@ -121,6 +131,48 @@ describe("V4MigrationStatusPage", () => {
 
     expect(screen.getByText("Ready")).toBeInTheDocument();
     expect(screen.getByText("of 1 projects migrated")).toBeInTheDocument();
+  });
+
+  it("links projects to traces and opens the migration panel", () => {
+    render(<V4MigrationStatusPage />);
+
+    const projectLink = screen.getByRole("link", { name: "Test project" });
+    expect(projectLink).toHaveAttribute(
+      "href",
+      "/project/project-1/traces",
+    );
+
+    projectLink.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    fireEvent.click(projectLink);
+
+    expect(mocks.openForProject).toHaveBeenCalledWith({
+      id: "project-1",
+      name: "Test project",
+    });
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:status_row_clicked",
+    );
+  });
+
+  it("navigates row clicks to traces with the migration panel open", () => {
+    render(<V4MigrationStatusPage />);
+
+    const projectRow = screen
+      .getByRole("link", { name: "Test project" })
+      .closest("tr");
+    expect(projectRow).not.toBeNull();
+
+    fireEvent.click(projectRow!);
+
+    expect(mocks.openForProject).toHaveBeenCalledWith({
+      id: "project-1",
+      name: "Test project",
+    });
+    expect(mocks.routerPush).toHaveBeenCalledWith(
+      "/project/project-1/traces",
+    );
   });
 
   it("shows the exact number of outdated SDK configurations", () => {

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { ArrowRight, Copy } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -140,6 +141,7 @@ function OrgStatusSection({
   org: V4MigrationOrganization;
   statusByProjectId: Map<string, ProjectMigrationStatus>;
 }) {
+  const router = useRouter();
   const capture = usePostHogClientCapture();
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { data: lastTraceTimes } =
@@ -148,9 +150,14 @@ function OrgStatusSection({
       { enabled: org.projects.length > 0 },
     );
 
-  const handleRowClick = (row: { id: string; name: string }) => {
+  const openProjectMigration = (row: { id: string; name: string }) => {
     capture("v4_migration:status_row_clicked");
     openMigrationPanel({ id: row.id, name: row.name });
+  };
+
+  const handleRowClick = (row: { id: string; name: string }) => {
+    openProjectMigration(row);
+    router.push(`/project/${row.id}/traces`);
   };
 
   const [orderBy, setOrderBy] = useState<OrderBy>(null);
@@ -306,10 +313,13 @@ function OrgStatusSection({
                   >
                     <TableCell density="comfortable" className="max-w-48">
                       <Link
-                        href={`/project/${row.id}`}
+                        href={`/project/${row.id}/traces`}
                         className="block truncate font-bold hover:underline"
                         title={row.name}
-                        onClick={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openProjectMigration(row);
+                        }}
                       >
                         {row.name}
                       </Link>
