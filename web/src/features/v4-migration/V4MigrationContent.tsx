@@ -39,6 +39,8 @@ import { useProject } from "@/src/features/projects/hooks";
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
+const OTEL_V4_MIGRATION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
 
 const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
@@ -186,7 +188,11 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
             OTel data is arriving through the delayed ingestion path. Set the{" "}
             <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
             <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
-            ingestion.
+            ingestion.{" "}
+            <ExternalLink href={OTEL_V4_MIGRATION_URL}>
+              OpenTelemetry migration guide
+            </ExternalLink>
+            .
           </>
         ) : sdk.status === "otel_realtime" ? (
           "OTel data is using real-time ingestion. No ingestion header update is required."
