@@ -97,6 +97,9 @@ export type ObservationReturnTypeWithMetadata = Omit<
   metadata: string | null;
   traceName?: string | null;
   traceTags?: string[];
+  // Populated only when includeObservationIO is true on the trace detail query.
+  input?: string | null;
+  output?: string | null;
   // optional, because in v4 an observation can have those properties
   userId?: string | null;
   sessionId?: string | null;
