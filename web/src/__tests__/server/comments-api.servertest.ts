@@ -1,5 +1,6 @@
 import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
 import {
+  DeleteCommentV1Response,
   GetCommentsV1Response,
   GetCommentV1Response,
   PostCommentsV1Response,
@@ -383,5 +384,104 @@ describe("Public API does NOT process mentions", () => {
     expect(response.body.content).toBe(
       "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
     );
+  });
+});
+
+describe("DELETE /api/public/comments/:commentId", () => {
+  beforeAll(async () => {
+    // Seed a trace so we can attach comments to it for the delete cases.
+    const traces = [
+      createTrace({
+        name: "delete-comment-trace",
+        project_id: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        id: "delete-comment-trace",
+      }),
+    ];
+    await createTracesCh(traces);
+
+    await prisma.comment.deleteMany({
+      where: { projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+    });
+  });
+
+  it("deletes an existing comment and returns the success message", async () => {
+    const { body: created } = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "to be deleted",
+        objectId: "delete-comment-trace",
+        objectType: "TRACE",
+        projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+        authorUserId: "user-1",
+      },
+    );
+
+    const { id: commentId } = created;
+
+    const deleteResponse = await makeZodVerifiedAPICall(
+      DeleteCommentV1Response,
+      "DELETE",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body).toEqual({
+      message: "Comment deleted successfully",
+    });
+
+    // The row is gone from Postgres.
+    const row = await prisma.comment.findUnique({ where: { id: commentId } });
+    expect(row).toBeNull();
+
+    // A follow-up GET returns 404 (the comment no longer exists).
+    await expect(
+      makeZodVerifiedAPICall(
+        GetCommentV1Response,
+        "GET",
+        `/api/public/comments/${commentId}`,
+      ),
+    ).rejects.toThrow(/returned status 404/);
+  });
+
+  it("returns 404 when the comment id does not exist", async () => {
+    await expect(
+      makeZodVerifiedAPICall(
+        DeleteCommentV1Response,
+        "DELETE",
+        "/api/public/comments/does-not-exist",
+      ),
+    ).rejects.toThrow(/returned status 404/);
+  });
+
+  it("returns 404 when the comment belongs to a different project", async () => {
+    // Seed a comment in a different project directly via Prisma. The public
+    // API key in the test harness is scoped to the default test project, so
+    // getCommentRecordOrThrow's { id, projectId } filter will miss and the
+    // handler must return 404.
+    const otherProjectId = "01234567-89ab-cdef-0123-456789abcdef";
+    const otherComment = await prisma.comment.create({
+      data: {
+        projectId: otherProjectId,
+        content: "in a different project",
+        objectId: "delete-comment-trace",
+        objectType: "TRACE",
+        authorUserId: "user-1",
+      },
+    });
+
+    try {
+      await expect(
+        makeZodVerifiedAPICall(
+          DeleteCommentV1Response,
+          "DELETE",
+          `/api/public/comments/${otherComment.id}`,
+        ),
+      ).rejects.toThrow(/returned status 404/);
+    } finally {
+      // Cleanup the foreign-project row so the suite stays isolated.
+      await prisma.comment.delete({ where: { id: otherComment.id } });
+    }
   });
 });
