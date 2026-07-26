@@ -2122,6 +2122,21 @@ export class OtelIngestionProcessor {
     const hasStructured = parsed.some(isStructuredMessage);
 
     if (hasStructured) {
+      // The spec only defines one of the two shapes per array; mixing
+      // {role, parts} and {type, content} in the same system_instructions
+      // payload is undefined. If we see a mix, fall through to the text
+      // path below so text-only entries are not silently dropped.
+      const hasTextContent = parsed.some(
+        (entry) =>
+          entry !== null &&
+          typeof entry === "object" &&
+          !Array.isArray(entry) &&
+          typeof (entry as Record<string, unknown>).content === "string",
+      );
+      if (hasTextContent) {
+        return this.parseSystemInstructionsAsText(parsed);
+      }
+
       const messages: Array<Record<string, unknown>> = [];
       for (const entry of parsed) {
         if (!isStructuredMessage(entry)) continue;
@@ -2134,6 +2149,12 @@ export class OtelIngestionProcessor {
       return messages;
     }
 
+    return this.parseSystemInstructionsAsText(parsed);
+  }
+
+  private parseSystemInstructionsAsText(
+    parsed: unknown[],
+  ): Array<Record<string, unknown>> {
     const textParts: string[] = [];
     for (const entry of parsed) {
       if (typeof entry === "string") {
@@ -2144,6 +2165,23 @@ export class OtelIngestionProcessor {
         const content = (entry as Record<string, unknown>).content;
         if (typeof content === "string" && content.length > 0) {
           textParts.push(content);
+          continue;
+        }
+        // Mixed-shape fallback: structured entries that lack a top-level
+        // content string may still carry text inside parts[].content.
+        const parts = (entry as Record<string, unknown>).parts;
+        if (Array.isArray(parts)) {
+          for (const part of parts) {
+            if (
+              part !== null &&
+              typeof part === "object" &&
+              !Array.isArray(part) &&
+              typeof (part as Record<string, unknown>).content === "string" &&
+              ((part as Record<string, unknown>).content as string).length > 0
+            ) {
+              textParts.push((part as Record<string, unknown>).content as string);
+            }
+          }
         }
       }
     }

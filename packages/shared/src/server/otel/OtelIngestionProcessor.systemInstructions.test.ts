@@ -156,6 +156,23 @@ const LITELLM_SYSTEM_INSTRUCTIONS = JSON.stringify([
   },
 ]);
 
+// Mixed-shape emission (structured + text-content entries in the same
+// array). The pre-fix structured path silently dropped the text-only
+// entry; the new behavior should fall through to the text path and
+// preserve the content.
+const MIXED_SHAPE_SYSTEM_INSTRUCTIONS = JSON.stringify([
+  { type: "text", content: "preamble" },
+  {
+    role: "system",
+    parts: [
+      {
+        type: "text",
+        content: "You are a helpful assistant.",
+      },
+    ],
+  },
+]);
+
 // Pydantic-AI emission shape, mirrors the pre-fix otelMapping.servertest
 // fixture so the existing behavior is regression-tested.
 const PYDANTIC_AI_SYSTEM_INSTRUCTIONS = JSON.stringify([
@@ -427,6 +444,30 @@ describe("OtelIngestionProcessor: gen_ai.system_instructions (#15336)", () => {
       expect(input[0]).toEqual({
         role: "system",
         parts: [{ type: "text", content: "You are a helpful assistant." }],
+      });
+      expect(input[1]).toEqual({
+        role: "user",
+        content: "What is 2+2?",
+      });
+    });
+
+    it("falls back to the text path when a mixed-shape array is emitted", async () => {
+      // The structured path would have silently dropped the text-only
+      // "preamble" entry. After the fix, a mixed array routes through
+      // the text path so the content is preserved.
+      const events = await createProcessor().processToIngestionEvents(
+        buildGenericOtelBatch(
+          MIXED_SHAPE_SYSTEM_INSTRUCTIONS,
+          genericInputMessages,
+        ),
+      );
+
+      const spanEvent = events.find((e) => e.type === "generation-create");
+      const input = JSON.parse((spanEvent?.body.input ?? "[]") as string);
+      expect(input).toHaveLength(2);
+      expect(input[0]).toEqual({
+        role: "system",
+        content: "preamble\nYou are a helpful assistant.",
       });
       expect(input[1]).toEqual({
         role: "user",
