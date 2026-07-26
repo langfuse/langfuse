@@ -137,10 +137,7 @@ describe("V4MigrationStatusPage", () => {
     render(<V4MigrationStatusPage />);
 
     const projectLink = screen.getByRole("link", { name: "Test project" });
-    expect(projectLink).toHaveAttribute(
-      "href",
-      "/project/project-1/traces",
-    );
+    expect(projectLink).toHaveAttribute("href", "/project/project-1/traces");
 
     projectLink.addEventListener("click", (event) => event.preventDefault(), {
       once: true,
@@ -170,9 +167,7 @@ describe("V4MigrationStatusPage", () => {
       id: "project-1",
       name: "Test project",
     });
-    expect(mocks.routerPush).toHaveBeenCalledWith(
-      "/project/project-1/traces",
-    );
+    expect(mocks.routerPush).toHaveBeenCalledWith("/project/project-1/traces");
   });
 
   it("shows the exact number of outdated SDK configurations", () => {
