@@ -42,6 +42,16 @@ const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
   "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
+const DEPRECATED_API_MIGRATION_URL =
+  "https://langfuse.com/faq/all/deprecated-api-migration";
+const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
+  PostHog:
+    "https://langfuse.com/integrations/analytics/posthog#migrate-export-source",
+  Mixpanel:
+    "https://langfuse.com/integrations/analytics/mixpanel#migrate-export-source",
+  "Blob Storage":
+    "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
+};
 
 const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
@@ -426,7 +436,7 @@ export function V4MigrationDetailsContent({
           </Section>
 
           <Section
-            title="Legacy APIs"
+            title="Deprecated APIs"
             chip={
               <MigrationCountChip
                 state={migrationData.apis}
@@ -448,10 +458,10 @@ export function V4MigrationDetailsContent({
                   You&apos;ve called these deprecated endpoints in the last{" "}
                   {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
                   <span className="text-dark-yellow">Oct 1</span>; the{" "}
-                  <ExternalLink href="https://api.reference.langfuse.com">
-                    new APIs
+                  <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
+                    migration guide
                   </ExternalLink>{" "}
-                  cover the same data.
+                  maps each endpoint to its replacement.
                 </p>
                 <div className="flex flex-col">
                   {migrationData.apiUsage.map((usage) => (
@@ -460,7 +470,7 @@ export function V4MigrationDetailsContent({
                       className="flex items-center justify-between gap-2 py-0.5"
                     >
                       <ExternalLink
-                        href="https://api.reference.langfuse.com"
+                        href={DEPRECATED_API_MIGRATION_URL}
                         className="text-sm"
                       >
                         {usage.endpoint}
@@ -474,14 +484,14 @@ export function V4MigrationDetailsContent({
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No legacy public API usage detected in the last{" "}
+                No deprecated public API usage detected in the last{" "}
                 {V4_MIGRATION_LOOKBACK_DAYS} days.
               </p>
             )}
           </Section>
 
           <Section
-            title="Legacy Integrations"
+            title="Deprecated Integrations"
             chip={
               <MigrationCountChip
                 state={migrationData.exports}
@@ -506,7 +516,10 @@ export function V4MigrationDetailsContent({
                 </p>
                 <div className="flex flex-col">
                   {migrationData.legacyIntegrations.map((name) => (
-                    <div key={name} className="flex items-center py-0.5">
+                    <div
+                      key={name}
+                      className="flex items-baseline gap-1.5 py-0.5"
+                    >
                       {integrationsUrl ? (
                         <Link
                           href={integrationsUrl}
@@ -518,13 +531,23 @@ export function V4MigrationDetailsContent({
                       ) : (
                         <span className="text-sm">{name}</span>
                       )}
+                      <span className="text-muted-foreground text-xs">·</span>
+                      <ExternalLink
+                        href={
+                          DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ??
+                          V4_DOCS_URL
+                        }
+                        className="text-xs"
+                      >
+                        Migration guide
+                      </ExternalLink>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No legacy integration exports detected.
+                No deprecated integration exports detected.
               </p>
             )}
           </Section>
