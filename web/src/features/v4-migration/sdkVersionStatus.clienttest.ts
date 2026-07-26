@@ -53,7 +53,6 @@ describe("v4 migration SDK status", () => {
   it("does not require action for raw OTel already using real-time ingestion", () => {
     expect(
       getLoadedSdkState(
-        sdkSeries(),
         sdkSeries({
           sdkName: "unknown",
           sdkVersion: "unknown",

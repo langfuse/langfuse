@@ -76,6 +76,11 @@ export const getV4MigrationSdkState = (params: {
   const hasCompatibleSdk = sdkUsageSeries.some(
     (series) => series.v4MigrationStatus === "compatible",
   );
+  const hasRealtimeOtelIngestion = sdkUsageSeries.some(
+    (series) =>
+      series.canonicalSdkName === null &&
+      series.hasDelayedOtelEvents === false,
+  );
 
   return {
     status:
@@ -85,7 +90,7 @@ export const getV4MigrationSdkState = (params: {
           ? "otel_header_required"
           : hasUnknownRecognizedSdk
             ? "unknown"
-            : hasCompatibleSdk
+            : hasCompatibleSdk || hasRealtimeOtelIngestion
               ? "latest"
               : "unknown",
     sdkUsageSeries,
