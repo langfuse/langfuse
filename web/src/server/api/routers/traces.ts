@@ -68,6 +68,7 @@ import {
   toDomainWithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
+import { mapTraceDetailObservations } from "@/src/features/traces/server/mapTraceDetailObservations";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
 
@@ -389,6 +390,10 @@ export const traceRouter = createTRPCRouter({
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
+        // When true, observation input/output are loaded for export (e.g. legacy
+        // trace JSON download). Defaults to false to keep the trace detail view
+        // payload lightweight.
+        includeObservationIO: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -399,12 +404,14 @@ export const traceRouter = createTRPCRouter({
         });
       }
 
+      const includeObservationIO = input.includeObservationIO;
+
       const [observations, traceScores] = await Promise.all([
         getObservationsForTrace({
           traceId: input.traceId,
           projectId: input.projectId,
           timestamp: input.timestamp ?? input.fromTimestamp ?? undefined,
-          includeIO: false,
+          includeIO: includeObservationIO,
         }),
         getScoresAndCorrectionsForTraces({
           projectId: input.projectId,
@@ -452,11 +459,10 @@ export const traceRouter = createTRPCRouter({
         scores: scoresDomain,
         corrections,
         latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-        observations: observations.map((o) => ({
-          ...toDomainWithStringifiedMetadata(o),
-          output: undefined,
-          input: undefined, // this is not queried above.
-        })) as ObservationReturnTypeWithMetadata[],
+        observations: mapTraceDetailObservations(
+          observations,
+          includeObservationIO,
+        ),
       };
     }),
   deleteMany: protectedProjectProcedure

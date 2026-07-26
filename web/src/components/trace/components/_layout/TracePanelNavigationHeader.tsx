@@ -36,6 +36,7 @@ import {
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
+import { api } from "@/src/utils/api";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
@@ -95,6 +96,7 @@ function TracePanelNavigationHeaderExpanded({
   const { roots, trace, observations } = useTraceData();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isBetaEnabled } = useV4Beta();
+  const utils = api.useUtils();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -150,9 +152,19 @@ function TracePanelNavigationHeaderExpanded({
       capture("trace_detail:download_button_click", analyticsDimensions);
       try {
         if (!isBetaEnabled) {
+          const traceForDownload =
+            await utils.traces.byIdWithObservationsAndScores.fetch({
+              traceId: trace.id,
+              projectId: trace.projectId,
+              includeObservationIO: true,
+            });
+
           downloadLegacyTraceAsJson({
-            trace,
-            observations,
+            trace: {
+              ...traceForDownload,
+              observations: traceForDownload.observations,
+            },
+            observations: traceForDownload.observations,
           });
           return;
         }
@@ -174,7 +186,14 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [
+      isBetaEnabled,
+      observations,
+      trace,
+      capture,
+      analyticsDimensions,
+      utils.traces.byIdWithObservationsAndScores,
+    ]);
 
   const isTimelineView = viewMode === "timeline";
 
