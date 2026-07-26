@@ -21,6 +21,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
 import {
+  formatSdkUpgradeRequirement,
   formatSdkVersion,
   type V4MigrationSdkState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
@@ -257,7 +258,9 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
                 </span>
                 {series.v4MigrationStatus === "upgrade_required" &&
                   !series.upgradeCompleted && (
-                    <span className="text-dark-yellow">· upgrade required</span>
+                    <span className="text-dark-yellow">
+                      · {formatSdkUpgradeRequirement(series.canonicalSdkName)}
+                    </span>
                   )}
                 {series.upgradeCompleted && <span>· upgrade completed</span>}
                 {series.v4MigrationStatus === "unknown" && (

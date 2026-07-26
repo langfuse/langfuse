@@ -85,6 +85,16 @@ export const getSdkVersionCapabilityStatus = (
   return "supported";
 };
 
+export const getSdkVersionCapabilityMinimum = (
+  sdkName: SdkVersionInfo["language"],
+  capability: SdkVersionCapability,
+): string | null => {
+  const normalizedSdkName = normalizeIngestionSdkName(sdkName);
+  return normalizedSdkName
+    ? SDK_VERSION_CAPABILITIES[capability][normalizedSdkName].join(".")
+    : null;
+};
+
 export const getSdkVersionCapability = (
   sdk: SdkVersionInfo | undefined,
   capability: SdkVersionCapability,

@@ -1,5 +1,8 @@
 import { type RouterOutputs } from "@/src/utils/api";
-import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import {
+  getSdkVersionCapabilityMinimum,
+  type SdkVersionInfo,
+} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 
 export type V4MigrationSdkStatus =
   | "checking"
@@ -111,4 +114,17 @@ export const formatSdkVersion = (sdkVersion: SdkVersionInfo | undefined) => {
         ? "Python"
         : sdkVersion.language;
   return `${language} ${sdkVersion.version}`;
+};
+
+export const formatSdkUpgradeRequirement = (
+  sdkName: V4MigrationSdkUsageSeries["canonicalSdkName"],
+) => {
+  const minimumVersion = getSdkVersionCapabilityMinimum(
+    sdkName,
+    "appRootObservations",
+  );
+
+  return minimumVersion
+    ? `upgrade required to >= ${minimumVersion}`
+    : "upgrade required";
 };

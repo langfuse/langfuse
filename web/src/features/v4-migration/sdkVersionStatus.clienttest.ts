@@ -1,4 +1,5 @@
 import {
+  formatSdkUpgradeRequirement,
   formatSdkVersion,
   getV4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
@@ -142,4 +143,15 @@ describe("v4 migration SDK status", () => {
     );
     expect(formatSdkVersion({ language: null, version: null })).toBeNull();
   });
+
+  it.each([
+    ["javascript", "upgrade required to >= 5.4.0"],
+    ["python", "upgrade required to >= 4.7.0"],
+    [null, "upgrade required"],
+  ] as const)(
+    "formats %s upgrade guidance with its minimum compatible version",
+    (sdkName, expected) => {
+      expect(formatSdkUpgradeRequirement(sdkName)).toBe(expected);
+    },
+  );
 });
