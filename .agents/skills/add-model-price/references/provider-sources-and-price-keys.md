@@ -103,6 +103,7 @@ Always fetch pricing from the provider's official docs before editing.
   removed on July 23 2026 after official confirmation. Do NOT add cache pricing for this model
   unless the official page explicitly adds it. Follows the same selectable-model pattern as
   gemini-3.1-flash-lite.
+- **Claude Opus 5 (added July 2026)** — `claude-opus-5` appeared on the official Anthropic pricing and models pages in July 2026. API ID: `claude-opus-5` (no date suffix, pinned snapshot). Bedrock ID: `anthropic.claude-opus-5`. Google Cloud ID: `claude-opus-5`. Pricing: $5/$25 MTok input/output, 5m cache $6.25/MTok, 1h cache $10/MTok, cache read $0.50/MTok — same as Opus 4.8/4.7/4.6. The model is in the flat long-context list (1M token context at standard pricing; no Large Context tier). Fast mode is available at $10/$50 MTok (shared price point with Opus 4.8). Added to pricing file and `anthropicModels` in the July 25 2026 audit. matchPattern: `(?i)^((anthropic\/)?claude-opus-5|(eu\.|us\.|apac\.|global\.)?anthropic\.claude-opus-5(-v1(:0)?)?)$`.
 - **gpt-5-chat-latest confirmed pricing** — This alias has confirmed pricing at $1.25/MTok
   input, $0.125/MTok cached input, $10.00/MTok output, verified via its specific model page
   `https://developers.openai.com/api/docs/models/gpt-5-chat-latest` (July 2026 audit).
