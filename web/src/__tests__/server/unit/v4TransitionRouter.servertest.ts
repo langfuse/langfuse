@@ -1184,6 +1184,8 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
+    expect(clickhouseQuery?.query).not.toContain("toDate(start_time)");
+    expect(clickhouseQuery?.query).not.toContain("toDate(timestamp)");
     expect(clickhouseQuery?.query).toContain(
       "GROUP BY toStartOfInterval(event_time, INTERVAL 2 MINUTE, 'UTC'), sdk_name, sdk_version, public_key",
     );
@@ -1634,6 +1636,8 @@ describe("v4TransitionRouter", () => {
     expect(usageQuery?.query).toContain(
       "ingestion_sdk_name NOT IN {internalSdkNames: Array(String)}",
     );
+    expect(usageQuery?.query).not.toContain("toDate(start_time)");
+    expect(usageQuery?.query).not.toContain("toDate(timestamp)");
     expect(usageQuery?.params).toMatchObject({
       projectIds: [projectId, secondProjectId],
       fromTimestamp: "2026-06-24 00:00:00.000",
