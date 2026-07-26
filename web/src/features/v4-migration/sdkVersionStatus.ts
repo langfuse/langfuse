@@ -5,6 +5,7 @@ export type V4MigrationSdkStatus =
   | "checking"
   | "error"
   | "unknown"
+  | "otel_realtime"
   | "otel_header_required"
   | "legacy"
   | "latest";
@@ -78,8 +79,7 @@ export const getV4MigrationSdkState = (params: {
   );
   const hasRealtimeOtelIngestion = sdkUsageSeries.some(
     (series) =>
-      series.canonicalSdkName === null &&
-      series.hasDelayedOtelEvents === false,
+      series.canonicalSdkName === null && series.hasDelayedOtelEvents === false,
   );
 
   return {
@@ -90,9 +90,11 @@ export const getV4MigrationSdkState = (params: {
           ? "otel_header_required"
           : hasUnknownRecognizedSdk
             ? "unknown"
-            : hasCompatibleSdk || hasRealtimeOtelIngestion
+            : hasCompatibleSdk
               ? "latest"
-              : "unknown",
+              : hasRealtimeOtelIngestion
+                ? "otel_realtime"
+                : "unknown",
     sdkUsageSeries,
     upgradeRequiredCount,
     delayedOtelIngestionCount,

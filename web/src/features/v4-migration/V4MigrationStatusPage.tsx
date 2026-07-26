@@ -203,15 +203,17 @@ function OrgStatusSection({
       case "sdk":
         return row.status?.sdk.status === "latest"
           ? 5
-          : row.status?.sdk.status === "legacy"
-            ? 4
-            : row.status?.sdk.status === "otel_header_required"
-              ? 3
-              : row.status?.sdk.status === "unknown"
-                ? 2
-                : row.status?.sdk.status === "checking"
-                  ? 1
-                  : 0;
+          : row.status?.sdk.status === "otel_realtime"
+            ? 5
+            : row.status?.sdk.status === "legacy"
+              ? 4
+              : row.status?.sdk.status === "otel_header_required"
+                ? 3
+                : row.status?.sdk.status === "unknown"
+                  ? 2
+                  : row.status?.sdk.status === "checking"
+                    ? 1
+                    : 0;
       case "evals":
         return row.status?.evals.count ?? 0;
       case "apis":
@@ -321,6 +323,10 @@ function OrgStatusSection({
                     <TableCell density="comfortable">
                       {row.status.sdk.status === "latest" ? (
                         <span className="text-foreground-tertiary">Latest</span>
+                      ) : row.status.sdk.status === "otel_realtime" ? (
+                        <span className="text-foreground-tertiary">
+                          OTel real-time
+                        </span>
                       ) : row.status.sdk.status === "checking" ? (
                         <span className="text-foreground-tertiary">
                           Checking…

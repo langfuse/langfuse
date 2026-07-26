@@ -53,6 +53,16 @@ describe("v4 migration data", () => {
   it("only marks a fully loaded project without affected items as ready", () => {
     expect(getProjectMigrationReadiness(migrationStatus())).toBe("ready");
     expect(
+      getProjectMigrationReadiness(
+        migrationStatus({
+          sdk: {
+            ...migrationStatus().sdk,
+            status: "otel_realtime",
+          },
+        }),
+      ),
+    ).toBe("ready");
+    expect(
       getProjectMigrationReadiness(migrationStatus({ evals: loaded(1) })),
     ).toBe("action-needed");
     expect(

@@ -160,6 +160,8 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
   const chip =
     sdk.status === "latest" ? (
       <Chip variant="success">Up to date</Chip>
+    ) : sdk.status === "otel_realtime" ? (
+      <Chip variant="success">OTel real-time</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
     ) : sdk.status === "otel_header_required" ? (
@@ -186,6 +188,8 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
             <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
             ingestion.
           </>
+        ) : sdk.status === "otel_realtime" ? (
+          "OTel data is using real-time ingestion. No ingestion header update is required."
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
             "We could not recognize every detected SDK version. Verify that these SDKs are up to date."

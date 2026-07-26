@@ -64,7 +64,7 @@ describe("v4 migration SDK status", () => {
         }),
       ),
     ).toMatchObject({
-      status: "latest",
+      status: "otel_realtime",
       upgradeRequiredCount: 0,
       delayedOtelIngestionCount: 0,
     });

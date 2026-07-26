@@ -5,7 +5,11 @@ import V4MigrationStatusPage from "./V4MigrationStatusPage";
 
 const mocks = vi.hoisted(() => ({
   sdk: {
-    status: "latest" as "latest" | "legacy" | "otel_header_required",
+    status: "latest" as
+      | "latest"
+      | "legacy"
+      | "otel_realtime"
+      | "otel_header_required",
     sdkUsageSeries: [],
     upgradeRequiredCount: 0,
     delayedOtelIngestionCount: 0,
@@ -144,5 +148,20 @@ describe("V4MigrationStatusPage", () => {
 
     expect(screen.getByText("2 OTel header issues")).toBeInTheDocument();
     expect(screen.queryByText("0 outdated")).not.toBeInTheDocument();
+  });
+
+  it("shows real-time OTel as ready without claiming an SDK version", () => {
+    mocks.sdk = {
+      status: "otel_realtime",
+      sdkUsageSeries: [],
+      upgradeRequiredCount: 0,
+      delayedOtelIngestionCount: 0,
+    };
+
+    render(<V4MigrationStatusPage />);
+
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("OTel real-time")).toBeInTheDocument();
+    expect(screen.queryByText("Latest")).not.toBeInTheDocument();
   });
 });
