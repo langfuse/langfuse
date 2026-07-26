@@ -39,6 +39,8 @@ import { useProject } from "@/src/features/projects/hooks";
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
+const OTEL_V4_MIGRATION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
 
 const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
@@ -160,8 +162,12 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
   const chip =
     sdk.status === "latest" ? (
       <Chip variant="success">Up to date</Chip>
+    ) : sdk.status === "otel_realtime" ? (
+      <Chip variant="success">OTel real-time</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
+    ) : sdk.status === "otel_header_required" ? (
+      <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
       <Chip variant="warning">
         {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
@@ -177,6 +183,19 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <p className="text-muted-foreground text-sm leading-relaxed">
         {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
+        ) : sdk.status === "otel_header_required" ? (
+          <>
+            OTel data is arriving through the delayed ingestion path. Set the{" "}
+            <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
+            <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
+            ingestion.{" "}
+            <ExternalLink href={OTEL_V4_MIGRATION_URL}>
+              OpenTelemetry migration guide
+            </ExternalLink>
+            .
+          </>
+        ) : sdk.status === "otel_realtime" ? (
+          "OTel data is using real-time ingestion. No ingestion header update is required."
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
             "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
@@ -226,9 +245,11 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
                   · last seen{" "}
                   {formatCompactRelativeTime(new Date(series.lastSeen))}
                 </span>
-                {series.v4MigrationStatus === "upgrade_required" && (
-                  <span className="text-dark-yellow">· upgrade required</span>
-                )}
+                {series.v4MigrationStatus === "upgrade_required" &&
+                  !series.upgradeCompleted && (
+                    <span className="text-dark-yellow">· upgrade required</span>
+                  )}
+                {series.upgradeCompleted && <span>· upgrade completed</span>}
                 {series.v4MigrationStatus === "unknown" && (
                   <span className="text-dark-yellow">
                     · version not recognized
