@@ -44,6 +44,15 @@ service:
           type: string
           docs: The unique langfuse identifier of a comment
       response: commons.Comment
+    delete:
+      docs: Delete a comment by id
+      method: DELETE
+      path: /comments/{commentId}
+      path-parameters:
+        commentId:
+          type: string
+          docs: The unique langfuse identifier of the comment to delete
+      response: DeleteCommentResponse
 types:
   CreateCommentRequest:
     properties:
@@ -71,3 +80,6 @@ types:
     properties:
       data: list<commons.Comment>
       meta: pagination.MetaResponse
+  DeleteCommentResponse:
+    properties:
+      message: string

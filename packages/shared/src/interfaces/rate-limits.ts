@@ -14,6 +14,7 @@ export const RateLimitResource = z.enum([
   "datasets",
   "trace-delete",
   "score-delete",
+  "comment-delete",
   "in-app-agent-run",
   "feedback",
 ]);

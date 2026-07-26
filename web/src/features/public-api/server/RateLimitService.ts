@@ -331,6 +331,12 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "comment-delete":
+          return {
+            resource: "comment-delete",
+            points: 50,
+            durationInSec: 86400, // 50 requests per day
+          };
         case "in-app-agent-run":
           return {
             resource: "in-app-agent-run",
@@ -429,6 +435,12 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "comment-delete":
+          return {
+            resource: "comment-delete",
+            points: 200,
+            durationInSec: 86400, // 200 requests per day
+          };
         case "in-app-agent-run":
           return {
             resource: "in-app-agent-run",
@@ -518,6 +530,12 @@ const getPlanBasedRateLimitConfig = (
         case "score-delete":
           return {
             resource: "score-delete",
+            points: 1000,
+            durationInSec: 86400, // 1000 requests per day
+          };
+        case "comment-delete":
+          return {
+            resource: "comment-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
           };

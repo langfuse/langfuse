@@ -74,3 +74,15 @@ export const GetCommentV1Query = z
   })
   .strict();
 export const GetCommentV1Response = APIComment;
+
+// DELETE /comments/:id
+export const DeleteCommentV1Query = z
+  .object({
+    commentId: z.string(),
+  })
+  .strict();
+export const DeleteCommentV1Response = z
+  .object({
+    message: z.string(),
+  })
+  .strict();

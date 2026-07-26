@@ -154,3 +154,40 @@ export const getCommentForApi = async ({
   const comment = await getCommentRecordOrThrow({ projectId, commentId });
   return toPublicComment(comment);
 };
+
+type DeleteCommentInput = {
+  projectId: string;
+  orgId: string;
+  apiKeyId: string;
+  commentId: string;
+};
+
+export const deleteCommentForApi = async ({
+  projectId,
+  orgId,
+  apiKeyId,
+  commentId,
+}: DeleteCommentInput) => {
+  // Project-scope check via the shared helper: 404 if the comment is missing
+  // or belongs to a different project. This is the same authorization model
+  // as the GET handler.
+  const comment = await getCommentRecordOrThrow({ projectId, commentId });
+
+  await prisma.comment.delete({
+    where: {
+      id: comment.id,
+    },
+  });
+
+  await auditLog({
+    action: "delete",
+    resourceType: "comment",
+    resourceId: comment.id,
+    projectId,
+    orgId,
+    apiKeyId,
+    before: comment,
+  });
+
+  return { message: "Comment deleted successfully" };
+};
