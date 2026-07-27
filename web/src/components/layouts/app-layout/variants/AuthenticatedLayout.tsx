@@ -18,7 +18,6 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
-import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
@@ -44,6 +43,12 @@ import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSession } from "next-auth/react";
+import {
+  useOrgProjectSwitchPaths,
+  useQueryProjectOrOrganization,
+} from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -258,6 +263,13 @@ function ConnectedAppSidebar({
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const plan = usePlan();
   const capture = usePostHogClientCapture();
+  const session = useSession();
+  const { organization, project } = useQueryProjectOrOrganization();
+  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+  const canCreateProjects = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "projects:create",
+  });
   const [dismissedNotificationIds, setDismissedNotificationIds] =
     useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
 
@@ -329,6 +341,22 @@ function ConnectedAppSidebar({
         },
       };
 
+  const mobileNavigation: ComponentProps<
+    typeof AppSidebar
+  >["mobileNavigation"] = organization
+    ? {
+        status: "available",
+        organization: { id: organization.id, name: organization.name },
+        project: project ? { id: project.id, name: project.name } : null,
+        organizations: session.data?.user?.organizations ?? null,
+        canCreateOrganizations:
+          session.data?.user?.canCreateOrganizations ?? false,
+        canCreateProjects,
+        getOrgPath,
+        getProjectPath,
+      }
+    : { status: "unavailable" };
+
   return (
     <AppSidebar
       navItems={navItems}
@@ -340,13 +368,13 @@ function ConnectedAppSidebar({
       logoDarkModeHref={uiCustomization?.logoDarkModeHref}
       versionState={versionState}
       notificationState={notificationState}
+      mobileNavigation={mobileNavigation}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
         routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
         isLangfuseCloud,
       )}
-      mobileNavSwitcher={<MobileNavSwitcher />}
     />
   );
 }

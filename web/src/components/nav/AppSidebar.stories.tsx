@@ -9,6 +9,7 @@ import { AppSidebar } from "./app-sidebar";
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];
 type NotificationState = AppSidebarProps["notificationState"];
+type MobileNavigationState = AppSidebarProps["mobileNavigation"];
 
 const launchWeekNotificationIds = ["lw5-1", "lw5-2", "lw5-3", "lw5-4", "lw5-5"];
 const duringLaunchWeek = new Date("2026-05-29T12:00:00Z").getTime();
@@ -47,6 +48,9 @@ const meta = preview.meta({
     notificationState: {
       status: "hidden",
     } satisfies NotificationState,
+    mobileNavigation: {
+      status: "unavailable",
+    } satisfies MobileNavigationState,
   },
 });
 
@@ -170,6 +174,47 @@ export const AllNotificationsDismissed = meta.story({
       onDismiss: fn(),
       onLinkClick: fn(),
     } satisfies NotificationState,
+  },
+});
+
+export const MobileNavigation = meta.story({
+  args: {
+    isMobile: true,
+    mobileNavigation: {
+      status: "available",
+      organization: { id: "org-acme", name: "Acme Inc." },
+      project: { id: "project-analytics", name: "Analytics" },
+      organizations: [
+        {
+          id: "org-acme",
+          name: "Acme Inc.",
+          role: "OWNER",
+          cloudConfig: undefined,
+          plan: "cloud:hobby",
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: "project-analytics",
+              name: "Analytics",
+              role: "ADMIN",
+              deletedAt: null,
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        },
+      ],
+      canCreateOrganizations: true,
+      canCreateProjects: true,
+      getOrgPath: fn(
+        (organizationId: string) => `/organization/${organizationId}`,
+      ),
+      getProjectPath: fn((projectId: string) => `/project/${projectId}`),
+    } satisfies MobileNavigationState,
   },
 });
 

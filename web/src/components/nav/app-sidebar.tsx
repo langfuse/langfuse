@@ -23,6 +23,7 @@ import {
   ArrowUp10,
   BadgeCheck,
   ChevronsUpDown,
+  ChevronDownIcon,
   ExternalLink,
   Grid2X2,
   HardDriveDownload,
@@ -60,6 +61,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
+import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -188,6 +191,24 @@ type SidebarNotificationState =
       onLinkClick: (id: string) => void;
     };
 
+type Organization = Extract<
+  React.ComponentProps<typeof OrganizationDropdownMenu>,
+  { state: "loaded" }
+>["organizations"][number];
+
+type MobileNavigationState =
+  | { status: "unavailable" }
+  | {
+      status: "available";
+      organization: { id: string; name: string };
+      project: { id: string; name: string } | null;
+      organizations: Organization[] | null;
+      canCreateOrganizations: boolean;
+      canCreateProjects: boolean;
+      getOrgPath: (organizationId: string) => string;
+      getProjectPath: (projectId: string) => string;
+    };
+
 type AppSidebarProps = {
   navItems: {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
@@ -205,7 +226,7 @@ type AppSidebarProps = {
   versionState: SidebarVersionState;
   showDemoBadge: boolean;
   notificationState: SidebarNotificationState;
-  mobileNavSwitcher?: React.ReactNode;
+  mobileNavigation: MobileNavigationState;
 } & React.ComponentProps<typeof Sidebar>;
 
 export function AppSidebar({
@@ -219,7 +240,7 @@ export function AppSidebar({
   versionState,
   showDemoBadge,
   notificationState,
-  mobileNavSwitcher,
+  mobileNavigation,
   ...props
 }: AppSidebarProps) {
   return (
@@ -240,7 +261,7 @@ export function AppSidebar({
         <DemoBadge show={showDemoBadge} />
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && mobileNavSwitcher}
+        {isMobile && <MobileNavSwitcher state={mobileNavigation} />}
         <NavMain items={navItems} />
         <div className="flex-1" />
         {notificationState.status === "visible" && (
@@ -255,6 +276,73 @@ export function AppSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function MobileNavSwitcher({ state }: { state: MobileNavigationState }) {
+  if (state.status === "unavailable") return null;
+
+  return (
+    <SidebarGroup className="border-b">
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton>
+                  <span
+                    className="min-w-0 flex-1 truncate text-left"
+                    title={state.organization.name}
+                  >
+                    {state.organization.name}
+                  </span>
+                  <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <OrganizationDropdownMenu
+                {...(state.organizations
+                  ? { state: "loaded", organizations: state.organizations }
+                  : { state: "loading" })}
+                canCreateOrganizations={state.canCreateOrganizations}
+                getOrgPath={state.getOrgPath}
+              />
+            </DropdownMenu>
+          </SidebarMenuItem>
+          {state.project && (
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton>
+                    <span
+                      className="min-w-0 flex-1 truncate text-left"
+                      title={state.project.name}
+                    >
+                      {state.project.name}
+                    </span>
+                    <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <ProjectDropdownMenu
+                  organizationId={state.organization.id}
+                  {...(state.organizations
+                    ? {
+                        state: "loaded",
+                        projects:
+                          state.organizations.find(
+                            (organization) =>
+                              organization.id === state.organization.id,
+                          )?.projects ?? [],
+                      }
+                    : { state: "loading" })}
+                  canCreateProjects={state.canCreateProjects}
+                  getProjectPath={state.getProjectPath}
+                />
+              </DropdownMenu>
+            </SidebarMenuItem>
+          )}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 
