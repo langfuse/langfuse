@@ -194,14 +194,24 @@ export function useEventsFilterOptions({
   // these self-collapse under the shared bulk query, so only these are pulled
   // out for self-exclusion. Score-catalog columns are excluded — the server
   // never refines them, so they stay in the bulk regardless of a score filter.
+  //
+  // Keyed on a stable sorted string (column ids are comma-free) so this Set —
+  // and every partition derived from it below — keeps a stable identity across
+  // re-renders when the filter set is unchanged. The call site rebuilds
+  // `oldFilterState` on every render, so without this the combine + merged
+  // `filterOptions` would churn identity each render (they must not).
+  const filteredColumnsKey = Array.from(
+    new Set(
+      refinementFilter
+        .map((f) => toFacetColumnId(f.column))
+        .filter((c) => !UNREFINED_SCORE_CATALOG_COLUMNS.has(c)),
+    ),
+  )
+    .sort()
+    .join(",");
   const filteredColumns = useMemo(
-    () =>
-      new Set(
-        refinementFilter
-          .map((f) => toFacetColumnId(f.column))
-          .filter((c) => !UNREFINED_SCORE_CATALOG_COLUMNS.has(c)),
-      ),
-    [refinementFilter],
+    () => new Set(filteredColumnsKey ? filteredColumnsKey.split(",") : []),
+    [filteredColumnsKey],
   );
 
   // A facet never filters itself: its options/counts must reflect every OTHER
@@ -274,6 +284,11 @@ export function useEventsFilterOptions({
   // columns that remain are either clean value facets or score-catalog columns,
   // so the bulk gets the FULL refining set: clean value facets are refined by
   // every active filter, and the server leaves the score catalog untouched.
+  //
+  // Non-lazy "request all" (columns undefined) can't enumerate a dirty column to
+  // pull out; that path is only used with a start-time-only filter (the session
+  // view), where nothing is dirty. A future non-lazy caller passing a refining
+  // filter would need an explicit column list to keep self-exclusion working.
   const eagerCandidates = lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns;
   const bulkColumns = useMemo(
     () => eagerCandidates?.filter((c) => !filteredColumns.has(c)),
