@@ -32,7 +32,9 @@ export type DeleteButtonProps = {
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
   title?: string;
-  className?: string;
+  className?:
+    | "w-full justify-start font-normal"
+    | "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110";
   // forwarded explicitly because the base component does not spread unknown
   // props onto the rendered button
   "aria-label"?: string;
@@ -253,6 +255,9 @@ export function DeleteTraceButton(props: DeleteTraceButtonProps) {
   return (
     <DeleteButton
       {...props}
+      className={
+        props.className ? "w-full justify-start font-normal" : undefined
+      }
       scope={scope}
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>
@@ -393,6 +398,11 @@ export function DeleteMonitorButton(props: DeleteMonitorButtonProps) {
   return (
     <DeleteButton
       {...props}
+      className={
+        props.className
+          ? "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110"
+          : undefined
+      }
       scope={scope}
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>
