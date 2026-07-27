@@ -231,7 +231,7 @@ type AppSidebarProps = {
   canCreateProjects: boolean;
   getOrgPath: (organizationId: string) => string;
   getProjectPath: (projectId: string) => string;
-} & React.ComponentProps<typeof Sidebar>;
+};
 
 export function AppSidebar({
   navItems,
@@ -250,7 +250,6 @@ export function AppSidebar({
   canCreateProjects,
   getOrgPath,
   getProjectPath,
-  ...props
 }: AppSidebarProps) {
   const activeNotifications =
     notificationState.status === "visible"
@@ -269,7 +268,7 @@ export function AppSidebar({
       : [];
 
   return (
-    <Sidebar collapsible="icon" variant="sidebar" {...props}>
+    <Sidebar collapsible="icon" variant="sidebar">
       <SidebarHeader>
         <div className="flex min-h-9 min-w-0 items-center py-2 pr-2 pl-3 group-data-[collapsible=icon]:p-3">
           <Link href="/" className="flex shrink-0 items-center">
