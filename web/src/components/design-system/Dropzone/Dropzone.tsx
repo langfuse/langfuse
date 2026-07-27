@@ -37,7 +37,7 @@ const dropzoneVariants = cva(
     variants: {
       variant: {
         compact:
-          "border-border-contrast border border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
+          "border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
         panel:
           "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
       },
@@ -127,8 +127,8 @@ export const Dropzone = ({
 
   const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
   const emptyStateDescription = "Drag and drop or click to upload";
-  const panelTitle = src ? contentText : emptyStateTitle;
-  const panelDescription = src
+  const panelTitle = src?.length ? contentText : emptyStateTitle;
+  const panelDescription = src?.length
     ? "Drag and drop or click to replace"
     : emptyStateDescription;
 
@@ -157,7 +157,7 @@ export const Dropzone = ({
           <p
             className={cn(
               "my-2 w-full truncate text-sm font-bold",
-              !src && "text-wrap",
+              !src?.length && "text-wrap",
             )}
             title={panelTitle}
           >
@@ -166,13 +166,13 @@ export const Dropzone = ({
           <p
             className={cn(
               "text-muted-foreground w-full text-xs text-wrap",
-              !src && "truncate",
+              !src?.length && "truncate",
             )}
-            title={src ? undefined : panelDescription}
+            title={src?.length ? undefined : panelDescription}
           >
             {panelDescription}
           </p>
-          {!src && caption && (
+          {!src?.length && caption && (
             <p className="text-muted-foreground text-xs text-wrap">
               {caption}.
             </p>
