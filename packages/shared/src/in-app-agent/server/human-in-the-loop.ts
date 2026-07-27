@@ -1,22 +1,21 @@
 import { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
+import { InvalidRequestError } from "../../index";
+import { prisma } from "../../db";
+import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "../constants";
 import {
-  InvalidRequestError,
-  safeJsonParse,
-  stableJsonStringify,
-} from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
-import { IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE } from "@/src/features/in-app-agent/constants";
-import { IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES } from "@/src/features/in-app-agent/server/tools";
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES,
+  type InAppAgentLangfuseMcpToolName,
+} from "./tools";
+import { safeJsonParse, stableJsonStringify } from "../../utils/json";
 import {
   type AgUiEvent,
   type AgUiMessage,
   type AgUiRunAgentInput,
   type InAppAgentToolApprovalRequest,
   type ResumeForwardedProps,
-} from "@/src/features/in-app-agent/schema";
+} from "../schema";
 
 const MANUAL_TOOL_APPROVAL_REJECTION_MESSAGE =
   "Tool call was not approved by the user.";
@@ -34,15 +33,18 @@ const PendingToolApprovalSchema = z.object({
   argsFingerprint: z.string(),
 });
 
-const McpToolNameSchema = z.custom<McpToolName>(
-  (value) =>
-    typeof value === "string" &&
-    IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(value as McpToolName),
-  { message: "Invalid MCP tool name" },
-);
+const InAppAgentLangfuseMcpToolNameSchema =
+  z.custom<InAppAgentLangfuseMcpToolName>(
+    (value) =>
+      typeof value === "string" &&
+      IN_APP_AGENT_LANGFUSE_MCP_TOOL_NAMES.has(
+        value as InAppAgentLangfuseMcpToolName,
+      ),
+    { message: "Invalid MCP tool name" },
+  );
 
 export const InAppAgentMcpRunOverrideSchema = z.object({
-  toolName: McpToolNameSchema,
+  toolName: InAppAgentLangfuseMcpToolNameSchema,
 });
 
 const MastraSuspendEventSchema = z.object({
@@ -137,7 +139,7 @@ export async function consumeAndValidatePendingToolApproval(params: {
 }
 
 export async function createInAppAgentMcpRunOverride(params: {
-  toolName: McpToolName;
+  toolName: InAppAgentLangfuseMcpToolName;
 }) {
   return JSON.stringify({
     toolName: params.toolName,

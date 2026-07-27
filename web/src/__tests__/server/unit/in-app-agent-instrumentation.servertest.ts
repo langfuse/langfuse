@@ -3,9 +3,9 @@ import { EventType } from "@ag-ui/core";
 import {
   getInAppAgentInstrumentationObservationId,
   getInAppAgentInstrumentationTraceId,
-} from "@/src/features/in-app-agent/constants";
-import type { AgUiRunAgentInput } from "@/src/features/in-app-agent/schema";
-import { InAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
+} from "@langfuse/shared/in-app-agent";
+import type { AgUiRunAgentInput } from "@langfuse/shared/in-app-agent";
+import { InAppAgentInstrumentation } from "@langfuse/shared/in-app-agent/server/instrumentation";
 
 const runId = "run-1";
 const traceId = getInAppAgentInstrumentationTraceId(runId);

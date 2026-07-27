@@ -45,8 +45,8 @@ import {
 } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/features/in-app-agent/server/human-in-the-loop";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
