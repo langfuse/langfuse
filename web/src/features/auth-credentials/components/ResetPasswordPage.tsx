@@ -48,7 +48,13 @@ export function ResetPasswordPage({
   const session = useSession();
   const router = useRouter();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
-  const queryTargetPath = router.query.targetPath as string | undefined;
+
+  // Detect set mode: user exists but has no password (signup email verification flow)
+  const isSetMode = session.data?.user?.hasPassword === false;
+  const queryTargetPath =
+    isSetMode && typeof router.query.targetPath === "string"
+      ? router.query.targetPath
+      : undefined;
   const targetPath = queryTargetPath
     ? stripBasePath(getSafeRedirectPath(queryTargetPath))
     : undefined;
@@ -61,9 +67,6 @@ export function ResetPasswordPage({
     useState(false);
 
   const capture = usePostHogClientCapture();
-
-  // Detect set mode: user exists but has no password (signup email verification flow)
-  const isSetMode = session.data?.user?.hasPassword === false;
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const emailVerified = isEmailVerifiedWithinCutoff(
