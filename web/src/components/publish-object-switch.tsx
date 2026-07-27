@@ -13,6 +13,7 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { cn } from "@/src/utils/tailwind";
@@ -174,6 +175,18 @@ export const PublishSessionSwitch = (props: {
   );
 };
 
+const getShareUrlWithBasePath = (shareUrl: string) => {
+  const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const shouldPrependBasePath =
+    Boolean(basePath) &&
+    shareUrl.startsWith("/") &&
+    !shareUrl.startsWith("//") &&
+    shareUrl !== basePath &&
+    !shareUrl.startsWith(`${basePath}/`);
+
+  return shouldPrependBasePath ? `${basePath}${shareUrl}` : shareUrl;
+};
+
 const Base = (props: {
   itemName: string;
   onChange: (value: boolean) => Promise<unknown>;
@@ -192,7 +205,10 @@ const Base = (props: {
     setIsCopied(true);
     copyTextToClipboard(
       props.shareUrl
-        ? new URL(props.shareUrl, window.location.origin).toString()
+        ? new URL(
+            getShareUrlWithBasePath(props.shareUrl),
+            window.location.origin,
+          ).toString()
         : window.location.href,
     );
     setTimeout(() => setIsCopied(false), 2500);
