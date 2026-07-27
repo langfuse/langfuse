@@ -2,7 +2,7 @@ import {
   getInAppAgentMessageEntryPointTraceMetadata,
   getInAppAgentQuickActionTraceMetadata,
   sanitizeInAppAgentContext,
-} from "@/src/ee/features/in-app-agent/context";
+} from "@/src/features/in-app-agent/context";
 
 describe("in-app agent quick-action attribution", () => {
   it("exposes trace metadata for well-formed attribution and keeps it out of the model-visible context", () => {

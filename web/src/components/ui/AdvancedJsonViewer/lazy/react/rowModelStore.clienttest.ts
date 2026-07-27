@@ -9,7 +9,7 @@
 // stub it so the error-capture tests can assert without touching Sentry.
 vi.mock("@/src/utils/reportError", () => ({ reportError: vi.fn() }));
 
-import { createRowModelStore } from "./rowModelStore";
+import { createRowModelStore, type LazyViewerMetric } from "./rowModelStore";
 import { PAGE_SIZE } from "../treeRowModel";
 import type { JsonRow, RowModel, RowWindow } from "../rowModel";
 import { reportError } from "@/src/utils/reportError";
@@ -69,6 +69,36 @@ describe("rowModelStore", () => {
 
     await store.getState().toggle(b.nodeId, true); // collapse
     expect(store.getState().totalVisible).toBe(3);
+  });
+
+  it("emits an `indexed` perf metric once the first window is ready (LFE-14419)", async () => {
+    const metrics: LazyViewerMetric[] = [];
+    const store = createRowModelStore({ onMetric: (m) => metrics.push(m) });
+    await store.getState().init({ a: 1, b: [10, 20, 30] });
+
+    const indexed = metrics.filter((m) => m.kind === "indexed");
+    expect(indexed).toHaveLength(1);
+    expect(indexed[0]).toMatchObject({ kind: "indexed", rowCount: 3 });
+    // buildMs is a real, non-negative duration (time-to-first-row).
+    expect((indexed[0] as { buildMs: number }).buildMs).toBeGreaterThanOrEqual(
+      0,
+    );
+  });
+
+  it("emits an `expand` metric on expand but not on collapse (LFE-14419)", async () => {
+    const metrics: LazyViewerMetric[] = [];
+    const store = createRowModelStore({ onMetric: (m) => metrics.push(m) });
+    await store.getState().init({ a: 1, b: [10, 20, 30] });
+
+    const b = findRow(store, "b")!;
+    await store.getState().toggle(b.nodeId, false); // expand
+    await store.getState().toggle(b.nodeId, true); // collapse
+
+    // Expand pays the deferred per-container scan and is measured; collapse has
+    // no scan and emits nothing.
+    const expands = metrics.filter((m) => m.kind === "expand");
+    expect(expands).toHaveLength(1);
+    expect((expands[0] as { ms: number }).ms).toBeGreaterThanOrEqual(0);
   });
 
   it("load-more reveals the next page and drops the load-more row when drained", async () => {

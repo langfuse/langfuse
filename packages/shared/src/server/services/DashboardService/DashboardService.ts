@@ -103,6 +103,42 @@ export class DashboardService {
   }
 
   /**
+   * Updates a project-owned dashboard, translating Prisma's P2025 into a 404.
+   */
+  private static async updateDashboardRecord(
+    dashboardId: string,
+    projectId: string,
+    data: Prisma.DashboardUncheckedUpdateInput,
+  ): Promise<DashboardDomain> {
+    try {
+      const updatedDashboard = await prisma.dashboard.update({
+        where: {
+          id: dashboardId,
+          projectId,
+        },
+        data,
+      });
+
+      return DashboardDomainSchema.parse({
+        ...updatedDashboard,
+        owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+      });
+    } catch (e) {
+      // P2025 = row not found; also thrown for cross-project ids, so the 404
+      // does not leak whether the dashboard exists in another project.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        throw new LangfuseNotFoundError(
+          `Dashboard ${dashboardId} not found in project ${projectId}`,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
    * Updates a dashboard's definition.
    */
   public static async updateDashboardDefinition(
@@ -111,24 +147,13 @@ export class DashboardService {
     definition: z.infer<typeof DashboardDefinitionSchema>,
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      updatedBy: userId,
+      definition: {
+        // Already sanitized: the input is parsed against
+        // DashboardDefinitionSchema, which strips unknown keys.
+        widgets: definition.widgets,
       },
-      data: {
-        updatedBy: userId,
-        definition: {
-          // Already sanitized: the input is parsed against
-          // DashboardDefinitionSchema, which strips unknown keys.
-          widgets: definition.widgets,
-        },
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
     });
   }
 
@@ -142,21 +167,10 @@ export class DashboardService {
     description: string,
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-      data: {
-        name,
-        description,
-        updatedBy: userId,
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      name,
+      description,
+      updatedBy: userId,
     });
   }
 
@@ -169,20 +183,9 @@ export class DashboardService {
     filters: z.infer<typeof singleFilter>[],
     userId?: string,
   ): Promise<DashboardDomain> {
-    const updatedDashboard = await prisma.dashboard.update({
-      where: {
-        id: dashboardId,
-        projectId,
-      },
-      data: {
-        updatedBy: userId,
-        filters,
-      },
-    });
-
-    return DashboardDomainSchema.parse({
-      ...updatedDashboard,
-      owner: updatedDashboard.projectId ? "PROJECT" : "LANGFUSE",
+    return this.updateDashboardRecord(dashboardId, projectId, {
+      updatedBy: userId,
+      filters,
     });
   }
 

@@ -1,13 +1,14 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
-import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/features/in-app-agent/server/tools";
+import { storePendingToolApproval } from "@/src/features/in-app-agent/server/human-in-the-loop";
 import type {
   AgUiEvent,
   InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
-import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@/src/features/in-app-agent/schema";
+import { appendRunEvents } from "@/src/features/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
+import { InAppAgentRunStatus } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
@@ -76,7 +77,7 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
+vi.mock("@/src/features/in-app-agent/server/agent", () => ({
   createAgUiStream: agentMocks.createAgUiStream,
 }));
 
@@ -199,7 +200,7 @@ describe("in-app agent public API route auth", () => {
     );
 
     const { default: handler } =
-      await import("@/src/ee/features/in-app-agent/server/handler");
+      await import("@/src/features/in-app-agent/server/handler");
     await handler(new Request("http://localhost/api/in-app-agent"));
 
     expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
@@ -264,7 +265,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -670,9 +671,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -692,7 +694,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -745,9 +747,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox-resume",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -843,7 +846,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -943,7 +946,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1008,7 +1011,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1127,7 +1130,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1263,7 +1266,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
 
       const lookupScenarios = [
         { viewId: otherProjectView.id },
@@ -1348,7 +1351,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1529,7 +1532,7 @@ async function callInAppAgentRoute(params: {
   forwardedProps: ReturnType<typeof createResumeForwardedProps>;
 }) {
   const { default: handler } =
-    await import("@/src/ee/features/in-app-agent/server/handler");
+    await import("@/src/features/in-app-agent/server/handler");
   const response = await handler(
     new Request("http://localhost/api/in-app-agent", {
       method: "POST",
