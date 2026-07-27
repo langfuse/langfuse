@@ -7,8 +7,18 @@
 import { useEffect, useState, type PropsWithChildren } from "react";
 import Head from "next/head";
 import { useRouter, type NextRouter } from "next/router";
-import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
-import { AppSidebar } from "@/src/components/nav/app-sidebar";
+import {
+  SidebarProvider,
+  SidebarInset,
+  useSidebar,
+} from "@/src/components/ui/sidebar";
+import {
+  AppSidebar,
+  type SidebarVersionState,
+} from "@/src/components/nav/app-sidebar";
+import { type UserNavigationProps } from "@/src/components/nav/nav-user";
+import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
+import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
@@ -27,6 +37,11 @@ import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/ee/features/in-app-agent/components/InAppAgentWindowHost";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { api } from "@/src/utils/api";
+import { usePlan } from "@/src/features/entitlements/hooks";
+import { env } from "@/src/env.mjs";
 
 const CommandMenu = dynamic(
   () =>
@@ -176,10 +191,16 @@ export function AuthenticatedLayout({
               <PaymentBanner />
               <VersionUpdateBanner />
               <div className="pt-banner-offset flex min-h-0 flex-1">
-                <AppSidebar
+                <ConnectedAppSidebar
                   navItems={navigation.mainNavigation}
                   secondaryNavItems={navigation.secondaryNavigation}
                   userNavProps={userNavProps}
+                  isLangfuseCloud={isLangfuseCloud}
+                  routerProjectId={
+                    typeof router.query.projectId === "string"
+                      ? router.query.projectId
+                      : undefined
+                  }
                 />
                 <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
                   <AppContentWithRightDrawer>
@@ -211,6 +232,93 @@ export function AuthenticatedLayout({
         </SidebarPresenceProvider>
       </TopBannerProvider>
     </>
+  );
+}
+
+function ConnectedAppSidebar({
+  navItems,
+  secondaryNavItems,
+  userNavProps,
+  isLangfuseCloud,
+  routerProjectId,
+}: {
+  navItems: GroupedNavigation;
+  secondaryNavItems: GroupedNavigation;
+  userNavProps: UserNavigationProps;
+  isLangfuseCloud: boolean;
+  routerProjectId?: string;
+}) {
+  const { isMobile } = useSidebar();
+  const uiCustomization = useUiCustomization();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const plan = usePlan();
+
+  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
+    undefined,
+    {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      enabled: !isLangfuseCloud,
+      throwOnError: false,
+    },
+  );
+
+  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: !isLangfuseCloud,
+    throwOnError: false,
+  });
+
+  const selfHostedPlan =
+    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+      ? plan
+      : "oss";
+
+  const versionState: SidebarVersionState = isLangfuseCloud
+    ? { deployment: "cloud" }
+    : {
+        deployment: "self-hosted",
+        plan: selfHostedPlan,
+        release: checkUpdate.data?.updateType
+          ? {
+              status: "update-available",
+              updateType: checkUpdate.data.updateType,
+              latestRelease: checkUpdate.data.latestRelease,
+            }
+          : { status: "current" },
+        migration:
+          backgroundMigrationStatus.data &&
+          backgroundMigrationStatus.data.status !== "FINISHED"
+            ? {
+                status: "in-progress",
+                phase: backgroundMigrationStatus.data.status.toLowerCase(),
+              }
+            : { status: "idle" },
+      };
+
+  return (
+    <AppSidebar
+      navItems={navItems}
+      secondaryNavItems={secondaryNavItems}
+      userNavProps={userNavProps}
+      isMobile={isMobile}
+      logoLightModeHref={uiCustomization?.logoLightModeHref}
+      logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+      versionState={versionState}
+      showDemoBadge={Boolean(
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
+        isLangfuseCloud,
+      )}
+      mobileNavSwitcher={<MobileNavSwitcher />}
+      {...(!v4UpgradeUiEnabled
+        ? { notifications: <SidebarNotifications /> }
+        : {})}
+    />
   );
 }
 

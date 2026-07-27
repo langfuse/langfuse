@@ -24,7 +24,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/src/components/ui/sidebar";
 
 export type UserNavigationItem = {
@@ -44,9 +43,11 @@ export type UserNavigationProps = {
   items: UserNavigationItem[];
 };
 
-export function NavUser({ user, items }: UserNavigationProps) {
-  const { isMobile } = useSidebar();
-
+export function NavUser({
+  user,
+  items,
+  isMobile,
+}: UserNavigationProps & { isMobile: boolean }) {
   const initials = user.name
     .split(" ")
     .slice(0, 2)

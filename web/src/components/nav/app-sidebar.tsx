@@ -18,14 +18,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from "@/src/components/ui/sidebar";
-import { env } from "@/src/env.mjs";
-import { useRouter } from "next/router";
 import Link from "next/link";
 import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
-import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
-import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import {
   ArrowUp,
@@ -38,9 +33,6 @@ import {
   Map,
   Newspaper,
 } from "lucide-react";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
 import {
@@ -51,11 +43,38 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { usePlan } from "@/src/features/entitlements/hooks";
-import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { planLabels, type Plan } from "@langfuse/shared";
+
+type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
+
+export type SidebarVersionState =
+  | { deployment: "cloud" }
+  | {
+      deployment: "self-hosted";
+      plan: SelfHostedPlan;
+      release:
+        | { status: "current" }
+        | {
+            status: "update-available";
+            updateType: string;
+            latestRelease: string;
+          };
+      migration: { status: "idle" } | { status: "in-progress"; phase: string };
+    };
+
+const selfHostedPlanLabels = {
+  oss: { short: "OSS", long: "Open Source" },
+  "self-hosted:pro": {
+    short: "Pro",
+    long: planLabels["self-hosted:pro"],
+  },
+  "self-hosted:enterprise": {
+    short: "EE",
+    long: planLabels["self-hosted:enterprise"],
+  },
+} satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
 type AppSidebarProps = {
   navItems: {
@@ -67,18 +86,28 @@ type AppSidebarProps = {
     ungrouped: NavMainItem[];
   };
   userNavProps: UserNavigationProps;
+  isMobile: boolean;
+  logoLightModeHref?: string;
+  logoDarkModeHref?: string;
+  versionState: SidebarVersionState;
+  showDemoBadge: boolean;
+  mobileNavSwitcher?: React.ReactNode;
+  notifications?: React.ReactNode;
 } & React.ComponentProps<typeof Sidebar>;
 
 export function AppSidebar({
   navItems,
   secondaryNavItems,
   userNavProps,
+  isMobile,
+  logoLightModeHref,
+  logoDarkModeHref,
+  versionState,
+  showDemoBadge,
+  mobileNavSwitcher,
+  notifications,
   ...props
 }: AppSidebarProps) {
-  const { isMobile } = useSidebar();
-  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
-  const uiCustomization = useUiCustomization();
-
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
@@ -87,54 +116,38 @@ export function AppSidebar({
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
                 <LangfuseLogo
-                  logoLightModeHref={uiCustomization?.logoLightModeHref}
-                  logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+                  logoLightModeHref={logoLightModeHref}
+                  logoDarkModeHref={logoDarkModeHref}
                 />
               </Link>
               <div className="ml-2 group-data-[collapsible=icon]:hidden">
-                <VersionLabel />
+                <VersionLabel state={versionState} />
               </div>
             </div>
           </div>
         </div>
         <div className="h-1 flex-1 border-b" />
-        <DemoBadge />
+        <DemoBadge show={showDemoBadge} />
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && <MobileNavSwitcher />}
+        {isMobile && mobileNavSwitcher}
         <NavMain items={navItems} />
         <div className="flex-1" />
-        {/* Hidden for v4-upgrade users only: the "Update" nav entry is trialled
-            in this slot. Everyone else keeps the notifications stack. */}
-        {!v4UpgradeUiEnabled && (
-          <div className="flex flex-col gap-2 p-2">
-            <SidebarNotifications />
-          </div>
+        {notifications && (
+          <div className="flex flex-col gap-2 p-2">{notifications}</div>
         )}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser {...userNavProps} />
+        <NavUser {...userNavProps} isMobile={isMobile} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
 }
 
-const DemoBadge = () => {
-  const router = useRouter();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const routerProjectId = router.query.projectId as string | undefined;
-
-  if (
-    !(
-      env.NEXT_PUBLIC_DEMO_ORG_ID &&
-      env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-      routerProjectId === env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
-      isLangfuseCloud
-    )
-  )
-    return null;
+const DemoBadge = ({ show }: { show: boolean }) => {
+  if (!show) return null;
 
   return (
     <SidebarGroup className="border-b">
@@ -171,58 +184,25 @@ const DemoBadge = () => {
   );
 };
 
-const VersionLabel = () => {
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
-
-  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
-    undefined,
-    {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      enabled: !isLangfuseCloud, // do not check for updates on Langfuse Cloud
-      throwOnError: false, // do not render default error message
-    },
-  );
-
-  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !isLangfuseCloud, // do not check for updates on Langfuse Cloud
-    throwOnError: false, // do not render default error message
-  });
-
-  const plan = usePlan();
-
-  const selfHostedPlanLabel = !isLangfuseCloud
-    ? plan && isSelfHostedPlan(plan)
-      ? // self-host plan
-        // TODO: clean up to use planLabels in packages/shared/src/features/entitlements/plans.ts
-        {
-          short: plan === "self-hosted:pro" ? "Pro" : "EE",
-          long: planLabels[plan],
-        }
-      : // no plan, oss
-        {
-          short: "OSS",
-          long: "Open Source",
-        }
-    : // null on cloud
-      null;
-
-  const showBackgroundMigrationStatus =
-    !isLangfuseCloud &&
-    backgroundMigrationStatus.data &&
-    backgroundMigrationStatus.data.status !== "FINISHED";
-
-  const hasUpdate =
-    !isLangfuseCloud && checkUpdate.data && checkUpdate.data.updateType;
-
+const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
+  const selfHostedPlanLabel =
+    state.deployment === "self-hosted"
+      ? selfHostedPlanLabels[state.plan]
+      : null;
+  const backgroundMigrationStatus =
+    state.deployment === "self-hosted" &&
+    state.migration.status === "in-progress"
+      ? state.migration.phase
+      : null;
+  const update =
+    state.deployment === "self-hosted" &&
+    state.release.status === "update-available"
+      ? state.release
+      : null;
   const color =
-    checkUpdate.data?.updateType === "major"
+    update?.updateType === "major"
       ? "text-dark-red"
-      : checkUpdate.data?.updateType === "minor"
+      : update?.updateType === "minor"
         ? "text-dark-yellow"
         : undefined;
 
@@ -236,28 +216,27 @@ const VersionLabel = () => {
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
-          {showBackgroundMigrationStatus && (
+          {backgroundMigrationStatus && (
             <StatusBadge
-              type={backgroundMigrationStatus.data?.status.toLowerCase()}
+              type={backgroundMigrationStatus}
               showText={false}
               className="bg-transparent"
             />
           )}
-          {hasUpdate && !showBackgroundMigrationStatus && (
+          {update && !backgroundMigrationStatus && (
             <ArrowUp className={`h-3 w-3 ${color}`} />
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
-        {hasUpdate ? (
+        {update ? (
           <>
             <DropdownMenuLabel>
-              New {checkUpdate.data?.updateType} version:{" "}
-              {checkUpdate.data?.latestRelease}
+              New {update.updateType} version: {update.latestRelease}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
-        ) : !isLangfuseCloud ? (
+        ) : state.deployment === "self-hosted" ? (
           <>
             <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -281,14 +260,14 @@ const VersionLabel = () => {
             Releases
           </Link>
         </DropdownMenuItem>
-        {!isLangfuseCloud && (
+        {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
               <ArrowUp10 size={16} className="mr-2" />
               Background Migrations
-              {showBackgroundMigrationStatus && (
+              {backgroundMigrationStatus && (
                 <StatusBadge
-                  type={backgroundMigrationStatus.data?.status.toLowerCase()}
+                  type={backgroundMigrationStatus}
                   showText={false}
                   className="bg-transparent"
                 />
@@ -308,7 +287,7 @@ const VersionLabel = () => {
             Roadmap
           </Link>
         </DropdownMenuItem>
-        {!isLangfuseCloud && (
+        {state.deployment === "self-hosted" && (
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size={16} className="mr-2" />
@@ -316,7 +295,7 @@ const VersionLabel = () => {
             </Link>
           </DropdownMenuItem>
         )}
-        {hasUpdate && (
+        {update && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
