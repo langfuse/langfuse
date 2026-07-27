@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
+import { Layer } from "@/src/components/ui/layer";
 import {
   OUTLIER_STRIP_METRICS,
   OUTLIER_STRIP_STEP_LADDER_SECONDS,
@@ -142,10 +143,9 @@ export function OutlierBarStrip({
           const rect = event.currentTarget.getBoundingClientRect();
           const index = Math.floor((event.clientX - rect.left) / slotPx);
           setHoverIndex(index >= 0 && index < dense.length ? index : null);
-          setMouse({
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          });
+          // Viewport coordinates: the tooltip portals to the overlay layer
+          // and positions itself with `fixed`.
+          setMouse({ x: event.clientX, y: event.clientY });
         }}
         onClick={() => {
           // Mirror the tooltip's guard: clicking a truly empty bucket would
@@ -255,28 +255,32 @@ export function OutlierBarStrip({
         </span>
       )}
 
-      {/* Tooltip */}
+      {/* Tooltip — portals to the overlay tooltip layer so it can escape the
+          band's ancestors (overflow clipping, sticky-toolbar stacking) and
+          float freely at the cursor's top-right. */}
       {hovered && hoveredHasData && mouse && (
-        <div
-          className="bg-popover text-popover-foreground pointer-events-none absolute z-10 rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
-          style={{
-            left: mouse.x + 10,
-            top: mouse.y - 8,
-            transform: "translateY(-100%)",
-          }}
-        >
-          <div className="text-muted-foreground">
-            {formatBucketRange(hovered.bucketStartMs, stepMs)}
+        <Layer name="tooltip">
+          <div
+            className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
+            style={{
+              left: mouse.x + 10,
+              top: mouse.y - 8,
+              transform: "translateY(-100%)",
+            }}
+          >
+            <div className="text-muted-foreground">
+              {formatBucketRange(hovered.bucketStartMs, stepMs)}
+            </div>
+            <div className="font-bold">
+              {hovered.value !== null
+                ? metricSpec.format(hovered.value)
+                : "no data"}
+              <span className="text-muted-foreground ml-1.5 font-normal">
+                · {hovered.count} events
+              </span>
+            </div>
           </div>
-          <div className="font-bold">
-            {hovered.value !== null
-              ? metricSpec.format(hovered.value)
-              : "no data"}
-            <span className="text-muted-foreground ml-1.5 font-normal">
-              · {hovered.count} events
-            </span>
-          </div>
-        </div>
+        </Layer>
       )}
     </div>
   );
