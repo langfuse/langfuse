@@ -79,6 +79,23 @@ const VALID_FILTER_OPTION_COLUMNS: ReadonlySet<string> = new Set(
   ALL_EVENT_FILTER_OPTION_COLUMNS,
 );
 
+// Score-catalog columns list score NAMES/categories/buckets, not per-value
+// counts. The server discovers them from the trace-score scope (time-bounded
+// only) and NEVER applies the refining filter to them, so they never refine and
+// never self-collapse. Keeping the full catalog also protects the search-bar
+// grammar: its score-type routing and its AI score-name validation read this
+// list, so a name filtered out of the active set must still be recognized as a
+// real score (LFE-10596). They therefore stay in the shared bulk query and are
+// excluded from the per-facet self-exclusion below.
+const UNREFINED_SCORE_CATALOG_COLUMNS: ReadonlySet<string> = new Set([
+  "scores_avg",
+  "score_categories",
+  "score_booleans",
+  "trace_scores_avg",
+  "trace_score_categories",
+  "trace_score_booleans",
+]);
+
 const isEventFilterOptionColumn = (
   column: string,
 ): column is EventFilterOptionColumn => VALID_FILTER_OPTION_COLUMNS.has(column);
@@ -137,6 +154,54 @@ export function useEventsFilterOptions({
     ) as TimeFilter[];
   }, [oldFilterState]);
 
+  // Active filters that refine the facet counts (LFE-14489). Start-time stays in
+  // the dedicated startTimeFilter (authoritative for the bounded scan + score
+  // lookback); every OTHER active filter narrows the counts so a facet value can
+  // no longer promise rows the current filter set excludes. The server drops the
+  // non-participating columns (input/output/comment*, positionInTrace) and omits
+  // counts while one of them is active — we forward the set verbatim.
+  const refinementFilter = useMemo(
+    () =>
+      oldFilterState.filter(
+        (f) =>
+          !(
+            f.type === "datetime" &&
+            (f.column === "startTime" || f.column === "Start Time")
+          ),
+      ),
+    [oldFilterState],
+  );
+
+  // Value columns (name/level/type/…) that carry their OWN active filter. Only
+  // these self-collapse under the shared bulk query, so only these are pulled
+  // out for self-exclusion. Score-catalog columns are excluded — the server
+  // never refines them, so they stay in the bulk regardless of a score filter.
+  const filteredColumns = useMemo(
+    () =>
+      new Set(
+        refinementFilter
+          .map((f) => f.column)
+          .filter((c) => !UNREFINED_SCORE_CATALOG_COLUMNS.has(c)),
+      ),
+    [refinementFilter],
+  );
+
+  // A facet never filters itself: its options/counts must reflect every OTHER
+  // active filter, so selecting `level=ERROR` still lists WARNING/DEFAULT (with
+  // refined counts) and the `none of` complement stays computable. Drop the
+  // queried column's own conditions from its refining set. Returns `undefined`
+  // when nothing refines it, preserving the pre-filter react-query cache key.
+  const refiningFilterFor = useCallback(
+    (cols: readonly string[] | undefined): FilterState | undefined => {
+      if (refinementFilter.length === 0) return undefined;
+      if (!cols) return refinementFilter;
+      const own = new Set(cols);
+      const refined = refinementFilter.filter((f) => !own.has(f.column));
+      return refined.length > 0 ? refined : undefined;
+    },
+    [refinementFilter],
+  );
+
   const baseInput = useMemo(
     () => ({
       projectId,
@@ -183,14 +248,44 @@ export function useEventsFilterOptions({
   );
 
   // Eager bulk query: one ClickHouse scan for the always-visible columns (lazy
-  // mode) — or the explicit/all columns in non-lazy mode (unchanged behavior).
-  const eagerColumns = lazy ? [...EAGER_EVENT_FILTER_OPTION_COLUMNS] : columns;
+  // mode) — or the explicit/all columns in non-lazy mode. Value facets carrying
+  // their OWN active filter are pulled out (they would self-collapse under the
+  // shared filter) and re-issued as self-excluded per-column queries below. The
+  // columns that remain are either clean value facets or score-catalog columns,
+  // so the bulk gets the FULL refining set: clean value facets are refined by
+  // every active filter, and the server leaves the score catalog untouched.
+  const eagerCandidates = lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns;
+  const bulkColumns = useMemo(
+    () => eagerCandidates?.filter((c) => !filteredColumns.has(c)),
+    [eagerCandidates, filteredColumns],
+  );
+  const dirtyBulkColumns = useMemo(
+    () => eagerCandidates?.filter((c) => filteredColumns.has(c)) ?? [],
+    [eagerCandidates, filteredColumns],
+  );
+  const bulkFilter = refiningFilterFor(undefined);
   const eagerQuery = api.events.filterOptions.useQuery(
-    { ...baseInput, columns: eagerColumns },
+    {
+      ...baseInput,
+      filter: bulkFilter,
+      columns: bulkColumns,
+    },
     {
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
     },
+  );
+
+  // Per-column queries: the lazily-requested on-demand facets PLUS any eager
+  // facet pulled out of the bulk for self-exclusion. Each is its own cached
+  // query keyed by its (self-excluded) refining filter. The two inputs are
+  // disjoint (lazy columns are never eager), but a Set guards against overlap.
+  const perColumnColumns = useMemo(
+    () =>
+      Array.from(
+        new Set<EventFilterOptionColumn>([...lazyColumns, ...dirtyBulkColumns]),
+      ).sort(),
+    [lazyColumns, dirtyBulkColumns],
   );
 
   // One independently-cached query per on-demand column. `combine` merges them
@@ -202,7 +297,7 @@ export function useEventsFilterOptions({
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
-        const column = lazyColumns[i];
+        const column = perColumnColumns[i];
         if (column === undefined) return;
         // Publish data first: a post-success refetch error keeps placeholderData,
         // so an already-loaded facet retains its values instead of blanking out —
@@ -222,14 +317,18 @@ export function useEventsFilterOptions({
       });
       return { data, pendingColumns, erroredColumns };
     },
-    [lazyColumns],
+    [perColumnColumns],
   );
 
   const lazyResult = api.useQueries(
     (t) =>
-      lazyColumns.map((column) =>
+      perColumnColumns.map((column) =>
         t.events.filterOptions(
-          { ...baseInput, columns: [column] },
+          {
+            ...baseInput,
+            filter: refiningFilterFor([column]),
+            columns: [column],
+          },
           FILTER_OPTION_QUERY_OPTIONS,
         ),
       ),
@@ -323,12 +422,14 @@ export function useEventsFilterOptions({
     const pending = new Set<string>(lazyResult.pendingColumns);
     if (isEagerFetching) {
       const data = rawData as Record<string, unknown>;
-      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS) {
+      // Only the columns actually in the bulk query — the dirty ones pulled out
+      // for self-exclusion report through lazyResult.pendingColumns instead.
+      for (const column of bulkColumns ?? []) {
         if (data[column] === undefined) pending.add(column);
       }
     }
     return pending;
-  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData]);
+  }, [lazy, lazyResult.pendingColumns, isEagerFetching, rawData, bulkColumns]);
 
   // Columns whose fetch terminally errored, per column. Consumers settle these to
   // the empty state (no skeleton, no perpetual loading row — there is no
@@ -340,11 +441,11 @@ export function useEventsFilterOptions({
   const erroredColumns = useMemo<ReadonlySet<string>>(() => {
     const errored = new Set<string>(lazyErroredColumns);
     if (isEagerError) {
-      for (const column of EAGER_EVENT_FILTER_OPTION_COLUMNS)
+      for (const column of bulkColumns ?? EAGER_EVENT_FILTER_OPTION_COLUMNS)
         errored.add(column);
     }
     return errored;
-  }, [lazyErroredColumns, isEagerError]);
+  }, [lazyErroredColumns, isEagerError, bulkColumns]);
 
   return {
     filterOptions: newFilterOptions,

@@ -508,9 +508,12 @@ export default function ObservationsEventsTable({
 
   const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
-  // Facet options are scoped only by the time window (the facet hook reads just
-  // the start-time filters); use the tick-decoupled range so the auto refresh
-  // leaves them alone.
+  // Facet options are refined by the active filter set so counts stay
+  // consistent with it (LFE-14489): the hook feeds every applied filter except
+  // the time window through as a refining filter, and reads the start-time
+  // filters for its bounded scope. The time window uses the tick-decoupled
+  // range so the auto refresh leaves the facets alone; a user filter edit is
+  // what re-queries them.
   const oldFilterState = (isolateTableState ? [] : inputFilterState).concat(
     toStartTimeFilterState(filterOptionsDateRange),
   );
