@@ -21,7 +21,6 @@ import { api } from "@/src/utils/api";
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
   projectId: string;
-  className?: string;
   size?: ButtonProps["size"];
   variant?: ButtonProps["variant"];
 }
@@ -83,7 +82,6 @@ export const DatasetActionButton = forwardRef<
           }
           variant={props.variant}
           size={props.size}
-          className={props.className}
           onClick={(e) => {
             e.stopPropagation();
             setOpen(true);
@@ -97,7 +95,6 @@ export const DatasetActionButton = forwardRef<
           ref={ref}
           variant={props.variant || "ghost"}
           size={props.size || "icon"}
-          className={props.className}
           disabled={!hasAccess}
           onClick={() => {
             setOpen(true);
@@ -128,7 +125,6 @@ export const DatasetActionButton = forwardRef<
           }
           variant={props.variant}
           size={props.size}
-          className={props.className}
           onClick={(e) => {
             e.stopPropagation();
             setOpen(true);
@@ -142,7 +138,6 @@ export const DatasetActionButton = forwardRef<
           ref={ref}
           variant={props.variant || "ghost"}
           size={props.size}
-          className={props.className}
           disabled={!hasAccess}
           onClick={(e) => {
             e.stopPropagation();
@@ -164,7 +159,6 @@ export const DatasetActionButton = forwardRef<
       <Button
         ref={ref}
         size={props.size}
-        className={props.className}
         disabled={!hasAccess}
         onClick={() => capture("datasets:new_form_open")}
         variant={props.variant || "default"}

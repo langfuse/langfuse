@@ -17,6 +17,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { cn } from "@/src/utils/tailwind";
 
 export type DeleteButtonProps = {
   itemId: string;
@@ -71,8 +72,8 @@ export function DeleteButton({
   icon = false,
   enabled = true,
   title,
-  className,
   size,
+  className,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
@@ -124,7 +125,7 @@ export function DeleteButton({
         // Icon-only: a compact button with a built-in tooltip; the popover is
         // opened from onClick since the tooltip wrapper can't be a trigger.
         <PopoverAnchor asChild>
-          <span className="inline-flex">
+          <span className={cn("inline-flex", className)}>
             <IconOnlyButton
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
@@ -136,7 +137,6 @@ export function DeleteButton({
               }
               variant={variant ?? "outline"}
               size={size ?? "icon"}
-              className={className}
               disabled={!enabled}
               onClick={(e) => {
                 e.stopPropagation();

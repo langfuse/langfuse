@@ -7,9 +7,9 @@ import {
 } from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 
-export interface IconOnlyButtonProps extends Omit<
+export interface IconOnlyButtonProps extends Pick<
   ButtonProps,
-  "children" | "title"
+  "aria-label" | "disabled" | "onClick" | "size" | "variant"
 > {
   /** Icon glyph rendered inside the button. */
   icon: React.ReactNode;
@@ -48,7 +48,6 @@ export const IconOnlyButton = React.forwardRef<
     variant = "ghost",
     size = "icon-xs",
     disabled,
-    className,
     "aria-label": ariaLabel,
     ...props
   },
@@ -71,7 +70,7 @@ export const IconOnlyButton = React.forwardRef<
             size={size}
             aria-label={ariaLabel ?? label}
             disabled={isDisabled}
-            className={cn(className, isDisabled && "pointer-events-none")}
+            className={cn(isDisabled && "pointer-events-none")}
             {...props}
           >
             {icon}
