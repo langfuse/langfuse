@@ -19,6 +19,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ExternalLinkIcon, Pen } from "lucide-react";
@@ -116,6 +117,9 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  // Deprecated evaluators are read-only where new legacy setups are not
+  // allowed (cloud); self-hosted deployments keep editing them.
+  const { allowLegacy } = useEvalCapabilities(projectId);
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
 
@@ -328,9 +332,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               label="Edit"
               aria-label="edit"
               disabledReason={
-                hasAccess
-                  ? undefined
-                  : "You don't have permission to edit this evaluator."
+                !hasAccess
+                  ? "You don't have permission to edit this evaluator."
+                  : row.original.isLegacy && !allowLegacy
+                    ? "Deprecated evaluators are only available in read-only mode."
+                    : undefined
               }
               onClick={(e) => {
                 e.stopPropagation();

@@ -3,7 +3,7 @@ import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4Migr
 import { api } from "@/src/utils/api";
 
 const EVAL_UPGRADE_ASSISTANT_PROMPT =
-  "I want to start my eval upgrade. Use the langfuse skill. Please review this project's deprecated evaluators (trace- and dataset-level) and help me migrate them to the new targets — observations and experiments. Check with me before applying any changes.";
+  "I want to start my eval upgrade. Use the langfuse skill. Please review this project's deprecated evaluators (trace- and dataset-level), that are both ACTIVE and run on NEW time scope, and help me migrate them to the new targets — observations and experiments. Check with me before applying any changes.";
 
 const UPGRADE_OUTSIDE_PLATFORM_PROMPT =
   "I want to upgrade my Langfuse setup to v4, but parts of it must be upgraded outside of Langfuse, which you cannot do from here. Please tell me to copy the upgrade prompt from the 'Copy prompt for agents' button in the v4 migration panel and run it in my coding editor (Cursor, Codex, Claude Code).";

@@ -431,7 +431,7 @@ export function V4MigrationDetailsContent({
                   {migrationData.evals.count === 1
                     ? "eval targets"
                     : "evals target"}{" "}
-                  traces or dataset runs, which{" "}
+                  trace input/output, which{" "}
                   <span className="text-dark-yellow">
                     {migrationData.evals.count === 1 ? "stops" : "stop"} running
                     soon

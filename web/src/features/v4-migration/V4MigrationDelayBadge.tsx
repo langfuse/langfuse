@@ -78,7 +78,6 @@ function useEvalUpdateRequiredBadgeState() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { project, organization } = useQueryProject();
   const enabled = v4UpgradeUiEnabled && Boolean(project);
-  // `eval` is a reserved word in ES modules; name the count state explicitly.
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
     orgId: organization?.id,

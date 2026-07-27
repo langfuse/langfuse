@@ -54,7 +54,7 @@ export function useEvalCapabilities(
   // Whether a *new* config may use the legacy experience:
   // - events_only: legacy tables are no longer written → no new legacy evals.
   // - dual: self-hosted deployments always allow legacy; on Cloud, no new
-  //   legacy evals — existing legacy evaluators stay visible and manageable,
+  //   legacy evals — existing legacy evaluators stay visible in read-only mode,
   //   but cannot be newly set up.
   // - legacy: legacy is the only experience.
   const modeAllowsNewLegacy =

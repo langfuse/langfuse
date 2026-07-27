@@ -27,6 +27,7 @@ import {
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 
 const PeekViewEvaluatorConfigDetail = ({
   projectId,
@@ -37,7 +38,7 @@ const PeekViewEvaluatorConfigDetail = ({
   const peekId = router.query.peek as string | undefined;
   const [isEditMode, setIsEditMode] = useState(false);
   const utils = api.useUtils();
-
+  const { allowLegacy } = useEvalCapabilities(projectId);
   const { data: evalConfig } = usePeekEvalConfigData({
     jobConfigurationId: peekId,
     projectId,
@@ -74,7 +75,10 @@ const PeekViewEvaluatorConfigDetail = ({
               isLive
               className="max-h-8"
             />
-            {isLegacyEvalTarget(evalConfig.targetObject) && (
+            {/* Quick-deactivate is a migration aid: only shown where legacy
+                evals can no longer be set up (cloud), consistent with the
+                read-only edit gate. */}
+            {isLegacyEvalTarget(evalConfig.targetObject) && !allowLegacy && (
               <DeactivateEvalConfig
                 projectId={projectId}
                 evalConfig={evalConfig}
@@ -94,13 +98,16 @@ const PeekViewEvaluatorConfigDetail = ({
             Edit Mode
           </span>
           <Switch
-            disabled={!hasAccess || isLegacyEvalTarget(evalConfig.targetObject)}
+            disabled={
+              !hasAccess || (evaluatorRequiresMigration && !allowLegacy)
+            }
             checked={isEditMode}
             onCheckedChange={setIsEditMode}
-            {...(isLegacyEvalTarget(evalConfig.targetObject) && {
-              title:
-                "Deprecated evaluators are only available in read-only mode",
-            })}
+            {...(evaluatorRequiresMigration &&
+              !allowLegacy && {
+                title:
+                  "Deprecated evaluators are only available in read-only mode",
+              })}
           />
         </div>
       </div>
