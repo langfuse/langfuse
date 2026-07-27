@@ -16,6 +16,8 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/ui/badge";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect } from "react";
+import { env } from "@/src/env.mjs";
+import { buildRegionalDemoTraceTargetPath } from "@/src/features/auth/lib/demoTraceRedirect";
 
 export function TracePage({
   traceId,
@@ -69,9 +71,15 @@ export function TracePage({
 
   const isSharedTrace = trace.data.public;
   const showPublicIndicators = isSharedTrace && !hasProjectAccess;
-  const encodedTargetPath = encodeURIComponent(
-    stripBasePath(router.asPath || "/"),
-  );
+  const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID?.trim();
+  const signInTargetPath =
+    demoProjectId && projectIdForAccessCheck === demoProjectId
+      ? buildRegionalDemoTraceTargetPath({
+          traceId,
+          query: router.query,
+        })
+      : stripBasePath(router.asPath || "/");
+  const encodedTargetPath = encodeURIComponent(signInTargetPath);
   const leadingControl = showPublicIndicators ? (
     session.status === "authenticated" ? (
       <Button

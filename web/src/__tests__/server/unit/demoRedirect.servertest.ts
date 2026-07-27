@@ -33,6 +33,7 @@ vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
 import { type GetServerSidePropsContext } from "next";
 import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo";
 import { getServerSideProps as getDemoTraceServerSideProps } from "@/src/pages/demo/traces/[traceId]";
+import { buildRegionalDemoTraceTargetPath } from "@/src/features/auth/lib/demoTraceRedirect";
 
 const makeCtx = (
   overrides: Partial<GetServerSidePropsContext> = {},
@@ -253,5 +254,23 @@ describe("demo trace redirect page", () => {
       },
     });
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("demo trace redirect helpers", () => {
+  it("builds regional demo trace targets without route params", () => {
+    expect(
+      buildRegionalDemoTraceTargetPath({
+        traceId: "trace/1",
+        query: {
+          projectId: "demo-project",
+          traceId: "trace/1",
+          observation: "obs-1",
+          timestamp: "2026-03-08T18:27:00.703Z",
+        },
+      }),
+    ).toBe(
+      "/demo/traces/trace%2F1?observation=obs-1&timestamp=2026-03-08T18%3A27%3A00.703Z",
+    );
   });
 });

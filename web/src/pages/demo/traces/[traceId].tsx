@@ -5,6 +5,10 @@ import {
   ensureDemoProjectAccess,
   getDemoProjectConfig,
 } from "@/src/features/auth/lib/demoProjectAccess";
+import {
+  buildDemoTraceProjectPath,
+  buildRegionalDemoTraceTargetPath,
+} from "@/src/features/auth/lib/demoTraceRedirect";
 import { getServerAuthSession } from "@/src/server/auth";
 
 const DemoTraceRedirectPage = () => null;
@@ -19,7 +23,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return redirect("/");
   }
 
-  const demoTracePath = buildDemoTracePath({
+  const demoTracePath = buildDemoTraceProjectPath({
     projectId: demoProjectConfig.projectId,
     traceId,
     query: ctx.query,
@@ -44,62 +48,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ? "/auth/sign-in"
       : "/auth/sign-up";
 
-  const targetPath = buildRegionalDemoTracePath({
+  const targetPath = buildRegionalDemoTraceTargetPath({
     traceId,
     query: ctx.query,
   });
 
   return redirect(`${authPath}?targetPath=${encodeURIComponent(targetPath)}`);
-};
-
-const buildDemoTracePath = ({
-  projectId,
-  traceId,
-  query,
-}: {
-  projectId: string;
-  traceId: string;
-  query: Record<string, string | string[] | undefined>;
-}) => {
-  const queryString = buildQueryString(query);
-
-  return `/project/${encodeURIComponent(projectId)}/traces/${encodeURIComponent(
-    traceId,
-  )}${queryString ? `?${queryString}` : ""}`;
-};
-
-const buildRegionalDemoTracePath = ({
-  traceId,
-  query,
-}: {
-  traceId: string;
-  query: Record<string, string | string[] | undefined>;
-}) => {
-  const queryString = buildQueryString(query);
-
-  return `/demo/traces/${encodeURIComponent(traceId)}${
-    queryString ? `?${queryString}` : ""
-  }`;
-};
-
-const buildQueryString = (
-  query: Record<string, string | string[] | undefined>,
-) => {
-  const searchParams = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(query)) {
-    if (key === "traceId" || typeof value === "undefined") {
-      continue;
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach((item) => searchParams.append(key, item));
-    } else {
-      searchParams.set(key, value);
-    }
-  }
-
-  return searchParams.toString();
 };
 
 const getSingleParam = (value: string | string[] | undefined) =>

@@ -1,5 +1,11 @@
 import { env } from "@/src/env.mjs";
 
+const hasBasePathPrefix = (path: string, basePath: string) =>
+  path === basePath ||
+  path.startsWith(`${basePath}/`) ||
+  path.startsWith(`${basePath}?`) ||
+  path.startsWith(`${basePath}#`);
+
 /**
  * Validates and sanitizes a redirect path to prevent open redirect attacks.
  *
@@ -66,7 +72,7 @@ export function getSafeRedirectPath(
 
   // If basePath is configured, check if the path already starts with it
   // This prevents double-prepending when the path already includes the base path
-  if (basePath && sanitized.startsWith(basePath)) {
+  if (basePath && hasBasePathPrefix(sanitized, basePath)) {
     return sanitized;
   }
 
@@ -88,13 +94,13 @@ export function stripBasePath(path: string): string {
     return "/";
   }
 
-  if (!path.startsWith(basePath)) {
-    return path;
-  }
-
   // Strip ASCII control characters (0x00-0x1F, 0x7F) before further
   // processing. See getSafeRedirectPath for the rationale.
   const cleaned = path.replace(/[\x00-\x1F\x7F]/g, "");
+
+  if (!hasBasePathPrefix(cleaned, basePath)) {
+    return cleaned;
+  }
 
   const stripped = cleaned.slice(basePath.length) || "/";
   return stripped.startsWith("/") ? stripped : `/${stripped}`;

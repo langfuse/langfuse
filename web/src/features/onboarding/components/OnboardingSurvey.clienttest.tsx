@@ -130,4 +130,25 @@ describe("OnboardingSurvey", () => {
       expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo");
     });
   });
+
+  it("ignores callbackUrl when no target path is set", async () => {
+    mocks.routerMock.query = {
+      callbackUrl: "http://localhost/auth/sign-up",
+    };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith(undefined);
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/project/project-1/traces",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith(
+        "/project/project-1/traces",
+      );
+    });
+  });
 });

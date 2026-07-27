@@ -49,9 +49,7 @@ export function OnboardingSurvey() {
   });
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
-  const queryRedirectPath =
-    getQueryRedirectPath(router.query.targetPath) ??
-    getQueryRedirectPath(router.query.callbackUrl);
+  const queryRedirectPath = getQueryRedirectPath(router.query.targetPath);
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 
