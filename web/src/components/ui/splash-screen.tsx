@@ -109,13 +109,11 @@ export function SplashScreen({
     <div className="mx-auto flex max-w-4xl flex-col items-center p-8">
       <div className="mb-6 text-center">
         {waitingFor && (
-          <StatusBadge
-            type="waiting"
-            showText={false}
-            className="mb-3 px-3 py-1 text-sm"
-          >
-            {waitingFor}
-          </StatusBadge>
+          <div className="mb-3">
+            <StatusBadge type="waiting" showText={false} size="lg">
+              {waitingFor}
+            </StatusBadge>
+          </div>
         )}
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
         {/* text-base: without a size token this fell through to the 16px

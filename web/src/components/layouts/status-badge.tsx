@@ -1,5 +1,21 @@
+import { cva } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
+
+const statusBadgeVariants = cva(
+  "inline-flex items-center gap-2 rounded-md break-all sm:break-normal",
+  {
+    variants: {
+      size: {
+        default: "px-2 py-1 text-xs",
+        lg: "px-3 py-1 text-sm",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  },
+);
 
 const statusCategories = {
   active: ["production", "live", "active", "public"],
@@ -91,6 +107,7 @@ const categoryStyles: Record<
 export const StatusBadge = ({
   type,
   variant = "default",
+  size = "default",
   isLive = true,
   className,
   showText = true,
@@ -99,13 +116,9 @@ export const StatusBadge = ({
 }: {
   type: Status | (string & {});
   variant?: "default" | "transparent";
+  size?: "default" | "lg";
   isLive?: boolean;
-  className?:
-    | "w-fit self-start"
-    | "pl-3"
-    | "ml-2"
-    | "mb-3 px-3 py-1 text-sm"
-    | "";
+  className?: "w-fit self-start" | "pl-3" | "ml-2" | "";
   showText?: boolean;
   preserveCase?: boolean;
   children?: ReactNode;
@@ -125,7 +138,7 @@ export const StatusBadge = ({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs break-all sm:break-normal",
+        statusBadgeVariants({ size }),
         background,
         styles.text,
         className,
