@@ -1,10 +1,10 @@
 "use client";
 
+import { cva } from "class-variance-authority";
 import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { useMemo } from "react";
 import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
-import { cn } from "@/src/utils/tailwind";
 
 const renderBytes = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -34,12 +34,23 @@ export type DropzoneProps = Pick<
   variant: "compact" | "panel";
 };
 
-const variantClasses = {
-  compact:
-    "border-border-contrast border border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
-  panel:
-    "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
-} as const;
+const dropzoneVariants = cva(
+  "ring-offset-background focus-visible:ring-ring relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        compact:
+          "border-border-contrast border border-none bg-background p-0 text-left hover:bg-accent hover:text-accent-foreground",
+        panel:
+          "border-border-contrast bg-secondary/50 border border-dashed p-8 hover:bg-accent hover:text-accent-foreground",
+      },
+      isDragActive: {
+        true: "ring-ring ring-1 outline-hidden",
+        false: null,
+      },
+    },
+  },
+);
 
 const maxLabelItems = 3;
 
@@ -125,11 +136,7 @@ export const Dropzone = ({
   return (
     <button
       key={JSON.stringify(src)}
-      className={cn(
-        "ring-offset-background focus-visible:ring-ring relative inline-flex h-auto w-full flex-col items-center justify-center overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
-        variantClasses[variant],
-        isDragActive && "ring-ring ring-1 outline-hidden",
-      )}
+      className={dropzoneVariants({ isDragActive, variant })}
       disabled={disabled}
       type="button"
       {...getRootProps()}
