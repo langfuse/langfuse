@@ -1,7 +1,6 @@
 "use client";
 
-import { UploadIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { PaperclipIcon, UploadIcon } from "lucide-react";
 import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/src/utils/tailwind";
@@ -31,8 +30,6 @@ export type DropzoneProps = Pick<
     fileRejections: FileRejection[],
     event: DropEvent,
   ) => void;
-  content?: ReactNode;
-  emptyState?: ReactNode;
   variant: "compact" | "panel";
 };
 
@@ -52,8 +49,6 @@ export const Dropzone = ({
   onError,
   disabled,
   src,
-  content,
-  emptyState,
   variant,
   ...props
 }: DropzoneProps) => {
@@ -89,17 +84,17 @@ export const Dropzone = ({
       {...getRootProps()}
     >
       <input {...getInputProps()} disabled={disabled} />
-      {src ? (
-        <DropzoneContent src={src}>{content}</DropzoneContent>
+      {variant === "compact" ? (
+        <DropzoneCompactContent src={src} />
+      ) : src ? (
+        <DropzoneContent src={src} />
       ) : (
         <DropzoneEmptyState
           accept={accept}
           maxFiles={maxFiles}
           maxSize={maxSize}
           minSize={minSize}
-        >
-          {emptyState}
-        </DropzoneEmptyState>
+        />
       )}
     </button>
   );
@@ -107,17 +102,25 @@ export const Dropzone = ({
 
 const maxLabelItems = 3;
 
-const DropzoneContent = ({
-  children,
-  src,
-}: {
-  children?: ReactNode;
-  src: File[];
-}) => {
-  if (children) {
-    return children;
-  }
+const DropzoneCompactContent = ({ src }: { src?: File[] }) => {
+  const text = src?.length
+    ? `${src.length} file${src.length > 1 ? "s" : ""} • ${(
+        src.reduce((total, file) => total + file.size, 0) /
+        (1024 * 1024)
+      ).toFixed(2)} MB`
+    : "Attach files";
 
+  return (
+    <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+      <PaperclipIcon className="h-4 w-4" />
+      <span className="truncate" title={text}>
+        {text}
+      </span>
+    </div>
+  );
+};
+
+const DropzoneContent = ({ src }: { src: File[] }) => {
   const text =
     src.length > maxLabelItems
       ? `${new Intl.ListFormat("en").format(
@@ -142,21 +145,15 @@ const DropzoneContent = ({
 
 const DropzoneEmptyState = ({
   accept,
-  children,
   maxFiles,
   maxSize,
   minSize,
 }: {
   accept?: DropzoneOptions["accept"];
-  children?: ReactNode;
   maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
   maxSize: NonNullable<DropzoneOptions["maxSize"]>;
   minSize?: DropzoneOptions["minSize"];
 }) => {
-  if (children) {
-    return children;
-  }
-
   let caption = "";
 
   if (accept) {

@@ -1,4 +1,4 @@
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { Dropzone } from ".";
 
@@ -28,11 +28,25 @@ export const WithFile = meta.story({
 
 export const Compact = meta.story({
   args: {
-    content: "Attach another file",
-    emptyState: "Attach files",
     maxFiles: 3,
     maxSize: 5 * 1024 * 1024,
     onDrop: fn(),
     variant: "compact",
+  },
+});
+
+export const CompactWithFiles = meta.story({
+  args: {
+    maxFiles: 3,
+    maxSize: 5 * 1024 * 1024,
+    onDrop: fn(),
+    src: [
+      new File([new Uint8Array(1024 * 1024)], "first.txt"),
+      new File([new Uint8Array(512 * 1024)], "second.txt"),
+    ],
+    variant: "compact",
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText("2 files • 1.50 MB")).toBeVisible();
   },
 });
