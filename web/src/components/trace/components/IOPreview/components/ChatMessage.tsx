@@ -91,7 +91,6 @@ export function ChatMessage({
           <MarkdownJsonView
             title="Placeholder"
             content={message.name || "Unnamed placeholder"}
-            customCodeHeaderVariant="card"
             bordered
           />
         </div>
@@ -183,11 +182,6 @@ export function ChatMessage({
       </>
     );
 
-    let customCodeHeaderVariant: "card" | undefined;
-    if (message.role === "system") {
-      customCodeHeaderVariant = "card";
-    }
-
     return (
       <div className="hover:bg-muted transition-colors">
         {/* Markdown view */}
@@ -195,7 +189,6 @@ export function ChatMessage({
           <MarkdownJsonView
             title={title}
             content={message.content || ""}
-            customCodeHeaderVariant={customCodeHeaderVariant}
             audio={message.audio}
             controlButtons={passthroughToggleButton}
             afterHeader={thinkingBlocks}

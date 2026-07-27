@@ -221,12 +221,10 @@ function MarkdownRenderer({
   markdown,
   theme,
   className,
-  customCodeHeaderVariant,
 }: {
   markdown: string;
   theme?: string;
   className?: string;
-  customCodeHeaderVariant?: "card";
 }) {
   const promptReferenceProjectId = usePromptReferenceProjectId();
 
@@ -383,7 +381,6 @@ function MarkdownRenderer({
                   language={language}
                   value={codeContent}
                   theme={theme === "dark" ? "dark" : "light"}
-                  variant={customCodeHeaderVariant}
                 />
               ) : (
                 // inline code
@@ -479,7 +476,6 @@ export function MarkdownView({
   markdown,
   title,
   titleIcon,
-  customCodeHeaderVariant,
   audio,
   media,
   className,
@@ -491,7 +487,6 @@ export function MarkdownView({
   markdown: string | z.infer<typeof OpenAIContentSchema>;
   title?: string;
   titleIcon?: React.ReactNode;
-  customCodeHeaderVariant?: "card";
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
   className?: string;
@@ -508,7 +503,8 @@ export function MarkdownView({
   bordered?: boolean;
 }) {
   const capture = usePostHogClientCapture();
-  const { resolvedTheme: theme } = useTheme();
+  const { forcedTheme, resolvedTheme } = useTheme();
+  const theme = forcedTheme ?? resolvedTheme;
   const { setIsMarkdownEnabled } = useMarkdownContext();
 
   const markdownContent =
@@ -611,7 +607,6 @@ export function MarkdownView({
               <MarkdownRenderer
                 markdown={isCollapsed ? truncatedContent : markdown}
                 theme={theme}
-                customCodeHeaderVariant={customCodeHeaderVariant}
               />
               {collapseToggle}
             </>
@@ -620,11 +615,7 @@ export function MarkdownView({
           // content parts (multi-modal); collapsed = preview of the joined text
           <>
             {isCollapsed ? (
-              <MarkdownRenderer
-                markdown={truncatedContent}
-                theme={theme}
-                customCodeHeaderVariant={customCodeHeaderVariant}
-              />
+              <MarkdownRenderer markdown={truncatedContent} theme={theme} />
             ) : (
               (markdown ?? []).map((content, index) => {
                 if (isOpenAITextContentPart(content)) {
@@ -633,7 +624,6 @@ export function MarkdownView({
                       key={index}
                       markdown={content.text}
                       theme={theme}
-                      customCodeHeaderVariant={customCodeHeaderVariant}
                     />
                   );
                 }
@@ -682,7 +672,6 @@ export function MarkdownView({
             <MarkdownRenderer
               markdown={audio.transcript ? "[Audio] \n" + audio.transcript : ""}
               theme={theme}
-              customCodeHeaderVariant={customCodeHeaderVariant}
             />
             <LangfuseMediaView
               mediaReferenceString={audio.data.referenceString}
