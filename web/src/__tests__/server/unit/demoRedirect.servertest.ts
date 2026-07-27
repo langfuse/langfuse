@@ -1,6 +1,7 @@
 const mockEnv = vi.hoisted(() => ({
   env: {
     AUTH_DISABLE_SIGNUP: undefined as string | undefined,
+    NEXT_PUBLIC_DEMO_ORG_ID: "demo-org" as string | undefined,
     NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" as string | undefined,
     NEXT_PUBLIC_SIGN_UP_DISABLED: "false" as "true" | "false",
   },
@@ -8,13 +9,26 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-const { getServerAuthSessionMock } = vi.hoisted(() => ({
+const { getServerAuthSessionMock, prismaMock } = vi.hoisted(() => ({
   getServerAuthSessionMock: vi.fn(),
+  prismaMock: {
+    project: {
+      findUnique: vi.fn(),
+    },
+    organizationMembership: {
+      upsert: vi.fn(),
+    },
+  },
 }));
 
 vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
 }));
+
+vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, prisma: prismaMock };
+});
 
 import { type GetServerSidePropsContext } from "next";
 import { getServerSideProps } from "@/src/pages/demo";
@@ -29,17 +43,40 @@ describe("demo redirect page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEnv.env.AUTH_DISABLE_SIGNUP = undefined;
+    mockEnv.env.NEXT_PUBLIC_DEMO_ORG_ID = "demo-org";
     mockEnv.env.NEXT_PUBLIC_DEMO_PROJECT_ID = "demo-project";
     mockEnv.env.NEXT_PUBLIC_SIGN_UP_DISABLED = "false";
+    prismaMock.project.findUnique.mockResolvedValue({ orgId: "demo-org" });
+    prismaMock.organizationMembership.upsert.mockResolvedValue({});
   });
 
-  it("redirects authenticated users to the configured regional demo project", async () => {
+  it("ensures demo access before redirecting authenticated users to the configured regional demo project", async () => {
     getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
 
     await expect(getServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
         destination: "/project/demo-project/traces",
         permanent: false,
+      },
+    });
+    expect(prismaMock.project.findUnique).toHaveBeenCalledWith({
+      where: {
+        orgId: "demo-org",
+        id: "demo-project",
+      },
+      select: {
+        orgId: true,
+      },
+    });
+    expect(prismaMock.organizationMembership.upsert).toHaveBeenCalledWith({
+      where: {
+        orgId_userId: { orgId: "demo-org", userId: "user-1" },
+      },
+      update: {},
+      create: {
+        userId: "user-1",
+        orgId: "demo-org",
+        role: "VIEWER",
       },
     });
   });
@@ -53,6 +90,8 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("redirects unauthenticated users to sign in when sign-up is disabled", async () => {
@@ -77,5 +116,34 @@ describe("demo redirect page", () => {
       },
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back to home when no demo organization is configured", async () => {
+    mockEnv.env.NEXT_PUBLIC_DEMO_ORG_ID = undefined;
+
+    await expect(getServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
+    expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back to home when the configured demo project does not exist", async () => {
+    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    prismaMock.project.findUnique.mockResolvedValue(null);
+
+    await expect(getServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { prisma, Role } from "@langfuse/shared/src/db";
+import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -9,6 +9,7 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
+import { ensureDemoProjectAccess } from "@/src/features/auth/lib/demoProjectAccess";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -27,29 +28,8 @@ export async function createProjectMembershipsOnSignup(
       select: { id: true },
     }));
 
-    // Langfuse Cloud: provide view-only access to the demo project, none access to the demo org
-    const demoProject =
-      env.NEXT_PUBLIC_DEMO_ORG_ID && env.NEXT_PUBLIC_DEMO_PROJECT_ID
-        ? ((await prisma.project.findUnique({
-            where: {
-              orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
-              id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
-            },
-          })) ?? undefined)
-        : undefined;
-    if (demoProject !== undefined) {
-      await prisma.organizationMembership.upsert({
-        where: {
-          orgId_userId: { orgId: demoProject.orgId, userId: user.id },
-        },
-        update: {}, // No-op: preserve existing role
-        create: {
-          userId: user.id,
-          orgId: demoProject.orgId,
-          role: Role.VIEWER,
-        },
-      });
-    }
+    // Langfuse Cloud: provide view-only access to the demo project.
+    const hasDemoAccess = await ensureDemoProjectAccess({ userId: user.id });
 
     // self-hosted: LANGFUSE_DEFAULT_ORG_ID (supports comma-separated list of org IDs)
     const defaultOrgIds = env.LANGFUSE_DEFAULT_ORG_ID ?? [];
@@ -289,7 +269,7 @@ export async function createProjectMembershipsOnSignup(
           event: "cloud_signup_complete",
           properties: {
             cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-            hasDemoAccess: demoProject !== undefined,
+            hasDemoAccess,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
           },
