@@ -65,6 +65,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -156,8 +157,6 @@ type AppSidebarProps = {
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
   canCreateProjects: boolean;
-  getOrgPath: (organizationId: string) => string;
-  getProjectPath: (projectId: string) => string;
 };
 
 export function AppSidebar({
@@ -176,8 +175,6 @@ export function AppSidebar({
   organizations,
   canCreateOrganizations,
   canCreateProjects,
-  getOrgPath,
-  getProjectPath,
 }: AppSidebarProps) {
   const activeNotifications = !v4UpgradeUiEnabled
     ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
@@ -216,8 +213,6 @@ export function AppSidebar({
             organizations={organizations}
             canCreateOrganizations={canCreateOrganizations}
             canCreateProjects={canCreateProjects}
-            getOrgPath={getOrgPath}
-            getProjectPath={getProjectPath}
           />
         )}
         <NavMain items={navItems} />
@@ -246,17 +241,15 @@ function MobileNavSwitcher({
   organizations,
   canCreateOrganizations,
   canCreateProjects,
-  getOrgPath,
-  getProjectPath,
 }: {
   organization: { id: string; name: string };
   project: { id: string; name: string } | null;
   organizations: OrganizationOption[] | null;
   canCreateOrganizations: boolean;
   canCreateProjects: boolean;
-  getOrgPath: (organizationId: string) => string;
-  getProjectPath: (projectId: string) => string;
 }) {
+  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
+
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupContent>

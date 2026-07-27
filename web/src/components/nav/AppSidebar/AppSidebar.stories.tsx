@@ -63,10 +63,6 @@ const meta = preview.meta({
     organizations: null,
     canCreateOrganizations: false,
     canCreateProjects: false,
-    getOrgPath: fn(
-      (organizationId: string) => `/organization/${organizationId}`,
-    ),
-    getProjectPath: fn((projectId: string) => `/project/${projectId}`),
   },
 });
 

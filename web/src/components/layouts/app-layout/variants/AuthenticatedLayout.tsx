@@ -44,10 +44,7 @@ import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
-import {
-  useOrgProjectSwitchPaths,
-  useQueryProjectOrOrganization,
-} from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
@@ -265,7 +262,6 @@ function ConnectedAppSidebar({
   const capture = usePostHogClientCapture();
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
-  const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
   const canCreateProjects = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:create",
@@ -356,8 +352,6 @@ function ConnectedAppSidebar({
         session.data?.user?.canCreateOrganizations ?? false
       }
       canCreateProjects={canCreateProjects}
-      getOrgPath={getOrgPath}
-      getProjectPath={getProjectPath}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
