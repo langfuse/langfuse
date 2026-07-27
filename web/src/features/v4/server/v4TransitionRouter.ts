@@ -8,6 +8,7 @@ import {
   AnalyticsIntegrationExportSource,
   Prisma,
 } from "@langfuse/shared/src/db";
+import { variableMapping } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import {
   classifyIngestionSdkAttribution,
@@ -586,7 +587,7 @@ export const v4TransitionRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       // Only active evaluators running on new data require migration;
       // inactive or backfill-only (EXISTING) configs are not counted.
-      const traceLevelEvalCount = await ctx.prisma.jobConfiguration.count({
+      const legacyEvalConfigs = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
@@ -594,9 +595,35 @@ export const v4TransitionRouter = createTRPCRouter({
           status: "ACTIVE",
           timeScope: { has: "NEW" },
         },
+        select: { targetObject: true, variableMapping: true },
       });
 
-      return { traceLevelEvalCount };
+      // The in-app assistant can only complete the eval migration when every
+      // remaining legacy evaluator is trivially repointable: dataset targets,
+      // or trace targets whose variables all read from one named observation.
+      const allAssistantMigratable =
+        legacyEvalConfigs.length > 0 &&
+        legacyEvalConfigs.every((config) => {
+          if (config.targetObject === DATASET_EVAL_TARGET) return true;
+          const parsed = z
+            .array(variableMapping)
+            .safeParse(config.variableMapping);
+          if (!parsed.success || parsed.data.length === 0) return false;
+          if (
+            parsed.data.some((mapping) => mapping.langfuseObject === "trace")
+          ) {
+            return false;
+          }
+          const observationNames = new Set(
+            parsed.data.map((mapping) => mapping.objectName ?? ""),
+          );
+          return observationNames.size === 1;
+        });
+
+      return {
+        traceLevelEvalCount: legacyEvalConfigs.length,
+        allAssistantMigratable,
+      };
     }),
 
   summaryByProject: protectedOrganizationProcedure

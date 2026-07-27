@@ -9,10 +9,7 @@ import {
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
-import {
-  useCanUseInAppAgent,
-  useInAppAiAgent,
-} from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
@@ -38,6 +35,7 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
+import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -349,15 +347,20 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
-  const canUseAgent = useCanUseInAppAgent();
-  const { setOpen: setAgentOpen } = useInAppAiAgent();
-  // Deprecated evals are migrated inside Langfuse (repoint the target), so
-  // this is minimal-change work the in-app assistant can do — unlike the
-  // SDK/API items, which need the coding-agent prompt in the user's codebase.
-  const handleMigrateEvalsWithAgent = () => {
+  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
+    useInAppAiAgent();
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId,
+    orgId: organization?.id,
+    enabled: Boolean(projectId),
+  });
+  const handleMigrateEvalsWithAgent = async () => {
     capture("v4_migration:migrate_evals_with_agent_clicked");
     onNavigate?.();
     setAgentOpen(true);
+    await submitAgentMessage(upgradePlan.assistantPrompt, {
+      newConversation: true,
+    });
   };
   const evalsUrl =
     typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
@@ -435,10 +438,13 @@ export function V4MigrationDetailsContent({
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
-                  {canUseAgent ? " — the assistant can do it for you" : ""}.
+                  {upgradePlan.assistantCanUpgrade
+                    ? " — the assistant can do it for you"
+                    : ""}
+                  .
                 </p>
                 <div className="flex items-center gap-3">
-                  {canUseAgent && (
+                  {upgradePlan.assistantCanUpgrade && (
                     <Button
                       variant="outline"
                       size="sm"

@@ -11,9 +11,7 @@ import {
   useCanUseInAppAgent,
   useInAppAiAgent,
 } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
-
-const EVAL_UPGRADE_AGENT_PROMPT =
-  "I want to start my eval upgrade. Use the langfuse skill. Please review this project's deprecated evaluators (trace- and dataset-level) and help me migrate them to the new targets — observations and experiments. Check with me before applying any changes.";
+import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 function BadgeContent({
   handleClick,
@@ -79,11 +77,12 @@ export function V4MigrationDelayBadge() {
 function useEvalUpdateRequiredBadgeState() {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const { project, organization } = useQueryProject();
+  const enabled = v4UpgradeUiEnabled && Boolean(project);
   // `eval` is a reserved word in ES modules; name the count state explicitly.
   const evalState = useProjectV4EvalData({
     projectId: project?.id,
     orgId: organization?.id,
-    enabled: v4UpgradeUiEnabled && Boolean(project),
+    enabled,
   });
 
   const visible =
@@ -92,7 +91,7 @@ function useEvalUpdateRequiredBadgeState() {
     evalState.status === "loaded" &&
     evalState.count > 0;
 
-  return { project, visible };
+  return { project, organization, enabled, visible };
 }
 
 /** Opens the v4 migration drawer — for page-level surfaces where the drawer
@@ -130,17 +129,23 @@ export function V4MigrationUpdateRequiredAssistantBadge() {
   const canUseAgent = useCanUseInAppAgent();
   const { setOpen: setAgentOpen, submit: submitAgentMessage } =
     useInAppAiAgent();
-  const { project, visible } = useEvalUpdateRequiredBadgeState();
+  const { project, organization, enabled, visible } =
+    useEvalUpdateRequiredBadgeState();
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId: project?.id,
+    orgId: organization?.id,
+    enabled,
+  });
 
   if (!visible || !project) {
     return null;
   }
 
-  const handleClick = () => {
+  const handleClick = async () => {
     capture("v4_migration:update_required_badge_clicked");
     if (canUseAgent) {
       setAgentOpen(true);
-      void submitAgentMessage(EVAL_UPGRADE_AGENT_PROMPT, {
+      await submitAgentMessage(upgradePlan.assistantPrompt, {
         newConversation: true,
       });
       return;

@@ -160,7 +160,7 @@ export function useProjectV4EvalData(params: {
   orgId: string | undefined;
   enabled: boolean;
 }) {
-  const { projectId, orgId, enabled } = params;
+  const { projectId, enabled } = params;
   const queryEnabled = enabled && Boolean(projectId);
   const evalQuery = api.v4Transition.traceLevelEvalSummary.useQuery(
     { projectId: projectId ?? "" },
