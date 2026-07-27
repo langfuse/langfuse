@@ -12,14 +12,14 @@ export const getEnvironmentsForProject = async (
 ): Promise<{ environment: string }[]> => {
   const { projectId, fromTimestamp } = props;
 
-  // In dual and events_only write modes all tracing data lands in the events
-  // tables: a single events_core scan covers traces and observations and is
-  // the only populated source under events_only. Scores keep their own table
-  // in every write mode. The events read may be routed to a dedicated
-  // ClickHouse service (CLICKHOUSE_EVENTS_READ_ONLY_URL), so it cannot share
-  // a query with the scores read.
+  // This lookup feeds legacy-table filters, so dual mode must use the matching
+  // legacy traces/observations values. In events_only mode those tables are no
+  // longer populated, and a single events_core scan covers tracing data.
+  // Scores keep their own table in every write mode. The events read may be
+  // routed to a dedicated ClickHouse service
+  // (CLICKHOUSE_EVENTS_READ_ONLY_URL), so it cannot share a query with scores.
   const tracingEnvironmentsPromise =
-    env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy"
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only"
       ? queryClickhouse<{ environment: string }>({
           query: `
             (
