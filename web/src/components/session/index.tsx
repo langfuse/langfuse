@@ -1019,7 +1019,7 @@ const LoadedSessionEventsPage: React.FC<{
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState: timeFiltersForOptions,
+    startTimeFilter: timeFiltersForOptions,
   });
   const typedFilterOptions = filterOptions as EventFilterOptions;
 

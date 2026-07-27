@@ -1,10 +1,10 @@
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
+import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import {
-  eventsTableCols,
-  type FilterState,
-  type TimeFilter,
-} from "@langfuse/shared";
+  planEventFacetQueries,
+  toRefiningFilter,
+} from "@/src/features/events/lib/facet-query-plan";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -83,45 +83,14 @@ const VALID_FILTER_OPTION_COLUMNS: ReadonlySet<string> = new Set(
   ALL_EVENT_FILTER_OPTION_COLUMNS,
 );
 
-// Score-catalog columns list score NAMES/categories/buckets, not per-value
-// counts. The server discovers them from the trace-score scope (time-bounded
-// only) and NEVER applies the refining filter to them, so they never refine and
-// never self-collapse. Keeping the full catalog also protects the search-bar
-// grammar: its score-type routing and its AI score-name validation read this
-// list, so a name filtered out of the active set must still be recognized as a
-// real score (LFE-10596). They therefore stay in the shared bulk query and are
-// excluded from the per-facet self-exclusion below.
-const UNREFINED_SCORE_CATALOG_COLUMNS: ReadonlySet<string> = new Set([
-  "scores_avg",
-  "score_categories",
-  "score_booleans",
-  "trace_scores_avg",
-  "trace_score_categories",
-  "trace_score_booleans",
-]);
-
-// Filter conditions arrive keyed by either the column id ("environment") or its
-// display name ("Environment"), depending on the source (URL, sidebar, or the
-// search bar's lowering). Facet/option columns are always ids, so normalize a
-// filter's column to its id before matching it to a facet — otherwise a
-// label-keyed filter slips past self-exclusion and its facet self-collapses.
-const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
-  eventsTableCols.flatMap((c) => [
-    [c.id, c.id],
-    [c.name, c.id],
-  ]),
-);
-const toFacetColumnId = (column: string): string =>
-  FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
-
 const isEventFilterOptionColumn = (
   column: string,
 ): column is EventFilterOptionColumn => VALID_FILTER_OPTION_COLUMNS.has(column);
 
 // Shared react-query options: filter options change slowly and are never live —
 // fetch once and keep (no refetch on mount/focus/reconnect, infinite stale time),
-// and keep prior values on screen while a key changes (time-range move) so the
-// sidebar/bar never flicker.
+// and keep prior values on screen while a key changes (time-range move or filter
+// edit) so the sidebar/bar never flicker.
 const FILTER_OPTION_QUERY_OPTIONS = {
   refetchOnMount: false,
   refetchOnWindowFocus: false,
@@ -136,13 +105,30 @@ type LazyFilterOptionResult = {
   isError: boolean;
 };
 
+const EMPTY_FILTER_STATE: FilterState = [];
+
 type UseEventsFilterOptionsParams = {
   projectId: string;
-  oldFilterState: FilterState;
+  /**
+   * Authoritative time scope for the bounded facet scan and its score lookback.
+   * Kept separate from `refiningFilter` — a time-window move re-keys every
+   * facet query, while a filter edit re-keys only the refined ones.
+   */
+  startTimeFilter?: TimeFilter[];
+  /**
+   * The active filter set the facet counts refine against (LFE-14489). Pass the
+   * SAME filters that scope the row query so a facet value can never promise
+   * rows the current filters exclude. Facets self-exclude their own column via
+   * the query plan; the server drops non-participating columns (input/output/
+   * comment*, positionInTrace) and omits counts while one is active. Start-time
+   * conditions are stripped here (see `startTimeFilter`).
+   */
+  refiningFilter?: FilterState;
   isRootObservation?: boolean;
   /**
    * Explicit column subset to request (non-lazy). Ignored when `lazy` is set.
-   * Omit to request every column (the default bulk behavior).
+   * Omit to request every column — request-all cannot self-exclude, so it is
+   * only valid together with an empty `refiningFilter`.
    */
   columns?: EventFilterOptionColumnsInput;
   /**
@@ -158,88 +144,22 @@ type UseEventsFilterOptionsParams = {
 
 export function useEventsFilterOptions({
   projectId,
-  oldFilterState,
+  startTimeFilter,
+  refiningFilter = EMPTY_FILTER_STATE,
   isRootObservation,
   columns,
   lazy = false,
 }: UseEventsFilterOptionsParams) {
-  // Extract start time filters for filter options query
-  const startTimeFilters = useMemo(() => {
-    return oldFilterState.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    ) as TimeFilter[];
-  }, [oldFilterState]);
-
-  // Active filters that refine the facet counts (LFE-14489). Start-time stays in
-  // the dedicated startTimeFilter (authoritative for the bounded scan + score
-  // lookback); every OTHER active filter narrows the counts so a facet value can
-  // no longer promise rows the current filter set excludes. The server drops the
-  // non-participating columns (input/output/comment*, positionInTrace) and omits
-  // counts while one of them is active — we forward the set verbatim.
-  const refinementFilter = useMemo(
-    () =>
-      oldFilterState.filter(
-        (f) =>
-          !(
-            f.type === "datetime" &&
-            (f.column === "startTime" || f.column === "Start Time")
-          ),
-      ),
-    [oldFilterState],
-  );
-
-  // Value columns (name/level/type/…) that carry their OWN active filter. Only
-  // these self-collapse under the shared bulk query, so only these are pulled
-  // out for self-exclusion. Score-catalog columns are excluded — the server
-  // never refines them, so they stay in the bulk regardless of a score filter.
-  //
-  // Keyed on a stable sorted string (column ids are comma-free) so this Set —
-  // and every partition derived from it below — keeps a stable identity across
-  // re-renders when the filter set is unchanged. The call site rebuilds
-  // `oldFilterState` on every render, so without this the combine + merged
-  // `filterOptions` would churn identity each render (they must not).
-  const filteredColumnsKey = Array.from(
-    new Set(
-      refinementFilter
-        .map((f) => toFacetColumnId(f.column))
-        .filter((c) => !UNREFINED_SCORE_CATALOG_COLUMNS.has(c)),
-    ),
-  )
-    .sort()
-    .join(",");
-  const filteredColumns = useMemo(
-    () => new Set(filteredColumnsKey ? filteredColumnsKey.split(",") : []),
-    [filteredColumnsKey],
-  );
-
-  // A facet never filters itself: its options/counts must reflect every OTHER
-  // active filter, so selecting `level=ERROR` still lists WARNING/DEFAULT (with
-  // refined counts) and the `none of` complement stays computable. Drop the
-  // queried column's own conditions from its refining set. Returns `undefined`
-  // when nothing refines it, preserving the pre-filter react-query cache key.
-  const refiningFilterFor = useCallback(
-    (cols: readonly string[] | undefined): FilterState | undefined => {
-      if (refinementFilter.length === 0) return undefined;
-      if (!cols) return refinementFilter;
-      const own = new Set(cols);
-      const refined = refinementFilter.filter(
-        (f) => !own.has(toFacetColumnId(f.column)),
-      );
-      return refined.length > 0 ? refined : undefined;
-    },
-    [refinementFilter],
-  );
-
   const baseInput = useMemo(
     () => ({
       projectId,
       startTimeFilter:
-        startTimeFilters.length > 0 ? startTimeFilters : undefined,
+        startTimeFilter && startTimeFilter.length > 0
+          ? startTimeFilter
+          : undefined,
       isRootObservation,
     }),
-    [projectId, startTimeFilters, isRootObservation],
+    [projectId, startTimeFilter, isRootObservation],
   );
 
   // Lazy mode owns a monotonically-growing set of on-demand columns (everything
@@ -277,33 +197,26 @@ export function useEventsFilterOptions({
     [lazyColumnSet],
   );
 
-  // Eager bulk query: one ClickHouse scan for the always-visible columns (lazy
-  // mode) — or the explicit/all columns in non-lazy mode. Value facets carrying
-  // their OWN active filter are pulled out (they would self-collapse under the
-  // shared filter) and re-issued as self-excluded per-column queries below. The
-  // columns that remain are either clean value facets or score-catalog columns,
-  // so the bulk gets the FULL refining set: clean value facets are refined by
-  // every active filter, and the server leaves the score catalog untouched.
-  //
-  // Non-lazy "request all" (columns undefined) can't enumerate a dirty column to
-  // pull out; that path is only used with a start-time-only filter (the session
-  // view), where nothing is dirty. A future non-lazy caller passing a refining
-  // filter would need an explicit column list to keep self-exclusion working.
-  const eagerCandidates = lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns;
-  const bulkColumns = useMemo(
-    () => eagerCandidates?.filter((c) => !filteredColumns.has(c)),
-    [eagerCandidates, filteredColumns],
+  // The pure query plan: which columns share the bulk query, which get their
+  // own self-excluded per-column query, and each query's refining filter. All
+  // refinement semantics (self-exclusion, score-catalog handling, id/label
+  // canonicalization) live in the plan module.
+  const plan = useMemo(
+    () =>
+      planEventFacetQueries<EventFilterOptionColumn>({
+        refiningFilter: toRefiningFilter(refiningFilter),
+        eagerColumns: lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns,
+        lazyColumns,
+      }),
+    [refiningFilter, lazy, columns, lazyColumns],
   );
-  const dirtyBulkColumns = useMemo(
-    () => eagerCandidates?.filter((c) => filteredColumns.has(c)) ?? [],
-    [eagerCandidates, filteredColumns],
-  );
-  const bulkFilter = refiningFilterFor(undefined);
+
+  // Eager bulk query: one ClickHouse scan for the plan's shared columns.
   const eagerQuery = api.events.filterOptions.useQuery(
     {
       ...baseInput,
-      filter: bulkFilter,
-      columns: bulkColumns,
+      filter: plan.bulk.filter,
+      columns: plan.bulk.columns,
     },
     {
       trpc: { context: { skipBatch: true } },
@@ -311,28 +224,18 @@ export function useEventsFilterOptions({
     },
   );
 
-  // Per-column queries: the lazily-requested on-demand facets PLUS any eager
-  // facet pulled out of the bulk for self-exclusion. Each is its own cached
-  // query keyed by its (self-excluded) refining filter. The two inputs are
-  // disjoint (lazy columns are never eager), but a Set guards against overlap.
-  const perColumnColumns = useMemo(
-    () =>
-      Array.from(
-        new Set<EventFilterOptionColumn>([...lazyColumns, ...dirtyBulkColumns]),
-      ).sort(),
-    [lazyColumns, dirtyBulkColumns],
-  );
-
-  // One independently-cached query per on-demand column. `combine` merges them
-  // into a single payload + derives which columns are still loading / errored,
-  // and react-query memoizes the result so identity is stable between changes.
+  // One independently-cached query per plan.perColumn entry. `combine` merges
+  // them into a single payload + derives which columns are still loading /
+  // errored, and react-query memoizes the result so identity is stable between
+  // changes.
+  const perColumnPlan = plan.perColumn;
   const combineLazy = useCallback(
     (results: readonly LazyFilterOptionResult[]) => {
       const data: FilterOptionsData = {};
       const pendingColumns: string[] = [];
       const erroredColumns: string[] = [];
       results.forEach((r, i) => {
-        const column = perColumnColumns[i];
+        const column = perColumnPlan[i]?.column;
         if (column === undefined) return;
         // Publish data first: a post-success refetch error keeps placeholderData,
         // so an already-loaded facet retains its values instead of blanking out —
@@ -352,18 +255,14 @@ export function useEventsFilterOptions({
       });
       return { data, pendingColumns, erroredColumns };
     },
-    [perColumnColumns],
+    [perColumnPlan],
   );
 
   const lazyResult = api.useQueries(
     (t) =>
-      perColumnColumns.map((column) =>
+      perColumnPlan.map(({ column, filter }) =>
         t.events.filterOptions(
-          {
-            ...baseInput,
-            filter: refiningFilterFor([column]),
-            columns: [column],
-          },
+          { ...baseInput, filter, columns: [column] },
           FILTER_OPTION_QUERY_OPTIONS,
         ),
       ),
@@ -452,13 +351,14 @@ export function useEventsFilterOptions({
   // "no data". On a terminal error the column is dropped (no auto-retry, so the
   // facet renders its empty state instead of skeletoning forever).
   const isEagerFetching = eagerQuery.isFetching;
+  const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
     if (!lazy) return undefined;
     const pending = new Set<string>(lazyResult.pendingColumns);
     if (isEagerFetching) {
       const data = rawData as Record<string, unknown>;
-      // Only the columns actually in the bulk query — the dirty ones pulled out
-      // for self-exclusion report through lazyResult.pendingColumns instead.
+      // Only the columns actually in the bulk query — the self-excluded ones
+      // report through lazyResult.pendingColumns instead.
       for (const column of bulkColumns ?? []) {
         if (data[column] === undefined) pending.add(column);
       }
