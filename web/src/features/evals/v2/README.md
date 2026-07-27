@@ -14,16 +14,20 @@
 - `pages/evaluators.tsx` and `pages/rules.tsx` own the standalone v2 list
   lifecycle. `EvaluatorOverviewTable` and `EvaluationRulesOverviewTable` own their
   table selection and bulk actions; rendered cells remain narrow views.
-- `components/EvaluationRulePeekView.tsx` owns read-only rule inspection. New
-  attachments validate in place; failures link to evaluator edit with the
-  rule preselected for manual review and testing.
+- `components/EvaluationRulePeekView.tsx` opens directly in rule edit mode for
+  writers and remains read-only for users without write access. New attachments
+  validate in place; failures link to evaluator edit with the rule preselected
+  for manual review and testing.
 - `components/EvaluatorConfigurationView.tsx` owns read-only evaluator and
   rule-assignment presentation. It reuses the edit hierarchy for prompt-variable
   mappings and score output; controls become read-only while `Advanced` remains
   inspectable. `EvaluatorDefinitionView` is shared by both detail surfaces.
 - `server/router.ts` owns the project-scoped tRPC contract.
 - `server/evaluationRuleService.ts` owns evaluator ↔ rule assignment workflows.
-- `server/evaluatorActivationService.ts` owns draft activation.
+- `components/ActivateEvaluatorDialog.tsx` owns the post-save choice to keep an
+  evaluator disabled or continue into a prefilled
+  `CreateEvaluationRuleDialog`. Creating the rule activates its attached
+  evaluator through `server/evaluationRuleService.ts`.
 
 Server data remains in tRPC/React Query. Each detail page keeps only its
 form-local draft and selected evaluator/rule in React state. Rule filters are

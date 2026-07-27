@@ -88,4 +88,27 @@ describe("EvaluatorEditView", () => {
       }),
     );
   });
+
+  it("unmounts the background observation preview while a rule modal owns it", () => {
+    render(
+      <EvaluatorEditView
+        projectId="project-1"
+        evaluatorId="evaluator-1"
+        sourceTemplate={{ type: "LLM_AS_JUDGE" } as never}
+        initialMapping={[]}
+        scoreName="Quality"
+        description=""
+        attachedRuleIds={["attached-rule"]}
+        ruleEditorExpanded={false}
+        onSaved={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(mocks.setupProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        ruleEditorExpanded: false,
+      }),
+    );
+  });
 });

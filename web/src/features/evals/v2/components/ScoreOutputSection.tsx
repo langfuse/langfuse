@@ -72,6 +72,8 @@ const DEFAULT_CHOICES: ScoreOutputChoice[] = [
   { label: "", value: "0" },
   { label: "", value: "1" },
 ];
+const DEFAULT_MIN_VALUE = "0";
+const DEFAULT_MAX_VALUE = "1";
 
 /** "" → null, otherwise the parsed number ("abc" → NaN, callers reject). */
 function parseOptionalNumber(value: string): number | null {
@@ -105,8 +107,8 @@ export function toScoreOutputFormState(
       scoreDescription: "",
       reasoningDescription: "",
       choices: [],
-      minValue: "",
-      maxValue: "",
+      minValue: DEFAULT_MIN_VALUE,
+      maxValue: DEFAULT_MAX_VALUE,
     };
   }
   const resolved = resolvePersistedEvalOutputDefinition(parsed.data);
@@ -348,6 +350,14 @@ export function ScoreOutputSection({
         dataType === ScoreDataTypeEnum.CATEGORICAL && state.choices.length === 0
           ? DEFAULT_CHOICES
           : state.choices,
+      minValue:
+        dataType === ScoreDataTypeEnum.NUMERIC && !state.minValue.trim()
+          ? DEFAULT_MIN_VALUE
+          : state.minValue,
+      maxValue:
+        dataType === ScoreDataTypeEnum.NUMERIC && !state.maxValue.trim()
+          ? DEFAULT_MAX_VALUE
+          : state.maxValue,
     });
   };
 
@@ -598,6 +608,9 @@ export function ScoreOutputSection({
                 }
               >
                 Score description
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
               </LabelWithTooltip>
               <Textarea
                 className="min-h-16"
@@ -619,6 +632,9 @@ export function ScoreOutputSection({
                 }
               >
                 Reasoning description
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
               </LabelWithTooltip>
               <Textarea
                 className="min-h-16"

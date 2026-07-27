@@ -25,6 +25,7 @@ import {
   BatchActionQueue,
   getCostByEvaluationRuleIds,
   getExecutionTraceHistoryByEvaluationRuleId,
+  getRecentExecutionTracesByEvaluatorIds,
   getRecentExecutionTracesByEvaluationRuleIds,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
@@ -216,23 +217,44 @@ export const evalsV2Router = createTRPCRouter({
           createdByUser: { select: { name: true, email: true } },
           evalTemplate: { select: { type: true } },
           runScopeAssignments: {
+            where: { runScope: { enabled: true } },
             orderBy: { createdAt: "asc" },
-            take: 5,
             select: {
               runScope: { select: { id: true, name: true } },
             },
           },
-          _count: { select: { runScopeAssignments: true } },
         },
       });
 
+      const executionTraces = await getRecentExecutionTracesByEvaluatorIds(
+        input.projectId,
+        evaluators.map((evaluator) => evaluator.id),
+      ).catch((error) => {
+        logger.warn("Could not load evaluator execution traces for overview", {
+          projectId: input.projectId,
+          error,
+        });
+        return [];
+      });
+      const executionTracesByEvaluator = executionTraces.reduce(
+        (byEvaluator, trace) => {
+          const traces = byEvaluator.get(trace.evaluatorId) ?? [];
+          traces.push(trace);
+          byEvaluator.set(trace.evaluatorId, traces);
+          return byEvaluator;
+        },
+        new Map<string, typeof executionTraces>(),
+      );
+
       return evaluators.map(
-        ({ _count, evalTemplate, runScopeAssignments, ...evaluator }) => {
+        ({ evalTemplate, runScopeAssignments, ...evaluator }) => {
           return {
             ...evaluator,
             evalTemplate: evalTemplate ? { type: evalTemplate.type } : null,
-            rules: runScopeAssignments.map((assignment) => assignment.runScope),
-            ruleCount: _count.runScopeAssignments,
+            activeRules: runScopeAssignments.map(
+              (assignment) => assignment.runScope,
+            ),
+            executionTraces: executionTracesByEvaluator.get(evaluator.id) ?? [],
           };
         },
       );

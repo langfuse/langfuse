@@ -1,11 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  activate: vi.fn(),
   costEstimate: vi.fn(),
-  evalsInvalidate: vi.fn(),
-  evalsV2Invalidate: vi.fn(),
-  showSuccessToast: vi.fn(),
 }));
 
 vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
@@ -20,33 +16,6 @@ vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
   },
 }));
 
-vi.mock("@/src/features/notifications/showSuccessToast", () => ({
-  showSuccessToast: mocks.showSuccessToast,
-}));
-vi.mock("@/src/utils/trpcErrorToast", () => ({
-  trpcErrorToast: vi.fn(),
-}));
-
-vi.mock("@/src/utils/api", () => ({
-  api: {
-    useUtils: () => ({
-      evals: { invalidate: mocks.evalsInvalidate },
-      evalsV2: { invalidate: mocks.evalsV2Invalidate },
-    }),
-    evalsV2: {
-      activateEvaluator: {
-        useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
-          mutate: (input: unknown) => {
-            mocks.activate(input);
-            onSuccess();
-          },
-          isPending: false,
-        }),
-      },
-    },
-  },
-}));
-
 import { ActivateEvaluatorDialog } from "./ActivateEvaluatorDialog";
 
 const setupFilter = [
@@ -58,12 +27,15 @@ const setupFilter = [
   },
 ];
 
-function renderDialog(onOpenChange = vi.fn(), onComplete = vi.fn()) {
+function renderDialog(
+  onOpenChange = vi.fn(),
+  onComplete = vi.fn(),
+  onCreateRule = vi.fn(),
+) {
   render(
     <ActivateEvaluatorDialog
       projectId="project-1"
       evaluatorId="evaluator-1"
-      evaluatorName="quality"
       setupFilter={setupFilter}
       setupSampling={0.5}
       testRunCostUsd={0.002}
@@ -71,27 +43,26 @@ function renderDialog(onOpenChange = vi.fn(), onComplete = vi.fn()) {
       open
       onOpenChange={onOpenChange}
       onComplete={onComplete}
+      onCreateRule={onCreateRule}
     />,
   );
-  return { onOpenChange, onComplete };
+  return { onOpenChange, onComplete, onCreateRule };
 }
 
 describe("ActivateEvaluatorDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.evalsInvalidate.mockResolvedValue(undefined);
-    mocks.evalsV2Invalidate.mockResolvedValue(undefined);
   });
 
-  it("keeps the saved evaluator disabled when Keep disabled is chosen", () => {
+  it("keeps the saved evaluator disabled when Not now is chosen", () => {
     const { onOpenChange, onComplete } = renderDialog();
 
     expect(
-      screen.getByText("Run evaluator on incoming observations?"),
+      screen.getByText("Evaluator saved successfully"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "This creates an evaluation rule using the filters you configured to select sample observations.",
+        "Your evaluator is ready. Would you like to run it automatically on incoming production observations?",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Configured filters")).not.toBeInTheDocument();
@@ -105,32 +76,21 @@ describe("ActivateEvaluatorDialog", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Keep disabled" }));
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
 
-    expect(mocks.activate).not.toHaveBeenCalled();
     expect(onComplete).toHaveBeenCalledOnce();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("enables the evaluator on its configured filters", async () => {
-    const { onOpenChange, onComplete } = renderDialog();
+  it("continues to the prefilled rule dialog", () => {
+    const { onOpenChange, onComplete, onCreateRule } = renderDialog();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Run on matching observations" }),
+      screen.getByRole("button", { name: "Set up production rule" }),
     );
 
-    expect(mocks.activate).toHaveBeenCalledWith({
-      projectId: "project-1",
-      evaluatorId: "evaluator-1",
-      rule: { mode: "setup" },
-    });
-    await waitFor(() =>
-      expect(mocks.showSuccessToast).toHaveBeenCalledWith({
-        title: "Evaluator is live",
-        description: "“quality” will evaluate new matching observations.",
-      }),
-    );
-    expect(onComplete).toHaveBeenCalledOnce();
+    expect(onCreateRule).toHaveBeenCalledOnce();
+    expect(onComplete).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

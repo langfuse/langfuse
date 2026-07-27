@@ -153,7 +153,7 @@ export function EvaluatorDefinitionView({
       ) : (
         <>
           <section className="flex min-w-0 flex-col gap-2">
-            <Label>Prompt</Label>
+            <Label>Model</Label>
             <div className="flex w-fit max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
               <span className="truncate" title={modelLabel}>
                 {modelLabel}
@@ -164,6 +164,9 @@ export function EvaluatorDefinitionView({
                 </Badge>
               ) : null}
             </div>
+          </section>
+          <section className="flex min-w-0 flex-col gap-2">
+            <Label>Prompt</Label>
             <PromptVariableEditor
               value={prompt ?? ""}
               onChange={() => undefined}

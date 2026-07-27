@@ -31,6 +31,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Slider } from "@/src/components/ui/slider";
+import { ActivationCostEstimate } from "@/src/features/evals/v2/components/ActivationCostEstimate";
 import { EvaluationRuleAttachmentValidationAlert } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationAlert";
 import { EvaluationRuleAttachmentValidationDialog } from "@/src/features/evals/v2/components/EvaluationRuleAttachmentValidationDialog";
 import { EvaluationRuleFieldLabel } from "@/src/features/evals/v2/components/EvaluationRuleFieldLabel";
@@ -55,27 +56,43 @@ export function CreateEvaluationRuleDialog({
   projectId,
   open,
   onOpenChange,
+  initialFilterState,
+  initialSampling = 1,
+  initialEvaluatorIds = [],
+  testRunCostUsdByEvaluatorId = {},
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialFilterState?: FilterState;
+  initialSampling?: number;
+  initialEvaluatorIds?: string[];
+  testRunCostUsdByEvaluatorId?: Record<string, number>;
 }) {
   const utils = api.useUtils();
   const [observationsOpen, setObservationsOpen] = useState(true);
   const [samplingOpen, setSamplingOpen] = useState(false);
   const [evaluatorOpen, setEvaluatorOpen] = useState(true);
-  const [nameOpen, setNameOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [nameCustomized, setNameCustomized] = useState(false);
-  const [filterState, setFilterState] = useState<FilterState>(() => [
-    ...EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
-  ]);
-  const [sampling, setSampling] = useState(1);
-  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
-    [],
+  const [nameOpen, setNameOpen] = useState(initialEvaluatorIds.length > 0);
+  const [name, setName] = useState(() =>
+    initialEvaluatorIds.length > 0
+      ? generateEvaluationRuleName({
+          filter:
+            initialFilterState ?? EVALUATION_OBSERVATION_EXCLUSION_FILTERS,
+          targetObject: "event",
+          existingNames: [],
+        })
+      : "",
   );
-  const [validatedEvaluatorIds, setValidatedEvaluatorIds] = useState<string[]>(
-    [],
+  const [nameCustomized, setNameCustomized] = useState(false);
+  const [filterState, setFilterState] = useState<FilterState>(() =>
+    initialFilterState
+      ? [...initialFilterState]
+      : [...EVALUATION_OBSERVATION_EXCLUSION_FILTERS],
+  );
+  const [sampling, setSampling] = useState(initialSampling);
+  const [selectedEvaluatorIds, setSelectedEvaluatorIds] = useState<string[]>(
+    () => [...new Set(initialEvaluatorIds)],
   );
   const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [traceId, setTraceId] = useState<string | null>(null);
@@ -100,11 +117,6 @@ export function CreateEvaluationRuleDialog({
     );
     return evaluator ? [evaluator] : [];
   });
-  const evaluatorsValidated =
-    selectedEvaluatorIds.length > 0 &&
-    selectedEvaluatorIds.every((evaluatorId) =>
-      validatedEvaluatorIds.includes(evaluatorId),
-    );
   const availableEvaluators = (evaluatorOptions.data ?? []).filter(
     (evaluator) => evaluator.targetObject === "event",
   );
@@ -117,20 +129,15 @@ export function CreateEvaluationRuleDialog({
 
   const updateFilters = (nextFilters: FilterState) => {
     setFilterState(nextFilters);
-    setValidatedEvaluatorIds([]);
-    setNameOpen(false);
     validation.resetIssue();
   };
 
-  const validateEvaluator = async (evaluatorId: string) => {
+  const toggleEvaluator = (evaluatorId: string) => {
     if (selectedEvaluatorIds.includes(evaluatorId)) {
       const nextSelectedIds = selectedEvaluatorIds.filter(
         (selectedId) => selectedId !== evaluatorId,
       );
       setSelectedEvaluatorIds(nextSelectedIds);
-      setValidatedEvaluatorIds((current) =>
-        current.filter((validatedId) => validatedId !== evaluatorId),
-      );
       if (nextSelectedIds.length === 0) setNameOpen(false);
       validation.resetIssue();
       setEvaluatorPickerOpen(false);
@@ -141,15 +148,6 @@ export function CreateEvaluationRuleDialog({
     setSelectedEvaluatorIds(nextSelectedIds);
     validation.resetIssue();
     setEvaluatorPickerOpen(false);
-
-    const valid = await validation.validate({
-      evaluatorId,
-      filter: filterState,
-    });
-    if (!valid) return;
-
-    const nextValidatedIds = [...validatedEvaluatorIds, evaluatorId];
-    setValidatedEvaluatorIds(nextValidatedIds);
     if (!nameCustomized) {
       setName(
         generateEvaluationRuleName({
@@ -163,34 +161,20 @@ export function CreateEvaluationRuleDialog({
   };
 
   const validateSelectedEvaluators = async () => {
-    const validatedIds: string[] = [];
     for (const evaluatorId of selectedEvaluatorIds) {
       const valid = await validation.validate({
         evaluatorId,
         filter: filterState,
       });
-      if (!valid) {
-        setValidatedEvaluatorIds(validatedIds);
-        return;
-      }
-      validatedIds.push(evaluatorId);
+      if (!valid) return false;
     }
-
-    setValidatedEvaluatorIds(validatedIds);
-    if (!nameCustomized) {
-      setName(
-        generateEvaluationRuleName({
-          filter: filterState,
-          targetObject: "event",
-          existingNames: (rules.data ?? []).map((rule) => rule.name),
-        }),
-      );
-    }
-    setNameOpen(true);
+    return true;
   };
 
   const create = async () => {
-    if (!evaluatorsValidated) return;
+    if (selectedEvaluatorIds.length === 0) return;
+    const valid = await validateSelectedEvaluators();
+    if (!valid) return;
     try {
       await createRule.mutateAsync({
         projectId,
@@ -333,8 +317,6 @@ export function CreateEvaluationRuleDialog({
                   value={[sampling]}
                   onValueChange={(value) => {
                     setSampling(value[0] ?? sampling);
-                    setValidatedEvaluatorIds([]);
-                    setNameOpen(false);
                     validation.resetIssue();
                   }}
                   showInput
@@ -382,11 +364,7 @@ export function CreateEvaluationRuleDialog({
                               <CommandItem
                                 key={evaluator.id}
                                 value={`${evaluator.scoreName} ${evaluator.id}`}
-                                onSelect={() =>
-                                  validateEvaluator(evaluator.id).catch(
-                                    () => undefined,
-                                  )
-                                }
+                                onSelect={() => toggleEvaluator(evaluator.id)}
                               >
                                 <span
                                   className="truncate"
@@ -423,11 +401,7 @@ export function CreateEvaluationRuleDialog({
                           variant="ghost"
                           size="icon-xs"
                           aria-label={`Remove ${evaluator.scoreName}`}
-                          onClick={() =>
-                            validateEvaluator(evaluator.id).catch(
-                              () => undefined,
-                            )
-                          }
+                          onClick={() => toggleEvaluator(evaluator.id)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -439,25 +413,31 @@ export function CreateEvaluationRuleDialog({
                     No evaluators attached yet.
                   </div>
                 )}
-                {selectedEvaluatorIds.length > 0 && !evaluatorsValidated ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="self-start"
-                    loading={validation.pendingEvaluatorId !== null}
-                    onClick={() =>
-                      validateSelectedEvaluators().catch(() => undefined)
-                    }
-                  >
-                    Validate selected evaluators
-                  </Button>
-                ) : null}
                 {validation.issue ? (
                   <EvaluationRuleAttachmentValidationAlert
                     projectId={projectId}
                     evaluatorId={validation.issue.evaluatorId}
                     issue={validation.issue}
                   />
+                ) : null}
+                {selectedEvaluators.map((evaluator) => (
+                  <ActivationCostEstimate
+                    key={evaluator.id}
+                    projectId={projectId}
+                    evaluatorId={evaluator.id}
+                    filter={filterState}
+                    sampling={sampling}
+                    testRunCostUsd={
+                      testRunCostUsdByEvaluatorId[evaluator.id] ?? null
+                    }
+                    isCodeEvaluator={evaluator.evalTemplate?.type === "CODE"}
+                    enabled={open}
+                  />
+                ))}
+                {selectedEvaluatorIds.length > 0 ? (
+                  <p className="text-muted-foreground text-xs">
+                    Evaluator compatibility is validated when you save.
+                  </p>
                 ) : null}
               </div>
             </SetupStep>
@@ -506,8 +486,10 @@ export function CreateEvaluationRuleDialog({
             </Button>
             <Button
               type="button"
-              loading={createRule.isPending}
-              disabled={!name.trim() || !evaluatorsValidated}
+              loading={
+                createRule.isPending || validation.pendingEvaluatorId !== null
+              }
+              disabled={!name.trim() || selectedEvaluatorIds.length === 0}
               onClick={() => create().catch(() => undefined)}
             >
               Save

@@ -681,6 +681,19 @@ describe("evalsV2.activateEvaluator", () => {
         },
       },
     });
+    await prisma.evalRunScope.create({
+      data: {
+        projectId: project.id,
+        name: `inactive-overview-rule-${project.id}`,
+        enabled: false,
+        targetObject: EvalTargetObject.EVENT,
+        filter: [],
+        sampling: 1,
+        evaluatorAssignments: {
+          create: { jobConfigurationId: evaluator.id },
+        },
+      },
+    });
 
     const overview = await caller.evalsV2.evaluators({
       projectId: project.id,
@@ -690,10 +703,10 @@ describe("evalsV2.activateEvaluator", () => {
       expect.objectContaining({
         id: evaluator.id,
         scoreName: "overview-evaluator",
-        ruleCount: 1,
-        rules: [
+        activeRules: [
           expect.objectContaining({ name: `overview-rule-${project.id}` }),
         ],
+        executionTraces: [],
         createdByUser: expect.objectContaining({ name: "Evaluation Owner" }),
         evalTemplate: { type: "CODE" },
       }),

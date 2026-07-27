@@ -7,10 +7,19 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/router";
-import { InfoIcon, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  Code2,
+  FlaskConical,
+  InfoIcon,
+  PanelRightClose,
+  PanelRightOpen,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 // Animated tab variants: the active pill slides between options.
 import {
@@ -28,6 +37,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
   useDefaultLayout,
+  usePanelRef,
 } from "@/src/components/ui/resizable";
 import {
   CodeEvalFunctionContractHint,
@@ -78,7 +88,7 @@ import {
   type VariableFieldState,
 } from "@/src/features/evals/v2/components/VariableMappingPopover";
 import { VariableMappingList } from "@/src/features/evals/v2/components/VariableMappingList";
-import { estimateEvaluatorCost } from "@/src/features/evals/v2/actions/estimateEvaluatorCost";
+import { SetupStep } from "@/src/features/evals/v2/components/SetupStep";
 import { formatMappingLabel } from "@/src/features/evals/v2/lib/jsonPathSegments";
 import { buildEvaluationRuleFilterSuggestionSection } from "@/src/features/evals/v2/lib/evaluationRuleFilterSuggestions";
 import { removePromptVariable } from "@/src/features/evals/v2/lib/promptVariables";
@@ -224,6 +234,8 @@ export function EvaluatorSetupForm({
   initialEvaluatorType = "llm",
   scoreName,
   description,
+  onScoreNameChange,
+  onDescriptionChange,
   mode = "create",
   evaluatorId,
   initialMapping = [],
@@ -245,6 +257,8 @@ export function EvaluatorSetupForm({
   initialEvaluatorType?: "llm" | "code";
   scoreName: string;
   description: string;
+  onScoreNameChange: (scoreName: string) => void;
+  onDescriptionChange: (description: string) => void;
   mode?: "create" | "edit";
   evaluatorId?: string;
   initialMapping?: ObservationVariableMapping[];
@@ -277,6 +291,10 @@ export function EvaluatorSetupForm({
   // evaluator-definition baseline here so only left-pane changes enable Save.
   const [initialScoreName] = useState(() => scoreName);
   const [initialDescription] = useState(() => description);
+  const [typeStepOpen, setTypeStepOpen] = useState(true);
+  const [definitionStepOpen, setDefinitionStepOpen] = useState(true);
+  const [mappingStepOpen, setMappingStepOpen] = useState(mode === "create");
+  const [metadataStepOpen, setMetadataStepOpen] = useState(false);
 
   const [prompt, setPrompt] = useState(
     sourceTemplate?.prompt ?? SCRATCH_PROMPT,
@@ -304,6 +322,8 @@ export function EvaluatorSetupForm({
     id: EVALUATOR_SPLIT_GROUP_ID,
     panelIds: EVALUATOR_SPLIT_PANEL_IDS,
   });
+  const testPanelRef = usePanelRef();
+  const [testPanelCollapsed, setTestPanelCollapsed] = useState(false);
   // Code-mode counterpart of the prompt's interpolated preview: the sample
   // drawer attached under the editor, expanded/collapsed via its own strip.
   const [codeSampleDrawerOpen, setCodeSampleDrawerOpen] = useState(false);
@@ -887,42 +907,6 @@ export function EvaluatorSetupForm({
     if (!fields) return;
     if (mode === "create") {
       setIsSaveWorkflowPending(true);
-      let estimatedCostUsd = testRunCostUsd;
-      if (
-        fields.evaluatorType === "LLM_AS_JUDGE" &&
-        estimatedCostUsd === null
-      ) {
-        try {
-          estimatedCostUsd = await estimateEvaluatorCost({
-            testInput: {
-              projectId,
-              prompt: fields.prompt,
-              sourceTemplateId: fields.sourceTemplateId,
-              provider: fields.provider,
-              model: fields.model,
-              modelParams: fields.modelParams,
-              outputDefinition: fields.outputDefinition,
-              mapping: fields.mapping,
-            },
-            getSample: async () => {
-              const result = await utils.client.events.all.query({
-                projectId,
-                filter: filterState,
-                searchQuery: null,
-                searchType: [],
-                orderBy: { column: "startTime", order: "DESC" },
-                page: 1,
-                limit: 1,
-              });
-              return result.observations[0] ?? null;
-            },
-            runTest: (input) => testRun.mutateAsync(input),
-          });
-        } catch {
-          // Cost estimation is best-effort and must not block evaluator save.
-        }
-      }
-
       try {
         const data = await createEvaluator.mutateAsync({
           ...fields,
@@ -941,8 +925,8 @@ export function EvaluatorSetupForm({
           utils.evalsV2.invalidate(),
         ]);
         const activationQuery = new URLSearchParams({ activate: "1" });
-        if (estimatedCostUsd !== null) {
-          activationQuery.set("estimatedCostUsd", String(estimatedCostUsd));
+        if (testRunCostUsd !== null) {
+          activationQuery.set("estimatedCostUsd", String(testRunCostUsd));
         }
         await router.push(
           `/project/${projectId}/evals/v2/${data.id}?${activationQuery.toString()}`,
@@ -992,7 +976,7 @@ export function EvaluatorSetupForm({
       ]);
       showSuccessToast({
         title: "Evaluator updated",
-        description: "The evaluator definition was saved.",
+        description: "The evaluator was saved.",
       });
       onSaved?.();
     } catch {
@@ -1129,53 +1113,116 @@ export function EvaluatorSetupForm({
           minSize="25%"
           className="min-h-0 min-w-0 overflow-y-auto"
         >
-          <header className="bg-muted/40 border-b px-6 py-3">
-            <h2 className="text-lg leading-7 font-bold">Configure evaluator</h2>
-          </header>
-          <div className="flex min-w-0 flex-col gap-6 p-6">
-            <div className="flex flex-col gap-2">
-              <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
-                Evaluator type
-              </LabelWithTooltip>
-              <Tabs
-                value={tab}
-                onValueChange={(value) => setTab(value as EvaluatorTab)}
-              >
-                <TabsList>
-                  <TabsTrigger
-                    value="llm"
-                    className="gap-1.5"
-                    disabled={mode === "edit"}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    LLM-as-a-judge
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="python"
-                    className="gap-1.5"
-                    disabled={mode === "edit"}
-                  >
-                    <SiPython className="h-3.5 w-3.5" />
-                    Python
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="typescript"
-                    className="gap-1.5"
-                    disabled={mode === "edit"}
-                  >
-                    <SiTypescript className="h-3.5 w-3.5" />
-                    TypeScript
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
-            {isCodeMode ? (
+          <div className="flex min-w-0 flex-col gap-3 p-6">
+            <SetupStep
+              number={1}
+              title="Choose evaluation type"
+              description="Choose how this evaluator produces scores and which model runs it."
+              open={typeStepOpen}
+              onOpenChange={setTypeStepOpen}
+            >
               <div className="flex flex-col gap-2">
-                <LabelWithTooltip tooltip="Computes the score for each matching item — it receives the data and returns a value. Test it against the sample in the right pane.">
-                  Code
+                <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
+                  Evaluation
                 </LabelWithTooltip>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span>Run using</span>
+                  <Tabs
+                    value={isCodeMode ? "code" : "llm"}
+                    onValueChange={(value) =>
+                      setTab(
+                        value === "llm"
+                          ? "llm"
+                          : tab === "llm"
+                            ? "python"
+                            : tab,
+                      )
+                    }
+                  >
+                    <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
+                      <TabsTrigger
+                        value="llm"
+                        className="gap-1.5"
+                        disabled={mode === "edit"}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        LLM-as-a-judge
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="code"
+                        className="gap-1.5"
+                        disabled={mode === "edit"}
+                      >
+                        <Code2 className="h-3.5 w-3.5" />
+                        Code evaluator
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {isCodeMode ? (
+                    <>
+                      <span>written in</span>
+                      <Tabs
+                        value={tab}
+                        onValueChange={(value) => setTab(value as EvaluatorTab)}
+                      >
+                        <TabsList className="bg-background [&>span[aria-hidden]]:bg-muted border">
+                          <TabsTrigger
+                            value="python"
+                            className="gap-1.5"
+                            disabled={mode === "edit"}
+                          >
+                            <SiPython className="h-3.5 w-3.5" />
+                            Python
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value="typescript"
+                            className="gap-1.5"
+                            disabled={mode === "edit"}
+                          >
+                            <SiTypescript className="h-3.5 w-3.5" />
+                            TypeScript
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </>
+                  ) : (
+                    <>
+                      <span>with</span>
+                      <JudgeModelSection
+                        projectId={projectId}
+                        mode={judgeModelMode}
+                        onModeChange={setJudgeModelMode}
+                        modelParamsContext={{
+                          modelParams,
+                          availableModels,
+                          availableProviders,
+                          providerModelCombinations,
+                          updateModelParamValue,
+                          setModelParamEnabled,
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            </SetupStep>
+
+            <SetupStep
+              number={2}
+              title="Define evaluation"
+              description={
+                isCodeMode
+                  ? "Define the function that calculates the score."
+                  : "Write the judging instructions and define the score returned by the model."
+              }
+              open={definitionStepOpen}
+              onOpenChange={setDefinitionStepOpen}
+            >
+              {isCodeMode ? (
                 <div className="flex flex-col gap-2">
+                  <LabelWithTooltip tooltip="Computes the score for each matching item — it receives the data and returns a value. Test it against the sample in the right pane.">
+                    Code
+                  </LabelWithTooltip>
                   <CodeEvalTemplateFormBody
                     sourceCode={tab === "python" ? pythonCode : typescriptCode}
                     sourceCodeLanguage={
@@ -1189,40 +1236,14 @@ export function EvaluatorSetupForm({
                     hideLanguageLabel
                     hideFunctionContractHint
                   />
-                  <CodeSampleContextDrawer
-                    open={codeSampleDrawerOpen}
-                    onOpenChange={setCodeSampleDrawerOpen}
-                    sampleObservation={sourceObject}
-                    sampleLabel={
-                      selectedObservation
-                        ? (selectedObservation.name ?? selectedObservation.id)
-                        : null
-                    }
-                    language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
-                  />
+                  <CodeEvalFunctionContractHint />
                 </div>
-                <CodeEvalFunctionContractHint />
-              </div>
-            ) : (
-              <>
-                <div className="flex min-w-0 flex-col gap-6">
+              ) : (
+                <>
                   <div className="flex min-w-0 flex-col gap-2">
                     <LabelWithTooltip tooltip="The judge's instructions. {{variables}} pull in the data being evaluated.">
                       Prompt
                     </LabelWithTooltip>
-                    <JudgeModelSection
-                      projectId={projectId}
-                      mode={judgeModelMode}
-                      onModeChange={setJudgeModelMode}
-                      modelParamsContext={{
-                        modelParams,
-                        availableModels,
-                        availableProviders,
-                        providerModelCombinations,
-                        updateModelParamValue,
-                        setModelParamEnabled,
-                      }}
-                    />
                     <PromptVariableEditor
                       value={prompt}
                       onChange={setPrompt}
@@ -1248,36 +1269,83 @@ export function EvaluatorSetupForm({
                       }
                     />
                   </div>
+                  <ScoreOutputSection
+                    state={outputState}
+                    onChange={setOutputState}
+                  />
+                </>
+              )}
+            </SetupStep>
 
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <LabelWithTooltip tooltip="Connect each prompt variable to the data it should pull from the selected sample.">
-                      Prompt variables
-                    </LabelWithTooltip>
-                    <VariableMappingList
-                      overview={variableOverview}
-                      activeVariable={activeVariable}
-                      onActiveVariableChange={setActiveVariable}
-                      revealSignal={revealSignal}
-                      getFieldState={getVariableFieldState}
-                      onChangeField={(variable, next) =>
-                        setVariableFields((prev) => ({
-                          ...prev,
-                          [variable]: next,
-                        }))
-                      }
-                      onDeleteVariable={deleteVariable}
-                      sourceObject={sourceObject}
-                      hasMatchingObservations={observationOptions.length > 0}
-                    />
-                  </div>
-                </div>
-
-                <ScoreOutputSection
-                  state={outputState}
-                  onChange={setOutputState}
+            <SetupStep
+              number={3}
+              title="Map variables to data"
+              description="Connect evaluator variables to fields from the selected sample observation."
+              open={mappingStepOpen}
+              onOpenChange={setMappingStepOpen}
+            >
+              {isCodeMode ? (
+                <CodeSampleContextDrawer
+                  open={codeSampleDrawerOpen}
+                  onOpenChange={setCodeSampleDrawerOpen}
+                  sampleObservation={sourceObject}
+                  sampleLabel={
+                    selectedObservation
+                      ? (selectedObservation.name ?? selectedObservation.id)
+                      : null
+                  }
+                  language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
                 />
-              </>
-            )}
+              ) : (
+                <VariableMappingList
+                  overview={variableOverview}
+                  activeVariable={activeVariable}
+                  onActiveVariableChange={setActiveVariable}
+                  revealSignal={revealSignal}
+                  getFieldState={getVariableFieldState}
+                  onChangeField={(variable, next) =>
+                    setVariableFields((prev) => ({
+                      ...prev,
+                      [variable]: next,
+                    }))
+                  }
+                  onDeleteVariable={deleteVariable}
+                  sourceObject={sourceObject}
+                  hasMatchingObservations={observationOptions.length > 0}
+                />
+              )}
+            </SetupStep>
+
+            <SetupStep
+              number={4}
+              title="Name evaluator"
+              description="Give the evaluator a clear name and explain when it should be used."
+              isLast
+              open={metadataStepOpen}
+              onOpenChange={setMetadataStepOpen}
+            >
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="evaluator-name">Name</Label>
+                <Input
+                  id="evaluator-name"
+                  value={scoreName}
+                  placeholder="e.g. response-quality"
+                  onChange={(event) => onScoreNameChange(event.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="evaluator-description">
+                  Description{" "}
+                  <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="evaluator-description"
+                  value={description}
+                  placeholder="Describe what this evaluator measures"
+                  onChange={(event) => onDescriptionChange(event.target.value)}
+                />
+              </div>
+            </SetupStep>
           </div>
         </ResizablePanel>
 
@@ -1288,15 +1356,32 @@ export function EvaluatorSetupForm({
           id="rule"
           defaultSize="40%"
           minSize="25%"
+          collapsible
+          collapsedSize="44px"
+          panelRef={testPanelRef}
+          onResize={() =>
+            setTestPanelCollapsed(testPanelRef.current?.isCollapsed() ?? false)
+          }
           className="min-h-0 min-w-0 overflow-y-auto"
         >
-          <div className="min-w-0">
+          <div className={testPanelCollapsed ? "hidden min-w-0" : "min-w-0"}>
             {ruleEditorExpanded ? (
               <section className="flex min-w-0 flex-col">
-                <header className="bg-muted/40 border-b px-6 py-3">
-                  <h2 className="text-lg leading-7 font-bold">
+                <header className="bg-muted/40 flex items-center justify-between gap-3 border-b px-6 py-3">
+                  <h2 className="flex items-center gap-2 text-lg leading-7 font-bold">
+                    <FlaskConical className="h-5 w-5" />
                     Test with sample observations
                   </h2>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Collapse test panel"
+                    title="Collapse test panel"
+                    onClick={() => testPanelRef.current?.collapse()}
+                  >
+                    <PanelRightClose className="h-4 w-4" />
+                  </Button>
                 </header>
                 {activeFilterSourceLabel ? (
                   <header className="bg-muted/40 flex min-w-0 items-center gap-2 border-b px-6 py-3 text-sm">
@@ -1324,6 +1409,10 @@ export function EvaluatorSetupForm({
                       <LabelWithTooltip tooltip="Only matching observations are evaluated. Add filters to narrow the incoming data included.">
                         Filter observations
                       </LabelWithTooltip>
+                      <p className="text-muted-foreground text-sm">
+                        Narrow the observations to representative test data for
+                        this evaluator.
+                      </p>
                       <div
                         inert={filterEditingDisabled ? true : undefined}
                         aria-disabled={filterEditingDisabled}
@@ -1379,6 +1468,10 @@ export function EvaluatorSetupForm({
                         </LabelWithTooltip>
                         <div ref={setPreviewColumnsPickerEl} />
                       </div>
+                      <p className="text-muted-foreground text-sm">
+                        Select one observation to test the prompt and verify the
+                        variable mapping against real data.
+                      </p>
                       <EvaluationRulePreviewTable
                         projectId={projectId}
                         filterState={filterState}
@@ -1478,6 +1571,20 @@ export function EvaluatorSetupForm({
               </section>
             ) : null}
           </div>
+          {testPanelCollapsed ? (
+            <div className="flex h-full justify-center py-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Show test panel"
+                title="Show test panel"
+                onClick={() => testPanelRef.current?.expand()}
+              >
+                <PanelRightOpen className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
         </ResizablePanel>
       </ResizablePanelGroup>
 

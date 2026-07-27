@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   ArrowLeft,
@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ExternalLink,
   Link2,
-  Pencil,
 } from "lucide-react";
 
 import { TablePeekView } from "@/src/components/table/peek";
@@ -38,11 +37,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import { DeleteEvaluationRuleButton } from "@/src/features/evals/v2/components/DeleteEvaluationRuleButton";
 import { EvaluationRuleExecutionHistoryChart } from "@/src/features/evals/v2/components/EvaluationRuleExecutionStatusHistory";
 import { EvaluationRuleEditView } from "@/src/features/evals/v2/components/EvaluationRuleEditView";
@@ -74,9 +68,8 @@ export function TablePeekViewEvaluationRuleDetail({
   const ruleId = router.query.peek as string | undefined;
   const [evaluatorPickerOpen, setEvaluatorPickerOpen] = useState(false);
   const [statusDetailsOpen, setStatusDetailsOpen] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [inspectedTraceId, setInspectedTraceId] = useState<string | null>(null);
-  const editRequested = router.query.editRule === "1";
+  const [formResetKey, setFormResetKey] = useState(0);
   const hasWriteAccess = useHasProjectAccess({
     projectId,
     scope: "evalJob:CUD",
@@ -119,21 +112,6 @@ export function TablePeekViewEvaluationRuleDetail({
     [timeRange],
   );
 
-  useEffect(() => {
-    if (editRequested && ruleId) setEditingRuleId(ruleId);
-  }, [editRequested, ruleId]);
-
-  const closeRuleEdit = () => {
-    setEditingRuleId(null);
-    if (!editRequested) return;
-    const { editRule: _editRule, ...query } = router.query;
-    router
-      .replace({ pathname: router.pathname, query }, undefined, {
-        shallow: true,
-      })
-      .catch(() => undefined);
-  };
-
   const attachedEvaluatorIds = new Set(
     evaluationRule.data?.evaluators.map((evaluator) => evaluator.id) ?? [],
   );
@@ -152,34 +130,17 @@ export function TablePeekViewEvaluationRuleDetail({
 
   const ruleActions =
     hasWriteAccess && evaluationRule.data ? (
-      <>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Edit rule"
-              disabled={editingRuleId === ruleId}
-              onClick={() => setEditingRuleId(evaluationRule.data.id)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Edit rule</TooltipContent>
-        </Tooltip>
-        <DeleteEvaluationRuleButton
-          projectId={projectId}
-          evaluationRule={{
-            id: evaluationRule.data.id,
-            name: evaluationRule.data.name,
-            evaluatorCount: evaluationRule.data.evaluators.length,
-          }}
-          variant="ghost"
-          iconOnly
-          onDeleted={peekProps.closePeek}
-        />
-      </>
+      <DeleteEvaluationRuleButton
+        projectId={projectId}
+        evaluationRule={{
+          id: evaluationRule.data.id,
+          name: evaluationRule.data.name,
+          evaluatorCount: evaluationRule.data.evaluators.length,
+        }}
+        variant="ghost"
+        iconOnly
+        onDeleted={peekProps.closePeek}
+      />
     ) : undefined;
   const inspectedTraceActions = inspectedTraceId ? (
     <Button
@@ -196,17 +157,6 @@ export function TablePeekViewEvaluationRuleDetail({
   const ruleActionsMenu =
     hasWriteAccess && evaluationRule.data ? (
       <div className="flex w-full flex-col gap-0.5">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start font-normal"
-          disabled={editingRuleId === ruleId}
-          onClick={() => setEditingRuleId(evaluationRule.data.id)}
-        >
-          <Pencil className="mr-1.5 h-3.5 w-3.5" />
-          Edit rule
-        </Button>
         <DeleteEvaluationRuleButton
           projectId={projectId}
           evaluationRule={{
@@ -249,14 +199,14 @@ export function TablePeekViewEvaluationRuleDetail({
           <Skeleton className="h-20 w-full" />
           <Skeleton className="h-52 w-full" />
         </div>
-      ) : editingRuleId === ruleId ? (
+      ) : hasWriteAccess ? (
         <EvaluationRuleEditView
-          key={evaluationRule.data.id}
+          key={`${evaluationRule.data.id}-${formResetKey}`}
           projectId={projectId}
           evaluationRule={evaluationRule.data}
           timeRange={absoluteTimeRange}
-          onCancel={closeRuleEdit}
-          onSaved={closeRuleEdit}
+          onCancel={peekProps.closePeek}
+          onSaved={() => setFormResetKey((key) => key + 1)}
           onOpenTrace={setInspectedTraceId}
         />
       ) : (

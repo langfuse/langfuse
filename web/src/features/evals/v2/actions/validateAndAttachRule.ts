@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import {
+  extractValueFromObjectAsString,
   observationVariableMapping,
-  PersistedEvalOutputDefinitionSchema,
   type FilterState,
 } from "@langfuse/shared";
 import { type RouterInputs } from "@/src/utils/api";
@@ -28,6 +28,9 @@ type SampleObservation = {
   id: string;
   traceId: string | null;
   startTime: Date;
+  input?: unknown;
+  output?: unknown;
+  metadata?: unknown;
 };
 
 type EvaluatorType = "LLM_AS_JUDGE" | "CODE" | "unknown";
@@ -53,9 +56,6 @@ type Dependencies = {
     targetObject: string;
   }>;
   getSample: (filter: FilterState) => Promise<SampleObservation | null>;
-  runLlmTest: (
-    input: RouterInputs["evalsV2"]["testRunLlmJudge"],
-  ) => Promise<{ success: boolean; error?: string }>;
   runCodeTest: (
     input: RouterInputs["evalsV2"]["testRunCodeEval"],
   ) => Promise<{ success: boolean; error?: string }>;
@@ -69,7 +69,6 @@ type Dependencies = {
 type ValidationDependencies = Omit<Dependencies, "attach">;
 
 const codeLanguageSchema = z.enum(["PYTHON", "TYPESCRIPT"]);
-const modelParamsSchema = z.record(z.string(), z.unknown()).nullable();
 
 function captureValidation(
   dependencies: Pick<Dependencies, "captureValidation">,
@@ -100,11 +99,7 @@ function hasCompleteLlmVariableMappings(
   mapping: z.infer<typeof observationVariableMapping>[],
   prompt: string,
 ) {
-  const promptVariables = Array.from(
-    new Set(
-      [...prompt.matchAll(/{{\s*([\w.]+)\s*}}/g)].map((match) => match[1]),
-    ),
-  );
+  const promptVariables = getPromptVariables(prompt);
 
   return (
     mapping.every(
@@ -117,8 +112,43 @@ function hasCompleteLlmVariableMappings(
   );
 }
 
+function getPromptVariables(prompt: string) {
+  return Array.from(
+    new Set(
+      [...prompt.matchAll(/{{\s*([\w.]+)\s*}}/g)].map((match) => match[1]),
+    ),
+  );
+}
+
+function allLlmVariableMappingsResolve(
+  mapping: z.infer<typeof observationVariableMapping>[],
+  prompt: string,
+  sample: SampleObservation,
+) {
+  const sampleData = {
+    input: sample.input,
+    output: sample.output,
+    metadata: sample.metadata,
+  };
+
+  return getPromptVariables(prompt).every((variable) => {
+    const variableMapping = mapping.find(
+      ({ templateVariable }) => templateVariable === variable,
+    );
+    if (!variableMapping) return false;
+
+    const { value, error } = extractValueFromObjectAsString(
+      sampleData,
+      variableMapping.selectedColumnId,
+      variableMapping.jsonSelector ?? undefined,
+    );
+    return error === null && value.trim() !== "";
+  });
+}
+
 /**
- * Evaluators run once against a matching observation before activation.
+ * LLM evaluators validate mappings against a matching observation. Code
+ * evaluators execute once because mapping resolution cannot prove user code.
  */
 export async function validateRuleAttachment(
   projectId: string,
@@ -199,43 +229,32 @@ export async function validateRuleAttachment(
     );
   }
   if (!sample?.traceId) {
-    return validationIssue(
-      dependencies,
+    captureValidation(dependencies, {
+      outcome: "unavailable",
       evaluatorType,
-      "unavailable",
-      "No observations currently match this evaluation rule, so the evaluator could not be tested. The evaluator was not attached to the evaluation rule.",
-    );
+    });
+    return { valid: true };
+  }
+
+  if (evaluatorType === "LLM_AS_JUDGE") {
+    if (
+      !allLlmVariableMappingsResolve(mapping.data, template.prompt!, sample)
+    ) {
+      return validationIssue(
+        dependencies,
+        evaluatorType,
+        "failed",
+        "The evaluator's prompt variables could not all be filled from an observation matched by this evaluation rule. The evaluator was not attached to the evaluation rule.",
+      );
+    }
+
+    captureValidation(dependencies, { outcome: "passed", evaluatorType });
+    return { valid: true };
   }
 
   let testResult: { success: boolean; error?: string };
   try {
-    if (evaluatorType === "LLM_AS_JUDGE") {
-      const modelParams = modelParamsSchema.safeParse(template.modelParams);
-      const outputDefinition =
-        PersistedEvalOutputDefinitionSchema.nullable().safeParse(
-          template.outputDefinition,
-        );
-      if (!modelParams.success || !outputDefinition.success) {
-        return validationIssue(
-          dependencies,
-          evaluatorType,
-          "failed",
-          "The evaluator definition is incomplete. The evaluator was not attached to the evaluation rule.",
-        );
-      }
-      testResult = await dependencies.runLlmTest({
-        projectId,
-        prompt: template.prompt!,
-        provider: template.provider,
-        model: template.model,
-        modelParams: modelParams.data,
-        outputDefinition: outputDefinition.data,
-        mapping: mapping.data,
-        observationId: sample.id,
-        traceId: sample.traceId,
-        observationStartTime: sample.startTime,
-      });
-    } else if (evaluatorType === "CODE") {
+    if (evaluatorType === "CODE") {
       const sourceCodeLanguage = codeLanguageSchema.safeParse(
         template.sourceCodeLanguage,
       );

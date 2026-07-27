@@ -2,9 +2,20 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import { ScoreOutputSection } from "./ScoreOutputSection";
+import {
+  ScoreOutputSection,
+  toScoreOutputFormState,
+} from "./ScoreOutputSection";
 
 describe("ScoreOutputSection", () => {
+  it("defaults new numeric scores to a zero-to-one range", () => {
+    expect(toScoreOutputFormState(null)).toMatchObject({
+      dataType: ScoreDataTypeEnum.NUMERIC,
+      minValue: "0",
+      maxValue: "1",
+    });
+  });
+
   it("keeps the edit hierarchy while preventing changes in read-only mode", () => {
     const onChange = vi.fn();
 
@@ -32,6 +43,7 @@ describe("ScoreOutputSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
 
+    expect(screen.getAllByText("(optional)")).toHaveLength(2);
     const descriptions = screen.getAllByRole("textbox");
     expect(descriptions).toHaveLength(2);
     descriptions.forEach((description) => {

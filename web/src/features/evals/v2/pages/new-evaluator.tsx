@@ -2,9 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 
 import Page from "@/src/components/layouts/page";
-import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EvaluatorTitleEditor } from "@/src/features/evals/v2/components/EvaluatorTitleEditor";
 import {
   EvaluatorSetupForm,
   type CatalogTemplate,
@@ -31,30 +29,14 @@ function EvaluatorSetupPage({
   scratchType: "llm" | "code";
 }) {
   const [scoreName, setScoreName] = useState(() =>
-    template ? toKebabCase(template.name) : "",
+    template ? toKebabCase(template.name) : "new-evaluator",
   );
   const [description, setDescription] = useState("");
 
   return (
     <Page
       headerProps={{
-        title: "New evaluator:",
-        fitTitleToContent: true,
-        titleBadges: (
-          <EvaluatorTitleEditor
-            scoreName={scoreName}
-            onScoreNameChange={setScoreName}
-          />
-        ),
-        titleDescription: (
-          <Input
-            aria-label="Evaluator description"
-            className="text-muted-foreground placeholder:text-muted-foreground [field-sizing:content] h-5 max-w-full min-w-48 border-0 bg-transparent px-0 py-0 text-sm shadow-none focus-visible:ring-0"
-            placeholder="Add a description (optional)"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        ),
+        title: "New evaluator",
         breadcrumb: [
           { name: "Evaluators v2", href: `/project/${projectId}/evals/v2` },
         ],
@@ -66,6 +48,8 @@ function EvaluatorSetupPage({
         initialEvaluatorType={template?.type === "CODE" ? "code" : scratchType}
         scoreName={scoreName}
         description={description}
+        onScoreNameChange={setScoreName}
+        onDescriptionChange={setDescription}
       />
     </Page>
   );

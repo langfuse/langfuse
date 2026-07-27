@@ -11,6 +11,8 @@ import { cn } from "@/src/utils/tailwind";
 export function SetupStep({
   number,
   title,
+  description,
+  compactBottomSpacing = false,
   isLast = false,
   defaultOpen = true,
   open,
@@ -19,6 +21,8 @@ export function SetupStep({
 }: {
   number: number;
   title: string;
+  description?: ReactNode;
+  compactBottomSpacing?: boolean;
   isLast?: boolean;
   defaultOpen?: boolean;
   open?: boolean;
@@ -46,7 +50,12 @@ export function SetupStep({
         {!isLast && <div className="bg-border my-1 w-px flex-1" />}
       </div>
 
-      <div className={cn("flex min-w-0 flex-1 flex-col", !isLast && "pb-8")}>
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          !isLast && (compactBottomSpacing ? "pb-3" : "pb-8"),
+        )}
+      >
         <button
           type="button"
           className="flex min-h-7 items-center gap-1.5 text-left"
@@ -63,7 +72,12 @@ export function SetupStep({
           <span className="text-lg font-bold">{title}</span>
         </button>
         {expanded && (
-          <div className="mt-3 flex flex-col gap-4 pl-5.5">{children}</div>
+          <div className="flex flex-col gap-4 pl-5.5">
+            {description ? (
+              <p className="text-muted-foreground text-sm">{description}</p>
+            ) : null}
+            {children}
+          </div>
         )}
       </div>
     </div>

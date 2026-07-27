@@ -96,6 +96,12 @@ vi.mock(
   }),
 );
 
+vi.mock("@/src/features/evals/v2/components/ActivationCostEstimate", () => ({
+  ActivationCostEstimate: ({ evaluatorId }: { evaluatorId: string }) => (
+    <div>Cost estimate for {evaluatorId}</div>
+  ),
+}));
+
 vi.mock("@/src/components/table/peek/hooks/usePeekData", () => ({
   usePeekData: ({ traceId }: { traceId?: string }) => ({
     data: traceId ? { id: traceId, name: "Sample trace" } : undefined,
@@ -112,7 +118,12 @@ vi.mock("@/src/components/trace/TraceDetailBody", () => ({
 }));
 
 vi.mock("@/src/components/ui/slider", () => ({
-  Slider: () => <div>Sampling slider</div>,
+  Slider: ({ value }: { value: number[] }) => (
+    <div>
+      Sampling slider
+      <span data-testid="sampling-value">{value[0]}</span>
+    </div>
+  ),
 }));
 
 vi.mock("@/src/hooks/useTableDateRange", () => ({
@@ -226,6 +237,7 @@ describe("CreateEvaluationRuleDialog", () => {
           id: "observation-1",
           traceId: "trace-1",
           startTime: new Date("2026-07-20T12:00:00.000Z"),
+          input: "A complete observation input",
         },
       ],
     });
@@ -273,7 +285,7 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
-  it("requires a validated evaluator before naming and creating the rule", async () => {
+  it("validates selected evaluators on save before creating the rule", async () => {
     const onOpenChange = vi.fn();
     render(
       <TooltipProvider>
@@ -333,6 +345,56 @@ describe("CreateEvaluationRuleDialog", () => {
         "Production observations is active with 2 evaluators attached.",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(mocks.runLlmTest).not.toHaveBeenCalled();
+  });
+
+  it("prefills the sample filters, sampling, and saved evaluator", async () => {
+    const setupFilters: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["staging"],
+      },
+    ];
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          onOpenChange={vi.fn()}
+          initialFilterState={setupFilters}
+          initialSampling={0.5}
+          initialEvaluatorIds={["evaluator-1"]}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("list", { name: "Selected evaluators" }),
+    ).toHaveTextContent("Correctness");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Step 2: Set sampling rate" }),
+    );
+    expect(screen.getByTestId("sampling-value")).toHaveTextContent("0.5");
+
+    const nameInput = await screen.findByLabelText("Name");
+    fireEvent.change(nameInput, {
+      target: { value: "Staging observations" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(mocks.createRule).toHaveBeenCalledWith({
+        projectId: "project-1",
+        name: "Staging observations",
+        targetObject: "event",
+        filter: setupFilters,
+        sampling: 0.5,
+        enabled: true,
+        evaluatorIds: ["evaluator-1"],
+      }),
+    );
   });
 
   it("opens later steps progressively and lets every unlocked step collapse and reopen", async () => {
@@ -388,7 +450,7 @@ describe("CreateEvaluationRuleDialog", () => {
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
   });
 
-  it("requires evaluator validation again after filters change", async () => {
+  it("keeps attachment optional while editing and validates after filters change on save", async () => {
     render(
       <TooltipProvider>
         <CreateEvaluationRuleDialog
@@ -405,10 +467,12 @@ describe("CreateEvaluationRuleDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Change filters" }));
 
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Validate selected evaluators" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Validate selected evaluators" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.getEvaluator).toHaveBeenCalledOnce());
   });
 
   it("opens a matching observation's trace without discarding the rule draft", () => {

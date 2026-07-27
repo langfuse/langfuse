@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   EvaluatorSetupForm,
@@ -15,6 +17,7 @@ export function EvaluatorEditView({
   description,
   attachedRuleIds,
   initialEvaluationRuleId,
+  ruleEditorExpanded = true,
   onSaved,
   onCancel,
 }: {
@@ -26,10 +29,13 @@ export function EvaluatorEditView({
   description: string;
   attachedRuleIds: string[];
   initialEvaluationRuleId?: string;
+  ruleEditorExpanded?: boolean;
   onSaved: () => void;
   onCancel: () => void;
 }) {
   const rules = api.evalsV2.rules.useQuery({ projectId });
+  const [draftScoreName, setDraftScoreName] = useState(scoreName);
+  const [draftDescription, setDraftDescription] = useState(description);
 
   if (rules.isPending) {
     return <Skeleton className="m-6 h-96 w-auto" />;
@@ -45,14 +51,17 @@ export function EvaluatorEditView({
       projectId={projectId}
       sourceTemplate={sourceTemplate}
       initialEvaluatorType={sourceTemplate.type === "CODE" ? "code" : "llm"}
-      scoreName={scoreName}
-      description={description}
+      scoreName={draftScoreName}
+      description={draftDescription}
+      onScoreNameChange={setDraftScoreName}
+      onDescriptionChange={setDraftDescription}
       mode="edit"
       evaluatorId={evaluatorId}
       initialMapping={initialMapping}
       initialFilterState={initialRule?.filter ?? []}
       initialSampling={initialRule?.sampling ?? 1}
       attachedRuleIds={attachedRuleIds}
+      ruleEditorExpanded={ruleEditorExpanded}
       onSaved={onSaved}
       onCancel={onCancel}
     />

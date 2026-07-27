@@ -184,9 +184,6 @@ export function EvaluationRulesOverviewTable({
       {
         ...selectActionColumn,
         size: 35,
-        minSize: 35,
-        maxSize: 35,
-        enableResizing: false,
       },
       {
         accessorKey: "name",
@@ -315,10 +312,7 @@ export function EvaluationRulesOverviewTable({
         id: "actions",
         header: "",
         size: 170,
-        minSize: 170,
-        maxSize: 170,
         enableSorting: false,
-        enableResizing: false,
         cell: ({ row }) => (
           <div
             className="flex items-center justify-end gap-1"
