@@ -6,6 +6,7 @@ import {
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
+  getEventsMetricsTimeSeriesFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
@@ -379,6 +380,72 @@ export async function getEventCount(params: GetObservationsCountParams) {
     await getObservationsCountsFromEventsTable(queryOpts);
 
   return { totalCount, uniqueTraceCount };
+}
+
+/**
+ * Columns the outlier time-series chart silently ignores (LFE-14451, matching
+ * how analytics surfaces treat filters they cannot express): root-ness is a
+ * row-selection concern, while the chart aggregates over all events so cost/
+ * token spikes (which live on non-root generation events) stay visible.
+ */
+const METRICS_TIME_SERIES_IGNORED_COLUMNS = new Set([
+  "isRootObservation",
+  // Legacy alias, rewritten to isRootObservation on the client since v4.
+  "hasParentObservation",
+]);
+
+interface GetEventMetricsTimeSeriesParams {
+  projectId: string;
+  filter: FilterState;
+  searchQuery?: string;
+  searchType: any[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  stepSeconds: number;
+}
+
+/**
+ * Binned outlier aggregates over the events table for the chart strip above
+ * it (LFE-14451). Applies the same filters + search as the table rows, except
+ * startTime filters (the explicit from/to bounds are authoritative, mirroring
+ * `partitionEventFilterOptionsFilter`) and the ignored columns above.
+ */
+export async function getEventMetricsTimeSeries(
+  params: GetEventMetricsTimeSeriesParams,
+) {
+  const chartFilter: FilterState = params.filter.filter(
+    (filterItem) =>
+      !METRICS_TIME_SERIES_IGNORED_COLUMNS.has(filterItem.column) &&
+      !(
+        filterItem.type === "datetime" &&
+        (filterItem.column === "startTime" ||
+          filterItem.column === "Start Time")
+      ),
+  );
+
+  const bins = await getEventsMetricsTimeSeriesFromEventsTable({
+    projectId: params.projectId,
+    filter: [
+      ...chartFilter,
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: ">=",
+        value: params.fromTimestamp,
+      },
+      {
+        column: "startTime",
+        type: "datetime",
+        operator: "<=",
+        value: params.toTimestamp,
+      },
+    ],
+    searchQuery: params.searchQuery,
+    searchType: params.searchType,
+    stepSeconds: params.stepSeconds,
+  });
+
+  return { bins };
 }
 
 type EventFilterOptionRow = Awaited<

@@ -1014,6 +1014,8 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   private shouldForceFullTable = false;
   // Raw SELECT expressions for custom columns (e.g., from CTEs)
   private rawSelectExpressions: string[] = [];
+  // Raw GROUP BY expressions for aggregate selects (e.g., time buckets)
+  private groupByRawExpressions: string[] = [];
 
   /**
    * Constructor
@@ -1056,6 +1058,19 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   selectRaw(...expressions: string[]): this {
     this.rawSelectExpressions.push(...expressions);
 
+    return this;
+  }
+
+  /**
+   * Add raw GROUP BY expressions, turning this row-level builder into an
+   * aggregate query over the same filtered selection. Pair with selectRaw
+   * aggregate expressions.
+   *
+   * @example
+   * builder.groupByRaw("bucket_start")
+   */
+  groupByRaw(...expressions: string[]): this {
+    this.groupByRawExpressions.push(...expressions);
     return this;
   }
 
@@ -1209,10 +1224,11 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * No GROUP BY for row-level queries
+   * No GROUP BY for row-level queries unless groupByRaw() was used
    */
   protected buildGroupByClause(): string {
-    return "";
+    if (this.groupByRawExpressions.length === 0) return "";
+    return `GROUP BY ${this.groupByRawExpressions.join(", ")}`;
   }
 
   /**

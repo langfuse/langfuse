@@ -486,6 +486,64 @@ export const getObservationsCountFromEventsTable = async (
 };
 
 /**
+ * Hard cap on the number of time buckets a metrics time-series query may
+ * produce. Callers validate `(to - from) / stepSeconds` against this before
+ * querying; the repository also applies it as a defensive LIMIT.
+ */
+export const MAX_EVENTS_METRICS_TIME_SERIES_BINS = 1500;
+
+export type EventsMetricsTimeSeriesBin = {
+  bucketStart: Date;
+  count: number;
+  maxTotalCost: number | null;
+  maxLatencySeconds: number | null;
+  maxTotalTokens: number | null;
+};
+
+/**
+ * Binned per-bucket outlier aggregates (count + max cost/latency/tokens) over
+ * the same filtered selection as the events table rows (LFE-14451). Buckets
+ * are epoch-aligned via toStartOfInterval; empty buckets are not returned —
+ * callers densify client-side. Metric expressions mirror the events-table
+ * measure columns (mapEventsTable), so NULL means "no data", never 0.
+ *
+ * Un-merged ReplacingMergeTree row versions are NOT collapsed, matching the
+ * table's count semantics; max() naturally resolves to the newest version for
+ * monotone measures (latency, cost).
+ */
+export const getEventsMetricsTimeSeriesFromEventsTable = async (
+  opts: Omit<ObservationTableQuery, "orderBy" | "limit" | "offset"> & {
+    stepSeconds: number;
+  },
+): Promise<EventsMetricsTimeSeriesBin[]> => {
+  const rows = await getObservationsFromEventsTableInternal<{
+    bucket_start: string;
+    count: string;
+    max_total_cost: string | null;
+    max_latency_seconds: string | number | null;
+    max_total_tokens: string | null;
+  }>({
+    ...opts,
+    // +1: epoch-aligned buckets can straddle the range edges.
+    limit: MAX_EVENTS_METRICS_TIME_SERIES_BINS + 1,
+    offset: 0,
+    select: "metrics-time-series",
+    timeSeriesStepSeconds: opts.stepSeconds,
+  });
+
+  return rows.map((row) => ({
+    bucketStart: parseClickhouseUTCDateTimeFormat(row.bucket_start),
+    count: Number(row.count),
+    maxTotalCost:
+      row.max_total_cost === null ? null : Number(row.max_total_cost),
+    maxLatencySeconds:
+      row.max_latency_seconds === null ? null : Number(row.max_latency_seconds),
+    maxTotalTokens:
+      row.max_total_tokens === null ? null : Number(row.max_total_tokens),
+  }));
+};
+
+/**
  * Row count plus approximate distinct trace count over the same filtered set,
  * computed in a single ClickHouse pass. Powers the events-table select-all
  * batch-delete confirmation ("N items spanning M unique traces").
@@ -736,10 +794,13 @@ async function getObservationsFromEventsTableInternal<T>(
       | "count"
       | "count-with-unique-traces"
       | "rows"
-      | "trace-delete-cursor";
+      | "trace-delete-cursor"
+      | "metrics-time-series";
     selectToolData?: boolean;
     cursor?: PublicApiObservationsQuery["cursor"];
     preferredClickhouseService?: PreferredClickhouseService;
+    /** Bucket width for select: "metrics-time-series" */
+    timeSeriesStepSeconds?: number;
   },
 ): Promise<Array<T>> {
   const {
@@ -785,6 +846,27 @@ async function getObservationsFromEventsTableInternal<T>(
       "e.trace_id AS trace_id",
       "e.start_time AS start_time",
     );
+  } else if (opts.select === "metrics-time-series") {
+    const stepSeconds = opts.timeSeriesStepSeconds;
+    // Inlined into the SQL, so guard hard even though callers validate.
+    if (!Number.isSafeInteger(stepSeconds) || (stepSeconds as number) < 1) {
+      throw new Error(
+        "metrics-time-series select requires a positive integer timeSeriesStepSeconds",
+      );
+    }
+    queryBuilder
+      .selectRaw(
+        `toStartOfInterval(e.start_time, INTERVAL ${stepSeconds} SECOND) AS bucket_start`,
+        "count(*) AS count",
+        // Measure expressions mirror mapEventsTable's totalCost / latency /
+        // totalTokens columns; max() skips NULLs, so an all-NULL bucket
+        // returns NULL ("no data"), never 0.
+        "max(if(mapExists((k, v) -> (k = 'total'), e.cost_details), e.cost_details['total'], NULL)) AS max_total_cost",
+        "max(if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000)) AS max_latency_seconds",
+        "max(if(mapExists((k, v) -> (k = 'total'), e.usage_details), e.usage_details['total'], NULL)) AS max_total_tokens",
+      )
+      .groupByRaw("bucket_start")
+      .orderBy("ORDER BY bucket_start ASC");
   } else {
     queryBuilder.selectFieldSet(
       selectToolData ? "base" : "baseWithoutTools",
