@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import type { ColumnDefinition } from "../tableDefinitions/types";
 import type { OrderByState } from "../interfaces/orderBy";
 import { logger } from "./logger";
+import { InvalidRequestError } from "../errors";
 
 /**
  * Convert orderBy to SQL ORDER BY clause
@@ -28,7 +29,7 @@ export function orderByToPrismaSql(
 
   if (!col) {
     logger.warn("Invalid filter column", orderBy.column);
-    throw new Error("Invalid filter column: " + orderBy.column);
+    throw new InvalidRequestError("Invalid filter column: " + orderBy.column);
   }
 
   // Assert that orderBy.order is either "asc" or "desc"
