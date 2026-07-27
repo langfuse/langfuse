@@ -26,7 +26,7 @@ import {
 /**
  * Production container for the outlier strip above the events table
  * (LFE-14451). Always on (no toolbar toggle): expanded by default where there
- * is space, collapsed to a slim "Cost & latency" bar on mobile — the
+ * is space, collapsed to a slim "Pulse" bar on mobile — the
  * session-view "Session controls" accordion pattern. One
  * `dashboard.executeQuery` call fetches count + max cost/latency/tokens per
  * time bucket, so switching metrics or the multi-chart layout never
@@ -223,7 +223,7 @@ export function EventsOutlierStrip({
           onClick={() => setCollapsed(false)}
           className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 py-1 text-[11px]"
         >
-          <span>Cost & latency</span>
+          <span>Pulse</span>
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
       ) : (
