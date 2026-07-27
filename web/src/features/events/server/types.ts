@@ -1,12 +1,12 @@
 import { z } from "zod";
 import {
   hasValidTracingSearchTypes,
+  MAX_EVENTS_METRICS_TIME_SERIES_BINS,
   singleFilter,
   TRACING_SEARCH_TYPE_REQUIRED_MESSAGE,
   TracingSearchType,
   orderBy,
 } from "@langfuse/shared";
-import { MAX_EVENTS_METRICS_TIME_SERIES_BINS } from "@langfuse/shared/src/server";
 
 export const EventsTableOptions = z
   .object({

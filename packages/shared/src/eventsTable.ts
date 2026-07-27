@@ -8,6 +8,13 @@ export const eventsTableIsRootObservationSql =
 export const eventsTableHasInputSql = "e.input != ''";
 export const eventsTableHasOutputSql = "e.output != ''";
 
+/**
+ * Hard cap on the number of time buckets an events metrics time-series query
+ * may produce (LFE-14451). Frontend-safe: the chart's bin-step ladder and the
+ * server-side validation both derive from it.
+ */
+export const MAX_EVENTS_METRICS_TIME_SERIES_BINS = 1500;
+
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
   : T extends object

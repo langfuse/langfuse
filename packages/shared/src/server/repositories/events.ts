@@ -87,6 +87,7 @@ import {
   EventsObservationRecordReadType,
   TraceRecordReadType,
 } from "./definitions";
+import { MAX_EVENTS_METRICS_TIME_SERIES_BINS } from "../../eventsTable";
 import {
   INTERNAL_INGESTION_SDK_NAMES,
   UNKNOWN_INGESTION_SDK_VALUE,
@@ -485,13 +486,6 @@ export const getObservationsCountFromEventsTable = async (
   return Number(count[0].count);
 };
 
-/**
- * Hard cap on the number of time buckets a metrics time-series query may
- * produce. Callers validate `(to - from) / stepSeconds` against this before
- * querying; the repository also applies it as a defensive LIMIT.
- */
-export const MAX_EVENTS_METRICS_TIME_SERIES_BINS = 1500;
-
 export type EventsMetricsTimeSeriesBin = {
   bucketStart: Date;
   count: number;
@@ -510,9 +504,16 @@ export type EventsMetricsTimeSeriesBin = {
  * Un-merged ReplacingMergeTree row versions are NOT collapsed, matching the
  * table's count semantics; max() naturally resolves to the newest version for
  * monotone measures (latency, cost).
+ *
+ * Callers must bound `(to - from) / stepSeconds` by
+ * MAX_EVENTS_METRICS_TIME_SERIES_BINS; the defensive LIMIT here keeps the
+ * OLDEST buckets (ORDER BY bucket_start ASC) if that contract is violated.
  */
 export const getEventsMetricsTimeSeriesFromEventsTable = async (
-  opts: Omit<ObservationTableQuery, "orderBy" | "limit" | "offset"> & {
+  opts: Pick<
+    ObservationTableQuery,
+    "projectId" | "filter" | "searchQuery" | "searchType" | "clickhouseConfigs"
+  > & {
     stepSeconds: number;
   },
 ): Promise<EventsMetricsTimeSeriesBin[]> => {

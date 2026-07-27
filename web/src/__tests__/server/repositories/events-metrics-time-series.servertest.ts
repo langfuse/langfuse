@@ -177,6 +177,111 @@ describe("events metrics time series", () => {
       expect(bins[0].maxTotalTokens).toBe(4200);
     });
 
+    it("ignores display-name-shaped root filters too (saved-view payloads)", async () => {
+      const name = `mts-rootname-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          name,
+          parent_span_id: randomUUID(), // non-root
+          start_time: atMicros(10),
+          end_time: atMicros(11),
+        }),
+      ]);
+
+      const { bins } = await getEventMetricsTimeSeries({
+        projectId,
+        filter: [
+          nameFilter(name),
+          // The ClickHouse filter factory resolves display names, so the strip
+          // must catch this shape as well.
+          {
+            type: "boolean",
+            column: "Is Root Observation",
+            operator: "=",
+            value: true,
+          },
+        ],
+        searchType: ["id"],
+        ...range(0, 60),
+        stepSeconds: 60,
+      });
+
+      expect(bins).toHaveLength(1);
+      expect(bins[0].count).toBe(1);
+    });
+
+    it("buckets stay epoch-aligned when from/to are not step-aligned", async () => {
+      const name = `mts-straddle-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          name,
+          start_time: atMicros(40), // inside [30, 150]
+          end_time: atMicros(41),
+        }),
+        createEvent({
+          project_id: projectId,
+          name,
+          start_time: atMicros(70),
+          end_time: atMicros(71),
+        }),
+      ]);
+
+      const { bins } = await getEventMetricsTimeSeries({
+        projectId,
+        filter: [nameFilter(name)],
+        searchType: ["id"],
+        ...range(30, 150), // unaligned bounds
+        stepSeconds: 60,
+      });
+
+      // Buckets align to the epoch grid (BASE, BASE+60s), not to `from`.
+      expect(bins.map((b) => b.bucketStart)).toEqual([
+        BASE,
+        new Date(BASE.getTime() + 60_000),
+      ]);
+      expect(bins.map((b) => b.count)).toEqual([1, 1]);
+    });
+
+    it("supports filters that force the events_full table (metadata)", async () => {
+      const name = `mts-full-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          name,
+          start_time: atMicros(10),
+          end_time: atMicros(15),
+          cost_details: { total: 7 },
+        }),
+      ]);
+
+      const { bins } = await getEventMetricsTimeSeries({
+        projectId,
+        filter: [
+          nameFilter(name),
+          // createEvent seeds metadata {source: "API", server: "Node"}.
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "source",
+            operator: "=",
+            value: "API",
+          },
+        ],
+        searchType: ["id"],
+        ...range(0, 60),
+        stepSeconds: 60,
+      });
+
+      expect(bins).toHaveLength(1);
+      expect(bins[0].count).toBe(1);
+      expect(bins[0].maxTotalCost).toBe(7);
+    });
+
     it("treats explicit from/to as authoritative over startTime filters in the filter state", async () => {
       const name = `mts-bounds-${randomUUID()}`;
 

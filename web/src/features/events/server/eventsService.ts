@@ -4,8 +4,12 @@ import {
   LISTABLE_SCORE_TYPES,
   type NumericEventsTableColumnId,
   filterAndValidateDbScoreList,
+  findUiColumnMapping,
+  InvalidRequestError,
+  MAX_EVENTS_METRICS_TIME_SERIES_BINS,
 } from "@langfuse/shared";
 import {
+  eventsTableUiColumnDefinitions,
   getEventsMetricsTimeSeriesFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
@@ -404,24 +408,45 @@ interface GetEventMetricsTimeSeriesParams {
   stepSeconds: number;
 }
 
+// The ClickHouse filter factory resolves columns by id, display name, or
+// alias, so the strip must canonicalize the same way or a name-shaped filter
+// (e.g. "Is Root Observation" from an old saved view) would slip through.
+const canonicalEventsColumnId = (column: string) =>
+  findUiColumnMapping(eventsTableUiColumnDefinitions, column)?.uiTableId ??
+  column;
+
 /**
  * Binned outlier aggregates over the events table for the chart strip above
  * it (LFE-14451). Applies the same filters + search as the table rows, except
  * startTime filters (the explicit from/to bounds are authoritative, mirroring
  * `partitionEventFilterOptionsFilter`) and the ignored columns above.
+ *
+ * NOTE for the chart client: user-authored startTime conditions (search bar
+ * grammar) are stripped here too — the client must fold them into from/to or
+ * surface them as "not applied"; otherwise chart and table silently diverge.
  */
 export async function getEventMetricsTimeSeries(
   params: GetEventMetricsTimeSeriesParams,
 ) {
-  const chartFilter: FilterState = params.filter.filter(
-    (filterItem) =>
-      !METRICS_TIME_SERIES_IGNORED_COLUMNS.has(filterItem.column) &&
-      !(
-        filterItem.type === "datetime" &&
-        (filterItem.column === "startTime" ||
-          filterItem.column === "Start Time")
-      ),
-  );
+  const binCount =
+    (params.toTimestamp.getTime() - params.fromTimestamp.getTime()) /
+    (params.stepSeconds * 1000);
+  if (binCount > MAX_EVENTS_METRICS_TIME_SERIES_BINS) {
+    // The tRPC input refine enforces this already; guard direct callers so the
+    // repository's defensive LIMIT (which keeps the OLDEST buckets) never
+    // silently truncates.
+    throw new InvalidRequestError(
+      `stepSeconds would produce more than ${MAX_EVENTS_METRICS_TIME_SERIES_BINS} buckets for the requested range`,
+    );
+  }
+
+  const chartFilter: FilterState = params.filter.filter((filterItem) => {
+    const columnId = canonicalEventsColumnId(filterItem.column);
+    return (
+      !METRICS_TIME_SERIES_IGNORED_COLUMNS.has(columnId) &&
+      !(filterItem.type === "datetime" && columnId === "startTime")
+    );
+  });
 
   const bins = await getEventsMetricsTimeSeriesFromEventsTable({
     projectId: params.projectId,
