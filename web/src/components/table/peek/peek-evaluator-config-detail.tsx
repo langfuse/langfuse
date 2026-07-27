@@ -57,6 +57,12 @@ const PeekViewEvaluatorConfigDetail = ({
   const displayStatus =
     lazyExecutionCounts.displayStatus ?? evalConfig.displayStatus;
 
+  const evaluatorRequiresMigration = requiresLegacyMigrationAction({
+    targetObject: evalConfig.targetObject,
+    status: evalConfig.status,
+    timeScope: Array.isArray(evalConfig.timeScope) ? evalConfig.timeScope : [],
+  });
+
   return (
     <div className="grid h-full flex-1 grid-rows-[auto_auto_1fr] gap-2 overflow-hidden p-3 contain-layout">
       <div className="flex items-center justify-between">
@@ -77,13 +83,7 @@ const PeekViewEvaluatorConfigDetail = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {requiresLegacyMigrationAction({
-            targetObject: evalConfig.targetObject,
-            status: evalConfig.status,
-            timeScope: Array.isArray(evalConfig.timeScope)
-              ? evalConfig.timeScope
-              : [],
-          }) && (
+          {evaluatorRequiresMigration && (
             <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
               Deprecated
             </span>
@@ -105,7 +105,7 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evalConfig && evalConfig.targetObject && evalConfig.evalTemplate && (
+      {evaluatorRequiresMigration && evalConfig.evalTemplate && (
         <V4MigrationUpdateRequiredAssistantBadge />
       )}
 

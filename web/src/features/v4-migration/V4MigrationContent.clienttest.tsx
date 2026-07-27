@@ -36,13 +36,24 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useProjectV4MigrationData: () => mocks.migrationData,
+  useProjectV4SdkData: () => mocks.migrationData.sdk,
+  useProjectV4EvalData: () => mocks.migrationData.evals,
+}));
+
+// The plan hook queries tRPC internally; mock it so tests need no provider.
+vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
+  useEvalUpgradeAssistantPlan: () => ({
+    canUseAssistant: false,
+    assistantCanUpgrade: false,
+    assistantPrompt: "",
+  }),
 }));
 
 vi.mock(
   "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
   () => ({
     useCanUseInAppAgent: () => false,
-    useInAppAiAgent: () => ({ setOpen: vi.fn() }),
+    useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
   }),
 );
 

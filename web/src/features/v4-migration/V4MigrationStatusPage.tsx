@@ -479,8 +479,8 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          On <span className="underline">soon</span>, old SDKs stop sending
-          data, and the{" "}
+          <span className="underline">Soon</span>, old SDKs stop sending data,
+          and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}
