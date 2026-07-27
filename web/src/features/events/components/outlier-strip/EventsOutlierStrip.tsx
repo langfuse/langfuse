@@ -40,44 +40,45 @@ import {
 
 /** Target horizontal pixels per bar for granularity picking. */
 const BAR_SLOT_TARGET_PX = 5;
-/** Each chart needs this much width; up to three charts side by side. */
+/** Each chart needs this much width for Split (all three) to be offered. */
 const CHART_MIN_WIDTH_PX = 400;
-const MAX_CHARTS = 3;
 const CHART_GAP_PX = 24;
 
-const DEFAULT_SLOT_METRICS: OutlierStripMetricKey[] = [
-  "cost",
-  "latency",
-  "tokens",
-];
+const SPLIT_METRICS: OutlierStripMetricKey[] = ["cost", "latency", "tokens"];
 
-const MetricDropdown = ({
+/** The dropdown's modes: one metric full-width, or Split = all three. */
+type StripMode = OutlierStripMetricKey | "split";
+
+const modeLabel = (mode: StripMode): string =>
+  mode === "split" ? "Split" : OUTLIER_STRIP_METRICS[mode].shortLabel;
+
+const ModeDropdown = ({
   value,
+  options,
   onChange,
 }: {
-  value: OutlierStripMetricKey;
-  onChange: (metric: OutlierStripMetricKey) => void;
+  value: StripMode;
+  options: StripMode[];
+  onChange: (mode: StripMode) => void;
 }) => (
   <DropdownMenu>
     <DropdownMenuTrigger
-      aria-label={`Chart metric: ${OUTLIER_STRIP_METRICS[value].shortLabel}`}
+      aria-label={`Chart mode: ${modeLabel(value)}`}
       className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none font-bold"
     >
-      {OUTLIER_STRIP_METRICS[value].shortLabel}
+      {modeLabel(value)}
       <ChevronDown className="h-2.5 w-2.5" />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="start">
-      {(Object.keys(OUTLIER_STRIP_METRICS) as OutlierStripMetricKey[]).map(
-        (key) => (
-          <DropdownMenuItem
-            key={key}
-            onClick={() => onChange(key)}
-            className="font-mono text-xs"
-          >
-            {OUTLIER_STRIP_METRICS[key].shortLabel}
-          </DropdownMenuItem>
-        ),
-      )}
+      {options.map((mode) => (
+        <DropdownMenuItem
+          key={mode}
+          onClick={() => onChange(mode)}
+          className="font-mono text-xs"
+        >
+          {modeLabel(mode)}
+        </DropdownMenuItem>
+      ))}
     </DropdownMenuContent>
   </DropdownMenu>
 );
@@ -104,23 +105,36 @@ export function EventsOutlierStrip({
     fromMs: number;
     toMs: number;
   } | null>(null);
-  // Which metric each chart slot shows — a per-user preference.
-  const [slotMetrics, setSlotMetrics] = useLocalStorage<
-    OutlierStripMetricKey[]
-  >("events-outlier-strip-metrics", DEFAULT_SLOT_METRICS);
+  // The chart mode — a per-user preference. "split" degrades to Cost when the
+  // width can't fit three charts, WITHOUT overwriting the stored choice, so
+  // widening the window restores Split.
+  const [modeStored, setMode] = useLocalStorage<StripMode>(
+    "events-outlier-strip-mode",
+    "cost",
+  );
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
   // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
   const width = Math.max((size?.width ?? 0) - 16, 0);
 
-  const chartCount = Math.max(
-    1,
-    Math.min(
-      Math.floor((width + CHART_GAP_PX) / (CHART_MIN_WIDTH_PX + CHART_GAP_PX)),
-      MAX_CHARTS,
-    ),
-  );
+  const splitFits =
+    width >= SPLIT_METRICS.length * CHART_MIN_WIDTH_PX + 2 * CHART_GAP_PX;
+  // Sanitize: localStorage is user-editable; unknown values fall back to Cost.
+  const storedMode: StripMode =
+    modeStored === "split" ||
+    (typeof modeStored === "string" && modeStored in OUTLIER_STRIP_METRICS)
+      ? modeStored
+      : "cost";
+  const mode: StripMode =
+    storedMode === "split" && !splitFits ? "cost" : storedMode;
+  const modeOptions: StripMode[] = splitFits
+    ? [...SPLIT_METRICS, "split"]
+    : [...SPLIT_METRICS];
+
+  const visibleMetrics: OutlierStripMetricKey[] =
+    mode === "split" ? SPLIT_METRICS : [mode];
+  const chartCount = visibleMetrics.length;
   const chartWidth = (width - CHART_GAP_PX * (chartCount - 1)) / chartCount;
 
   const granularity = pickChartGranularity({
@@ -174,34 +188,9 @@ export function EventsOutlierStrip({
     [queryResult.data],
   );
 
-  // Sanitize ONCE: localStorage is user-editable and cross-tab-writable; any
-  // valid-JSON wrong shape (a bare string, wrong casing, a number) would
-  // otherwise crash OUTLIER_STRIP_METRICS lookups or the spread in
-  // setSlotMetric on every page load until hand-cleared.
-  const safeSlotMetrics = useMemo<OutlierStripMetricKey[]>(
-    () =>
-      Array.isArray(slotMetrics)
-        ? slotMetrics.map((stored, i) =>
-            typeof stored === "string" && stored in OUTLIER_STRIP_METRICS
-              ? (stored as OutlierStripMetricKey)
-              : DEFAULT_SLOT_METRICS[i % 3],
-          )
-        : DEFAULT_SLOT_METRICS,
-    [slotMetrics],
-  );
-
-  const visibleMetrics = useMemo(
-    () =>
-      Array.from(
-        { length: chartCount },
-        (_, i) => safeSlotMetrics[i] ?? DEFAULT_SLOT_METRICS[i % 3],
-      ),
-    [chartCount, safeSlotMetrics],
-  );
-
   const series = useMemo(
     () =>
-      visibleMetrics.map((metric) =>
+      (mode === "split" ? SPLIT_METRICS : [mode]).map((metric) =>
         prepareOutlierSeries({
           bins,
           metric,
@@ -210,19 +199,11 @@ export function EventsOutlierStrip({
           stepSeconds: granularity.stepSeconds,
         }),
       ),
-    [bins, fromMs, toMs, granularity.stepSeconds, visibleMetrics],
+    [bins, fromMs, toMs, granularity.stepSeconds, mode],
   );
 
   const handleSelectBucket = (range: { fromMs: number; toMs: number }) => {
     onSelectRange({ from: new Date(range.fromMs), to: new Date(range.toMs) });
-  };
-
-  const setSlotMetric = (slot: number, metric: OutlierStripMetricKey) => {
-    const base = [...safeSlotMetrics];
-    while (base.length < MAX_CHARTS)
-      base.push(DEFAULT_SLOT_METRICS[base.length]);
-    base[slot] = metric;
-    setSlotMetrics(base);
   };
 
   const stepMs = granularity.stepSeconds * 1000;
@@ -274,10 +255,24 @@ export function EventsOutlierStrip({
             >
               {visibleMetrics.map((metric, slot) => (
                 <div key={slot} className="min-w-0">
-                  <MetricDropdown
-                    value={metric}
-                    onChange={(next) => setSlotMetric(slot, next)}
-                  />
+                  {slot === 0 ? (
+                    <div className="flex items-baseline gap-1.5">
+                      <ModeDropdown
+                        value={mode}
+                        options={modeOptions}
+                        onChange={setMode}
+                      />
+                      {mode === "split" && (
+                        <span className="text-muted-foreground font-mono text-[10px] leading-none">
+                          {OUTLIER_STRIP_METRICS[metric].shortLabel}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground block font-mono text-[10px] leading-none">
+                      {OUTLIER_STRIP_METRICS[metric].shortLabel}
+                    </span>
+                  )}
                   <OutlierBarStrip
                     className="mt-1"
                     dense={series[slot].dense}
