@@ -35,7 +35,9 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(
 
 export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
   src?: File[];
-  className?: string;
+  className?:
+    | "mt-1 border-none p-0 text-left"
+    | "bg-secondary/50 border-dashed";
   onDrop?: (
     acceptedFiles: File[],
     fileRejections: FileRejection[],
