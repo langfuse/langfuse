@@ -53,7 +53,6 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { cn } from "@/src/utils/tailwind";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { isSelfHostedPlan, planLabels } from "@langfuse/shared";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
@@ -92,7 +91,9 @@ export function AppSidebar({
                   logoDarkModeHref={uiCustomization?.logoDarkModeHref}
                 />
               </Link>
-              <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
+              <div className="ml-2 group-data-[collapsible=icon]:hidden">
+                <VersionLabel />
+              </div>
             </div>
           </div>
         </div>
@@ -170,7 +171,7 @@ const DemoBadge = () => {
   );
 };
 
-const VersionLabel = ({ className }: { className?: string }) => {
+const VersionLabel = () => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
 
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
@@ -231,7 +232,7 @@ const VersionLabel = ({ className }: { className?: string }) => {
         <Button
           variant="ghost"
           size="xs"
-          className={cn("mt-[0.2px] text-[0.625rem]", className)}
+          className="mt-[0.2px] text-[0.625rem]"
         >
           {VERSION}
           {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
