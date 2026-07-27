@@ -76,6 +76,10 @@ describe("slack oauth callback failure status mapping", () => {
       "slack_oauth_invalid_state",
       "The state parameter is not for this browser session",
     ],
+    [
+      "slack_oauth_installer_authorization_error",
+      "User cancelled the OAuth installation flow!",
+    ],
   ])(
     "returns 400 and logs a warning for client-input error %s",
     async (code, message) => {
@@ -91,7 +95,8 @@ describe("slack oauth callback failure status mapping", () => {
   );
 
   it.each([
-    ["slack_oauth_installer_authorization_error", "Failed to exchange code"],
+    // Token exchange failures surface as @slack/web-api platform errors.
+    ["slack_webapi_platform_error", "Failed to exchange code"],
     ["slack_oauth_unknown_error", "Something unexpected happened"],
   ])("returns 500 and logs an error for %s", async (code, message) => {
     const res = await runCallbackWithFailure(codedError(code, message));

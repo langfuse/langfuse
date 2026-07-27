@@ -11,14 +11,19 @@ import { prisma } from "@langfuse/shared/src/db";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 
-// ErrorCode values from @slack/oauth for callbacks that fail because the
-// client sent no/invalid `code`/`state` (scanners, expired installs) rather
-// than because anything failed on our side. Kept as literals since web does
-// not depend on @slack/oauth directly; unknown codes fall through to 500.
+// ErrorCode values from @slack/oauth for callbacks that fail because of the
+// client's request — no/invalid `code`/`state` (scanners, expired installs)
+// or the user cancelling on Slack's consent screen — rather than because
+// anything failed on our side. Within InstallProvider.handleCallback the
+// authorization-error code is thrown only for `error=access_denied`
+// (user cancel); token-exchange failures carry @slack/web-api codes instead.
+// Kept as literals since web does not depend on @slack/oauth directly;
+// unknown codes fall through to 500.
 const SLACK_OAUTH_CLIENT_INPUT_ERROR_CODES = new Set<string>([
   "slack_oauth_missing_state",
   "slack_oauth_invalid_state",
   "slack_oauth_missing_code",
+  "slack_oauth_installer_authorization_error",
 ]);
 
 /**
