@@ -643,21 +643,83 @@ describe("v4TransitionRouter", () => {
   it("summarizes trace-level evals", async () => {
     const mockPrisma = {
       jobConfiguration: {
-        count: vi.fn().mockResolvedValue(3),
+        findMany: vi.fn().mockResolvedValue([
+          { targetObject: "dataset", variableMapping: [] },
+          {
+            targetObject: "trace",
+            variableMapping: [
+              {
+                templateVariable: "input",
+                langfuseObject: "generation",
+                objectName: "my-generation",
+                selectedColumnId: "input",
+              },
+            ],
+          },
+          {
+            targetObject: "trace",
+            variableMapping: [
+              {
+                templateVariable: "input",
+                langfuseObject: "trace",
+                selectedColumnId: "input",
+              },
+            ],
+          },
+        ]),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    // The third config maps from the trace itself, so the set is not fully
+    // assistant-migratable.
+    await expect(caller.traceLevelEvalSummary({ projectId })).resolves.toEqual({
+      traceLevelEvalCount: 3,
+      allAssistantMigratable: false,
+    });
+
+    expect(mockPrisma.jobConfiguration.findMany).toHaveBeenCalledWith({
+      where: {
+        projectId,
+        jobType: "EVAL",
+        targetObject: { in: ["trace", "dataset"] },
+        status: "ACTIVE",
+        timeScope: { has: "NEW" },
+      },
+      select: { targetObject: true, variableMapping: true },
+    });
+  });
+
+  it("marks evals as assistant-migratable when all are dataset targets or single-observation mappings", async () => {
+    const mockPrisma = {
+      jobConfiguration: {
+        findMany: vi.fn().mockResolvedValue([
+          { targetObject: "dataset", variableMapping: [] },
+          {
+            targetObject: "trace",
+            variableMapping: [
+              {
+                templateVariable: "input",
+                langfuseObject: "generation",
+                objectName: "my-generation",
+                selectedColumnId: "input",
+              },
+              {
+                templateVariable: "output",
+                langfuseObject: "generation",
+                objectName: "my-generation",
+                selectedColumnId: "output",
+              },
+            ],
+          },
+        ]),
       },
     };
     const caller = createCaller(mockPrisma);
 
     await expect(caller.traceLevelEvalSummary({ projectId })).resolves.toEqual({
-      traceLevelEvalCount: 3,
-    });
-
-    expect(mockPrisma.jobConfiguration.count).toHaveBeenCalledWith({
-      where: {
-        projectId,
-        jobType: "EVAL",
-        targetObject: "trace",
-      },
+      traceLevelEvalCount: 2,
+      allAssistantMigratable: true,
     });
   });
 
@@ -824,7 +886,9 @@ describe("v4TransitionRouter", () => {
       where: {
         projectId: { in: [projectId, secondProjectId] },
         jobType: "EVAL",
-        targetObject: "trace",
+        targetObject: { in: ["trace", "dataset"] },
+        status: "ACTIVE",
+        timeScope: { has: "NEW" },
       },
       _count: { _all: true },
     });
@@ -1021,7 +1085,9 @@ describe("v4TransitionRouter", () => {
     expect(queryText).toContain("je.project_id = ?");
     expect(queryText).toContain("jc.project_id = ?");
     expect(queryText).toContain("jc.job_type = 'EVAL'");
-    expect(queryText).toContain("jc.target_object = ?");
+    expect(queryText).toContain("jc.target_object IN (?, ?)");
+    expect(queryText).toContain("jc.status = 'ACTIVE'");
+    expect(queryText).toContain("'NEW' = ANY(jc.time_scope)");
     expect(queryText).toContain("je.status != 'CANCELLED'");
     expect(queryText).toContain("je.created_at >= ?");
     expect(queryText).toContain("je.created_at <= ?");
@@ -1032,6 +1098,7 @@ describe("v4TransitionRouter", () => {
       projectId,
       projectId,
       "trace",
+      "dataset",
       new Date("2026-06-25T12:00:00Z"),
       new Date("2026-06-25T13:00:00Z"),
     ]);
