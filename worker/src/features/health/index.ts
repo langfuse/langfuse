@@ -2,7 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
 
-import { env } from "../../env";
+import { env, v4WritesToEventsTable } from "../../env";
 import {
   getLastProcessedPartition,
   getLastRunStartedAt,
@@ -25,9 +25,12 @@ export type EventPropagationHealth = {
   stuck: boolean;
 };
 
+// Must mirror the registration guard in worker/src/app.ts: the propagation
+// worker runs for every write mode that targets events_full (dual AND
+// events_only), so the liveness gate has to stay active for both.
 const isEventPropagationEnabled = (): boolean =>
   env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-  env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual";
+  v4WritesToEventsTable(env);
 
 /**
  * `stuck` is intentionally only true when we have a reading that exceeds the

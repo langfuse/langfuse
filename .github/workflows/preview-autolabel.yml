@@ -1,8 +1,11 @@
 name: AWS preview auto-label
 
-# Auto-apply the `preview` label to same-repo PRs on open, so the Argo CD
-# ApplicationSet (in the infrastructure repo) picks them up and builds a
-# preview. Anyone with write access can also apply the label by hand.
+# Auto-apply the `preview` label to same-repo PRs on open or update, so the Argo
+# CD ApplicationSet (in the infrastructure repo) picks them up and builds a
+# preview. Including synchronize recovers PRs that opened with merge conflicts:
+# GitHub skips pull_request workflows until the conflict is resolved. It also
+# reactivates a stale or manually removed preview when development resumes.
+# Anyone with write access can also apply the label by hand.
 #
 # Trust boundary is WRITE access, not a per-author allowlist: opening a
 # same-repo PR requires push access, so labeling every same-repo PR is exactly
@@ -14,7 +17,7 @@ name: AWS preview auto-label
 # stays off zizmor's dangerous-triggers list.
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
 
 permissions: {}
 

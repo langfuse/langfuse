@@ -117,6 +117,7 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
 ### Symptom → fix
 | Symptom | Likely cause / fix |
 |---|---|
+| My preview environment is not available | Check for the `preview` label and inspect the **AWS preview build** workflow. If the PR opened with merge conflicts, resolve them; the next update adds the label. Other CI checks do not gate the preview build. |
 | 🟢 build comment posted, but the URL 404s | PR author not on the **deploy allowlist** — the image built, nothing deployed. Add yourself (see Getting access). |
 | URL not ready right after building | Build still finishing (~5 min) or a transient `ImagePullBackOff` — it self-heals. |
 | Unresponsive at night / on a weekend | Asleep off-hours — wake it (above). |
@@ -129,18 +130,15 @@ kubectl annotate ns $NS downscaler/force-uptime-                   # undo later 
   selector in `k8s/preview/bootstrap/applicationset.yaml` (repo
   `langfuse/infrastructure`), open a PR, and merge to `main`. Argo re-syncs and
   your labeled PRs deploy — no admin needed.
-- **Cluster access — needs an admin** (only to debug with `kubectl`, not to
-  *use* a preview). Ask an admin to add you to the preview-cluster role in AWS
-  IAM Identity Center. Then set up local access — the `~/.aws/config` profile
-  block and its exact values (AWS account id, SSO start URL, cluster name,
-  region) are in the internal Langfuse doc:
+- **Cluster access — available to all Langfuse engineers** (only needed to
+  debug with `kubectl`, not to *use* a preview). Set up local access using the
+  `~/.aws/config` profile block from the internal Langfuse doc:
   https://linear.app/langfuse/document/connect-to-aws-instances-aurora-redis-from-local-machine-896fe46ff797
   1. Open `~/.aws/config` and add the `[sso-session langfuse]` + `[profile preview]`
      blocks from that doc (keep any `[sso-session langfuse]` you already have).
   2. `aws sso login --profile preview`
-  3. `aws eks update-kubeconfig --name <cluster> --region <region> --profile preview`
-     (name + region are in the doc; no `--role-arn` — the role has its own EKS
-     access entry).
+  3. `aws eks update-kubeconfig --name langfuse-preview --region eu-west-1 --profile preview`
+     (no `--role-arn` — the role has its own EKS access entry).
 
 ---
 

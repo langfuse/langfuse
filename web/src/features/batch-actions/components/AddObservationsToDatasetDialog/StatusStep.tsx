@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { Progress } from "@/src/components/ui/progress";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { api } from "@/src/utils/api";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { BatchActionStatus } from "@langfuse/shared";
@@ -134,7 +134,7 @@ export function StatusStep({
                       </span>
                       <span className="font-bold">{progressPercent}%</span>
                     </div>
-                    <Progress value={progressPercent} className="h-2" />
+                    <Progress value={progressPercent} />
                   </div>
 
                   <div className="bg-muted/50 grid grid-cols-2 gap-4 rounded-lg p-3 text-sm">

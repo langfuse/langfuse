@@ -57,6 +57,10 @@ export const events = {
   // can be sliced by surface without leaking ids.
   peek: ["opened", "closed", "expand_toggle", "resized", "open_in_new_tab"],
   generations: ["export"],
+  // Lazy JSON viewer perf telemetry (LFE-14419): learn whether the size gate
+  // and main-thread assumptions hold on real payloads. Metadata only —
+  // durations, char counts, tier; never payload content.
+  json_viewer: ["indexed", "slow_expand"],
   saved_views: [
     "create",
     "update",
@@ -234,6 +238,10 @@ export const events = {
     "compare_run_added",
     "compare_run_removed",
   ],
+  // Version-update reload notification (LFE-10978). `banner_shown` fires once
+  // per appearance; the two actions measure the reload-vs-dismiss split. No
+  // props carry user content.
+  version_update: ["banner_shown", "reload_clicked", "dismissed"],
   notification: ["click_link", "dismiss_notification"],
   toast: ["report_issue", "dismiss"],
   tag: [
@@ -293,7 +301,20 @@ export const events = {
   ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
-  sidebar: ["book_a_call_clicked", "v4_beta_toggled"],
+  sidebar: [
+    "book_a_call_clicked",
+    "v4_beta_toggled",
+    "v4_migration_card_clicked",
+  ],
+  v4_migration: [
+    "in_app_agent_opened",
+    "coding_agent_prompt_copied",
+    "delay_badge_clicked",
+    "project_chip_clicked",
+    "contact_book_call_clicked",
+    "contact_support_clicked",
+    "status_row_clicked",
+  ],
   // Filter/search-bar usage analytics (LFE-10781). METADATA ONLY — payloads
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.

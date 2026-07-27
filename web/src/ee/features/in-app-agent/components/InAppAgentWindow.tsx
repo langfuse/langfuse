@@ -232,6 +232,7 @@ function formatScreenContextNotice(
 
 export type InAppAgentWindowMessage = {
   id: string;
+  feedbackMessageId?: string;
   runId?: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
@@ -702,7 +703,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {!hasUserMessage ? (
+            {messages.length === 0 ? (
               <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-7 w-7" />
@@ -775,7 +776,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         feedbackRunId
                           ? (params) =>
                               onSubmitFeedback({
-                                messageId: message.id,
+                                messageId:
+                                  message.feedbackMessageId ?? message.id,
                                 runId: feedbackRunId,
                                 ...params,
                               })

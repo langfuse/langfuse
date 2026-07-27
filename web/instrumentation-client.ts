@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 import {
   isDenylistedNoiseEvent,
   isNoisyHttpClientPollEvent,
+  isReactDevtoolsInternalEvent,
 } from "@/src/utils/sentryFilters";
 
 const isEuOrUsRegionNonHipaa =
@@ -15,21 +16,10 @@ Sentry.init({
   release: process.env.NEXT_PUBLIC_BUILD_ID,
 
   beforeSend(event) {
-    // const error = hint.originalException;
-    const errorValue = event.exception?.values?.[0]?.value || "";
-
-    // Filter invalid href errors - these are from user-inputted data containing malformed URLs
-    // The Next.js router correctly rejects them, no need to log as errors
-    if (
-      errorValue.includes("Invalid href") &&
-      errorValue.includes("passed to next/router")
-    ) {
-      return null;
-    }
-
-    // Filter React DevTools internal errors - these are benign errors from DevTools
-    // trying to access internal React properties
-    if (errorValue.includes("__reactContextDevtoolDebugId")) {
+    // Drop React DevTools' internal probes against React's private fiber
+    // properties - benign, DevTools-only noise. See isReactDevtoolsInternalEvent
+    // for the rationale.
+    if (isReactDevtoolsInternalEvent(event)) {
       return null;
     }
 

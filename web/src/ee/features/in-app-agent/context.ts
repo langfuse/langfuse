@@ -4,6 +4,7 @@ import {
   type InAppAgentQuickActionAttribution,
 } from "@/src/ee/features/in-app-agent/quickActions";
 import { getInAppAgentProjectRoute } from "@/src/ee/features/in-app-agent/routeContext";
+import type { FilterState } from "@langfuse/shared";
 
 type InAppAgentContext = AgUiRunAgentInput["context"];
 
@@ -167,6 +168,7 @@ export function createInAppAgentScreenContext(params: {
 export function sanitizeInAppAgentContext(
   context: InAppAgentContext,
   projectId: string,
+  viewFilters?: FilterState,
 ): InAppAgentContext {
   const sanitizedContext: InAppAgentContext = [];
   const currentUrlContext = context.find(
@@ -181,14 +183,26 @@ export function sanitizeInAppAgentContext(
     const serializedCurrentUrl = currentUrl
       ? JSON.stringify(currentUrl)
       : undefined;
+    const serializedResolvedCurrentUrl =
+      currentUrl && viewFilters
+        ? JSON.stringify({
+            ...currentUrl,
+            savedView: { filters: viewFilters },
+          })
+        : undefined;
+    const boundedCurrentUrl =
+      serializedResolvedCurrentUrl &&
+      serializedResolvedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
+        ? serializedResolvedCurrentUrl
+        : serializedCurrentUrl;
 
     if (
-      serializedCurrentUrl &&
-      serializedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
+      boundedCurrentUrl &&
+      boundedCurrentUrl.length <= MAX_SCREEN_CONTEXT_JSON_LENGTH
     ) {
       sanitizedContext.push({
         description: CURRENT_URL_CONTEXT_DESCRIPTION,
-        value: serializedCurrentUrl,
+        value: boundedCurrentUrl,
       });
     }
   }

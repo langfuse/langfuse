@@ -3,7 +3,6 @@ import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   FilterList,
   StringOptionsFilter,
@@ -189,21 +188,11 @@ export const getExperimentMetricsFromEvents = async (props: {
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  const res = await measureAndReturn({
-    operationName: "getExperimentMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: { projectId: props.projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<ExperimentMetricsReturnType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  const res = await queryClickhouse<ExperimentMetricsReturnType>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res.map((row) => ({
@@ -361,21 +350,11 @@ const getExperimentsFromEventsGeneric = async <T>(
 
   const finalParams = built.params;
 
-  return measureAndReturn({
-    operationName: "getExperimentsFromEventsGeneric",
-    projectId,
-    input: {
-      params: finalParams,
-      tags: { ...(props.tags ?? {}), projectId },
-    },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query: finalQuery,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
+  return queryClickhouse<T>({
+    query: finalQuery,
+    params: finalParams,
+    tags: { ...(props.tags ?? {}), projectId },
+    preferredClickhouseService: "EventsReadOnly",
   });
 };
 

@@ -256,43 +256,47 @@ export const BillingSwitchPlanDialog = ({
                     ) : (
                       // The default behavior when the user is not on a paid plan.
                       <div className="mt-2 flex gap-1">
-                        <ActionButton
-                          onClick={() => {
-                            if (organization) {
-                              setProcessingPlanId(product.stripeProductId);
+                        <div className="grid w-full">
+                          <ActionButton
+                            onClick={() => {
+                              if (organization) {
+                                setProcessingPlanId(product.stripeProductId);
 
-                              // idempotency key for mutation operations with the stripe api
-                              let opId = _opId;
-                              if (!opId) {
-                                opId = nanoid();
-                                setOpId(opId);
+                                // idempotency key for mutation operations with the stripe api
+                                let opId = _opId;
+                                if (!opId) {
+                                  opId = nanoid();
+                                  setOpId(opId);
+                                }
+
+                                mutCreateCheckoutSession.mutate({
+                                  orgId: organization.id,
+                                  stripeProductId: product.stripeProductId,
+                                  opId: opId,
+                                });
                               }
-
-                              mutCreateCheckoutSession.mutate({
-                                orgId: organization.id,
-                                stripeProductId: product.stripeProductId,
-                                opId: opId,
-                              });
+                            }}
+                            disabled={
+                              organization?.cloudConfig?.stripe
+                                ?.activeProductId === product.stripeProductId
                             }
-                          }}
-                          disabled={
-                            organization?.cloudConfig?.stripe
-                              ?.activeProductId === product.stripeProductId
-                          }
-                          className="w-full"
-                          loading={processingPlanId === product.stripeProductId}
-                        >
-                          {product.checkout?.cta ? "Select" : "Select plan"}
-                        </ActionButton>
+                            loading={
+                              processingPlanId === product.stripeProductId
+                            }
+                          >
+                            {product.checkout?.cta ? "Select" : "Select plan"}
+                          </ActionButton>
+                        </div>
                         {/* Optional checkout CTA button for non-paid plan users */}
                         {product.checkout?.cta && (
-                          <ActionButton
-                            variant="secondary"
-                            href={product.checkout.cta.href}
-                            className="w-full"
-                          >
-                            {product.checkout.cta.label}
-                          </ActionButton>
+                          <div className="grid w-full">
+                            <ActionButton
+                              variant="secondary"
+                              href={product.checkout.cta.href}
+                            >
+                              {product.checkout.cta.label}
+                            </ActionButton>
+                          </div>
                         )}
                       </div>
                     )}

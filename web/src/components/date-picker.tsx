@@ -311,6 +311,12 @@ export type TimeRangePickerProps = {
   className?: string;
   /** Extra classes for the trigger button (e.g. tighter padding in the header). */
   triggerClassName?: string;
+  /**
+   * Space-tight variant (e.g. the mobile Filters sheet header): the named-range
+   * trigger drops the abbreviation badge and shows just the label, truncating
+   * instead of pushing the row wide. Custom/none branches are unchanged.
+   */
+  compact?: boolean;
   disabled?: boolean | { before?: Date; after?: Date } | Date | Date[];
   maxRangeMs?: number;
 };
@@ -318,6 +324,7 @@ export type TimeRangePickerProps = {
 export function TimeRangePicker({
   className,
   triggerClassName,
+  compact,
   timeRange,
   timeRangePresets,
   onTimeRangeChange,
@@ -494,20 +501,41 @@ export function TimeRangePicker({
 
   const getDisplayContent = () => {
     if (rangeType === "custom") {
+      const customLabel = dateRange
+        ? formatDateRange(dateRange.from, dateRange.to)
+        : "Select from calendar";
+      // Compact: drop the icon and truncate, like the named branch — a custom
+      // range's long formatted string would otherwise overflow the tight
+      // mobile Filters header.
+      if (compact) {
+        return (
+          <span className="min-w-0 truncate" title={customLabel}>
+            {customLabel}
+          </span>
+        );
+      }
       // Custom range - show calendar icon and date range
       return (
         <div className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4" />
-          <span>
-            {dateRange
-              ? formatDateRange(dateRange.from, dateRange.to)
-              : "Select from calendar"}
-          </span>
+          <span>{customLabel}</span>
         </div>
       );
     } else if (rangeType === "named") {
       // Preset range - show badge with abbreviation and label
       const setting = TIME_RANGES[namedRangeValue as keyof typeof TIME_RANGES];
+      if (compact) {
+        // Compact: just the label, truncating. The abbreviation badge is the
+        // first thing to drop when the header is tight.
+        return (
+          <span
+            className="min-w-0 truncate"
+            title={setting?.label || namedRangeValue || undefined}
+          >
+            {setting?.label || namedRangeValue}
+          </span>
+        );
+      }
       return (
         <div className="flex items-center gap-2">
           <span className="bg-muted h-5 w-10 rounded px-1.5 text-center text-xs leading-5">
@@ -518,6 +546,13 @@ export function TimeRangePicker({
       );
     }
     // No time range selected
+    if (compact) {
+      return (
+        <span className="min-w-0 truncate" title="Select time range">
+          Select time range
+        </span>
+      );
+    }
     return (
       <div className="flex items-center gap-2">
         <CalendarIcon className="h-4 w-4" />
@@ -535,12 +570,19 @@ export function TimeRangePicker({
             className={cn(
               "hover:bg-accent hover:text-accent-foreground w-fit justify-start text-left font-normal",
               !timeRange && "text-muted-foreground",
+              // Let the trigger shrink below content so the label truncates in
+              // a tight header instead of widening the row.
+              compact && "min-w-0",
               triggerClassName,
             )}
           >
-            <div className="flex items-center gap-2">
+            <div
+              className={cn("flex items-center gap-2", compact && "min-w-0")}
+            >
               {getDisplayContent()}
-              <ChevronDown className="h-4 w-4 opacity-50" />
+              <ChevronDown
+                className={cn("h-4 w-4 opacity-50", compact && "shrink-0")}
+              />
             </div>
           </Button>
         </PopoverTrigger>

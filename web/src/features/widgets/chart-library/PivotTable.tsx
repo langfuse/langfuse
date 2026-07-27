@@ -414,5 +414,3 @@ export const PivotTable: React.FC<PivotTableProps> = ({
     </div>
   );
 };
-
-export default PivotTable;

@@ -423,5 +423,3 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
     </div>
   );
 };
-
-export default LineChartTimeSeries;
