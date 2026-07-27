@@ -55,6 +55,7 @@ const meta = preview.meta({
   args: {
     open: true,
     onOpenChange: fn(),
+    onContactSupport: fn(),
     state: {
       modernSession: { enabled: false, onToggle: fn(), isToggling: false },
     },
@@ -86,8 +87,9 @@ export const Warning = meta.story({
     state: {
       modernSession: {
         enabled: false,
+        disabled: true,
         warningReason:
-          "This preview is enabled globally, so a per-user opt-out does not disable it.",
+          "Compact Session View is only available on the events-backed session view. Turn on Fast (Preview) to enable it.",
         onToggle: fn(),
       },
     },

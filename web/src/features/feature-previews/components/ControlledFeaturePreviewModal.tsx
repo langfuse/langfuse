@@ -2,6 +2,8 @@ import { useSession } from "next-auth/react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 
@@ -28,6 +30,8 @@ export function ControlledFeaturePreviewModal({
   const authSession = useSession();
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
+  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
+  const { setOpen: setAiAgentOpen } = useInAppAiAgent();
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
       onSuccess: async (_data, variables) => {
@@ -61,9 +65,7 @@ export function ControlledFeaturePreviewModal({
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isBetaEnabled
         ? "Compact Session View is only available on the events-backed session view. Turn on Fast (Preview) to enable it."
-        : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
+        : undefined,
       onToggle: onToggle("modernSession"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
@@ -82,6 +84,13 @@ export function ControlledFeaturePreviewModal({
       open={open}
       onOpenChange={onOpenChange}
       state={state}
+      onContactSupport={() => {
+        // Same interaction as the sidebar Support button; close this dialog
+        // first so it does not cover the drawer (panel layer < modal layer).
+        onOpenChange(false);
+        setAiAgentOpen(false);
+        setSupportDrawerOpen(true);
+      }}
     />
   );
 }

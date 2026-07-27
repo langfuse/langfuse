@@ -31,14 +31,6 @@ type PreviewIllustration = {
   alt: string;
 };
 
-/** Static provenance shown as a small mono metadata line in the detail pane.
- *  Dates come from the git history of the registry entry — update `updated`
- *  when a preview materially changes. Optional; omit rather than guess. */
-type PreviewDates = {
-  added: string;
-  updated?: string;
-};
-
 type PreviewRegistryItem = {
   flag: PreviewFlag;
   title: string;
@@ -47,7 +39,6 @@ type PreviewRegistryItem = {
   details: string;
   feedbackUrl: string;
   illustration: PreviewIllustration;
-  dates?: PreviewDates;
 };
 
 /** Per-preview dynamic state, supplied by ControlledFeaturePreviewModal (which
@@ -77,7 +68,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       dark: modernSessionDarkIllustration,
       alt: "Compact Session View showing a trace minimap beside a continuous session conversation feed.",
     },
-    dates: { added: "Jul 20, 2026" },
   },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
   // events tables and no longer surfaced in the dialog (no state entry in
@@ -97,7 +87,6 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
       dark: filterSearchBarDarkIllustration,
       alt: "The filter search bar turns typed queries like level:ERROR -env:dev into Observations and Traces table filters with inline suggestions.",
     },
-    dates: { added: "Jun 17, 2026", updated: "Jun 18, 2026" },
   },
 ];
 
@@ -108,12 +97,15 @@ export type FeaturePreviewModalProps = {
   onOpenChange: (open: boolean) => void;
   /** Dynamic state per preview flag. Only previews with an entry here render. */
   state: Partial<Record<PreviewFlag, PreviewState>>;
+  /** Same interaction as the sidebar Support button (opens the support drawer). */
+  onContactSupport: () => void;
 };
 
 export function FeaturePreviewModal({
   open,
   onOpenChange,
   state,
+  onContactSupport,
 }: FeaturePreviewModalProps) {
   const items = PREVIEW_REGISTRY.filter((item) => state[item.flag]);
   const [selectedFlag, setSelectedFlag] = useState<PreviewFlag | null>(
@@ -192,38 +184,35 @@ export function FeaturePreviewModal({
                   >
                     {selectedState.enabled ? "Enabled" : "Disabled"}
                   </Badge>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button asChild size="sm">
+                      <a
+                        href={selected.feedbackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Give feedback
+                      </a>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={onContactSupport}
+                    >
+                      Contact support
+                    </Button>
+                  </div>
                 </div>
 
                 <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
                   {selected.description}
                 </p>
 
-                {selected.dates ? (
-                  <p className="text-muted-foreground mt-2 font-mono text-xs">
-                    added {selected.dates.added}
-                    {selected.dates.updated
-                      ? ` · updated ${selected.dates.updated}`
-                      : null}
-                  </p>
-                ) : null}
-
                 <PreviewMockupPanel illustration={selected.illustration} />
 
                 <p className="text-muted-foreground mt-5 text-sm leading-5">
                   {selected.details}
                 </p>
-
-                <div className="border-border mt-6 border-t border-dashed" />
-
-                <Button asChild className="mt-4">
-                  <a
-                    href={selected.feedbackUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Give feedback
-                  </a>
-                </Button>
               </>
             ) : null}
           </section>
