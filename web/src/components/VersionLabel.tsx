@@ -95,7 +95,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
             <StatusBadge
               type={backgroundMigrationStatus.data?.status.toLowerCase()}
               showText={false}
-              className="bg-transparent"
+              variant="transparent"
             />
           )}
           {hasUpdate && !showBackgroundMigrationStatus && (
@@ -145,7 +145,7 @@ export const VersionLabel = ({ className }: { className?: string }) => {
                 <StatusBadge
                   type={backgroundMigrationStatus.data?.status.toLowerCase()}
                   showText={false}
-                  className="bg-transparent"
+                  variant="transparent"
                 />
               )}
             </Link>

@@ -15,8 +15,82 @@ const statusCategories = {
 export type Status =
   (typeof statusCategories)[keyof typeof statusCategories][number];
 
+type StatusCategory = keyof typeof statusCategories | "unknown";
+
+// Exhaustive style lookup: every CSS property is supplied by exactly one
+// branch per category, so no class merging is needed to resolve conflicts.
+const categoryStyles: Record<
+  StatusCategory,
+  {
+    background: string;
+    text: string;
+    dotOuter: string;
+    dotInner: string;
+    hideDot?: boolean;
+  }
+> = {
+  active: {
+    background: "bg-light-green",
+    text: "text-dark-green",
+    dotOuter: "animate-ping bg-dark-green",
+    dotInner: "bg-dark-green",
+  },
+  pending: {
+    background: "bg-light-yellow",
+    text: "text-dark-yellow",
+    dotOuter: "animate-ping bg-dark-yellow",
+    dotInner: "bg-dark-yellow",
+  },
+  delayed: {
+    background: "bg-light-blue",
+    text: "text-dark-blue",
+    dotOuter: "animate-ping bg-dark-blue",
+    dotInner: "bg-dark-blue",
+  },
+  inactive: {
+    background: "bg-muted-gray",
+    text: "text-primary",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-muted-foreground",
+  },
+  paused: {
+    background: "bg-light-yellow",
+    text: "text-dark-yellow",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-dark-yellow",
+  },
+  completed: {
+    background: "bg-light-green",
+    text: "text-dark-green",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-muted-foreground",
+    hideDot: true,
+  },
+  error: {
+    background: "bg-light-red",
+    text: "text-dark-red",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-muted-foreground",
+    hideDot: true,
+  },
+  partial: {
+    background: "bg-light-yellow",
+    text: "text-dark-yellow",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-muted-foreground",
+    hideDot: true,
+  },
+  unknown: {
+    background: "bg-muted-gray",
+    text: "text-primary",
+    dotOuter: "bg-muted-foreground",
+    dotInner: "bg-muted-foreground",
+  },
+};
+
 export const StatusBadge = ({
   type,
+  variant = "default",
   isLive = true,
   className,
   showText = true,
@@ -24,56 +98,36 @@ export const StatusBadge = ({
   children,
 }: {
   type: Status | (string & {});
+  variant?: "default" | "transparent";
   isLive?: boolean;
   className?:
     | "w-fit self-start"
     | "pl-3"
     | "ml-2"
-    | "bg-transparent"
     | "mb-3 px-3 py-1 text-sm"
     | "";
   showText?: boolean;
   preserveCase?: boolean;
   children?: ReactNode;
 }) => {
-  let badgeColor = "bg-muted-gray text-primary";
-  let dotColor = "bg-muted-foreground";
-  let dotPingColor = "bg-muted-foreground";
-  let showDot = isLive;
-
   const normalizedType = type?.toLowerCase() ?? "";
 
-  if (statusCategories.active.includes(normalizedType)) {
-    badgeColor = "bg-light-green text-dark-green";
-    dotColor = "animate-ping bg-dark-green";
-    dotPingColor = "bg-dark-green";
-  } else if (statusCategories.pending.includes(normalizedType)) {
-    badgeColor = "bg-light-yellow text-dark-yellow";
-    dotColor = "animate-ping bg-dark-yellow";
-    dotPingColor = "bg-dark-yellow";
-  } else if (statusCategories.delayed.includes(normalizedType)) {
-    badgeColor = "bg-light-blue text-dark-blue";
-    dotColor = "animate-ping bg-dark-blue";
-    dotPingColor = "bg-dark-blue";
-  } else if (statusCategories.paused.includes(normalizedType)) {
-    badgeColor = "bg-light-yellow text-dark-yellow";
-    dotPingColor = "bg-dark-yellow";
-  } else if (statusCategories.error.includes(normalizedType)) {
-    badgeColor = "bg-light-red text-dark-red";
-    showDot = false;
-  } else if (statusCategories.completed.includes(normalizedType)) {
-    badgeColor = "bg-light-green text-dark-green";
-    showDot = false;
-  } else if (statusCategories.partial.includes(normalizedType)) {
-    badgeColor = "bg-light-yellow text-dark-yellow";
-    showDot = false;
-  }
+  const category: StatusCategory =
+    (Object.keys(statusCategories) as (keyof typeof statusCategories)[]).find(
+      (key) => statusCategories[key].includes(normalizedType),
+    ) ?? "unknown";
+
+  const styles = categoryStyles[category];
+  const background =
+    variant === "transparent" ? "bg-transparent" : styles.background;
+  const showDot = isLive && !styles.hideDot;
 
   return (
     <div
       className={cn(
         "inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs break-all sm:break-normal",
-        badgeColor,
+        background,
+        styles.text,
         className,
       )}
     >
@@ -82,13 +136,13 @@ export const StatusBadge = ({
           <span
             className={cn(
               "absolute inline-flex h-full w-full rounded-full opacity-75",
-              dotColor,
+              styles.dotOuter,
             )}
           ></span>
           <span
             className={cn(
               "relative inline-flex h-2 w-2 rounded-full",
-              dotPingColor,
+              styles.dotInner,
             )}
           ></span>
         </span>
