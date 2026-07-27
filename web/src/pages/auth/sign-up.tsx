@@ -163,7 +163,10 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        signIn(providerId);
+        signIn(
+          providerId,
+          targetPath ? { callbackUrl: targetPath } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -305,6 +308,7 @@ function StandardSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -319,6 +323,13 @@ function VerifiedSignupFlow({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+  const setupPasswordPath = targetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
+    : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<SignupPhase>("form");
@@ -365,7 +376,7 @@ function VerifiedSignupFlow({
       // Send OTP email via NextAuth email provider
       const signInRes = await signIn("email", {
         email: values.email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
         redirect: false,
       });
 
@@ -394,7 +405,7 @@ function VerifiedSignupFlow({
     const formattedEmail = encodeURIComponent(otpEmail.toLowerCase().trim());
     const formattedCode = encodeURIComponent(otpCode.trim());
     const callback = encodeURIComponent(
-      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
     );
     window.location.href = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/auth/callback/email?email=${formattedEmail}&token=${formattedCode}&callbackUrl=${callback}`;
   }
@@ -532,6 +543,7 @@ function VerifiedSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />

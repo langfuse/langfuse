@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => {
     completeMutateAsyncMock: vi.fn(),
     routerMock: {
       replace: vi.fn(),
+      query: {} as Record<string, unknown>,
     },
     statusSetDataMock: vi.fn(),
     statusUseQueryMock: vi.fn(),
@@ -62,6 +63,7 @@ describe("OnboardingSurvey", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.routerMock.query = {};
 
     onboardingStatus = { completed: false };
     mocks.statusUseQueryMock.mockImplementation(() => ({
@@ -108,5 +110,24 @@ describe("OnboardingSurvey", () => {
 
     expect(screen.getByText("Setting up your project")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("passes a safe target path through onboarding completion", async () => {
+    mocks.routerMock.query = { targetPath: "/demo" };
+
+    render(<OnboardingSurvey />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    await waitFor(() => {
+      expect(mocks.completeMutateAsyncMock).toHaveBeenCalledWith({
+        targetPath: "/demo",
+      });
+      expect(mocks.statusSetDataMock).toHaveBeenCalledWith(undefined, {
+        completed: true,
+        redirectTo: "/demo",
+      });
+      expect(mocks.routerMock.replace).toHaveBeenCalledWith("/demo");
+    });
   });
 });

@@ -18,6 +18,25 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import type { SurveyFormData } from "../lib/surveyTypes";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
+
+const getSameOriginPath = (url: string): string | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.origin !== window.location.origin) return null;
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+  } catch {
+    return null;
+  }
+};
+
+const getQueryRedirectPath = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const sameOriginPath = getSameOriginPath(value);
+  return stripBasePath(getSafeRedirectPath(sameOriginPath ?? value));
+};
 
 export function OnboardingSurvey() {
   const router = useRouter();
@@ -30,6 +49,9 @@ export function OnboardingSurvey() {
   });
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
+  const queryRedirectPath =
+    getQueryRedirectPath(router.query.targetPath) ??
+    getQueryRedirectPath(router.query.callbackUrl);
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 
@@ -39,15 +61,21 @@ export function OnboardingSurvey() {
 
       try {
         const referralSource = data?.referralSource?.trim();
-        const onboardingResult = await completeOnboardingMutation.mutateAsync(
-          referralSource ? { referralSource } : undefined,
-        );
+        const onboardingPayload =
+          referralSource || queryRedirectPath
+            ? {
+                ...(referralSource ? { referralSource } : {}),
+                ...(queryRedirectPath ? { targetPath: queryRedirectPath } : {}),
+              }
+            : undefined;
+        const onboardingResult =
+          await completeOnboardingMutation.mutateAsync(onboardingPayload);
         utils.onboarding.status.setData(undefined, {
           completed: true,
-          redirectTo: onboardingResult.redirectTo,
+          redirectTo: queryRedirectPath ?? onboardingResult.redirectTo,
         });
         await updateSession();
-        await router.replace(onboardingResult.redirectTo);
+        await router.replace(queryRedirectPath ?? onboardingResult.redirectTo);
       } catch (error) {
         setHasStartedOnboardingCompletion(false);
         showErrorToast(
@@ -56,7 +84,13 @@ export function OnboardingSurvey() {
         );
       }
     },
-    [completeOnboardingMutation, router, updateSession, utils],
+    [
+      completeOnboardingMutation,
+      queryRedirectPath,
+      router,
+      updateSession,
+      utils,
+    ],
   );
 
   const [redirectCompletedOnboarding, isRedirectingCompletedOnboarding] =
@@ -79,13 +113,14 @@ export function OnboardingSurvey() {
 
   useEffect(() => {
     if (onboardingStatus.data?.completed && !hasStartedOnboardingCompletion) {
-      redirectCompletedOnboarding(onboardingStatus.data.redirectTo).catch(
-        () => undefined,
-      );
+      redirectCompletedOnboarding(
+        queryRedirectPath ?? onboardingStatus.data.redirectTo,
+      ).catch(() => undefined);
     }
   }, [
     hasStartedOnboardingCompletion,
     onboardingStatus.data,
+    queryRedirectPath,
     redirectCompletedOnboarding,
   ]);
 

@@ -27,6 +27,7 @@ import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { getSafeRedirectPath, stripBasePath } from "@/src/utils/redirect";
 
 const resetPasswordSchema = z
   .object({
@@ -47,6 +48,13 @@ export function ResetPasswordPage({
   const session = useSession();
   const router = useRouter();
   const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? stripBasePath(getSafeRedirectPath(queryTargetPath))
+    : undefined;
+  const setupPasswordPath = targetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(targetPath)}`
+    : "/auth/setup-password";
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
@@ -86,9 +94,10 @@ export function ResetPasswordPage({
         setIsSuccess(true);
         setTimeout(() => {
           const target =
-            isSetMode && isLangfuseCloud && region !== "DEV"
+            targetPath ??
+            (isSetMode && isLangfuseCloud && region !== "DEV"
               ? "/onboarding"
-              : "/";
+              : "/");
           router.push(target);
           setIsSuccess(false);
         }, 2000);
@@ -245,9 +254,7 @@ export function ResetPasswordPage({
                     <RequestResetPasswordEmailButton
                       email={form.watch("email")}
                       className="w-full"
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
+                      callbackUrl={isSetMode ? setupPasswordPath : undefined}
                     />
                   )}
                 </div>
@@ -267,7 +274,7 @@ export function ResetPasswordPage({
               <RequestResetPasswordEmailButton
                 email={form.getValues("email")}
                 className="w-full"
-                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                callbackUrl={isSetMode ? setupPasswordPath : undefined}
               />
             )}
           </div>

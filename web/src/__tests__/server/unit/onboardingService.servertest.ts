@@ -226,6 +226,42 @@ describe("completeCloudSignupOnboarding", () => {
 
     expect(tx.survey.create).toHaveBeenCalledTimes(1);
   });
+
+  it("returns a requested safe redirect after writing onboarding state", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          orgMetadata: {
+            langfuseOnboarding: {
+              starterOrganization: true,
+            },
+          },
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await expect(
+      completeCloudSignupOnboarding({
+        prisma,
+        userId: "user-1",
+        userEmail: "user@example.com",
+        canCreateOrganizations: true,
+        targetPath: "/demo",
+      }),
+    ).resolves.toEqual({
+      redirectTo: "/demo",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orgId: "org-1",
+        }),
+      }),
+    );
+  });
 });
 
 describe("provisionStarterOrganizationForNewUser", () => {
