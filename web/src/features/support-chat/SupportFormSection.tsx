@@ -54,11 +54,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  Dropzone,
-  DropzoneContent,
-  DropzoneEmptyState,
-} from "@/src/components/ui/shadcn-io/dropzone";
+import { Dropzone } from "@/src/components/ui/shadcn-io/dropzone";
 import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
@@ -597,6 +593,31 @@ export function SupportFormSection({
 
                 <div className="mt-1">
                   <Dropzone
+                    content={
+                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                        <Paperclip className="h-4 w-4" />
+                        <span className="truncate" title="Attach files">
+                          Attach files
+                        </span>
+                      </div>
+                    }
+                    emptyState={
+                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
+                        <Paperclip className="h-4 w-4" />
+                        <span
+                          className="truncate"
+                          title={
+                            hasFiles
+                              ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
+                              : "Attach files"
+                          }
+                        >
+                          {hasFiles
+                            ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
+                            : "Attach files"}
+                        </span>
+                      </div>
+                    }
                     maxFiles={FILE_UPLOAD_CONSTRAINTS.maxFiles}
                     maxSize={FILE_UPLOAD_CONSTRAINTS.maxFileSizeBytes}
                     onDrop={(accepted) =>
@@ -617,35 +638,7 @@ export function SupportFormSection({
                     }}
                     src={files}
                     variant="compact"
-                  >
-                    {/* Small, single-line trigger */}
-                    <DropzoneEmptyState>
-                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                        <Paperclip className="h-4 w-4" />
-                        <span
-                          className="truncate"
-                          title={
-                            hasFiles
-                              ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                              : "Attach files"
-                          }
-                        >
-                          {hasFiles
-                            ? `${files!.length} file${files!.length > 1 ? "s" : ""} • ${totalMB} MB`
-                            : "Attach files"}
-                        </span>
-                      </div>
-                    </DropzoneEmptyState>
-                    {/* Keep content area minimal; we still allow preview slot if needed */}
-                    <DropzoneContent>
-                      <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
-                        <Paperclip className="h-4 w-4" />
-                        <span className="truncate" title="Attach files">
-                          Attach files
-                        </span>
-                      </div>
-                    </DropzoneContent>
-                  </Dropzone>
+                  />
                 </div>
 
                 {files && files.length > 0 && (
