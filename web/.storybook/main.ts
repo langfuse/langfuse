@@ -17,6 +17,13 @@ const DESIGN_COMPONENT_STORIES = [
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;
+// Design-system reference pages that sit directly under Design (not
+// Design/Components), e.g. the theme token gallery.
+const DESIGN_REFERENCE_STORIES = ["ThemeTokens/Theme Tokens"] as const;
+const PLAYGROUND_EXCLUDED_STORIES = [
+  ...DESIGN_COMPONENT_STORIES,
+  ...DESIGN_REFERENCE_STORIES,
+] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -46,10 +53,16 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     })),
+    // Design-system reference pages shown directly under Design.
+    ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design",
+    })),
     // All other component stories belong to the flat Playground by default.
     {
       directory: "../src",
-      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
+      files: `**/!(${PLAYGROUND_EXCLUDED_STORIES.map((storyPath) =>
         basename(storyPath),
       ).join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
