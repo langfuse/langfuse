@@ -71,7 +71,10 @@ describe("MonitorRowActions", () => {
     );
 
     expect(screen.getByRole("button", { name: /pause/i })).toBeDisabled();
-    expect(screen.getByRole("link")).toHaveAttribute("disabled");
+    expect(
+      screen.getByRole("button", { name: /edit monitor/i }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("collapsed: actions hide behind a kebab menu trigger", () => {

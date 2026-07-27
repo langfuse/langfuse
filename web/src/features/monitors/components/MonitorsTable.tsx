@@ -300,12 +300,18 @@ function MonitorRowActions({
 }) {
   const isPaused = monitor.status === "PAUSED";
 
-  const editButton = (
+  const editButtonContent = (
+    <>
+      <SquarePen className="h-4 w-4" aria-hidden="true" />
+      {collapsed ? <span className="ml-2">Edit</span> : null}
+    </>
+  );
+
+  const editButton = hasCUDAccess ? (
     <Button
       asChild
-      variant={collapsed ? "ghost" : "row-action"}
+      variant="ghost"
       size={collapsed ? "default" : "icon"}
-      disabled={!hasCUDAccess}
       aria-label="Edit monitor"
       title="Edit"
     >
@@ -313,15 +319,24 @@ function MonitorRowActions({
         href={monitorHref(projectId, monitor.id)}
         onClick={(e) => e.stopPropagation()}
       >
-        <SquarePen className="h-4 w-4" aria-hidden="true" />
-        {collapsed ? <span className="ml-2">Edit</span> : null}
+        {editButtonContent}
       </Link>
+    </Button>
+  ) : (
+    <Button
+      variant="ghost"
+      size={collapsed ? "default" : "icon"}
+      disabled
+      aria-label="Edit monitor"
+      title="Edit"
+    >
+      {editButtonContent}
     </Button>
   );
 
   const pauseButton = (
     <Button
-      variant={collapsed ? "ghost" : "row-action"}
+      variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
       aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
@@ -348,7 +363,7 @@ function MonitorRowActions({
       projectId={projectId}
       isTableAction
       icon={!collapsed}
-      variant={collapsed ? "ghost" : "row-action"}
+      variant="ghost"
       title="Delete"
     />
   );
@@ -374,7 +389,7 @@ function MonitorRowActions({
 
   return (
     <div
-      className="flex items-center gap-0"
+      className="[&_button]:text-foreground/40 group-hover/monitor-row:[&_button]:text-foreground/70 [&_button:hover]:text-foreground flex items-center gap-0 [&_button]:transition-[color,transform] [&_button:hover]:scale-110"
       onClick={(e) => e.stopPropagation()}
     >
       {pauseButton}

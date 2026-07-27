@@ -1,4 +1,3 @@
-import { SquarePen } from "lucide-react";
 import { fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
@@ -21,15 +20,5 @@ export const StartAligned = meta.story({
     children: "Start aligned",
     className: "w-48",
     onClick: fn(),
-  },
-});
-
-export const RowAction = meta.story({
-  args: {
-    "aria-label": "Edit",
-    children: <SquarePen className="h-4 w-4" aria-hidden="true" />,
-    onClick: fn(),
-    size: "icon",
-    variant: "row-action",
   },
 });

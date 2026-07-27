@@ -31,8 +31,6 @@ const buttonVariants = cva(
         tertiary:
           "bg-tertiary text-xs text-tertiary-foreground transition-colors hover:bg-tertiary/80",
         ghost: "transition-colors hover:bg-accent hover:text-accent-foreground",
-        "row-action":
-          "text-foreground/40 transition-[color,transform] hover:bg-accent hover:text-foreground hover:scale-110 group-hover/monitor-row:text-foreground/70",
         // Same color as real hyperlinks (--link pair), not text-primary —
         // one link color across the app.
         link: "text-link underline-offset-4 transition-colors hover:text-link-hover hover:underline",
