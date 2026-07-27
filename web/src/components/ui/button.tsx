@@ -9,32 +9,35 @@ import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Sp
 const buttonVariants = cva(
   // No font-* here: buttons follow the text-sm token weight (one weight per
   // token; heavier text must be an explicit, deliberate exception).
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "inline-flex items-center whitespace-nowrap rounded-md text-sm ring-offset-background focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground transition-colors hover:bg-primary/90",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90",
         "destructive-secondary":
-          "bg-secondary text-secondary-foreground border border-destructive disabled:hover:bg-secondary disabled:hover:text-secondary-foreground hover:bg-destructive/90 hover:text-destructive-foreground",
+          "border border-destructive bg-secondary text-secondary-foreground transition-colors hover:bg-destructive/90 hover:text-destructive-foreground disabled:hover:bg-secondary disabled:hover:text-secondary-foreground",
         outline:
           // border-contrast, not border-input: on dark surfaces the filled
           // primary reads optically larger than an outlined twin of the same
           // geometry — a brighter border lets the shape assert itself.
-          "border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground border",
+          "border border-border-contrast bg-background transition-colors hover:bg-accent hover:text-accent-foreground",
         "outline-success":
-          "border border-accent-dark-green bg-background text-accent-dark-green hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
+          "border border-accent-dark-green bg-background text-accent-dark-green transition-colors hover:bg-accent-light-green hover:text-accent-dark-green dark:border-dark-green dark:text-dark-green dark:hover:bg-light-green dark:hover:text-dark-green",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-secondary text-secondary-foreground transition-colors hover:bg-secondary/80",
         tertiary:
-          "bg-tertiary text-tertiary-foreground hover:bg-tertiary/80 text-xs",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+          "bg-tertiary text-xs text-tertiary-foreground transition-colors hover:bg-tertiary/80",
+        ghost: "transition-colors hover:bg-accent hover:text-accent-foreground",
+        "row-action":
+          "text-foreground/40 transition-[color,transform] hover:bg-accent hover:text-foreground hover:scale-110 group-hover/monitor-row:text-foreground/70",
         // Same color as real hyperlinks (--link pair), not text-primary —
         // one link color across the app.
-        link: "text-link hover:text-link-hover underline-offset-4 hover:underline",
+        link: "text-link underline-offset-4 transition-colors hover:text-link-hover hover:underline",
         errorNotification:
-          "bg-destructive-foreground/90 text-destructive hover:bg-destructive-foreground/80",
+          "bg-destructive-foreground/90 text-destructive transition-colors hover:bg-destructive-foreground/80",
       },
       size: {
         default: "h-8 px-3 py-1",
@@ -45,10 +48,15 @@ const buttonVariants = cva(
         "icon-xs": "h-6 w-6",
         "icon-sm": "h-6 rounded-md px-2",
       },
+      alignment: {
+        center: "justify-center",
+        start: "justify-start",
+      },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      alignment: "center",
     },
   },
 );
@@ -67,6 +75,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       className,
       variant,
       size,
+      alignment,
       asChild = false,
       loading = false,
       disabled,
@@ -79,7 +88,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, alignment, className }))}
         ref={ref}
         disabled={disabled || loading}
         onClick={loading || disabled ? undefined : onClick}
