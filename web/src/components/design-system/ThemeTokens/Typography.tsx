@@ -111,11 +111,9 @@ function TypeScaleRow({ token }: { token: TokenDeclaration }) {
 function TypefaceSpecimen({
   token,
   role,
-  guidance,
 }: {
   token: TokenDeclaration;
   role: string;
-  guidance: string;
 }) {
   // Render through the emitted :root var — live truth, same source token.
   const fontFamily = `var(${token.name})`;
@@ -142,7 +140,6 @@ function TypefaceSpecimen({
               score every generation at bold {boldWeight}.
             </span>
           </p>
-          <p className="text-muted-foreground text-sm">{guidance}</p>
         </div>
       </Panel>
       <code
@@ -224,8 +221,7 @@ export function Typography() {
             <>
               Two typefaces, two weights, {sizeTokens.length} sizes. Parsed at
               build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>, so this
-              page cannot drift from the stylesheet.
+              <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
           meta={
@@ -239,7 +235,7 @@ export function Typography() {
 
         <PageSection
           title="Typefaces"
-          blurb="The sans face carries the interface; the mono face carries everything data-shaped. Both stay behind font-relative tokens, so a face swap is a var swap."
+          blurb="Sans carries the interface; mono carries everything data-shaped."
           aside={<InlineCode>@theme static</InlineCode>}
         >
           <div className="grid gap-4 lg:grid-cols-2">
@@ -247,26 +243,23 @@ export function Typography() {
               <TypefaceSpecimen
                 token={sansToken}
                 role="sans · UI text & body copy"
-                guidance="Everything the user reads: labels, body copy, headings. Every text-* size renders in this face by default."
               />
             )}
             {monoToken && (
               <TypefaceSpecimen
                 token={monoToken}
                 role="mono · numerals, IDs, code, eyebrows"
-                guidance="Everything data-shaped: numerals, identifiers, code, eyebrow labels. See the mono conventions below."
               />
             )}
           </div>
           <p className="text-muted-foreground text-sm">
-            There is deliberately no third face: display-sized text simply uses
-            the sans stack at a larger size.
+            No third face: display text is the sans stack at a larger size.
           </p>
         </PageSection>
 
         <PageSection
-          title="Two weights, deliberately"
-          blurb="Exactly two weight roles exist: regular and bold. Both are font-relative tokens, so components never hardcode numbers; swapping the typeface only retunes the two role values."
+          title="Weight roles"
+          blurb="Two roles: regular and bold. Components never hardcode weight numbers."
           aside={<InlineCode>{weightTokens.length} roles</InlineCode>}
         >
           <div className="flex flex-col">
@@ -276,14 +269,13 @@ export function Typography() {
           </div>
           <p className="text-muted-foreground text-sm">
             <InlineCode>font-medium</InlineCode>,{" "}
-            <InlineCode>font-semibold</InlineCode> and raw numbers are drift:
-            there is no in-between tier.
+            <InlineCode>font-semibold</InlineCode> and raw numbers are drift.
           </p>
         </PageSection>
 
         <PageSection
           title="Type scale"
-          blurb="Each size token carries its canonical weight, so a text-* utility alone yields a complete style. Sizes declare no line-height; leading-* utilities opt in per context."
+          blurb="Each size carries its canonical weight. No line-height; opt in with leading-*."
           aside={<InlineCode>{sizeTokens.length} sizes</InlineCode>}
         >
           <div className="flex flex-col">
@@ -295,7 +287,7 @@ export function Typography() {
 
         <PageSection
           title="Mono conventions"
-          blurb="The mono rule: numerals, IDs, code and eyebrow labels are always mono. Each sample below renders with the exact classes the app uses."
+          blurb="Numerals, IDs, code and eyebrow labels are always mono. Samples use the exact app classes."
           aside={<InlineCode>--font-mono</InlineCode>}
         >
           <div className="flex flex-col">

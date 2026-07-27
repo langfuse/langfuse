@@ -77,7 +77,7 @@ export function RadiiSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   return (
     <TokenSection
       title="Radii"
-      blurb="One base radius; the sm / md / lg steps derive from it, so a rounder or squarer feel is a one-token change."
+      blurb="One base radius; the sm / md / lg steps derive from it."
       count={count}
     >
       {radiusEntry && (
@@ -145,7 +145,7 @@ export function LayoutOffsetsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   return (
     <TokenSection
       title="Layout offsets"
-      blurb="The banner height system used by fixed/sticky positioning: a banner raises --banner-height, everything below offsets by --banner-offset, and full-height layouts use screen-with-banner instead of 100svh."
+      blurb="A banner raises --banner-height; everything below offsets by --banner-offset; full-height layouts use screen-with-banner, not 100svh."
       count={count}
       sectionSample={<BannerSystemSample ctx={ctx} />}
     >
@@ -230,7 +230,7 @@ export function LayeringSection({
   return (
     <PageSection
       title="Layering model"
-      blurb="Surfaces stack from the canvas outward: background, then card, then the floating tiers. Use them in order; skipping tiers flattens the depth cues. Both themes shown, independent of the toolbar switcher."
+      blurb="Surfaces stack from the canvas outward. Use the tiers in order; skipping flattens the depth cues."
       aside={<InlineCode>{layers.length} tiers</InlineCode>}
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -267,7 +267,7 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
   return (
     <PageSection
       title="Overlay layers"
-      blurb="Overlays portal through layer containers, never raw z-index. The bands stack by DOM order (later paints on top); z-index stays a local tool within one layer."
+      blurb="Overlays portal through layer containers, never raw z-index. Bands stack by DOM order."
       aside={<InlineCode>{LAYER_ORDER.length} bands</InlineCode>}
     >
       <div
@@ -304,12 +304,9 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
       </div>
       <p className="text-muted-foreground text-sm">
         Source of truth: <InlineCode>LAYER_ORDER</InlineCode> in{" "}
-        <code className="font-mono">components/ui/layer.tsx</code>, mapped to
-        sibling containers after <code className="font-mono">#__next</code> in{" "}
-        <code className="font-mono">_document.tsx</code>. These are code
-        constants, not CSS tokens; the{" "}
-        <code className="font-mono">@repo/no-overlay-zindex</code> lint rule
-        guards the no-z-index half of the rule.
+        <code className="font-mono">components/ui/layer.tsx</code>, enforced by
+        the <code className="font-mono">@repo/no-overlay-zindex</code> lint
+        rule.
       </p>
     </PageSection>
   );
@@ -355,7 +352,7 @@ export function BreakpointsNote() {
   return (
     <PageSection
       title="Breakpoints"
-      blurb="No custom breakpoint tokens exist. Responsive behavior is utility-driven with Tailwind's default sm / md / lg / xl / 2xl screens; globals.css declares no overrides."
+      blurb="No custom breakpoint tokens; Tailwind's default sm / md / lg / xl / 2xl screens."
     >
       <></>
     </PageSection>
@@ -377,11 +374,10 @@ export function Layout() {
           title="Layout"
           lede={
             <>
-              Radii, layout offsets, the surface layering model, the overlay
-              layer order and the animation tokens. Token values are parsed at
-              build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>, so this
-              page cannot drift from the file; the layer order is read from{" "}
+              Radii, layout offsets, surface layering, overlay order,
+              animations. Parsed at build time from{" "}
+              <code className="font-mono">src/styles/globals.css</code>; the
+              layer order from{" "}
               <code className="font-mono">components/ui/layer.tsx</code>.
             </>
           }
@@ -400,9 +396,8 @@ export function Layout() {
         <BreakpointsNote />
         <AnimationsSection {...rowContexts} />
         <p className="text-muted-foreground text-sm">
-          Component spacing itself uses Tailwind&apos;s default rem scale (
-          <InlineCode>p-2</InlineCode>, <InlineCode>gap-4</InlineCode>, …); only
-          the tokens above override or extend it.
+          Component spacing uses Tailwind&apos;s default rem scale (
+          <InlineCode>p-2</InlineCode>, <InlineCode>gap-4</InlineCode>, …).
         </p>
       </div>
     </div>

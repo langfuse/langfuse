@@ -207,7 +207,7 @@ function InteractionStatesSection({ ctx }: { ctx: TokenContext }) {
   return (
     <PageSection
       title="Interaction states"
-      blurb="How the fills above combine into hover, selected, active and focus. Each sample paints the state's end value with the exact classes the app uses."
+      blurb="Hover, selected, active and focus, painted with the exact classes the app uses."
     >
       <div className="flex flex-col">
         <StateRow
@@ -772,7 +772,7 @@ function ColorMappingsSection({ ctx }: { ctx: TokenContext }) {
             </h2>
             <p className="text-muted-foreground max-w-2xl text-sm">
               @theme inline: utility → token wiring plus the disabled built-in
-              palettes. These emit utilities, not runtime vars.
+              palettes.
             </p>
           </div>
           <InlineCode>{colorMappings.length} tokens</InlineCode>
@@ -850,9 +850,8 @@ export function Color() {
           lede={
             <>
               Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>, so this
-              page cannot drift from the file. Use the toolbar theme switcher to
-              re-render the samples under light/dark.
+              <code className="font-mono">src/styles/globals.css</code>. The
+              toolbar switcher previews light/dark.
             </>
           }
           meta={<>{colorEntryCount} color tokens · light and dark</>}
@@ -893,7 +892,7 @@ export function Color() {
           {unassignedTokens.length > 0 && (
             <CollapsedSection
               title="Unassigned tokens"
-              blurb="Tokens in globals.css that no reference page claims yet (see PAGE_TOKEN_MATCHERS in shared.tsx). This group exists so nothing can silently vanish; give each one a home."
+              blurb="Tokens no reference page claims yet (PAGE_TOKEN_MATCHERS in shared.tsx). Give each one a home."
               count={unassignedTokens.length}
             >
               {unassignedTokens.map((name) => {

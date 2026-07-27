@@ -158,12 +158,9 @@ export function Charts() {
           title="Charts"
           lede={
             <>
-              Two color systems: a categorical series palette for nominal
-              series, and a sequential scale for encoding magnitude (score
-              heatmaps). Parsed at build time from{" "}
-              <code className="font-mono">src/styles/globals.css</code>, so this
-              page cannot drift from the file. Use the toolbar theme switcher to
-              re-render the samples under light/dark.
+              A categorical palette for series, a sequential scale for
+              magnitude. Parsed at build time from{" "}
+              <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
           meta={
@@ -176,7 +173,7 @@ export function Charts() {
 
         <TokenSection
           title="Categorical series"
-          blurb="Ordered palette for nominal series (one color per trace name, model, level). Charts with more series than colors cycle with modulo, so keep high-cardinality series grouped."
+          blurb="One color per nominal series (trace name, model, level); more series than colors cycle with modulo."
           count={seriesEntries.length}
           sectionSample={
             <div className="flex flex-col gap-3">
@@ -198,7 +195,7 @@ export function Charts() {
 
         <TokenSection
           title="Sequential scale"
-          blurb="Five ordered steps for encoding a single magnitude, used by the score heatmaps. Color intensity carries the value; use the categorical palette for nominal series instead."
+          blurb="Five ordered steps encoding a single magnitude; used by the score heatmaps."
           count={scaleEntries.length}
           sectionSample={
             <div className="flex flex-col gap-3">
@@ -231,7 +228,7 @@ export function Charts() {
         {gridEntry && (
           <TokenSection
             title="Grid"
-            blurb="Grid and axis lines behind every chart; quiet on both themes so the series carry the contrast."
+            blurb="Grid and axis lines; quiet so the series carry the contrast."
             count={1}
           >
             <TokenRow
