@@ -243,6 +243,22 @@ export function AppSidebar({
   mobileNavigation,
   ...props
 }: AppSidebarProps) {
+  const activeNotifications =
+    notificationState.status === "visible"
+      ? sidebarNotifications.filter((notification) => {
+          if (notificationState.dismissedIds.includes(notification.id)) {
+            return false;
+          }
+          if (!notification.createdAt) return true;
+
+          const createdAt = new Date(notification.createdAt).getTime();
+          return (
+            notificationState.currentTimestamp <=
+            createdAt + (notification.ttlMs ?? TWO_WEEKS_MS)
+          );
+        })
+      : [];
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
@@ -258,17 +274,23 @@ export function AppSidebar({
           </div>
         </div>
         <div className="h-1 flex-1 border-b" />
-        <DemoBadge show={showDemoBadge} />
+        {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && <MobileNavSwitcher state={mobileNavigation} />}
+        {isMobile && mobileNavigation.status === "available" && (
+          <MobileNavSwitcher state={mobileNavigation} />
+        )}
         <NavMain items={navItems} />
         <div className="flex-1" />
-        {notificationState.status === "visible" && (
-          <div className="flex flex-col gap-2 p-2">
-            <SidebarNotifications state={notificationState} />
-          </div>
-        )}
+        {notificationState.status === "visible" &&
+          activeNotifications.length > 0 && (
+            <div className="flex flex-col gap-2 p-2">
+              <SidebarNotifications
+                state={notificationState}
+                activeNotifications={activeNotifications}
+              />
+            </div>
+          )}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
@@ -279,9 +301,11 @@ export function AppSidebar({
   );
 }
 
-function MobileNavSwitcher({ state }: { state: MobileNavigationState }) {
-  if (state.status === "unavailable") return null;
-
+function MobileNavSwitcher({
+  state,
+}: {
+  state: Extract<MobileNavigationState, { status: "available" }>;
+}) {
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupContent>
@@ -348,21 +372,11 @@ function MobileNavSwitcher({ state }: { state: MobileNavigationState }) {
 
 function SidebarNotifications({
   state,
+  activeNotifications,
 }: {
   state: Extract<SidebarNotificationState, { status: "visible" }>;
+  activeNotifications: SidebarNotification[];
 }) {
-  const activeNotifications = sidebarNotifications.filter((notification) => {
-    if (state.dismissedIds.includes(notification.id)) return false;
-    if (!notification.createdAt) return true;
-
-    const createdAt = new Date(notification.createdAt).getTime();
-    return (
-      state.currentTimestamp <= createdAt + (notification.ttlMs ?? TWO_WEEKS_MS)
-    );
-  });
-
-  if (activeNotifications.length === 0) return null;
-
   const visibleNotifications = activeNotifications.slice(0, 3);
   const frontNotification = visibleNotifications[0];
   const backCount = visibleNotifications.length - 1;
@@ -549,9 +563,7 @@ function NavUser({
   );
 }
 
-const DemoBadge = ({ show }: { show: boolean }) => {
-  if (!show) return null;
-
+const DemoBadge = () => {
   return (
     <SidebarGroup className="border-b">
       <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
