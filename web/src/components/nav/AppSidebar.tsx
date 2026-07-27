@@ -191,23 +191,19 @@ type SidebarNotificationState =
       onLinkClick: (id: string) => void;
     };
 
-type Organization = Extract<
+type OrganizationDropdownOption = Extract<
   React.ComponentProps<typeof OrganizationDropdownMenu>,
   { state: "loaded" }
 >["organizations"][number];
 
-type MobileNavigationState =
-  | { status: "unavailable" }
-  | {
-      status: "available";
-      organization: { id: string; name: string };
-      project: { id: string; name: string } | null;
-      organizations: Organization[] | null;
-      canCreateOrganizations: boolean;
-      canCreateProjects: boolean;
-      getOrgPath: (organizationId: string) => string;
-      getProjectPath: (projectId: string) => string;
-    };
+type ProjectOption = Extract<
+  React.ComponentProps<typeof ProjectDropdownMenu>,
+  { state: "loaded" }
+>["projects"][number];
+
+type OrganizationOption = OrganizationDropdownOption & {
+  projects: ProjectOption[];
+};
 
 type AppSidebarProps = {
   navItems: {
@@ -226,7 +222,13 @@ type AppSidebarProps = {
   versionState: SidebarVersionState;
   showDemoBadge: boolean;
   notificationState: SidebarNotificationState;
-  mobileNavigation: MobileNavigationState;
+  organization: { id: string; name: string } | null;
+  project: { id: string; name: string } | null;
+  organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
+  canCreateProjects: boolean;
+  getOrgPath: (organizationId: string) => string;
+  getProjectPath: (projectId: string) => string;
 } & React.ComponentProps<typeof Sidebar>;
 
 export function AppSidebar({
@@ -240,7 +242,13 @@ export function AppSidebar({
   versionState,
   showDemoBadge,
   notificationState,
-  mobileNavigation,
+  organization,
+  project,
+  organizations,
+  canCreateOrganizations,
+  canCreateProjects,
+  getOrgPath,
+  getProjectPath,
   ...props
 }: AppSidebarProps) {
   const activeNotifications =
@@ -277,8 +285,16 @@ export function AppSidebar({
         {showDemoBadge && <DemoBadge />}
       </SidebarHeader>
       <SidebarContent>
-        {isMobile && mobileNavigation.status === "available" && (
-          <MobileNavSwitcher state={mobileNavigation} />
+        {isMobile && organization && (
+          <MobileNavSwitcher
+            organization={organization}
+            project={project}
+            organizations={organizations}
+            canCreateOrganizations={canCreateOrganizations}
+            canCreateProjects={canCreateProjects}
+            getOrgPath={getOrgPath}
+            getProjectPath={getProjectPath}
+          />
         )}
         <NavMain items={navItems} />
         <div className="flex-1" />
@@ -302,9 +318,21 @@ export function AppSidebar({
 }
 
 function MobileNavSwitcher({
-  state,
+  organization,
+  project,
+  organizations,
+  canCreateOrganizations,
+  canCreateProjects,
+  getOrgPath,
+  getProjectPath,
 }: {
-  state: Extract<MobileNavigationState, { status: "available" }>;
+  organization: { id: string; name: string };
+  project: { id: string; name: string } | null;
+  organizations: OrganizationOption[] | null;
+  canCreateOrganizations: boolean;
+  canCreateProjects: boolean;
+  getOrgPath: (organizationId: string) => string;
+  getProjectPath: (projectId: string) => string;
 }) {
   return (
     <SidebarGroup className="border-b">
@@ -316,50 +344,49 @@ function MobileNavSwitcher({
                 <SidebarMenuButton>
                   <span
                     className="min-w-0 flex-1 truncate text-left"
-                    title={state.organization.name}
+                    title={organization.name}
                   >
-                    {state.organization.name}
+                    {organization.name}
                   </span>
                   <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <OrganizationDropdownMenu
-                {...(state.organizations
-                  ? { state: "loaded", organizations: state.organizations }
+                {...(organizations
+                  ? { state: "loaded", organizations }
                   : { state: "loading" })}
-                canCreateOrganizations={state.canCreateOrganizations}
-                getOrgPath={state.getOrgPath}
+                canCreateOrganizations={canCreateOrganizations}
+                getOrgPath={getOrgPath}
               />
             </DropdownMenu>
           </SidebarMenuItem>
-          {state.project && (
+          {project && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton>
                     <span
                       className="min-w-0 flex-1 truncate text-left"
-                      title={state.project.name}
+                      title={project.name}
                     >
-                      {state.project.name}
+                      {project.name}
                     </span>
                     <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <ProjectDropdownMenu
-                  organizationId={state.organization.id}
-                  {...(state.organizations
+                  organizationId={organization.id}
+                  {...(organizations
                     ? {
                         state: "loaded",
                         projects:
-                          state.organizations.find(
-                            (organization) =>
-                              organization.id === state.organization.id,
+                          organizations.find(
+                            (item) => item.id === organization.id,
                           )?.projects ?? [],
                       }
                     : { state: "loading" })}
-                  canCreateProjects={state.canCreateProjects}
-                  getProjectPath={state.getProjectPath}
+                  canCreateProjects={canCreateProjects}
+                  getProjectPath={getProjectPath}
                 />
               </DropdownMenu>
             </SidebarMenuItem>

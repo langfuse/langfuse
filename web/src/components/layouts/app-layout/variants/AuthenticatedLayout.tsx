@@ -341,22 +341,6 @@ function ConnectedAppSidebar({
         },
       };
 
-  const mobileNavigation: ComponentProps<
-    typeof AppSidebar
-  >["mobileNavigation"] = organization
-    ? {
-        status: "available",
-        organization: { id: organization.id, name: organization.name },
-        project: project ? { id: project.id, name: project.name } : null,
-        organizations: session.data?.user?.organizations ?? null,
-        canCreateOrganizations:
-          session.data?.user?.canCreateOrganizations ?? false,
-        canCreateProjects,
-        getOrgPath,
-        getProjectPath,
-      }
-    : { status: "unavailable" };
-
   return (
     <AppSidebar
       navItems={navItems}
@@ -368,7 +352,17 @@ function ConnectedAppSidebar({
       logoDarkModeHref={uiCustomization?.logoDarkModeHref}
       versionState={versionState}
       notificationState={notificationState}
-      mobileNavigation={mobileNavigation}
+      organization={
+        organization ? { id: organization.id, name: organization.name } : null
+      }
+      project={project ? { id: project.id, name: project.name } : null}
+      organizations={session.data?.user?.organizations ?? null}
+      canCreateOrganizations={
+        session.data?.user?.canCreateOrganizations ?? false
+      }
+      canCreateProjects={canCreateProjects}
+      getOrgPath={getOrgPath}
+      getProjectPath={getProjectPath}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
