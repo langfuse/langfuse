@@ -26,6 +26,7 @@ export const PublishTraceSwitch = (props: {
   projectId: string;
   timestamp?: Date;
   isPublic: boolean;
+  shareUrl?: string;
   size?: "icon" | "icon-xs";
   /** When set, render as a full-width labeled menu item instead of an icon. */
   label?: string;
@@ -112,6 +113,7 @@ export const PublishTraceSwitch = (props: {
     <Base
       itemName="trace"
       isPublic={props.isPublic}
+      shareUrl={props.shareUrl}
       size={props.size}
       label={props.label}
       tooltip={props.tooltip}
@@ -177,6 +179,7 @@ const Base = (props: {
   onChange: (value: boolean) => Promise<unknown>;
   isLoading: boolean;
   isPublic: boolean;
+  shareUrl?: string;
   disabled?: boolean;
   size?: "icon" | "icon-xs";
   label?: string;
@@ -187,7 +190,11 @@ const Base = (props: {
 
   const copyUrl = () => {
     setIsCopied(true);
-    copyTextToClipboard(window.location.href);
+    copyTextToClipboard(
+      props.shareUrl
+        ? new URL(props.shareUrl, window.location.origin).toString()
+        : window.location.href,
+    );
     setTimeout(() => setIsCopied(false), 2500);
   };
 
