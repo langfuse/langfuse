@@ -9,5 +9,5 @@ const meta = preview.meta({
 });
 
 // Named after the component so Storybook's single-story hoisting collapses
-// Design / Theme Tokens / Typography into one sidebar leaf.
+// Design / Typography into one sidebar leaf.
 export const Typography = meta.story({});

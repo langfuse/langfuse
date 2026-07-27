@@ -1,6 +1,6 @@
 /**
  * Shared machinery for the Design reference pages (Color, Typography,
- * Spacing, Charts). Everything token-shaped is parsed at build time from
+ * Layout, Charts). Everything token-shaped is parsed at build time from
  * `src/styles/globals.css` (see parseThemeTokens.ts), so the pages can never
  * drift from the stylesheet.
  *

@@ -1,6 +1,6 @@
 /**
- * Shared presentational chrome for the Design → Theme Tokens reference pages
- * (the token gallery and the typography specimens).
+ * Shared presentational chrome for the Design reference pages (Color,
+ * Typography, Layout, Charts).
  *
  * The voice borrows from langfuse.com's docs presentation (full-width hairline
  * dividers, mono uppercase eyebrow labels, restrained monochrome, crop-mark

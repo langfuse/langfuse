@@ -26,10 +26,6 @@ const DESIGN_REFERENCE_STORIES = [
   "ThemeTokens/Layout",
   "ThemeTokens/Charts",
 ] as const;
-const PLAYGROUND_EXCLUDED_STORIES = [
-  ...DESIGN_COMPONENT_STORIES,
-  ...DESIGN_REFERENCE_STORIES,
-] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -66,11 +62,31 @@ const config: StorybookConfig = {
       titlePrefix: "Design",
     })),
     // All other component stories belong to the flat Playground by default.
+    // Outside components/design-system the exclusion is by path, so a generic
+    // basename like Charts.stories.tsx elsewhere still reaches the Playground;
+    // inside design-system the curated names are negated by basename, which is
+    // safe there because those files are exactly the curated ones. Disjoint
+    // globs because !(...) matches a single path segment.
     {
       directory: "../src",
-      files: `**/!(${PLAYGROUND_EXCLUDED_STORIES.map((storyPath) =>
-        basename(storyPath),
-      ).join("|")}).stories.${STORY_EXTENSIONS}`,
+      files: `!(components)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components",
+      files: `!(design-system)/**/*.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Playground",
+    },
+    {
+      directory: "../src/components/design-system",
+      files: `**/!(${[...DESIGN_COMPONENT_STORIES, ...DESIGN_REFERENCE_STORIES]
+        .map((storyPath) => basename(storyPath))
+        .join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
     },
   ],

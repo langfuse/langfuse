@@ -1,5 +1,5 @@
 /**
- * Storybook-only typography reference (Design → Theme Tokens → Typography),
+ * Storybook-only typography reference (Design → Typography),
  * modeled on Carbon's typography docs: single-sentence typeface specimens
  * with both weight roles inline, a live type-scale table, and tokenized
  * usage guidance.

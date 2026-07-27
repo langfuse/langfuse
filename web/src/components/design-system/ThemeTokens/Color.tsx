@@ -18,6 +18,7 @@ import {
   findTokenDeclaration,
   InlineCode,
   PageHeader,
+  pageForToken,
   PageSection,
   parsed,
   rootEntries,
@@ -45,11 +46,11 @@ type SectionId =
 
 /**
  * First match wins; unmatched tokens land in "other" so new tokens always
- * show up somewhere. Chart, radius and banner tokens live on the Charts and
- * Spacing pages, so they are bucketed out (`null`) here.
+ * show up somewhere. Tokens other pages own are excluded up front via
+ * pageForToken (shared.tsx), the single source of page assignment.
  */
 const SECTION_MATCHERS: Array<{
-  id: SectionId | null;
+  id: SectionId;
   test: (name: string) => boolean;
 }> = [
   {
@@ -66,10 +67,6 @@ const SECTION_MATCHERS: Array<{
   { id: "qlang", test: (n) => n.startsWith("--qlang-") },
   { id: "sidebar", test: (n) => n.startsWith("--sidebar-") },
   { id: "findMatch", test: (n) => n.startsWith("--find-match-") },
-  // Owned by Design → Charts.
-  { id: null, test: (n) => /^--(?:chart-\d+|chart-grid|color-\d+)$/.test(n) },
-  // Owned by Design → Spacing.
-  { id: null, test: (n) => n === "--radius" || n.startsWith("--banner-") },
   { id: "controls", test: (n) => n.startsWith("--control-") },
   {
     id: "brand",
@@ -816,8 +813,8 @@ export function Color() {
 
   const sectionEntries = new Map<SectionId, typeof rootEntries>();
   for (const entry of rootEntries) {
+    if (pageForToken(entry.name) !== "color") continue; // other pages own these
     const matcher = SECTION_MATCHERS.find((m) => m.test(entry.name));
-    if (matcher && matcher.id === null) continue; // other pages own these
     const section = matcher?.id ?? "other";
     const bucket = sectionEntries.get(section) ?? [];
     bucket.push(entry);

@@ -11,6 +11,8 @@
  * Every section is a standalone component on purpose, so it can fold into
  * another reference page cheaply if this page is ever dissolved.
  */
+import { type CSSProperties } from "react";
+
 import { LAYER_ORDER } from "@/src/components/ui/layer";
 
 import {
@@ -312,6 +314,27 @@ export function LayerSystemSection({ ctx }: { ctx: TokenContext }) {
   );
 }
 
+/**
+ * Per-token setup the animation needs to be visible: rainbow animates
+ * background-position (needs a >100% background-image), the accordion pair
+ * animates height to --radix-accordion-content-height (unset outside Radix).
+ */
+function animationSampleStyle(ctx: TokenContext, name: string): CSSProperties {
+  if (name === "--animate-rainbow") {
+    return {
+      backgroundImage: `linear-gradient(90deg, ${ctx.color("--chart-1")}, ${ctx.color("--chart-2")}, ${ctx.color("--chart-3")}, ${ctx.color("--chart-1")})`,
+      backgroundSize: "200% 100%",
+    };
+  }
+  if (name.startsWith("--animate-accordion")) {
+    return {
+      "--radix-accordion-content-height": "1rem",
+      overflow: "hidden",
+    } as CSSProperties;
+  }
+  return {};
+}
+
 /** @theme inline animation tokens, collapsed (low traffic). */
 export function AnimationsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
   return (
@@ -337,6 +360,7 @@ export function AnimationsSection({ ctx, lightCtx, darkCtx }: RowContexts) {
                 className="bg-muted inline-block h-4 w-14 rounded-sm"
                 style={{
                   animation: ctx.resolve(token.value),
+                  ...animationSampleStyle(ctx, token.name),
                 }}
               />
             </div>

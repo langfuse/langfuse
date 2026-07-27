@@ -1,6 +1,6 @@
 /**
  * Build-time parser for `src/styles/globals.css`, consumed by the Design
- * reference pages (Color, Typography, Spacing, Charts). The pages import the
+ * reference pages (Color, Typography, Layout, Charts). The pages import the
  * stylesheet as raw text (`?raw`) and derive every token from it, so they can
  * never drift from the file — there is no hand-maintained token list.
  *
@@ -31,21 +31,38 @@ export type ParsedThemeTokens = {
 
 const collapseWhitespace = (text: string) => text.replace(/\s+/g, " ").trim();
 
-/** Return the balanced-brace body following the first match of `selector`. */
-function extractBlock(css: string, selector: RegExp): string {
-  const match = selector.exec(css);
-  if (!match) return "";
-  const open = css.indexOf("{", match.index);
-  if (open === -1) return "";
-  let depth = 0;
-  for (let i = open; i < css.length; i++) {
-    if (css[i] === "{") depth++;
-    else if (css[i] === "}") {
-      depth--;
-      if (depth === 0) return css.slice(open + 1, i);
+/**
+ * Concatenate the balanced-brace bodies of EVERY match of `selector`, so a
+ * second `:root { … }` (or `.dark`, `@theme …`) block added later in the file
+ * still registers instead of silently dropping its tokens.
+ */
+function extractBlocks(css: string, selector: RegExp): string {
+  const global = new RegExp(selector.source, "g");
+  const bodies: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = global.exec(css)) !== null) {
+    const open = css.indexOf("{", match.index);
+    if (open === -1) break;
+    let depth = 0;
+    let closed = false;
+    for (let i = open; i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      else if (css[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          bodies.push(css.slice(open + 1, i));
+          global.lastIndex = i + 1;
+          closed = true;
+          break;
+        }
+      }
+    }
+    if (!closed) {
+      bodies.push(css.slice(open + 1));
+      break;
     }
   }
-  return css.slice(open + 1);
+  return bodies.join("\n");
 }
 
 /** Remove nested `@keyframes … { … }` blocks (they contain no tokens). */
@@ -98,12 +115,12 @@ function parseDeclarations(content: string): TokenDeclaration[] {
 
 export function parseThemeTokens(css: string): ParsedThemeTokens {
   return {
-    fontTokens: parseDeclarations(extractBlock(css, /@theme\s+static\s*\{/)),
+    fontTokens: parseDeclarations(extractBlocks(css, /@theme\s+static\s*\{/)),
     inlineTokens: parseDeclarations(
-      stripKeyframes(extractBlock(css, /@theme\s+inline\s*\{/)),
+      stripKeyframes(extractBlocks(css, /@theme\s+inline\s*\{/)),
     ),
-    light: parseDeclarations(extractBlock(css, /(^|\n)\s*:root\s*\{/)),
-    dark: parseDeclarations(extractBlock(css, /(^|\n)\s*\.dark\s*\{/)),
+    light: parseDeclarations(extractBlocks(css, /(^|\n)\s*:root\s*\{/)),
+    dark: parseDeclarations(extractBlocks(css, /(^|\n)\s*\.dark\s*\{/)),
   };
 }
 
@@ -112,6 +129,8 @@ const HSL_TRIPLET = /^-?[\d.]+(?:deg)?\s+[\d.]+%\s+[\d.]+%$/;
 /**
  * Substitute `var(--x)` references with their declared values from `map`
  * (the active theme's tokens), falling back to the var() fallback argument.
+ * The fallback group allows one level of nested parens, so a declaration
+ * like `var(--x, hsl(0 0% 0%))` resolves; deeper nesting passes through raw.
  */
 export function resolveDeclaredValue(
   value: string,
@@ -120,7 +139,7 @@ export function resolveDeclaredValue(
 ): string {
   if (depth > 6) return value;
   return value.replace(
-    /var\((--[\w-]+)(?:,\s*([^()]*))?\)/g,
+    /var\((--[\w-]+)(?:,\s*((?:[^()]|\([^()]*\))*))?\)/g,
     (whole, name: string, fallback: string | undefined) => {
       const target = map.get(name);
       if (target !== undefined) {
