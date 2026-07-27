@@ -49,13 +49,10 @@ vi.mock("@/src/features/v4-migration/useV4UpgradeAssistantSupport", () => ({
   }),
 }));
 
-vi.mock(
-  "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider",
-  () => ({
-    useCanUseInAppAgent: () => false,
-    useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
-  }),
-);
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useCanUseInAppAgent: () => false,
+  useInAppAiAgent: () => ({ setOpen: vi.fn(), submit: vi.fn() }),
+}));
 
 vi.mock("@/src/components/ui/collapsible", () => ({
   Collapsible: ({ children }: { children: React.ReactNode }) => (

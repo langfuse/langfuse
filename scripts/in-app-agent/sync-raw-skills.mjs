@@ -14,7 +14,7 @@ import { format as formatWithPrettier } from "prettier";
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
 const generatedDir = resolve(
   repoRoot,
-  "web/src/ee/features/in-app-agent/server/skills/generated",
+  "web/src/features/in-app-agent/server/skills/generated",
 );
 const rawTargetDir = resolve(generatedDir, "raw");
 const generatedModuleName = "skill-markdown.ts";
