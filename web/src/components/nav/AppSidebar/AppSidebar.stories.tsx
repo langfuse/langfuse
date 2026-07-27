@@ -43,9 +43,13 @@ const meta = preview.meta({
       avatar: "",
     },
     userMenuItems: [
-      { name: "Account Settings", href: "/account/settings" },
-      { name: "Sign out", onClick: fn() },
-    ],
+      {
+        type: "link",
+        name: "Account Settings",
+        href: "/account/settings",
+      },
+      { type: "action", name: "Sign out", onClick: fn() },
+    ] satisfies AppSidebarProps["userMenuItems"],
     isMobile: false,
     logo: {},
     versionState: {

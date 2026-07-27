@@ -123,6 +123,7 @@ export function AuthenticatedLayout({
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
+      type: "action" as const,
       name: region.name,
       content: `${region.flag} ${region.name}`,
       onClick: () => {
@@ -145,11 +146,21 @@ export function AuthenticatedLayout({
     avatar: user.image ?? "",
   };
   const userMenuItems = [
-    { name: "Account Settings", href: "/account/settings" },
-    { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+    {
+      type: "link" as const,
+      name: "Account Settings",
+      href: "/account/settings",
+    },
+    {
+      type: "action" as const,
+      name: "Theme",
+      onClick: () => {},
+      content: <ThemeToggle />,
+    },
     ...(hasFeaturePreviews
       ? [
           {
+            type: "action" as const,
             name: "Feature Preview",
             onClick: () => setFeaturePreviewOpen(true),
           },
@@ -158,6 +169,7 @@ export function AuthenticatedLayout({
     ...(isLangfuseCloud
       ? [
           {
+            type: "submenu" as const,
             name: "Regions",
             subItems: regionMenuItems,
             content: (
@@ -171,7 +183,7 @@ export function AuthenticatedLayout({
           },
         ]
       : []),
-    { name: "Sign out", onClick: onSignOut },
+    { type: "action" as const, name: "Sign out", onClick: onSignOut },
   ];
 
   return (

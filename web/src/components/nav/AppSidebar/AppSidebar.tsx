@@ -98,13 +98,27 @@ const selfHostedPlanLabels = {
   },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
-type UserNavigationItem = {
+type UserNavigationItemBase = {
   name: string;
-  onClick?: () => void;
   content?: React.ReactNode;
-  href?: string;
-  subItems?: UserNavigationItem[];
 };
+
+type UserNavigationLeafItem =
+  | (UserNavigationItemBase & {
+      type: "action";
+      onClick: () => void;
+    })
+  | (UserNavigationItemBase & {
+      type: "link";
+      href: string;
+    });
+
+type UserNavigationItem =
+  | UserNavigationLeafItem
+  | (UserNavigationItemBase & {
+      type: "submenu";
+      subItems: UserNavigationLeafItem[];
+    });
 
 type SidebarUser = {
   name: string;
@@ -423,7 +437,7 @@ function NavUser({
     .toUpperCase();
 
   const renderMenuItem = (item: UserNavigationItem) => {
-    if (item.subItems?.length) {
+    if (item.type === "submenu") {
       return (
         <DropdownMenuSub key={item.name}>
           <DropdownMenuSubTrigger>
@@ -436,7 +450,7 @@ function NavUser({
       );
     }
 
-    if (item.href) {
+    if (item.type === "link") {
       return (
         <DropdownMenuItem key={item.name} asChild>
           <Link href={item.href}>{item.content ?? item.name}</Link>
@@ -444,11 +458,15 @@ function NavUser({
       );
     }
 
-    return (
-      <DropdownMenuItem key={item.name} onClick={item.onClick}>
-        {item.content ?? item.name}
-      </DropdownMenuItem>
-    );
+    if (item.type === "action") {
+      return (
+        <DropdownMenuItem key={item.name} onClick={item.onClick}>
+          {item.content ?? item.name}
+        </DropdownMenuItem>
+      );
+    }
+
+    return assertUnreachable(item);
   };
 
   return (
