@@ -109,6 +109,42 @@ describe("prepareOutlierSeries", () => {
     expect(maxValue).toBe(7);
   });
 
+  it("snaps the grid phase to the server's buckets (non-UTC ClickHouse)", () => {
+    const step = 86400; // 1d buckets aligned to a +02:00 server timezone
+    const utcMidnight = Date.UTC(2025, 2, 10);
+    const offset = 2 * 3600 * 1000;
+    const serverBucket = utcMidnight - offset;
+    const { dense } = prepareOutlierSeries({
+      bins: [bin(serverBucket, 4)],
+      metric: "cost",
+      fromMs: utcMidnight,
+      toMs: utcMidnight + 86400_000,
+      stepSeconds: step,
+    });
+
+    // A phase-0 UTC grid would miss the bucket entirely and blank the chart.
+    expect(dense.some((d) => d.value === 4)).toBe(true);
+    expect(
+      dense.every(
+        (d) => d.bucketStartMs % 86400_000 === serverBucket % 86400_000,
+      ),
+    ).toBe(true);
+  });
+
+  it("excludes a zero-width trailing bucket when `to` sits on a boundary", () => {
+    const step = 60;
+    const t0 = Math.floor(Date.UTC(2025, 2, 10, 10, 0, 0) / 60000) * 60000;
+    const { dense } = prepareOutlierSeries({
+      bins: [bin(t0, 1)],
+      metric: "cost",
+      fromMs: t0,
+      toMs: t0 + 120_000, // exactly two buckets
+      stepSeconds: step,
+    });
+
+    expect(dense).toHaveLength(2);
+  });
+
   it("aligns the grid to the epoch, not to `from`", () => {
     const step = 60;
     const t0 = Math.floor(Date.UTC(2025, 2, 10, 10, 0, 0) / 60000) * 60000;

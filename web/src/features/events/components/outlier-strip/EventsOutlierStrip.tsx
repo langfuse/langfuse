@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -60,7 +61,10 @@ const MetricDropdown = ({
   onChange: (metric: OutlierStripMetricKey) => void;
 }) => (
   <DropdownMenu>
-    <DropdownMenuTrigger className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none font-bold">
+    <DropdownMenuTrigger
+      aria-label={`Chart metric: ${OUTLIER_STRIP_METRICS[value].shortLabel}`}
+      className="text-foreground hover:text-muted-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none font-bold"
+    >
       {OUTLIER_STRIP_METRICS[value].shortLabel}
       <ChevronDown className="h-2.5 w-2.5" />
     </DropdownMenuTrigger>
@@ -224,15 +228,29 @@ export function EventsOutlierStrip({
   };
 
   const stepMs = granularity.stepSeconds * 1000;
+  // Held-over bins from a different window can miss the new grid entirely;
+  // that must render as "loading", never as a false "No events in range".
+  const placeholderMissesGrid =
+    queryResult.isPlaceholderData &&
+    series.every(
+      (s) => s.maxValue === 0 && s.dense.every((bin) => bin.count === 0),
+    );
   const isLoading =
-    validRange && width > 0 && queryResult.isPending && !queryResult.isError;
+    validRange &&
+    width > 0 &&
+    ((queryResult.isPending && !queryResult.isError) || placeholderMissesGrid);
 
   // The measuring wrapper stays mounted in BOTH states: useElementSize
   // observes its element once on mount, so unmounting it while collapsed
   // would freeze the measured width forever after re-expanding.
+  //
+  // First paint renders nothing inside it: `size` resolves in the same
+  // passive-effect batch as useIsMobile, so waiting for the measurement also
+  // guarantees the mobile default is known — no expanded-skeleton flash that
+  // snaps into the collapsed bar on mobile.
   return (
     <div ref={wrapperRef} className="shrink-0 border-b">
-      {collapsed ? (
+      {size === undefined ? null : collapsed ? (
         <button
           type="button"
           aria-expanded={false}
@@ -260,7 +278,17 @@ export function EventsOutlierStrip({
               Couldn&apos;t load the outlier chart for the current view.
             </div>
           ) : (
-            <div className="flex" style={{ gap: CHART_GAP_PX }}>
+            <div
+              // Dim held-over bins during a refetch (filter change, saved-view
+              // switch, drill-in) — stale data must not read as current.
+              className={cn(
+                "flex transition-opacity",
+                queryResult.isPlaceholderData &&
+                  queryResult.isFetching &&
+                  "opacity-60",
+              )}
+              style={{ gap: CHART_GAP_PX }}
+            >
               {visibleMetrics.map((metric, slot) => (
                 <div key={slot} className="min-w-0">
                   <MetricDropdown

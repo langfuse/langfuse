@@ -776,7 +776,15 @@ export default function ObservationsEventsTable({
   // (number filter, not a forwardable dimension), and unlike sidebar facets it
   // has no "not applied" affordance — the strip would silently aggregate
   // across ALL versions while the table shows one. (`promptName` forwards.)
-  const outlierStripEnabled = chartEnabled && promptVersion === undefined;
+  // External state pins also disqualify it: the strip's drill-in writes the
+  // URL range, which a table on externalDateRange would ignore — chart and
+  // table would silently diverge. (No current surface combines these with
+  // chartEnabled; this encodes the invariant for future mounts.)
+  const outlierStripEnabled =
+    chartEnabled &&
+    promptVersion === undefined &&
+    !externalDateRange &&
+    !externalFilterState;
 
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.

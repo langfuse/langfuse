@@ -66,6 +66,9 @@ export type OutlierStripGranularity =
 
 /** Never ask the backend for more buckets than this, whatever the width. */
 const MAX_STRIP_BUCKETS = 2000;
+/** Densification guard: even the coarsest preset on an URL-injected absurd
+ * custom range must not build an unbounded client-side array. */
+const MAX_DENSE_BINS = 4000;
 
 /**
  * Picks the finest granularity preset that fits the range into the available
@@ -128,7 +131,8 @@ export const OUTLIER_STRIP_METRICS: Record<
     label: "Cost (max / bucket)",
     shortLabel: "Cost",
     valueOf: (bin) => bin.maxTotalCost,
-    format: (value) => usdFormatter(value, 2, value < 0.1 ? 4 : 2),
+    format: (value) =>
+      usdFormatter(value, 2, value < 0.001 ? 6 : value < 0.1 ? 4 : 2),
   },
   latency: {
     label: "Latency (max / bucket)",
@@ -208,13 +212,23 @@ export function prepareOutlierSeries(params: {
     byBucketMs.set(bin.bucketStart.getTime(), bin);
   }
 
-  const firstBucketMs = Math.floor(params.fromMs / stepMs) * stepMs;
+  // Snap the grid's phase to the server's buckets: a self-hosted non-UTC
+  // ClickHouse aligns day+ buckets to its own timezone, and a phase-0 epoch
+  // grid would then miss every bucket and blank the chart.
+  const phase =
+    params.bins.length > 0
+      ? ((params.bins[0].bucketStart.getTime() % stepMs) + stepMs) % stepMs
+      : 0;
+  const firstBucketMs =
+    Math.floor((params.fromMs - phase) / stepMs) * stepMs + phase;
   const dense: OutlierStripDenseBin[] = [];
   let maxValue = 0;
 
   for (
     let bucketMs = firstBucketMs;
-    bucketMs <= params.toMs;
+    // Exclusive: a `to` exactly on a boundary must not add a trailing bucket
+    // that covers zero time. MAX_DENSE_BINS guards URL-injected absurd ranges.
+    bucketMs < params.toMs && dense.length < MAX_DENSE_BINS;
     bucketMs += stepMs
   ) {
     const bin = byBucketMs.get(bucketMs);

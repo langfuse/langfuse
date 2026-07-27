@@ -120,7 +120,8 @@ export function OutlierBarStrip({
     const tickLabel = (bucketMs: number) =>
       format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
     const barHeight = (value: number) => {
-      const fraction = value / maxValue;
+      // Corrupt data (e.g. end_time < start_time) must not NaN the height.
+      const fraction = Math.max(value, 0) / maxValue;
       const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
       return Math.max(1.5, scaled * heightPx);
     };
