@@ -32,15 +32,16 @@ export type ParsedThemeTokens = {
 const collapseWhitespace = (text: string) => text.replace(/\s+/g, " ").trim();
 
 /**
- * Concatenate the balanced-brace bodies of EVERY match of `selector`, so a
- * second `:root { … }` (or `.dark`, `@theme …`) block added later in the file
- * still registers instead of silently dropping its tokens.
+ * Concatenate the balanced-brace bodies of EVERY match of `selector` (must
+ * carry the `g` flag), so a second `:root { … }` (or `.dark`, `@theme …`)
+ * block added later in the file still registers instead of silently dropping
+ * its tokens.
  */
 function extractBlocks(css: string, selector: RegExp): string {
-  const global = new RegExp(selector.source, "g");
+  selector.lastIndex = 0;
   const bodies: string[] = [];
   let match: RegExpExecArray | null;
-  while ((match = global.exec(css)) !== null) {
+  while ((match = selector.exec(css)) !== null) {
     const open = css.indexOf("{", match.index);
     if (open === -1) break;
     let depth = 0;
@@ -51,7 +52,7 @@ function extractBlocks(css: string, selector: RegExp): string {
         depth--;
         if (depth === 0) {
           bodies.push(css.slice(open + 1, i));
-          global.lastIndex = i + 1;
+          selector.lastIndex = i + 1;
           closed = true;
           break;
         }
@@ -115,12 +116,12 @@ function parseDeclarations(content: string): TokenDeclaration[] {
 
 export function parseThemeTokens(css: string): ParsedThemeTokens {
   return {
-    fontTokens: parseDeclarations(extractBlocks(css, /@theme\s+static\s*\{/)),
+    fontTokens: parseDeclarations(extractBlocks(css, /@theme\s+static\s*\{/g)),
     inlineTokens: parseDeclarations(
-      stripKeyframes(extractBlocks(css, /@theme\s+inline\s*\{/)),
+      stripKeyframes(extractBlocks(css, /@theme\s+inline\s*\{/g)),
     ),
-    light: parseDeclarations(extractBlocks(css, /(^|\n)\s*:root\s*\{/)),
-    dark: parseDeclarations(extractBlocks(css, /(^|\n)\s*\.dark\s*\{/)),
+    light: parseDeclarations(extractBlocks(css, /(^|\n)\s*:root\s*\{/g)),
+    dark: parseDeclarations(extractBlocks(css, /(^|\n)\s*\.dark\s*\{/g)),
   };
 }
 

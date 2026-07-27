@@ -1,8 +1,8 @@
 /**
  * Storybook-only chart color reference (Design → Charts), modeled on Kumo's
  * chart-colors docs: the color systems split up front (categorical series vs
- * sequential scale), a numbered palette strip per system, and a small real
- * chart sample painting from the tokens.
+ * per-score base colors), a numbered palette strip per system, and a small
+ * real chart sample painting from the tokens.
  *
  * Every value is parsed at build time from `src/styles/globals.css` (see
  * parseThemeTokens.ts), so the page cannot drift from the stylesheet.
@@ -126,25 +126,6 @@ function GridLinesSample({ ctx }: { ctx: TokenContext }) {
   );
 }
 
-/** Heatmap cells painting the sequential score scale. */
-function HeatmapSample({ ctx }: { ctx: TokenContext }) {
-  const steps = [1, 2, 4, 3, 5, 2, 1, 3, 5, 4, 2, 1, 4, 5, 3, 2];
-  return (
-    <div
-      className="grid grid-cols-8 gap-1 rounded-md border p-2"
-      style={{ background: ctx.color("--card") }}
-    >
-      {steps.map((step, index) => (
-        <span
-          key={index}
-          className="h-5 rounded-sm"
-          style={{ background: ctx.color(`--color-${step}`) }}
-        />
-      ))}
-    </div>
-  );
-}
-
 export function Charts() {
   const { ctx, lightCtx, darkCtx } = useTokenContexts();
 
@@ -158,15 +139,15 @@ export function Charts() {
           title="Charts"
           lede={
             <>
-              A categorical palette for series, a sequential scale for
-              magnitude. Parsed at build time from{" "}
+              Two palettes: categorical series colors, and per-score base
+              colors. Parsed at build time from{" "}
               <code className="font-mono">src/styles/globals.css</code>.
             </>
           }
           meta={
             <>
-              {seriesEntries.length} series colors · {scaleEntries.length} scale
-              steps · 1 grid color
+              {seriesEntries.length} series colors · {scaleEntries.length} score
+              base colors · 1 grid color
             </>
           }
         />
@@ -194,15 +175,10 @@ export function Charts() {
         </TokenSection>
 
         <TokenSection
-          title="Sequential scale"
-          blurb="Five ordered steps encoding a single magnitude; used by the score heatmaps."
+          title="Score base colors"
+          blurb="One base color per score, not an ordered ramp. Heatmaps derive their lightness steps from a single base (score-analytics color-scales.ts); the runtime var() consumers are the rainbow and agent button gradients."
           count={scaleEntries.length}
-          sectionSample={
-            <div className="flex flex-col gap-3">
-              <PaletteStrip ctx={ctx} entries={scaleEntries} />
-              <HeatmapSample ctx={ctx} />
-            </div>
-          }
+          sectionSample={<PaletteStrip ctx={ctx} entries={scaleEntries} />}
         >
           {scaleEntries.map((entry) => (
             <TokenRow
