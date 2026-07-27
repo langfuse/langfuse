@@ -1,7 +1,10 @@
 import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";
-import { ensureDemoProjectAccess } from "@/src/features/auth/lib/demoProjectAccess";
+import {
+  ensureDemoProjectAccess,
+  getDemoProjectConfig,
+} from "@/src/features/auth/lib/demoProjectAccess";
 import { getServerAuthSession } from "@/src/server/auth";
 
 const DemoRedirectPage = () => null;
@@ -9,14 +12,15 @@ const DemoRedirectPage = () => null;
 export default DemoRedirectPage;
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const demoOrgId = env.NEXT_PUBLIC_DEMO_ORG_ID?.trim();
-  const demoProjectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID?.trim();
+  const demoProjectConfig = getDemoProjectConfig();
 
-  if (!demoOrgId || !demoProjectId) {
+  if (!demoProjectConfig) {
     return redirect("/");
   }
 
-  const demoProjectPath = `/project/${encodeURIComponent(demoProjectId)}/traces`;
+  const demoProjectPath = `/project/${encodeURIComponent(
+    demoProjectConfig.projectId,
+  )}/traces`;
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
   if (session?.user) {

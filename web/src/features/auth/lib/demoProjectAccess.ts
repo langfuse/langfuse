@@ -1,7 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
-const getDemoProjectConfig = () => {
+export const getDemoProjectConfig = () => {
   const orgId = env.NEXT_PUBLIC_DEMO_ORG_ID?.trim();
   const projectId = env.NEXT_PUBLIC_DEMO_PROJECT_ID?.trim();
 
