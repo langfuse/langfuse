@@ -9,22 +9,26 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
-   system stacks while the token system (families here, weight roles below,
-   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
-   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
-   :root from _app — next/font CSS is silently dropped in _document), prepend
-   its var to the stacks below, and retune the two weight-role numbers
-   (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
-   can preview typefaces live without shipping them. Deliberately a plain
-   @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
-   and only non-inline themes emit the :root custom property. `static`: emit
-   the weight-role vars even when unused in source — the theme-lab tool and
-   inline styles read them at runtime. */
+/* App font tokens. Webfonts load via next/font in src/styles/fonts.ts (their
+   vars are declared on :root from _app — next/font CSS is silently dropped in
+   _document) and are prepended to the stacks below; the token system
+   (families here, weight roles below, text-* size+weight tokens) stays fully
+   font-relative, so swapping a face = swap the var and retune the two
+   weight-role numbers (history: IBM Plex wanted bold 500, Inter bold 600).
+   The theme-lab panel can preview typefaces live without shipping them.
+   Deliberately a plain @theme block (not `inline`): preflight reads
+   var(--font-sans) at runtime, and only non-inline themes emit the :root
+   custom property. `static`: emit the weight-role vars even when unused in
+   source — the theme-lab tool and inline styles read them at runtime. */
 @theme static {
+  /* PROPOSED (review): Inter (OFL) adopted as the app sans, completing the
+     typescale alongside Geist Mono — loaded in src/styles/fonts.ts via
+     next/font, declared on :root from _app. The bold weight role (600) is
+     already Inter's, so the roles need no retune. Previous stack started at
+     ui-sans-serif. */
   --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+    var(--font-inter, "Inter"), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   /* PROPOSED (review): Geist Mono (OFL) adopted per the sessions handoff —
      loaded in src/styles/fonts.ts via next/font, declared on :root from
      _app. Previous stack started at ui-monospace. */
