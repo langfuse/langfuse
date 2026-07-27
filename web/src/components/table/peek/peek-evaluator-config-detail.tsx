@@ -92,16 +92,17 @@ const PeekViewEvaluatorConfigDetail = ({
         </div>
       </div>
 
-      {evalConfig &&
-        evalConfig.targetObject &&
-        evalConfig.evalTemplate &&
-        displayStatus === "ACTIVE" && (
-          <LegacyEvalCallout
-            projectId={projectId}
-            evalConfigId={evalConfig.id}
-            targetObject={evalConfig.targetObject}
-          />
-        )}
+      {evalConfig && evalConfig.targetObject && evalConfig.evalTemplate && (
+        <LegacyEvalCallout
+          projectId={projectId}
+          evalConfigId={evalConfig.id}
+          targetObject={evalConfig.targetObject}
+          status={evalConfig.status}
+          timeScope={
+            Array.isArray(evalConfig.timeScope) ? evalConfig.timeScope : []
+          }
+        />
+      )}
 
       <EvaluatorPausedCallout projectId={projectId} evalConfig={evalConfig} />
 

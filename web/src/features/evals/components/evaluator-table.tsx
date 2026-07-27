@@ -18,10 +18,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { useEffect, useState, useMemo } from "react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import {
-  isLegacyEvalTarget,
-  isEventTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+import { isEventTarget } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
 import { ExternalLinkIcon, Info, Pen } from "lucide-react";
@@ -46,7 +43,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { usdFormatter } from "@/src/utils/numbers";
 import { Callout } from "@/src/components/ui/callout";
 import Link from "next/link";
-import { Badge } from "@/src/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
@@ -63,42 +59,40 @@ import {
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
 
-function LegacyBadgeCell({ status }: { status: string }) {
+function DeprecatedChipCell() {
   return (
     <div className="flex items-center gap-1.5">
-      <Badge variant="warning">
-        Legacy
-        {status === "ACTIVE" && (
-          <Tooltip>
-            <TooltipTrigger>
-              <Info className="text-dark-yellow ml-1 h-3.5 w-3.5" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-[280px]">
-              <div className="space-y-1 text-sm">
-                <p className="font-bold">Action required</p>
-                <p className="text-muted-foreground">
-                  This evaluator requires changes to benefit from new features
-                  and performance improvements. Please follow{" "}
-                  <Link
-                    href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-dark-blue font-bold hover:opacity-80"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    this guide
-                  </Link>{" "}
-                  to upgrade to the new version. <br /> <br /> If you do not
-                  upgrade, your evaluator will continue to run, but you will not
-                  benefit from improvements.
-                </p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </Badge>
+      <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+        Deprecated
+        <Tooltip>
+          <TooltipTrigger>
+            <Info className="text-dark-yellow ml-1 h-3.5 w-3.5" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[280px]">
+            <div className="space-y-1 text-sm">
+              <p className="font-bold">Action required</p>
+              <p className="text-muted-foreground">
+                This evaluator requires changes to benefit from new features
+                and performance improvements. Please follow{" "}
+                <Link
+                  href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-dark-blue font-bold hover:opacity-80"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  this guide
+                </Link>{" "}
+                to upgrade to the new version. <br /> <br /> If you do not
+                upgrade, your evaluator will continue to run, but you will not
+                benefit from improvements.
+              </p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </span>
     </div>
   );
 }
@@ -137,7 +131,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
-  const { evaluators, rows, totalCount, hasLegacyEvals } =
+  const { evaluators, rows, totalCount } =
     useEvaluatorTableData({
       projectId,
       page: paginationState.pageIndex,
@@ -295,13 +289,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       enableHiding: true,
       loadingCell: <TableBadgeLoadingCell />,
       cell: (row) => {
-        const targetObject = row.row.original.target;
-        const status = row.row.original.rawStatus;
-        const isDeprecated = isLegacyEvalTarget(targetObject);
+        // Set by useEvaluatorTableData only for active legacy evaluators with
+        // a NEW time scope — the ones that actually require migration.
+        if (!row.row.original.isLegacy) return null;
 
-        if (!isDeprecated) return null;
-
-        return <LegacyBadgeCell status={status} />;
+        return <DeprecatedChipCell />;
       },
     }),
     columnHelper.accessor("target", {
@@ -426,41 +418,6 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       defaultSidebarCollapsed={evaluatorFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
-        {hasLegacyEvals && (
-          <div className="p-2 pb-0">
-            <Callout
-              id="eval-remapping-table"
-              variant="warning"
-              key="dismissed-eval-remapping-callouts"
-            >
-              <span>New functionality has landed. </span>
-              <span className="font-bold">
-                Some of your evaluators (marked &quot;Legacy&quot;) require
-                changes{" "}
-              </span>
-              <span>to benefit from new features and improvements. </span>
-              <Link
-                href="https://langfuse.com/faq/all/llm-as-a-judge-migration"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-dark-blue font-bold hover:opacity-80"
-              >
-                Learn what is changing and how to upgrade
-              </Link>
-              <span>.</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="ml-1 inline h-4 w-4 cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  Your evaluator will continue to work without upgrading, but
-                  you will not benefit from performance improvements.
-                </TooltipContent>
-              </Tooltip>
-            </Callout>
-          </div>
-        )}
-
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}

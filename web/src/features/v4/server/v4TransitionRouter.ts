@@ -40,6 +40,7 @@ const legacyIntegrationExportSources =
   ]);
 
 const TRACE_EVAL_TARGET = "trace";
+const DATASET_EVAL_TARGET = "dataset";
 
 const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
@@ -583,11 +584,15 @@ export const v4TransitionRouter = createTRPCRouter({
   traceLevelEvalSummary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      // Only active evaluators running on new data require migration;
+      // inactive or backfill-only (EXISTING) configs are not counted.
       const traceLevelEvalCount = await ctx.prisma.jobConfiguration.count({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
           targetObject: TRACE_EVAL_TARGET,
+          status: "ACTIVE",
+          timeScope: { has: "NEW" },
         },
       });
 
@@ -693,12 +698,16 @@ export const v4TransitionRouter = createTRPCRouter({
 
       if (projectIds.length === 0) return [];
 
+      // Only active evaluators running on new data require migration;
+      // inactive or backfill-only (EXISTING) configs are not counted.
       const traceLevelEvalCounts = await ctx.prisma.jobConfiguration.groupBy({
         by: ["projectId"],
         where: {
           projectId: { in: projectIds },
           jobType: "EVAL",
           targetObject: TRACE_EVAL_TARGET,
+          status: "ACTIVE",
+          timeScope: { has: "NEW" },
         },
         _count: { _all: true },
       });

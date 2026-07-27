@@ -8,23 +8,30 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Info } from "lucide-react";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
 
 interface LegacyEvalCalloutProps {
   projectId: string;
   evalConfigId: string;
   targetObject: string;
+  status: string;
+  timeScope: string[];
 }
 
 export function LegacyEvalCallout({
   projectId,
   evalConfigId,
   targetObject,
+  status,
+  timeScope,
 }: LegacyEvalCalloutProps) {
   const router = useRouter();
-  const isDeprecated = isLegacyEvalTarget(targetObject);
 
-  if (!isDeprecated) return null;
+  // Only nag for legacy evaluators that are active on new data; inactive or
+  // backfill-only (EXISTING) configs keep working and need no migration.
+  if (!requiresLegacyMigrationAction({ targetObject, status, timeScope })) {
+    return null;
+  }
 
   return (
     <Callout
