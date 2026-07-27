@@ -15,20 +15,31 @@ import { SuccessSection } from "@/src/features/support-chat/SuccessSection";
 import { SupportFormSection } from "@/src/features/support-chat/SupportFormSection";
 import { cn } from "@/src/utils/tailwind";
 
-export const SupportDrawer = ({
+export const SupportDrawer = (props: {
+  showCloseButton?: boolean;
+  className?: string;
+}) => {
+  const { open, openEpoch } = useSupportDrawer();
+
+  if (!open) return null;
+
+  // Keyed by openEpoch so re-opening (openWithMode while already open)
+  // remounts the content and re-seeds mode/topic from the provider.
+  return <SupportDrawerContent key={openEpoch} {...props} />;
+};
+
+const SupportDrawerContent = ({
   showCloseButton = true,
   className,
 }: {
   showCloseButton?: boolean;
   className?: string;
 }) => {
-  const { open, setOpen } = useSupportDrawer();
+  const { setOpen, initialMode } = useSupportDrawer();
   const [currentMode, setCurrentMode] = useState<"intro" | "form" | "success">(
-    "intro",
+    initialMode,
   );
   const close = () => setOpen(false);
-
-  if (!open) return null;
 
   return (
     <div

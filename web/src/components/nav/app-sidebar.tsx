@@ -29,6 +29,7 @@ import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications
 import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 
 type AppSidebarProps = {
   navItems: {
@@ -49,6 +50,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const { isMobile } = useSidebar();
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
@@ -63,9 +65,13 @@ export function AppSidebar({
         {isMobile && <MobileNavSwitcher />}
         <NavMain items={navItems} />
         <div className="flex-1" />
-        <div className="flex flex-col gap-2 p-2">
-          <SidebarNotifications />
-        </div>
+        {/* Hidden for v4-upgrade users only: the "Update" nav entry is trialled
+            in this slot. Everyone else keeps the notifications stack. */}
+        {!v4UpgradeUiEnabled && (
+          <div className="flex flex-col gap-2 p-2">
+            <SidebarNotifications />
+          </div>
+        )}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>

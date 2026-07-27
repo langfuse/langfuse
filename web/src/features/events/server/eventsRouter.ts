@@ -9,6 +9,7 @@ import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
+  singleFilter,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -56,6 +57,7 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
+  filter: zodSchema.array(singleFilter).optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
@@ -174,6 +176,7 @@ export const eventsRouter = createTRPCRouter({
           addAttributesToSpan({ span, input, orderBy: undefined });
           return getEventFilterOptions({
             projectId: input.projectId,
+            filter: input.filter,
             startTimeFilter: input.startTimeFilter,
             isRootObservation:
               input.isRootObservation ??
@@ -415,7 +418,7 @@ export const addAttributesToSpan = ({
 }) => {
   span.setAttribute("project_id", input.projectId);
 
-  // Only process filter if it exists (not present in GetEventFilterOptionsInput)
+  // Only process filters when supplied.
   if ("filter" in input && input.filter) {
     const startTimeFilter = input.filter.find(
       (f) => f.column === "startTime" && f.type === "datetime",

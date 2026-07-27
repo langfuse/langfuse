@@ -7,10 +7,8 @@ import {
 import type { FilterState } from "../../../types";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
-import {
-  EventsAggQueryBuilder,
-  EventsQueryBuilder,
-} from "./event-query-builder";
+import { EventsAggQueryBuilder } from "./event-query-builder";
+import { buildEventsObservationRowSelection } from "./events-observation-row-selection";
 import { createFilterFromFilterState } from "./factory";
 
 export const EVENTS_FILTER_OPTION_TOP_N = 1000;
@@ -360,20 +358,16 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
     return null;
   }
 
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      params.filter,
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
   const optionLimit = Math.min(params.limit, EVENTS_FILTER_OPTION_TOP_K_MAX_N);
-  const aggregatedOptionsBuilder = new EventsQueryBuilder({
-    projectId: params.projectId,
-  })
-    .selectRaw(...columns.map(optionTopKSelectExpression))
-    .where(eventsFilter.apply());
+  const { queryBuilder: aggregatedOptionsBuilder } =
+    buildEventsObservationRowSelection({
+      projectId: params.projectId,
+      filter: params.filter,
+    });
+
+  aggregatedOptionsBuilder.selectRaw(
+    ...columns.map(optionTopKSelectExpression),
+  );
 
   if (params.scope) {
     aggregatedOptionsBuilder.whereRaw(
