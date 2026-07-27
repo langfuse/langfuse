@@ -4,13 +4,13 @@ import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { toChartFilters } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { OutlierBarStrip } from "./OutlierBarStrip";
 import {
   OUTLIER_STRIP_METRICS,
   pickChartGranularity,
   prepareOutlierSeries,
-  type OutlierStripBin,
+  rowsToOutlierBins,
+  type OutlierQueryRow,
   type OutlierStripMetricKey,
 } from "./lib/binning";
 
@@ -31,35 +31,6 @@ const BAR_SLOT_PX = 5;
 /** Show Cost + Latency side by side when both get a useful width. */
 const TWO_UP_MIN_WIDTH_PX = 880;
 const TWO_UP_GAP_PX = 24;
-
-/** executeQuery result column names: `${aggregation}_${measure}`. */
-type OutlierQueryRow = {
-  time_dimension?: string;
-  count_count?: unknown;
-  max_totalCost?: unknown;
-  max_latency?: unknown;
-  max_totalTokens?: unknown;
-};
-
-const toNumberOrNull = (raw: unknown): number | null =>
-  raw === null || raw === undefined ? null : Number(raw);
-
-/** Maps executeQuery rows to strip bins; latency arrives in ms, bins carry s. */
-export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
-  rows.flatMap((row) => {
-    const bucketStart = parseChartTimestamp(row.time_dimension);
-    if (!bucketStart) return [];
-    const latencyMs = toNumberOrNull(row.max_latency);
-    return [
-      {
-        bucketStart,
-        count: Number(row.count_count ?? 0),
-        maxTotalCost: toNumberOrNull(row.max_totalCost),
-        maxLatencySeconds: latencyMs === null ? null : latencyMs / 1000,
-        maxTotalTokens: toNumberOrNull(row.max_totalTokens),
-      },
-    ];
-  });
 
 const MetricSwitcher = ({
   value,
@@ -111,7 +82,9 @@ export function EventsOutlierStrip({
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
-  const width = size?.width ?? 0;
+  // getBoundingClientRect includes the wrapper's px-2 padding (border-box) —
+  // subtract it so the strips never overhang the content box.
+  const width = Math.max((size?.width ?? 0) - 16, 0);
   const twoUp = width >= TWO_UP_MIN_WIDTH_PX;
   const chartWidth = twoUp ? (width - TWO_UP_GAP_PX) / 2 : width;
 
@@ -149,6 +122,10 @@ export function EventsOutlierStrip({
     {
       // Wait for the first width measurement — it decides the bucket size.
       enabled: validRange && width > 0,
+      // Keep the previous bins on refetch (auto-refresh ticks re-key the query
+      // via the re-evaluated relative window) — a persistent band must not
+      // flash to a skeleton every interval.
+      placeholderData: (prev) => prev,
       meta: { silentHttpCodes: [422] },
       trpc: { context: { skipBatch: true } },
     },
@@ -189,13 +166,13 @@ export function EventsOutlierStrip({
     onSelectRange({ from: new Date(range.fromMs), to: new Date(range.toMs) });
   };
 
-  // When the range yields fewer buckets than fit (e.g. right after a drill-in,
-  // where `minute` is the finest granularity the backend offers), stretch the
-  // bars to fill the width — Firefox-devtools style — instead of rendering a
-  // tiny stub in a mostly-empty strip.
+  // Fit the slots to the actual bucket count: stretch (up to 80px) when a
+  // drilled range yields few buckets — Firefox-devtools style — and shrink
+  // below the 5px target when the coarsest granularity still overflows the
+  // width (wide custom ranges), so the newest buckets are never clipped away.
   const barSlotPx = Math.min(
     Math.max(
-      BAR_SLOT_PX,
+      1,
       Math.floor(chartWidth / Math.max(series.primary.dense.length, 1)),
     ),
     80,

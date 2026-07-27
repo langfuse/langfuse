@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pickChartGranularity,
   prepareOutlierSeries,
+  rowsToOutlierBins,
   type OutlierStripBin,
 } from "./binning";
 
@@ -46,6 +47,38 @@ describe("pickChartGranularity", () => {
       barSlotPx: 1,
     });
     expect((90 * 86400) / stepSeconds).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe("rowsToOutlierBins", () => {
+  it("drops WITH FILL rows so non-nullable zero-fills never become phantom bars", () => {
+    const bins = rowsToOutlierBins([
+      {
+        time_dimension: "2025-03-10 10:00:00",
+        count_count: "2",
+        max_totalCost: "0.5",
+        max_latency: "1500",
+        max_totalTokens: "300",
+      },
+      // ClickHouse WITH FILL filler: count 0, nullable measures null, but the
+      // non-nullable tokens measure fills with its type default 0.
+      {
+        time_dimension: "2025-03-10 10:01:00",
+        count_count: "0",
+        max_totalCost: null,
+        max_latency: null,
+        max_totalTokens: "0",
+      },
+    ]);
+
+    expect(bins).toHaveLength(1);
+    expect(bins[0]).toEqual({
+      bucketStart: expect.any(Date),
+      count: 2,
+      maxTotalCost: 0.5,
+      maxLatencySeconds: 1.5, // ms → s
+      maxTotalTokens: 300,
+    });
   });
 });
 

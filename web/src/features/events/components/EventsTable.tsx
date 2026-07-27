@@ -778,6 +778,13 @@ export default function ObservationsEventsTable({
   // rest as "not applied" (see chartFilterExclusions below).
   const chartEnabled = !hideControls && !userId && !sessionId;
 
+  // The outlier strip additionally hides on prompt-version-scoped tables:
+  // `promptVersion` is a page-scope prop the aggregate query cannot express
+  // (number filter, not a forwardable dimension), and unlike sidebar facets it
+  // has no "not applied" affordance — the strip would silently aggregate
+  // across ALL versions while the table shows one. (`promptName` forwards.)
+  const outlierStripEnabled = chartEnabled && promptVersion === undefined;
+
   // The chart is actually on screen (not just enabled). Only then do we mark
   // the filters it can't honour as "not applied", so table mode stays untouched.
   // Both surfaces use the stateless per-column / per-field reason resolvers
@@ -2081,12 +2088,14 @@ export default function ObservationsEventsTable({
                     />
                     {/* Outlier strip is desktop-only until the touch/swipe
                         slice (LFE-14451 P5); hidden in full chart mode. */}
-                    {!isMobile && chartViewMode !== "chart" && (
-                      <OutlierStripToggle
-                        pressed={outlierStripVisible}
-                        onPressedChange={setOutlierStripVisible}
-                      />
-                    )}
+                    {outlierStripEnabled &&
+                      !isMobile &&
+                      chartViewMode !== "chart" && (
+                        <OutlierStripToggle
+                          pressed={outlierStripVisible}
+                          onPressedChange={setOutlierStripVisible}
+                        />
+                      )}
                   </>
                 ) : undefined
               }
@@ -2213,7 +2222,7 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            {chartEnabled &&
+            {outlierStripEnabled &&
               chartViewMode !== "chart" &&
               outlierStripVisible &&
               !isMobile && (

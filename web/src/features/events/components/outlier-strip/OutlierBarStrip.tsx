@@ -134,7 +134,13 @@ export function OutlierBarStrip({
           setHoverIndex(index >= 0 && index < dense.length ? index : null);
         }}
         onClick={() => {
-          if (hovered && onSelectBucket) {
+          // Mirror the tooltip's guard: clicking a truly empty bucket would
+          // just drill the table into a zero-row window.
+          if (
+            hovered &&
+            (hovered.count > 0 || hovered.value !== null) &&
+            onSelectBucket
+          ) {
             onSelectBucket({
               fromMs: hovered.bucketStartMs,
               toMs: hovered.bucketStartMs + stepMs,

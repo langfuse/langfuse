@@ -3,6 +3,7 @@ import {
   latencyFormatter,
   usdFormatter,
 } from "@/src/utils/numbers";
+import { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
 
 /**
  * Preparer layer for the outlier strip (LFE-14451), following the charts
@@ -142,6 +143,44 @@ export const OUTLIER_STRIP_METRICS: Record<
     format: (value) => compactNumberFormatter(value),
   },
 };
+
+/** executeQuery result column names: `${aggregation}_${measure}`. */
+export type OutlierQueryRow = {
+  time_dimension?: string;
+  count_count?: unknown;
+  max_totalCost?: unknown;
+  max_latency?: unknown;
+  max_totalTokens?: unknown;
+};
+
+const toNumberOrNull = (raw: unknown): number | null =>
+  raw === null || raw === undefined ? null : Number(raw);
+
+/**
+ * Maps executeQuery rows to strip bins; latency arrives in ms, bins carry s.
+ *
+ * WITH FILL rows (count 0) are dropped rather than mapped: ClickHouse fills
+ * non-nullable measures with type DEFAULTS, so a filled bucket reports
+ * `max_totalTokens: 0` (UInt64) while cost/latency fill as null — mapping
+ * those rows would draw a phantom 0-token baseline across every empty bucket.
+ * The client densifies empty buckets to honest nulls anyway.
+ */
+export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
+  rows.flatMap((row) => {
+    const bucketStart = parseChartTimestamp(row.time_dimension);
+    const count = Number(row.count_count ?? 0);
+    if (!bucketStart || count === 0) return [];
+    const latencyMs = toNumberOrNull(row.max_latency);
+    return [
+      {
+        bucketStart,
+        count,
+        maxTotalCost: toNumberOrNull(row.max_totalCost),
+        maxLatencySeconds: latencyMs === null ? null : latencyMs / 1000,
+        maxTotalTokens: toNumberOrNull(row.max_totalTokens),
+      },
+    ];
+  });
 
 /**
  * Densifies server buckets onto the epoch grid covering [fromMs, toMs] and
