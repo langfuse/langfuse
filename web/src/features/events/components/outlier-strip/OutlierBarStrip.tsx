@@ -38,6 +38,13 @@ export type OutlierBarStripProps = {
   barSlotPx?: number;
   /** Scanability treatment: alternating time bands or value gridbands. */
   bands?: "none" | "time" | "value";
+  /**
+   * Bar-height scale. Real cost/latency outliers are 10–40x the base load —
+   * linear renders the base nearly invisible; sqrt keeps it readable while
+   * outliers still dominate. Decision-surface knob; the locked pick moves
+   * into the preparer when production wiring lands.
+   */
+  scale?: "linear" | "sqrt";
   /** 1px baseline tick where events exist but carry no metric data. */
   showActivityTicks?: boolean;
   /** Tiny max-value label in the top-left corner. */
@@ -75,6 +82,7 @@ export function OutlierBarStrip({
   heightPx = 56,
   barSlotPx = 5,
   bands = "time",
+  scale = "linear",
   showActivityTicks = true,
   showMaxLabel = true,
   showTimeLabels = true,
@@ -96,8 +104,12 @@ export function OutlierBarStrip({
   const superLabel = (bucketMs: number) =>
     format(new Date(bucketMs), superStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
 
-  const barHeight = (value: number) =>
-    hasData ? Math.max(1.5, (value / maxValue) * heightPx) : 0;
+  const barHeight = (value: number) => {
+    if (!hasData) return 0;
+    const fraction = value / maxValue;
+    const scaled = scale === "sqrt" ? Math.sqrt(fraction) : fraction;
+    return Math.max(1.5, scaled * heightPx);
+  };
 
   const hovered = hoverIndex !== null ? dense[hoverIndex] : null;
 

@@ -60,6 +60,24 @@ export const VariantMatrix = meta.story({
   ),
 });
 
+/** Real outliers are 10–40x the base load: linear scale crushes the base into
+ * a barely-visible baseline; sqrt keeps the base readable while spikes still
+ * dominate. Pick one — it becomes the locked preparer decision. */
+export const ScaleMatrix = meta.story({
+  render: () => (
+    <div className="flex flex-col gap-5 p-2">
+      {(["linear", "sqrt"] as const).map((scale) => (
+        <div key={scale}>
+          <div className="text-muted-foreground mb-1 font-mono text-[10px]">
+            scale: {scale}
+          </div>
+          <OutlierBarStrip {...spikyCost} metric="cost" scale={scale} />
+        </div>
+      ))}
+    </div>
+  ),
+});
+
 export const HeightMatrix = meta.story({
   render: () => (
     <div className="flex flex-col gap-5 p-2">
