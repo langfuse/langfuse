@@ -3,8 +3,12 @@
 
 import cliMarkdown from "./raw/cli.md";
 import errorAnalysisMarkdown from "./raw/error-analysis.md";
+import promptEngineeringMarkdown from "./raw/prompt-engineering.md";
+import v4ProjectMigrationMarkdown from "./raw/v4-project-migration.md";
 
 export const LANGFUSE_IN_APP_AGENT_SKILL_MARKDOWN = [
   { fileName: "cli.md", markdown: cliMarkdown },
   { fileName: "error-analysis.md", markdown: errorAnalysisMarkdown },
+  { fileName: "prompt-engineering.md", markdown: promptEngineeringMarkdown },
+  { fileName: "v4-project-migration.md", markdown: v4ProjectMigrationMarkdown },
 ] as const;
