@@ -6,10 +6,12 @@ on:
   push:
     branches:
       - "main"
+      - "v3"
   merge_group:
   pull_request:
     branches:
       - "main"
+      - "v3"
 
 permissions: {}
 
