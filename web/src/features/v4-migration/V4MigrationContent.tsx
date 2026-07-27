@@ -2,12 +2,14 @@ import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
+  BotMessageSquare,
   ChevronRight,
   Copy,
   LibraryBig,
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
@@ -21,6 +23,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { cn } from "@/src/utils/tailwind";
 import {
+  formatSdkUpgradeRequirement,
   formatSdkVersion,
   type V4MigrationSdkState,
 } from "@/src/features/v4-migration/sdkVersionStatus";
@@ -32,6 +35,7 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
+import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -39,6 +43,18 @@ import { useProject } from "@/src/features/projects/hooks";
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
+const OTEL_V4_MIGRATION_URL =
+  "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4";
+const DEPRECATED_API_MIGRATION_URL =
+  "https://langfuse.com/faq/all/deprecated-api-migration";
+const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
+  PostHog:
+    "https://langfuse.com/integrations/analytics/posthog#migrate-export-source",
+  Mixpanel:
+    "https://langfuse.com/integrations/analytics/mixpanel#migrate-export-source",
+  "Blob Storage":
+    "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
+};
 
 const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
 1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
@@ -160,8 +176,12 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
   const chip =
     sdk.status === "latest" ? (
       <Chip variant="success">Up to date</Chip>
+    ) : sdk.status === "otel_realtime" ? (
+      <Chip variant="success">OTel real-time</Chip>
     ) : sdk.status === "checking" ? (
       <Chip variant="warning">Checking</Chip>
+    ) : sdk.status === "otel_header_required" ? (
+      <Chip variant="warning">OTel header required</Chip>
     ) : sdk.status === "unknown" ? (
       <Chip variant="warning">
         {detectedSdkSeries.length > 0 ? "Needs review" : "Not detected"}
@@ -177,6 +197,19 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
       <p className="text-muted-foreground text-sm leading-relaxed">
         {sdk.status === "checking" ? (
           "Checking the latest traces for this project…"
+        ) : sdk.status === "otel_header_required" ? (
+          <>
+            OTel data is arriving through the delayed ingestion path. Set the{" "}
+            <MonoValue>x-langfuse-ingestion-version</MonoValue> header to{" "}
+            <MonoValue>4</MonoValue> on the OTLP exporter to use real-time
+            ingestion.{" "}
+            <ExternalLink href={OTEL_V4_MIGRATION_URL}>
+              OpenTelemetry migration guide
+            </ExternalLink>
+            .
+          </>
+        ) : sdk.status === "otel_realtime" ? (
+          "OTel data is using real-time ingestion. No ingestion header update is required."
         ) : sdk.status === "unknown" ? (
           detectedSdkSeries.length > 0 ? (
             "We could not recognize every detected SDK version. Verify that these SDKs are up to date."
@@ -226,9 +259,13 @@ function V4MigrationSdkSection({ sdk }: { sdk: V4MigrationSdkState }) {
                   · last seen{" "}
                   {formatCompactRelativeTime(new Date(series.lastSeen))}
                 </span>
-                {series.v4MigrationStatus === "upgrade_required" && (
-                  <span className="text-dark-yellow">· upgrade required</span>
-                )}
+                {series.v4MigrationStatus === "upgrade_required" &&
+                  !series.upgradeCompleted && (
+                    <span className="text-dark-yellow">
+                      · {formatSdkUpgradeRequirement(series.canonicalSdkName)}
+                    </span>
+                  )}
+                {series.upgradeCompleted && <span>· upgrade completed</span>}
                 {series.v4MigrationStatus === "unknown" && (
                   <span className="text-dark-yellow">
                     · version not recognized
@@ -310,6 +347,21 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
+  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
+    useInAppAiAgent();
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId,
+    orgId: organization?.id,
+    enabled: Boolean(projectId),
+  });
+  const handleMigrateEvalsWithAgent = async () => {
+    capture("v4_migration:migrate_evals_with_agent_clicked");
+    onNavigate?.();
+    setAgentOpen(true);
+    await submitAgentMessage(upgradePlan.assistantPrompt, {
+      newConversation: true,
+    });
+  };
   const evalsUrl =
     typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const integrationsUrl =
@@ -349,8 +401,8 @@ export function V4MigrationDetailsContent({
           update?
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working after{" "}
-          <span className="text-dark-yellow">Oct 1</span>.
+          Some features will stop working{" "}
+          <span className="text-dark-yellow">soon</span>.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -379,30 +431,49 @@ export function V4MigrationDetailsContent({
                   {migrationData.evals.count === 1
                     ? "eval targets"
                     : "evals target"}{" "}
-                  trace input/output, which stops running{" "}
-                  <span className="text-dark-yellow">Oct 1</span>. Point{" "}
-                  {migrationData.evals.count === 1 ? "it" : "them"} at an
-                  observation instead.
+                  trace input/output, which{" "}
+                  <span className="text-dark-yellow">
+                    {migrationData.evals.count === 1 ? "stops" : "stop"} running
+                    soon
+                  </span>
+                  . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
+                  at observations or experiments requires minimal changes
+                  {upgradePlan.assistantCanUpgrade
+                    ? " — the assistant can do it for you"
+                    : ""}
+                  .
                 </p>
-                {evalsUrl ? (
-                  <Link
-                    href={evalsUrl}
-                    onClick={onNavigate}
-                    className="text-dark-blue text-sm hover:underline"
-                  >
-                    Review trace-level evals
-                  </Link>
-                ) : null}
+                <div className="flex items-center gap-3">
+                  {upgradePlan.assistantCanUpgrade && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMigrateEvalsWithAgent}
+                    >
+                      <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                      Migrate with assistant
+                    </Button>
+                  )}
+                  {evalsUrl ? (
+                    <Link
+                      href={evalsUrl}
+                      onClick={onNavigate}
+                      className="text-dark-blue text-sm hover:underline"
+                    >
+                      Review deprecated evals
+                    </Link>
+                  ) : null}
+                </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No configured trace-level evals detected.
+                No deprecated evals detected.
               </p>
             )}
           </Section>
 
           <Section
-            title="Legacy APIs"
+            title="Deprecated APIs"
             chip={
               <MigrationCountChip
                 state={migrationData.apis}
@@ -423,11 +494,11 @@ export function V4MigrationDetailsContent({
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
                   {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
-                  <span className="text-dark-yellow">Oct 1</span>; the{" "}
-                  <ExternalLink href="https://api.reference.langfuse.com">
-                    new APIs
+                  <span className="text-dark-yellow">soon</span>; the{" "}
+                  <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
+                    migration guide
                   </ExternalLink>{" "}
-                  cover the same data.
+                  maps each endpoint to its replacement.
                 </p>
                 <div className="flex flex-col">
                   {migrationData.apiUsage.map((usage) => (
@@ -436,7 +507,7 @@ export function V4MigrationDetailsContent({
                       className="flex items-center justify-between gap-2 py-0.5"
                     >
                       <ExternalLink
-                        href="https://api.reference.langfuse.com"
+                        href={DEPRECATED_API_MIGRATION_URL}
                         className="text-sm"
                       >
                         {usage.endpoint}
@@ -450,14 +521,14 @@ export function V4MigrationDetailsContent({
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No legacy public API usage detected in the last{" "}
+                No deprecated public API usage detected in the last{" "}
                 {V4_MIGRATION_LOOKBACK_DAYS} days.
               </p>
             )}
           </Section>
 
           <Section
-            title="Legacy Integrations"
+            title="Deprecated Integrations"
             chip={
               <MigrationCountChip
                 state={migrationData.exports}
@@ -482,7 +553,10 @@ export function V4MigrationDetailsContent({
                 </p>
                 <div className="flex flex-col">
                   {migrationData.legacyIntegrations.map((name) => (
-                    <div key={name} className="flex items-center py-0.5">
+                    <div
+                      key={name}
+                      className="flex items-baseline gap-1.5 py-0.5"
+                    >
                       {integrationsUrl ? (
                         <Link
                           href={integrationsUrl}
@@ -494,13 +568,23 @@ export function V4MigrationDetailsContent({
                       ) : (
                         <span className="text-sm">{name}</span>
                       )}
+                      <span className="text-muted-foreground text-xs">·</span>
+                      <ExternalLink
+                        href={
+                          DEPRECATED_INTEGRATION_MIGRATION_URLS[name] ??
+                          V4_DOCS_URL
+                        }
+                        className="text-xs"
+                      >
+                        Migration guide
+                      </ExternalLink>
                     </div>
                   ))}
                 </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No legacy integration exports detected.
+                No deprecated integration exports detected.
               </p>
             )}
           </Section>

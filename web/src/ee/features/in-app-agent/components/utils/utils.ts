@@ -302,6 +302,28 @@ export function getDrawerMessages({
         return;
       }
 
+      const previousMessage = mappedMessages[mappedMessages.length - 1];
+
+      // Hydrated history flattens the text and tool content that separated
+      // thinking phases live, leaving them adjacent; collapse them into one
+      // block, mirroring how consecutive tool calls collapse into one group.
+      if (
+        previousMessage?.role === "assistant" &&
+        previousMessage.content.type === "reasoning"
+      ) {
+        mappedMessages[mappedMessages.length - 1] = {
+          ...previousMessage,
+          content: {
+            ...previousMessage.content,
+            text: [previousMessage.content.text, message.content]
+              .filter((text) => text.trim())
+              .join("\n\n"),
+            isStreaming,
+          },
+        };
+        return;
+      }
+
       mappedMessages.push({
         id: message.id,
         role,
