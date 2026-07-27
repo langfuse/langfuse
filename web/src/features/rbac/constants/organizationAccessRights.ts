@@ -39,6 +39,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   ],
   MEMBER: ["organizationMembers:read"],
   VIEWER: [],
+  ANNOTATOR: [],
   NONE: [],
 };
 
