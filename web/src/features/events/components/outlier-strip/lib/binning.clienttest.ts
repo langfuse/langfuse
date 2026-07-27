@@ -1,54 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { MAX_EVENTS_METRICS_TIME_SERIES_BINS } from "@langfuse/shared";
 import {
-  pickStepSeconds,
+  pickChartGranularity,
   prepareOutlierSeries,
   type OutlierStripBin,
 } from "./binning";
 
-describe("pickStepSeconds", () => {
-  it("picks the finest step that fits the width", () => {
+describe("pickChartGranularity", () => {
+  it("picks the finest preset that fits the width", () => {
     // 24h into 200 slots (1000px / 5px): 10m (144 bars) fits, 5m (288) not.
     expect(
-      pickStepSeconds({
+      pickChartGranularity({
         rangeMs: 24 * 3600 * 1000,
         widthPx: 1000,
         barSlotPx: 5,
       }),
-    ).toBe(600);
+    ).toEqual({ granularity: "10m", stepSeconds: 600 });
   });
 
-  it("adapts to narrower widths with coarser steps", () => {
+  it("adapts to narrower widths with coarser presets", () => {
     // 24h into 60 slots: 30m (48 bars) fits, 15m (96) not.
     expect(
-      pickStepSeconds({
+      pickChartGranularity({
         rangeMs: 24 * 3600 * 1000,
         widthPx: 300,
         barSlotPx: 5,
-      }),
-    ).toBe(1800);
+      }).granularity,
+    ).toBe("30m");
   });
 
-  it("falls back to day-multiples beyond the ladder", () => {
-    // 2 years into 100 slots: needs ~7.3d per bar → 8d step.
-    const step = pickStepSeconds({
-      rangeMs: 730 * 86400 * 1000,
-      widthPx: 500,
-      barSlotPx: 5,
-    });
-    expect(step % 86400).toBe(0);
-    expect((730 * 86400) / step).toBeLessThanOrEqual(100);
+  it("falls back to the coarsest preset for extreme ranges", () => {
+    // 2 years into 100 slots: even 1w gives 105 bars — accept the overflow.
+    expect(
+      pickChartGranularity({
+        rangeMs: 730 * 86400 * 1000,
+        widthPx: 500,
+        barSlotPx: 5,
+      }).granularity,
+    ).toBe("1w");
   });
 
-  it("never exceeds the server bin cap even on huge widths", () => {
-    const step = pickStepSeconds({
+  it("caps requested buckets even on huge widths", () => {
+    const { stepSeconds } = pickChartGranularity({
       rangeMs: 90 * 86400 * 1000,
       widthPx: 100_000,
       barSlotPx: 1,
     });
-    expect((90 * 86400) / step).toBeLessThanOrEqual(
-      MAX_EVENTS_METRICS_TIME_SERIES_BINS,
-    );
+    expect((90 * 86400) / stepSeconds).toBeLessThanOrEqual(2000);
   });
 });
 

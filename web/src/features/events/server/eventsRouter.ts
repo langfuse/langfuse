@@ -17,11 +17,10 @@ import {
   toDomainWithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { EventsTableOptions, EventsMetricsTimeSeriesOptions } from "./types";
+import { EventsTableOptions } from "./types";
 import {
   getEventList,
   getEventCount,
-  getEventMetricsTimeSeries,
   getEventFilterOptions,
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
@@ -55,10 +54,6 @@ export type EventBatchIOOutput = {
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
-
-export type EventsMetricsTimeSeriesInput = z.infer<
-  typeof EventsMetricsTimeSeriesOptions
->;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
@@ -165,40 +160,6 @@ export const eventsRouter = createTRPCRouter({
             searchQuery: input.searchQuery ?? undefined,
             searchType: input.searchType,
             orderBy: normalizedOrderBy,
-          });
-        },
-      );
-    }),
-  metricsTimeSeries: protectedProjectProcedure
-    .input(EventsMetricsTimeSeriesOptions)
-    .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
-        prisma: ctx.prisma,
-        projectId: ctx.session.projectId,
-        objectType: "OBSERVATION",
-      });
-
-      if (hasNoMatches) {
-        return { bins: [] };
-      }
-
-      return instrumentAsync(
-        {
-          name: "get-event-metrics-time-series-trpc",
-        },
-        async (span) => {
-          addAttributesToSpan({ span, input, orderBy: null });
-          span.setAttribute("step_seconds", input.stepSeconds);
-
-          return getEventMetricsTimeSeries({
-            projectId: ctx.session.projectId,
-            filter: filterState,
-            searchQuery: input.searchQuery ?? undefined,
-            searchType: input.searchType,
-            fromTimestamp: input.fromTimestamp,
-            toTimestamp: input.toTimestamp,
-            stepSeconds: input.stepSeconds,
           });
         },
       );
@@ -452,10 +413,7 @@ export const addAttributesToSpan = ({
   orderBy,
 }: {
   span: opentelemetry.Span;
-  input:
-    | GetAllEventsInput
-    | GetEventFilterOptionsInput
-    | EventsMetricsTimeSeriesInput;
+  input: GetAllEventsInput | GetEventFilterOptionsInput;
   orderBy?: OrderByState;
 }) => {
   span.setAttribute("project_id", input.projectId);

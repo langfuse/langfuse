@@ -1,4 +1,3 @@
-import { MAX_EVENTS_METRICS_TIME_SERIES_BINS } from "@langfuse/shared";
 import {
   compactNumberFormatter,
   latencyFormatter,
@@ -13,10 +12,9 @@ import {
  */
 
 /**
- * Steps the client may request from `events.metricsTimeSeries`, in seconds.
- * "Nice" boundaries only, capped at 2 days: epoch-aligned week-sized steps
- * start on Thursdays (Unix epoch is a Thursday), which reads as arbitrary.
- * Day-multiples align to UTC midnight.
+ * Grid steps for the strip's scan bands / sparse time labels, in seconds.
+ * Purely presentational; the data granularity comes from
+ * {@link pickChartGranularity}.
  */
 export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
   1,
@@ -40,42 +38,64 @@ export const OUTLIER_STRIP_STEP_LADDER_SECONDS = [
   172800, // days
 ] as const;
 
-const MAX_LADDER_STEP =
-  OUTLIER_STRIP_STEP_LADDER_SECONDS[
-    OUTLIER_STRIP_STEP_LADDER_SECONDS.length - 1
-  ];
+/**
+ * The fixed-width `dashboard.executeQuery` granularity presets the strip may
+ * request, finest first. All are epoch-aligned in ClickHouse
+ * (toStartOfMinute / toStartOfInterval), so client grid math matches the
+ * server's buckets. Variable-length tokens (month, toMonday weeks) are
+ * excluded on purpose. Finer sub-minute steps need a backend addition —
+ * tracked as a follow-up to LFE-14451.
+ */
+export const OUTLIER_STRIP_GRANULARITIES = [
+  { granularity: "minute", stepSeconds: 60 },
+  { granularity: "5m", stepSeconds: 300 },
+  { granularity: "10m", stepSeconds: 600 },
+  { granularity: "15m", stepSeconds: 900 },
+  { granularity: "30m", stepSeconds: 1800 },
+  { granularity: "1h", stepSeconds: 3600 },
+  { granularity: "2h", stepSeconds: 7200 },
+  { granularity: "4h", stepSeconds: 14400 },
+  { granularity: "1d", stepSeconds: 86400 },
+  { granularity: "2d", stepSeconds: 172800 },
+  { granularity: "1w", stepSeconds: 604800 },
+] as const;
+
+export type OutlierStripGranularity =
+  (typeof OUTLIER_STRIP_GRANULARITIES)[number];
+
+/** Never ask the backend for more buckets than this, whatever the width. */
+const MAX_STRIP_BUCKETS = 2000;
 
 /**
- * Picks the finest ladder step that fits the range into the available bar
- * slots ("fit as many bars as possible in the current width"). Falls back to
- * day-multiples beyond the ladder so any range stays under the server's bin
- * cap.
+ * Picks the finest granularity preset that fits the range into the available
+ * bar slots ("fit as many bars as possible in the current width"). Falls back
+ * to the coarsest preset for extreme range×width combinations — the strip
+ * then renders more bars than ideally fit rather than failing.
  */
-export function pickStepSeconds(params: {
+export function pickChartGranularity(params: {
   rangeMs: number;
   widthPx: number;
   /** Horizontal pixels one bar occupies, gap included. */
   barSlotPx: number;
-}): number {
+}): OutlierStripGranularity {
   const rangeSeconds = Math.max(1, params.rangeMs / 1000);
   const maxBars = Math.max(
     1,
-    Math.min(
-      Math.floor(params.widthPx / params.barSlotPx),
-      MAX_EVENTS_METRICS_TIME_SERIES_BINS,
-    ),
+    Math.min(Math.floor(params.widthPx / params.barSlotPx), MAX_STRIP_BUCKETS),
   );
 
-  for (const step of OUTLIER_STRIP_STEP_LADDER_SECONDS) {
-    if (Math.ceil(rangeSeconds / step) <= maxBars) return step;
+  for (const entry of OUTLIER_STRIP_GRANULARITIES) {
+    if (Math.ceil(rangeSeconds / entry.stepSeconds) <= maxBars) return entry;
   }
 
-  // Range too wide for the ladder: smallest day-multiple that fits.
-  const days = Math.ceil(rangeSeconds / maxBars / 86400);
-  return Math.max(days * 86400, MAX_LADDER_STEP);
+  return OUTLIER_STRIP_GRANULARITIES[OUTLIER_STRIP_GRANULARITIES.length - 1];
 }
 
-/** One bucket as served by `events.metricsTimeSeries`. */
+/**
+ * One bucket of max-per-bucket aggregates, mapped from
+ * `dashboard.executeQuery` rows (metrics: max totalCost/latency/totalTokens +
+ * count over the v2 observations view).
+ */
 export type OutlierStripBin = {
   bucketStart: Date;
   count: number;
