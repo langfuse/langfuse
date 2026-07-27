@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import {
   compactNumberFormatter,
   latencyFormatter,
@@ -201,6 +202,29 @@ export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
       },
     ];
   });
+
+/** A bucket's tooltip time range, day-scale buckets without the time part. */
+export const formatBucketRange = (fromMs: number, stepMs: number): string => {
+  const from = new Date(fromMs);
+  const to = new Date(fromMs + stepMs);
+  const dayPattern = stepMs >= 86_400_000 ? "MMM d" : "MMM d, HH:mm:ss";
+  return `${format(from, dayPattern)} – ${format(to, stepMs >= 86_400_000 ? "MMM d" : "HH:mm:ss")}`;
+};
+
+/** A gridline tick's label, sized to the tick step's magnitude. */
+export const formatTickLabel = (bucketMs: number, tickStepMs: number): string =>
+  format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
+
+/**
+ * The dense grid's phase offset from the epoch: 0 on UTC ClickHouse, non-zero
+ * when a self-hosted server timezone shifts day+ buckets. Tick placement must
+ * subtract it, or `bucketStartMs % tickStepMs` never hits 0 on shifted grids.
+ */
+export const gridPhaseMs = (
+  dense: OutlierStripDenseBin[],
+  stepMs: number,
+): number =>
+  dense.length > 0 ? ((dense[0].bucketStartMs % stepMs) + stepMs) % stepMs : 0;
 
 /**
  * Densifies server buckets onto the epoch grid covering [fromMs, toMs] and

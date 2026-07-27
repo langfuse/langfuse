@@ -1105,6 +1105,21 @@ export default function ObservationsEventsTable({
   // dedicated mobile action affordance exists.
   const isMobile = useIsMobile();
   const pulseClosed = pulseClosedStored ?? isMobile;
+  // One reopen affordance for both surfaces: the desktop toolbar slot (left of
+  // Columns) and the mobile header band — mobile defaults to closed, so
+  // without this the strip would be unreachable there.
+  const pulseReopenButton =
+    outlierStripEnabled && chartViewMode !== "chart" && pulseClosed ? (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setPulseClosed(false)}
+        className="h-8 gap-1.5 text-xs"
+      >
+        <ChartNoAxesColumn className="h-3.5 w-3.5" />
+        Pulse
+      </Button>
+    ) : null;
   const enableSorting = !hideControls;
 
   const columns: LangfuseColumnDef<EventsTableRow>[] = [
@@ -2008,6 +2023,7 @@ export default function ObservationsEventsTable({
                 onModeChange={setChartViewMode}
               />
             )}
+            {pulseReopenButton}
           </div>
         )}
         {!hideControls && !isMobile && (
@@ -2090,21 +2106,7 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={showControlsInPageHeader ? undefined : timeRange}
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
-              preColumnsSlot={
-                outlierStripEnabled &&
-                chartViewMode !== "chart" &&
-                pulseClosed ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPulseClosed(false)}
-                    className="h-8 gap-1.5 text-xs"
-                  >
-                    <ChartNoAxesColumn className="h-3.5 w-3.5" />
-                    Pulse
-                  </Button>
-                ) : undefined
-              }
+              preColumnsSlot={pulseReopenButton ?? undefined}
               viewModeToggle={
                 chartEnabled ? (
                   <ViewModeToggle

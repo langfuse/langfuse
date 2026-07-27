@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
 import { cn } from "@/src/utils/tailwind";
 import { Layer } from "@/src/components/ui/layer";
 import {
+  formatBucketRange,
+  formatTickLabel,
+  gridPhaseMs,
   OUTLIER_STRIP_METRICS,
   OUTLIER_STRIP_STEP_LADDER_SECONDS,
   type OutlierStripDenseBin,
@@ -81,13 +83,6 @@ const pickTickStepMs = (
   return Math.max(1, Math.ceil(minPx / slotPx)) * stepMs;
 };
 
-const formatBucketRange = (fromMs: number, stepMs: number): string => {
-  const from = new Date(fromMs);
-  const to = new Date(fromMs + stepMs);
-  const dayPattern = stepMs >= 86_400_000 ? "MMM d" : "MMM d, HH:mm:ss";
-  return `${format(from, dayPattern)} – ${format(to, stepMs >= 86_400_000 ? "MMM d" : "HH:mm:ss")}`;
-};
-
 export function OutlierBarStrip({
   dense,
   maxValue,
@@ -126,6 +121,8 @@ export function OutlierBarStrip({
   const hasActivity = dense.some((bin) => bin.count > 0);
 
   const tickStepMs = pickTickStepMs(stepMs, slotPx, TICK_MIN_SPACING_PX);
+  // Non-zero when the server's buckets are timezone-shifted off the epoch.
+  const phaseMs = gridPhaseMs(dense, stepMs);
 
   // Maps a dragged pixel span to a bucket-snapped ms range.
   const spanToRange = (x1: number, x2: number) => {
@@ -148,8 +145,8 @@ export function OutlierBarStrip({
   // SVG nodes; memoized so cursor-follow tooltip renders (every mousemove)
   // only touch the crosshair + tooltip.
   const staticLayers = useMemo(() => {
-    const tickLabel = (bucketMs: number) =>
-      format(new Date(bucketMs), tickStepMs >= 86_400_000 ? "MMM d" : "HH:mm");
+    const isTick = (bucketStartMs: number) =>
+      (bucketStartMs - phaseMs) % tickStepMs === 0;
     const barHeight = (value: number) => {
       // Corrupt data (e.g. end_time < start_time) must not NaN the height.
       const fraction = Math.max(value, 0) / maxValue;
@@ -160,7 +157,7 @@ export function OutlierBarStrip({
       <>
         {/* Sparse vertical gridline ticks (Firefox-devtools style) */}
         {dense.map((bin, i) => {
-          if (bin.bucketStartMs % tickStepMs !== 0 || i === 0) return null;
+          if (!isTick(bin.bucketStartMs) || i === 0) return null;
           return (
             <line
               key={`tick-${i}`}
@@ -219,7 +216,7 @@ export function OutlierBarStrip({
         {/* Sparse time labels on the tick grid */}
         {showTimeLabels &&
           dense.map((bin, i) => {
-            if (bin.bucketStartMs % tickStepMs !== 0 || i === 0) return null;
+            if (!isTick(bin.bucketStartMs) || i === 0) return null;
             return (
               <text
                 key={`label-${i}`}
@@ -228,7 +225,7 @@ export function OutlierBarStrip({
                 className="fill-muted-foreground/80 font-mono"
                 fontSize={8}
               >
-                {tickLabel(bin.bucketStartMs)}
+                {formatTickLabel(bin.bucketStartMs, tickStepMs)}
               </text>
             );
           })}
@@ -243,6 +240,7 @@ export function OutlierBarStrip({
     widthPx,
     color,
     tickStepMs,
+    phaseMs,
     maxValue,
     scale,
     hasData,
