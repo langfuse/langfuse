@@ -220,7 +220,11 @@ export function DeleteButton({
   );
 }
 
-export function DeleteTraceButton(props: DeleteButtonProps) {
+type DeleteTraceButtonProps = DeleteButtonProps & {
+  className?: "w-full justify-start font-normal";
+};
+
+export function DeleteTraceButton(props: DeleteTraceButtonProps) {
   const utils = api.useUtils();
   const {
     itemId,
