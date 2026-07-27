@@ -111,15 +111,11 @@ const useDropzoneContext = () => {
 
 export type DropzoneContentProps = {
   children?: ReactNode;
-  className?: string;
 };
 
 const maxLabelItems = 3;
 
-export const DropzoneContent = ({
-  children,
-  className,
-}: DropzoneContentProps) => {
+export const DropzoneContent = ({ children }: DropzoneContentProps) => {
   const { src } = useDropzoneContext();
 
   if (!src) {
@@ -138,7 +134,7 @@ export const DropzoneContent = ({
       : new Intl.ListFormat("en").format(src.map((file) => file.name));
 
   return (
-    <div className={cn("flex flex-col items-center justify-center", className)}>
+    <div className="flex flex-col items-center justify-center">
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
@@ -154,13 +150,9 @@ export const DropzoneContent = ({
 
 export type DropzoneEmptyStateProps = {
   children?: ReactNode;
-  className?: string;
 };
 
-export const DropzoneEmptyState = ({
-  children,
-  className,
-}: DropzoneEmptyStateProps) => {
+export const DropzoneEmptyState = ({ children }: DropzoneEmptyStateProps) => {
   const { src, accept, maxSize, minSize, maxFiles } = useDropzoneContext();
 
   if (src) {
@@ -190,7 +182,7 @@ export const DropzoneEmptyState = ({
   const text2 = "Drag and drop or click to upload";
 
   return (
-    <div className={cn("flex flex-col items-center justify-center", className)}>
+    <div className="flex flex-col items-center justify-center">
       <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
         <UploadIcon size={16} />
       </div>
