@@ -356,7 +356,11 @@ function MonitorRowActions({
       icon={!collapsed}
       variant="ghost"
       title="Delete"
-      className={cn(!collapsed && rowActionIconColors)}
+      className={
+        collapsed
+          ? undefined
+          : "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110"
+      }
     />
   );
 
