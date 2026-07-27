@@ -35,15 +35,15 @@ const DropzoneContext = createContext<DropzoneContextType | undefined>(
 
 export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
   src?: File[];
-  className?:
-    | "mt-1 border-none p-0 text-left"
-    | "bg-secondary/50 border-dashed";
-  onDrop?: (
+  className: "mt-1 border-none p-0 text-left" | "bg-secondary/50 border-dashed";
+  maxFiles: NonNullable<DropzoneOptions["maxFiles"]>;
+  maxSize: NonNullable<DropzoneOptions["maxSize"]>;
+  onDrop: (
     acceptedFiles: File[],
     fileRejections: FileRejection[],
     event: DropEvent,
   ) => void;
-  children?: ReactNode;
+  children: ReactNode;
 };
 
 export const Dropzone = ({
