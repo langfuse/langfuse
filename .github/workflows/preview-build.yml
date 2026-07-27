@@ -42,7 +42,8 @@ concurrency:
   # building runs join `preview-build-<n>`, which preview-deactivate.yml matches
   # verbatim to cancel on close; the rest get a throwaway per-run group.
   group: >-
-    ${{ (github.event.action != 'labeled' || github.event.label.name == 'preview')
+    ${{ (github.event.pull_request.state == 'open'
+         && (github.event.action != 'labeled' || github.event.label.name == 'preview'))
         && format('preview-build-{0}', github.event.pull_request.number)
         || format('preview-build-noop-{0}', github.run_id) }}
   cancel-in-progress: true
@@ -57,9 +58,12 @@ jobs:
     # event is accepted only for `preview`, to recreate a deployment after
     # teardown. Fork PRs are excluded and can't mint OIDC anyway.
     # AWS_PREVIEW_ECR_PUSH_ROLE_ARN doubles as the feature flag: unset => no-op.
+    # `labeled` (unlike the other three) also fires on closed/merged PRs, which
+    # Argo never deploys — so gate on state or a build there records a dead URL.
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: ubuntu-latest
     permissions:
@@ -148,6 +152,7 @@ jobs:
     if: >-
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
@@ -249,6 +254,7 @@ jobs:
       always() &&
       vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
       (github.event.action != 'labeled' || github.event.label.name == 'preview')
     runs-on: ubuntu-latest
     permissions:

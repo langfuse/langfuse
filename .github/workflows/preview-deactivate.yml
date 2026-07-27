@@ -43,6 +43,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PREVIEW_TASK: preview-pr-${{ github.event.pull_request.number }}
+          LEGACY_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -51,10 +52,27 @@ jobs:
             // and this logs success while dead records pile up.
             const task = process.env.PREVIEW_TASK;
 
-            const deployments = await github.paginate(
-              github.rest.repos.listDeployments,
-              { owner, repo, environment: "PR Preview", task, per_page: 100 },
-            );
+            // TRANSITIONAL (added 2026-07-27, drop once every PR opened before
+            // that date has closed): PRs predating the shared environment
+            // recorded into a per-PR `pr-<n>` environment under the default
+            // `deploy` task, which the query above cannot see — so without this
+            // their still-active record would advertise a dead URL forever.
+            // Omitting `task` matches every task in that environment.
+            const deployments = [
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: "PR Preview",
+                task,
+                per_page: 100,
+              })),
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: process.env.LEGACY_ENVIRONMENT,
+                per_page: 100,
+              })),
+            ];
             if (deployments.length === 0) {
               core.info(`No deployments recorded for ${task}; nothing to delete.`);
               return;

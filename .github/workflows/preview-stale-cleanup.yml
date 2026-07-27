@@ -119,18 +119,29 @@ jobs:
                     github.rest.repos.listDeployments,
                     { owner, repo, environment: "PR Preview", task, per_page: 100 },
                   );
+                  // Isolate per deployment, like the sibling loops in
+                  // preview-build.yml / preview-deactivate.yml: one transient
+                  // 5xx must not skip this PR's remaining records. Not counted
+                  // as a reap failure — the label removal above is the teardown,
+                  // and it already succeeded.
                   for (const deployment of deployments) {
-                    await github.rest.repos.createDeploymentStatus({
-                      owner,
-                      repo,
-                      deployment_id: deployment.id,
-                      state: "inactive",
-                    });
-                    await github.rest.repos.deleteDeployment({
-                      owner,
-                      repo,
-                      deployment_id: deployment.id,
-                    });
+                    try {
+                      await github.rest.repos.createDeploymentStatus({
+                        owner,
+                        repo,
+                        deployment_id: deployment.id,
+                        state: "inactive",
+                      });
+                      await github.rest.repos.deleteDeployment({
+                        owner,
+                        repo,
+                        deployment_id: deployment.id,
+                      });
+                    } catch (e) {
+                      core.warning(
+                        `PR #${pr.number} deployment ${deployment.id}: ${e.message} — continuing`,
+                      );
+                    }
                   }
                 }
               } catch (e) {
