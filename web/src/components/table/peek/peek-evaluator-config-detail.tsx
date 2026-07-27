@@ -20,7 +20,10 @@ import { cn } from "@/src/utils/tailwind";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
+import {
+  isLegacyEvalTarget,
+  requiresLegacyMigrationAction,
+} from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
 import { TablePeekView } from "@/src/components/table/peek";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
@@ -74,20 +77,30 @@ const PeekViewEvaluatorConfigDetail = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {requiresLegacyMigrationAction({
+            targetObject: evalConfig.targetObject,
+            status: evalConfig.status,
+            timeScope: Array.isArray(evalConfig.timeScope)
+              ? evalConfig.timeScope
+              : [],
+          }) && (
+            <span className="bg-light-yellow text-dark-yellow inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
+              Deprecated
+            </span>
+          )}
           <span
             className={cn("text-sm", isEditMode ? "" : "text-muted-foreground")}
           >
             Edit Mode
           </span>
           <Switch
-            disabled={
-              !hasAccess ||
-              (isLegacyEvalTarget(evalConfig.targetObject) &&
-                evalConfig?.timeScope?.length === 1 &&
-                evalConfig.timeScope[0] === "EXISTING")
-            }
+            disabled={!hasAccess || isLegacyEvalTarget(evalConfig.targetObject)}
             checked={isEditMode}
             onCheckedChange={setIsEditMode}
+            {...(isLegacyEvalTarget(evalConfig.targetObject) && {
+              title:
+                "Deprecated evaluators are only available in read-only mode",
+            })}
           />
         </div>
       </div>
