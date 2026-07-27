@@ -12,8 +12,8 @@ The generated TypeScript index lives at:
 
 Use `sync-raw-skills.mjs` to download all markdown files from
 `https://github.com/langfuse/skills/tree/main/skills/langfuse/references` whose
-frontmatter has only `LANGFUSE_PROJECT_INTERFACE` in
-`metadata.required_access`:
+frontmatter either has no access requirements or only
+`LANGFUSE_PROJECT_INTERFACE` in `metadata.required_access`:
 
 ```sh
 node scripts/in-app-agent/sync-raw-skills.mjs

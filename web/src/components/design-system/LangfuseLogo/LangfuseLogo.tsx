@@ -1,21 +1,22 @@
-import { cn } from "@/src/utils/tailwind";
-import Link from "next/link";
-import { VersionLabel } from "./VersionLabel";
-import { env } from "@/src/env.mjs";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { PlusIcon } from "lucide-react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { env } from "@/src/env.mjs";
+import { cn } from "@/src/utils/tailwind";
+import { PlusIcon } from "lucide-react";
 
-const LangfuseLogotypeOrCustomized = () => {
-  const uiCustomization = useUiCustomization();
-
-  if (uiCustomization?.logoLightModeHref && uiCustomization?.logoDarkModeHref) {
+export const LangfuseLogo = ({
+  logoLightModeHref,
+  logoDarkModeHref,
+}: {
+  logoLightModeHref?: string;
+  logoDarkModeHref?: string;
+}) => {
+  if (logoLightModeHref && logoDarkModeHref) {
     // logo is a url, maximum aspect ratio of 1:3 needs to be supported according to docs
     return (
       <div className="flex items-center gap-1">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={uiCustomization.logoLightModeHref}
+          src={logoLightModeHref}
           alt="Langfuse Logo"
           className={cn(
             "group-data-[collapsible=icon]:hidden dark:hidden",
@@ -24,7 +25,7 @@ const LangfuseLogotypeOrCustomized = () => {
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={uiCustomization.logoDarkModeHref}
+          src={logoDarkModeHref}
           alt="Langfuse Logo"
           className={cn(
             "hidden group-data-[collapsible=icon]:hidden dark:block",
@@ -53,22 +54,6 @@ const LangfuseLogotypeOrCustomized = () => {
       />
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
-      </div>
-    </div>
-  );
-};
-
-export const LangfuseLogo = ({ version = false }: { version?: boolean }) => {
-  return (
-    <div className="-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start">
-      {/* Langfuse Logo */}
-      <div className="flex items-center">
-        <Link href="/" className="flex items-center">
-          <LangfuseLogotypeOrCustomized />
-        </Link>
-        {version && (
-          <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
-        )}
       </div>
     </div>
   );

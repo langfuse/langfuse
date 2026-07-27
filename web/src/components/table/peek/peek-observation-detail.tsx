@@ -9,6 +9,7 @@ import {
 } from "@/src/components/trace/TraceDetailBody";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { buildTraceDetailPath } from "@/src/utils/navigation";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 
@@ -49,6 +50,16 @@ export const TablePeekViewObservationDetail = (
         projectId: trace.data.projectId,
         bookmarked: trace.data.bookmarked,
         isPublic: trace.data.public,
+        shareUrl: buildTraceDetailPath({
+          projectId: trace.data.projectId,
+          traceId: trace.data.id,
+          observationId:
+            typeof router.query.traceId === "string"
+              ? peekObservationId
+              : undefined,
+          timestamp:
+            typeof router.query.traceId === "string" ? undefined : timestamp,
+        }),
         name: trace.data.name,
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {

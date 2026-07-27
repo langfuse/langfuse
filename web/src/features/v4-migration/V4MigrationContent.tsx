@@ -2,12 +2,14 @@ import { type ReactNode } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import {
+  BotMessageSquare,
   ChevronRight,
   Copy,
   LibraryBig,
   LifeBuoy,
   TriangleAlert,
 } from "lucide-react";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { RainbowButton } from "@/src/components/magicui/rainbow-button";
@@ -33,6 +35,10 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
+import {
+  useEvalUpgradeAssistantPlan,
+  V4_CODING_AGENT_PROMPT,
+} from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -53,12 +59,6 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
     "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
 };
 
-const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
-1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
-2. Repoint evals that target trace input/output to observations instead.
-3. Replace calls to deprecated APIs (GET /api/public/traces, GET /api/public/sessions, GET /api/public/metrics) with their v4 replacements.
-Docs: ${V4_DOCS_URL}`;
-
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
 export function useCopyMigrationPrompt() {
@@ -66,7 +66,7 @@ export function useCopyMigrationPrompt() {
 
   return async () => {
     capture("v4_migration:coding_agent_prompt_copied");
-    await navigator.clipboard.writeText(CODING_AGENT_PROMPT);
+    await navigator.clipboard.writeText(V4_CODING_AGENT_PROMPT);
     showSuccessToast({
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
@@ -344,6 +344,21 @@ export function V4MigrationDetailsContent({
     onNavigate?.();
     openSupportDrawerWithMode("form", { topic: "V4 Migration" });
   };
+  const { setOpen: setAgentOpen, submit: submitAgentMessage } =
+    useInAppAiAgent();
+  const upgradePlan = useEvalUpgradeAssistantPlan({
+    projectId,
+    orgId: organization?.id,
+    enabled: Boolean(projectId),
+  });
+  const handleMigrateEvalsWithAgent = async () => {
+    capture("v4_migration:migrate_evals_with_agent_clicked");
+    onNavigate?.();
+    setAgentOpen(true);
+    await submitAgentMessage(upgradePlan.assistantPrompt, {
+      newConversation: true,
+    });
+  };
   const evalsUrl =
     typeof projectId === "string" ? `/project/${projectId}/evals` : undefined;
   const integrationsUrl =
@@ -383,8 +398,8 @@ export function V4MigrationDetailsContent({
           update?
         </div>
         <p className="text-muted-foreground text-sm">
-          Some features will stop working after{" "}
-          <span className="text-dark-yellow">Oct 1</span>.
+          Some features will stop working{" "}
+          <span className="text-dark-yellow">soon</span>.
         </p>
         <div>
           <V4MigrationSdkSection sdk={migrationData.sdk} />
@@ -413,24 +428,45 @@ export function V4MigrationDetailsContent({
                   {migrationData.evals.count === 1
                     ? "eval targets"
                     : "evals target"}{" "}
-                  trace input/output, which stops running{" "}
-                  <span className="text-dark-yellow">Oct 1</span>. Point{" "}
-                  {migrationData.evals.count === 1 ? "it" : "them"} at an
-                  observation instead.
+                  trace input/output, which{" "}
+                  <span className="text-dark-yellow">
+                    {migrationData.evals.count === 1 ? "stops" : "stop"} running
+                    soon
+                  </span>
+                  . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
+                  at observations or experiments requires minimal changes
+                  {upgradePlan.showAssistantButton
+                    ? upgradePlan.mode === "evals-ready"
+                      ? " — the assistant can do it for you"
+                      : " — the assistant can help you choose the upgrade order"
+                    : ""}
+                  .
                 </p>
-                {evalsUrl ? (
-                  <Link
-                    href={evalsUrl}
-                    onClick={onNavigate}
-                    className="text-dark-blue text-sm hover:underline"
-                  >
-                    Review trace-level evals
-                  </Link>
-                ) : null}
+                <div className="flex items-center gap-3">
+                  {upgradePlan.showAssistantButton && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleMigrateEvalsWithAgent}
+                    >
+                      <BotMessageSquare className="mr-1.5 h-4 w-4" />
+                      Migrate with assistant
+                    </Button>
+                  )}
+                  {evalsUrl ? (
+                    <Link
+                      href={evalsUrl}
+                      onClick={onNavigate}
+                      className="text-dark-blue text-sm hover:underline"
+                    >
+                      Review deprecated evals
+                    </Link>
+                  ) : null}
+                </div>
               </>
             ) : (
               <p className="text-muted-foreground text-sm">
-                No configured trace-level evals detected.
+                No deprecated evals detected.
               </p>
             )}
           </Section>
@@ -457,7 +493,7 @@ export function V4MigrationDetailsContent({
                 <p className="text-muted-foreground mb-2 text-sm">
                   You&apos;ve called these deprecated endpoints in the last{" "}
                   {V4_MIGRATION_LOOKBACK_DAYS} days. They stop working{" "}
-                  <span className="text-dark-yellow">Oct 1</span>; the{" "}
+                  <span className="text-dark-yellow">soon</span>; the{" "}
                   <ExternalLink href={DEPRECATED_API_MIGRATION_URL}>
                     migration guide
                   </ExternalLink>{" "}

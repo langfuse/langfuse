@@ -472,6 +472,53 @@ describe("getDrawerMessages", () => {
     expect(mappedMessages).toHaveLength(2);
   });
 
+  it("collapses consecutive reasoning messages into one thought block", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: true,
+      messages: [
+        {
+          id: "user-1",
+          role: "user",
+          content: "Investigate latency spikes",
+        },
+        {
+          id: "reasoning-1",
+          role: "reasoning",
+          content: "Checking recent traces before querying metrics.",
+        },
+        {
+          id: "reasoning-2",
+          role: "reasoning",
+          content: "The p95 spike lines up with one endpoint.",
+        },
+        {
+          id: "reasoning-3",
+          role: "reasoning",
+          content: "",
+          isLoading: true,
+        },
+      ] satisfies InAppAiAgentMessage[],
+    });
+
+    expect(mappedMessages).toMatchObject([
+      {
+        id: "user-1",
+        role: "user",
+      },
+      {
+        id: "reasoning-1",
+        role: "assistant",
+        content: {
+          type: "reasoning",
+          text: "Checking recent traces before querying metrics.\n\nThe p95 spike lines up with one endpoint.",
+          isStreaming: true,
+        },
+      },
+    ]);
+    expect(mappedMessages).toHaveLength(2);
+  });
+
   it("marks reasoning complete when a run stops before assistant text arrives", () => {
     const mappedMessages = getDrawerMessages({
       error: "The run was interrupted before an answer was generated.",

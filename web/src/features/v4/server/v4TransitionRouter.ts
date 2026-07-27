@@ -8,6 +8,7 @@ import {
   AnalyticsIntegrationExportSource,
   Prisma,
 } from "@langfuse/shared/src/db";
+import { variableMapping } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import {
   classifyIngestionSdkAttribution,
@@ -40,6 +41,7 @@ const legacyIntegrationExportSources =
   ]);
 
 const TRACE_EVAL_TARGET = "trace";
+const DATASET_EVAL_TARGET = "dataset";
 
 const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
@@ -583,15 +585,45 @@ export const v4TransitionRouter = createTRPCRouter({
   traceLevelEvalSummary: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
-      const traceLevelEvalCount = await ctx.prisma.jobConfiguration.count({
+      // Only active evaluators running on new data require migration;
+      // inactive or backfill-only (EXISTING) configs are not counted.
+      const legacyEvalConfigs = await ctx.prisma.jobConfiguration.findMany({
         where: {
           projectId: input.projectId,
           jobType: "EVAL",
-          targetObject: TRACE_EVAL_TARGET,
+          targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
+          status: "ACTIVE",
+          timeScope: { has: "NEW" },
         },
+        select: { targetObject: true, variableMapping: true },
       });
 
-      return { traceLevelEvalCount };
+      // The in-app assistant can only complete the eval migration when every
+      // remaining legacy evaluator is trivially repointable: dataset targets,
+      // or trace targets whose variables all read from one named observation.
+      const allAssistantMigratable =
+        legacyEvalConfigs.length > 0 &&
+        legacyEvalConfigs.every((config) => {
+          if (config.targetObject === DATASET_EVAL_TARGET) return true;
+          const parsed = z
+            .array(variableMapping)
+            .safeParse(config.variableMapping);
+          if (!parsed.success || parsed.data.length === 0) return false;
+          if (
+            parsed.data.some((mapping) => mapping.langfuseObject === "trace")
+          ) {
+            return false;
+          }
+          const observationNames = new Set(
+            parsed.data.map((mapping) => mapping.objectName ?? ""),
+          );
+          return observationNames.size === 1;
+        });
+
+      return {
+        traceLevelEvalCount: legacyEvalConfigs.length,
+        allAssistantMigratable,
+      };
     }),
 
   summaryByProject: protectedOrganizationProcedure
@@ -693,12 +725,16 @@ export const v4TransitionRouter = createTRPCRouter({
 
       if (projectIds.length === 0) return [];
 
+      // Only active evaluators running on new data require migration;
+      // inactive or backfill-only (EXISTING) configs are not counted.
       const traceLevelEvalCounts = await ctx.prisma.jobConfiguration.groupBy({
         by: ["projectId"],
         where: {
           projectId: { in: projectIds },
           jobType: "EVAL",
-          targetObject: TRACE_EVAL_TARGET,
+          targetObject: { in: [TRACE_EVAL_TARGET, DATASET_EVAL_TARGET] },
+          status: "ACTIVE",
+          timeScope: { has: "NEW" },
         },
         _count: { _all: true },
       });
@@ -740,7 +776,9 @@ WITH selected AS (
   WHERE je.project_id = ${input.projectId}
     AND jc.project_id = ${input.projectId}
     AND jc.job_type = 'EVAL'
-    AND jc.target_object = ${TRACE_EVAL_TARGET}
+    AND jc.target_object IN (${TRACE_EVAL_TARGET}, ${DATASET_EVAL_TARGET})
+    AND jc.status = 'ACTIVE'
+    AND 'NEW' = ANY(jc.time_scope)
     AND je.status != 'CANCELLED'
     AND je.created_at >= ${input.fromTimestamp}
     AND je.created_at <= ${input.toTimestamp}
