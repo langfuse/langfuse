@@ -75,6 +75,14 @@ const SCORE_QUALITY: FilterState[number] = {
   operator: ">",
   value: 0.5,
 };
+// Same environment facet, but keyed by its DISPLAY NAME (as the search bar
+// lowers it) instead of its id — self-exclusion must still recognize it.
+const ENV_PROD_BY_LABEL: FilterState[number] = {
+  column: "Environment",
+  type: "stringOptions",
+  operator: "any of",
+  value: ["production"],
+};
 
 function run(oldFilterState: FilterState) {
   renderHook(() =>
@@ -132,6 +140,18 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(envQuery.filter).toEqual([LEVEL_ERROR]);
     // level counts reflect environment=production but NOT level itself.
     expect(levelQuery.filter).toEqual([ENV_PROD]);
+  });
+
+  it("self-excludes a facet whose filter is keyed by display name, not id", () => {
+    const { bulk, perColumn } = run([START_TIME, ENV_PROD_BY_LABEL]);
+
+    // The "Environment" label must resolve to the "environment" facet id so the
+    // facet is pulled out of the bulk instead of self-collapsing there.
+    expect(bulk.columns).not.toContain("environment");
+    const envQuery = perColumn.find((q) => q.columns?.[0] === "environment");
+    expect(envQuery).toBeDefined();
+    // environment refined by nothing but itself → its own filter is dropped.
+    expect(envQuery.filter).toBeUndefined();
   });
 
   it("keeps the score catalog in the bulk and never self-excludes it", () => {

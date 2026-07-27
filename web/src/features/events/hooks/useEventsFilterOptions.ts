@@ -1,6 +1,10 @@
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { useCallback, useMemo, useState } from "react";
-import { type FilterState, type TimeFilter } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type FilterState,
+  type TimeFilter,
+} from "@langfuse/shared";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -96,6 +100,20 @@ const UNREFINED_SCORE_CATALOG_COLUMNS: ReadonlySet<string> = new Set([
   "trace_score_booleans",
 ]);
 
+// Filter conditions arrive keyed by either the column id ("environment") or its
+// display name ("Environment"), depending on the source (URL, sidebar, or the
+// search bar's lowering). Facet/option columns are always ids, so normalize a
+// filter's column to its id before matching it to a facet — otherwise a
+// label-keyed filter slips past self-exclusion and its facet self-collapses.
+const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
+  eventsTableCols.flatMap((c) => [
+    [c.id, c.id],
+    [c.name, c.id],
+  ]),
+);
+const toFacetColumnId = (column: string): string =>
+  FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
+
 const isEventFilterOptionColumn = (
   column: string,
 ): column is EventFilterOptionColumn => VALID_FILTER_OPTION_COLUMNS.has(column);
@@ -180,7 +198,7 @@ export function useEventsFilterOptions({
     () =>
       new Set(
         refinementFilter
-          .map((f) => f.column)
+          .map((f) => toFacetColumnId(f.column))
           .filter((c) => !UNREFINED_SCORE_CATALOG_COLUMNS.has(c)),
       ),
     [refinementFilter],
@@ -196,7 +214,9 @@ export function useEventsFilterOptions({
       if (refinementFilter.length === 0) return undefined;
       if (!cols) return refinementFilter;
       const own = new Set(cols);
-      const refined = refinementFilter.filter((f) => !own.has(f.column));
+      const refined = refinementFilter.filter(
+        (f) => !own.has(toFacetColumnId(f.column)),
+      );
       return refined.length > 0 ? refined : undefined;
     },
     [refinementFilter],
