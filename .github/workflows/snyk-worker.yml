@@ -1,7 +1,7 @@
 name: Snyk Container - Worker
 on:
   push:
-    branches: ["production", "main"]
+    branches: ["production", "main", "v3"]
 
 permissions:
   contents: read

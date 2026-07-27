@@ -29,6 +29,7 @@ export function TraceDetailActions({
   projectId,
   bookmarked,
   isPublic,
+  shareUrl,
   name,
   timestamp,
   deleteRedirectUrl,
@@ -40,6 +41,7 @@ export function TraceDetailActions({
   projectId: string;
   bookmarked: boolean;
   isPublic: boolean;
+  shareUrl?: string;
   name?: string | null;
   timestamp?: Date;
   deleteRedirectUrl?: string;
@@ -74,6 +76,7 @@ export function TraceDetailActions({
           traceId={traceId}
           timestamp={timestamp}
           isPublic={isPublic}
+          shareUrl={shareUrl}
           label="Share"
         />
         <DeleteTraceButton
@@ -107,6 +110,7 @@ export function TraceDetailActions({
         traceId={traceId}
         timestamp={timestamp}
         isPublic={isPublic}
+        shareUrl={shareUrl}
         size={size}
         tooltip={isPublic ? "Shared (public)" : "Share"}
       />

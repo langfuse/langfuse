@@ -13,6 +13,7 @@ import { useActiveObservationIds } from "../../contexts/PlayheadContext";
 import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
+import { useMobileLayoutContextOptional } from "../_layout/TraceLayoutMobile";
 
 export function TraceGraphView() {
   const { agentGraphData, isLoading } = useTraceGraphData();
@@ -20,6 +21,11 @@ export function TraceGraphView() {
   const { graphViewMode, setGraphViewMode } = useViewPreferences();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
+  // Optional (null on desktop): jump to the Info tab when a canvas click selects
+  // an observation. The graph writes `?observation=` directly, so the tab effect
+  // already covers a genuine change; this also handles cycling a repeated node
+  // back to the same id, where the URL param wouldn't change.
+  const mobileLayout = useMobileLayoutContextOptional();
   // Analytics live here (not in the feature component) so the feature module
   // stays free of trace-view context dependencies.
   const handleObservationSelect = useCallback(() => {
@@ -28,7 +34,8 @@ export function TraceGraphView() {
       graphViewMode,
       ...analyticsDimensions,
     });
-  }, [capture, graphViewMode, analyticsDimensions]);
+    mobileLayout?.switchToInfoTab();
+  }, [capture, graphViewMode, analyticsDimensions, mobileLayout]);
   const handleViewModeChange = useCallback(
     (mode: GraphViewMode) => {
       // Clicking the already-active segment is a no-op — don't count it.

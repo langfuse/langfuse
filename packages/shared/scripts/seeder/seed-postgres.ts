@@ -46,7 +46,7 @@ const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
   __dirname,
   "../../../..",
-  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
+  "web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
 );
 
 // The path above resolves to `web/src` relative to this file, which only exists
@@ -137,12 +137,7 @@ async function main() {
   });
 
   await upsertInAppAgentSystemPrompt(project1.id);
-  // Skip on examples/load: those paths seed this prompt via generatePrompts
-  // (SEED_PROMPT_VERSIONS), whose upsert takes the create branch against a
-  // pre-existing row and violates the (projectId, name, version) constraint.
-  if (environment !== "examples" && environment !== "load") {
-    await upsertNaturalLanguageFilterPrompt(project1.id);
-  }
+  await upsertNaturalLanguageFilterPrompt(project1.id);
 
   // Realistic support chat scenario
   await createSupportChatSession(project1);
@@ -883,14 +878,13 @@ async function generatePrompts(project: Project) {
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
       const promptId = `prompt-${v4()}`;
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
             version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -901,18 +895,16 @@ async function generatePrompts(project: Project) {
           version: i,
           labels: i === versions ? prompt.labels : [],
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const prompt of SEED_CHAT_ML_PROMPTS) {
-    const promptId = `prompt-${v4()}`;
     const versions = Math.floor(Math.random() * 20) + 1;
     for (let i = 1; i <= versions; i++) {
+      const promptId = `prompt-${v4()}`;
       const versionAddition = [
         {
           role: "user",
@@ -920,14 +912,13 @@ async function generatePrompts(project: Project) {
         },
       ];
 
-      await prisma.prompt.upsert({
+      const seededPrompt = await prisma.prompt.upsert({
         where: {
           projectId_name_version: {
             projectId: project.id,
             name: prompt.name,
-            version: prompt.version,
+            version: i,
           },
-          id: promptId,
         },
         create: {
           id: promptId,
@@ -940,24 +931,21 @@ async function generatePrompts(project: Project) {
           labels: prompt.labels,
           tags: prompt.tags,
         },
-        update: {
-          id: promptId,
-        },
+        update: {},
       });
-      promptIds.push(promptId);
+      promptIds.push(seededPrompt.id);
     }
   }
 
   for (const version of SEED_PROMPT_VERSIONS) {
     const id = `prompt-${v4()}`;
-    await prisma.prompt.upsert({
+    const seededPrompt = await prisma.prompt.upsert({
       where: {
         projectId_name_version: {
           projectId: project.id,
           name: version.name,
           version: version.version,
         },
-        id: id,
       },
       create: {
         id: id,
@@ -970,11 +958,9 @@ async function generatePrompts(project: Project) {
         version: version.version,
         labels: version.labels,
       },
-      update: {
-        id: id,
-      },
+      update: {},
     });
-    promptIds.push(id);
+    promptIds.push(seededPrompt.id);
   }
 
   return promptIds;

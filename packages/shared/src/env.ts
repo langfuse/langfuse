@@ -453,6 +453,12 @@ const EnvSchema = z.object({
     .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
     .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
+  // Hosts that must be reached directly instead of through HTTPS_PROXY,
+  // using the standard NO_PROXY grammar (undici EnvHttpProxyAgent
+  // semantics). The lowercase variant wins when both are set, mirroring
+  // undici and curl.
+  NO_PROXY: z.string().optional(),
+  no_proxy: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
     .number()

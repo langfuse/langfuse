@@ -86,11 +86,6 @@ export type AuthedProjectAPIRouteConfig<
    * events_only mode and would silently return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
-  /**
-   * Redact or summarize the request body before logging. Use this for routes
-   * accepting user-authored content, secrets, or other sensitive payloads.
-   */
-  redactLogBody?: (body: unknown) => unknown;
   /** Stamps a top-level `_deprecation` object onto responses (LFE-10895). */
   deprecation?: ApiDeprecationInfo;
   fn: (params: {
@@ -405,12 +400,6 @@ export const createAuthedProjectAPIRoute = <
 
     logger.debug(
       `Request to route ${routeConfig.name} projectId ${auth.scope.projectId}`,
-      {
-        query: req.query,
-        body: routeConfig.redactLogBody
-          ? routeConfig.redactLogBody(req.body)
-          : req.body,
-      },
     );
 
     let query: z.infer<TQuery>;
