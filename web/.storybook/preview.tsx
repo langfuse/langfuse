@@ -12,7 +12,6 @@ import {
   type ReactNode,
 } from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
-import { geistMono, inter } from "../src/styles/fonts";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
@@ -76,13 +75,6 @@ function StorybookThemeProvider({
       enableSystem={false}
       disableTransitionOnChange
     >
-      {/* next/font vars, declared exactly like _app.tsx does on :root so the
-          font tokens in globals.css resolve identically in Storybook. */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `:root{--font-inter:${inter.style.fontFamily};--font-geist-mono:${geistMono.style.fontFamily};}`,
-        }}
-      />
       <div
         id="__next"
         className="bg-background text-foreground"

@@ -17,16 +17,6 @@ const DESIGN_COMPONENT_STORIES = [
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;
-// Design-system reference pages that sit directly under Design (not
-// Design/Components), e.g. the theme token gallery.
-const DESIGN_REFERENCE_STORIES = ["ThemeTokens/Theme Tokens"] as const;
-// Deep-dive reference pages nested under Design/Theme Tokens.
-const DESIGN_THEME_TOKENS_STORIES = ["ThemeTokens/Typography"] as const;
-const PLAYGROUND_EXCLUDED_STORIES = [
-  ...DESIGN_COMPONENT_STORIES,
-  ...DESIGN_REFERENCE_STORIES,
-  ...DESIGN_THEME_TOKENS_STORIES,
-] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -56,22 +46,10 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     })),
-    // Design-system reference pages shown directly under Design.
-    ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
-      directory: "../src/components/design-system",
-      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
-      titlePrefix: "Design",
-    })),
-    // Deep-dive reference pages nested under the Theme Tokens node.
-    ...DESIGN_THEME_TOKENS_STORIES.map((storyPath) => ({
-      directory: "../src/components/design-system",
-      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
-      titlePrefix: "Design/Theme Tokens",
-    })),
     // All other component stories belong to the flat Playground by default.
     {
       directory: "../src",
-      files: `**/!(${PLAYGROUND_EXCLUDED_STORIES.map((storyPath) =>
+      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
         basename(storyPath),
       ).join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
@@ -84,7 +62,7 @@ const config: StorybookConfig = {
     getAbsolutePath("@storybook/addon-vitest"),
   ],
   framework: getAbsolutePath("@storybook/nextjs-vite"),
-  staticDirs: ["../public", "./public"],
+  staticDirs: ["../public"],
   // Resolve `@langfuse/shared` to its TypeScript source, mirroring the app's
   // own alias (next.config.mjs: webpack alias + turbopack.resolveAlias both map
   // "@langfuse/shared" -> "./packages/shared/src"). The package's published
