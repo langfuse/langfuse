@@ -1,6 +1,6 @@
 import { expect, fn } from "storybook/test";
-import preview from "../../../../../.storybook/preview";
-import { Dropzone } from ".";
+import preview from "../../../../.storybook/preview";
+import { Dropzone } from "./Dropzone";
 
 const meta = preview.meta({
   component: Dropzone,

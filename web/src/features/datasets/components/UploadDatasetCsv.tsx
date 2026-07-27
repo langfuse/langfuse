@@ -9,7 +9,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { z } from "zod";
 import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
-import { Dropzone } from "@/src/components/ui/shadcn-io/dropzone";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB

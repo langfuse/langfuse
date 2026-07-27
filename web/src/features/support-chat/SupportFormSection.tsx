@@ -54,7 +54,7 @@ import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useEffect, useState } from "react";
 
-import { Dropzone } from "@/src/components/ui/shadcn-io/dropzone";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import { Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
