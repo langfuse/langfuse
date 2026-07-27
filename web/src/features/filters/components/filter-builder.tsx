@@ -1003,6 +1003,7 @@ function FilterBuilderForm({
                             column?.type === filter.type &&
                             columnsWithCustomSelect.includes(column.id)
                           }
+                          allowEmptyOption={filter.type === "stringOptions"}
                         />
                       ) : filter.type === "categoryOptions" &&
                         column?.type === "categoryOptions" ? (

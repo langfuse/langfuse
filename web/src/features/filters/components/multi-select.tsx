@@ -30,7 +30,14 @@ const getFreeTextInput = (
   optionValues: Set<string>,
 ): string | undefined =>
   isCustomSelectEnabled
-    ? Array.from(values.values()).find((value) => !optionValues.has(value))
+    ? Array.from(values.values()).find(
+        // "" is never a typed custom value: it is only ever picked from the
+        // option list, where it means "records without a value". Without this
+        // guard a selected "" looks like a custom value whenever it is missing
+        // from `options` (e.g. while the filter-options query is still loading)
+        // and the free-text handlers would overwrite the user's selection.
+        (value) => value !== "" && !optionValues.has(value),
+      )
     : undefined;
 
 export function MultiSelect({
@@ -43,6 +50,7 @@ export function MultiSelect({
   disabled,
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
+  allowEmptyOption = false,
 }: {
   title?: string;
   label?: string;
@@ -53,6 +61,14 @@ export function MultiSelect({
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
+  /**
+   * Offer "" as a selectable "(empty)" option, meaning "records without a
+   * value" (e.g. traces ingested without a name). Only meaningful for
+   * `stringOptions`, whose schema rejects empty arrays so "" is unambiguous.
+   * `arrayOptions`/`categoryOptions` accept empty arrays and have no use for an
+   * empty member, so they keep hiding it.
+   */
+  allowEmptyOption?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -68,39 +84,29 @@ export function MultiSelect({
   const mergedOptions = useMemo(() => {
     const optionSet = new Set(options.map((o) => o.value));
     const missingSelectedOptions: FilterOption[] = values
-      .filter((v) => !optionSet.has(v) && v.length > 0)
+      .filter((v) => !optionSet.has(v))
       .map((v) => ({ value: v }));
-    return [...options, ...missingSelectedOptions];
-  }, [options, values]);
-
-  const selectableOptions = useMemo(
-    () => mergedOptions.filter((option) => option.value.length > 0),
-    [mergedOptions],
-  );
+    const merged = [...options, ...missingSelectedOptions];
+    return allowEmptyOption
+      ? merged
+      : merged.filter((option) => option.value.length > 0);
+  }, [options, values, allowEmptyOption]);
 
   const allSelectedState = useMemo(() => {
-    if (selectableOptions.length === 0) return false;
-    return selectableOptions.every((option) =>
-      selectedValues.has(option.value),
-    );
-  }, [selectableOptions, selectedValues]);
+    if (mergedOptions.length === 0) return false;
+    return mergedOptions.every((option) => selectedValues.has(option.value));
+  }, [mergedOptions, selectedValues]);
 
   const handleSelectAll = useCallback(() => {
     const newSelectedValues = new Set(selectedValues);
     if (allSelectedState) {
-      // Deselect all selectable options
-      selectableOptions.forEach((option) =>
-        newSelectedValues.delete(option.value),
-      );
+      mergedOptions.forEach((option) => newSelectedValues.delete(option.value));
     } else {
-      // Select all selectable options
-      selectableOptions.forEach((option) =>
-        newSelectedValues.add(option.value),
-      );
+      mergedOptions.forEach((option) => newSelectedValues.add(option.value));
     }
     const filterValues = Array.from(newSelectedValues);
     onValueChange(filterValues.length ? filterValues : []);
-  }, [allSelectedState, selectableOptions, selectedValues, onValueChange]);
+  }, [allSelectedState, mergedOptions, selectedValues, onValueChange]);
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
   const handleDebouncedChange = (value: string) => {
@@ -110,10 +116,13 @@ export function MultiSelect({
       optionValues,
     );
 
-    if (!!freeTextInput) {
+    // Compare against undefined: "" is a real selection (a record with no
+    // value), so truthiness would misread it as "there is no custom value".
+    if (freeTextInput !== undefined) {
       selectedValues.delete(freeTextInput);
-      selectedValues.add(value);
-      selectedValues.delete("");
+      // An empty box contributes nothing. "" as a filter value means "no value"
+      // and is only ever chosen from the option list, never typed here.
+      if (value) selectedValues.add(value);
       const filterValues = Array.from(selectedValues);
       onValueChange(filterValues.length ? filterValues : []);
     }
@@ -201,7 +210,7 @@ export function MultiSelect({
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
-              {selectableOptions.length > 0 && (
+              {mergedOptions.length > 0 && (
                 <>
                   <InputCommandItem key="select-all" onSelect={handleSelectAll}>
                     <div
@@ -222,7 +231,6 @@ export function MultiSelect({
                 </>
               )}
               {mergedOptions.map((option) => {
-                if (option.value.length === 0) return;
                 const isSelected = selectedValues.has(option.value);
                 const displayValue =
                   option.displayValue ??
@@ -296,12 +304,11 @@ export function MultiSelect({
                       optionValues,
                     );
 
-                    if (!!freeTextInput) {
+                    if (freeTextInput !== undefined) {
                       selectedValues.delete(freeTextInput);
-                    } else {
+                    } else if (freeText) {
                       selectedValues.add(freeText);
                     }
-                    selectedValues.delete("");
                     const filterValues = Array.from(selectedValues);
                     onValueChange(filterValues.length ? filterValues : []);
                   }}
@@ -313,8 +320,9 @@ export function MultiSelect({
                         isCustomSelectEnabled,
                         values,
                         optionValues,
-                      ) ||
-                        (optionValues.has(freeText) &&
+                      ) !== undefined ||
+                        (!!freeText &&
+                          optionValues.has(freeText) &&
                           selectedValues.has(freeText))
                         ? "bg-control-fill border-control-fill text-primary-foreground"
                         : "opacity-50 [&_svg]:invisible",

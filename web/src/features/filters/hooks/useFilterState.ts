@@ -36,7 +36,7 @@ const DEBUG_QUERY_STATE = false;
 // encode/decode filter state
 // The decode has to return null or undefined so that withDefault will use the default value.
 // An empty array will be interpreted as existing state and hence the default value will not be used.
-const getCommaArrayParam = (table: TableName) => ({
+export const getCommaArrayParam = (table: TableName) => ({
   encode: (filterState: FilterState) =>
     encodeDelimitedArray(
       filterState
@@ -85,12 +85,21 @@ const getCommaArrayParam = (table: TableName) => ({
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
+        // A blank value segment is ambiguous: for most types it means "absent",
+        // but `stringOptions` rejects empty arrays (see stringOptionsFilter),
+        // so a blank segment there can only be the single value "" — i.e. a
+        // deliberate filter for records without a value, such as an unnamed
+        // trace. Other types keep the previous "drop the filter" behaviour:
+        // `categoryOptions`/`arrayOptions` do allow [], so for them a blank
+        // segment really is an empty selection rather than an empty string.
+        const isEmptyStringOptions = type === "stringOptions" && value === "";
         const normalizedKey =
           type === "positionInTrace"
             ? normalizeLegacySessionPositionInTraceKey(key)
             : key;
-        const parsedValue =
-          decodedValue === undefined || type === undefined
+        const parsedValue = isEmptyStringOptions
+          ? [""]
+          : decodedValue === undefined || type === undefined
             ? undefined
             : type === "datetime"
               ? new Date(decodedValue)
