@@ -61,10 +61,17 @@ import {
   createHttpHeaderFromRateLimit,
   RateLimitService,
 } from "@/src/features/public-api/server/RateLimitService";
-import { getLangfuseAITraceSinkParams } from "@/src/features/ai-features/server/bedrockCompletion";
+import {
+  getLangfuseAITraceSinkParams,
+  parseSavedViewFromURL,
+  addUserToSpan,
+  logger,
+  redis,
+  TableViewService,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { getProductBaseUrl } from "@/src/utils/base-url";
-import { parseSavedViewFromURL } from "@/src/utils/product-url";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
@@ -79,13 +86,6 @@ import {
   CloudConfigSchema,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  addUserToSpan,
-  logger,
-  redis,
-  TableViewService,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,

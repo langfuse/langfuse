@@ -4,7 +4,7 @@ import {
   CreateAnnotationQueueResponse,
 } from "@/src/features/public-api/types/annotation-queues";
 import { defineTool } from "../../../core/define-tool";
-import { buildAnnotationQueueUrl } from "@/src/utils/product-url";
+import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
 import { z } from "zod";

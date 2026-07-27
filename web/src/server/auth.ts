@@ -45,7 +45,7 @@ import {
 } from "@/src/ee/features/multi-tenant-sso/utils";
 import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import { z } from "zod";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -60,7 +60,6 @@ import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";

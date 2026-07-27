@@ -1,6 +1,10 @@
 import { createTool } from "@mastra/core/tools";
 import type { InAppAgentSandbox } from "@/src/features/in-app-agent/server/sandbox";
-import type { ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import {
+  type ProjectScope,
+  ObservationLevelDomain,
+  TracingSearchType,
+} from "@langfuse/shared";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -20,10 +24,9 @@ import {
   buildSessionsPath,
   buildTracePath,
   buildTracesPath,
-} from "@/src/utils/product-url";
+} from "@langfuse/shared/src/server";
 import z from "zod";
 import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
-import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { Role } from "@langfuse/shared/src/db";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/features/in-app-agent/constants";
 import type { McpToolName } from "@/src/features/mcp/server/bootstrap";

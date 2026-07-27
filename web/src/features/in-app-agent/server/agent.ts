@@ -30,7 +30,7 @@ import {
 } from "@/src/features/in-app-agent/server/tools";
 import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/features/in-app-agent/server/skills";
 import type { InAppAgentSandbox } from "@/src/features/in-app-agent/server/sandbox";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,

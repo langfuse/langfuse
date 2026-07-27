@@ -44,6 +44,15 @@ import {
   createScoresCh,
   createSessionScore,
   createTraceScore,
+  buildDashboardUrl,
+  buildDashboardWidgetUrl,
+  buildEvaluatorUrl,
+  buildMonitorUrl,
+  buildExperimentUrl,
+  buildObservationUrl,
+  buildPromptUrl,
+  buildSessionUrl,
+  buildTraceUrl,
 } from "@langfuse/shared/src/server";
 import { ScoreConfigDataType } from "@langfuse/shared";
 import { MonitorService } from "@langfuse/shared/monitors/server";
@@ -58,17 +67,6 @@ import {
 import { env } from "@/src/env.mjs";
 import "@/src/features/mcp/server/bootstrap";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import {
-  buildDashboardUrl,
-  buildDashboardWidgetUrl,
-  buildEvaluatorUrl,
-  buildMonitorUrl,
-  buildExperimentUrl,
-  buildObservationUrl,
-  buildPromptUrl,
-  buildSessionUrl,
-  buildTraceUrl,
-} from "@/src/utils/product-url";
 import { handleCreateDashboardWidget } from "@/src/features/mcp/features/dashboardWidgets/tools/createDashboardWidget";
 import {
   getDashboardTool,
