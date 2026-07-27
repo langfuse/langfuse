@@ -31,6 +31,7 @@ export function CommentDrawerButton({
   onCommentChange,
   isOpen: controlledIsOpen,
   onOpenChange: controlledOnOpenChange,
+  layout = "toolbar",
 }: {
   projectId: string;
   objectId: string;
@@ -44,7 +45,13 @@ export function CommentDrawerButton({
   onCommentChange?: () => void | Promise<void>;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * "toolbar" (default) is the inline button; "menu" renders the same drawer
+   * trigger as a full-width labeled row for the mobile header overflow popover.
+   */
+  layout?: "toolbar" | "menu";
 }) {
+  const isMenu = layout === "menu";
   const router = useRouter();
   const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
   const [internalIsDrawerOpen, setInternalIsDrawerOpen] = useState(false);
@@ -111,18 +118,23 @@ export function CommentDrawerButton({
     return (
       <Button
         type="button"
-        variant="secondary"
-        size={size}
-        className={className}
+        variant={isMenu ? "ghost" : "secondary"}
+        size={isMenu ? "sm" : size}
+        className={
+          isMenu ? "w-full justify-start gap-2 font-normal" : className
+        }
         disabled
       >
         <MessageSquareOff
           className={
-            size === "sm"
-              ? "text-muted-foreground h-3.5 w-3.5"
-              : "text-muted-foreground h-4 w-4"
+            isMenu
+              ? "text-muted-foreground h-4 w-4"
+              : size === "sm"
+                ? "text-muted-foreground h-3.5 w-3.5"
+                : "text-muted-foreground h-4 w-4"
           }
         />
+        {isMenu ? <span className="text-sm">Add comment</span> : null}
       </Button>
     );
 
@@ -160,29 +172,30 @@ export function CommentDrawerButton({
       <DrawerTrigger asChild>
         <Button
           type="button"
-          variant={variant}
-          size={size}
-          className={className}
+          variant={isMenu ? "ghost" : variant}
+          size={isMenu ? "sm" : size}
+          className={
+            isMenu ? "w-full justify-start gap-2 font-normal" : className
+          }
           id="comment-drawer-button"
         >
-          {!!count ? (
-            <div className="flex items-center gap-1">
-              <MessageSquare
-                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-              />
-              <span>Add comment</span>
+          <div
+            className={
+              isMenu ? "flex items-center gap-2" : "flex items-center gap-1"
+            }
+          >
+            <MessageSquare
+              className={
+                isMenu ? "h-4 w-4" : size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
+              }
+            />
+            <span className={isMenu ? "text-sm" : undefined}>Add comment</span>
+            {!!count ? (
               <span className="bg-primary/50 text-primary-foreground flex h-3.5 w-fit items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                 {count > 99 ? "99+" : count}
               </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <MessageSquare
-                className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"}
-              />
-              <span>Add comment</span>
-            </div>
-          )}
+            ) : null}
+          </div>
         </Button>
       </DrawerTrigger>
       <DrawerContent
