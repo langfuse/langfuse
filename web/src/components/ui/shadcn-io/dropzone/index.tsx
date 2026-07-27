@@ -5,6 +5,7 @@ import { PaperclipIcon, UploadIcon } from "lucide-react";
 import { useMemo } from "react";
 import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
+import { cn } from "@/src/utils/tailwind";
 
 const renderBytes = (bytes: number) => {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -131,6 +132,10 @@ export const Dropzone = ({
 
   const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
   const emptyStateDescription = "Drag and drop or click to upload";
+  const panelTitle = src ? contentText : emptyStateTitle;
+  const panelDescription = src
+    ? "Drag and drop or click to replace"
+    : emptyStateDescription;
 
   return (
     <button
@@ -149,46 +154,36 @@ export const Dropzone = ({
           </span>
         </div>
       )}
-      {variant === "panel" &&
-        (src ? (
-          <div className="flex flex-col items-center justify-center">
-            <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-              <UploadIcon size={16} />
-            </div>
-            <p
-              className="my-2 w-full truncate text-sm font-bold"
-              title={contentText}
-            >
-              {contentText}
-            </p>
-            <p className="text-muted-foreground w-full text-xs text-wrap">
-              Drag and drop or click to replace
-            </p>
+      {variant === "panel" && (
+        <div className="flex flex-col items-center justify-center">
+          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+            <UploadIcon size={16} />
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center">
-            <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-              <UploadIcon size={16} />
-            </div>
-            <p
-              className="my-2 w-full truncate text-sm font-bold text-wrap"
-              title={emptyStateTitle}
-            >
-              {emptyStateTitle}
-            </p>
-            <p
-              className="text-muted-foreground w-full truncate text-xs text-wrap"
-              title={emptyStateDescription}
-            >
-              {emptyStateDescription}
-            </p>
-            {caption && (
-              <p className="text-muted-foreground text-xs text-wrap">
-                {caption}.
-              </p>
+          <p
+            className={cn(
+              "my-2 w-full truncate text-sm font-bold",
+              !src && "text-wrap",
             )}
-          </div>
-        ))}
+            title={panelTitle}
+          >
+            {panelTitle}
+          </p>
+          <p
+            className={cn(
+              "text-muted-foreground w-full text-xs text-wrap",
+              !src && "truncate",
+            )}
+            title={src ? undefined : panelDescription}
+          >
+            {panelDescription}
+          </p>
+          {!src && caption && (
+            <p className="text-muted-foreground text-xs text-wrap">
+              {caption}.
+            </p>
+          )}
+        </div>
+      )}
     </button>
   );
 };
