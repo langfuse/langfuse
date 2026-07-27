@@ -18,6 +18,18 @@ const DESIGN_COMPONENT_STORIES = [
   "Spinner/Spinner",
   "Switch/Switch",
 ] as const;
+// Design-system reference pages that sit directly under Design (not
+// Design/Components): the token reference, one single-leaf page per element.
+const DESIGN_REFERENCE_STORIES = [
+  "ThemeTokens/Color",
+  "ThemeTokens/Typography",
+  "ThemeTokens/Layout",
+  "ThemeTokens/Charts",
+] as const;
+const PLAYGROUND_EXCLUDED_STORIES = [
+  ...DESIGN_COMPONENT_STORIES,
+  ...DESIGN_REFERENCE_STORIES,
+] as const;
 
 /**
  * This function is used to resolve the absolute path of a package.
@@ -47,10 +59,16 @@ const config: StorybookConfig = {
       files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Design/Components",
     })),
+    // Design-system reference pages shown directly under Design.
+    ...DESIGN_REFERENCE_STORIES.map((storyPath) => ({
+      directory: "../src/components/design-system",
+      files: `${storyPath}.stories.${STORY_EXTENSIONS}`,
+      titlePrefix: "Design",
+    })),
     // All other component stories belong to the flat Playground by default.
     {
       directory: "../src",
-      files: `**/!(${DESIGN_COMPONENT_STORIES.map((storyPath) =>
+      files: `**/!(${PLAYGROUND_EXCLUDED_STORIES.map((storyPath) =>
         basename(storyPath),
       ).join("|")}).stories.${STORY_EXTENSIONS}`,
       titlePrefix: "Playground",
@@ -63,7 +81,7 @@ const config: StorybookConfig = {
     getAbsolutePath("@storybook/addon-vitest"),
   ],
   framework: getAbsolutePath("@storybook/nextjs-vite"),
-  staticDirs: ["../public"],
+  staticDirs: ["../public", "./public"],
   // Resolve `@langfuse/shared` to its TypeScript source, mirroring the app's
   // own alias (next.config.mjs: webpack alias + turbopack.resolveAlias both map
   // "@langfuse/shared" -> "./packages/shared/src"). The package's published
