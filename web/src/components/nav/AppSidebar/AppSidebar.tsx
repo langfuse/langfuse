@@ -111,15 +111,11 @@ type SidebarUser = {
   avatar: string;
 };
 
-type SidebarNotificationState =
-  | { status: "hidden" }
-  | {
-      status: "visible";
-      currentTimestamp: number;
-      dismissedIds: string[];
-      onDismiss: (id: string) => void;
-      onLinkClick: (id: string) => void;
-    };
+type SidebarNotificationState = {
+  dismissedIds: string[];
+  onDismiss: (id: string) => void;
+  onLinkClick: (id: string) => void;
+};
 
 type OrganizationDropdownOption = Extract<
   React.ComponentProps<typeof OrganizationDropdownMenu>,
@@ -153,6 +149,7 @@ type AppSidebarProps = {
   };
   versionState: SidebarVersionState;
   showDemoBadge: boolean;
+  v4UpgradeUiEnabled: boolean;
   notificationState: SidebarNotificationState;
   organization: { id: string; name: string } | null;
   project: { id: string; name: string } | null;
@@ -172,6 +169,7 @@ export function AppSidebar({
   logo,
   versionState,
   showDemoBadge,
+  v4UpgradeUiEnabled,
   notificationState,
   organization,
   project,
@@ -181,21 +179,17 @@ export function AppSidebar({
   getOrgPath,
   getProjectPath,
 }: AppSidebarProps) {
-  const activeNotifications =
-    notificationState.status === "visible"
-      ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
-          if (notificationState.dismissedIds.includes(notification.id)) {
-            return false;
-          }
-          if (!notification.createdAt) return true;
+  const activeNotifications = !v4UpgradeUiEnabled
+    ? SIDEBAR_NOTIFICATIONS.filter((notification) => {
+        if (notificationState.dismissedIds.includes(notification.id)) {
+          return false;
+        }
+        if (!notification.createdAt) return true;
 
-          const createdAt = new Date(notification.createdAt).getTime();
-          return (
-            notificationState.currentTimestamp <=
-            createdAt + (notification.ttlMs ?? TWO_WEEKS_MS)
-          );
-        })
-      : [];
+        const createdAt = new Date(notification.createdAt).getTime();
+        return Date.now() <= createdAt + (notification.ttlMs ?? TWO_WEEKS_MS);
+      })
+    : [];
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -228,15 +222,14 @@ export function AppSidebar({
         )}
         <NavMain items={navItems} />
         <div className="flex-1" />
-        {notificationState.status === "visible" &&
-          activeNotifications.length > 0 && (
-            <div className="flex flex-col gap-2 p-2">
-              <SidebarNotifications
-                state={notificationState}
-                activeNotifications={activeNotifications}
-              />
-            </div>
-          )}
+        {activeNotifications.length > 0 && (
+          <div className="flex flex-col gap-2 p-2">
+            <SidebarNotifications
+              state={notificationState}
+              activeNotifications={activeNotifications}
+            />
+          </div>
+        )}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
       <SidebarFooter>
@@ -331,7 +324,7 @@ function SidebarNotifications({
   state,
   activeNotifications,
 }: {
-  state: Extract<SidebarNotificationState, { status: "visible" }>;
+  state: SidebarNotificationState;
   activeNotifications: SidebarNotification[];
 }) {
   const visibleNotifications = activeNotifications.slice(0, 3);

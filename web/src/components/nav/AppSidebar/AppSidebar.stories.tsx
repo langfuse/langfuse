@@ -12,7 +12,14 @@ type NotificationState = AppSidebarProps["notificationState"];
 
 const launchWeekNotificationIds = ["lw5-1", "lw5-2", "lw5-3", "lw5-4", "lw5-5"];
 const duringLaunchWeek = new Date("2026-05-29T12:00:00Z").getTime();
-const afterLaunchWeek = new Date("2026-07-27T12:00:00Z").getTime();
+
+const setCurrentTimestamp = (timestamp: number) => {
+  const originalDateNow = Date.now;
+  Date.now = () => timestamp;
+  return () => {
+    Date.now = originalDateNow;
+  };
+};
 
 const meta = preview.meta({
   component: AppSidebar,
@@ -45,8 +52,11 @@ const meta = preview.meta({
       deployment: "cloud",
     } satisfies VersionState,
     showDemoBadge: false,
+    v4UpgradeUiEnabled: true,
     notificationState: {
-      status: "hidden",
+      dismissedIds: [],
+      onDismiss: fn(),
+      onLinkClick: fn(),
     } satisfies NotificationState,
     organization: null,
     project: null,
@@ -130,10 +140,10 @@ export const UpdateDuringMigration = meta.story({
 });
 
 export const LaunchWeekStack = meta.story({
+  beforeEach: () => setCurrentTimestamp(duringLaunchWeek),
   args: {
+    v4UpgradeUiEnabled: false,
     notificationState: {
-      status: "visible",
-      currentTimestamp: duringLaunchWeek,
       dismissedIds: [],
       onDismiss: fn(),
       onLinkClick: fn(),
@@ -142,10 +152,10 @@ export const LaunchWeekStack = meta.story({
 });
 
 export const LatestLaunchWeek = meta.story({
+  beforeEach: () => setCurrentTimestamp(duringLaunchWeek),
   args: {
+    v4UpgradeUiEnabled: false,
     notificationState: {
-      status: "visible",
-      currentTimestamp: duringLaunchWeek,
       dismissedIds: launchWeekNotificationIds.slice(0, 4),
       onDismiss: fn(),
       onLinkClick: fn(),
@@ -155,9 +165,8 @@ export const LatestLaunchWeek = meta.story({
 
 export const GitHubStar = meta.story({
   args: {
+    v4UpgradeUiEnabled: false,
     notificationState: {
-      status: "visible",
-      currentTimestamp: afterLaunchWeek,
       dismissedIds: launchWeekNotificationIds,
       onDismiss: fn(),
       onLinkClick: fn(),
@@ -173,9 +182,8 @@ export const GitHubStar = meta.story({
 
 export const AllNotificationsDismissed = meta.story({
   args: {
+    v4UpgradeUiEnabled: false,
     notificationState: {
-      status: "visible",
-      currentTimestamp: duringLaunchWeek,
       dismissedIds: [...launchWeekNotificationIds, "github-star"],
       onDismiss: fn(),
       onLinkClick: fn(),

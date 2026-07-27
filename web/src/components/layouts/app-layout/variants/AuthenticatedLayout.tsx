@@ -320,27 +320,6 @@ function ConnectedAppSidebar({
               : { status: "idle" },
         };
 
-  const notificationState: ComponentProps<
-    typeof AppSidebar
-  >["notificationState"] = v4UpgradeUiEnabled
-    ? { status: "hidden" }
-    : {
-        status: "visible",
-        currentTimestamp: Date.now(),
-        dismissedIds: dismissedNotificationIds,
-        onDismiss: (id) => {
-          capture("notification:dismiss_notification", {
-            notification_id: id,
-          });
-          setDismissedNotificationIds((current) => [...current, id]);
-        },
-        onLinkClick: (id) => {
-          capture("notification:click_link", {
-            notification_id: id,
-          });
-        },
-      };
-
   return (
     <AppSidebar
       navItems={navItems}
@@ -353,7 +332,21 @@ function ConnectedAppSidebar({
         darkModeHref: uiCustomization?.logoDarkModeHref,
       }}
       versionState={versionState}
-      notificationState={notificationState}
+      v4UpgradeUiEnabled={v4UpgradeUiEnabled}
+      notificationState={{
+        dismissedIds: dismissedNotificationIds,
+        onDismiss: (id) => {
+          capture("notification:dismiss_notification", {
+            notification_id: id,
+          });
+          setDismissedNotificationIds((current) => [...current, id]);
+        },
+        onLinkClick: (id) => {
+          capture("notification:click_link", {
+            notification_id: id,
+          });
+        },
+      }}
       organization={
         organization ? { id: organization.id, name: organization.name } : null
       }
