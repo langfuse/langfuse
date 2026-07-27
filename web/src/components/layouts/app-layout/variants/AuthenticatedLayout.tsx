@@ -348,8 +348,10 @@ function ConnectedAppSidebar({
       user={user}
       userMenuItems={userMenuItems}
       isMobile={isMobile}
-      logoLightModeHref={uiCustomization?.logoLightModeHref}
-      logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+      logo={{
+        lightModeHref: uiCustomization?.logoLightModeHref,
+        darkModeHref: uiCustomization?.logoDarkModeHref,
+      }}
       versionState={versionState}
       notificationState={notificationState}
       organization={

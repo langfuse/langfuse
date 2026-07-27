@@ -217,8 +217,10 @@ type AppSidebarProps = {
   user: SidebarUser;
   userMenuItems: UserNavigationItem[];
   isMobile: boolean;
-  logoLightModeHref?: string;
-  logoDarkModeHref?: string;
+  logo: {
+    lightModeHref?: string;
+    darkModeHref?: string;
+  };
   versionState: SidebarVersionState;
   showDemoBadge: boolean;
   notificationState: SidebarNotificationState;
@@ -237,8 +239,7 @@ export function AppSidebar({
   user,
   userMenuItems,
   isMobile,
-  logoLightModeHref,
-  logoDarkModeHref,
+  logo,
   versionState,
   showDemoBadge,
   notificationState,
@@ -273,8 +274,8 @@ export function AppSidebar({
         <div className="flex min-h-9 min-w-0 items-center py-2 pr-2 pl-3 group-data-[collapsible=icon]:p-3">
           <Link href="/" className="flex shrink-0 items-center">
             <LangfuseLogo
-              logoLightModeHref={logoLightModeHref}
-              logoDarkModeHref={logoDarkModeHref}
+              logoLightModeHref={logo.lightModeHref}
+              logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
           <div className="ml-auto flex min-w-0 items-center overflow-hidden pl-2 group-data-[collapsible=icon]:hidden">

@@ -40,6 +40,7 @@ const meta = preview.meta({
       { name: "Sign out", onClick: fn() },
     ],
     isMobile: false,
+    logo: {},
     versionState: {
       deployment: "cloud",
     } satisfies VersionState,
