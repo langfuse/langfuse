@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { Activity, BookOpen, Home, Settings } from "lucide-react";
 import { expect, fn } from "storybook/test";
 
-import preview from "../../../.storybook/preview";
+import preview from "../../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 
