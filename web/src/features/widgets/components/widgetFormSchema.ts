@@ -128,14 +128,14 @@ export function resolveAggregationAndChartType(params: {
  * at save). The "at least one non-empty metric / no empty non-pivot metric"
  * rule lives in `superRefine`, and `toSavePayload` drops empty slots.
  */
-export const MetricFieldSchema = z.object({
+const MetricFieldSchema = z.object({
   measure: z.string(),
   aggregation: metricAggregations,
 });
-export type MetricField = z.infer<typeof MetricFieldSchema>;
+type MetricField = z.infer<typeof MetricFieldSchema>;
 
 /** A pivot-table default sort column + direction. `null` on the form means "no default sort". */
-export const SortFieldSchema = z.object({
+const SortFieldSchema = z.object({
   column: z.string().min(1),
   order: z.enum(["ASC", "DESC"]),
 });
@@ -287,7 +287,7 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
     });
 }
 
-export type WidgetFormSchema = ReturnType<typeof makeWidgetFormSchema>;
+type WidgetFormSchema = ReturnType<typeof makeWidgetFormSchema>;
 export type WidgetFormValues = z.infer<WidgetFormSchema>;
 
 /**
@@ -582,6 +582,10 @@ export function toDefaultValues(
       // A blank initial name/description is "auto" (null → show the live
       // suggestion); a non-empty one is an explicit override that sticks. This
       // is how edit mode seeds the saved name so it does not auto-update.
+      // Blank = auto is BY DESIGN (the "blank = auto" model): a widget saved
+      // with an empty description renders and saves the live auto-suggestion,
+      // so an emptied description regenerating on a later edit is intentional,
+      // not a bug.
       name:
         initialValues.name && initialValues.name.length > 0
           ? initialValues.name
@@ -643,6 +647,9 @@ export function toSavePayload(
         },
       ];
 
+  // The save seam of the editor->view filter mapping (the resolver is the
+  // other). mapWidgetUiTableFilterToView MUST stay idempotent so the two seams
+  // map the same editor-space filters to identical, stable view-space filters.
   const normalizedFilters = mapWidgetUiTableFilterToView(
     values.view,
     values.filters,
@@ -682,4 +689,42 @@ export function toSavePayload(
       ? 2
       : 1,
   };
+}
+
+/** Recursively finds the first non-empty `message` string in a react-hook-form error tree. */
+function firstFormErrorMessage(node: unknown): string | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const message = (node as { message?: unknown }).message;
+  if (typeof message === "string" && message.length > 0) return message;
+  for (const key of Object.keys(node as Record<string, unknown>)) {
+    // `ref`/`type` are react-hook-form leaf metadata, not nested errors.
+    if (key === "ref" || key === "type" || key === "message") continue;
+    const found = firstFormErrorMessage((node as Record<string, unknown>)[key]);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * deriveSaveReason picks the message to show next to a disabled Save button. It
+ * prefers the metric → dimension → chart-type messages (the fields with inline
+ * markers) for a stable, predictable order, then falls back to the FIRST
+ * message anywhere in the error tree so even an otherwise-unsurfaced invalid
+ * path explains why Save is disabled instead of leaving it silently greyed out.
+ */
+export function deriveSaveReason(
+  errors: Record<string, any>,
+): string | undefined {
+  const chartTypeError: string | undefined = errors.chart?.type?.message;
+  const metricsError: string | undefined =
+    errors.metrics?.message ??
+    errors.metrics?.[0]?.measure?.message ??
+    errors.metrics?.[0]?.aggregation?.message;
+  const dimensionsError: string | undefined = errors.dimensions?.message;
+  return (
+    metricsError ??
+    dimensionsError ??
+    chartTypeError ??
+    firstFormErrorMessage(errors)
+  );
 }

@@ -115,6 +115,7 @@ import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFi
 import {
   applyChartTypeChange,
   deriveEffectiveSort,
+  deriveSaveReason,
   deriveWidgetBaseMinVersion,
   deriveWidgetSuggestions,
   effectiveWidgetName,
@@ -221,7 +222,6 @@ type WidgetFieldContext = {
   view: z.infer<typeof views>;
   viewVersion: ViewVersion;
   chartType: DashboardWidgetChartType;
-  measureSupportsHistogram: boolean;
 };
 
 export function WidgetForm({
@@ -262,23 +262,24 @@ export function WidgetForm({
   const { isBetaEnabled } = useV4Beta();
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // The widget's frozen, view-shape-derived base minVersion. Beta-toggle
-  // (create page) and widget change (edit page) remount the form via `key`, so
-  // this stays a mount constant — minVersion/viewVersion are DERIVED, not
-  // stored (no widgetMinVersion state, no sync effect).
+  // The widget's frozen, view-shape-derived base minVersion. It is a pure
+  // function of `initialValues`, so it is mount-stable; the edit page remounts
+  // via `key={widgetId}` while the create page does NOT remount on a beta
+  // toggle (viewVersion re-derives reactively from isBetaEnabled + view). No
+  // widgetMinVersion state, no sync effect.
   const baseMinVersion = deriveWidgetBaseMinVersion(initialValues);
 
-  // Refs read lazily by the stable resolver so the resolver closure need not be
-  // rebuilt when the view version or the auto-suggestions change.
-  const viewVersionRef = useRef<ViewVersion>("v1");
+  // The auto-suggestions change on every keystroke; a ref keeps the resolver
+  // closure from being rebuilt on each one (the filled name/description do not
+  // affect validity — name/description are nullable with no min).
   const suggestionsRef = useRef<{ name: string; description: string }>({
     name: "",
     description: "",
   });
 
-  // Precompute both version schemas/resolvers once; pick by ref at validation
-  // time. A blank name/description is filled with the live suggestion and the
-  // filters are mapped into view space before zod (mirrors MonitorForm).
+  // Precompute both version schemas/resolvers once. A blank name/description is
+  // filled with the live suggestion and the filters are mapped into view space
+  // before zod (mirrors MonitorForm).
   const resolversByVersion = useMemo(
     () => ({
       v1: zodResolver(makeWidgetFormSchema("v1") as any),
@@ -286,6 +287,11 @@ export function WidgetForm({
     }),
     [],
   );
+  // The schema version is derived INSIDE the resolver from the (mapped) view
+  // being validated — not from a render-written ref — so it is never a render
+  // stale after a version-flipping view change. baseMinVersion is mount-stable
+  // and isBetaEnabled is read live; both are in the dep list so a beta toggle
+  // rebuilds the closure (react-hook-form re-reads control._options each render).
   const resolver = useMemo<Resolver<WidgetFormValues>>(() => {
     return (values, context, options) => {
       const v = values as WidgetFormValues;
@@ -297,15 +303,19 @@ export function WidgetForm({
           v.description,
           suggestions.description,
         ),
+        // mapWidgetUiTableFilterToView MUST stay idempotent: the form holds
+        // editor-space filters, and both this validation path and toSavePayload
+        // map them to view space independently.
         filters: mapWidgetUiTableFilterToView(v.view, v.filters ?? []),
       };
-      return resolversByVersion[viewVersionRef.current](
-        mapped as any,
-        context,
-        options,
-      );
+      const version = resolveWidgetViewVersion({
+        view: mapped.view,
+        baseMinVersion,
+        isBetaEnabled,
+      });
+      return resolversByVersion[version](mapped as any, context, options);
     };
-  }, [resolversByVersion]);
+  }, [resolversByVersion, baseMinVersion, isBetaEnabled]);
 
   // The initial view version, derived from initialValues alone (view is known
   // before the form mounts) so the seed can normalize against the right view
@@ -335,7 +345,6 @@ export function WidgetForm({
   const suggestions = deriveWidgetSuggestions(values);
   const effectiveSort = deriveEffectiveSort(values);
 
-  viewVersionRef.current = viewVersion;
   suggestionsRef.current = suggestions;
 
   const availableViewOptions = viewVersion === "v2" ? viewsV2 : views;
@@ -359,7 +368,6 @@ export function WidgetForm({
     view: selectedView,
     viewVersion,
     chartType,
-    measureSupportsHistogram,
   };
 
   // superRefine messages, surfaced inline under the relevant control and next
@@ -1075,10 +1083,12 @@ export function WidgetForm({
 
   // Save is gated on schema validity + query validity; surface WHY it is
   // disabled instead of a silent greyed-out button (replaces the legacy toasts).
+  // deriveSaveReason falls back to the FIRST message anywhere in the error tree
+  // so even a path without an inline marker still explains the disabled button.
   const saveDisabled = !form.formState.isValid || !queryValidation.valid;
   const saveDisabledReason = !queryValidation.valid
     ? queryValidation.reason
-    : (metricsError ?? dimensionsError ?? chartTypeError);
+    : deriveSaveReason(formErrors);
 
   return (
     <div className="flex h-full gap-4">
@@ -1283,7 +1293,9 @@ export function WidgetForm({
           </CardContent>
           <CardFooter className="mt-auto flex-col items-stretch gap-2">
             {saveDisabled && saveDisabledReason && (
-              <p className="text-destructive text-xs">{saveDisabledReason}</p>
+              <p role="alert" className="text-destructive text-xs">
+                {saveDisabledReason}
+              </p>
             )}
             <Button
               className="w-full"
@@ -1494,7 +1506,11 @@ function SingleMetricField({
   return (
     <div className="space-y-2">
       <Select value={measure} onValueChange={(value) => onMeasureChange(value)}>
-        <SelectTrigger id="metrics-select">
+        <SelectTrigger
+          id="metrics-select"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "single-metric-error" : undefined}
+        >
           <SelectValue placeholder="Select metrics" />
         </SelectTrigger>
         <SelectContent>
@@ -1544,7 +1560,11 @@ function SingleMetricField({
           )}
         </div>
       )}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p id="single-metric-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -1653,7 +1673,13 @@ function PivotMetricsField({
                   }
                   disabled={!isEnabled || !canEdit}
                 >
-                  <SelectTrigger id={`pivot-metric-${index}`}>
+                  <SelectTrigger
+                    id={`pivot-metric-${index}`}
+                    aria-invalid={error && index === 0 ? true : undefined}
+                    aria-describedby={
+                      error && index === 0 ? "pivot-metrics-error" : undefined
+                    }
+                  >
                     <SelectValue
                       placeholder={
                         !isEnabled
@@ -1728,7 +1754,11 @@ function PivotMetricsField({
             Add Metric {metrics.length + 1}
           </Button>
         )}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p id="pivot-metrics-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -1801,7 +1831,11 @@ function BreakdownSelect({
           field.onChange(next === "none" ? [] : [{ field: next }])
         }
       >
-        <SelectTrigger id="dimension-select">
+        <SelectTrigger
+          id="dimension-select"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "breakdown-error" : undefined}
+        >
           <SelectValue placeholder="Select a dimension" />
         </SelectTrigger>
         <SelectContent>
@@ -1824,7 +1858,11 @@ function BreakdownSelect({
           })}
         </SelectContent>
       </Select>
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p id="breakdown-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -1878,7 +1916,13 @@ function PivotDimensionsField({
               onValueChange={(value) => updateDimension(index, value)}
               disabled={!isEnabled}
             >
-              <SelectTrigger id={`pivot-dimension-${index}`}>
+              <SelectTrigger
+                id={`pivot-dimension-${index}`}
+                aria-invalid={error && index === 0 ? true : undefined}
+                aria-describedby={
+                  error && index === 0 ? "pivot-dimensions-error" : undefined
+                }
+              >
                 <SelectValue
                   placeholder={
                     isEnabled
@@ -1912,7 +1956,11 @@ function PivotDimensionsField({
           </div>
         );
       })}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p id="pivot-dimensions-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -2062,7 +2110,11 @@ function ChartTypeSelect({
           onChartTypeChange(next as DashboardWidgetChartType)
         }
       >
-        <SelectTrigger id="chart-type-select">
+        <SelectTrigger
+          id="chart-type-select"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "chart-type-error" : undefined}
+        >
           <SelectValue placeholder="Select a chart type" />
         </SelectTrigger>
         <SelectContent>
@@ -2100,7 +2152,11 @@ function ChartTypeSelect({
           </SelectGroup>
         </SelectContent>
       </Select>
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p id="chart-type-error" className="text-destructive text-xs">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

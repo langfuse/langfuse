@@ -524,3 +524,40 @@ describe("applyChartTypeChange dimension boundary", () => {
     expect(next.dimensions).toEqual([{ field: "environment" }]);
   });
 });
+
+describe("save seam: editor-space filters map to view space (double-map)", () => {
+  // The live path maps the SAME editor-space filters to view space twice, from
+  // two independent seams: the resolver (validation) and toSavePayload (save).
+  // The parity suite above bypasses the resolver, so exercise both mappings
+  // here and assert they agree AND that the mapping is idempotent (a filter
+  // already in view space maps to itself).
+  const stored: WidgetInitialValues =
+    fixtures["line with a stored environment filter"];
+
+  it("resolver mapping and toSavePayload agree, and the mapping is idempotent", () => {
+    const values = toDefaultValues(stored, fixtureViewVersion(stored));
+
+    // Resolver seam: maps the form's editor-space filters to view space.
+    const resolverMapped = mapWidgetUiTableFilterToView(
+      values.view,
+      values.filters,
+    );
+
+    // Save seam: toSavePayload maps the same editor-space filters independently.
+    const suggestions = deriveWidgetSuggestions(values);
+    const saved = toSavePayload(values, {
+      suggestedName: suggestions.name,
+      suggestedDescription: suggestions.description,
+      effectiveSort: deriveEffectiveSort(values),
+    });
+
+    expect(saved.filters).toEqual(resolverMapped);
+    expect(saved.filters.length).toBeGreaterThan(0);
+
+    // Idempotency: mapping the already-mapped (view-space) filters again is a
+    // no-op. This invariant is what lets the two seams double-map safely.
+    expect(mapWidgetUiTableFilterToView(values.view, saved.filters)).toEqual(
+      saved.filters,
+    );
+  });
+});
