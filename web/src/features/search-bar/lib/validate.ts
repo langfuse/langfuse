@@ -10,7 +10,7 @@
 // span. `valid === true` therefore guarantees astToFilterState() lowers the
 // whole query without errors.
 
-import type { ASTNode, Span } from "./ast";
+import type { ASTNode, Span, TextNode } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
@@ -84,6 +84,81 @@ function hasFilterWarnings(
   }
 }
 
+/**
+ * Collect STANDALONE free-text nodes — a text node that is NOT immediately
+ * adjacent (within its containing AND/OR group) to another free-text node. A
+ * run of adjacent free-text words is one contiguous phrase (`type error`), so
+ * only a word standing on its own — alone, or isolated from other free text by
+ * a filter (`name:x type`, `type name:x error`) — is a candidate incomplete
+ * filter. `serializeText` in langQ.ts force-quotes with the SAME standalone
+ * rule so the flag and the round-trip quoting stay in lockstep (mirror
+ * invariant).
+ */
+function collectStandaloneTextNodes(node: ASTNode, out: TextNode[]): void {
+  switch (node.kind) {
+    case "text":
+      out.push(node); // top-level / sole child — standalone by definition
+      return;
+    case "not":
+      collectStandaloneTextNodes(node.child, out);
+      return;
+    case "and":
+    case "or": {
+      const kids = node.children;
+      for (let i = 0; i < kids.length; i++) {
+        const c = kids[i]!;
+        if (c.kind !== "text") {
+          collectStandaloneTextNodes(c, out);
+          continue;
+        }
+        // Adjacent to another free-text word ⇒ part of a phrase, not a
+        // standalone token — skip it.
+        const glued =
+          kids[i - 1]?.kind === "text" || kids[i + 1]?.kind === "text";
+        if (!glued) out.push(c);
+      }
+      return;
+    }
+    case "filter":
+      return;
+  }
+}
+
+/**
+ * A bare word that resolves to a field name (`type`, `level`, `env`, …) is
+ * almost always a filter the user started and did not finish — not free text.
+ * Left as free text it silently lowers to a full-text `searchQuery` and wipes
+ * the results with no signal (LFE-11017), while the analogous `type:` (colon, no
+ * value) already errors. Treat it as an incomplete filter so it renders red and
+ * is excluded from the query, consistent with the dangling dot-prefix guard
+ * (`metadata.`) in the adapter.
+ *
+ * Scoped to STANDALONE free-text tokens (see `collectStandaloneTextNodes`): a
+ * deliberate multi-word phrase that happens to contain a field word ("type
+ * error", "content type") is one contiguous-substring `searchQuery`, not a
+ * filter, so it is left untouched — a word glued to other free text is never
+ * flagged. Quoting escapes a single word back to literal text (`"type"`) — the
+ * same escape hatch the reserved keywords (`and`/`or`/`not`) use, and the reason
+ * the serializer force-quotes a standalone field-name free-text value.
+ */
+function incompleteFieldTokenDiagnostics(
+  ast: ASTNode,
+  out: Diagnostic[],
+): void {
+  const texts: TextNode[] = [];
+  collectStandaloneTextNodes(ast, texts);
+  for (const node of texts) {
+    if (node.quoted || node.span === undefined) continue;
+    if (resolveField(node.value) === null) continue;
+    out.push({
+      from: node.span.from,
+      to: node.span.to,
+      severity: "error",
+      message: `Incomplete filter "${node.value}" — add a value (e.g. ${node.value}:value) or quote "${node.value}" to search as text`,
+    });
+  }
+}
+
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
@@ -91,6 +166,11 @@ export function semanticDiagnostics(
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
+
+  // A standalone bare field-name word (no operator/value) is an incomplete
+  // filter, not free text — checked over the WHOLE tree (not per top-level
+  // node) so the adjacency scoping can see each text node's siblings.
+  incompleteFieldTokenDiagnostics(ast, out);
 
   // Lower each top-level node independently so error spans point at the
   // offending node instead of the whole query. The lowering must see the same

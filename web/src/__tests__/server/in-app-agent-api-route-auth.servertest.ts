@@ -1,18 +1,20 @@
 import { EventType } from "@ag-ui/core";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/ee/features/in-app-agent/server/tools";
-import { storePendingToolApproval } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
+import { filterInAppAgentAvailableLangfuseMcpTools } from "@/src/features/in-app-agent/server/tools";
+import { storePendingToolApproval } from "@/src/features/in-app-agent/server/human-in-the-loop";
 import type {
   AgUiEvent,
   InAppAgentToolApprovalRequest,
-} from "@/src/ee/features/in-app-agent/schema";
-import { replaceRunEvents } from "@/src/ee/features/in-app-agent/server/persistence";
+} from "@/src/features/in-app-agent/schema";
+import { appendRunEvents } from "@/src/features/in-app-agent/server/persistence";
 import { env } from "@/src/env.mjs";
-import { prisma } from "@langfuse/shared/src/db";
+import { InAppAgentRunStatus } from "@langfuse/shared";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   createAndAddApiKeysToDb,
   createBasicAuthHeader,
   createOrgProjectAndApiKey,
+  TableViewService,
 } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -36,6 +38,10 @@ const rateLimitMocks = vi.hoisted(() => ({
 
 const agentMocks = vi.hoisted(() => ({
   createAgUiStream: vi.fn(),
+}));
+
+const instrumentationMocks = vi.hoisted(() => ({
+  addUserToSpan: vi.fn(),
 }));
 
 const SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE =
@@ -71,12 +77,17 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   }),
 }));
 
-vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
+vi.mock("@/src/features/in-app-agent/server/agent", () => ({
   createAgUiStream: agentMocks.createAgUiStream,
 }));
 
 vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
   getLangfuseClient: langfuseClientMocks.getLangfuseClient,
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  addUserToSpan: instrumentationMocks.addUserToSpan,
 }));
 
 describe("in-app agent public API route auth", () => {
@@ -183,6 +194,21 @@ describe("in-app agent public API route auth", () => {
     ).toEqual(tools);
   });
 
+  it("adds the authenticated user to the request span", async () => {
+    authMocks.getServerSession.mockResolvedValue(
+      createInAppAgentSession({ orgId: "org-1", projectId: "project-1" }),
+    );
+
+    const { default: handler } =
+      await import("@/src/features/in-app-agent/server/handler");
+    await handler(new Request("http://localhost/api/in-app-agent"));
+
+    expect(instrumentationMocks.addUserToSpan).toHaveBeenCalledWith({
+      userId: "user-1",
+      email: "test@example.com",
+    });
+  });
+
   it("passes validated resume forwarded props without requiring a user message", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
@@ -239,7 +265,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -645,9 +671,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -667,7 +694,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -720,9 +747,10 @@ describe("in-app agent public API route auth", () => {
           triggeredByUserId: userId,
           model: "haiku",
           mcpApiKeyId: "api-key-old-sandbox-resume",
+          status: InAppAgentRunStatus.RUNNING,
         },
       });
-      await replaceRunEvents({
+      await appendRunEvents({
         prisma,
         projectId: project.id,
         conversationId,
@@ -790,6 +818,10 @@ describe("in-app agent public API route auth", () => {
         orgId: org.id,
         projectId: project.id,
       });
+      const sessionUser = session.user;
+      if (!sessionUser) {
+        throw new Error("Expected an authenticated session user");
+      }
       authMocks.getServerSession.mockResolvedValue(session);
       rateLimitMocks.rateLimitRequest.mockResolvedValue({
         isRateLimited: () => true,
@@ -814,7 +846,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -849,6 +881,13 @@ describe("in-app agent public API route auth", () => {
         }),
         "in-app-agent-run",
       );
+      expect(instrumentationMocks.addUserToSpan).toHaveBeenLastCalledWith({
+        userId: sessionUser.id,
+        email: sessionUser.email,
+        projectId: project.id,
+        orgId: org.id,
+        plan: "cloud:team",
+      });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
@@ -907,7 +946,7 @@ describe("in-app agent public API route auth", () => {
       });
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -972,7 +1011,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1043,6 +1082,249 @@ describe("in-app agent public API route auth", () => {
     }
   });
 
+  it("resolves saved view filters only on a compatible table route", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+    const { org, project } = await createOrgProjectAndApiKey();
+    const filters = [
+      {
+        column: "name",
+        type: "stringOptions" as const,
+        operator: "any of" as const,
+        value: ["handle-chatbot-message"],
+      },
+    ];
+    const savedView = await prisma.tableViewPreset.create({
+      data: {
+        projectId: project.id,
+        name: "Chatbot messages",
+        tableName: "traces",
+        createdBy: null,
+        updatedBy: null,
+        filters,
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: null,
+        orderBy: Prisma.JsonNull,
+      },
+    });
+
+    try {
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { aiFeaturesEnabled: true },
+      });
+      authMocks.getServerSession.mockResolvedValue(
+        await createPersistedInAppAgentSession({
+          orgId: org.id,
+          projectId: project.id,
+        }),
+      );
+
+      const { default: handler } =
+        await import("@/src/features/in-app-agent/server/handler");
+      const response = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: "conversation-1",
+            runId: "client-run-1",
+            messages: [{ id: "message-1", role: "user", content: "hello" }],
+            tools: [],
+            context: [
+              {
+                description: "current_url",
+                value: `https://cloud.langfuse.com/project/${project.id}/traces?viewId=${savedView.id}&filter=name%3BstringOptions%3B%3Bany+of%3Bhandle-chatbot-message&orderBy=column-startTime_order-DESC`,
+              },
+            ],
+            state: {
+              type: "newConversation",
+              projectId: project.id,
+            },
+            forwardedProps: {},
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(agentMocks.createAgUiStream).toHaveBeenCalledOnce();
+      const streamInput = agentMocks.createAgUiStream.mock.calls[0][0].input;
+
+      expect(JSON.parse(streamInput.context[0].value)).toEqual({
+        pathname: `/project/${project.id}/traces`,
+        searchParams: [
+          { key: "viewId", value: savedView.id },
+          {
+            key: "filter",
+            value: "name;stringOptions;;any of;handle-chatbot-message",
+          },
+          { key: "orderBy", value: "column-startTime_order-DESC" },
+        ],
+        hash: "",
+        savedView: {
+          filters,
+        },
+      });
+
+      const mismatchedResponse = await handler(
+        new Request("http://localhost/api/in-app-agent", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            threadId: "conversation-2",
+            runId: "client-run-2",
+            messages: [{ id: "message-2", role: "user", content: "hello" }],
+            tools: [],
+            context: [
+              {
+                description: "current_url",
+                value: `https://cloud.langfuse.com/project/${project.id}/sessions?viewId=${savedView.id}`,
+              },
+            ],
+            state: {
+              type: "newConversation",
+              projectId: project.id,
+            },
+            forwardedProps: {},
+          }),
+        }),
+      );
+
+      expect(mismatchedResponse.status).toBe(200);
+      const mismatchedStreamInput =
+        agentMocks.createAgUiStream.mock.calls[1][0].input;
+      expect(JSON.parse(mismatchedStreamInput.context[0].value)).toEqual({
+        pathname: `/project/${project.id}/sessions`,
+        searchParams: [{ key: "viewId", value: savedView.id }],
+        hash: "",
+      });
+    } finally {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
+        originalAiFeaturesPublicKey;
+      (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
+        originalAiFeaturesSecretKey;
+    }
+  });
+
+  it("continues without resolved filters when saved view lookup fails", async () => {
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
+
+    const { org, project } = await createOrgProjectAndApiKey();
+    const { project: otherProject } = await createOrgProjectAndApiKey();
+    const otherProjectView = await prisma.tableViewPreset.create({
+      data: {
+        projectId: otherProject.id,
+        name: "Private view",
+        tableName: "traces",
+        createdBy: null,
+        updatedBy: null,
+        filters: [
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["private-trace"],
+          },
+        ],
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: null,
+        orderBy: Prisma.JsonNull,
+      },
+    });
+    const lookupSpy = vi.spyOn(TableViewService, "getTableViewPresetsById");
+
+    try {
+      await prisma.organization.update({
+        where: { id: org.id },
+        data: { aiFeaturesEnabled: true },
+      });
+      authMocks.getServerSession.mockResolvedValue(
+        await createPersistedInAppAgentSession({
+          orgId: org.id,
+          projectId: project.id,
+        }),
+      );
+
+      const { default: handler } =
+        await import("@/src/features/in-app-agent/server/handler");
+
+      const lookupScenarios = [
+        { viewId: otherProjectView.id },
+        { viewId: randomUUID() },
+        { viewId: randomUUID(), error: new Error("database unavailable") },
+      ];
+
+      for (const [index, { viewId, error }] of lookupScenarios.entries()) {
+        if (error) {
+          lookupSpy.mockRejectedValueOnce(error);
+        }
+
+        const response = await handler(
+          new Request("http://localhost/api/in-app-agent", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              threadId: `conversation-${index}`,
+              runId: `client-run-${index}`,
+              messages: [
+                { id: `message-${index}`, role: "user", content: "hello" },
+              ],
+              tools: [],
+              context: [
+                {
+                  description: "current_url",
+                  value: `https://cloud.langfuse.com/project/${project.id}/traces?viewId=${viewId}`,
+                },
+              ],
+              state: {
+                type: "newConversation",
+                projectId: project.id,
+              },
+              forwardedProps: {},
+            }),
+          }),
+        );
+
+        expect(response.status).toBe(200);
+        const streamInput =
+          agentMocks.createAgUiStream.mock.calls[index][0].input;
+        expect(JSON.parse(streamInput.context[0].value)).toEqual({
+          pathname: `/project/${project.id}/traces`,
+          searchParams: [{ key: "viewId", value: viewId }],
+          hash: "",
+        });
+      }
+    } finally {
+      lookupSpy.mockRestore();
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
+        originalAiFeaturesPublicKey;
+      (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
+        originalAiFeaturesSecretKey;
+    }
+  });
+
   it("drops screen context that is not the current project url", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
@@ -1069,7 +1351,7 @@ describe("in-app agent public API route auth", () => {
       );
 
       const { default: handler } =
-        await import("@/src/ee/features/in-app-agent/server/handler");
+        await import("@/src/features/in-app-agent/server/handler");
       const response = await handler(
         new Request("http://localhost/api/in-app-agent", {
           method: "POST",
@@ -1250,7 +1532,7 @@ async function callInAppAgentRoute(params: {
   forwardedProps: ReturnType<typeof createResumeForwardedProps>;
 }) {
   const { default: handler } =
-    await import("@/src/ee/features/in-app-agent/server/handler");
+    await import("@/src/features/in-app-agent/server/handler");
   const response = await handler(
     new Request("http://localhost/api/in-app-agent", {
       method: "POST",

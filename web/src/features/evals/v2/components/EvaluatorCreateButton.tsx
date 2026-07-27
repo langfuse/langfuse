@@ -13,7 +13,6 @@ export function EvaluatorCreateButton({
     <ActionButton
       hasAccess={hasWriteAccess}
       icon={<Plus className="h-4 w-4" />}
-      className="-translate-y-2"
       onClick={onStartFromTemplate}
     >
       New evaluator

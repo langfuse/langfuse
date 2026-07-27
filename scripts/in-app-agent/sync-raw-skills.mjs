@@ -14,7 +14,7 @@ import { format as formatWithPrettier } from "prettier";
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
 const generatedDir = resolve(
   repoRoot,
-  "web/src/ee/features/in-app-agent/server/skills/generated",
+  "web/src/features/in-app-agent/server/skills/generated",
 );
 const rawTargetDir = resolve(generatedDir, "raw");
 const generatedModuleName = "skill-markdown.ts";
@@ -61,18 +61,18 @@ const extractFrontmatter = (content) => {
   return content.slice(4, endIndex);
 };
 
-const hasOnlyProjectInterfaceAccess = (content) => {
+const hasSupportedAccessRequirements = (content) => {
   const frontmatter = extractFrontmatter(content);
   if (!frontmatter) return false;
 
   const lines = frontmatter.split("\n");
   const metadataIndex = lines.findIndex((line) => line === "metadata:");
-  if (metadataIndex === -1) return false;
+  if (metadataIndex === -1) return true;
 
   const requiredAccessIndex = lines.findIndex(
     (line, index) => index > metadataIndex && line === "  required_access:",
   );
-  if (requiredAccessIndex === -1) return false;
+  if (requiredAccessIndex === -1) return true;
 
   const accessValues = [];
 
@@ -135,7 +135,7 @@ const getExpectedFiles = async () => {
   for (const remoteFile of remoteFiles) {
     const content = await fetchText(remoteFile.download_url);
 
-    if (hasOnlyProjectInterfaceAccess(content)) {
+    if (hasSupportedAccessRequirements(content)) {
       expectedFiles.push({ name: remoteFile.name, content });
     }
   }

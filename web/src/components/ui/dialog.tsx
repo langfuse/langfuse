@@ -84,6 +84,7 @@ const DialogContent = React.forwardRef<
       confirmCloseOnEscape?: string;
       overlayMode?: DialogOverlayMode;
       showCloseButton?: boolean;
+      overlayClassName?: string;
       stopPropagationOnEnterSpace?: boolean;
     } & VariantProps<typeof dialogContentVariants>,
     "onPointerDownOutside" | "onInteractOutside"
@@ -97,6 +98,7 @@ const DialogContent = React.forwardRef<
       confirmCloseOnEscape,
       overlayMode = "subtle",
       showCloseButton = true,
+      overlayClassName,
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
       onClick,
@@ -128,7 +130,7 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        <DialogOverlay overlayMode={overlayMode} />
+        <DialogOverlay overlayMode={overlayMode} className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
           className={cn(

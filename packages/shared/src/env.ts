@@ -309,9 +309,11 @@ const EnvSchema = z.object({
   // public API routes that rely on the legacy traces/observations tables.
   // The worker owns the writes; the web only needs to know whether legacy
   // tables are still being populated to decide whether to serve reads.
+  // Defaults to `events_only` for the v4 target state (v3 shipped `legacy`);
+  // keep this value in sync with worker/src/env.ts and web/src/env.mjs.
   LANGFUSE_MIGRATION_V4_WRITE_MODE: z
     .enum(["legacy", "dual", "events_only"])
-    .default("legacy"),
+    .default("events_only"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   // Checksum algorithm for S3 DeleteObjects requests; unset keeps the SDK
@@ -451,6 +453,12 @@ const EnvSchema = z.object({
     .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
     .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
+  // Hosts that must be reached directly instead of through HTTPS_PROXY,
+  // using the standard NO_PROXY grammar (undici EnvHttpProxyAgent
+  // semantics). The lowercase variant wins when both are set, mirroring
+  // undici and curl.
+  NO_PROXY: z.string().optional(),
+  no_proxy: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
     .number()

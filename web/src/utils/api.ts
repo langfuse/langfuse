@@ -24,6 +24,7 @@ import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
 import { showVersionUpdateToast } from "@/src/features/notifications/showVersionUpdateToast";
+import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -276,22 +277,33 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   }
 };
 
-// onError update build id to compare versions
+// Reads the `x-build-id` response header (the build id serving this response)
+// and records it: the module-level `buildId` still drives the legacy
+// stale-cache toast, and the version-update store drives the persistent reload
+// banner (see src/features/version-update). Called on EVERY response — success
+// and error — so a mismatch is detected on the first response after a deploy,
+// not only when a stale chunk 404s.
+const captureBuildId = (response: unknown) => {
+  if (!(response instanceof Response)) return;
+  const observed = response.headers.get("x-build-id");
+  if (!observed) return;
+  buildId = observed;
+  versionUpdateStore.reportObservedBuildId(observed);
+};
+
+// Track the build id serving tRPC responses to compare against the running one.
 const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {
       const unsubscribe = next(op).subscribe({
         next(value) {
+          captureBuildId(value.context?.response);
           observer.next(value);
         },
         error(err) {
-          if (
-            err.meta &&
-            err.meta.response &&
-            err.meta.response instanceof Response
-          ) {
-            buildId = err.meta.response.headers.get("x-build-id");
-          }
+          captureBuildId(
+            err.meta && err.meta.response ? err.meta.response : undefined,
+          );
           observer.error(err);
         },
         complete() {

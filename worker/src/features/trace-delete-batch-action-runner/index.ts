@@ -9,7 +9,6 @@ import {
   logger,
   recordGauge,
   recordIncrement,
-  traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
@@ -70,6 +69,7 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
 
     super({
       name: "TraceDeleteBatchActionRunner",
+      metricName: "trace_delete_batch_action_runner",
       lockKey: TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_KEY,
       lockTtlSeconds,
       onUnavailable: "fail",
@@ -109,7 +109,6 @@ export class TraceDeleteBatchActionRunner extends PeriodicExclusiveRunner {
           logger.error(`${this.instanceName}: Failed to query active actions`, {
             error,
           });
-          traceException(error);
           recordIncrement(`${METRIC_PREFIX}.query_failures`, 1);
           throw error;
         }

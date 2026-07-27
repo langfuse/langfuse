@@ -1,6 +1,7 @@
 import {
   type Observation,
   commaSeparatedEnumArray,
+  deprecationResponseZod,
   type EventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
@@ -234,6 +235,7 @@ export const GetObservationsV1Response = z
   .object({
     data: z.array(APIObservation),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -242,8 +244,11 @@ export const GetObservationV1Query = z.object({
   observationId: z.string(),
   useEventsTable: useEventsTableSchema,
 });
-/** @alias */
-export const GetObservationV1Response = APIObservation;
+// `_deprecation` at the response level, not on the shared `APIObservation`
+// (which is also the list element type).
+export const GetObservationV1Response = APIObservation.extend({
+  _deprecation: deprecationResponseZod.optional(),
+});
 
 /**
  * Cursor schema for v2 observations pagination

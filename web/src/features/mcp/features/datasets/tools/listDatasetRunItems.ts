@@ -4,6 +4,7 @@ import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
+import { rejectDatasetRunToolsInEventsOnlyMode } from "../events-only-guard";
 import { GetDatasetRunItemsMcpInput } from "../schema";
 
 export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
@@ -21,6 +22,7 @@ export const [listDatasetRunItemsTool, handleListDatasetRunItems] = defineTool({
         "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
+        rejectDatasetRunToolsInEventsOnlyMode();
         const result = await listDatasetRunItemsByRunIdForApi({
           datasetId: input.datasetId,
           datasetRunId: input.datasetRunId,

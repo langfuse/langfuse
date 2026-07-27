@@ -15,10 +15,10 @@
 
 import * as React from "react";
 
-import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
   ObservedScoreNames,
@@ -42,11 +42,11 @@ export function EventsSearchBarRow({
   onApplyFilters,
   onRequestColumns,
   aiDataContext,
-  className,
   composerSurfaceClassName,
   savedQueries,
   onPickSavedQuery,
   aiScoreNames,
+  className,
 }: {
   projectId: string;
   /** Table this bar filters — threaded to AI-prompt analytics (LFE-10781). */
@@ -79,9 +79,6 @@ export function EventsSearchBarRow({
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;
-  /** Overrides the wrapper padding when the row is embedded outside a table
-   *  toolbar (e.g. inside a form), where the toolbar-aligned inset is off. */
-  className?: string;
   /** Overrides the composer surface spacing for embedded form layouts. */
   composerSurfaceClassName?: string;
   /** Host-provided saved queries shown as an empty-bar autocomplete section;
@@ -94,6 +91,10 @@ export function EventsSearchBarRow({
   /** Observed score names by column type, for the server's score-name
    *  validation of the generated filters (undefined sets are not enforced). */
   aiScoreNames?: ObservedScoreNames;
+  /** Overrides the wrapper spacing. The default (`px-2 pt-2 pb-1`) aligns the
+   *  bar with the desktop toolbar row; the mobile Filters sheet passes flush
+   *  padding so the bar lines up with the sheet's other sections. */
+  className?: string;
 }) {
   const [aiOpen, setAiOpen] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
