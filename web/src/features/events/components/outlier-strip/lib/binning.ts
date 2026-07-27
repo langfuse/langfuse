@@ -104,8 +104,10 @@ export type OutlierStripBin = {
   bucketStart: Date;
   count: number;
   maxTotalCost: number | null;
+  sumTotalCost: number | null;
   maxLatencySeconds: number | null;
   p95LatencySeconds: number | null;
+  avgLatencySeconds: number | null;
   maxTotalTokens: number | null;
 };
 
@@ -119,8 +121,10 @@ export type OutlierStripDenseBin = {
 
 export type OutlierStripMetricKey = "cost" | "latency" | "tokens";
 
-/** Which per-bucket latency aggregate the chart plots (cost/tokens are max). */
-export type OutlierStripLatencyAgg = "max" | "p95";
+/** Which per-bucket latency aggregate the chart plots (tokens are max). */
+export type OutlierStripLatencyAgg = "max" | "p95" | "avg";
+/** Which per-bucket cost aggregate: worst single event, or total spend. */
+export type OutlierStripCostAgg = "max" | "total";
 
 export const OUTLIER_STRIP_METRICS: Record<
   OutlierStripMetricKey,
@@ -157,8 +161,10 @@ export type OutlierQueryRow = {
   time_dimension?: string;
   count_count?: unknown;
   max_totalCost?: unknown;
+  sum_totalCost?: unknown;
   max_latency?: unknown;
   p95_latency?: unknown;
+  avg_latency?: unknown;
   max_totalTokens?: unknown;
 };
 
@@ -181,13 +187,16 @@ export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
     if (!bucketStart || count === 0) return [];
     const latencyMs = toNumberOrNull(row.max_latency);
     const p95Ms = toNumberOrNull(row.p95_latency);
+    const avgMs = toNumberOrNull(row.avg_latency);
     return [
       {
         bucketStart,
         count,
         maxTotalCost: toNumberOrNull(row.max_totalCost),
+        sumTotalCost: toNumberOrNull(row.sum_totalCost),
         maxLatencySeconds: latencyMs === null ? null : latencyMs / 1000,
         p95LatencySeconds: p95Ms === null ? null : p95Ms / 1000,
+        avgLatencySeconds: avgMs === null ? null : avgMs / 1000,
         maxTotalTokens: toNumberOrNull(row.max_totalTokens),
       },
     ];
@@ -205,6 +214,8 @@ export function prepareOutlierSeries(params: {
   metric: OutlierStripMetricKey;
   /** Latency-only aggregate choice; ignored by cost/tokens. Default "max". */
   latencyAgg?: OutlierStripLatencyAgg;
+  /** Cost-only aggregate choice. Default "max" (the outlier semantics). */
+  costAgg?: OutlierStripCostAgg;
   fromMs: number;
   toMs: number;
   stepSeconds: number;
@@ -215,10 +226,15 @@ export function prepareOutlierSeries(params: {
 } {
   const stepMs = params.stepSeconds * 1000;
   const metric = OUTLIER_STRIP_METRICS[params.metric];
-  const valueOf = (bin: OutlierStripBin): number | null =>
-    params.metric === "latency" && params.latencyAgg === "p95"
-      ? bin.p95LatencySeconds
-      : metric.valueOf(bin);
+  const valueOf = (bin: OutlierStripBin): number | null => {
+    if (params.metric === "latency" && params.latencyAgg === "p95")
+      return bin.p95LatencySeconds;
+    if (params.metric === "latency" && params.latencyAgg === "avg")
+      return bin.avgLatencySeconds;
+    if (params.metric === "cost" && params.costAgg === "total")
+      return bin.sumTotalCost;
+    return metric.valueOf(bin);
+  };
 
   const byBucketMs = new Map<number, OutlierStripBin>();
   for (const bin of params.bins) {

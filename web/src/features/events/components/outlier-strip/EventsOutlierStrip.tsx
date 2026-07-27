@@ -20,6 +20,7 @@ import {
   prepareOutlierSeries,
   rowsToOutlierBins,
   type OutlierQueryRow,
+  type OutlierStripCostAgg,
   type OutlierStripLatencyAgg,
   type OutlierStripMetricKey,
 } from "./lib/binning";
@@ -52,6 +53,46 @@ type StripMode = OutlierStripMetricKey | "split";
 
 const modeLabel = (mode: StripMode): string =>
   mode === "split" ? "Split" : OUTLIER_STRIP_METRICS[mode].shortLabel;
+
+const AggDropdown = <T extends string>({
+  metricLabel,
+  value,
+  options,
+  onChange,
+}: {
+  metricLabel: string;
+  value: T;
+  options: readonly T[];
+  onChange: (agg: T) => void;
+}) => (
+  <span className="flex items-baseline gap-1">
+    {/* The separator dot stays outside the trigger so hover styling
+        (underline) applies to the value only. */}
+    <span className="text-muted-foreground font-mono text-[10px] leading-none">
+      ·
+    </span>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`${metricLabel} aggregation: ${value}`}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none underline-offset-2 hover:underline"
+      >
+        {value}
+        <ChevronDown className="h-2.5 w-2.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {options.map((agg) => (
+          <DropdownMenuItem
+            key={agg}
+            onClick={() => onChange(agg)}
+            className="font-mono text-xs"
+          >
+            {agg}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </span>
+);
 
 const ModeDropdown = ({
   value,
@@ -121,15 +162,29 @@ export function EventsOutlierStrip({
       "max",
     );
   const latencyAgg: OutlierStripLatencyAgg =
-    latencyAggStored === "p95" ? "p95" : "max";
+    latencyAggStored === "p95" || latencyAggStored === "avg"
+      ? latencyAggStored
+      : "max";
+  // Cost: worst single event (max, the outlier default) or total spend.
+  const [costAggStored, setCostAgg] = useLocalStorage<OutlierStripCostAgg>(
+    "events-outlier-strip-cost-agg",
+    "max",
+  );
+  const costAgg: OutlierStripCostAgg =
+    costAggStored === "total" ? "total" : "max";
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
   // getBoundingClientRect includes the wrapper's px-2 padding (border-box).
   const width = Math.max((size?.width ?? 0) - 16, 0);
 
-  const splitFits =
-    width >= SPLIT_METRICS.length * CHART_MIN_WIDTH_PX + 2 * CHART_GAP_PX;
+  // Split adapts: 3 charts when they fit, 2 (Cost + Latency) on smaller
+  // widths, and only below the 2-chart threshold does Split leave the menu.
+  const splitChartCount = Math.min(
+    SPLIT_METRICS.length,
+    Math.floor((width + CHART_GAP_PX) / (CHART_MIN_WIDTH_PX + CHART_GAP_PX)),
+  );
+  const splitFits = splitChartCount >= 2;
   // Sanitize: localStorage is user-editable; unknown values fall back to Cost.
   const storedMode: StripMode =
     modeStored === "split" ||
@@ -143,7 +198,7 @@ export function EventsOutlierStrip({
     : [...SPLIT_METRICS];
 
   const visibleMetrics: OutlierStripMetricKey[] =
-    mode === "split" ? SPLIT_METRICS : [mode];
+    mode === "split" ? SPLIT_METRICS.slice(0, splitChartCount) : [mode];
   const chartCount = visibleMetrics.length;
   const chartWidth = (width - CHART_GAP_PX * (chartCount - 1)) / chartCount;
 
@@ -163,8 +218,10 @@ export function EventsOutlierStrip({
       metrics: [
         { measure: "count", aggregation: "count" },
         { measure: "totalCost", aggregation: "max" },
+        { measure: "totalCost", aggregation: "sum" },
         { measure: "latency", aggregation: "max" },
         { measure: "latency", aggregation: "p95" },
+        { measure: "latency", aggregation: "avg" },
         { measure: "totalTokens", aggregation: "max" },
       ],
       filters,
@@ -201,17 +258,26 @@ export function EventsOutlierStrip({
 
   const series = useMemo(
     () =>
-      (mode === "split" ? SPLIT_METRICS : [mode]).map((metric) =>
-        prepareOutlierSeries({
-          bins,
-          metric,
-          latencyAgg,
-          fromMs,
-          toMs,
-          stepSeconds: granularity.stepSeconds,
-        }),
+      (mode === "split" ? SPLIT_METRICS.slice(0, splitChartCount) : [mode]).map(
+        (metric) =>
+          prepareOutlierSeries({
+            bins,
+            metric,
+            latencyAgg,
+            fromMs,
+            toMs,
+            stepSeconds: granularity.stepSeconds,
+          }),
       ),
-    [bins, fromMs, toMs, granularity.stepSeconds, mode, latencyAgg],
+    [
+      bins,
+      fromMs,
+      toMs,
+      granularity.stepSeconds,
+      mode,
+      splitChartCount,
+      latencyAgg,
+    ],
   );
 
   const handleSelectBucket = (range: { fromMs: number; toMs: number }) => {
@@ -287,28 +353,21 @@ export function EventsOutlierStrip({
                       </span>
                     )}
                     {/* The bar's aggregate must be legible (max vs p95, …);
-                        latency offers the choice, cost/tokens are max. */}
+                        latency and cost offer choices, tokens is max. */}
                     {metric === "latency" ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          aria-label={`Latency aggregation: ${latencyAgg}`}
-                          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none"
-                        >
-                          · {latencyAgg}
-                          <ChevronDown className="h-2.5 w-2.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {(["max", "p95"] as const).map((agg) => (
-                            <DropdownMenuItem
-                              key={agg}
-                              onClick={() => setLatencyAgg(agg)}
-                              className="font-mono text-xs"
-                            >
-                              {agg}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <AggDropdown
+                        metricLabel="Latency"
+                        value={latencyAgg}
+                        options={["max", "p95", "avg"] as const}
+                        onChange={setLatencyAgg}
+                      />
+                    ) : metric === "cost" ? (
+                      <AggDropdown
+                        metricLabel="Cost"
+                        value={costAgg}
+                        options={["max", "total"] as const}
+                        onChange={setCostAgg}
+                      />
                     ) : (
                       <span className="text-muted-foreground/70 font-mono text-[10px] leading-none">
                         · max

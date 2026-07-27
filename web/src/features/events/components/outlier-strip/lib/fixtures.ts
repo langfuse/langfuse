@@ -68,10 +68,14 @@ export function makeFixtureBins(params: {
       count,
       maxTotalCost:
         params.profile === "noMetricData" ? null : 0.02 * base * outlier,
+      sumTotalCost:
+        params.profile === "noMetricData" ? null : 0.02 * base * outlier * 5,
       maxLatencySeconds:
         params.profile === "noMetricData" ? null : 2 * base * outlier,
       p95LatencySeconds:
         params.profile === "noMetricData" ? null : 2 * base * outlier * 0.6,
+      avgLatencySeconds:
+        params.profile === "noMetricData" ? null : 2 * base * outlier * 0.35,
       maxTotalTokens:
         params.profile === "noMetricData"
           ? null

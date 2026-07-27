@@ -57,8 +57,10 @@ describe("rowsToOutlierBins", () => {
         time_dimension: "2025-03-10 10:00:00",
         count_count: "2",
         max_totalCost: "0.5",
+        sum_totalCost: "2.5",
         max_latency: "1500",
         p95_latency: "1000",
+        avg_latency: "800",
         max_totalTokens: "300",
       },
       // ClickHouse WITH FILL filler: count 0, nullable measures null, but the
@@ -77,8 +79,10 @@ describe("rowsToOutlierBins", () => {
       bucketStart: expect.any(Date),
       count: 2,
       maxTotalCost: 0.5,
+      sumTotalCost: 2.5,
       maxLatencySeconds: 1.5, // ms → s
       p95LatencySeconds: 1,
+      avgLatencySeconds: 0.8,
       maxTotalTokens: 300,
     });
   });
@@ -92,8 +96,10 @@ describe("prepareOutlierSeries", () => {
     bucketStart: new Date(bucketStartMs),
     count: value === null ? 0 : 1,
     maxTotalCost: value,
+    sumTotalCost: value === null ? null : value * 10,
     maxLatencySeconds: value,
     p95LatencySeconds: value === null ? null : value * 0.5,
+    avgLatencySeconds: value === null ? null : value * 0.25,
     maxTotalTokens: value,
   });
 
@@ -161,6 +167,26 @@ describe("prepareOutlierSeries", () => {
     });
 
     expect(dense[0].value).toBe(4);
+
+    const avg = prepareOutlierSeries({
+      bins: [bin(t0, 8)], // helper sets avg = 0.25 × max
+      metric: "latency",
+      latencyAgg: "avg",
+      fromMs: t0,
+      toMs: t0 + 60_000,
+      stepSeconds: step,
+    });
+    expect(avg.dense[0].value).toBe(2);
+
+    const total = prepareOutlierSeries({
+      bins: [bin(t0, 8)], // helper sets sum = 10 × max
+      metric: "cost",
+      costAgg: "total",
+      fromMs: t0,
+      toMs: t0 + 60_000,
+      stepSeconds: step,
+    });
+    expect(total.dense[0].value).toBe(80);
   });
 
   it("aligns the grid to the epoch, not to `from`", () => {
