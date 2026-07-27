@@ -473,14 +473,10 @@ const toUrlFilterQuery = (encoded: string): string =>
   encoded.length > MAX_URL_FILTER_QUERY_LENGTH ? "" : encoded;
 
 /**
- * State half of the sidebar filter hook: decodes and owns the applied
- * FilterState (URL / session-storage / memory / peek), layers the explicit
- * defaults and the managed-environment policy into the EFFECTIVE state, and
- * exposes the writer. Deliberately independent of the filter-OPTIONS payload,
- * so a view can derive its applied filters BEFORE fetching options — the
- * events table feeds `effectiveFilterState` into the facet-count query
- * (LFE-14489) and only then builds the option-aware UI via
- * `useSidebarFilterPresentation`.
+ * State half of the sidebar filters: owns the applied FilterState
+ * (URL/session/memory/peek decode + defaults + managed-env policy) and its
+ * writer. Independent of the filter-OPTIONS payload, so a view can read its
+ * applied filters BEFORE fetching options (events facet counts, LFE-14489).
  */
 export function useSidebarFilterStateCore(
   config: FilterConfig,
@@ -919,10 +915,8 @@ export type SidebarFilterPresentationOptions = Pick<
 >;
 
 /**
- * Presentation half: option-aware facet actions, analytics, and the UIFilter
- * list, layered over a `useSidebarFilterStateCore` instance. Split from the
- * core so the applied filter state exists before the filter-options payload —
- * which this half consumes — has been fetched.
+ * Presentation half over a core instance: option-aware facet actions,
+ * analytics, and the UIFilter list.
  */
 export function useSidebarFilterPresentation(
   core: SidebarFilterStateCore,
@@ -1915,10 +1909,8 @@ export function useSidebarFilterPresentation(
 }
 
 /**
- * Combined sidebar filter hook: state core + option-aware presentation in one
- * call. Views that need the applied filter state BEFORE fetching options (to
- * refine facet counts, LFE-14489) call `useSidebarFilterStateCore` and
- * `useSidebarFilterPresentation` separately instead.
+ * Core + presentation in one call. Views that need the applied filter state
+ * before fetching options compose the two hooks directly (see EventsTable).
  */
 export function useSidebarFilterState(
   config: FilterConfig,

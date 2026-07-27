@@ -109,27 +109,16 @@ const EMPTY_FILTER_STATE: FilterState = [];
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
-  /**
-   * Authoritative time scope for the bounded facet scan and its score lookback.
-   * Kept separate from `refiningFilter` — a time-window move re-keys every
-   * facet query, while a filter edit re-keys only the refined ones.
-   */
+  /** Time scope for the bounded facet scan. Separate from `refiningFilter`, so
+   *  a window move re-keys every query but a filter edit only the refined ones. */
   startTimeFilter?: TimeFilter[];
-  /**
-   * The active filter set the facet counts refine against (LFE-14489). Pass the
-   * SAME filters that scope the row query so a facet value can never promise
-   * rows the current filters exclude. Facets self-exclude their own column via
-   * the query plan; the server drops non-participating columns (input/output/
-   * comment*, positionInTrace) and omits counts while one is active. Start-time
-   * conditions are stripped here (see `startTimeFilter`).
-   */
+  /** Active filters the counts refine against (LFE-14489). Pass the SAME state
+   *  that scopes the row query; each facet self-excludes its own column via the
+   *  query plan. Start-time conditions are stripped. */
   refiningFilter?: FilterState;
   isRootObservation?: boolean;
-  /**
-   * Explicit column subset to request (non-lazy). Ignored when `lazy` is set.
-   * Omit to request every column — request-all cannot self-exclude, so it is
-   * only valid together with an empty `refiningFilter`.
-   */
+  /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
+   *  all — request-all cannot self-exclude, so only valid unfiltered. */
   columns?: EventFilterOptionColumnsInput;
   /**
    * Lazy mode (v4 events table): request only the eagerly-visible columns up
@@ -197,10 +186,8 @@ export function useEventsFilterOptions({
     [lazyColumnSet],
   );
 
-  // The pure query plan: which columns share the bulk query, which get their
-  // own self-excluded per-column query, and each query's refining filter. All
-  // refinement semantics (self-exclusion, score-catalog handling, id/label
-  // canonicalization) live in the plan module.
+  // All refinement semantics (self-exclusion, score catalog, id/label
+  // canonicalization) live in the pure plan module.
   const plan = useMemo(
     () =>
       planEventFacetQueries<EventFilterOptionColumn>({

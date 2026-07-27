@@ -486,10 +486,8 @@ export default function ObservationsEventsTable({
     projectId,
   });
 
-  // Route-state half of the sidebar filters. Runs BEFORE the facet-options
-  // query so its effectiveFilterState — the same state that scopes the row
-  // query — can refine the facet counts (LFE-14489). The option-aware UI half
-  // (useSidebarFilterPresentation) runs after the options arrive.
+  // Route-state half of the sidebar filters, ahead of the facet-options query
+  // so the same state that scopes the rows can refine the counts (LFE-14489).
   const filterStateOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
@@ -578,10 +576,8 @@ export default function ObservationsEventsTable({
     [userId, sessionId, promptName, promptVersion],
   );
 
-  // Facet counts refine against exactly what scopes the rows (LFE-14489): the
-  // sidebar's effective filter state (or the caller's external filter) plus the
-  // embed scoping. The time window travels separately as startTimeFilter, on
-  // the tick-decoupled range so the auto refresh leaves the facets alone.
+  // The time window travels separately, on the tick-decoupled range so the
+  // auto refresh leaves the facets alone.
   const facetRefiningFilter = useMemo(
     () =>
       externalFilterState ??
@@ -734,9 +730,8 @@ export default function ObservationsEventsTable({
   //     : [];
 
   // The sidebar's effective filter state is the single source of truth in both
-  // modes — the search bar syncs into it rather than replacing it. The same
-  // state + embed scoping feed the facet-count refinement above, so the counts
-  // can never diverge from the rows (LFE-14489).
+  // modes — the search bar syncs into it, and the facet counts above refine
+  // from the same state + embed scoping (LFE-14489).
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(embedScopeFilterState);

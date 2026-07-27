@@ -1,20 +1,12 @@
 import { eventsTableCols, type FilterState } from "@langfuse/shared";
 
-// Pure planning for the events filter-options queries (LFE-14489): given the
-// active filter set, decide which facet columns can share one bulk query and
-// which need their own self-excluded query, and what refining filter each
-// query carries. Keeping this a pure module (no hooks, no react-query) makes
-// the refinement semantics directly testable; useEventsFilterOptions merely
-// executes the returned plan.
+// Pure query planning for the events filter options (LFE-14489): which facet
+// columns share one bulk query, which need a self-excluded per-column query,
+// and the refining filter each carries. useEventsFilterOptions executes the plan.
 
-// Score-catalog columns list score NAMES/categories/buckets, not per-value
-// counts. The server discovers them from the trace-score scope (time-bounded
-// only) and NEVER applies the refining filter to them, so they never refine and
-// never self-collapse. Keeping the full catalog also protects the search-bar
-// grammar: its score-type routing and its AI score-name validation read this
-// list, so a name filtered out of the active set must still be recognized as a
-// real score (LFE-10596). They therefore always stay in the shared bulk query
-// and are never treated as self-filtered.
+// Score-catalog columns (score names, not per-value counts) always stay in the
+// bulk: the server never refines them, and the search-bar grammar's score-type
+// routing + AI score-name validation must see the full catalog (LFE-10596).
 const UNREFINED_SCORE_CATALOG_COLUMNS: ReadonlySet<string> = new Set([
   "scores_avg",
   "score_categories",
@@ -24,13 +16,9 @@ const UNREFINED_SCORE_CATALOG_COLUMNS: ReadonlySet<string> = new Set([
   "trace_score_booleans",
 ]);
 
-// Filter conditions can be keyed by the column id ("environment") or its
-// display name ("Environment") — URL state is normalized to ids by
-// decodeAndNormalizeFilters, but embed-scope filters (e.g. the user page's
-// `User ID` condition) and legacy callers still use display names. Facet and
-// option columns are always ids, so normalize before matching a filter to a
-// facet — a label-keyed filter that slips past self-exclusion self-collapses
-// its facet.
+// Filters can be keyed by column id ("environment") or display name ("User ID",
+// as the embed-scope filters are). Facet columns are always ids — a label that
+// slipped past self-exclusion would self-collapse its facet.
 const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
   eventsTableCols.flatMap((c) => [
     [c.id, c.id],
@@ -42,11 +30,9 @@ export const resolveEventFacetColumnId = (column: string): string =>
   FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
 
 /**
- * Drop start-time conditions from a refining filter. The dedicated
- * `startTimeFilter` input stays authoritative for the bounded facet scan and
- * its score lookback; everything else refines the counts. The server drops the
- * non-participating columns (input/output/comment*, positionInTrace) and omits
- * counts while one of them is active — those are forwarded verbatim.
+ * Drop start-time conditions — the dedicated `startTimeFilter` input owns the
+ * time scope. Non-participating columns (input/output/comment*, positionInTrace)
+ * pass through verbatim; the server omits all counts while one is active.
  */
 export const toRefiningFilter = (filter: FilterState): FilterState =>
   filter.filter(
@@ -58,34 +44,22 @@ export const toRefiningFilter = (filter: FilterState): FilterState =>
   );
 
 export type FacetQueryPlan<Column extends string = string> = {
-  /**
-   * The shared bulk query: clean value facets + the score catalog, refined by
-   * the FULL filter (the server ignores it for the catalog). `columns` is
-   * undefined for the "request all" mode (no self-exclusion possible there —
-   * only valid with an empty refining filter).
-   */
+  /** Shared bulk query: clean facets + score catalog, refined by the full
+   *  filter. `columns` undefined = request-all (only valid unfiltered). */
   bulk: {
     columns: Column[] | undefined;
     filter: FilterState | undefined;
   };
-  /**
-   * One query per facet that must not see part of the filter: every requested
-   * value facet with its own active condition (self-exclusion — a facet's
-   * options/counts must reflect every OTHER filter so its full option list
-   * stays visible and the `none of` complement stays computable), plus any
-   * lazily-requested on-demand column. `filter` is undefined when nothing
-   * refines that column.
-   */
+  /** One query per self-excluded facet — its own condition removed, so its full
+   *  option list survives and the `none of` complement stays computable — plus
+   *  each lazily-requested column. */
   perColumn: { column: Column; filter: FilterState | undefined }[];
 };
 
 /**
- * Partition the requested facet columns into the shared bulk query and
- * self-excluded per-column queries, attaching each query's refining filter.
- *
- * `refiningFilter` must already be start-time-free (see `toRefiningFilter`).
- * `lazyColumns` are always per-column (they load on demand and each keeps its
- * own react-query cache entry); they self-exclude like any other facet.
+ * Partition the requested columns into the bulk and per-column queries, with
+ * each query's refining filter. `refiningFilter` must be start-time-free (see
+ * `toRefiningFilter`); lazy columns are always per-column (own cache entry each).
  */
 export function planEventFacetQueries<Column extends string>(params: {
   refiningFilter: FilterState;
@@ -101,9 +75,8 @@ export function planEventFacetQueries<Column extends string>(params: {
     return refined.length > 0 ? refined : undefined;
   };
 
-  // Value columns carrying their OWN active condition. Only these would
-  // self-collapse under the shared bulk filter; the score catalog never
-  // refines, so a score condition does not evict its column from the bulk.
+  // Only facets carrying their own condition would self-collapse in the bulk;
+  // a score condition never evicts its (unrefined) catalog column.
   const selfFilteredColumns = new Set(
     refiningFilter
       .map((f) => resolveEventFacetColumnId(f.column))

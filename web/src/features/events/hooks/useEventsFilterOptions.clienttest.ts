@@ -8,11 +8,8 @@ const mocks = vi.hoisted(() => ({
   perColumnInputs: [] as any[],
 }));
 
-// Capture the exact tRPC inputs the hook builds for the bulk `useQuery` and each
-// per-column `useQueries` entry, so we can assert the query plan is wired
-// through to the server contract (LFE-14489) without a live server. The plan
-// SEMANTICS (self-exclusion, score catalog, id/label canonicalization) are
-// covered by the pure planner tests in lib/facet-query-plan.clienttest.ts.
+// Capture the tRPC inputs the hook builds, to assert the plan is wired through
+// to the server contract. Plan SEMANTICS live in the planner's own tests.
 vi.mock("@/src/utils/api", () => ({
   api: {
     events: {
