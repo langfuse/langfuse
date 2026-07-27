@@ -15,9 +15,8 @@ import {
  * time bucket; clicking a bar reports the bucket's range so the caller can
  * narrow the table's time window.
  *
- * The variant knobs (bar slot, bands, labels, activity ticks) exist for the
- * design decision surface in the Storybook stories; defaults get locked once
- * the visual is picked.
+ * Defaults reflect the picked design (sqrt scale, 5px slot, no bands, 40px);
+ * the variant knobs remain for the Storybook matrices and future polish.
  */
 
 const METRIC_COLOR: Record<OutlierStripMetricKey, string> = {
@@ -40,9 +39,8 @@ export type OutlierBarStripProps = {
   bands?: "none" | "time" | "value";
   /**
    * Bar-height scale. Real cost/latency outliers are 10–40x the base load —
-   * linear renders the base nearly invisible; sqrt keeps it readable while
-   * outliers still dominate. Decision-surface knob; the locked pick moves
-   * into the preparer when production wiring lands.
+   * linear renders the base nearly invisible; sqrt (default) keeps it
+   * readable while outliers still dominate.
    */
   scale?: "linear" | "sqrt";
   /** 1px baseline tick where events exist but carry no metric data. */
@@ -79,10 +77,12 @@ export function OutlierBarStrip({
   maxValue,
   stepMs,
   metric,
-  heightPx = 56,
+  // Defaults locked by design review 2026-07-27: sqrt scale keeps the base
+  // load readable under 10-40x outliers; 40px + no bands is the compact pick.
+  heightPx = 40,
   barSlotPx = 5,
-  bands = "time",
-  scale = "linear",
+  bands = "none",
+  scale = "sqrt",
   showActivityTicks = true,
   showMaxLabel = true,
   showTimeLabels = true,

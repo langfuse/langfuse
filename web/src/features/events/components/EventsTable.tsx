@@ -130,6 +130,9 @@ import { TableViewPresetsDrawer } from "@/src/components/table/table-view-preset
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
+import { OutlierStripToggle } from "@/src/features/events/components/outlier-strip/OutlierStripToggle";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
@@ -505,6 +508,19 @@ export default function ObservationsEventsTable({
     }),
     [dateRange],
   );
+
+  // Outlier strip (LFE-14451): hidden by default, per-project persisted.
+  const [outlierStripVisible, setOutlierStripVisible] = useLocalStorage(
+    `events-outlier-strip-visible-${projectId}`,
+    false,
+  );
+  // Drill-in writes the clicked bucket as an absolute range. URL-only
+  // (pushIn → browser Back restores the outer window) and deliberately NOT
+  // persisted as the project's default range — a transient zoom must not
+  // become tomorrow's baseline.
+  const { setTimeRange: setTimeRangeTransient } = useTableDateRange(projectId, {
+    persistAsDefault: false,
+  });
 
   const dateRangeFilter: FilterState = toStartTimeFilterState(dateRange);
 
@@ -2058,10 +2074,20 @@ export default function ObservationsEventsTable({
               setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
               viewModeToggle={
                 chartEnabled ? (
-                  <ViewModeToggle
-                    mode={chartViewMode}
-                    onModeChange={setChartViewMode}
-                  />
+                  <>
+                    <ViewModeToggle
+                      mode={chartViewMode}
+                      onModeChange={setChartViewMode}
+                    />
+                    {/* Outlier strip is desktop-only until the touch/swipe
+                        slice (LFE-14451 P5); hidden in full chart mode. */}
+                    {!isMobile && chartViewMode !== "chart" && (
+                      <OutlierStripToggle
+                        pressed={outlierStripVisible}
+                        onPressedChange={setOutlierStripVisible}
+                      />
+                    )}
+                  </>
                 ) : undefined
               }
               refreshConfig={
@@ -2187,6 +2213,18 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {chartEnabled &&
+              chartViewMode !== "chart" &&
+              outlierStripVisible &&
+              !isMobile && (
+                <EventsOutlierStrip
+                  projectId={projectId}
+                  filterState={filterState}
+                  fromTimestamp={chartTimeWindow.from}
+                  toTimestamp={chartTimeWindow.to}
+                  onSelectRange={setTimeRangeTransient}
+                />
+              )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}
