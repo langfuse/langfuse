@@ -155,12 +155,10 @@ export interface ChartProps {
    * labels, keyed by the bar's full (untruncated) dimension value. Decided
    * upstream (DashboardWidget via `buildTableFilterHref`); the chart only
    * looks a value up to render a link — it never builds one. A missing entry
-   * renders the label's copy affordance without a "View filtered table"
-   * link. Consumed by HorizontalBarChart. (LFE-10962)
+   * renders the label's hover tooltip without a "View filtered table" link.
+   * Consumed by HorizontalBarChart. (LFE-10962)
    */
   categoryHrefs?: Map<string, string>;
-  /** Fired when a user copies a category label's full value from its popover. */
-  onCategoryLabelCopy?: () => void;
   /** Fired when a user follows a category label's "View filtered table" link. */
   onCategoryLabelViewAsTable?: () => void;
 }

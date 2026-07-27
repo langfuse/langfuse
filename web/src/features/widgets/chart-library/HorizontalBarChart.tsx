@@ -43,7 +43,6 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
   metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
   categoryHrefs,
-  onCategoryLabelCopy,
   onCategoryLabelViewAsTable,
 }) => {
   const formatValue = useCallback(
@@ -113,7 +112,6 @@ export const HorizontalBarChart: React.FC<ChartProps> = ({
                 y={y}
                 label={fullLabel}
                 href={categoryHrefs?.get(fullLabel)}
-                onCopy={onCategoryLabelCopy}
                 onViewAsTable={onCategoryLabelViewAsTable}
               />
             );

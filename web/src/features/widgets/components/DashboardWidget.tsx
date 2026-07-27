@@ -642,16 +642,10 @@ export function DashboardWidget({
     }
   };
 
-  // Analytics for the per-category label card (LFE-10962): copying the full
-  // value, or following the "View filtered table" link. The href itself is
-  // decided in categoryTableHrefs above; this only reports the action.
-  const handleCategoryLabelCopy = useCallback(() => {
-    capture("dashboard:widget_breakdown_label_copied", {
-      widget_id: placement.widgetId,
-      dashboard_id: dashboardId,
-    });
-  }, [capture, placement.widgetId, dashboardId]);
-
+  // Analytics for the per-category label tooltip's "View filtered table"
+  // link (LFE-10962). The href itself is decided in categoryTableHrefs
+  // above; this only reports the action. Copying the value is unaided
+  // plain-text selection now, nothing to report.
   const handleCategoryLabelViewAsTable = useCallback(() => {
     capture("dashboard:widget_breakdown_label_view_as_table", {
       widget_id: placement.widgetId,
@@ -914,7 +908,6 @@ export function DashboardWidget({
                 widget.data.metrics[0]?.agg ?? "count",
               )}
               categoryHrefs={categoryTableHrefs}
-              onCategoryLabelCopy={handleCategoryLabelCopy}
               onCategoryLabelViewAsTable={handleCategoryLabelViewAsTable}
             />
             <ChartLoadingState

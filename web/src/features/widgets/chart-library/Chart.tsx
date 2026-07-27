@@ -51,7 +51,6 @@ const ChartComponent = ({
   missingValue,
   hideXAxisLabels,
   categoryHrefs,
-  onCategoryLabelCopy,
   onCategoryLabelViewAsTable,
 }: {
   chartType: DashboardWidgetChartType;
@@ -101,8 +100,6 @@ const ChartComponent = ({
    * (LFE-10962)
    */
   categoryHrefs?: Map<string, string>;
-  /** Fired when a user copies a category label's full value from its popover. */
-  onCategoryLabelCopy?: () => void;
   /** Fired when a user follows a category label's "View filtered table" link. */
   onCategoryLabelViewAsTable?: () => void;
 }) => {
@@ -202,7 +199,6 @@ const ChartComponent = ({
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
             categoryHrefs={categoryHrefs}
-            onCategoryLabelCopy={onCategoryLabelCopy}
             onCategoryLabelViewAsTable={onCategoryLabelViewAsTable}
           />
         );
