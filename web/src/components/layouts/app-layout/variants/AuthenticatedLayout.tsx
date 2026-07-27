@@ -26,7 +26,7 @@ import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
-import { InAppAgentWindowHost } from "@/src/ee/features/in-app-agent/components/InAppAgentWindowHost";
+import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
 
 const CommandMenu = dynamic(
   () =>
