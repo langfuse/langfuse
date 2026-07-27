@@ -1,4 +1,8 @@
-import { eventsTableCols, type FilterState } from "@langfuse/shared";
+import {
+  eventsTableCols,
+  type FilterState,
+  type TimeFilter,
+} from "@langfuse/shared";
 
 // Pure query planning for the events filter options (LFE-14489): which facet
 // columns share one bulk query, which need a self-excluded per-column query,
@@ -29,19 +33,24 @@ const FACET_COLUMN_ID_BY_NAME_OR_ID: ReadonlyMap<string, string> = new Map(
 export const resolveEventFacetColumnId = (column: string): string =>
   FACET_COLUMN_ID_BY_NAME_OR_ID.get(column) ?? column;
 
+const isStartTimeCondition = (f: FilterState[number]): f is TimeFilter =>
+  f.type === "datetime" &&
+  (f.column === "startTime" || f.column === "Start Time");
+
 /**
- * Drop start-time conditions — the dedicated `startTimeFilter` input owns the
- * time scope. Non-participating columns (input/output/comment*, positionInTrace)
- * pass through verbatim; the server omits all counts while one is active.
+ * Split user-authored start-time conditions (e.g. a search-bar `startTime:>…`)
+ * from the refining rest. They must travel via the authoritative
+ * `startTimeFilter` channel — the server drops start-time entries from the
+ * participating filter, so leaving them here would silently un-scope the counts.
+ * Non-participating columns (input/output/comment*, positionInTrace) pass
+ * through verbatim; the server omits all counts while one is active.
  */
-export const toRefiningFilter = (filter: FilterState): FilterState =>
-  filter.filter(
-    (f) =>
-      !(
-        f.type === "datetime" &&
-        (f.column === "startTime" || f.column === "Start Time")
-      ),
-  );
+export const splitFacetFilter = (
+  filter: FilterState,
+): { startTimeFilter: TimeFilter[]; refiningFilter: FilterState } => ({
+  startTimeFilter: filter.filter(isStartTimeCondition),
+  refiningFilter: filter.filter((f) => !isStartTimeCondition(f)),
+});
 
 export type FacetQueryPlan<Column extends string = string> = {
   /** Shared bulk query: clean facets + score catalog, refined by the full
@@ -59,7 +68,7 @@ export type FacetQueryPlan<Column extends string = string> = {
 /**
  * Partition the requested columns into the bulk and per-column queries, with
  * each query's refining filter. `refiningFilter` must be start-time-free (see
- * `toRefiningFilter`); lazy columns are always per-column (own cache entry each).
+ * `splitFacetFilter`); lazy columns are always per-column (own cache entry each).
  */
 export function planEventFacetQueries<Column extends string>(params: {
   refiningFilter: FilterState;

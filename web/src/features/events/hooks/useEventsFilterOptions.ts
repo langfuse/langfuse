@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import {
   planEventFacetQueries,
-  toRefiningFilter,
+  splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 
 type EventFilterOptionColumnsInput =
@@ -114,7 +114,7 @@ type UseEventsFilterOptionsParams = {
   startTimeFilter?: TimeFilter[];
   /** Active filters the counts refine against (LFE-14489). Pass the SAME state
    *  that scopes the row query; each facet self-excludes its own column via the
-   *  query plan. Start-time conditions are stripped. */
+   *  query plan. Start-time conditions are re-routed into `startTimeFilter`. */
   refiningFilter?: FilterState;
   isRootObservation?: boolean;
   /** Explicit column subset (non-lazy; ignored when `lazy`). Omit to request
@@ -139,17 +139,30 @@ export function useEventsFilterOptions({
   columns,
   lazy = false,
 }: UseEventsFilterOptionsParams) {
-  const baseInput = useMemo(
-    () => ({
-      projectId,
-      startTimeFilter:
-        startTimeFilter && startTimeFilter.length > 0
-          ? startTimeFilter
-          : undefined,
-      isRootObservation,
-    }),
-    [projectId, startTimeFilter, isRootObservation],
+  // User-authored start-time conditions (search-bar `startTime:>…`) merge into
+  // the authoritative startTimeFilter channel — the server ignores them in
+  // `filter`, so counts would otherwise silently ignore that narrowing.
+  const splitFilter = useMemo(
+    () => splitFacetFilter(refiningFilter),
+    [refiningFilter],
   );
+
+  const baseInput = useMemo(() => {
+    const mergedStartTime = [
+      ...(startTimeFilter ?? []),
+      ...splitFilter.startTimeFilter,
+    ];
+    return {
+      projectId,
+      startTimeFilter: mergedStartTime.length > 0 ? mergedStartTime : undefined,
+      isRootObservation,
+    };
+  }, [
+    projectId,
+    startTimeFilter,
+    splitFilter.startTimeFilter,
+    isRootObservation,
+  ]);
 
   // Lazy mode owns a monotonically-growing set of on-demand columns (everything
   // beyond the eager set). It only grows — re-collapsing a facet does not narrow
@@ -191,11 +204,11 @@ export function useEventsFilterOptions({
   const plan = useMemo(
     () =>
       planEventFacetQueries<EventFilterOptionColumn>({
-        refiningFilter: toRefiningFilter(refiningFilter),
+        refiningFilter: splitFilter.refiningFilter,
         eagerColumns: lazy ? EAGER_EVENT_FILTER_OPTION_COLUMNS : columns,
         lazyColumns,
       }),
-    [refiningFilter, lazy, columns, lazyColumns],
+    [splitFilter.refiningFilter, lazy, columns, lazyColumns],
   );
 
   // Eager bulk query: one ClickHouse scan for the plan's shared columns.

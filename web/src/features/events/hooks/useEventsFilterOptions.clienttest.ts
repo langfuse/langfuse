@@ -98,6 +98,20 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     expect(perColumn).toHaveLength(0);
   });
 
+  it("re-routes user-authored start-time conditions into startTimeFilter", () => {
+    // A search-bar `startTime:>…` narrows the rows; the server ignores it in
+    // `filter`, so it must reach the queries via the authoritative channel.
+    const userStartTime: FilterState[number] = {
+      column: "startTime",
+      type: "datetime",
+      operator: ">",
+      value: new Date("2026-02-01T00:00:00.000Z"),
+    };
+    const { bulk } = run([userStartTime, LEVEL_ERROR]);
+    expect(bulk.startTimeFilter).toEqual([START_TIME, userStartTime]);
+    expect(bulk.filter).toEqual([LEVEL_ERROR]);
+  });
+
   it("executes the query plan: refined bulk + self-excluded per-column queries", () => {
     const { bulk, perColumn } = run([ENV_PROD, LEVEL_ERROR]);
 

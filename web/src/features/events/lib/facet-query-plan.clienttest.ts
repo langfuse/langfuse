@@ -5,7 +5,7 @@ import type { FilterState } from "@langfuse/shared";
 import {
   planEventFacetQueries,
   resolveEventFacetColumnId,
-  toRefiningFilter,
+  splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 
 const START_TIME: FilterState[number] = {
@@ -50,15 +50,15 @@ const USER_SCOPE_BY_LABEL: FilterState[number] = {
 
 const EAGER = ["environment", "level", "name", "scores_avg"] as const;
 
-describe("toRefiningFilter", () => {
-  it("strips start-time conditions (id and display name) and keeps the rest", () => {
+describe("splitFacetFilter", () => {
+  it("routes start-time conditions (id and display name) into startTimeFilter", () => {
+    const startTimeByLabel = { ...START_TIME, column: "Start Time" };
     expect(
-      toRefiningFilter([
-        START_TIME,
-        { ...START_TIME, column: "Start Time" },
-        LEVEL_ERROR,
-      ]),
-    ).toEqual([LEVEL_ERROR]);
+      splitFacetFilter([START_TIME, startTimeByLabel, LEVEL_ERROR]),
+    ).toEqual({
+      startTimeFilter: [START_TIME, startTimeByLabel],
+      refiningFilter: [LEVEL_ERROR],
+    });
   });
 });
 
