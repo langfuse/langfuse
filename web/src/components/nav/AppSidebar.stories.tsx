@@ -6,8 +6,12 @@ import preview from "../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 
+type AppSidebarProps = ComponentProps<typeof AppSidebar>;
+type VersionState = AppSidebarProps["versionState"];
+
 const meta = preview.meta({
   component: AppSidebar,
+  render: (args) => <SidebarStory open args={args} />,
   args: {
     navItems: {
       ungrouped: [
@@ -33,7 +37,7 @@ const meta = preview.meta({
     isMobile: false,
     versionState: {
       deployment: "cloud",
-    } satisfies ComponentProps<typeof AppSidebar>["versionState"],
+    } satisfies VersionState,
     showDemoBadge: false,
   },
 });
@@ -43,7 +47,7 @@ const SidebarStory = ({
   args,
 }: {
   open: boolean;
-  args: ComponentProps<typeof AppSidebar>;
+  args: AppSidebarProps;
 }) => (
   <SidebarProvider open={open}>
     <AppSidebar {...args} />
@@ -53,8 +57,58 @@ const SidebarStory = ({
   </SidebarProvider>
 );
 
-export const Default = meta.story({
-  render: (args) => <SidebarStory open args={args} />,
+export const Default = meta.story({});
+
+export const CurrentOpenSource = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "oss",
+      release: { status: "current" },
+      migration: { status: "idle" },
+    },
+  },
+});
+
+export const UpdateAvailable = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:pro",
+      release: {
+        status: "update-available",
+        updateType: "minor",
+        latestRelease: "3.128.0",
+      },
+      migration: { status: "idle" },
+    },
+  },
+});
+
+export const MigrationInProgress = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:enterprise",
+      release: { status: "current" },
+      migration: { status: "in-progress", phase: "running" },
+    },
+  },
+});
+
+export const UpdateDuringMigration = meta.story({
+  args: {
+    versionState: {
+      deployment: "self-hosted",
+      plan: "self-hosted:enterprise",
+      release: {
+        status: "update-available",
+        updateType: "major",
+        latestRelease: "4.0.0",
+      },
+      migration: { status: "in-progress", phase: "pending" },
+    },
+  },
 });
 
 export const Collapsed = meta.story({

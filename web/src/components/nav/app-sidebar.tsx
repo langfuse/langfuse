@@ -133,19 +133,15 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
       <SidebarHeader>
-        <div className="flex min-h-9 items-center gap-2 py-2 pr-0 pl-2 group-data-[collapsible=icon]:p-3">
-          <div className="-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center">
-                <LangfuseLogo
-                  logoLightModeHref={logoLightModeHref}
-                  logoDarkModeHref={logoDarkModeHref}
-                />
-              </Link>
-              <div className="ml-2 group-data-[collapsible=icon]:hidden">
-                <VersionLabel state={versionState} />
-              </div>
-            </div>
+        <div className="flex min-h-9 min-w-0 items-center py-2 pr-2 pl-3 group-data-[collapsible=icon]:p-3">
+          <Link href="/" className="flex shrink-0 items-center">
+            <LangfuseLogo
+              logoLightModeHref={logoLightModeHref}
+              logoDarkModeHref={logoDarkModeHref}
+            />
+          </Link>
+          <div className="ml-auto flex min-w-0 items-center overflow-hidden pl-2 group-data-[collapsible=icon]:hidden">
+            <VersionLabel state={versionState} />
           </div>
         </div>
         <div className="h-1 flex-1 border-b" />
@@ -325,6 +321,9 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     state.release.status === "update-available"
       ? state.release
       : null;
+  const versionText = `${VERSION}${
+    selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
+  }`;
   const color =
     update?.updateType === "major"
       ? "text-dark-red"
@@ -338,10 +337,11 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
         <Button
           variant="ghost"
           size="xs"
-          className="mt-[0.2px] text-[0.625rem]"
+          className="h-5 max-w-full min-w-0 py-0.5 text-[0.625rem]"
         >
-          {VERSION}
-          {selfHostedPlanLabel ? <> {selfHostedPlanLabel.short}</> : null}
+          <span className="truncate" title={versionText}>
+            {versionText}
+          </span>
           {backgroundMigrationStatus && (
             <StatusBadge
               type={backgroundMigrationStatus}
