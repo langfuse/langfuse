@@ -1068,4 +1068,63 @@ describe("getDrawerMessages", () => {
       expect(toolGroup.content.tools[0]).not.toHaveProperty("approval");
     }
   });
+
+  it("renders a resumed tool call only once when its id is duplicated", () => {
+    const mappedMessages = getDrawerMessages({
+      error: null,
+      isRunning: false,
+      messages: [
+        {
+          id: "interrupted-run-assistant",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_deleteDashboardWidget",
+                arguments: JSON.stringify({ widgetId: "widget-1" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "resumed-run-assistant",
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "langfuse_deleteDashboardWidget",
+                arguments: JSON.stringify({ widgetId: "widget-1" }),
+              },
+            },
+          ],
+        },
+        {
+          id: "tool-result-1",
+          role: "tool",
+          toolCallId: "tool-call-1",
+          content: JSON.stringify({
+            message: "Dashboard widget successfully deleted",
+          }),
+        },
+      ] satisfies InAppAiAgentMessage[],
+    });
+
+    const renderedTools = mappedMessages.flatMap((message) =>
+      message.content.type === "toolGroup" ? message.content.tools : [],
+    );
+
+    expect(renderedTools).toHaveLength(1);
+    expect(renderedTools[0]).toMatchObject({
+      name: "langfuse_deleteDashboardWidget",
+      result: JSON.stringify({
+        message: "Dashboard widget successfully deleted",
+      }),
+    });
+  });
 });

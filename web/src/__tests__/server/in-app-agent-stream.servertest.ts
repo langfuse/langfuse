@@ -431,6 +431,87 @@ describe("createAgUiStream", () => {
     });
   });
 
+  it("exposes only one pending tool approval per run", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "delete both widgets",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: {
+        type: "existingConversation" as const,
+        projectId: "project-1",
+        conversationId: "conversation-1",
+      },
+      forwardedProps: {},
+    };
+    const persistedEvents: AgUiEvent[] = [];
+    const streamedEvents: AgUiEvent[] = [];
+
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_STARTED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+      createToolApprovalInterruptEvent({
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_deleteDashboardWidget",
+      }),
+      createToolApprovalInterruptEvent({
+        toolCallId: "tool-call-2",
+        toolName: "langfuse_deleteDashboardWidget",
+      }),
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: input.threadId,
+        runId: input.runId,
+      },
+    ];
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        onEvent: (event) => {
+          persistedEvents.push(event);
+        },
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          userAccess: defaultInAppAgentUserAccess,
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+      },
+    });
+
+    await readStream(stream, (event) => streamedEvents.push(event));
+
+    expect(getToolApprovalInterruptIds(streamedEvents)).toEqual([
+      "tool-call-1",
+    ]);
+    expect(getToolApprovalInterruptIds(persistedEvents)).toEqual([
+      "tool-call-1",
+    ]);
+  });
+
   it("serializes valid events including adapter snapshots and reasoning messages", async () => {
     const { createAgUiStream } =
       await import("@/src/ee/features/in-app-agent/server/agent");
@@ -1686,6 +1767,40 @@ async function readStream(
       onEvent?.(event);
     }
   }
+}
+
+function createToolApprovalInterruptEvent(params: {
+  toolCallId: string;
+  toolName: string;
+}): AgUiEvent {
+  return {
+    type: EventType.CUSTOM,
+    name: "on_interrupt",
+    value: {
+      type: "mastra_suspend",
+      toolCallId: params.toolCallId,
+      toolName: params.toolName,
+      args: { widgetId: params.toolCallId },
+      runId: "run-1",
+    },
+  };
+}
+
+function getToolApprovalInterruptIds(events: AgUiEvent[]) {
+  return events.flatMap((event) => {
+    if (
+      event.type !== EventType.CUSTOM ||
+      event.name !== "on_interrupt" ||
+      typeof event.value !== "object" ||
+      event.value === null ||
+      !("toolCallId" in event.value) ||
+      typeof event.value.toolCallId !== "string"
+    ) {
+      return [];
+    }
+
+    return [event.value.toolCallId];
+  });
 }
 
 function createToolApprovalResumeInput(approved: boolean) {

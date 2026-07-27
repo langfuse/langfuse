@@ -685,6 +685,37 @@ describe("useSmoothStreamingMessages", () => {
     );
   });
 
+  it("shows an approval that arrives after its tool call is already visible", () => {
+    // Tool-call events stream before the interrupt that carries the approval,
+    // so the tool's appearance transition runs while no approval exists yet.
+    const { rerender } = render(
+      <TestConsumer liveMessageVersion={0} messages={[userMessage]} />,
+    );
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={1}
+        messages={[userMessage, assistantToolMessage(["tool-call-1"], true)]}
+      />,
+    );
+    runAllAnimationFrames();
+
+    expect(screen.getByTestId("tool-call-ids")).toHaveTextContent(
+      "tool-call-1",
+    );
+    expect(screen.getByTestId("approval-ids")).toBeEmptyDOMElement();
+
+    rerender(
+      <TestConsumer
+        liveMessageVersion={1}
+        messages={[userMessage, assistantToolMessage(["tool-call-1"], true)]}
+        pendingToolApprovals={[pendingToolApproval("tool-call-1", "pending")]}
+      />,
+    );
+
+    expect(screen.getByTestId("approval-ids")).toHaveTextContent("tool-call-1");
+  });
+
   it("does not animate for reduced-motion users", () => {
     prefersReducedMotion = true;
     const content =

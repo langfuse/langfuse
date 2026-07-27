@@ -585,6 +585,17 @@ function InAppAiAgentProviderInner({
           ) {
             activeRunIdRef.current = event.runId;
           }
+
+          // A new run supersedes unresolved approvals: the server deletes
+          // their pending rows when the run starts, and the continuation
+          // re-requests anything still needed. Keep only the approval whose
+          // resume started this run (status "submitting"); it is cleared by
+          // the resume flow itself.
+          updatePendingToolApprovals((currentApprovals) =>
+            currentApprovals.filter(
+              (approval) => approval.status === "submitting",
+            ),
+          );
         },
         onEvent: ({ event }) => {
           if (
