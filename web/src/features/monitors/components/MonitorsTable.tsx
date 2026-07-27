@@ -42,10 +42,6 @@ import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
 
-/** rowActionIconColors ramps an inline row-action icon from faint to full foreground, scaling on its own hover. */
-const rowActionIconColors =
-  "text-foreground/40 transition-[color,transform] group-hover/monitor-row:text-foreground/70 hover:scale-110 hover:text-foreground";
-
 /** MonitorRow is one row of the monitors list, shaped by the `monitors.all` tRPC output. */
 type MonitorRow = RouterOutputs["monitors"]["all"]["monitors"][number];
 
@@ -307,12 +303,11 @@ function MonitorRowActions({
   const editButton = (
     <Button
       asChild
-      variant="ghost"
+      variant={collapsed ? "ghost" : "row-action"}
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess}
       aria-label="Edit monitor"
       title="Edit"
-      className={cn(!collapsed && rowActionIconColors)}
     >
       <Link
         href={monitorHref(projectId, monitor.id)}
@@ -326,12 +321,11 @@ function MonitorRowActions({
 
   const pauseButton = (
     <Button
-      variant="ghost"
+      variant={collapsed ? "ghost" : "row-action"}
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
       aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
       title={isPaused ? "Resume" : "Pause"}
-      className={cn(!collapsed && rowActionIconColors)}
       onClick={(e) => {
         e.stopPropagation();
         onToggleStatus();
@@ -354,13 +348,8 @@ function MonitorRowActions({
       projectId={projectId}
       isTableAction
       icon={!collapsed}
-      variant="ghost"
+      variant={collapsed ? "ghost" : "row-action"}
       title="Delete"
-      className={
-        collapsed
-          ? undefined
-          : "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110"
-      }
     />
   );
 

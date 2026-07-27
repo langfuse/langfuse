@@ -359,9 +359,7 @@ export function DeleteDashboardButton(props: DeleteButtonProps) {
   );
 }
 
-type DeleteMonitorButtonProps = DeleteButtonProps & {
-  className?: "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110";
-};
+type DeleteMonitorButtonProps = Omit<DeleteButtonProps, "className">;
 
 /** DeleteMonitorButton deletes a monitor through the shared confirm-then-delete pattern. */
 export function DeleteMonitorButton(props: DeleteMonitorButtonProps) {
@@ -394,11 +392,6 @@ export function DeleteMonitorButton(props: DeleteMonitorButtonProps) {
   return (
     <DeleteButton
       {...props}
-      className={
-        props.className
-          ? "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110"
-          : undefined
-      }
       scope={scope}
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>
