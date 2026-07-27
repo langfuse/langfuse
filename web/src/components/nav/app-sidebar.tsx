@@ -23,7 +23,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { useRouter } from "next/router";
 import Link from "next/link";
-import { LangfuseLogo } from "@/src/components/LangfuseLogo";
+import { LangfuseLogo } from "@/src/components/design-system/LangfuseLogo/LangfuseLogo";
 import { VersionLabel } from "@/src/components/VersionLabel";
 import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
 import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
@@ -31,6 +31,7 @@ import { type RouteGroup } from "@/src/components/layouts/routes";
 import { ExternalLink, Grid2X2 } from "lucide-react";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 type AppSidebarProps = {
   navItems: {
@@ -52,6 +53,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { isMobile } = useSidebar();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const uiCustomization = useUiCustomization();
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" {...props}>
@@ -60,7 +62,10 @@ export function AppSidebar({
           <div className="-mt-2 ml-1 flex flex-wrap gap-4 lg:flex-col lg:items-start">
             <div className="flex items-center">
               <Link href="/" className="flex items-center">
-                <LangfuseLogo />
+                <LangfuseLogo
+                  logoLightModeHref={uiCustomization?.logoLightModeHref}
+                  logoDarkModeHref={uiCustomization?.logoDarkModeHref}
+                />
               </Link>
               <VersionLabel className="ml-2 group-data-[collapsible=icon]:hidden" />
             </div>
