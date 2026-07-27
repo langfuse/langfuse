@@ -20,6 +20,7 @@ import {
   prepareOutlierSeries,
   rowsToOutlierBins,
   type OutlierQueryRow,
+  type OutlierStripLatencyAgg,
   type OutlierStripMetricKey,
 } from "./lib/binning";
 
@@ -112,6 +113,15 @@ export function EventsOutlierStrip({
     "events-outlier-strip-mode",
     "cost",
   );
+  // Latency-only: which per-bucket aggregate to plot (Max's ask — the label
+  // must say whether a bar is max, p95, …; cost/tokens are always max).
+  const [latencyAggStored, setLatencyAgg] =
+    useLocalStorage<OutlierStripLatencyAgg>(
+      "events-outlier-strip-latency-agg",
+      "max",
+    );
+  const latencyAgg: OutlierStripLatencyAgg =
+    latencyAggStored === "p95" ? "p95" : "max";
   const fromMs = fromTimestamp.getTime();
   const toMs = toTimestamp.getTime();
   const validRange = fromMs < toMs;
@@ -154,6 +164,7 @@ export function EventsOutlierStrip({
         { measure: "count", aggregation: "count" },
         { measure: "totalCost", aggregation: "max" },
         { measure: "latency", aggregation: "max" },
+        { measure: "latency", aggregation: "p95" },
         { measure: "totalTokens", aggregation: "max" },
       ],
       filters,
@@ -194,12 +205,13 @@ export function EventsOutlierStrip({
         prepareOutlierSeries({
           bins,
           metric,
+          latencyAgg,
           fromMs,
           toMs,
           stepSeconds: granularity.stepSeconds,
         }),
       ),
-    [bins, fromMs, toMs, granularity.stepSeconds, mode],
+    [bins, fromMs, toMs, granularity.stepSeconds, mode, latencyAgg],
   );
 
   const handleSelectBucket = (range: { fromMs: number; toMs: number }) => {
@@ -255,24 +267,54 @@ export function EventsOutlierStrip({
             >
               {visibleMetrics.map((metric, slot) => (
                 <div key={slot} className="min-w-0">
-                  {slot === 0 ? (
-                    <div className="flex items-baseline gap-1.5">
-                      <ModeDropdown
-                        value={mode}
-                        options={modeOptions}
-                        onChange={setMode}
-                      />
-                      {mode === "split" && (
-                        <span className="text-muted-foreground font-mono text-[10px] leading-none">
-                          {OUTLIER_STRIP_METRICS[metric].shortLabel}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground block font-mono text-[10px] leading-none">
-                      {OUTLIER_STRIP_METRICS[metric].shortLabel}
-                    </span>
-                  )}
+                  <div className="flex items-baseline gap-1.5">
+                    {slot === 0 ? (
+                      <>
+                        <ModeDropdown
+                          value={mode}
+                          options={modeOptions}
+                          onChange={setMode}
+                        />
+                        {mode === "split" && (
+                          <span className="text-muted-foreground font-mono text-[10px] leading-none">
+                            {OUTLIER_STRIP_METRICS[metric].shortLabel}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground font-mono text-[10px] leading-none">
+                        {OUTLIER_STRIP_METRICS[metric].shortLabel}
+                      </span>
+                    )}
+                    {/* The bar's aggregate must be legible (max vs p95, …);
+                        latency offers the choice, cost/tokens are max. */}
+                    {metric === "latency" ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          aria-label={`Latency aggregation: ${latencyAgg}`}
+                          className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 font-mono text-[10px] leading-none"
+                        >
+                          · {latencyAgg}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {(["max", "p95"] as const).map((agg) => (
+                            <DropdownMenuItem
+                              key={agg}
+                              onClick={() => setLatencyAgg(agg)}
+                              className="font-mono text-xs"
+                            >
+                              {agg}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="text-muted-foreground/70 font-mono text-[10px] leading-none">
+                        · max
+                      </span>
+                    )}
+                  </div>
                   <OutlierBarStrip
                     className="mt-1"
                     dense={series[slot].dense}

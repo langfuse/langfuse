@@ -58,6 +58,7 @@ describe("rowsToOutlierBins", () => {
         count_count: "2",
         max_totalCost: "0.5",
         max_latency: "1500",
+        p95_latency: "1000",
         max_totalTokens: "300",
       },
       // ClickHouse WITH FILL filler: count 0, nullable measures null, but the
@@ -77,6 +78,7 @@ describe("rowsToOutlierBins", () => {
       count: 2,
       maxTotalCost: 0.5,
       maxLatencySeconds: 1.5, // ms → s
+      p95LatencySeconds: 1,
       maxTotalTokens: 300,
     });
   });
@@ -91,6 +93,7 @@ describe("prepareOutlierSeries", () => {
     count: value === null ? 0 : 1,
     maxTotalCost: value,
     maxLatencySeconds: value,
+    p95LatencySeconds: value === null ? null : value * 0.5,
     maxTotalTokens: value,
   });
 
@@ -143,6 +146,21 @@ describe("prepareOutlierSeries", () => {
     });
 
     expect(dense).toHaveLength(2);
+  });
+
+  it("plots the p95 latency series when latencyAgg is p95", () => {
+    const step = 60;
+    const t0 = Math.floor(Date.UTC(2025, 2, 10, 10, 0, 0) / 60000) * 60000;
+    const { dense } = prepareOutlierSeries({
+      bins: [bin(t0, 8)], // helper sets p95 = 0.5 × max
+      metric: "latency",
+      latencyAgg: "p95",
+      fromMs: t0,
+      toMs: t0 + 60_000,
+      stepSeconds: step,
+    });
+
+    expect(dense[0].value).toBe(4);
   });
 
   it("aligns the grid to the epoch, not to `from`", () => {

@@ -70,6 +70,8 @@ export function makeFixtureBins(params: {
         params.profile === "noMetricData" ? null : 0.02 * base * outlier,
       maxLatencySeconds:
         params.profile === "noMetricData" ? null : 2 * base * outlier,
+      p95LatencySeconds:
+        params.profile === "noMetricData" ? null : 2 * base * outlier * 0.6,
       maxTotalTokens:
         params.profile === "noMetricData"
           ? null

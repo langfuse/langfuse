@@ -2212,20 +2212,6 @@ export default function ObservationsEventsTable({
           </div>
         )}
 
-        {/* Outlier strip (LFE-14451): always-on band under the search bar,
-            spanning the full view (facet sidebar included, unlike the table).
-            Collapses to a slim bar; hidden in full chart mode. */}
-        {outlierStripEnabled && chartViewMode !== "chart" && !pulseClosed && (
-          <EventsOutlierStrip
-            projectId={projectId}
-            filterState={filterState}
-            fromTimestamp={chartTimeWindow.from}
-            toTimestamp={chartTimeWindow.to}
-            onSelectRange={setTimeRangeTransient}
-            onClose={() => setPulseClosed(true)}
-          />
-        )}
-
         {/* Content area with sidebar and table. The facet sidebar stays in
             search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
@@ -2250,6 +2236,20 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
+            {/* Pulse strip (LFE-14451): table-width, so the facet sidebar keeps
+                its full height (design feedback); hidden in full chart mode. */}
+            {outlierStripEnabled &&
+              chartViewMode !== "chart" &&
+              !pulseClosed && (
+                <EventsOutlierStrip
+                  projectId={projectId}
+                  filterState={filterState}
+                  fromTimestamp={chartTimeWindow.from}
+                  toTimestamp={chartTimeWindow.to}
+                  onSelectRange={setTimeRangeTransient}
+                  onClose={() => setPulseClosed(true)}
+                />
+              )}
             {chartEnabled && chartViewMode === "chart" ? (
               <EventsChartView
                 projectId={projectId}

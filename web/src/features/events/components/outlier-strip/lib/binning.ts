@@ -105,6 +105,7 @@ export type OutlierStripBin = {
   count: number;
   maxTotalCost: number | null;
   maxLatencySeconds: number | null;
+  p95LatencySeconds: number | null;
   maxTotalTokens: number | null;
 };
 
@@ -117,6 +118,9 @@ export type OutlierStripDenseBin = {
 };
 
 export type OutlierStripMetricKey = "cost" | "latency" | "tokens";
+
+/** Which per-bucket latency aggregate the chart plots (cost/tokens are max). */
+export type OutlierStripLatencyAgg = "max" | "p95";
 
 export const OUTLIER_STRIP_METRICS: Record<
   OutlierStripMetricKey,
@@ -154,6 +158,7 @@ export type OutlierQueryRow = {
   count_count?: unknown;
   max_totalCost?: unknown;
   max_latency?: unknown;
+  p95_latency?: unknown;
   max_totalTokens?: unknown;
 };
 
@@ -175,12 +180,14 @@ export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
     const count = Number(row.count_count ?? 0);
     if (!bucketStart || count === 0) return [];
     const latencyMs = toNumberOrNull(row.max_latency);
+    const p95Ms = toNumberOrNull(row.p95_latency);
     return [
       {
         bucketStart,
         count,
         maxTotalCost: toNumberOrNull(row.max_totalCost),
         maxLatencySeconds: latencyMs === null ? null : latencyMs / 1000,
+        p95LatencySeconds: p95Ms === null ? null : p95Ms / 1000,
         maxTotalTokens: toNumberOrNull(row.max_totalTokens),
       },
     ];
@@ -196,6 +203,8 @@ export const rowsToOutlierBins = (rows: OutlierQueryRow[]): OutlierStripBin[] =>
 export function prepareOutlierSeries(params: {
   bins: OutlierStripBin[];
   metric: OutlierStripMetricKey;
+  /** Latency-only aggregate choice; ignored by cost/tokens. Default "max". */
+  latencyAgg?: OutlierStripLatencyAgg;
   fromMs: number;
   toMs: number;
   stepSeconds: number;
@@ -206,6 +215,10 @@ export function prepareOutlierSeries(params: {
 } {
   const stepMs = params.stepSeconds * 1000;
   const metric = OUTLIER_STRIP_METRICS[params.metric];
+  const valueOf = (bin: OutlierStripBin): number | null =>
+    params.metric === "latency" && params.latencyAgg === "p95"
+      ? bin.p95LatencySeconds
+      : metric.valueOf(bin);
 
   const byBucketMs = new Map<number, OutlierStripBin>();
   for (const bin of params.bins) {
@@ -232,7 +245,7 @@ export function prepareOutlierSeries(params: {
     bucketMs += stepMs
   ) {
     const bin = byBucketMs.get(bucketMs);
-    const value = bin ? metric.valueOf(bin) : null;
+    const value = bin ? valueOf(bin) : null;
     if (value !== null && value > maxValue) maxValue = value;
     dense.push({
       bucketStartMs: bucketMs,
