@@ -75,7 +75,7 @@ const config: StorybookConfig = {
     getAbsolutePath("@storybook/addon-vitest"),
   ],
   framework: getAbsolutePath("@storybook/nextjs-vite"),
-  staticDirs: ["../public"],
+  staticDirs: ["../public", "./public"],
   // Resolve `@langfuse/shared` to its TypeScript source, mirroring the app's
   // own alias (next.config.mjs: webpack alias + turbopack.resolveAlias both map
   // "@langfuse/shared" -> "./packages/shared/src"). The package's published
