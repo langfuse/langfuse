@@ -1,6 +1,5 @@
 import { type ZodType } from "zod";
 
-import { ProxyAgent } from "undici";
 import {
   Output,
   generateText,
@@ -286,9 +285,6 @@ async function prepareLLMTextCall<
     options.connection.extraHeaders,
   );
 
-  const proxyDispatcher = env.HTTPS_PROXY
-    ? new ProxyAgent(env.HTTPS_PROXY)
-    : undefined;
   const createFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
@@ -301,7 +297,6 @@ async function prepareLLMTextCall<
       additionalSensitiveHeaders: (additionalSensitiveHeaders ?? []).concat(
         Object.keys(extraHeaders ?? {}),
       ),
-      dispatcher: proxyDispatcher,
     });
 
   const languageModel = await buildAiSdkModel({
