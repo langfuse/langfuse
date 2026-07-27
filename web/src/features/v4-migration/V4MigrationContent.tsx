@@ -35,7 +35,10 @@ import {
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { useProject } from "@/src/features/projects/hooks";
-import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
+import {
+  useEvalUpgradeAssistantPlan,
+  V4_CODING_AGENT_PROMPT,
+} from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.
@@ -56,12 +59,6 @@ const DEPRECATED_INTEGRATION_MIGRATION_URLS: Record<string, string> = {
     "https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage#upgrade-path",
 };
 
-const CODING_AGENT_PROMPT = `Migrate this project's Langfuse setup to v4:
-1. Upgrade the Langfuse SDK to the latest major version. Upgrade guide: ${SDK_UPGRADE_URL}
-2. Repoint evals that target trace input/output to observations instead.
-3. Replace calls to deprecated APIs (GET /api/public/traces, GET /api/public/sessions, GET /api/public/metrics) with their v4 replacements.
-Docs: ${V4_DOCS_URL}`;
-
 // Copies the agent migration prompt to the clipboard with toast + analytics;
 // shared by the panel/modal header CTA and the status page.
 export function useCopyMigrationPrompt() {
@@ -69,7 +66,7 @@ export function useCopyMigrationPrompt() {
 
   return async () => {
     capture("v4_migration:coding_agent_prompt_copied");
-    await navigator.clipboard.writeText(CODING_AGENT_PROMPT);
+    await navigator.clipboard.writeText(V4_CODING_AGENT_PROMPT);
     showSuccessToast({
       title: "Prompt copied",
       description: "Paste it into Cursor, Codex, or another coding agent.",
@@ -438,13 +435,15 @@ export function V4MigrationDetailsContent({
                   </span>
                   . Repointing {migrationData.evals.count === 1 ? "it" : "them"}{" "}
                   at observations or experiments requires minimal changes
-                  {upgradePlan.assistantCanUpgrade
-                    ? " — the assistant can do it for you"
+                  {upgradePlan.showAssistantButton
+                    ? upgradePlan.mode === "evals-ready"
+                      ? " — the assistant can do it for you"
+                      : " — the assistant can help you choose the upgrade order"
                     : ""}
                   .
                 </p>
                 <div className="flex items-center gap-3">
-                  {upgradePlan.assistantCanUpgrade && (
+                  {upgradePlan.showAssistantButton && (
                     <Button
                       variant="outline"
                       size="sm"
