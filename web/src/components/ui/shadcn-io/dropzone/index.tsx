@@ -135,52 +135,54 @@ export const Dropzone = ({
       {...getRootProps()}
     >
       <input {...getInputProps()} disabled={disabled} />
-      {variant === "compact" ? (
+      {variant === "compact" && (
         <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
           <PaperclipIcon className="h-4 w-4" />
           <span className="truncate" title={contentText}>
             {contentText}
           </span>
         </div>
-      ) : src ? (
-        <div className="flex flex-col items-center justify-center">
-          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-            <UploadIcon size={16} />
-          </div>
-          <p
-            className="my-2 w-full truncate text-sm font-bold"
-            title={contentText}
-          >
-            {contentText}
-          </p>
-          <p className="text-muted-foreground w-full text-xs text-wrap">
-            Drag and drop or click to replace
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center">
-          <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
-            <UploadIcon size={16} />
-          </div>
-          <p
-            className="my-2 w-full truncate text-sm font-bold text-wrap"
-            title={emptyStateTitle}
-          >
-            {emptyStateTitle}
-          </p>
-          <p
-            className="text-muted-foreground w-full truncate text-xs text-wrap"
-            title={emptyStateDescription}
-          >
-            {emptyStateDescription}
-          </p>
-          {caption && (
-            <p className="text-muted-foreground text-xs text-wrap">
-              {caption}.
-            </p>
-          )}
-        </div>
       )}
+      {variant === "panel" &&
+        (src ? (
+          <div className="flex flex-col items-center justify-center">
+            <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+              <UploadIcon size={16} />
+            </div>
+            <p
+              className="my-2 w-full truncate text-sm font-bold"
+              title={contentText}
+            >
+              {contentText}
+            </p>
+            <p className="text-muted-foreground w-full text-xs text-wrap">
+              Drag and drop or click to replace
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center">
+            <div className="bg-muted text-muted-foreground flex size-8 items-center justify-center rounded-md">
+              <UploadIcon size={16} />
+            </div>
+            <p
+              className="my-2 w-full truncate text-sm font-bold text-wrap"
+              title={emptyStateTitle}
+            >
+              {emptyStateTitle}
+            </p>
+            <p
+              className="text-muted-foreground w-full truncate text-xs text-wrap"
+              title={emptyStateDescription}
+            >
+              {emptyStateDescription}
+            </p>
+            {caption && (
+              <p className="text-muted-foreground text-xs text-wrap">
+                {caption}.
+              </p>
+            )}
+          </div>
+        ))}
     </button>
   );
 };
