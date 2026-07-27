@@ -378,7 +378,7 @@ export function OutlierBarStrip({
       {/* Tooltip — portals to the overlay tooltip layer so it can escape the
           band's ancestors (overflow clipping, sticky-toolbar stacking) and
           float freely at the cursor's top-right. */}
-      {hovered && hoveredHasData && mouse && (
+      {hovered && mouse && (
         <Layer name="tooltip">
           <div
             className="bg-popover text-popover-foreground pointer-events-none fixed rounded border px-1.5 py-1 font-mono text-[10px] leading-tight whitespace-nowrap shadow-sm"
@@ -404,7 +404,9 @@ export function OutlierBarStrip({
             <div className="font-bold">
               {hovered.value !== null
                 ? metricSpec.format(hovered.value)
-                : "no data"}
+                : hovered.count > 0
+                  ? "no data"
+                  : metricSpec.format(0)}
               <span className="text-muted-foreground ml-1.5 font-normal">
                 · {hovered.count} events
               </span>
