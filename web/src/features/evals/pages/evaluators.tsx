@@ -15,6 +15,7 @@ import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnbo
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { EvaluatorGalleryDialog } from "@/src/features/evals/v2/components/EvaluatorGalleryDialog";
 import { V4MigrationModal } from "@/src/features/v4-migration/V4MigrationModal";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
@@ -95,6 +96,7 @@ export default function EvaluatorsPage() {
       <Page
         headerProps={{
           title: "Evaluators",
+          titleBadges: <V4MigrationUpdateRequiredBadge />,
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",

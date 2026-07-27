@@ -1029,6 +1029,9 @@ jobs:
         e2e-server-tests,
       ]
     if: always()
+    permissions:
+      contents: read
+      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
@@ -1280,7 +1283,20 @@ jobs:
             exit 1
           fi
 
-          docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"
+          # Manifest publish occasionally times out on a transient runner/registry
+          # hiccup (e.g. the Blacksmith deadline_exceeded incident during the
+          # v3.223 release, see #lf-team-engineering) even though the underlying
+          # per-platform images already pushed fine. Retry before failing the job.
+          attempt=1
+          until docker buildx imagetools create "${ghcr_tags[@]}" "${ghcr_sources[@]}"; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Publishing GHCR manifest failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: Publish multi-platform manifest to Docker Hub
         env:
           STEPS_META_DOCKERHUB_OUTPUTS_TAGS: ${{ steps.meta-dockerhub.outputs.tags }}
@@ -1308,7 +1324,18 @@ jobs:
             exit 1
           fi
 
-          docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"
+          # See the retry comment on the GHCR manifest publish step above — this
+          # is the exact step that timed out twice during the v3.223 release.
+          attempt=1
+          until docker buildx imagetools create "${dockerhub_tags[@]}" "${dockerhub_sources[@]}"; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "Publishing Docker Hub manifest failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "Attempt $attempt failed, retrying in $((attempt * 15))s..." >&2
+            sleep $((attempt * 15))
+            attempt=$((attempt + 1))
+          done
       - name: Inspect published manifests
         run: |
           ghcr_first_tag="$(printf '%s\n' "${STEPS_META_GHCR_OUTPUTS_TAGS}" | sed -n '1p')"
@@ -1326,6 +1353,9 @@ jobs:
       - publish-docker-image-release
     if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Fail when a release image job failed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
