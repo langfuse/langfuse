@@ -291,7 +291,6 @@ export function EvaluatorSetupForm({
   // evaluator-definition baseline here so only left-pane changes enable Save.
   const [initialScoreName] = useState(() => scoreName);
   const [initialDescription] = useState(() => description);
-  const [typeStepOpen, setTypeStepOpen] = useState(true);
   const [definitionStepOpen, setDefinitionStepOpen] = useState(true);
   const [mappingStepOpen, setMappingStepOpen] = useState(mode === "create");
   const [metadataStepOpen, setMetadataStepOpen] = useState(false);
@@ -1116,10 +1115,14 @@ export function EvaluatorSetupForm({
           <div className="flex min-w-0 flex-col gap-3 p-6">
             <SetupStep
               number={1}
-              title="Choose evaluation type"
-              description="Choose how this evaluator produces scores and which model runs it."
-              open={typeStepOpen}
-              onOpenChange={setTypeStepOpen}
+              title="Define evaluation"
+              description={
+                isCodeMode
+                  ? "Choose how this evaluator runs and define the function that calculates the score."
+                  : "Choose the judge model, write its instructions, and define the score it returns."
+              }
+              open={definitionStepOpen}
+              onOpenChange={setDefinitionStepOpen}
             >
               <div className="flex flex-col gap-2">
                 <LabelWithTooltip tooltip="How scores are produced: an LLM judging with a prompt, or your own Python or TypeScript code.">
@@ -1205,19 +1208,6 @@ export function EvaluatorSetupForm({
                   )}
                 </div>
               </div>
-            </SetupStep>
-
-            <SetupStep
-              number={2}
-              title="Define evaluation"
-              description={
-                isCodeMode
-                  ? "Define the function that calculates the score."
-                  : "Write the judging instructions and define the score returned by the model."
-              }
-              open={definitionStepOpen}
-              onOpenChange={setDefinitionStepOpen}
-            >
               {isCodeMode ? (
                 <div className="flex flex-col gap-2">
                   <LabelWithTooltip tooltip="Computes the score for each matching item — it receives the data and returns a value. Test it against the sample in the right pane.">
@@ -1235,6 +1225,17 @@ export function EvaluatorSetupForm({
                     validationResult={null}
                     hideLanguageLabel
                     hideFunctionContractHint
+                  />
+                  <CodeSampleContextDrawer
+                    open={codeSampleDrawerOpen}
+                    onOpenChange={setCodeSampleDrawerOpen}
+                    sampleObservation={sourceObject}
+                    sampleLabel={
+                      selectedObservation
+                        ? (selectedObservation.name ?? selectedObservation.id)
+                        : null
+                    }
+                    language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
                   />
                   <CodeEvalFunctionContractHint />
                 </div>
@@ -1277,26 +1278,14 @@ export function EvaluatorSetupForm({
               )}
             </SetupStep>
 
-            <SetupStep
-              number={3}
-              title="Map variables to data"
-              description="Connect evaluator variables to fields from the selected sample observation."
-              open={mappingStepOpen}
-              onOpenChange={setMappingStepOpen}
-            >
-              {isCodeMode ? (
-                <CodeSampleContextDrawer
-                  open={codeSampleDrawerOpen}
-                  onOpenChange={setCodeSampleDrawerOpen}
-                  sampleObservation={sourceObject}
-                  sampleLabel={
-                    selectedObservation
-                      ? (selectedObservation.name ?? selectedObservation.id)
-                      : null
-                  }
-                  language={tab === "python" ? "PYTHON" : "TYPESCRIPT"}
-                />
-              ) : (
+            {!isCodeMode ? (
+              <SetupStep
+                number={2}
+                title="Map variables to data"
+                description="Connect evaluator variables to fields from the selected sample observation."
+                open={mappingStepOpen}
+                onOpenChange={setMappingStepOpen}
+              >
                 <VariableMappingList
                   overview={variableOverview}
                   activeVariable={activeVariable}
@@ -1313,11 +1302,11 @@ export function EvaluatorSetupForm({
                   sourceObject={sourceObject}
                   hasMatchingObservations={observationOptions.length > 0}
                 />
-              )}
-            </SetupStep>
+              </SetupStep>
+            ) : null}
 
             <SetupStep
-              number={4}
+              number={isCodeMode ? 2 : 3}
               title="Name evaluator"
               description="Give the evaluator a clear name and explain when it should be used."
               isLast
@@ -1590,7 +1579,9 @@ export function EvaluatorSetupForm({
 
       {/* Standard trace peek: opened from "Sample trace" / "Execution
           trace" in the test result surfaces. */}
-      <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+      {ruleEditorExpanded ? (
+        <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+      ) : null}
 
       {/* Fixed action bar: cancel abandons setup; save persists the evaluator
           before the optional live-data activation flow. */}

@@ -1,13 +1,21 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
   closePeek: vi.fn(),
   openPeek: vi.fn(),
-  peekView: vi.fn(),
   push: vi.fn(),
   replace: vi.fn(),
   routerQuery: {} as Record<string, string>,
+  configByIdInvalidate: vi.fn(),
+  editView: vi.fn(),
+}));
+
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => ({
+    openPeek: mocks.openPeek,
+    closePeek: mocks.closePeek,
+  }),
 }));
 
 vi.mock("next/router", () => ({
@@ -34,32 +42,9 @@ vi.mock("@/src/components/layouts/page", () => ({
   ),
 }));
 
-vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
-  usePeekNavigation: () => ({
-    openPeek: mocks.openPeek,
-    closePeek: mocks.closePeek,
-  }),
-}));
-
 vi.mock(
   "@/src/features/evals/v2/components/EvaluatorConfigurationView",
   () => ({
-    EvaluatorConfigurationView: ({
-      onViewEvaluationRule,
-      onEditEvaluationRule,
-    }: {
-      onViewEvaluationRule: (ruleId: string) => void;
-      onEditEvaluationRule: (ruleId: string) => void;
-    }) => (
-      <>
-        <button type="button" onClick={() => onViewEvaluationRule("rule-1")}>
-          View evaluation rule
-        </button>
-        <button type="button" onClick={() => onEditEvaluationRule("rule-1")}>
-          Edit evaluation rule
-        </button>
-      </>
-    ),
     EvaluatorDefinitionView: ({
       sourceCode,
       prompt,
@@ -70,25 +55,72 @@ vi.mock(
   }),
 );
 
-vi.mock("@/src/features/evals/v2/components/EvaluationRulePeekView", () => ({
-  TablePeekViewEvaluationRuleDetail: (props: unknown) => {
-    mocks.peekView(props);
-    return <div data-testid="evaluation rule-peek" />;
-  },
-}));
-
 vi.mock("@/src/features/evals/v2/components/ActivateEvaluatorDialog", () => ({
   ActivateEvaluatorDialog: () => null,
 }));
-vi.mock("@/src/features/evals/v2/components/EvaluatorEditView", () => ({
-  EvaluatorEditView: ({ onCancel }: { onCancel: () => void }) => (
-    <button type="button" onClick={onCancel}>
-      Cancel evaluator edit
-    </button>
-  ),
+vi.mock("@/src/features/evals/v2/components/EvaluationRulePeekView", () => ({
+  TablePeekViewEvaluationRuleDetail: () => <div>Rule editor</div>,
 }));
-vi.mock("@/src/features/evals/v2/components/EvaluatorTitleEditor", () => ({
-  EvaluatorTitleEditor: () => null,
+vi.mock(
+  "@/src/features/evals/v2/components/CreateEvaluationRuleDialog",
+  () => ({
+    CreateEvaluationRuleDialog: ({
+      open,
+      initialEvaluatorIds,
+    }: {
+      open: boolean;
+      initialEvaluatorIds?: string[];
+    }) =>
+      open ? (
+        <div>
+          New rule modal with evaluator {initialEvaluatorIds?.join(",")}
+        </div>
+      ) : null,
+  }),
+);
+vi.mock("@/src/features/evals/v2/components/EvaluatorEditView", () => ({
+  EvaluatorEditView: ({
+    onCancel,
+    ruleEditorExpanded,
+    initialEvaluationRuleId,
+  }: {
+    onCancel: () => void;
+    ruleEditorExpanded: boolean;
+    initialEvaluationRuleId?: string;
+  }) => {
+    const [initializedRuleId] = useState(initialEvaluationRuleId ?? "default");
+    mocks.editView({ ruleEditorExpanded });
+    return (
+      <>
+        <span>Initialized rule: {initializedRuleId}</span>
+        <button type="button" onClick={onCancel}>
+          Cancel evaluator edit
+        </button>
+      </>
+    );
+  },
+}));
+vi.mock("@/src/features/evals/v2/components/EvaluatorRuleAssignments", () => ({
+  EvaluatorRuleAssignments: ({
+    rules,
+    onView,
+    onCreateRule,
+  }: {
+    rules: Array<{ id: string; name: string }>;
+    onView: (ruleId: string) => void;
+    onCreateRule: () => void;
+  }) => (
+    <div>
+      {rules.map((rule) => (
+        <button key={rule.id} type="button" onClick={() => onView(rule.id)}>
+          {rule.name}
+        </button>
+      ))}
+      <button type="button" onClick={onCreateRule}>
+        Create new rule
+      </button>
+    </div>
+  ),
 }));
 vi.mock("@/src/components/ui/confirm-dialog", () => ({
   ConfirmDialog: () => null,
@@ -118,7 +150,10 @@ vi.mock("@/src/utils/trpcErrorToast", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
-      evals: { invalidate: vi.fn() },
+      evals: {
+        invalidate: vi.fn(),
+        configById: { invalidate: mocks.configByIdInvalidate },
+      },
       evalsV2: { invalidate: vi.fn() },
     }),
     evals: {
@@ -200,6 +235,11 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: null }),
       },
     },
+    annotationQueues: {
+      allNamesAndIds: {
+        useQuery: vi.fn(),
+      },
+    },
   },
 }));
 
@@ -217,9 +257,13 @@ describe("EvaluatorDetailPage", () => {
     });
     mocks.push.mockResolvedValue(true);
     mocks.replace.mockResolvedValue(true);
+    mocks.configByIdInvalidate.mockResolvedValue(undefined);
+    mocks.openPeek.mockImplementation(() => {
+      mocks.routerQuery.editRule = "1";
+    });
   });
 
-  it("reserves the shared peek parameter for traces while editing", () => {
+  it("returns to the evaluator overview when editing is cancelled", () => {
     Object.assign(mocks.routerQuery, {
       edit: "1",
       peek: "trace-1",
@@ -231,53 +275,51 @@ describe("EvaluatorDetailPage", () => {
 
     render(<EvaluatorDetailPage />);
 
-    expect(
-      screen.queryByTestId("evaluation rule-peek"),
-    ).not.toBeInTheDocument();
-
     fireEvent.click(
       screen.getByRole("button", { name: "Cancel evaluator edit" }),
     );
-    expect(mocks.replace).toHaveBeenCalledWith(
-      {
-        pathname: "/project/[projectId]/evals/v2/[evaluatorId]",
-        query: {
-          projectId: "project-1",
-          evaluatorId: "evaluator-1",
-        },
-      },
-      undefined,
-      { shallow: true },
-    );
+    expect(mocks.replace).toHaveBeenCalledWith("/project/project-1/evals/v2");
   });
 
-  it("opens an attached evaluation rule in edit mode without leaving the evaluator", () => {
+  it("shows attached rules and opens a selected rule without leaving the draft", () => {
     render(<EvaluatorDetailPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Edit evaluation rule" }),
-    );
+    const rulesButton = screen.getByRole("button", { name: "Rules 1" });
+    expect(rulesButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(rulesButton);
+    expect(screen.getByRole("heading", { name: "Rules" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Production" }));
 
     expect(mocks.openPeek).toHaveBeenCalledWith("rule-1", { openEdit: true });
-    expect(mocks.peekView).toHaveBeenCalledWith(
-      expect.objectContaining({
-        itemType: "EVALUATION_RULE",
-        projectId: "project-1",
-        closePeek: mocks.closePeek,
-      }),
-    );
     expect(mocks.push).not.toHaveBeenCalled();
+    expect(screen.getByText("Rule editor")).toBeVisible();
+    expect(mocks.editView).toHaveBeenLastCalledWith({
+      ruleEditorExpanded: false,
+    });
   });
 
-  it("opens an evaluation rule in view mode without leaving the evaluator", () => {
+  it("prefills this evaluator when creating a rule from the rules panel", () => {
     render(<EvaluatorDetailPage />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "View evaluation rule" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Rules 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create new rule" }));
 
-    expect(mocks.openPeek).toHaveBeenCalledWith("rule-1");
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("New rule modal with evaluator evaluator-1"),
+    ).toBeVisible();
+    expect(mocks.editView).toHaveBeenLastCalledWith({
+      ruleEditorExpanded: false,
+    });
+  });
+
+  it("reinitializes the evaluator with filters from a linked rule", () => {
+    const { rerender } = render(<EvaluatorDetailPage />);
+    expect(screen.getByText("Initialized rule: default")).toBeVisible();
+
+    mocks.routerQuery.ruleId = "rule-1";
+    rerender(<EvaluatorDetailPage />);
+
+    expect(screen.getByText("Initialized rule: rule-1")).toBeVisible();
   });
 
   it("opens a saved evaluator version from the version history", () => {

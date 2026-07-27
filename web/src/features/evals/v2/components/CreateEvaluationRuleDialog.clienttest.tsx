@@ -475,6 +475,56 @@ describe("CreateEvaluationRuleDialog", () => {
     await waitFor(() => expect(mocks.getEvaluator).toHaveBeenCalledOnce());
   });
 
+  it("can create the rule after evaluator validation fails", async () => {
+    mocks.getSample.mockResolvedValue({
+      observations: [
+        {
+          id: "observation-1",
+          traceId: "trace-1",
+          startTime: new Date("2026-07-20T12:00:00.000Z"),
+          input: null,
+        },
+      ],
+    });
+
+    render(
+      <TooltipProvider>
+        <CreateEvaluationRuleDialog
+          projectId="project-1"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Attach evaluator" }));
+    fireEvent.click(screen.getByText("Correctness"));
+    const nameInput = await screen.findByLabelText("Name");
+    fireEvent.change(nameInput, {
+      target: { value: "Production observations" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Create rule anyway" }),
+    ).toBeInTheDocument();
+    expect(mocks.createRule).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create rule anyway" }));
+
+    await waitFor(() =>
+      expect(mocks.createRule).toHaveBeenCalledWith({
+        projectId: "project-1",
+        name: "Production observations",
+        targetObject: "event",
+        filter: mocks.defaultFilters,
+        sampling: 1,
+        enabled: true,
+        evaluatorIds: ["evaluator-1"],
+      }),
+    );
+  });
+
   it("opens a matching observation's trace without discarding the rule draft", () => {
     render(
       <TooltipProvider>

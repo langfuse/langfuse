@@ -483,7 +483,7 @@ After validating the backfill and confirming all web and worker containers under
 
 ## Self-hoster experience
 
-For self-hosters we can't guaruantee that they don't jump releases.
+For self-hosters we can't guarantee that they don't jump releases.
 This means there is an inevitable gap between completed migration and new containers running.
 
 Options:

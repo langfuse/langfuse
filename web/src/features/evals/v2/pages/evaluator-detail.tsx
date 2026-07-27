@@ -1,8 +1,16 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { ArrowLeft, History, MoreVertical, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  History,
+  ListTree,
+  MoreVertical,
+  Trash2,
+} from "lucide-react";
 
 import Page from "@/src/components/layouts/page";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import {
@@ -25,6 +33,8 @@ import { ActivateEvaluatorDialog } from "@/src/features/evals/v2/components/Acti
 import { CreateEvaluationRuleDialog } from "@/src/features/evals/v2/components/CreateEvaluationRuleDialog";
 import { EvaluatorDefinitionView } from "@/src/features/evals/v2/components/EvaluatorConfigurationView";
 import { EvaluatorEditView } from "@/src/features/evals/v2/components/EvaluatorEditView";
+import { EvaluatorRuleAssignments } from "@/src/features/evals/v2/components/EvaluatorRuleAssignments";
+import { TablePeekViewEvaluationRuleDetail } from "@/src/features/evals/v2/components/EvaluationRulePeekView";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -32,11 +42,22 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { observationVariableMappingList, singleFilter } from "@langfuse/shared";
 import { z } from "zod";
 
+const EVALUATION_RULE_PEEK_CONFIG = {
+  queryParams: ["editRule", "peekView", "observation", "display", "timestamp"],
+  extractParamsValuesFromRow: (row: {
+    openEdit?: boolean;
+  }): Record<string, string> => (row.openEdit ? { editRule: "1" } : {}),
+};
+
 export default function EvaluatorDetailPage() {
   const router = useRouter();
+  const evaluationRulePeekNavigation = usePeekNavigation(
+    EVALUATION_RULE_PEEK_CONFIG,
+  );
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluatorId as string;
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(
     null,
   );
@@ -115,6 +136,10 @@ export default function EvaluatorDetailPage() {
   const redirectToEvaluatorOverview = () => {
     router.replace(`/project/${projectId}/evals/v2`).catch(() => undefined);
   };
+  const openEvaluationRule = (ruleId: string) => {
+    setRulesOpen(false);
+    evaluationRulePeekNavigation.openPeek(ruleId, { openEdit: true });
+  };
   if (evaluator.isPending) {
     return (
       <Page
@@ -171,6 +196,20 @@ export default function EvaluatorDetailPage() {
             <Button
               type="button"
               variant="outline"
+              size="sm"
+              className="h-8"
+              aria-expanded={rulesOpen}
+              onClick={() => setRulesOpen(true)}
+            >
+              <ListTree className="mr-1.5 h-3.5 w-3.5" />
+              Rules
+              <Badge variant="secondary" size="sm" className="ml-1.5">
+                {data.ruleAssignments.length}
+              </Badge>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               size="icon"
               className="h-8 w-8"
               aria-label="Show evaluator versions"
@@ -209,7 +248,7 @@ export default function EvaluatorDetailPage() {
     >
       <div className="flex h-full min-h-0 flex-col">
         <EvaluatorEditView
-          key={`${data.id}-${formResetKey}`}
+          key={`${data.id}-${initialEvaluationRuleId ?? "default"}-${formResetKey}`}
           projectId={projectId}
           evaluatorId={data.id}
           sourceTemplate={template}
@@ -218,11 +257,21 @@ export default function EvaluatorDetailPage() {
           description={data.description ?? ""}
           attachedRuleIds={data.ruleAssignments.map(({ rule }) => rule.id)}
           initialEvaluationRuleId={initialEvaluationRuleId}
-          ruleEditorExpanded={!createRuleDialogOpen}
+          ruleEditorExpanded={
+            !createRuleDialogOpen && router.query.editRule !== "1"
+          }
           onSaved={() => setFormResetKey((key) => key + 1)}
           onCancel={redirectToEvaluatorOverview}
         />
       </div>
+
+      {router.query.editRule === "1" ? (
+        <TablePeekViewEvaluationRuleDetail
+          itemType="EVALUATION_RULE"
+          projectId={projectId}
+          closePeek={evaluationRulePeekNavigation.closePeek}
+        />
+      ) : null}
 
       <ActivateEvaluatorDialog
         projectId={projectId}
@@ -246,6 +295,11 @@ export default function EvaluatorDetailPage() {
           open
           onOpenChange={(open) => {
             setCreateRuleDialogOpen(open);
+            if (!open) {
+              utils.evals.configById
+                .invalidate({ projectId, id: data.id })
+                .catch(() => undefined);
+            }
             if (!open && "estimatedCostUsd" in router.query) {
               const query = { ...router.query };
               delete query.estimatedCostUsd;
@@ -294,6 +348,38 @@ export default function EvaluatorDetailPage() {
           />
         </div>
       </ConfirmDialog>
+
+      <Sheet open={rulesOpen} onOpenChange={setRulesOpen}>
+        <SheetContent className="flex flex-col gap-5 overflow-y-auto sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Rules</SheetTitle>
+            <SheetDescription>
+              {data.ruleAssignments.length === 0
+                ? "Use this evaluator in a rule to run it on incoming production data."
+                : `This evaluator is used by ${data.ruleAssignments.length} ${data.ruleAssignments.length === 1 ? "rule" : "rules"}. Attach it to another rule or remove an existing connection.`}
+            </SheetDescription>
+          </SheetHeader>
+          <EvaluatorRuleAssignments
+            projectId={projectId}
+            evaluatorId={data.id}
+            evaluatorName={data.scoreName}
+            rules={data.ruleAssignments.map(({ rule }) => ({
+              id: rule.id,
+              name: rule.name,
+              filter: z.array(singleFilter).catch([]).parse(rule.filter),
+              enabled: rule.enabled,
+            }))}
+            hasWriteAccess={hasWriteAccess}
+            onView={openEvaluationRule}
+            onCreateRule={() => {
+              setRulesOpen(false);
+              setCreateRuleDialogOpen(true);
+            }}
+            onReviewEvaluator={() => setRulesOpen(false)}
+            showHeading={false}
+          />
+        </SheetContent>
+      </Sheet>
 
       <Sheet
         open={versionHistoryOpen}

@@ -413,6 +413,11 @@ export function TablePeekViewEvaluationRuleDetail({
                 evaluatorId={attachment.issue.evaluatorId}
                 ruleId={attachment.issue.ruleId}
                 issue={attachment.issue}
+                onDismiss={attachment.dismissIssue}
+                onAttachAnyway={() => {
+                  attachment.attachAnyway().catch(() => undefined);
+                }}
+                attaching={attachment.pendingKey !== null}
               />
             ) : null}
             <EvaluationRuleEvaluatorConnections

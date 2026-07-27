@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/src/components/ui/tooltip";
 const mocks = vi.hoisted(() => ({
   detachMutate: vi.fn(),
   attach: vi.fn(),
+  attachAnyway: vi.fn(),
+  dismissIssue: vi.fn(),
   attachmentHook: vi.fn(),
 }));
 
@@ -70,8 +72,11 @@ describe("EvaluatorRuleAssignments", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.attach.mockResolvedValue(true);
+    mocks.attachAnyway.mockResolvedValue(true);
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
+      attachAnyway: mocks.attachAnyway,
+      dismissIssue: mocks.dismissIssue,
       pendingKey: null,
       issue: null,
     });
@@ -98,7 +103,6 @@ describe("EvaluatorRuleAssignments", () => {
 
   it("attaches a selected rule through the shared validation flow", () => {
     const onView = vi.fn();
-    const onEdit = vi.fn();
     render(
       <EvaluatorRuleAssignments
         projectId="project-1"
@@ -120,7 +124,6 @@ describe("EvaluatorRuleAssignments", () => {
         ]}
         hasWriteAccess
         onView={onView}
-        onEdit={onEdit}
       />,
       { wrapper: TooltipProvider },
     );
@@ -156,23 +159,26 @@ describe("EvaluatorRuleAssignments", () => {
       evaluatorName: "Quality",
       evaluationRuleName: "Available rule",
     });
-    expect(onEdit).not.toHaveBeenCalled();
-
     fireEvent.keyDown(
       screen.getByRole("button", { name: "More actions for Attached rule" }),
       { key: "Enter" },
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "View rule" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open rule" }));
     expect(onView).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps validation failures in context with a setup link", () => {
+  it("lets users review, override, or dismiss a failed validation", () => {
+    const onReviewEvaluator = vi.fn();
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
+      attachAnyway: mocks.attachAnyway,
+      dismissIssue: mocks.dismissIssue,
       pendingKey: null,
       issue: {
         evaluatorId: "evaluator-1",
         ruleId: "rule-2",
+        evaluatorName: "Quality",
+        evaluationRuleName: "Available rule",
         outcome: "failed",
         message: "The mapping did not match the sample.",
       },
@@ -186,7 +192,7 @@ describe("EvaluatorRuleAssignments", () => {
         rules={[]}
         hasWriteAccess
         onView={vi.fn()}
-        onEdit={vi.fn()}
+        onReviewEvaluator={onReviewEvaluator}
       />,
       { wrapper: TooltipProvider },
     );
@@ -200,11 +206,26 @@ describe("EvaluatorRuleAssignments", () => {
       "href",
       "/project/project-1/evals/v2/evaluator-1?edit=1&ruleId=rule-2",
     );
+    const reviewLink = screen.getByRole("link", {
+      name: "Review and test evaluator",
+    });
+    reviewLink.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(reviewLink);
+    expect(onReviewEvaluator).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Attach anyway" }));
+    expect(mocks.attachAnyway).toHaveBeenCalledOnce();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss validation warning" }),
+    );
+    expect(mocks.dismissIssue).toHaveBeenCalledOnce();
   });
 
   it("blocks the screen while validation is running", () => {
     mocks.attachmentHook.mockReturnValue({
       attach: mocks.attach,
+      attachAnyway: mocks.attachAnyway,
+      dismissIssue: mocks.dismissIssue,
       pendingKey: "evaluator-1:rule-2",
       issue: null,
     });
@@ -217,7 +238,6 @@ describe("EvaluatorRuleAssignments", () => {
         rules={[]}
         hasWriteAccess
         onView={vi.fn()}
-        onEdit={vi.fn()}
       />,
       { wrapper: TooltipProvider },
     );

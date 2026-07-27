@@ -13,6 +13,13 @@ export type EvaluationRuleAttachmentEntryPoint =
   | "evaluator_detail"
   | "evaluation_rule_detail";
 
+type AttachmentInput = {
+  evaluatorId: string;
+  ruleId: string;
+  evaluatorName: string;
+  evaluationRuleName: string;
+};
+
 export function useValidatedRuleAttachment({
   projectId,
   entryPoint,
@@ -26,23 +33,32 @@ export function useValidatedRuleAttachment({
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [issue, setIssue] = useState<
     | (EvaluationRuleAttachmentValidationIssue & {
-        evaluatorId: string;
-        ruleId: string;
+        evaluatorId: AttachmentInput["evaluatorId"];
+        ruleId: AttachmentInput["ruleId"];
+        evaluatorName: AttachmentInput["evaluatorName"];
+        evaluationRuleName: AttachmentInput["evaluationRuleName"];
       })
     | null
   >(null);
 
-  const attach = async ({
+  const handleAttached = async ({
     evaluatorId,
-    ruleId,
     evaluatorName,
     evaluationRuleName,
-  }: {
-    evaluatorId: string;
-    ruleId: string;
-    evaluatorName: string;
-    evaluationRuleName: string;
-  }) => {
+  }: AttachmentInput) => {
+    setIssue(null);
+    await Promise.all([
+      utils.evals.configById.invalidate({ projectId, id: evaluatorId }),
+      utils.evalsV2.invalidate(),
+    ]);
+    showSuccessToast({
+      title: "Evaluator attached",
+      description: `“${evaluatorName}” is now attached to “${evaluationRuleName}”.`,
+    });
+  };
+
+  const attach = async (input: AttachmentInput) => {
+    const { evaluatorId, ruleId } = input;
     const attachmentKey = `${evaluatorId}:${ruleId}`;
     setPendingKey(attachmentKey);
     setIssue(null);
@@ -87,18 +103,15 @@ export function useValidatedRuleAttachment({
       });
 
       if (!result.attached) {
-        setIssue({ ...result, evaluatorId, ruleId });
+        setIssue({
+          outcome: result.outcome,
+          message: result.message,
+          ...input,
+        });
         return false;
       }
 
-      await Promise.all([
-        utils.evals.configById.invalidate({ projectId, id: evaluatorId }),
-        utils.evalsV2.invalidate(),
-      ]);
-      showSuccessToast({
-        title: "Evaluator attached",
-        description: `“${evaluatorName}” is now attached to “${evaluationRuleName}”.`,
-      });
+      await handleAttached(input);
       return true;
     } catch (error) {
       trpcErrorToast(error);
@@ -108,5 +121,31 @@ export function useValidatedRuleAttachment({
     }
   };
 
-  return { attach, pendingKey, issue };
+  const attachAnyway = async () => {
+    if (!issue) return false;
+    const attachmentKey = `${issue.evaluatorId}:${issue.ruleId}`;
+    setPendingKey(attachmentKey);
+    try {
+      await attachMutation.mutateAsync({
+        projectId,
+        evaluatorId: issue.evaluatorId,
+        ruleId: issue.ruleId,
+      });
+      await handleAttached(issue);
+      return true;
+    } catch (error) {
+      trpcErrorToast(error);
+      return false;
+    } finally {
+      setPendingKey(null);
+    }
+  };
+
+  return {
+    attach,
+    attachAnyway,
+    dismissIssue: () => setIssue(null),
+    pendingKey,
+    issue,
+  };
 }

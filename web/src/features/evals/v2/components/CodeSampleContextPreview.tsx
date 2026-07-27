@@ -163,36 +163,43 @@ export function CodeSampleContextDrawer({
   sampleLabel: string | null;
   language: CodeEvalLanguage;
 }) {
-  const Chevron = open ? ChevronDown : ChevronRight;
+  const hasSampleData = sampleObservation !== null;
+  const expanded = open && hasSampleData;
+  const Chevron = expanded ? ChevronDown : ChevronRight;
 
   return (
     <>
       <button
         type="button"
         className={cn(
-          "bg-primary/5 hover:bg-primary/10 text-muted-foreground hover:text-foreground flex w-full items-center gap-2 border px-3 py-1.5 text-sm",
-          open ? "rounded-t-md" : "rounded-md",
+          "bg-primary/5 hover:bg-primary/10 text-muted-foreground hover:text-foreground disabled:hover:bg-primary/5 disabled:hover:text-muted-foreground flex w-full items-center gap-2 border px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50",
+          expanded ? "rounded-t-md" : "rounded-md",
         )}
         title={
-          open
-            ? "Hide the sample data"
-            : "Show the data your code receives, as the ctx it will be called with"
+          !hasSampleData
+            ? "Pick a sample observation to preview the data your code receives"
+            : expanded
+              ? "Hide the sample data"
+              : "Show the data your code receives, as the ctx it will be called with"
         }
-        onClick={() => onOpenChange(!open)}
+        aria-expanded={expanded}
+        disabled={!hasSampleData}
+        onClick={() => onOpenChange(!expanded)}
       >
         <Chevron className="h-3.5 w-3.5 shrink-0" />
         <span className="font-bold">
-          Sample data <code className="font-mono font-normal">(ctx)</code>
+          Sample data mapping{" "}
+          <code className="font-mono font-normal">(ctx)</code>
         </span>
         {sampleLabel ? (
           <span className="truncate" title={sampleLabel}>
             · {sampleLabel}
           </span>
         ) : (
-          <span>· no sample picked yet</span>
+          <span>· no sample data available</span>
         )}
       </button>
-      {open && (
+      {expanded && (
         <div className="bg-muted/30 max-h-[calc(100dvh-12rem)] overflow-y-auto rounded-b-md border border-t-0 [&_.cm-editor]:bg-transparent [&_.cm-gutters]:bg-transparent">
           {sampleObservation ? (
             <SampleSnippetView

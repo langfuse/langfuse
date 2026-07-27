@@ -1,13 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Eye,
-  Link2,
-  ListTree,
-  MoreVertical,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { Eye, Link2, ListTree, MoreVertical, Trash2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
@@ -42,7 +35,9 @@ export function EvaluatorRuleAssignments({
   rules,
   hasWriteAccess,
   onView,
-  onEdit,
+  onCreateRule,
+  onReviewEvaluator,
+  showHeading = true,
 }: {
   projectId: string;
   evaluatorId: string;
@@ -55,7 +50,9 @@ export function EvaluatorRuleAssignments({
   }>;
   hasWriteAccess: boolean;
   onView: (ruleId: string) => void;
-  onEdit: (ruleId: string) => void;
+  onCreateRule?: () => void;
+  onReviewEvaluator?: () => void;
+  showHeading?: boolean;
 }) {
   const utils = api.useUtils();
   const attachment = useValidatedRuleAttachment({
@@ -108,8 +105,10 @@ export function EvaluatorRuleAssignments({
 
   return (
     <section className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <Label>Rules</Label>
+      <div
+        className={`flex items-center gap-3 ${showHeading ? "justify-between" : "justify-end"}`}
+      >
+        {showHeading ? <Label>Rules</Label> : null}
         <EvaluationRulePicker
           trigger={(open) => (
             <Button
@@ -133,7 +132,13 @@ export function EvaluatorRuleAssignments({
           align="end"
           onOpenChange={setRulePickerOpen}
           onSelectAvailableRule={attachRule}
-          onCreateRule={() => setCreateRuleDialogOpen(true)}
+          onCreateRule={() => {
+            if (onCreateRule) {
+              onCreateRule();
+              return;
+            }
+            setCreateRuleDialogOpen(true);
+          }}
         />
       </div>
 
@@ -196,19 +201,13 @@ export function EvaluatorRuleAssignments({
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onSelect={() => onView(rule.id)}>
                     <Eye className="mr-2 h-4 w-4" />
-                    View rule
+                    Open rule
                   </DropdownMenuItem>
                   {hasWriteAccess ? (
-                    <>
-                      <DropdownMenuItem onSelect={() => onEdit(rule.id)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setRuleToDetach(rule)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Detach
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem onSelect={() => setRuleToDetach(rule)}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Detach
+                    </DropdownMenuItem>
                   ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -227,6 +226,12 @@ export function EvaluatorRuleAssignments({
           evaluatorId={attachment.issue.evaluatorId}
           ruleId={attachment.issue.ruleId}
           issue={attachment.issue}
+          onReview={onReviewEvaluator}
+          onDismiss={attachment.dismissIssue}
+          onAttachAnyway={() => {
+            attachment.attachAnyway().catch(() => undefined);
+          }}
+          attaching={attachment.pendingKey !== null}
         />
       ) : null}
 
@@ -239,6 +244,7 @@ export function EvaluatorRuleAssignments({
           projectId={projectId}
           open
           onOpenChange={setCreateRuleDialogOpen}
+          initialEvaluatorIds={[evaluatorId]}
         />
       ) : null}
 

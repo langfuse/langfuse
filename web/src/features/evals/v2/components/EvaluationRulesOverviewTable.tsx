@@ -104,9 +104,6 @@ export function EvaluationRulesOverviewTable({
   const peekConfig = useMemo(
     () => ({
       queryParams: ["editRule"],
-      extractParamsValuesFromRow: (row: {
-        openEdit?: boolean;
-      }): Record<string, string> => (row.openEdit ? { editRule: "1" } : {}),
     }),
     [],
   );
@@ -348,15 +345,10 @@ export function EvaluationRulesOverviewTable({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   disabled={!hasWriteAccess}
-                  onSelect={() =>
-                    peekNavigation.openPeek(row.original.id, {
-                      ...row.original,
-                      openEdit: true,
-                    })
-                  }
+                  onSelect={() => peekNavigation.openPeek(row.original.id)}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
-                  Edit
+                  Open rule
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={!hasWriteAccess}

@@ -123,6 +123,29 @@ describe("EvaluationRuleEditView", () => {
     mocks.evalsV2Invalidate.mockResolvedValue(undefined);
   });
 
+  it("keeps save disabled until the rule changes", () => {
+    render(
+      <TooltipProvider>
+        <EvaluationRuleEditView
+          projectId="project-1"
+          evaluationRule={rule}
+          timeRange={null}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+          onOpenTrace={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Save changes" });
+    expect(saveButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Production traces" },
+    });
+    expect(saveButton).toBeEnabled();
+  });
+
   it("confirms before saving changes to a connected evaluation rule", async () => {
     const onSaved = vi.fn();
     render(

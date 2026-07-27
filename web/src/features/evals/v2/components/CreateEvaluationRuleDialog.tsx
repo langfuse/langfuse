@@ -171,10 +171,12 @@ export function CreateEvaluationRuleDialog({
     return true;
   };
 
-  const create = async () => {
+  const create = async ({ skipValidation = false } = {}) => {
     if (selectedEvaluatorIds.length === 0) return;
-    const valid = await validateSelectedEvaluators();
-    if (!valid) return;
+    if (!skipValidation) {
+      const valid = await validateSelectedEvaluators();
+      if (!valid) return;
+    }
     try {
       await createRule.mutateAsync({
         projectId,
@@ -418,6 +420,12 @@ export function CreateEvaluationRuleDialog({
                     projectId={projectId}
                     evaluatorId={validation.issue.evaluatorId}
                     issue={validation.issue}
+                    onDismiss={validation.resetIssue}
+                    onAttachAnyway={() => {
+                      create({ skipValidation: true }).catch(() => undefined);
+                    }}
+                    attachAnywayLabel="Create rule anyway"
+                    attaching={createRule.isPending}
                   />
                 ) : null}
                 {selectedEvaluators.map((evaluator) => (

@@ -198,7 +198,6 @@ export function EvaluatorConfigurationView({
   attachedEvaluationRules,
   hasWriteAccess,
   onViewEvaluationRule,
-  onEditEvaluationRule,
 }: {
   evaluatorType: "LLM_AS_JUDGE" | "CODE";
   sourceCode: string | null;
@@ -219,7 +218,6 @@ export function EvaluatorConfigurationView({
   }>;
   hasWriteAccess: boolean;
   onViewEvaluationRule: (ruleId: string) => void;
-  onEditEvaluationRule: (ruleId: string) => void;
 }) {
   return (
     <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
@@ -259,7 +257,6 @@ export function EvaluatorConfigurationView({
             rules={attachedEvaluationRules}
             hasWriteAccess={hasWriteAccess}
             onView={onViewEvaluationRule}
-            onEdit={onEditEvaluationRule}
           />
         </div>
       </ResizablePanel>
