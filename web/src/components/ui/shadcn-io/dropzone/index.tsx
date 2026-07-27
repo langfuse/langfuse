@@ -1,6 +1,7 @@
 "use client";
 
 import { PaperclipIcon, UploadIcon } from "lucide-react";
+import { useMemo } from "react";
 import type { DropEvent, DropzoneOptions, FileRejection } from "react-dropzone";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/src/utils/tailwind";
@@ -73,35 +74,50 @@ export const Dropzone = ({
     ...props,
   });
 
-  const compactText = src?.length
-    ? `${src.length} file${src.length > 1 ? "s" : ""} • ${(
+  const contentText = useMemo(() => {
+    if (variant === "compact") {
+      if (!src?.length) {
+        return "Attach files";
+      }
+
+      return `${src.length} file${src.length > 1 ? "s" : ""} • ${(
         src.reduce((total, file) => total + file.size, 0) /
         (1024 * 1024)
-      ).toFixed(2)} MB`
-    : "Attach files";
+      ).toFixed(2)} MB`;
+    }
 
-  const contentText = src
-    ? src.length > maxLabelItems
-      ? `${new Intl.ListFormat("en").format(
-          src.slice(0, maxLabelItems).map((file) => file.name),
-        )} and ${src.length - maxLabelItems} more`
-      : new Intl.ListFormat("en").format(src.map((file) => file.name))
-    : "";
+    if (!src) {
+      return "";
+    }
 
-  let caption = "";
+    if (src.length > maxLabelItems) {
+      return `${new Intl.ListFormat("en").format(
+        src.slice(0, maxLabelItems).map((file) => file.name),
+      )} and ${src.length - maxLabelItems} more`;
+    }
 
-  if (accept) {
-    caption += "Accepts ";
-    caption += new Intl.ListFormat("en").format(Object.keys(accept));
-  }
+    return new Intl.ListFormat("en").format(src.map((file) => file.name));
+  }, [src, variant]);
 
-  if (minSize && maxSize) {
-    caption += ` between ${renderBytes(minSize)} and ${renderBytes(maxSize)}`;
-  } else if (minSize) {
-    caption += ` at least ${renderBytes(minSize)}`;
-  } else if (maxSize) {
-    caption += ` less than ${renderBytes(maxSize)}`;
-  }
+  const caption = useMemo(() => {
+    const acceptedTypes = accept
+      ? `Accepts ${new Intl.ListFormat("en").format(Object.keys(accept))}`
+      : "";
+
+    if (minSize && maxSize) {
+      return `${acceptedTypes} between ${renderBytes(minSize)} and ${renderBytes(maxSize)}`;
+    }
+
+    if (minSize) {
+      return `${acceptedTypes} at least ${renderBytes(minSize)}`;
+    }
+
+    if (maxSize) {
+      return `${acceptedTypes} less than ${renderBytes(maxSize)}`;
+    }
+
+    return acceptedTypes;
+  }, [accept, maxSize, minSize]);
 
   const emptyStateTitle = `Upload ${maxFiles === 1 ? "a file" : "files"}`;
   const emptyStateDescription = "Drag and drop or click to upload";
@@ -122,8 +138,8 @@ export const Dropzone = ({
       {variant === "compact" ? (
         <div className="flex w-full cursor-pointer items-center justify-start gap-2 p-2 text-xs">
           <PaperclipIcon className="h-4 w-4" />
-          <span className="truncate" title={compactText}>
-            {compactText}
+          <span className="truncate" title={contentText}>
+            {contentText}
           </span>
         </div>
       ) : src ? (
