@@ -25,7 +25,16 @@ export const StatusBadge = ({
 }: {
   type: Status | (string & {});
   isLive?: boolean;
-  className?: string;
+  className?:
+    | "capitalize"
+    | "break-all sm:break-normal"
+    | "max-h-8"
+    | "w-fit self-start"
+    | "pl-3"
+    | "ml-2"
+    | "bg-transparent"
+    | "mb-3 px-3 py-1 text-sm"
+    | "";
   showText?: boolean;
   preserveCase?: boolean;
   children?: ReactNode;
