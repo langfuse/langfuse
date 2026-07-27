@@ -31,10 +31,9 @@ export type DeleteButtonProps = {
   enabled?: boolean;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  alignment?: ButtonProps["alignment"];
   title?: string;
-  className?:
-    | "w-full justify-start font-normal"
-    | "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110";
+  className?: "text-foreground/40 group-hover/monitor-row:text-foreground/70 hover:text-foreground transition-[color,transform] hover:scale-110";
   // forwarded explicitly because the base component does not spread unknown
   // props onto the rendered button
   "aria-label"?: string;
@@ -75,6 +74,7 @@ export function DeleteButton({
   enabled = true,
   title,
   size,
+  alignment,
   className,
   captureDeleteOpen,
   captureDeleteSuccess,
@@ -157,6 +157,7 @@ export function DeleteButton({
           <Button
             variant={variant ?? "ghost"}
             size={size ?? "default"}
+            alignment={alignment}
             title={title}
             aria-label={ariaLabel}
             className={className}
@@ -222,9 +223,7 @@ export function DeleteButton({
   );
 }
 
-type DeleteTraceButtonProps = DeleteButtonProps & {
-  className?: "w-full justify-start font-normal";
-};
+type DeleteTraceButtonProps = Omit<DeleteButtonProps, "className">;
 
 export function DeleteTraceButton(props: DeleteTraceButtonProps) {
   const utils = api.useUtils();
@@ -255,9 +254,6 @@ export function DeleteTraceButton(props: DeleteTraceButtonProps) {
   return (
     <DeleteButton
       {...props}
-      className={
-        props.className ? "w-full justify-start font-normal" : undefined
-      }
       scope={scope}
       invalidateFunc={invalidateFunc}
       captureDeleteOpen={(capture, isTableAction) =>

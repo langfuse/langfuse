@@ -84,7 +84,7 @@ export function TraceDetailActions({
           deleteConfirmation={name ?? ""}
           variant="ghost"
           size="sm"
-          className="w-full justify-start font-normal"
+          alignment="start"
         />
       </div>
     );
