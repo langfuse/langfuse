@@ -54,7 +54,7 @@ const dropzoneVariants = cva(
   },
 );
 
-const maxLabelItems = 3;
+const MAX_LABEL_ITEMS = 3;
 
 export const Dropzone = ({
   accept,
@@ -101,10 +101,10 @@ export const Dropzone = ({
       return "";
     }
 
-    if (src.length > maxLabelItems) {
+    if (src.length > MAX_LABEL_ITEMS) {
       return `${new Intl.ListFormat("en").format(
-        src.slice(0, maxLabelItems).map((file) => file.name),
-      )} and ${src.length - maxLabelItems} more`;
+        src.slice(0, MAX_LABEL_ITEMS).map((file) => file.name),
+      )} and ${src.length - MAX_LABEL_ITEMS} more`;
     }
 
     return new Intl.ListFormat("en").format(src.map((file) => file.name));
