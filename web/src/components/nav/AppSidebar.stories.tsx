@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Activity, BookOpen, Home, Settings } from "lucide-react";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import preview from "../../../.storybook/preview";
 import { SidebarInset, SidebarProvider } from "@/src/components/ui/sidebar";
@@ -8,6 +8,11 @@ import { AppSidebar } from "./app-sidebar";
 
 type AppSidebarProps = ComponentProps<typeof AppSidebar>;
 type VersionState = AppSidebarProps["versionState"];
+type NotificationState = AppSidebarProps["notificationState"];
+
+const launchWeekNotificationIds = ["lw5-1", "lw5-2", "lw5-3", "lw5-4", "lw5-5"];
+const duringLaunchWeek = new Date("2026-05-29T12:00:00Z").getTime();
+const afterLaunchWeek = new Date("2026-07-27T12:00:00Z").getTime();
 
 const meta = preview.meta({
   component: AppSidebar,
@@ -39,6 +44,9 @@ const meta = preview.meta({
       deployment: "cloud",
     } satisfies VersionState,
     showDemoBadge: false,
+    notificationState: {
+      status: "hidden",
+    } satisfies NotificationState,
   },
 });
 
@@ -108,6 +116,60 @@ export const UpdateDuringMigration = meta.story({
       },
       migration: { status: "in-progress", phase: "pending" },
     },
+  },
+});
+
+export const LaunchWeekStack = meta.story({
+  args: {
+    notificationState: {
+      status: "visible",
+      currentTimestamp: duringLaunchWeek,
+      dismissedIds: [],
+      onDismiss: fn(),
+      onLinkClick: fn(),
+    } satisfies NotificationState,
+  },
+});
+
+export const LatestLaunchWeek = meta.story({
+  args: {
+    notificationState: {
+      status: "visible",
+      currentTimestamp: duringLaunchWeek,
+      dismissedIds: launchWeekNotificationIds.slice(0, 4),
+      onDismiss: fn(),
+      onLinkClick: fn(),
+    } satisfies NotificationState,
+  },
+});
+
+export const GitHubStar = meta.story({
+  args: {
+    notificationState: {
+      status: "visible",
+      currentTimestamp: afterLaunchWeek,
+      dismissedIds: launchWeekNotificationIds,
+      onDismiss: fn(),
+      onLinkClick: fn(),
+    } satisfies NotificationState,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByAltText("Langfuse GitHub stars")).toHaveAttribute(
+      "src",
+      "https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&style=social",
+    );
+  },
+});
+
+export const AllNotificationsDismissed = meta.story({
+  args: {
+    notificationState: {
+      status: "visible",
+      currentTimestamp: duringLaunchWeek,
+      dismissedIds: [...launchWeekNotificationIds, "github-star"],
+      onDismiss: fn(),
+      onLinkClick: fn(),
+    } satisfies NotificationState,
   },
 });
 

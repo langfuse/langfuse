@@ -19,7 +19,6 @@ import {
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { MobileNavSwitcher } from "@/src/components/nav/mobile-nav-switcher";
-import { SidebarNotifications } from "@/src/components/nav/sidebar-notifications";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
 import { Toaster } from "@/src/components/ui/sonner";
 import { Layer } from "@/src/components/ui/layer";
@@ -43,6 +42,10 @@ import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCust
 import { api } from "@/src/utils/api";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+
+const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
 const CommandMenu = dynamic(
   () =>
@@ -254,6 +257,9 @@ function ConnectedAppSidebar({
   const uiCustomization = useUiCustomization();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const plan = usePlan();
+  const capture = usePostHogClientCapture();
+  const [dismissedNotificationIds, setDismissedNotificationIds] =
+    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
 
   const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
     undefined,
@@ -302,6 +308,27 @@ function ConnectedAppSidebar({
               : { status: "idle" },
         };
 
+  const notificationState: ComponentProps<
+    typeof AppSidebar
+  >["notificationState"] = v4UpgradeUiEnabled
+    ? { status: "hidden" }
+    : {
+        status: "visible",
+        currentTimestamp: Date.now(),
+        dismissedIds: dismissedNotificationIds,
+        onDismiss: (id) => {
+          capture("notification:dismiss_notification", {
+            notification_id: id,
+          });
+          setDismissedNotificationIds((current) => [...current, id]);
+        },
+        onLinkClick: (id) => {
+          capture("notification:click_link", {
+            notification_id: id,
+          });
+        },
+      };
+
   return (
     <AppSidebar
       navItems={navItems}
@@ -312,6 +339,7 @@ function ConnectedAppSidebar({
       logoLightModeHref={uiCustomization?.logoLightModeHref}
       logoDarkModeHref={uiCustomization?.logoDarkModeHref}
       versionState={versionState}
+      notificationState={notificationState}
       showDemoBadge={Boolean(
         env.NEXT_PUBLIC_DEMO_ORG_ID &&
         env.NEXT_PUBLIC_DEMO_PROJECT_ID &&
@@ -319,9 +347,6 @@ function ConnectedAppSidebar({
         isLangfuseCloud,
       )}
       mobileNavSwitcher={<MobileNavSwitcher />}
-      {...(!v4UpgradeUiEnabled
-        ? { notifications: <SidebarNotifications /> }
-        : {})}
     />
   );
 }

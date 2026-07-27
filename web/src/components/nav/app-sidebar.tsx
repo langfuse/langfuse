@@ -29,6 +29,7 @@ import {
   Info,
   Map,
   Newspaper,
+  X,
 } from "lucide-react";
 import { SiGithub } from "react-icons/si";
 import { VERSION } from "@/src/constants";
@@ -52,6 +53,87 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/src/components/ui/avatar";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+
+type SidebarNotification = {
+  id: string;
+  title: string;
+  description: React.ReactNode;
+  createdAt?: string;
+  link?: string;
+  linkTitle?: string;
+  linkContent?: React.ReactNode;
+  ttlMs?: number;
+};
+
+const sidebarNotifications: SidebarNotification[] = [
+  {
+    id: "lw5-1",
+    title: "Launch Week: Day 1",
+    description:
+      "Run experiments inside GitHub Actions to test every PR against a Langfuse dataset.",
+    link: "https://langfuse.com/changelog/2026-05-25-experiment-ci-cd-gates",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-25",
+  },
+  {
+    id: "lw5-2",
+    title: "Launch Week: Day 2",
+    description:
+      "Langfuse agent skill turns Langfuse into a headless platform to evaluate, query and instrument your application.",
+    link: "https://langfuse.com/changelog/2026-05-26-langfuse-agent-skill",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-26",
+  },
+  {
+    id: "lw5-3",
+    title: "Launch Week: Day 3",
+    description: "Fast full-text search on observation I/O via the UI and API",
+    link: "https://langfuse.com/changelog/2026-05-27-clickhouse-full-text-search-fast-mode",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-27",
+  },
+  {
+    id: "lw5-4",
+    title: "Launch Week: Day 4",
+    description:
+      "Code evaluators let you score observations and experiments with Python/TypeScript checks.",
+    link: "https://langfuse.com/changelog/2026-05-28-code-evaluators",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-28",
+  },
+  {
+    id: "lw5-5",
+    title: "Launch Week: Day 5",
+    description:
+      "Langfuse MCP now covers observations, metrics, scores, datasets, comments, and more.",
+    link: "https://langfuse.com/changelog/2026-05-29-mcp-update",
+    linkTitle: "Learn more",
+    createdAt: "2026-05-29",
+  },
+  {
+    id: "github-star",
+    title: "Star Langfuse",
+    description:
+      "See the latest releases and help grow the community on GitHub",
+    link: "https://github.com/langfuse/langfuse",
+    linkContent: (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt="Langfuse GitHub stars"
+        src="https://img.shields.io/github/stars/langfuse/langfuse?label=langfuse&style=social"
+      />
+    ),
+  },
+];
 
 type SelfHostedPlan = Extract<Plan, "oss" | `self-hosted:${string}`>;
 
@@ -96,6 +178,16 @@ type SidebarUser = {
   avatar: string;
 };
 
+type SidebarNotificationState =
+  | { status: "hidden" }
+  | {
+      status: "visible";
+      currentTimestamp: number;
+      dismissedIds: string[];
+      onDismiss: (id: string) => void;
+      onLinkClick: (id: string) => void;
+    };
+
 type AppSidebarProps = {
   navItems: {
     grouped: Partial<Record<RouteGroup, NavMainItem[]>> | null;
@@ -112,8 +204,8 @@ type AppSidebarProps = {
   logoDarkModeHref?: string;
   versionState: SidebarVersionState;
   showDemoBadge: boolean;
+  notificationState: SidebarNotificationState;
   mobileNavSwitcher?: React.ReactNode;
-  notifications?: React.ReactNode;
 } & React.ComponentProps<typeof Sidebar>;
 
 export function AppSidebar({
@@ -126,8 +218,8 @@ export function AppSidebar({
   logoDarkModeHref,
   versionState,
   showDemoBadge,
+  notificationState,
   mobileNavSwitcher,
-  notifications,
   ...props
 }: AppSidebarProps) {
   return (
@@ -151,8 +243,10 @@ export function AppSidebar({
         {isMobile && mobileNavSwitcher}
         <NavMain items={navItems} />
         <div className="flex-1" />
-        {notifications && (
-          <div className="flex flex-col gap-2 p-2">{notifications}</div>
+        {notificationState.status === "visible" && (
+          <div className="flex flex-col gap-2 p-2">
+            <SidebarNotifications state={notificationState} />
+          </div>
         )}
         <NavMain items={secondaryNavItems} />
       </SidebarContent>
@@ -161,6 +255,105 @@ export function AppSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function SidebarNotifications({
+  state,
+}: {
+  state: Extract<SidebarNotificationState, { status: "visible" }>;
+}) {
+  const activeNotifications = sidebarNotifications.filter((notification) => {
+    if (state.dismissedIds.includes(notification.id)) return false;
+    if (!notification.createdAt) return true;
+
+    const createdAt = new Date(notification.createdAt).getTime();
+    return (
+      state.currentTimestamp <= createdAt + (notification.ttlMs ?? TWO_WEEKS_MS)
+    );
+  });
+
+  if (activeNotifications.length === 0) return null;
+
+  const visibleNotifications = activeNotifications.slice(0, 3);
+  const frontNotification = visibleNotifications[0];
+  const backCount = visibleNotifications.length - 1;
+  const peekOffset = 8;
+  const peekScaleStep = 0.05;
+
+  return (
+    <div
+      className="group-data-[collapsible=icon]:hidden"
+      style={{ paddingBottom: backCount * peekOffset + 2 }}
+    >
+      <div className="relative">
+        {Array.from({ length: backCount }).map((_, index) => {
+          const stackIndex = index + 1;
+          return (
+            <Card
+              key={`stack-${stackIndex}`}
+              aria-hidden
+              className="bg-card pointer-events-none absolute inset-0 rounded-md shadow-none"
+              style={{
+                transform: `translateY(${stackIndex * peekOffset}px) scaleX(${
+                  1 - stackIndex * peekScaleStep
+                })`,
+                transformOrigin: "top center",
+                zIndex: visibleNotifications.length - stackIndex,
+              }}
+            />
+          );
+        })}
+        <Card
+          key={frontNotification.id}
+          className="bg-card relative max-h-60 overflow-hidden rounded-md shadow-none"
+          style={{ zIndex: visibleNotifications.length }}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="absolute top-2.5 right-1.5 h-5 w-5 p-0"
+            onClick={() => state.onDismiss(frontNotification.id)}
+            title="Dismiss"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+          <CardHeader className="px-3 pt-2.5 pr-6 pb-0">
+            <CardTitle className="text-sm">{frontNotification.title}</CardTitle>
+            <CardDescription className="mt-1">
+              {frontNotification.description}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-3 pt-1.5 pb-2.5">
+            {frontNotification.link &&
+              (frontNotification.linkContent ? (
+                <Link
+                  href={frontNotification.link}
+                  target="_blank"
+                  onClick={() => state.onLinkClick(frontNotification.id)}
+                >
+                  {frontNotification.linkContent}
+                </Link>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  asChild
+                >
+                  <Link
+                    href={frontNotification.link}
+                    target="_blank"
+                    onClick={() => state.onLinkClick(frontNotification.id)}
+                  >
+                    {frontNotification.linkTitle ?? "Learn more"} &rarr;
+                  </Link>
+                </Button>
+              ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
